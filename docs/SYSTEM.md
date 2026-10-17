@@ -393,8 +393,9 @@ LAN is still the trust boundary and a browser is not on it
   `name` and its `at`, which the binding of the layout interface sets once
   per build — so another railroad named, or the one loaded **named again**
   through `tc49/layout/railroad_wanted`, is every app reading the store
-  afresh, under the same track-power precondition
-  ([#696](https://github.com/rails49/control/issues/696), BUS.md). That is
+  afresh, only while track power is off
+  ([#696](https://github.com/rails49/control/issues/696),
+  [Track power](#track-power)). That is
   how the apps reach a store a restore changed; a republication of the same
   build is not a build, and nothing is read again on it.
 - **The store validates and consumers derive** — `get` never returns an
@@ -429,6 +430,124 @@ LAN is still the trust boundary and a browser is not on it
   the double it is read into cannot hold — `1e400` — is a body that is not
   JSON either: the face accepts no document it would then refuse to serve
   ([#654](https://github.com/rails49/control/issues/654)).
+
+## Track power
+
+Who may change track power, what each value means, and what each app does
+with it. Payloads are in [BUS.md](BUS.md#payload-schemas) and the device rows
+in [BUS.md](BUS.md#device-vocabulary).
+
+1. `tc49/layout/state/power` says whether a train may move. It is retained
+   and reads `on`, `stopped` or `off`. Its one writer is the binding of the
+   layout interface that is running, `layout` or the simulator, and the
+   binding publishes it as it starts
+   ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
+   [ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
+2. A person asks for power on `tc49/layout/power_wanted`, with the same three
+   values. Any client may publish it, and the page publishes it to the broker
+   directly. A command that cannot be read is dropped
+   ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md),
+   [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+3. `layout` answers a command by writing `tc49/layout/state/wanted/track`,
+   and whatever supplies power acts on that row. No app expects a particular
+   kind of hardware, and `layout` does not check that the power went away
+   (ADR-0051, [#232](https://github.com/rails49/control/issues/232)).
+4. A command is applied when it arrives. Nothing buffers it (ADR-0051,
+   [#243](https://github.com/rails49/control/issues/243)).
+5. The hardware reports the supply on `tc49/layout/state/device/track` as `on`
+   or `off`, with an optional free-text `reason`. There is one railroad-wide
+   value. Power districts do not reach the bus, and a district the hardware
+   cut by itself is named in `reason`
+   ([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
+   ADR-0059,
+   [ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md),
+   [#601](https://github.com/rails49/control/issues/601)).
+6. `layout` folds `state/power` from the supply. It reads the supply's value
+   while every `device/link/<id>` it has ever heard reads `up`, and `off`
+   otherwise, so a station that stops answering reads `off`. A frame on either
+   row that cannot be read counts as `off` (ADR-0059 decision 7,
+   [ADR-0066](adr/0066-the-link-is-the-station-answering-not-the-socket-being-open.md),
+   [#181](https://github.com/rails49/control/issues/181)).
+7. `stopped` is an emergency stop: every locomotive is told to stand and the
+   rails stay live, so no hardware can report it. `layout` publishes
+   `state/power: stopped` when it writes `wanted/track: stopped`, and keeps it
+   over whatever the fold says, `off` included, until `power_wanted: on`. An
+   applied `off` does not clear it (ADR-0041, ADR-0063,
+   [#752](https://github.com/rails49/control/issues/752)).
+8. A translator carries out `stopped` as well as its hardware allows, and
+   never by removing power (ADR-0063 decision 3).
+9. A plain `off` is applied only while `tc49/dispatch/state/run` reads `held`
+   with `moving` false, or while `layout` has no run row at all. Otherwise it
+   is dropped, with its reason in the trace, and not kept for later. A run row
+   that cannot be read leaves the last one standing, and a row without
+   `moving` counts as nothing moving. `moving` counts granted moves only, so a
+   train driven from a throttle does not stop an `off`. `on` and `stopped` are
+   applied in every run state
+   ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
+   [#406](https://github.com/rails49/control/issues/406)).
+10. Before an applied `off` goes out, `layout` writes `0.0` to every retained
+    `wanted/traction` row ([#435](https://github.com/rails49/control/issues/435)).
+11. While `state/power` is not `on`, `layout` acts on no `move` (ADR-0062,
+    [#438](https://github.com/rails49/control/issues/438)).
+12. Rules 9 and 11 read the reported power. Between `layout` writing
+    `wanted/track: off` and the station reporting `off`, a release from a
+    second panel can be granted and its move written after the zeros. The
+    train is then left holding locks for a move no sensor will end. A hold,
+    then taking the train off or placing it again, frees it (ADR-0062, #438,
+    [ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+13. At start-up `layout` writes `wanted/track: off` and `state/power: off`,
+    then `0.0` to every retained `wanted/traction` row. `wanted/point` keeps
+    its retained value and replays it. After that `layout` writes `off` only
+    when asked (ADR-0051,
+    [ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+14. The dispatcher holds the run on any value but `on`, as a person's HOLD
+    does, and every signalled end shows `stop`. `stopped` and `off` are the
+    same to it. Power returning to `on` releases nothing. While power is not
+    `on`, a `run_wanted` of `running` or `draining` is dropped. A hold is
+    always applied (ADR-0041,
+    [ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
+15. A `state/power` payload that cannot be read counts as not `on` and holds
+    the run (ADR-0041, #181).
+16. The panel's off press drains first. It publishes `run_wanted: draining`,
+    on a held run too, waits for `state/run` to read `held` with `moving`
+    false, and then publishes `power_wanted: off` once. The wait ends with no
+    cut when the run changes to `running`, on an on press or a stop press, and
+    when the session ends (ADR-0062 decision 4).
+17. In the UI the power toggle asking for `off` is that drain. Asking for `on`
+    is refused while the loaded railroad has unsaved edits and power is off.
+    The toggle and the stop sign are both dead in that case, while the station
+    has not reported power, and while the broker is not answering
+    ([ADR-0073](adr/0073-the-chrome-comes-from-look.md) decision 4,
+    [ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)
+    decision 6). How the controls look and what they say is in
+    [ui/PANEL.md](ui/PANEL.md) and [ui/EDITOR.md](ui/EDITOR.md#the-band).
+18. The simulator answers `power_wanted` by the same rule, kept in
+    `tc49.lib.power`, and starts `off`. Having no hardware, it states the last
+    `on` or `off` it applied, with a held `stopped` over it. While power is
+    not `on` it starts no move and advances none, and a transit under way
+    goes on with the time it had left when power returns. The bench publishes
+    `power_wanted: on` before a run (ADR-0070, #752).
+19. `layout` and the simulator answer `tc49/layout/railroad_wanted` only while
+    `state/power` reads `off`. A binding with no railroad loaded answers it
+    whatever the power reads. The UI asks for power off before it loads,
+    creates or copies a railroad, restores a backup, or saves the loaded
+    railroad
+    ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
+    ADR-0070 decision 5, ADR-0071 decisions 4 and 5,
+    [ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)
+    decision 4, [#564](https://github.com/rails49/control/issues/564)).
+20. The editor is read-only while power is `on` or `stopped`
+    ([EDITOR.md](ui/EDITOR.md#track-power-freezes-the-drawing)).
+21. `layout` publishes `tc49/layout/alive_confirmed` once a second while it is
+    built on a railroad. Each translator that drives trains, and any device on
+    the bus that cuts track power, cuts it when that event stops
+    ([#716](https://github.com/rails49/control/issues/716)). Beyond that cut a
+    person stops the railroad when the software cannot (ADR-0051).
+22. After an `off` no point position can be trusted, because the accessory
+    decoders lose power too. Every grant sets its points again. A point thrown
+    by hand while power is off is stored and moves when power returns
+    (ADR-0041, ADR-0054,
+    [ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 
 ## Component footprints
 
@@ -590,9 +709,7 @@ hold puts them all to `stop`: the answer to "may this train leave" is yes for
 a train the drain is still granting, and a signal at stop over one that has
 just been told to go would be the hold's lie the other way about.
 The dispatcher writes `held` **itself** at the first moment no train is active
-and none is crossing, and that transition is the drain's completion — what the
-panel watches for before it cuts track power
-([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+and none is crossing, and that transition is the drain's completion.
 A drain over a railroad with nothing under way therefore reaches `held` in the
 press that asked for it. `held` published while a drain is in progress
 **abandons** it, at once and without waiting for a train to finish, and
@@ -608,23 +725,12 @@ the same word with trains still rolling — so the row carries both, and a
 reader that wants to know the railroad is still reads `held` with `moving`
 false. The row is published whenever either moves: a running run whose last
 train arrives publishes `running` with `moving` false, and a value that
-changes nothing publishes nothing. `layout` reads it before applying a plain
-`off`, and the panel's off press waits on it before cutting power
+changes nothing publishes nothing. `layout` and the panel read it before
+track power is cut
 ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 
-**The layout can hold it too.** A `tc49/layout/state/power` value that is
-anything but `on` sets `run` to `held`, along the path a person's gesture
-takes: nothing further is committed, and no signalled end goes on showing
-`clear` over track with no power in it. Whether the value is `stopped` or
-`off` makes no difference here.
-
-Power returning to `on` releases nothing: a person releases the hold. A
-`run_wanted` of `running` is **dropped** while power is anything else, because
-releasing onto track with no power in it would strand the next train the way
-the first was stranded, and a `run_wanted` of `draining` is dropped with it —
-a drain grants the trains already under way, so over dead rails it asks for
-what a release asks for. A hold is honoured whatever the power is doing
-([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+Track power that is not `on` holds the run, and while it is not `on` a release
+or a drain is dropped ([Track power](#track-power)).
 
 **It alone reads `tc49/dispatch/placement_wanted`**, a person saying where a train
 actually is. Only the dispatcher knows whether a block is free, so a second
@@ -731,9 +837,7 @@ The rule covers what the **layout** publishes too, for a second reason. No
 page writes those topics, but the binding is another process on the broker,
 and a bug in it must not take the dispatcher down.
 The two observations fail in opposite directions. A `state/power` payload that
-cannot be read counts as one of the "not `on`" cases and holds the run;
-dropping it would mean *not* holding, over track whose state could not be
-read. An occupancy frame that cannot be read is dropped: it is a reading
+cannot be read holds the run ([Track power](#track-power)). An occupancy frame that cannot be read is dropped: it is a reading
 nobody made, so the block stays one the layout has said nothing about, and
 silence is not a clear reading
 ([#181](https://github.com/rails49/control/issues/181)).
@@ -844,8 +948,8 @@ debounces the levels on the way
 two commands and the two placement facts, publishes the sensors from delays of
 its own
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)), and
-answers the band's power presses as `layout` does
-([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)). A run has one of them.
+answers power commands as `layout` does ([Track power](#track-power)). A run
+has one of them.
 
 The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
@@ -980,70 +1084,11 @@ Sensor events report moves only. Initial occupancy is never published: the
 dispatcher's standing locks come from its own placement, and the occupancy
 topics are event topics, facts that happened, not state.
 
-**Track power** is the one observation that is not a sensor. `state/power`
-says whether a train may move at all: `on`, `stopped` or `off`. The binding
-always publishes it from its constructor, so a joining client is served a
-value rather than left to read one out of an absence
-([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-
-`stopped` is an emergency stop and `off` is the supply removed. The difference
-matters to the person recovering and not to the dispatcher, which holds the
-run on either
-([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
-It is also the one word here that is not an observation: no hardware can
-report an emergency stop, so `layout` holds `stopped` from the command it
-wrote and a person clears it with `power_wanted: on` (ADR-0063, below).
-The milestone-1 **simulator** comes up `off` and publishes the word each
-press it answers commanded, having no hardware to report one (ADR-0070,
-below).
-
-**Power is also commanded**, on `power_wanted`, which carries the same three
-values in the other direction
-([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
-A power command is **applied on arrival**: there is no beat to quantise it
-against, and it changes no lock and grants nothing, so it races with nothing
-the dispatcher is deciding. `layout` answers it by writing the desired power
-of the device vocabulary ([BUS.md](BUS.md#device-vocabulary)), and whatever
-supplies power acts on that; it cannot verify that the power really went away
-and does not try.
-
-**A plain `off` is the one command that is re-validated against current
-state.** A topic names the app that answers it and never the process that
-sent the frame, so nothing about `power_wanted` says the panel wrote it with
-its drain behind it, and a bare `off` from any other publisher would remove
-the supply from under whatever is mid-transit. So `layout` subscribes to
-`tc49/dispatch/state/run` and applies `off` only where that row reads `held`
-with `moving` false — or where it holds no row at all, no dispatcher having
-stated one, an absence being no evidence that anything moves. Otherwise the
-gesture is dropped with its reason to the trace and not kept for later; a
-client that wants the supply removed from a running railroad asks for a drain
-and cuts when it is done (ADR-0062). **The railroad
-comes up with power off** — `layout` starts having written `off`, so nothing
-moves and no turnout throws until a person turns it on — and thereafter
-`layout` writes the value it was told to write and never `off` of its own
-accord. **It also comes up at rest**: `layout` starts having written `0.0`
-over every retained `wanted/traction` row, so a speed a previous run left on
-the broker is not replayed to a station and no locomotive rolls on the
-power-on
-([ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
-`wanted/point` replays instead — a point has no resting value to write.
-**`state/power` is folded from what the hardware reports, bar the emergency
-stop, which `layout` holds from the command it wrote**: the supply's own word
-wherever every id ever heard reads its link `up`, and `off` otherwise, which
-is where an unreadable frame on either row falls. `stopped` cannot come from
-there at all — a stop leaves the rails live, so the supply reads `on` under
-one — so `layout` publishes it on writing `wanted/track: stopped` and keeps
-it, over any fold, until a person asks for the power back with
-`power_wanted: on`
-([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
-[layout/README.md](layout/README.md#power)). It is the one value on the row
-not read off hardware, and it is held because no hardware can hold it. The
-simulator answers the same presses by the same rule, `tc49.lib.power`
-holding what both bindings keep: the guard on `off` and the stop held until
-`on`. It comes up `off`, states the last `on` or `off` it applied under any
-stop it holds, and while the power is not `on` starts no move
-and advances none, a transit under way at a STOP going on at ON with the time
-it had left ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
+**Track power** is the one observation that is not a sensor, and
+`power_wanted` is the one command a binding checks against current state. Both
+bindings answer it by one rule, kept in `tc49.lib.power`. The rule is
+[Track power](#track-power); how `layout` carries it out is in
+[layout/README.md](layout/README.md#power).
 
 `train_placed` is the one thing besides a `move` that moves a train, and what
 a binding does with it is its own business. The simulator stands in for a
