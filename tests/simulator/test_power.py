@@ -102,9 +102,23 @@ def test_each_answered_press_is_the_word_on_state_power() -> None:
     bus, _clock, _sim = simulator()
     seen = heard(bus)
     bus.drain()
-    for word in ("on", "stopped", "off"):
+    for word in ("on", "stopped", "on", "off"):
         press(bus, {"power": word})
-    assert seen == ["off", "on", "stopped", "off"]
+    assert seen == ["off", "on", "stopped", "on", "off"]
+
+
+def test_a_stop_stands_over_an_off_until_on() -> None:
+    """`stopped` stands until `on`, as on the layout (ADR-0070, #752): an
+    `off` under a stop removes the supply and leaves the row reading
+    `stopped`."""
+    bus, _clock, _sim = simulator()
+    press(bus, {"power": "on"})
+    press(bus, {"power": "stopped"})
+    seen = heard(bus)
+    bus.drain()
+    press(bus, {"power": "off"})
+    press(bus, {"power": "on"})
+    assert seen == ["stopped", "on"]
 
 
 @pytest.mark.parametrize(
