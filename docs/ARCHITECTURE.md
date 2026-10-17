@@ -57,6 +57,22 @@ what it does not. `lib/payload.py` is not part of the binding: it is this
 repository's own defensive reading, organised by which app reads which frame,
 so none of it carries over to another language.
 
+### Bindings
+
+A **binding** is one implementation of a contract that [BUS.md](BUS.md) or
+[SYSTEM.md](SYSTEM.md) defines. The contract is the authority, and replacing a
+binding changes no app. Bindings either supersede one another or coexist:
+
+- A **milestone binding** supersedes: one exists at a time, and the next
+  milestone deletes it.
+- A **language binding** coexists: there is one per language, and all of them
+  stay. Siblings can drift, so they answer to a schema of the contract that a
+  test checks, not to prose or to each other
+  ([ADR-0014](adr/0014-python-apps-typescript-ui.md)).
+- A **layout binding** is a binding of the layout interface, one per thing
+  that can run the track. The physical railroad is the normative one
+  ([GOALS.md](GOALS.md#approach)).
+
 `src/tc49/bench/` is not an app. It is the research harness, and the only code
 that wires apps together. Top-level `bench/` is the fixture data it roots
 itself at, and is not code at all.

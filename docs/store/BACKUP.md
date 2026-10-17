@@ -14,9 +14,12 @@ resolves a conflict. The one credential it holds is a deploy key it made for
 itself, good for one repository and nothing else
 ([#355](https://github.com/rails49/control/issues/355)).
 
-Terminology follows [CONTEXT.md](../../CONTEXT.md) — **backup** and
-**restore**; the routes are in [SYSTEM.md](../SYSTEM.md#asset-store) and the
-code is `src/tc49/store/backup.py`.
+A **backup** is one commit of everything under the store root, its message
+naming the documents that moved. A **restore** puts the store back as a named
+backup held it, or brings the latest backup of a repository into an empty
+store ([Moving to a new box](#moving-to-a-new-box)). The routes are in
+[SYSTEM.md](../SYSTEM.md#asset-store) and the code is
+`src/tc49/store/backup.py`.
 
 ## Setting one up
 

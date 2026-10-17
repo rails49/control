@@ -23,8 +23,10 @@ A consequence worth stating: a train mid-transit from `X` to `Y` holds
 `{X, T, Y}`, and its lock on `X` is released on `block_vacated(X)` — the
 sensor confirming the train has fully cleared it — never on
 `block_occupied(Y)`. Real trains straddle the boundary; the release rule
-handles that without the dispatcher knowing. In the simulator both events land
-in the same tick's buffered set, so the two behave identically.
+handles that without the dispatcher knowing. The simulator publishes the two
+in the same order, `block_vacated(X)` a fixed delay after `block_occupied(Y)`
+([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)),
+so the two behave identically.
 
 ## State
 

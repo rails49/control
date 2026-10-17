@@ -9,7 +9,10 @@ views of the loaded railroad, the [run view](PANEL.md) and the
 its commands ride the bus like everything else — the two gestures
 `tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`, which are rows of
 the inventory marked browser-writable and are answered by `layout`
-([ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), BUS.md).
+([ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), BUS.md). They are
+gestures because there are any number of throttles, two tabs being two of
+them, while the device row a throttle's speed ends at has one writer,
+`layout` ([#263](https://github.com/rails49/control/issues/263)).
 Terminology follows [CONTEXT.md](../../CONTEXT.md), **Throttle** and
 **Automatic / manual**.
 

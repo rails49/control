@@ -25,6 +25,12 @@ destination. What it **admits** is a set of train kinds. Both are advice to
 the generator that invents traffic, never feasibility: a person may send any
 train anywhere the steel allows, and the dispatcher checks neither
 ([ADR-0046](adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
+A block with no role is a station, and `through` on a terminal block is a
+headshunt rather than a contradiction. A block with no admits takes every
+kind, and `[passenger, mixed]` takes a mixed train and refuses a freight one.
+Nothing enforces admits: a train that cannot physically stand in a block is
+already refused on length as `no_fit`, and what is left is policy the layout
+permits.
 
 **Connections** join one end (`A` or `B`) of each of one or more blocks, and
 are realized by zero or more turnouts. The ways a train can traverse a
@@ -142,6 +148,16 @@ block, and may have to wait there — and **two is what buys full speed**. Two i
 also the most that is ever asked for: a third block ahead shows the same aspect
 as the second, so it buys nothing and holds track another train may be waiting
 for ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)).
+
+A train's **priority** orders the queue, lowest number highest. It is meant to
+be strict among requests that could launch at once: where two both could, the
+higher wins whatever their age, and where the higher cannot launch, the lower
+still goes. Starvation then stays bounded within a priority level by the
+queue's aging, and is unbounded across levels, which is why freight runs at
+night
+([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+Nothing implements this yet
+([#774](https://github.com/rails49/control/issues/774)).
 
 ### Driving
 

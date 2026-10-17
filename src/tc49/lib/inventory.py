@@ -22,7 +22,7 @@ where somebody writes ``browser=True``.
 Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run``, ``power`` and ``mode`` are
 those fields. What an **enum** is, and which way an unreadable one falls, is
-CONTEXT.md.
+BUS.md, payload schemas.
 
 ``AT`` is the one field no app supplies: every state row leads with it and
 the binding that publishes stamps it (#240).
