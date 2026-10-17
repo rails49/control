@@ -492,7 +492,8 @@ block's rectangle by occupancy, and a signal by dimming the lamps its aspect
 does not light, whichever aspect the dispatcher says
 ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 An aspect is a set of lamps rather than one of them, so the class goes on the
-signal's group and never on a lamp.
+signal's group and never on a lamp. `stop` lights red alone, `caution` green
+with amber, and `clear` green alone, as the Swiss standard sets them.
 
 ### Pins
 
@@ -1198,8 +1199,8 @@ settled one, and `names`, what the drawing actually writes. That is what tells
 the two unnamed cases apart: nothing written is a name to mint, and several
 written is a disagreement someone typed, which the editor leaves alone.
 
-A component that declares no transit is not a junction, so the terminal
-capping a block end is not tinted as one.
+A component that declares no transit is not a junction, so a terminal
+capping a block end is not among the junctions `review` reports.
 
 A drawing that still has a generic connection symbol has to open, so the editor
 draws it as a box with the pins it declares and no turnout detail. It stays off

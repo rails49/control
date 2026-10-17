@@ -24,6 +24,10 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)).
 - **No reversal** — routes are strict pass-throughs; terminal blocks occur
   only as endpoints ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)).
+- **Simple paths** — no block or transit occurs twice in a route. So a
+  reversing loop turns a train over two requests, not one: the loop needs no
+  reversal, but the second leg would revisit the loop's own blocks
+  ([LAYOUT.md](../store/LAYOUT.md#reading-a-layout)).
 - **Event-driven** — the dispatcher reacts to bus events and never reads a
   clock — it never learns what time it is
   ([BUS.md](../BUS.md#time)) — so a simulator and a physical layout drive
@@ -35,6 +39,22 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
   beyond it is locked, which follows from the locks rather than being a rule
   of its own
   ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+
+### Aspects
+
+A signal shows one of three aspects, read off how far ahead the dispatcher has
+locked for the train standing at it (ADR-0025):
+
+| Aspect | Locked ahead | Swiss | Meaning to the driver |
+| --- | --- | --- | --- |
+| `stop` | nothing | Halt | stand |
+| `caution` | one block | Fb 2 | proceed, prepared to stop at the next signal |
+| `clear` | two or more | Freie Fahrt (Fb 1) | full speed |
+
+The Swiss column is what each aspect answers to, not a translation. Fb 2 names
+a speed, 40 km/h, where `caution` names a braking instruction. Which of the
+two the middle aspect finally is stays open (ADR-0025,
+[GOALS.md](../GOALS.md#driving)).
 
 ### Requests
 
@@ -132,6 +152,15 @@ a train that arrived on a dispatcher route the departure end is a fact about
 **the route**, not about **the train**. A train that has never moved is idle
 and states a real end, and a reversal at rest cannot slip in between the two
 — the pending scan runs in the same grant phase that applies the completion.
+
+The departure end, not facing, is what the dispatcher routes from, and the two
+may disagree ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). A
+disagreement means the train is propelled: it leaves through the end its tail
+stands at, and enters every block of that route tail-first
+([#295](https://github.com/rails49/control/issues/295)). A stated departure
+end that is a terminal block's wall is not corrected: no route leaves by it,
+so the request is rejected `unreachable`. Facing never names a wall, so a
+gesture composes no such request.
 
 A request naming the train's current block is accepted with an empty route,
 whichever end that arrival names. Whether a request is degenerate is decided
@@ -403,6 +432,12 @@ every block. This is what lets a simulator and a physical layout drive the
 dispatcher the same way.
 
 ## Locking
+
+A route makes two claims on the resources along it. A resource is
+**committed** once the route it is on is chosen, and **locked** once it is
+granted. Committed is the weaker claim and covers the stretch ahead of the
+locks. A resource that is both shows as locked
+([ADR-0002](../adr/0002-fixed-route-per-request.md)).
 
 1. **Full-route locking** (baseline) — lock every block and transit of a route
    before the train moves; unlock each behind the train. Trivially

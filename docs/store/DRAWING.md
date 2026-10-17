@@ -60,9 +60,12 @@ wires:
 Derivation emits a connection of that name with one transit spanning the two
 ends. Only a wire whose way reaches from one block end to another without
 passing through a connection symbol may take the key; anywhere else it is
-refused. Where the joint is routed through bend pins the name goes on any one
-segment of the chain, and two different names on one chain are refused, the
-same rule transit-name overrides follow.
+refused. Such a way is a **joint**: one bare wire, or a chain of them through
+bend pins or a portal pair, crossing no symbol that declares a transit. Where
+the joint is routed through bend pins the name goes on any one segment of the
+chain, and two different names on one chain are refused, the same rule
+transit-name overrides follow. A portal pair is not a joint. It is one way a
+joint's chain crosses the canvas, and a joint through one is still a joint.
 
 The editor mints these names and never shows them, so a person draws a wire
 between two blocks and is asked nothing.
@@ -277,9 +280,9 @@ software the way a camera watching a block end is. The key is the end, `A` or
 `B`, the ends a block has everywhere else; a key that is no end of that block
 is refused at load, naming the block. A block may signal one end, both, or
 neither, and an unsignalled end is absent rather than empty: an end nothing
-ever leaves carries no signal, one that could only show `stop` being furniture
-([CONTEXT.md](../../CONTEXT.md#layout), **Signal**). The value is any non-empty
-string and names no system, as a point's address does not
+ever leaves carries no signal, one that could only show `stop` being
+furniture. The value is any non-empty string and names no system, as a
+point's address does not
 ([ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 
 Derivation carries the signals into the layout document beside the block's
@@ -362,9 +365,11 @@ Neither is visible under the simulator, which has no addresses
 neither stops derivation: addresses are dropped from the layout, so a drawing
 with a motor fault reads fine and cannot be driven.
 
-Every motorised kind has one motor and two positions, `closed` and `thrown`,
-the pair a DCC accessory decoder answers to. No kind's legs are named for
-them, so the library declares which leg wants which position:
+A **point** is a motorised symbol: a turnout, a single slip or a double slip.
+Each has one motor, takes one `addr`, and has two positions, `closed` and
+`thrown`, the pair a DCC accessory decoder answers to. A symbol's own
+transits are its **legs**, and no kind's legs are named for the positions, so
+the library declares which leg wants which position:
 
 | Kind | `closed` | `thrown` |
 | --- | --- | --- |

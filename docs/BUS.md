@@ -157,17 +157,17 @@ report supersedes it (ADR-0030).
 
 **The inventory is open.** A new topic, a new *optional* field on an existing
 payload, or a new value in an enum whose readers declare a fallback
-(CONTEXT.md) is a compatible change: one communication issue
-(docs/agents/issue-tracker.md), and a consumer built before it keeps working,
-because a consumer ignores fields it does not recognize. Removing, renaming
-or repurposing a field or a topic, or making an optional field required,
-breaks consumers and needs the stronger argument. A field can leave and come
-back the same way: `at` was dropped from the request and returns, if it does,
-as one communication issue once its requirements are understood — a different
-field from the stamp every state payload carries, which says when a value was
-published rather than when a request wants its train to run. An added
-field still changes the trace, so recorded fixtures regenerate — a cost each
-addition pays, not breakage.
+([Payload schemas](#payload-schemas)) is a compatible change: one
+communication issue (docs/agents/issue-tracker.md), and a consumer built
+before it keeps working, because a consumer ignores fields it does not
+recognize. Removing, renaming or repurposing a field or a topic, or making an
+optional field required, breaks consumers and needs the stronger argument. A
+field can leave and come back the same way: `at` was dropped from the request
+and returns, if it does, as one communication issue once its requirements are
+understood — a different field from the stamp every state payload carries,
+which says when a value was published rather than when a request wants its
+train to run. An added field still changes the trace, so recorded fixtures
+regenerate — a cost each addition pays, not breakage.
 
 **How the in-process binding works.** One thread and one queue. `publish()`
 adds the event to the queue and returns. A loop takes events off the front and
@@ -384,11 +384,26 @@ topic's payload leads with `at`, the stamp the bus above describes, and no
 event payload carries one; it is stated once here rather than repeated on
 every state row below. Every field is
 **required unless marked *optional***; an enum's values are the field's whole
-vocabulary, and which way an unreadable one falls is declared with it
-(CONTEXT.md). Names are strings throughout: a **train** as the roster names
-it, a **block** as the layout names it, a **block end** as `<block>.<A|B>`,
-and a **transit** either qualified as `<connection>.<transit>` or split into
-its two names, as each topic states.
+vocabulary, and which way an unreadable one falls is declared with it. Names
+are strings throughout: a **train** as the roster names it, a **block** as the
+layout names it, a **block end** as `<block>.<A|B>`, and a **transit** either
+qualified as `<connection>.<transit>` or split into its two names, as each
+topic states.
+
+An **enum** is a field whose values are a closed set the contract names,
+listed beside the field in `tc49.lib.inventory`. Three fields are enums:
+`run`, `power` and `mode`. The closed set goes wherever the field goes: `run`
+is an enum on `tc49/dispatch/state/run` and on the `run_wanted` gesture that
+asks to move it. So a new value is a change to the contract, not a payload a
+reader tolerates. Which way an unreadable value falls is the reader's choice,
+made by what a drop would cost:
+
+- An unreadable `power` reads as `off` and holds the run. Dropping it would
+  leave the run committing over track whose state could not be read.
+- An unreadable `run` is dropped, and nothing is set
+  ([#175](https://github.com/rails49/control/issues/175)).
+- An unreadable `mode` is dropped too. Neither value is safe to invent for a
+  train when nobody could read who drives it.
 
 #### `layout`
 
@@ -611,9 +626,10 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/train_placed` — `train`; `block`.
 - `tc49/dispatch/train_removed` — `train`.
 - `tc49/dispatch/state/run` — `run`: enum `held`, `running` or `draining`; a
-  reader drops an unreadable value (CONTEXT.md). The dispatcher writes
-  `draining` when it is asked for and writes `held` itself when the drain
-  completes ([#294](https://github.com/rails49/control/issues/294)).
+  reader drops an unreadable value ([Payload schemas](#payload-schemas)).
+  The dispatcher writes `draining` when it is asked for and writes `held`
+  itself when the drain completes
+  ([#294](https://github.com/rails49/control/issues/294)).
   `moving`: boolean, true while any train is active or crossing — the same
   test the drain's completion makes — and false otherwise. It is orthogonal
   to `run` and not a fourth value of it: a held run can be moving, because a

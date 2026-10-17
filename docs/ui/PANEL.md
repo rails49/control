@@ -608,7 +608,7 @@ detectors dispute off `state/disputed`, facing off
 ([ADR-0032](../adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 Rejoining is not recovery: nothing was lost, and the dispatcher was
 holding the truth the whole time
-([CONTEXT.md](../../CONTEXT.md#interruptions)).
+([SYSTEM.md](../SYSTEM.md#interruptions)).
 
 **The page keeps the later of two state values.** Every state payload carries
 a stamp, `at`, and the model applies the one with the later stamp whichever
@@ -635,7 +635,7 @@ place on its own. It comes up **held**, so nothing moves before the placement
 has been checked
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 Restart is not rejoin and neither is recovery
-([CONTEXT.md](../../CONTEXT.md#interruptions)).
+([SYSTEM.md](../SYSTEM.md#interruptions)).
 
 `wrong_origin` still stands
 ([ADR-0021](../adr/0021-a-bad-request-is-answered-not-raised.md)) — a drag

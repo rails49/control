@@ -153,10 +153,9 @@ connections:
   derivation carries it here so the layout answers which signal stands at an
   end without reopening the drawing. A block may signal one end, both, or
   neither: an end nothing ever leaves carries none, a signal that could only
-  show `stop` being furniture ([CONTEXT.md](../../CONTEXT.md#layout),
-  **Signal**), so an unsignalled end is absent rather than empty. A key that is
-  no end of that block is refused at load, naming the block. The value names
-  no system, the point rule of
+  show `stop` being furniture, so an unsignalled end is absent rather than
+  empty. A key that is no end of that block is refused at load, naming the
+  block. The value names no system, the point rule of
   [ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md);
   two ends may share one, and then two signals show one aspect together, as
   two points on one address move together. `Layout` reads it as `signal_at`,
@@ -189,9 +188,8 @@ functions:                # function number -> what it does on this product
 - **One file per model, and the catalogue is the installation's**, not the
   railroad's: two railroads owning the same item read one entry, and a model
   is a resource the store serves, diffable the way a drawing is and edited
-  rarely ([CONTEXT.md](../../CONTEXT.md#stock), **Catalogue**). The file names
-  itself, and that name is what every car refers to it by, so a `model:` that
-  disagrees with the path is refused.
+  rarely. The file names itself, and that name is what every car refers to it
+  by, so a `model:` that disagrees with the path is refused.
 - **A model's photo is a second file, and the only one here that is not a
   document.** The picture is kept as `catalogue/<model>.jpg` beside the YAML,
   the bytes as the camera took them and re-encoded by nothing. The document
@@ -252,11 +250,16 @@ trains:
 - **A car always names a model**, and zero overrides is the ordinary case. Any
   model field may be overridden on a car; **the merged result is what is
   validated**, so a car is complete however it was written. A car naming no
-  model, or one the catalogue has not, is refused.
+  model, or one the catalogue has not, is refused. Scratch-built stock earns a
+  model of its own rather than a second kind of car.
 - **`addr` is the number programmed into the decoder**, naming no system as a
-  point's does not, and absent where a car has no decoder. Two cars on one railroad sharing one are refused: both
-  answer the same packet and no run can tell them apart. Written as a string,
-  so `460` and `"460"` cannot be one address spelled two ways.
+  point's does not, and absent where a car has no decoder. It is programmed
+  once and generally kept, and it is the same number whichever command station
+  sends the packet, so a railroad changing command station rewrites nothing
+  ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+  Two cars on one railroad sharing one are refused: both answer the same
+  packet and no run can tell them apart. Written as a string, so `460` and
+  `"460"` cannot be one address spelled two ways.
 - **`cars:` holds identified stock**, and a train's entry names **either a car
   or a model** ([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
   An item earns a name where there is something to say about it — an address,
@@ -275,11 +278,18 @@ trains:
   among the numbers that are present, and no default number is written into a
   document.
 - **A train's length and kind are derived, never authored.** Length is the sum
-  of its cars; kind comes from the kinds of the cars it hauls, ignoring
-  locomotives ([CONTEXT.md](../../CONTEXT.md#stock), **Kind**). A train that
-  names cars and states a length as well is refused — two ways to know one
-  length is the field that rots. A train that states a length and names *no*
-  cars is the shape the committed rosters had before
+  of its cars. Kind comes from the kinds of the cars it hauls, ignoring
+  locomotives: every hauled train has one, so counting them would make every
+  train `mixed`. Exactly one kind hauled gives that kind, more than one gives
+  `mixed`, and none gives `light engine`, which is a real move rather than a
+  degenerate case. The two lists differ: `locomotive` is never a train's kind,
+  and `mixed` and `light engine` are never a model's. A block's `admits` lists
+  train kinds, so an engine shed takes `[light engine]` and never
+  `[locomotive]`
+  ([ADR-0046](../adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
+  A train that names cars and states a length as well is refused — two ways to
+  know one length is the field that rots. A train that states a length and
+  names *no* cars is the shape the committed rosters had before
   [#223](https://github.com/rails49/control/issues/223) rewrote them, and it
   still loads so that an older file does; nothing committed is written that
   way, every library train being one synthetic `bench-<length>` car.

@@ -549,6 +549,49 @@ in [BUS.md](BUS.md#device-vocabulary).
     (ADR-0041, ADR-0054,
     [ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 
+## Interruptions
+
+Three failures look alike and differ in who still holds the truth. Naming
+them apart keeps a page reload from being treated like a power cut
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+
+- A **rejoin** is a client reconnecting to a run that never stopped. Nothing
+  was lost: the dispatcher holds the truth, and the client catches up from the
+  retained state the broker holds ([BUS.md](BUS.md#the-bus)).
+- A **restart** is the apps coming back up while the rails stayed as they
+  were. What is lost is the dispatcher's lock table, which no sensor can give
+  back because sensors are anonymous. So placement is seeded before the first
+  sensor event, from the retained `state/allocation` or by a person placing
+  every train again ([Dispatcher](#dispatcher)). A restart contains a cold
+  start: the restart is the process coming back, the cold start is the state
+  being rebuilt.
+- **Recovery** is coming back after the layout lost power. Everything a
+  restart loses is lost, and what was believed is now suspect: a train that
+  stalled in a tunnel gets lifted out by hand. It ends with a person
+  confirming each train's placement. No placement is persisted to save that
+  step, because a train may have moved, and the detectors cannot see two
+  trains swap between two occupied blocks
+  ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+
+Three other things sit beside them and are none of them:
+
+- A **cold start** is an app clearing the retained rows it owns and building
+  them again, with no process restarting. It happens on the way up and each
+  time a person loads another railroad
+  ([BUS.md](BUS.md#layout)). Every restart contains one; not every cold start
+  is a restart.
+- An app that is up with no railroad **stands**. That is a state, not
+  something that happened: nothing was lost, and the app is built on the first
+  railroad named that the store can give
+  ([layout/README.md](layout/README.md#the-command-line)). The driver never
+  stands, because it reads no documents.
+- An **emergency stop** or a **power off** leaves the apps up throughout, so
+  nothing is lost and nothing is recovered ([Track power](#track-power)).
+  Power off is not recovery: the apps' picture is only as stale as the steel
+  that stopped moving. What is lost is a train granted a move when the supply
+  went. It is stranded between blocks, and no sensor will say where it
+  stopped.
+
 ## Component footprints
 
 Each component in terms of those contracts — [BUS.md](BUS.md) and the store
@@ -639,7 +682,10 @@ admission fit check, and the whole of what makes a train **known**
 
 A run is built from a railroad, and nothing in a railroad places its trains
 (#171), so a run comes up **held** with an **empty layout** and each train
-arrives on a person's `placement_wanted`. The roster cannot come off the bus.
+arrives on a person's `placement_wanted`. A run comes up held unless its own
+document stood its trains on the rails: a restored session comes up held too,
+and what opens running is the harness's batch loop, built from a scenario
+file. The roster cannot come off the bus.
 Sensors are anonymous, so the lock table the dispatcher recovers identity from
 has to be seeded before the first sensor event, and `request_submitted`
 carries no length.

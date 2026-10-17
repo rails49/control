@@ -237,8 +237,10 @@ that signed one anyway does not get to reverse a locomotive by it.
    `tc49/schedule/state/facing`, a retained state topic, so the last value is
    there even with the scheduler down — says which end the train's nose points
    at. Equal means the train goes nose-first; different means it is
-   **propelled**, which is an ordinary movement and not an error (CONTEXT.md,
-   **Propelled**).
+   **propelled**, pushed out of the end its nose points away from. That is an
+   ordinary movement and not an error. It is said of one move and never of a
+   train, since the same train is propelled over one transit and nose-first
+   over the next, and a propelled train enters the next block tail-first.
 2. **Which way round is this car coupled?** The `orientation` on the car's
    entry in the train, `forward` or `reverse`
    ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
