@@ -26,15 +26,11 @@ ALLOWED_DIRS = frozenset(
     {
         "adr",  # a decision may name what it decides about
         "research",  # research notes about hardware are about hardware
-        # The layout interface's docs describe the device vocabulary, which
-        # is where the hardware systems behind it are named (ADR-0043).
-        "layout",
     }
 )
 
 ALLOWED_FILES = frozenset(
     {
-        "DEPLOY.md",  # the physical deployment is hardware
         "store/DRAWING.md",  # the drawing carries hardware addresses (ADR-0022)
     }
 )
