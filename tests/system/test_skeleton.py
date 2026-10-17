@@ -515,8 +515,8 @@ def test_a_transit_with_nothing_to_throw_still_says_so_on_the_wire() -> None:
 def test_the_route_is_set_before_the_train_is_moved() -> None:
     """Two publishers on two topics promise nothing under MQTT, so the layout
     interface must not act on a `move` before the `align` naming the same
-    transit. Under the milestone binding the bus delivers from one queue and
-    the `align` is published first, which is what holds it."""
+    transit. The in-process bus delivers from one queue and the `align` is
+    published first, which is what holds it."""
     trace = one_crossing(points_layout({"addr": "12", "position": "thrown"}))
     leaves = [line["event"] for line in events(trace)]
     assert leaves.index("align") < leaves.index("move")

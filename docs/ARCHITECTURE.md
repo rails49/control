@@ -61,12 +61,9 @@ so none of it carries over to another language.
 
 A **binding** is one implementation of a contract that [BUS.md](BUS.md) or
 [SYSTEM.md](SYSTEM.md) defines. The contract is the authority, and replacing a
-binding changes no app. Bindings either supersede one another or coexist:
+binding changes no app.
 
-- A **milestone binding** supersedes: one exists at a time, and the next
-  milestone deletes it.
-- A **language binding** coexists: there is one per language, and all of them
-  stay. Siblings can drift, so they answer to a schema of the contract that a
+- A **language binding** is one per language, and all of them stay. Siblings can drift, so they answer to a schema of the contract that a
   test checks, not to prose or to each other
   ([ADR-0014](adr/0014-python-apps-typescript-ui.md)).
 - A **layout binding** is a binding of the layout interface, one per thing
