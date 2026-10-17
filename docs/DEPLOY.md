@@ -15,9 +15,8 @@ itself. `control` installs on top of it and carries no proxy, no entry point on
 ([#557](https://github.com/rails49/control/issues/557)): being reachable
 stopped being a railroad's business.
 
-What is left to this page is the railroad — the containers, the store's
-documents, the command station — and the two files on the box they are started
-against.
+What is left to this page is the railroad — the containers and the store's
+documents — and the two files on the box they are started against.
 
 **Everyone on the LAN can drive.** There is no authentication, on purpose, and
 the reasoning is in the ADR. Do not put this behind a name reachable from
@@ -65,10 +64,9 @@ a box does.
 ## The layout server
 
 `gleis49.org`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
-`192.168.178.56`. It carries three things a development machine does not — the
-command station on USB, JMRI, and a UI that is built rather than served by
-vite — and the broker, which both have. The installation is already on it, so
-the door is up, the certificate is real, and `https://control.gleis49.org`
+`192.168.178.56`. Unlike a development machine it serves a built UI rather
+than vite's; both run the broker. The installation is already on it, so the
+door is up, the certificate is real, and `https://control.gleis49.org`
 answers 404 until this stack is started.
 
 **The ACME credential cannot come from 1Password here.** `op` unlocks through
@@ -390,76 +388,6 @@ Type `<block>.<end> <level>` a line at a time; `ctrl-c` ends it, and the
 railroad goes on running without it. The apps themselves are the compose
 services above and are already up; which of `layout` and `simulator` a box
 runs is what makes it steel or a simulation, and neither is started by hand.
-
-### The command station
-
-A DCC-EX EX-CSB1 with an EX8874 on a CH340 cable. **The mirror that owns its
-USB device is [`rails49/dccex`](https://github.com/rails49/dccex)**, a compose
-project of its own on this box, and what is deployed from here is a client of
-the 2560 it publishes. Which firmware build is on the station, and writing a
-new one onto it, are that project's and are not written here: a page kept by
-hand would go stale the first time somebody wrote a new one.
-
-Deploying this stack for the first time after the split takes the old
-`dccex-usb` container with it, `--remove-orphans` being the flag above that
-sweeps a service this file no longer has. Moving 2560 from that old container
-to the mirror's own project follows that project's
-[`docs/cutover.md`](https://github.com/rails49/dccex/blob/main/docs/cutover.md):
-the order of the steps, when to stop, how to go back, and the checks. They are
-not repeated here. The device is
-named by
-
-```
-/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
-```
-
-rather than `/dev/ttyUSB0`, which renumbers, and is what the mirror's project
-is given. The chip carries no serial number, so that path is stable only
-while it is the only CH340 on the box.
-
-Only the mirror opens the device. Everything else — the `dccex` translator,
-JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
-the command station sends reaches every client, and a client's bytes go to it
-only as whole `<…>` messages (ADR-0043).
-
-**This railroad's per-district trip currents are in its script**, and they
-are not this stack's: a district is a hardware fact that reaches no bus topic
-([#217](https://github.com/rails49/control/issues/217)), the translator sets
-each limit from a handler in the railroad's script, and the translator is
-[`rails49/dccex`](https://github.com/rails49/dccex) (#587). The store serves
-the script at `/scripts/<railroad>` and reads none of it
-([#586](https://github.com/rails49/control/issues/586)). What may go in it and
-how a limit is changed are that project's page,
-[`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md#the-script).
-What is left here is the operational consequence of the split, the same one
-the mirror's had: the first deploy after it takes the old translator
-container with it, `--remove-orphans` above sweeping a service this file no
-longer has. Bring its stack up, or the railroad comes back with a station
-nothing is translating for.
-
-### JMRI
-
-An operator's tool and none of this repository's business. It used to be a
-service in the file below, which made it part of a railroad's stack that it
-never was; it is a compose project of its own in the installation now, started
-and stopped without touching anything here
-([rails49/installation ADR-0002](https://github.com/rails49/installation/blob/main/docs/adr/0002-jmri-is-a-compose-project-of-its-own.md)),
-and that repository's README is where the command sits.
-
-It publishes no port. noVNC answers at `https://jmri.gleis49.org`, behind the
-same door as everything else, and the image does not start JMRI: open that
-name and click DecoderPro or PanelPro on the desktop.
-
-What is `control`'s here is the one thing JMRI talks to: the command station,
-as a plain client of `dccex-usb` on 2560 over the LAN, like any hand-held
-throttle (ADR-0043). Its connection is a DCC++ over TCP one, and the host in
-it is the box rather than a compose service name now that JMRI is in another
-project — set it in DecoderPro once and save. That setting, the roster and every
-loco's CV file are JMRI's profile, which lives in the store under `jmri/` and
-is backed up, restored and moved to a new box with it
-([rails49/.github ADR-0013](https://github.com/rails49/.github/blob/main/docs/adr/0013-jmris-profile-lives-in-the-store.md),
-[#713](https://github.com/rails49/control/issues/713)). The rest of JMRI's
-home stays in a volume of that project's.
 
 ### The router
 
