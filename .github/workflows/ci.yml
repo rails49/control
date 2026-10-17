@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: "true"
+      # The link check reads other rails49 repositories through the REST API.
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

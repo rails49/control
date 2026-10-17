@@ -22,6 +22,13 @@ cd "$ROOT"
 
 [ -d ui/node_modules ] || (cd ui && pnpm install)
 
+# The link check reads other rails49 repositories through GitHub's REST API,
+# which answers 60 requests an hour without a token. CI sets one; here it is
+# gh's, read now and never written down.
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  GITHUB_TOKEN=$(gh auth token 2>/dev/null) && export GITHUB_TOKEN
+fi
+
 # Accumulated as a string rather than an array: macOS ships bash 3.2, where an
 # empty array under `set -u` is itself an error.
 failed=""
