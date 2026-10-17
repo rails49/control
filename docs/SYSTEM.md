@@ -1037,9 +1037,10 @@ it, over any fold, until a person asks for the power back with
 ([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
 [layout/README.md](layout/README.md#power)). It is the one value on the row
 not read off hardware, and it is held because no hardware can hold it. The
-simulator answers the same presses under the same guard, `tc49.lib.power`
-holding the one check both bindings make: it comes up `off`, states the word
-each answered press commanded, and while the power is not `on` starts no move
+simulator answers the same presses by the same rule, `tc49.lib.power`
+holding what both bindings keep: the guard on `off` and the stop held until
+`on`. It comes up `off`, states the last `on` or `off` it applied under any
+stop it holds, and while the power is not `on` starts no move
 and advances none, a transit under way at a STOP going on at ON with the time
 it had left ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
 
