@@ -480,20 +480,18 @@ documents the model is built from — so what arrives in between is held and
 applied the moment there is a model, rather than dropped for the want of one
 that was seconds away. Nothing republishes a retained row for a late reader.
 
-**A box driving a command station stays on one railroad.** It runs the
-**physical binding** — the `layout` app with the `dccex` translator beside
-it, where a simulated box runs `simulator` instead
-([layout](../layout/README.md),
+**A box driving a command station** runs the **physical binding** — the
+`layout` app with the `dccex` translator beside it, where a simulated box runs
+`simulator` instead ([layout](../layout/README.md),
 [`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md) in
 [`rails49/dccex`](https://github.com/rails49/dccex), where the translator
-lives) — and the railroad is then the station's, a
-station being one physical railroad. It is required on the command line for
-the same reason: the
-railroad is not the first client to connect's to pin. Ctrl-C sends zero to
-every locomotive commanded and switches the track off before the process ends
-([#314](https://github.com/rails49/control/issues/314)).
+lives). No command line names the railroad: a person loads one from the
+settings dialog while the apps run, the store records which, and the box
+comes back on that one
+([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
+[ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 
-**That run sees only what somebody types.** No camera publishes a detector's
+**That box sees only what somebody types.** No camera publishes a detector's
 level on a physical railroad yet, so for the first train a person supplies the
 readings: a line typed at `tc49 readings` — `<block>.<end> <level>`, the levels
 being `occupied`, `clear` and `unknown` — is published as the row a detector

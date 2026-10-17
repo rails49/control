@@ -66,10 +66,8 @@ services:
       - traefik.http.routers.tc49-app.tls.certresolver=le
     networks: [default, rails49]
 
-  # The bus. It is here before the first train because the occupancy camera
-  # publishes to it while our own apps may still share the in-process binding
-  # (ADR-0043); #173 is what moves them across. Both boxes get one — the dev
-  # box needs somewhere to do that work.
+  # The bus, which every app meets on, each in a process of its own
+  # (ADR-0059). Both boxes get one.
   #
   # Two listeners: 1883 for native clients and 9001 for a browser, published
   # on the LAN because that is the trust boundary and there is no

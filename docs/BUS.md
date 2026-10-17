@@ -11,9 +11,11 @@ Every topic here names a `control` component as its writer, so the definition
 lives in this repository; a project that shares the bus is a client of this
 railroad rather than a co-owner of the contract
 ([ADR-0006 in `rails49/.github`](https://github.com/rails49/.github/blob/main/docs/adr/0006-the-bus-contract-is-controls-and-travels-when-something-reads-it.md)).
-The first reader outside this repository takes a copy with the commit
-recorded, and the contract gains a machine-readable inventory at that point,
-not before.
+The first reader outside this repository is `rails49/dccex`'s translator,
+which imports this repository's package with the commit in its lock file
+([its ADR-0014](https://github.com/rails49/dccex/blob/main/docs/adr/0014-the-translator-is-on-the-bus-through-controls-package.md)).
+The inventory below is machine-readable as `tc49.lib.inventory`, which it
+reads.
 
 `tc49.lib.bus` and `tc49.lib.mqtt` are this repository's binding of the page —
 the interface an app is handed, and its two transports. A binding in another
@@ -260,7 +262,7 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the nine gesture rows. The throttle a person
+Today the mark sits on exactly the ten gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207)), the
 track power a person commands
 ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
@@ -533,7 +535,7 @@ its two names, as each topic states.
 
 #### `schedule`
 
-The nine browser-writable rows — the two here, the three under `dispatch`
+The ten browser-writable rows — the two here, the four under `dispatch`
 and the four under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 

@@ -312,8 +312,8 @@ LAN is still the trust boundary and a browser is not on it
   roster file answers an empty roster: owning no stock is a state the screen
   that writes the first car has to read, and a translator handed nothing has
   nothing to run. Both callers are apps rather than pages — the translator that
-  loads the script, and the face that edits it, each reaching the store over
-  the stack's own network — so these two prefixes are on no proxy in front of a
+  loads the script, and the face that edits it, each `rails49/dccex`'s and
+  reaching `store:8765` over `rails49`, the box's shared network — so these two prefixes are on no proxy in front of a
   page, no browser reaches one, and the origin rule below is untouched
   ([ADR-0055](adr/0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md)).
   There is no `DELETE`, as for every document, and no `ETag`: a translator
@@ -349,8 +349,8 @@ LAN is still the trust boundary and a browser is not on it
   ([#635](https://github.com/rails49/control/issues/635)).
 - **The picture route is a camera app's, and the store never answers it** —
   `GET /camera/snapshot` takes one picture now. The responder is not code of
-  this repository: the first is a small server in `rails49/camera`, and a
-  different camera is a different image answering the same route. A **200**
+  this repository, and none exists yet: a camera app is an image of its own,
+  and a different camera is a different image answering the same route. A **200**
   carries `image/jpeg`, the picture as the camera took it, and any other
   status means no picture — there is nothing else for a caller to read out of
   it. No body and no parameters: a camera's own settings are its environment
