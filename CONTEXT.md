@@ -1,997 +1,524 @@
 # Train Control
 
-Dispatching trains on a model railroad: deadlock-free, high-throughput
-allocation of track to scheduling requests. The app never touches hardware:
-whatever drives the track implements the **layout interface** — reporting
-sensor readings, executing turnout, signal and throttle commands. A physical
-railroad is the normative binding of that interface and a simulator the
-subordinate one, whichever exists first
-([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
-Components communicate over an event bus ([docs/BUS.md](docs/BUS.md)) and an
-asset CRUD contract ([docs/SYSTEM.md](docs/SYSTEM.md)).
+The words used in `control`, the software that schedules, dispatches and drives
+trains on a model railroad. Words used in more than one rails49 repository are
+in the [organisation's CONTEXT.md](https://github.com/rails49/.github/blob/main/CONTEXT.md).
+Each entry says what a thing is and links to the doc that owns it
+([ADR-0017](https://github.com/rails49/.github/blob/main/docs/adr/0017-each-fact-has-one-owner-and-an-accepted-adr-does-not-change.md)).
 
 ## Language
 
 ### Layout
 
 **Block**:
-A section of track without turnouts where a train can park, oriented with ends
-`A` and `B` and having a length.
+A section of track without turnouts where a train can park. It has two ends,
+`A` and `B`, and a length
+([LAYOUT.md](docs/store/LAYOUT.md#the-derived-layout)).
 _Avoid_: section, segment, track
 
 **Role**:
-What a block is for, drawn on it: a **station** is called at and left again, a
-**siding** holds a train as long as it likes — minutes, days, forever — and a
-**through** block is never a destination. Advice to the scheduler's generator
-about where to *send* a train and never about where one may *be*, so origins
-and a person's placement are unconstrained and `through` on a terminal block
-is a headshunt rather than a contradiction. Absent it, a block is a station
-([ADR-0046](docs/adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
-**Station** is this role and nothing else here: the app that owns the command
-station's USB device and mirrors it on TCP 2560 is `dccex-usb`, and it lives
-in [`rails49/dccex`](https://github.com/rails49/dccex) rather than here. So
-does the **translator** that speaks to that station, `dccex`, which was an app
-of this repository until #587.
-_Avoid_: transient (one letter from **transit**), type, category, purpose
+What a block is for: a `station` is called at and left again, a `siding` holds
+a train as long as it likes, and a `through` block is never a destination. It
+is advice to the scheduler's generator about where to send a train, never about
+where one may be ([GOALS.md](docs/GOALS.md#tracks)).
+_Avoid_: transient (one letter from transit), type, category, purpose
 
 **Admits**:
-Which **train kinds** a block takes, drawn on it as a set: `[passenger,
-mixed]` accepts a mixed train and refuses a goods one. Advice on the same
-terms as a **role** and enforced by nobody — every physical impossibility is
-already a length and `no_fit`, and what is left is policy the layout permits
-(ADR-0046). Absent it, a block admits every kind.
-_Avoid_: permits, allows, filter (the thing it does, not what it is called)
+The set of train kinds a block takes. It is advice on the same terms as a role,
+and nothing enforces it ([GOALS.md](docs/GOALS.md#tracks)).
+_Avoid_: permits, allows, filter
 
 **Terminal block**:
 A block with only one connected end, derived from the connections rather than
-declared. Can only be the start or end of a route, never intermediate.
-_Avoid_: dead end. *Siding* is a physical description — a trailing dead-end
-track, which is usually a terminal block — and stays available as such
-(station-C's `C4`–`C7` are sidings). It is not a synonym for the model
-concept: say "terminal block" when the one connected end is what matters.
+declared. It can only start or end a route
+([LAYOUT.md](docs/store/LAYOUT.md#the-derived-layout)).
+_Avoid_: dead end, siding (a physical trailing track, usually a terminal block)
 
 **Connection**:
 What joins one end of each of one or more blocks, realized by zero or more
-turnouts. Declares its named transits and, **by inversion**, which pairs of
-them are `concurrent`; every pair not declared conflicts
-([ADR-0006](docs/adr/0006-conflicts-declared-by-inversion.md)).
-_Avoid_: connector, node. *Junction* and *joint* are not synonyms to avoid but
-the drawing's two words for what derives to one connection — see below.
+turnouts. It declares its named transits and which pairs of them are
+`concurrent`; every other pair conflicts
+([LAYOUT.md](docs/store/LAYOUT.md#the-derived-layout)).
+_Avoid_: connector, node
 
 **Transit**:
-One traversable (end, end) pair through a connection, always named.
-**Undirected** — one transit covers both directions of travel — and
-**self-exclusive**, so head-on use is excluded structurally. Two transits at the
-same connection may be in use simultaneously only if the connection declares
-them `concurrent`. The same concept one level down: a symbol declares transits
-between its pins, usually unnamed, and derivation composes symbol transits
-into connection transits.
-_Avoid_: route (reserved for the request-level path), path, crossing — the
-noun, for a transit or for the symbol kind of that name; the verb is
-sanctioned, and `tc49/dispatch/state/allocation`'s `crossing` maps a train to
-the transit it is crossing.
+One named (end, end) pair through a connection. It is undirected, one transit
+covering both directions of travel, and self-exclusive, so head-on use is
+excluded without declaring anything
+([LAYOUT.md](docs/store/LAYOUT.md#the-derived-layout)).
+_Avoid_: route (the request-level path), path, crossing (as a noun for a
+transit)
 
 **Signal**:
-What stands at a block end and tells a driver whether to go and how fast. Shows
-one **aspect**, set by the dispatcher. An end nothing ever leaves carries none,
-a signal that could only show `stop` being furniture.
+What stands at a block end and tells a driver whether to go and how fast. It
+shows one aspect, set by the dispatcher, and an end nothing ever leaves carries
+none ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
 _Avoid_: light, head, semaphore, distant
 
 **Aspect**:
-What a signal shows, one of exactly three, read off how far ahead the
+What a signal shows: `stop`, `caution` or `clear`, read off how far ahead the
 dispatcher has locked
-([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)):
-
-| Aspect | Locked ahead | Swiss | Meaning to the driver |
-| --- | --- | --- | --- |
-| `stop` | nothing | Halt | stand |
-| `caution` | one block | Fb 2 | proceed, prepared to stop at the next signal |
-| `clear` | two or more | Freie Fahrt (Fb 1) | full speed |
-
-The Swiss column is what each aspect answers to and not a translation: Fb 2
-names a speed, 40 km/h, where `caution` names a braking instruction, and which
-of the two the middle aspect finally is stays open (ADR-0025).
-
-`stop` unless a block beyond has been reserved, which follows from the locks
-rather than being a rule of its own.
-_Avoid_: indication, state, colour, signal (the signal shows the aspect),
-approach (the middle aspect's earlier name)
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#aspects)).
+_Avoid_: indication, state, colour, signal (which shows the aspect), approach
+(formerly)
 
 **Lamp**:
-One of a signal's three lights, named for its colour: green, red, amber. An
-aspect is a *set* of lit lamps and not a lamp, which is why no lamp is named
-for an aspect — `stop` is red alone, `caution` is green with amber, `clear`
-is green alone, as the Swiss standard sets them.
-_Avoid_: bulb, light, LED, and any aspect's name
+One of a signal's three lights, named for its colour: green, red or amber. An
+aspect is a set of lit lamps, so no lamp is named for an aspect
+([EDITOR.md](docs/ui/EDITOR.md#symbol-geometry)).
+_Avoid_: bulb, light, LED, any aspect's name
 
 ### Drawing
 
 **Drawing**:
 The authored schematic of a railroad: symbols joined by wires through their
-pins. Shows connectivity, never scale. The source of truth — the layout is
-derived from it and never authored
-([ADR-0015](docs/adr/0015-drawing-is-the-source-of-truth.md)).
+pins. It shows connectivity, not scale, and the layout is derived from it
+([DRAWING.md](docs/store/DRAWING.md#what-a-drawing-is)).
 _Avoid_: diagram, plan, track plan
 
 **Symbol**:
-A drawing element declaring pins, transits between them, and which transit
-pairs are `concurrent` — the shape of a connection, one level down. Blocks,
-terminals, turnouts, crossings, slips, and portals are symbols.
+A drawing element that declares pins, transits between them, and which transit
+pairs are `concurrent`: the shape of a connection, one level down
+([DRAWING.md](docs/store/DRAWING.md#symbols)).
 _Avoid_: element, tile, stencil
 
 **Point**:
-A motorised symbol — a turnout, a single slip or a double slip. One motor, two
-positions, one address. A fixed crossing has no motor and is not one. The
-plural also names the set a transit's way must have thrown to be traversable.
-_Avoid_: switch, turnout (a turnout is one kind of point, not the category)
-
-**Address**:
-The string a point's motor answers to on the hardware, written `addr` and typed
-by whoever wired it. An address that is written **names no system**: it is any
-non-empty string, `5` as readily as anything else, and whatever is wired acts
-on the addresses it recognises
-([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
-withdrawing the system level of
-[ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
-An address that is absent derives: a railroad wearing none runs under the
-simulator, which has no addresses.
-Nothing checks whether anything answers to it — a DCC accessory number is a
-string that happens to be digits, and only the railroad knows what is true. Two
-points may share one, and then they move together
-([ADR-0022](docs/adr/0022-a-symbol-carries-its-hardware-address.md)).
-_Avoid_: id, number, dcc address
+A motorised symbol: a turnout, a single slip or a double slip. It has one motor
+and two positions ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
+_Avoid_: switch, turnout (one kind of point)
 
 **Position**:
-What a point's motor is set to: `closed` or `thrown`, the pair a DCC accessory
-decoder answers to. Not a **leg** — a leg is one way through the symbol, and
-the library declares which leg wants which position.
-_Avoid_: state, straight/curved, normal/reversed
+What a point's motor is set to: `closed` or `thrown`
+([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
+_Avoid_: state, straight/curved, normal/reversed, leg (one way through the
+symbol)
 
 **Leg**:
 One of a symbol's own transits, named on its kind: a turnout's `straight` and
-`diverging`, a slip's `a`, `b` and `slip`. The library declares which position
-each leg of a point wants, a turnout's legs being named for its positions and a
-slip's not.
+`diverging`, a slip's `a`, `b` and `slip`. No kind's legs are named for its
+positions ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
 _Avoid_: symbol transit, branch
 
 **Way**:
 The path a transit takes through a connection: the symbols it crosses and the
-leg it takes through each. Derivation composes it and the layout keeps only its
-two ends and the points along it — a way itself is the drawing's knowledge.
-_Avoid_: path, walk, route (reserved for the request-level path)
+leg it takes through each. The layout keeps only its two ends and the points
+along it ([DRAWING.md](docs/store/DRAWING.md#derivation)).
+_Avoid_: path, walk, route (the request-level path)
 
 **Pin**:
-A connection point holding exactly two connections. A symbol pin accepts one
-wire, the symbol being its other connection; a free-standing pin joins two
-wires as a bend. A pin with one connection is an error. A block symbol's pins
-are its ends `A` and `B`.
+A connection point holding exactly two connections. A symbol pin takes one
+wire, the symbol being its other connection, and a free-standing pin joins two
+wires as a bend ([DRAWING.md](docs/store/DRAWING.md#pins-and-wires)).
 _Avoid_: port
 
 **Wire**:
-The edge joining two pins. Its shape carries no meaning: derivation reads
-only which pin connects to which.
+The edge joining two pins. Its shape carries no meaning
+([DRAWING.md](docs/store/DRAWING.md#pins-and-wires)).
 _Avoid_: track, line, edge
 
 **Terminal symbol**:
-A one-pin symbol marking a deliberate track end, so a dangling pin always
-means a mistake. Terminal *blocks* stay derived from connectivity.
+A one-pin symbol marking a deliberate track end, so a dangling pin always means
+a mistake ([DRAWING.md](docs/store/DRAWING.md#pins-and-wires)).
+_Avoid_: stop (the aspect), dead end
 
 **Portal**:
-A one-pin symbol paired by label with exactly one other portal; the pair
-joins its wires as if directly connected and derives to nothing. A drawing
-device for joining distant parts of the canvas. Placed with its mate, since one
-alone is a label worn once and derivation refuses it
-([ADR-0020](docs/adr/0020-a-portal-is-placed-as-a-pair.md)).
-_Avoid_: connector, link
+A one-pin symbol paired by label with exactly one other portal. The pair joins
+its wires as if directly connected and derives to nothing
+([DRAWING.md](docs/store/DRAWING.md#portals)).
+_Avoid_: connector, link (a participant's reach to its hardware)
 
 **Junction**:
-A connected group of non-block symbols declaring at least one transit: the
-drawing's way of holding a connection whose turnout detail is drawn. Derives to
-exactly one connection, whose name its members carry as `connection`, or, where
-the group is one symbol, which is the symbol's own name. A group declaring no
-transit is not one — a terminal capping a block end derives to nothing, and the
-editor tints only junctions.
+A connected group of non-block symbols declaring at least one transit. It
+derives to exactly one connection, named by its members' `connection` or, for a
+single symbol, by that symbol's own name
+([EDITOR.md](docs/ui/EDITOR.md#junctions)).
 _Avoid_: throat, node, cluster
 
 **Joint**:
-A way from one block end to another crossing no symbol that declares a transit:
-one bare wire, or a chain of them through bend pins or a portal pair. Also
-derives to exactly one connection — one transit spanning the two ends — and
-carries that connection's name on one of its own wires. A **portal pair is not
-a joint**: it is one way a joint's chain crosses the canvas, and a joint
-through one is a joint however it is drawn.
+A way from one block end to another crossing no symbol that declares a
+transit: one bare wire, or a chain of them through bend pins or a portal pair.
+It derives to one connection with one transit, named on one of its own wires
+([DRAWING.md](docs/store/DRAWING.md#a-wire-between-two-blocks)).
 _Avoid_: gap, splice, bare wire (a joint may be several)
+
+**Fixed wiring**:
+Points and signals: the hardware an address reaches that stays where it was
+installed, as against a locomotive's decoder. Its addresses are typed on the
+drawing ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
+_Avoid_: accessories, infrastructure
 
 ### Stock
 
 **Model**:
-What a product *is*, independent of any railroad that owns one: a length, a
-**kind**, and the meaning of each DCC function — which number sounds the horn
-on that item. Two railroads owning the same item share one entry, which is why
-a model is not a **car**
-([ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-_Avoid_: type (reads as a synonym of *kind*, which is taken), class, product
+What a product is, independent of any railroad that owns one: a length, a kind,
+and the meaning of each numbered function. Two railroads owning the same item
+share one model ([LAYOUT.md](docs/store/LAYOUT.md#catalogue-schema)).
+_Avoid_: type (reads as kind), class, product
 
 **Car**:
-One item a railroad owns: **a model with zero or more fields overridden**, and
-its own DCC address where it has a decoder, unique across the railroad. A car
-always names its model; scratch-built stock earns a model of its own rather
-than a second kind of car. The roster's `cars` holds **identified stock** — an
-item with an address, or with a field corrected on that item — and an item with
-nothing of its own is **named by its model** where it is used, ten identical
-hoppers having nothing to tell one from another
-([ADR-0061](docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
-A car with neither is still legal, so nothing on an older roster changes. A
-**locomotive is a car** whose model's kind says so, which is why the address
-hangs here and not on a train.
-_Avoid_: vehicle, item, wagon, rolling stock (the mass noun, which is *stock*)
-
-**Address** (of a car):
-The number programmed into a car's decoder. It is programmed once and generally
-kept, and it is the same number whoever sends the packet, so a railroad changing
-command station rewrites nothing (ADR-0045). It names no system, as a point's
-does not
-([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
-_Avoid_: id, cab, loco address
+One item a railroad owns: a model with zero or more fields overridden, and its
+own address where it has a decoder. A locomotive is a car whose model's kind
+says so ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
+_Avoid_: vehicle, item, wagon, rolling stock (the mass noun is stock)
 
 **Catalogue**:
-The models an installation knows, one database rather than one per railroad.
-Sharing one between railroaders is somebody else's product and out of scope.
-_Avoid_: library (taken by the symbol library), roster (which holds cars),
-inventory
+The models an installation knows, one set for every railroad in the store
+([LAYOUT.md](docs/store/LAYOUT.md#catalogue-schema)).
+_Avoid_: library (the symbol library), roster (which holds cars), inventory
 
 **Kind**:
-What a model is — `locomotive`, `passenger`, `freight`, `special` — and, one
-level up, what a train is. A **train's kind is derived** from the cars it
-hauls, **ignoring locomotives**: every hauled train has one, so counting them
-would make every train *mixed*. Exactly one sort hauled gives that sort, more
-than one gives `mixed`, and none is a `light engine` — a real move rather
-than a degenerate case. **The two lists differ**: `locomotive` is never a
-train's kind, `mixed` and `light engine` are never a model's, and a block's
-**admits** lists train kinds, so an engine shed takes `[light engine]` and
-never `[locomotive]` ([ADR-0046](docs/adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
+What a model is, `locomotive`, `passenger`, `freight` or `special`, and what a
+train is, derived from the cars it hauls. A train's kinds are a different list,
+with `mixed` and `light engine` and without `locomotive`
+([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: type, class, category
 
 **Train**:
-An **ordered list of cars**, moving or parked as a unit; its length is the sum
-of its parts and its **kind** is derived from them. A train at rest occupies
-exactly one block; while crossing it holds the transit and, until its tail
-clears, the block behind as well. Durable — a railroad keeps rakes made up
-between sessions — and carries a **priority**.
+An ordered list of cars, moving or parked as a unit, with a priority. Its
+length and kind derive from its cars, and a railroad keeps it between sessions
+([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: consist
 
 **Orientation**:
-Which way round a car is coupled in its train. A locomotive's forward is a
-fixed direction of the physical item, so orientation composed with the train's
-**facing** is what gives a direction on the track — and it is what lets a
-locomotive at each end of a train run opposite (ADR-0045).
-_Avoid_: direction, facing (which is the train's, and about its block)
+Which way round a car is coupled in its train. With the train's facing it gives
+a direction on the track ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
+_Avoid_: direction, facing (the train's, about its block)
 
 **Priority**:
-A train's claim on the queue, lowest number highest. **Strict among
-simultaneously launchable requests**: where two could both launch the higher
-wins regardless of age, and where the higher-priority one cannot launch the
-lower one still goes. So starvation stays bounded within a priority level by
-[ADR-0012](docs/adr/0012-the-pending-scan-ages-by-refusal-count.md)'s aging and
-is deliberately unbounded across levels, which is why freight runs at night.
+A train's claim on the queue, lowest number highest
+([GOALS.md](docs/GOALS.md#dispatching)).
 _Avoid_: rank, class, weight
 
 **Roster**:
-The **cars** a railroad owns, served by the store beside its drawing, with the
-trains made up from them alongside. A train names one of those cars or names a
-**model** directly, which is what an item with nothing of its own is
-([ADR-0061](docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
-With the
-drawing it is the whole of what a **run** is built from: a railroad, its
-stock, and a person who puts the stock on the rails
-([#171](https://github.com/rails49/control/issues/171)). A car in
-it is **known**, which is separate from a train being **placed**: a railroad at
-rest says what stock it has without saying where any of it stands
-([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md), one level down
-since ADR-0045). Also the name of
-the pane that draws it, as `netlist` names both what derivation produces and
-the pane it is read in.
+The cars a railroad owns and the trains made up from them, kept beside its
+drawing. A car on it is known, which is separate from a train being placed.
+Also the name of the pane that draws it
+([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: closet, fleet, inventory
 
 **Placed**:
 Of a train: present in the dispatcher's `block_of`, standing in that block and
-holding its standing lock. A train that is not placed is **off the layout** —
-an ordinary state rather than a fault, and *absence* from the mapping rather
-than a sentinel block name
-([ADR-0039](docs/adr/0039-a-train-may-be-off-the-layout.md)). Every placed
-train is made of cars on the roster; a train may be placed nowhere, and an
-unplaced train has no **facing**, there being no block for a facing to be an
-end of. A train just taken off the layout may still hold blocks that read
-occupied, each until it reads clear
-([ADR-0069](docs/adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
-A placement survives a rebuild of the railroad under the same name where it
-still fits: its block is still in the drawing and still holds the train
-([ADR-0071](docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
-_Avoid_: closet, positioned. *Not on the layout* is the same state said a
-second way, and the state has one phrase.
+holding its standing lock. A train that is not placed is off the layout, an
+ordinary state rather than a fault
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+_Avoid_: closet, positioned, not on the layout (say off the layout)
 
 **Facing**:
-The run a parked train would make across its block, written **`A-to-B`** or
-**`B-to-A`** — a train facing `A-to-B` would depart nose-first through B.
-Said as the run and not as the end reached, so the value can be read without
-the convention in front of you; the end is one question away
-(`lib.layout.departure_end`) and the two spellings are one fact.
-Declared with initial placement and thereafter determined by four rules:
-routes are strict pass-throughs, so a train that left nose-first faces away
-from the end it entered through; a train **propelled** — pushed out of the end
-its nose points away from, which a request's **departure end** may ask for —
-enters the next block tail-first and so faces the end it entered through; on a
-**terminal block** there is no end to face away towards, and facing is the run
-that departs by its one connected end whatever a placement or a route would
-say; and deliberate reversal at rest is the one change routes do not account
-for. Every one of those is a change the stock actually underwent: committing
-to a route is a plan and moves no arrow
-([#295](https://github.com/rails49/control/issues/295)). Held by the scheduler
-and published on its own state topic as `<block>.A-to-B`, which every view
-reads to draw a train's direction and `layout` reads to give a speed its sign
-([ADR-0052](docs/adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
-Not dispatcher state — a request's
-departure end carries everything the dispatcher needs, and may contradict
-facing.
-_Avoid_: direction (ambiguous with travel direction), heading, orientation.
-The bare end letter the value once was is retired
-([#241](https://github.com/rails49/control/issues/241)): it is refused at
-load and refused in a retained row, never read as a run.
+The run a parked train would make across its block, written `A-to-B` or
+`B-to-A`: a train facing `A-to-B` would depart nose-first through B. It is the
+scheduler's state, not the dispatcher's
+([SYSTEM.md](docs/SYSTEM.md#scheduler)).
+_Avoid_: direction (ambiguous with travel direction), heading, orientation, the
+bare end letter (formerly)
 
 **Propelled**:
-A movement out of the end a train's nose points *away* from: pushed rather
-than pulled. Said of one move and never of a train, since the same train is
-propelled over one transit and nose-first over the next. An **ordinary
-movement and not an error** — a request's **departure end** may ask for one,
-and a train that makes one enters the next block tail-first, which is one of
-the four rules that determine **facing**. It is half of the sign `layout` puts
-on a speed, the other half being each car's **orientation**
-([ADR-0052](docs/adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
-_Avoid_: reversing (which is turning round at rest, and a different thing),
-backing, shunting, pushed as the noun
+Of one move: out of the end a train's nose points away from, pushed rather
+than pulled. It is an ordinary movement, not an error
+([layout/README.md](docs/layout/README.md#the-traction-write)).
+_Avoid_: reversing (turning round at rest), backing, shunting, pushed (as a
+noun)
 
 **Automatic / manual**:
-Who turns a train's throttle. Every train is one or the other and
-**automatic** at rest: taking a train in a **throttle** makes it manual and
-releasing it puts it back
-([#207](https://github.com/rails49/control/issues/207)). Held by `layout`,
-which is what a throttle's gestures reach, and published on
-`tc49/layout/state/mode`, where a train the map does not name is automatic. It
-names who drives and nothing more — a manual train is dispatched like any
-other, holding its block, still granted moves and moving only on a route the
-dispatcher allocated, with a person trusted to read the signal it is given.
-Neither the dispatcher nor the driver ever reads it.
-_Avoid_: hand control, taken over; and *mode* said of the **system**, which
-is **held** or **running** and a different thing on a different topic. An
-operator running a signal at stop is rogue operation this word does not cover
-and the system does not model.
+Who turns a train's throttle: the app, or a person who has taken the train in a
+throttle. Every train is automatic at rest
+([layout/README.md](docs/layout/README.md#who-drives-and-a-persons-throttle)).
+_Avoid_: hand control, taken over, mode (of the system, which is held or
+running)
 
 **Throttle**:
-The control a person drives a train with: a view of this repository's UI whose
-commands ride the bus as two gestures — `tc49/layout/mode_wanted`, which takes
-a train and gives it back, and `tc49/layout/throttle_wanted`, which is the
-throttle being turned. Gestures because there are any number of throttles —
-two tabs are two of them — where the device row one ends at has `layout` as
-its single writer
-([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md),
-[#263](https://github.com/rails49/control/issues/263)). Its speed is signed
-for which way the train runs along its own length, nose-first positive, and
-its magnitude is the fraction of maximum, `0.0` being stop; which locomotive
-that reaches is `layout`'s, which reads the roster.
-_Avoid_: cab, controller, regulator. Not **traction**, which is what a
-decoder does with a speed, and not the **driver**, which is an app and reads
-an aspect.
+The control a person drives a train with: a view of the UI whose commands ride
+the bus as two gestures, one taking a train and one turning its speed
+([THROTTLE.md](docs/ui/THROTTLE.md)).
+_Avoid_: cab, controller, regulator, traction (what a decoder does with a
+speed), driver (an app)
 
 ### Dispatch
 
 **Request**:
-An order to deliver a train out through one end of its block and in through one
-of a set of **arrival ends**. Rejected if no arrival end survives — none fits
-the train, or none is reachable — or if it states a departure block the train is
-not standing in; otherwise accepted and queued. A rejection is an answer on the
-bus, never an exception, since the submitter may be a browser
-([ADR-0021](docs/adr/0021-a-bad-request-is-answered-not-raised.md)). It ends
-three ways and no others: by **arrival**, by that rejection, or by
-**cancellation**.
-_Avoid_: order, job, working. The sweep keeps `workings` — the axis, the
-`sweep-<n>t-<n>w` row key and the stored results
-([BENCHMARKS.md](docs/bench/BENCHMARKS.md)) — because that is a frozen data
-format, and a format is not a licence to name anything new with the word.
+An order to deliver a train out through one end of its block and in through
+one of a set of arrival ends. It ends by arrival, by rejection or by
+cancellation ([DISPATCH.md](docs/dispatcher/DISPATCH.md#semantics)).
+_Avoid_: order, job, working (kept only in the sweep's stored data)
 
 **Departure end**:
-The end of its block a train **leaves through** on a request, written
-`<block>.A` / `<block>.B` as an arrival end is. A request states one, and a
-chained request may state only the letter, the block it will depart from being
-a dispatcher choice not yet made. Where the stated end is one no train can
-leave by — the wall of a **terminal block** — the one connected end is the
-answer, that being all a stub has. A request's departure end, not **facing**,
-is what the dispatcher routes from, and the two may disagree
-([ADR-0019](docs/adr/0019-facing-is-scheduler-state.md)). What the
-disagreement means is that the train is pushed: it leaves through the end its
-tail stands at, and every block of that route it enters tail-first
-([#295](https://github.com/rails49/control/issues/295)).
+The end of its block a train leaves through on a request, written `<block>.A`
+or `<block>.B`. It, and not facing, is what the dispatcher routes from
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#requests)).
 _Avoid_: leaving end, origin end, exit
 
 **Arrival end**:
-One acceptable ending for a request: a block together with the end the train
-**enters through**, written `<block>.A` / `<block>.B` exactly as a departure end
-is. A request names a *set* of them, unordered and equally acceptable, and the
-dispatcher commits to one when it chooses the route
-([ADR-0007](docs/adr/0007-requests-name-a-set-of-arrival-ends.md)). Naming both
-ends of one block says "either way round"; naming several blocks says "any of
-these tracks".
-_Avoid_: destination (the request has no single one), arrival side, platform
+One acceptable ending for a request: a block and the end the train enters
+through, written `<block>.A` or `<block>.B`. A request names a set of them, all
+equally acceptable ([DISPATCH.md](docs/dispatcher/DISPATCH.md#requests)).
+_Avoid_: destination (a request has no single one), arrival side, platform
 
 **Route**:
 A train's full path for a request: an alternating sequence of blocks and
-transits, fixed when the train starts moving. Strictly pass-through — a train
-enters each block at one end and exits at the other; reversal happens only
-between requests, at rest. Also a **simple path**: no block or transit occurs
-twice. So a reversing loop turns a train over *two* requests, not one — not
-because reversal is forbidden (the loop needs none) but because the second leg
-would revisit the loop's own blocks.
+transits, fixed when the train starts moving. It is a strict pass-through and a
+simple path ([DISPATCH.md](docs/dispatcher/DISPATCH.md#semantics)).
 _Avoid_: itinerary, journey, plan
 
 **Lock**:
-Exclusive claim on a block or transit by one train. Incremental locking claims
-a little way ahead of the train and releases what it has left — one block ahead
-is enough to move, two is what buys full speed, and a third is never asked for
-([ADR-0026](docs/adr/0026-two-blocks-ahead-is-full-speed.md)); full-route
-locking claims every resource up front. Occupancy is a **standing lock**: every train, moving or
-parked, requested or not, always holds the lock on the block it stands in.
+An exclusive claim on a block or transit by one train. Every train always holds
+the lock on the block it stands in, its standing lock
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#locking)).
 _Avoid_: reservation, allocation
 
 **Committed**:
-Of a resource: on a route the dispatcher has chosen, with no lock on it yet —
-the weaker of the two claims a route carries, and what the stretch ahead of the
-locks is. Of a route: chosen, and so fixed
-([ADR-0002](docs/adr/0002-fixed-route-per-request.md)). A resource can be
-committed and locked at once, and the lock is then what it shows.
+Of a resource: on a route the dispatcher has chosen, with no lock on it yet. Of
+a route: chosen, and so fixed
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#locking)).
 _Avoid_: planned, plan, pending (a request pends, a resource does not)
 
 **Lit**:
-Of a transit: locked or committed, which is what the panel draws green or cyan
-dashed. Of a point: on a lit transit. A person's throw of a lit point is dropped
-([ADR-0068](docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
+Of a transit: locked or committed, as the run view draws it. Of a point: on a
+lit transit ([PANEL.md](docs/ui/PANEL.md#what-it-shows)).
+_Avoid_: reserved, highlighted
 
 **Held**:
-Of a **run**: the dispatcher will commit nothing — no route chosen, no move
-granted, no lock taken — until a person releases it. One of the run's own
-three states, `held`, `running` or **draining**, published by the dispatcher
-and moved by a gesture
-([ADR-0037](docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
-A brake and not an emergency stop: a move already granted runs to its sensor,
-and what keeps a railroad still after a power cut is track power, one layer
-down. The layout holds it too, in two ways: `tc49/layout/state/power` arriving
-as anything but `on` sets `run` to `held`, and a release is refused until it is
-back
-([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)),
-and an **unexplained reading** sets it the same way
-([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)).
-Admission is untouched — requests queue up while held. A run **comes up
-held unless its own document stood its trains on the rails**: a restored
-session comes up held, so does the empty layout every operator's run starts
-from, and what opens running is the harness's batch loop, built from a
-scenario file.
-_Avoid_: paused, stopped, frozen. Not the `held` **grant_refused** reason,
-which says a resource is locked by another train: a different thing, on a
-different topic, about one request rather than the run.
+Of a run: the dispatcher commits nothing, choosing no route, granting no move
+and taking no lock, until a person releases it. It is one of the run's three
+values on `tc49/dispatch/state/run`, with running and draining
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+_Avoid_: paused, stopped, frozen, held (also the `grant_refused` reason, about
+one request)
 
 **Drain**:
-The ordinary way to turn a railroad off: the run stops **launching**, the
-trains already moving run to the end of the routes they are on, and the
-dispatcher writes `held` itself at the first moment none is left. `draining`
-is the third value of the run and not a state of its own, and the gate is on
-launching rather than on admission — admission is cheap and reversible,
-launching is the commitment, so requests queue up through a drain as they do
-through a hold. It is what the panel's off press asks for and the completion is
-what it waits for before cutting track power
-([ADR-0051](docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md),
-[#294](https://github.com/rails49/control/issues/294)); an abrupt cut instead
-would leave no **position** trustworthy and could strand a train mid-transit.
-A **hold** during one abandons it at once, which is also the way out of a
-drain a wedged train would hold open forever — hold, and take that train off
-the layout.
+The ordinary way to turn a railroad off: the run stops launching, the trains
+already moving finish their routes, and the dispatcher writes `held` when none
+is left. `draining` is the run's third value
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: shutdown, wind-down, quiesce, stop admitting (it is launching that
-stops). Not the queue *draining* in the order it accumulated, which is the
-ordinary verb for a queue emptying and says nothing about the run.
+stops)
 
 **Moving**:
-Of a **run**: some train is **active** or **crossing**, so a power cut now
-would strand it. A boolean beside the run's three values on
-`tc49/dispatch/state/run`, and not a fourth one: a **held** run can be moving,
-because a move already granted runs to its sensor, and a running run with
-nothing granted is not. It is what the panel's off press waits to see false before
-cutting power, and what the layout checks before applying a plain `off`
-([ADR-0062](docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-A manual train on its route is active and so moving, whatever its throttle
-reads. A manual train **off** its route is neither, since only the
-dispatcher's own grants populate the two, so `moving` reads false and an
-`off` is applied while a person drives it: asking for **power off** with a
-train in hand is a user error the app does not guard, which is one case of the
-assumption in [GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told).
-_Avoid_: busy, in motion, rolling, quiet/still (for the negation — say "not
-moving")
+Of a run: some train is active or crossing, so a power cut now would strand
+it. It is a boolean beside the run's value, not a fourth value
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+_Avoid_: busy, in motion, rolling, quiet, still (say not moving)
 
 **Cancellation**:
-A request ended without the train arriving, because a person said so: they
-cancelled it outright, or they said where the train actually is and the
-placement retired it under them
-([ADR-0049](docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
-The gesture names a **train** and no request, and ends everything that train
-has, pending and active. What the request held is released except the block
-the train stands in, which is its **standing lock**; a cancellation caught
-mid-transit waits for the sensors that end the move, nothing on the bus
-retracting a `move` already sent. The reason is `revoked`, `removed` or
-`displaced`, and it says which gesture ended the request rather than why the
-railroad could not finish it.
-_Avoid_: abort, kill, delete, revoke as the general word (it is one of the
-three reasons). Not a **rejection**, which refuses a request before it is
-queued and is an answer to whoever submitted it.
+A request ended without the train arriving, because a person cancelled it or
+placed the train somewhere. The reason is `revoked`, `removed` or `displaced`
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+_Avoid_: abort, kill, delete, revoke (one of the three reasons), rejection
+(which refuses a request before it is queued)
 
 **Disputed**:
-Where the placement and the detectors contradict each other, named while the
-run is **held**: a *train* whose block the layout reports clear, and a *block*
-the layout reports occupied with nothing claiming it. Published as a set the
-panel points a person at, and it **resolves nothing** — occupancy is
-anonymous, so the check only points and a person ends each entry with a
-placement ([#153](https://github.com/rails49/control/issues/153)). A block
-the layout has said nothing about is neither: silence is not a clear reading.
-_Avoid_: mismatch, discrepancy, error. Not a **transit conflict**, which is
-two transits that may not be in use at once.
+Where the placement and the detectors contradict each other while the run is
+held: a train whose block reads clear, or a block reading occupied with
+nothing claiming it. The set points a person at each and resolves nothing
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+_Avoid_: mismatch, discrepancy, error, conflict (two transits that may not be
+in use at once)
 
 **Unfit**:
 The trains the last rebuild of the railroad under the same name took off the
-layout, each with the block it stood in and why: the block is *gone* from the
-new drawing, or *short* of the train. Published by the dispatcher for a person
-to place again; a train leaves the list when it is **placed**, and the list
-does not outlive the railroad
-([ADR-0071](docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
-[#709](https://github.com/rails49/control/issues/709)). Not **disputed**,
-which compares a placement with the detectors; an unfit train has no placement.
+layout, each with its block and why: the block is gone or too short
+([BUS.md](docs/BUS.md#dispatch)).
+_Avoid_: invalid, orphaned, disputed (a placement against the detectors)
 
 **Unexplained reading**:
 A detector reading no granted move accounts for: a `block_occupied` with
-nothing claiming the block, or a `block_vacated` of a block the dispatcher
-believes a train stands in. Occupancy is anonymous, so the dispatcher reads
-identity off its lock table, and a reading the table cannot explain says the
-table has stopped describing the steel — a hand putting a locomotive down, a
-train pushed while the supply was off, a detector asserting on dirt. It
-**holds the run**, by the path track power takes, and what it contradicts is
-named in the **disputed** set for a person to walk
-([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)). It never
-raises, and nothing is placed on the strength of it. It is the part of a
-railroad changed outside the app that the app can see; what it cannot see is
-in [GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told).
+nothing claiming the block, or a `block_vacated` of a block a train stands in.
+It holds the run ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
-(which names one cause of a reading, not the reading)
+(one cause of such a reading)
 
 **Active / idle train**:
-A train is **active** while it has a committed route — launched, not yet
-completed — and **idle** otherwise, whether or not a request for it is pending.
-An idle train's standing lock makes its block *permanently* unavailable, since
-nothing in the dispatcher will move it; this is what
-[SAFETY.md](docs/dispatcher/SAFETY.md) means by a permanent obstacle.
+A train is active while it has a committed route, launched and not yet
+completed, and idle otherwise, whether or not a request for it is pending
+([SAFETY.md](docs/dispatcher/SAFETY.md#state)).
 _Avoid_: running/stopped, busy/free
 
 **Sweep**:
-The dispatcher's grant pass, run where the lock table or the waiting set
-changes — a request admitted, a `block_vacated` releasing what a move held,
-the run released
-([ADR-0047](docs/adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
-A sweep covers the active trains and the whole pending queue, so a refused
-train is reconsidered exactly when the resource it waited on frees and every
-pending request accrues a refusal in the same sweep, which is what carries
-the aging order
-([ADR-0012](docs/adr/0012-the-pending-scan-ages-by-refusal-count.md)). There
-is no grant boundary and no beat: the dispatcher grants on the events that
-arrive, and every grant is `safe()`-checked before it commits.
-_Avoid_: grant phase said of a beat, boundary, tick — the old grant boundary
-left the contract with ADR-0047
+The dispatcher's grant pass over the active trains and the whole pending
+queue, run where the lock table or the waiting set changes
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#time-model)).
+_Avoid_: grant phase (said of a beat), boundary, tick (formerly)
 
 **Fast clock**:
 The railroad's scaled operating time: the wall clock with a start time and a
-multiplier, both railroad configuration, so anything that wants it derives it
-— it has no carrier on the bus. It is what a scenic lighting cycle would
-follow and what a milestone-2 timetable is written against. Free-running and
-settable, and **never read in the control path** — a train waits on
-detectors, so a late train is just late and moving the clock commands nothing
-(ADR-0044's surviving rule, ADR-0047).
-_Avoid_: scale time, sim time. Not the run clock the trace's `time` stamp
-reads, which is elapsed seconds since the session started
-
-**Tick**:
-The **simulator's** old word for its beat, retired with the grant boundary
-(ADR-0047): the simulator is a discrete-event engine now, scheduling each
-accepted move's two sensor events on fixed delays of its own. Travel time is
-those delays, a property of the simulator and not of the model — on a
-physical railroad a transit takes as long as it takes.
-_Avoid_: step, cycle, or reusing tick for the live loop's command poll
+multiplier, both railroad configuration. Nothing in the control path reads it
+([BUS.md](docs/BUS.md#time)).
+_Avoid_: scale time, sim time, run clock (the trace's elapsed seconds)
 
 ### Bus
 
 **Topic**:
-A named bus channel, `tc49/<component>/<leaf>`, the component — `layout`,
-`schedule`, `dispatch` — being the one that **declares** it: the events it
-emits, of which it is the single writer, and the requests it responds to,
-which any number of writers may send and which disclose their source nowhere
-([ADR-0035](docs/adr/0035-a-topic-has-one-writing-role.md),
-[#263](https://github.com/rails49/control/issues/263)). Concurrent writers
-are for event topics, never state topics. Consumers subscribe by prefix
-filter; the full inventory is [BUS.md](docs/BUS.md#event-inventory).
+A named bus channel, `tc49/<component>/<leaf>`, declared by the component that
+writes its events or answers its requests
+([BUS.md](docs/BUS.md#the-bus)).
 _Avoid_: channel, queue
 
 **Event topic / state topic**:
-Every topic is exactly one of the two. An event topic carries facts that
-happened and is never replayed; a state topic is last-value-wins, delivered
-to late subscribers, and marked in the path (`…/state/<name>`).
-_Avoid_: retained message (the MQTT mechanism, not the model concept)
+Every topic is one of the two. An event topic carries facts that happened and
+is never replayed; a state topic keeps its last value for late subscribers and
+is marked in the path, `…/state/<name>` ([BUS.md](docs/BUS.md#the-bus)).
+_Avoid_: retained message (the MQTT mechanism)
 
 **Stamp**:
 The `at` every state payload carries and no event payload does: the run
-clock's reading when the value was published, in seconds since the run
-started. It is what keeps the later of two values of one state topic when the
-wire hands them over backwards — later wins, equal replaces, earlier is
-ignored, and an unstamped value is taken and clears the held stamp
-([#240](https://github.com/rails49/control/issues/240)). Written by the
-binding that publishes and never by an app, so no app component reads a clock
-([ADR-0009](docs/adr/0009-layout-interface-owns-time.md)). It orders within
-one run and says nothing across a restart: the in-process clock starts at zero
-every run and the broker stamps from wall time, so what a restart adopts is the
-oldest thing known
-([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
-_Avoid_: timestamp or clock time (it is neither wall time nor comparable
-across sessions), sequence number or counter (nothing is minted, and no
-publisher owns it), version
+clock's reading when the value was published. It orders two values of one
+topic within one run ([BUS.md](docs/BUS.md#the-bus)).
+_Avoid_: timestamp, clock time, sequence number, counter, version
 
 **Device vocabulary**:
-The retained state topics naming one device each, in two halves. What the
-device **should do**, under `tc49/layout/state/wanted/` — a locomotive's speed
-and functions, a point's position, a signal's aspect, the track's power —
-written by `layout`, with a **translator**, one app per hardware system,
-subscribing all of them and acting on every address it recognises — one nobody
-answers to does no harm (ADR-0059). What it is **observed to do**, under
-`tc49/layout/state/device/` — a sensor's occupancy, a point's position where
-the hardware reports one, the track's power, and a participant's **link**,
-keyed by the id it calls itself and saying which **build** the far end answers
-with (ADR-0065) — written by whatever watches or drives the
-thing addressed, of which there is exactly one per address, and read by
-`layout`. The rest of the system never
-names a device, `align` and `move` naming a transit
-([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
-Both halves are `tc49.lib.inventory.DEVICE_TOPICS`.
-_Avoid_: device layer, hardware topics, driver (which names an app)
+The retained state topics naming one device each, in two halves: what a device
+should do, under `tc49/layout/state/wanted/`, and what it is observed to do,
+under `tc49/layout/state/device/`
+([BUS.md](docs/BUS.md#device-vocabulary)).
+_Avoid_: device layer, hardware topics, driver (an app)
 
-**Address** (on a device topic):
-The trailing levels of a device topic, repeated in the payload as `addr`, and
-**naming no system**: it is the string the drawing carries and the hardware
-answers to, so a **point** or signal address is a bare one as a **traction**
-address is (ADR-0043 and
-[ADR-0045](docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md),
-the system level withdrawn by
-[ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
-A **function** takes two levels, the decoder and the function number, and a
-**sensor** a shape of its own, the block end it watches. Not a leaf: the row is
-the topic above the address, which is what `split_device`
-takes apart. The two `track` rows carry none, there being one railroad-wide
-power desired and one observed; a **link** carries one and repeats it as `id`
-rather than as `addr`, being keyed by whatever the publisher calls itself and
-naming no device.
-_Avoid_: suffix, path; and *id* for an address, which is the link row's key
-alone
+**Address**:
+The string a piece of hardware answers to, typed by whoever wired it. It names
+no system, and on a device topic it is the trailing levels, repeated in the
+payload as `addr` ([BUS.md](docs/BUS.md#device-vocabulary)).
+_Avoid_: id (a link row's key), number, cab, dcc address, loco address,
+suffix, path
 
 **Traction**:
-Moving a train: what a locomotive's decoder does with a **speed**, against the
-**fixed wiring** — points and signals — that is the other thing an address
-reaches. The distinction is what the two address shapes turn on. A speed is
-signed for direction along the track and its magnitude is the fraction of that
-locomotive's maximum, `0.0` being stop; a decoder step never leaves a
-translator. The `move` command states the **magnitude alone**, the driver
-having no way to know which way round a locomotive stands, and `layout` is
-what gives it the sign
-([ADR-0025](docs/adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-_Avoid_: throttle (a person's control, which is its own entry), motive power,
-traction power (which is the track supply)
+Moving a train: what a locomotive's decoder does with a speed, as against the
+fixed wiring an address also reaches. A speed is signed for direction along
+the track, and its magnitude is a fraction of the locomotive's maximum
+([layout/README.md](docs/layout/README.md#the-traction-write)).
+_Avoid_: throttle (a person's control), motive power, traction power (the track
+supply)
 
 **Detector**:
-What watches a **block end** and publishes what it sees there, on one retained
-state topic per **sensor**: `occupied`, `clear` or `unknown`. Addressed by the
-block end, `<block>.<end>`, on every railroad and never by the detector's own
-identifier — the drawing carries the name the hardware knows each sensor by,
-one per block end and defaulting to that same string, and whoever publishes
-reads it from the store, so nothing above the layout interface learns detector
-geometry
-([ADR-0063](docs/adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
-ADR-0043, [#194](https://github.com/rails49/control/issues/194)). A publisher
-that reads the store follows `tc49/layout/state/railroad` like every other app
-that does, and one that reads nothing does not
-([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-It publishes a **level change and nothing else**: no heartbeat, no
-restatement on a timer, and nothing asks it for its state, retention being what a late subscriber gets.
-`unknown` is a value and not an absence — the detector knows *why* it cannot
-say, and the free-text `reason` carries that for a person to read, while a
-consumer treats it as no information about that end. Two of them watch a
-block, and folding the pair into `block_occupied` and `block_vacated` is
-`layout`'s.
-_Avoid_: camera (the device one kind of detector is built on; the **camera
-app** is something else), block detector; and not the **sensor**
-itself, which is the block end watched and is what the topic is addressed by
+What watches a block end, its sensor, and publishes `occupied`, `clear` or
+`unknown` on one retained state topic per sensor, addressed by
+`<block>.<end>` ([BUS.md](docs/BUS.md#device-vocabulary)).
+_Avoid_: camera (the device one kind is built on), block detector, sensor (the
+block end watched)
 
 **Link**:
-Whether a participant can reach the hardware it drives: `up` or `down`,
-observed and published like any other device state, carrying a free-text
-`detail`. It is what lets a view say the command station is unreachable rather
-than leaving the railroad merely looking idle, and it is where verifying that
-the hardware is really reachable belongs: at runtime, with a person present
-who can act on it, never in a gate that would need a powered layout to pass
-([ADR-0050](docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
-ADR-0043). Its row is keyed by an **id**, which is whatever the publisher
-calls itself and appears in no drawing, no configuration and no list of ours:
-a key because one railroad may have several participants, and the second's
-`up` would otherwise erase the first's `down`. `layout` folds the supply to
-`off` for any id it has heard say `down` and never waits for an id it has not
-heard
-([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
-_Avoid_: connection (the track between two blocks, which is its own entry),
-health, heartbeat, status; and not the hardware **system** the id used to
-name, an id naming the publisher and not a product
+Whether a participant can reach the hardware it drives, `up` or `down`. It is
+published like any other device state and keyed by the id the publisher calls
+itself ([BUS.md](docs/BUS.md#device-vocabulary)).
+_Avoid_: connection (between blocks), health, heartbeat, status, system
+(formerly, for the id)
 
 **Enum**:
 A field whose values are a closed set the contract names, listed beside the
-field in `tc49.lib.inventory`. Three fields are enums: `run`, `held`,
-`running` or `draining`; `power`, `on`, `stopped` or `off`; and `mode`,
-`automatic` or `manual`. The closed set goes wherever
-the field goes — `run` is an enum on the run's own state topic and on the
-gesture that asks to move it — so a fresh value is a change to the contract
-and not a payload a reader tolerates.
-Which way an unreadable value falls is not the field's but the reader's,
-decided by what a drop would cost: an unreadable `power` is read as `off` and
-holds the run, where dropping it would leave the run committing over track
-whose state could not be read; an unreadable `run` is dropped and nothing is
-set ([#175](https://github.com/rails49/control/issues/175)); an unreadable
-`mode` is dropped too, neither value being safe to invent for a train whose
-driver nobody could read.
-_Avoid_: word (the term this entry used until
-[#242](https://github.com/rails49/control/issues/242)), status. Not a
-**flag**, which is what [BUS.md](docs/BUS.md) calls a state topic
-carrying a boolean — `exhausted` is one and is not an enum.
+field in `tc49.lib.inventory` ([BUS.md](docs/BUS.md#payload-schemas)).
+_Avoid_: word (formerly), status
 
 **Command**:
-An imperative event the layout interface executes: `align` (set a connection
-to a transit) and `move` (a train crosses a transit into a block, at a stated
-speed). The only imperatives on the bus — everything else is a past-tense fact.
-The grant and the command share a word — `tc49/dispatch/move_granted` and
-`tc49/layout/move` — because the second is the first restated as an imperative.
-_Avoid_: instruction, `cross` (the name this command carried until
-[#236](https://github.com/rails49/control/issues/236)); the verb stays
-sanctioned, and **Transit** says where.
+An imperative event the layout interface executes: `align`, which sets a
+connection to a transit, and `move`, which takes a train across a transit into
+a block. They are the only imperatives on the bus
+([BUS.md](docs/BUS.md#event-inventory)).
+_Avoid_: instruction, cross (formerly, for `move`; the verb is fine)
 
 **Gesture**:
 What a person's action on a UI puts on the bus: a train and where to put it,
-and nothing else. **Not a request** — it carries no id and no departure end,
-which is the whole of what the scheduler adds when it composes the request the
-gesture asks for. One that cannot be composed is dropped rather than answered,
-there being no id to address an answer to
-([ADR-0036](docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
-_Avoid_: command (reserved for the layout interface's imperatives), request,
-click, action
+and nothing else. It is not a request: the scheduler adds the id and the
+departure end ([SYSTEM.md](docs/SYSTEM.md#scheduler)).
+_Avoid_: command (the layout interface's imperatives), request, click, action
 
 **Request id**:
-The scheduler-minted identity of a request. Both idempotency key (duplicate
-events are dropped) and correlation key threading a request's lifecycle and
-move events — and **opaque to both**, so uniqueness is the whole contract and
-no consumer reads the shape
-([ADR-0033](docs/adr/0033-a-request-id-is-unique-not-meaningful.md)). The
-scheduler mints a timetable's `<train>-1`, `<train>-2`, … from one undivided
-counter in the order the file states, so a document's requests read in the
-document's order. A **gesture**'s takes the same counter with a nonce the
-scheduler process mints once in between, `<train>-<nonce>-<n>`, so that a
-restart of the scheduler alone cannot re-mint an id the dispatcher is still
-holding. A benchmark run receives gestures and nothing else — a replay feeds
-its document as drags — and states the nonce rather than minting one, which is
-what makes two runs of one document agree id for id. Never clock-derived, and
-never minted by a page.
-_Avoid_: event id (there is no universal envelope id)
+The identity the scheduler mints for a request, used to drop duplicates and to
+tie a request's events together. It is opaque: uniqueness is the whole
+contract ([SYSTEM.md](docs/SYSTEM.md#scheduler)).
+_Avoid_: event id (there is no envelope id)
 
 ### Interruptions
 
-Three failures look alike and differ in who still holds the truth. Naming
-them apart is what keeps a page reload from being sized like a power cut
-([ADR-0032](docs/adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
-A **cold start** sits among them without being one of them: it is what an app
-does about the loss rather than a way of losing, and it also happens with
-nothing lost at all. **Standing** is a fourth: an app with no railroad to be
-built from, which is a state to be in rather than anything that happened. The
-two hardware controls below are a fifth thing again: the apps stay up
-throughout, so nothing is lost and nothing is recovered.
+Three failures that look alike and differ in who still holds the truth, and
+three things beside them ([SYSTEM.md](docs/SYSTEM.md#interruptions)).
 
 **Rejoin**:
-A client reconnecting to a run that never stopped. Nothing was lost: the
-dispatcher is running and holds the truth, and the client is a late subscriber
-that catches up from the retained state the broker holds.
+A client reconnecting to a run that never stopped. Nothing was lost
+([SYSTEM.md](docs/SYSTEM.md#interruptions)).
 _Avoid_: reconnect (the socket, not the catching up), recovery
 
 **Restart**:
-The apps coming back up while the rails stayed as they were. What was lost is
-the dispatcher's lock table, which no sensor can return — sensors are
-anonymous — so placement must be seeded before the first sensor event, from
-something persisted or by a person placing every train again. The process
-coming back is what makes it one, and it contains a **cold start**: a restart
-is the process returning, a cold start is the state being rebuilt, and the
-rebuilding also happens on its own with no process going anywhere.
+The apps coming back up while the rails stayed as they were. The dispatcher's
+lock table is lost ([SYSTEM.md](docs/SYSTEM.md#interruptions)).
 _Avoid_: reboot
 
 **Cold start**:
-An app clearing the retained rows it owns and building them again from
-nothing, **without the process restarting**. It happens on the way up, and
-again every time a person loads another railroad while the apps run
-([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)):
-the broker keeps the last railroad's retained rows for as long as it runs and
-only their owner can drop them, so an app that hears another name on
-`tc49/layout/state/railroad` clears its own and rebuilds. Every **restart**
-contains one; not every cold start is a restart.
-_Avoid_: reset, reload (a page reload is a **rejoin**), reboot, restart
+An app clearing the retained rows it owns and building them again, without the
+process restarting ([SYSTEM.md](docs/SYSTEM.md#interruptions)).
+_Avoid_: reset, reload (a page reload is a rejoin), reboot, restart
 
 **Standing**:
-An app that is **up with no railroad**: none has been named — nothing on a
-command line names one, and a new box records none
-([ADR-0072](docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md))
-— or the one named, the store's record for the binding of the layout interface
-and the row for every other app, is not one the store has. It publishes
-nothing, except that the
-binding of the layout interface names no railroad (`""`) on the row
-([#727](https://github.com/rails49/control/issues/727)); it follows the row
-or the gesture it follows anyway, and is built on the first railroad named
-that the store can give, which is a **cold start**
-([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
-[#564](https://github.com/rails49/control/issues/564)). Not a fault: an empty
-store is an ordinary state and what an app standing waits for is a person
-drawing a railroad, where waiting for the store is waiting for a process that
-is not up yet. The driver never stands, reading no documents.
-_Avoid_: idle, waiting (the store's own retry), down, held (the run's state,
-which a person moves)
+An app that is up with no railroad
+([SYSTEM.md](docs/SYSTEM.md#interruptions)).
+_Avoid_: idle, waiting (the store's own retry), down, held (the run's state)
 
 **Recovery**:
-Coming back after the layout lost power. Everything a restart lost, and what
-was believed is now *suspect*: a train that stalled in a tunnel gets lifted
-out by hand. Ends with a person confirming each train's placement. No
-placement is persisted to save that step: a train may have moved, and a swap
-between two occupied blocks is not something the detectors can see
-([ADR-0071](docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+Coming back after the layout lost power, when what was believed is suspect. It
+ends with a person confirming each train's placement
+([SYSTEM.md](docs/SYSTEM.md#interruptions)).
 _Avoid_: restart, resync
 
 **Emergency stop**:
-Every locomotive told to stand, with the track still live. The locos stop;
-points hold their positions and the decoders keep their state. Asked for on
-`tc49/layout/power_wanted` and read as `stopped` on
-`tc49/layout/state/power`, and the run **holds** on it
-([ADR-0041](docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
-The track stays live under one, so no hardware can report it: the value is
-**held** by `layout` from the command it wrote rather than observed
-([ADR-0063](docs/adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
-It ends with a person clearing the stop — `power_wanted: on`, the same control
-that asks for the rails to be live — and pressing GO; power returning releases
-nothing by itself.
-_Avoid_: e-stop, stop (the aspect), hold (the run's own state, which a person
-moves)
+Every locomotive told to stand, with the track still live. It reads `stopped`
+on `tc49/layout/state/power` and holds the run
+([SYSTEM.md](docs/SYSTEM.md#track-power)).
+_Avoid_: e-stop, stop (the aspect), hold (the run's state)
 
 **Power off**:
-The track supply removed. Nothing moves, and the accessory decoders lose it
-too, so no point position can be trusted afterwards. Reported as `off` on the
-same topic and holding the run the same way — the two differ for the person
-recovering, not for the dispatcher. Not **recovery**: the apps stayed up and
-their picture is only as stale as the steel that stopped moving. What is lost
-is a train granted a move when the supply went: it is stranded between blocks
-and no sensor will ever say where it stopped.
+The track supply removed. It reads `off` on `tc49/layout/state/power` and
+holds the run ([SYSTEM.md](docs/SYSTEM.md#track-power)).
 _Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
 
 **Railroad at rest**:
-Every retained `tc49/layout/state/wanted/traction` row holding `0.0` — every
-commanded speed zero. `layout` writes it when it comes up, and again when it
-applies a plain **power off**, so a speed left on the bus by a previous run or
-by a person's throttle is not handed back to a **translator** and replayed when
-the supply returns
-([ADR-0054](docs/adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md),
-[#435](https://github.com/rails49/control/issues/435)). It is a property of the
-commanded rows and never an observation of the steel: a train already rolling
-does not stop the instant it is told to, and a write that lands after the zeros
-undoes them
-([ADR-0062](docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-`tc49/layout/state/wanted/point` is no part of it — a point has no resting
-value to write.
-_Avoid_: at rest (of a train, which is a train standing still and a different
-thing), idle, quiet
+Every retained `tc49/layout/state/wanted/traction` row holding `0.0`. It is a
+property of the commanded rows, never an observation of the steel
+([SYSTEM.md](docs/SYSTEM.md#track-power)).
+_Avoid_: at rest (of a train, standing still), idle, quiet
 
 ### Store
 
 **Railroad**:
-One person's railroad, and what every document is keyed by: a **drawing**, the
-**roster** of the stock it owns, the scenarios drawn on it, and the script its
-translator loads, all filed under one name — `crossover-yard` — which is the
-name the store lists. An installation may hold many; **one broker runs one**, so
-every topic on a bus is about that one and topics stay flat
-([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
-A view learns which from `tc49/layout/state/railroad`, published retained by
-whichever binding of the layout interface is running — the one app bound to a
-railroad — and then loads that railroad from the store. Which one is loaded is
-a person's choice made while the apps run, on `tc49/layout/railroad_wanted` and
-only while track power reads `off`
-([ADR-0060](docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-The store records which one is loaded, so a box comes back on the railroad it
-was left on ([ADR-0072](docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
-_Avoid_: installation (the box and its store, which may hold several
-railroads), site, world, session (one run of one railroad), layout (the
-interface app), active layout (a railroad is **loaded**; *active* is a train's)
+One person's railroad, filed under one name: a drawing, the roster of the
+stock it owns, the scenarios drawn on it and the script its translator loads.
+One broker runs one, the loaded railroad, named on
+`tc49/layout/state/railroad` ([SYSTEM.md](docs/SYSTEM.md#asset-store)).
+_Avoid_: installation (the box and its store), site, world, session (one run of
+one railroad), layout (the interface app), active layout (say loaded)
 
 **Backup**:
 A commit of an installation's store, made by the app driving git over the
-store root: everything under it, in one commit, under a message naming the
-documents that moved. Automated backup is off until somebody turns it on, and
-the app never creates the repository or the remote it pushes to: it adopts an
-empty repository the person made, and pushes under a deploy key of its own
-([ADR-0053](docs/adr/0053-backup-drives-git-and-does-not-own-it.md),
-[docs/store/BACKUP.md](docs/store/BACKUP.md), #355).
-_Avoid_: snapshot, save (a save is one document written by the editor, and
-several of them make one backup), sync, archive
+store root ([BACKUP.md](docs/store/BACKUP.md)).
+_Avoid_: snapshot, save (one document written by the editor), sync, archive
 
 **Restore**:
-Putting the store back as a named backup held it, or, on an empty store,
-bringing in the latest backup of a repository the person names. Refused where
-documents have changed since the last backup, those being the ones git cannot
-give back; and while the track has power or the backup lacks the loaded
-railroad. The backup switch is left as it was and the result is itself backed
-up at once. Afterwards the UI names the loaded railroad again, so the running
-apps read what the restore wrote (ADR-0053 as amended, #699); the rebuild keeps
-the trains that still fit, and those that do not come off and are listed as
-**unfit** (ADR-0071). Not the **recovery** of a run's placement, which is about where trains
-stand and is a person's job.
+Putting the store back as a named backup held it, or bringing the latest
+backup into an empty store
+([BACKUP.md](docs/store/BACKUP.md#restoring)).
 _Avoid_: revert, roll back, undo (the editor's, over one drawing), recovery
+(where trains stand)
 
 ### Contracts
 
 **Binding**:
-One implementation of a contract that [BUS.md](docs/BUS.md) or
-[SYSTEM.md](docs/SYSTEM.md) defines normatively. The contract is the
-authority; a binding is not, and replacing one changes no app. Bindings differ
-in whether they supersede or coexist.
-_Avoid_: implementation, adapter, backend. Not *driver*, which names an app.
+One implementation of a contract that BUS.md or SYSTEM.md defines. The
+contract is the authority, and replacing a binding changes no app
+([ARCHITECTURE.md](docs/ARCHITECTURE.md#bindings)).
+_Avoid_: implementation, adapter, backend, driver (an app)
 
 **Milestone binding**:
-A binding that supersedes: exactly one exists at a time, and the next
-milestone deletes it. The YAML store gives way to REST. Nothing to drift
-from. The in-process bus was one of these and is not: the broker arrived and
-it stayed, for the harness alone, so the two bus bindings coexist and neither
-is the milestone's
-([ADR-0059](docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
+A binding that supersedes: one exists at a time, and the next milestone
+deletes it ([ARCHITECTURE.md](docs/ARCHITECTURE.md#bindings)).
 _Avoid_: provisional binding, stub
 
 **Language binding**:
-A binding that coexists: one per language, all live indefinitely. Python
-today, TypeScript alongside it once there is a UI. Siblings can drift, so they
-answer to a checkable schema of the contract rather than to prose or to each
-other ([ADR-0014](docs/adr/0014-python-apps-typescript-ui.md)).
+A binding that coexists: one per language, all of them kept
+([ARCHITECTURE.md](docs/ARCHITECTURE.md#bindings)).
 _Avoid_: port, sibling library, SDK
 
 **Layout binding**:
-A binding of the layout interface, one per thing that can run the track. It
-coexists, and it is **ranked**: the physical railroad is the normative one and
-the simulator conforms to it. Where the two could differ the physical railroad
-decides, even at cost to the simulator. Simulation stays behind the interface
-in its own app, free to grow there but never a field, a topic or a branch
-anywhere else
-([ADR-0030](docs/adr/0030-the-physical-railroad-is-the-normative-binding.md)).
+A binding of the layout interface, one per thing that can run the track. The
+physical railroad is the normative one, and the simulator conforms to it
+([GOALS.md](docs/GOALS.md#approach)).
 _Avoid_: backend, mode, target
 
 **Camera app**:
-What answers `GET /camera/snapshot` with one picture. It is a binding of the
-one route [SYSTEM.md](docs/SYSTEM.md) defines that no app of this repository
-answers: the responder is not code here and none exists yet, and a different
-camera is a different image answering the same route. A **200** carries `image/jpeg`,
-the picture as the camera took it, and any other status means no picture.
-One of them answers per box: its own stack claims `/camera` beside the paths
-the store's container claims, and in development vite proxies the prefix to
-the port it listens on
-([#629](https://github.com/rails49/control/issues/629)).
-_Avoid_: snapshot service, photo app, camera server; and not the **camera** a
-detector is built on, which is a device under the layout interface rather than
-a responder on a route
+What answers `GET /camera/snapshot` with one picture. No app of this
+repository answers that route ([SYSTEM.md](docs/SYSTEM.md#asset-store)).
+_Avoid_: snapshot service, photo app, camera server, camera (the device a
+detector is built on)
