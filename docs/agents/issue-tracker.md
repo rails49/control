@@ -71,18 +71,17 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ### Live maps
 
-- [UI map: how rails49's browser surfaces are organized](https://github.com/rails49/.github/issues/1)
-  — **in `rails49/.github`, not this repository.** Read every call above with
-  `rails49/control` replaced by `rails49/.github` for that map and its children.
-  It is org-wide rather than this repository's because `control` is one of four
-  browser surfaces and no decision about them may re-center it: whether a new
-  thing is a UI of its own or a view of an existing one, what one system is
-  binding on, where shared UI code lives, what serves each UI and how a person
-  reaches it, and where the bus contract lives, which
-  [ADR-0006 there](https://github.com/rails49/.github/blob/main/docs/adr/0006-the-bus-contract-is-controls-and-travels-when-something-reads-it.md)
-  settled on this repository, as `docs/BUS.md`.
+None.
 
 ### Completed maps
+
+- [UI map: how rails49's browser surfaces are organized](https://github.com/rails49/.github/issues/1)
+  — in `rails49/.github`, not this repository. It decided whether a new thing
+  is a UI of its own or a view of an existing one, what one system is binding
+  on, where shared UI code lives, what serves each UI and how a person reaches
+  it, and where the bus contract lives, which
+  [ADR-0006 there](https://github.com/rails49/.github/blob/main/docs/adr/0006-the-bus-contract-is-controls-and-travels-when-something-reads-it.md)
+  settled on this repository, as `docs/BUS.md`. Closed on 2026-09-21.
 
 - [Model photos map: a photo on each catalogue model](https://github.com/rails49/control/issues/624)
   — the way to a person taking a model's photo from the stock view with a

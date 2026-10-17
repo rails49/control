@@ -18,9 +18,10 @@
 # knows nothing about, and expanding `${TC49_STORE:-$HOME/tc49}` in the shell
 # would answer `$HOME/tc49` there.
 #
-# The file is read rather than sourced. It is the one place a secret sits on
-# disk (docs/DEPLOY.md), and sourcing it would put the Cloudflare token into
-# the environment of everything the deploy runs after it.
+# The file is read rather than sourced, so nothing in it reaches the
+# environment of what the deploy runs after it. It holds no secret: the
+# Cloudflare token is in the installation's `/etc/rails49/acme.env`
+# (docs/DEPLOY.md).
 set -euo pipefail
 
 ENV_FILE=${1:-/etc/rails49/deploy.env}

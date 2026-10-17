@@ -1,8 +1,9 @@
-# The application in a container, and every service on the layout server runs
-# from this one image with a command of its own: the store's HTTP face, the
-# mirror that owns the command station's USB device (ADR-0043), and a session
-# when somebody starts one. Nothing runs on that box outside a container, so
-# there is no Python on it to run anything else (#354).
+# The application in a container, and every app of this stack runs from this
+# one image with a command of its own: the store's HTTP face, the scheduler,
+# the dispatcher, the driver, and the layout interface or the simulator. The
+# mirror that owns the command station's USB device is `rails49/dccex`'s
+# (#567). Nothing runs on that box outside a container, so there is no Python
+# on it to run anything else (#354).
 #
 # One image rather than one per app. The apps share one `src/`, one lock file
 # and one version, so a build each would cost the layout box build time for no

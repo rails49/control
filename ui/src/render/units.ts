@@ -239,9 +239,9 @@ export const COLOURS: Record<string, string> = {
  * The values are not inversions. Track and ink swap ends, because the paper
  * does; a signal lamp, a route's green and cyan, and the two weights a fault is
  * marked in keep their hue and are lifted until they carry on the dark ground,
- * since what each colour *means* is the same page of LOOK.md in either theme. A
- * pale ground — a lit block body, a red one — becomes a dark ground of the same
- * hue rather than a pale one on a dark page.
+ * since what each colour *means* is the same page of look's `docs/LOOK.md` in
+ * either theme. A pale ground — a lit block body, a red one — becomes a dark
+ * ground of the same hue rather than a pale one on a dark page.
  *
  * An exported file takes the light palette whichever theme drew it
  * (`tc-canvas.styles.ts`): it is a file that leaves here, and it should not

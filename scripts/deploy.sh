@@ -81,9 +81,9 @@ TC49_UID=$(id -u)
 TC49_GID=$(id -g)
 export TC49_UID TC49_GID
 # `--build`, because compose builds only when no image is tagged for the
-# service and would otherwise keep one from before the pull. The store, the
-# session and the mirror all build from one context now, so a change under
-# `src/` reaches none of them without it (#365).
+# service and would otherwise keep one from before the pull. Every app here
+# builds from one context, so a change under `src/` reaches none of them
+# without it (#365).
 # Two profiles, because two things are being asked for. `layout` is the
 # software of a running railroad — the store, the built ui, and the scheduler,
 # dispatcher and driver (ADR-0059, decision 5), the same on every box. `steel`

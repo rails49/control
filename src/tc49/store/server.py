@@ -116,9 +116,9 @@ that will not compile is still one somebody can save and come back to. No
 No `DELETE`, as for every document here.
 
 **Both callers are apps rather than pages** — the translator that loads the
-script, and the face that edits it — each reaching this server over the stack's
-own network, which is why these two prefixes are on no proxy in front of a page
-and the origin rule is untouched (ADR-0055).
+script, and the face that edits it — each `rails49/dccex`'s and reaching this
+server over `rails49`, the box's shared network, which is why these two prefixes
+are on no proxy in front of a page and the origin rule is untouched (ADR-0055).
 
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
@@ -698,9 +698,9 @@ def make_server(
 
     Loopback unless told otherwise: the write face asks nobody who they are,
     so the bind is the whole of the authorization. A deployment is what says
-    otherwise — `deploy/compose.yaml` passes `--host 0.0.0.0` so the door on
-    the stack's own network can dial this, and the door is where the LAN as
-    the trust boundary is drawn (ADR-0042).
+    otherwise — `deploy/compose.yaml` passes `--host 0.0.0.0` so the door can
+    dial this over `rails49`, the box's shared network, and the door is where
+    the LAN as the trust boundary is drawn (ADR-0042).
 
     The backup is taken rather than made where the caller has one — `tc49
     serve` holds it so that its watch thread and its own quit commit drive

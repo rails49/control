@@ -48,9 +48,10 @@ credentials — and the declaration stays something you can paste into an issue
 while debugging a headless box.
 
 `control` adds one file of its own in that directory,
-`/etc/rails49/deploy.env`: where the store is rooted, which device the command
-station is on. One directory rather than two, so the box has one place its
-settings sit.
+`/etc/rails49/deploy.env`: where the store is rooted. One directory rather
+than two, so the box has one place its settings sit. Which device the command
+station is on is the mirror's, `DCCEX_STATION_DEVICE` in
+[`rails49/dccex`](https://github.com/rails49/dccex)'s `compose.box.yaml`.
 
 ## Working on the app
 
@@ -259,8 +260,7 @@ name, and what the containers below publish is on the LAN beside it.
 The command station is mirrored on 2560 at the LAN address, and that port is
 not this file's: it is published by [`rails49/dccex`](https://github.com/rails49/dccex),
 a stack of its own on the same box. `/camera` is the same arrangement: a
-camera app — the first is a small server in `rails49/camera` — claims the
-prefix under the box's name with a door label of its own, and neither its
+camera app, of which none exists yet, claims the prefix under the box's name with a door label of its own, and neither its
 container nor that label is in this repository's compose file
 ([#629](https://github.com/rails49/control/issues/629)).
 
@@ -421,19 +421,20 @@ JMRI, hand-held throttles — is a client of 2560, and they coexist: every byte
 the command station sends reaches every client, and a client's bytes go to it
 only as whole `<…>` messages (ADR-0043).
 
-**This railroad's per-district trip currents live on the box**, and they are
-not this stack's: a district is a hardware fact that reaches no bus topic and
-no document ([#217](https://github.com/rails49/control/issues/217)), the file
-of raw station commands is the translator's, and the translator is
-[`rails49/dccex`](https://github.com/rails49/dccex) (#587). Which file it is,
-how it is mounted, what may go in it and how a limit is changed are that
-project's page,
-[`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md#the-startup-file). What is left here is the operational consequence of the split,
-the same one the mirror's had: the first deploy after it takes the old
-translator container with it, `--remove-orphans` above sweeping a service this
-file no longer has, and the trip currents on the box are left alone for that
-project to mount. Bring its stack up, or the railroad comes back with a
-station nothing is translating for.
+**This railroad's per-district trip currents are in its script**, and they
+are not this stack's: a district is a hardware fact that reaches no bus topic
+([#217](https://github.com/rails49/control/issues/217)), the translator sets
+each limit from a handler in the railroad's script, and the translator is
+[`rails49/dccex`](https://github.com/rails49/dccex) (#587). The store serves
+the script at `/scripts/<railroad>` and reads none of it
+([#586](https://github.com/rails49/control/issues/586)). What may go in it and
+how a limit is changed are that project's page,
+[`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md#the-script).
+What is left here is the operational consequence of the split, the same one
+the mirror's had: the first deploy after it takes the old translator
+container with it, `--remove-orphans` above sweeping a service this file no
+longer has. Bring its stack up, or the railroad comes back with a station
+nothing is translating for.
 
 ### JMRI
 
@@ -534,9 +535,10 @@ door serves sends one.
 
 **Only what the door reaches joins the shared network.** `web`, `store` and
 `broker` join `rails49`, the network the installation creates and every stack
-on the box shares; `scheduler`, `dispatcher`, `driver`, the layout interface,
-the simulator and the translators stay on this stack's own network, because
-they talk to the bus and not to browsers. Each of the three is on two networks
+on the box shares; `scheduler`, `dispatcher`, `driver`, the layout interface
+and the simulator stay on this stack's own network, because they talk to the
+bus and not to browsers. No translator runs in this stack: `rails49/dccex`'s
+joins `rails49` from its own stack, and reaches `broker` and `store` there. Each of the three is on two networks
 and names the shared one again in a label, or the docker provider picks
 whichever container address it finds first. That is
 [ADR-0001](https://github.com/rails49/installation/blob/main/docs/adr/0001-only-what-the-door-reaches-joins-the-shared-network.md)
