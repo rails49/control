@@ -494,171 +494,44 @@ removal as the recourse
 
 ## Power
 
-**Commanded on arrival, never buffered.** There is no beat and no time
-quantisation, and an emergency stop that waits is not an emergency stop
-([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
-A `power_wanted` is written through to `wanted/track` with the word it was
-given — bar the one word that is guarded, below — and **nothing is said about
-`state/power` on the strength of having commanded it, bar the one word no
-hardware can report**: a railroad that answered `on` because somebody pressed
-ON would be this app taking its own word for the state of the track. It cannot
-verify that the supply really went and does not try — it assumes the device it
-commanded did what it was asked, and it is the system designer's job to put such
-a device there ([#232](https://github.com/rails49/control/issues/232)). The
-emergency stop is the exception, and *the emergency stop is held* below is
-where it is.
+The rule is [SYSTEM.md](../SYSTEM.md#track-power). This is how `layout`
+carries it out, in `src/tc49/layout/interface.py`. Whether a command is
+applied, and whether a stop is held, is `TrackPower` in
+`src/tc49/lib/power.py`, which the simulator uses too.
 
-**A plain `off` is applied only where nothing is moving.** The one command
-this app does not write through as it came
-([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-A topic names the app that answers it and never the process that sent the
-frame, so nothing about `power_wanted` says the panel wrote it with a drain
-behind it: a raw client, a test or a later UI publishing `off` would cut the
-supply under whatever is mid-transit and strand it where no sensor will ever
-say it stopped (CONTEXT.md, **Power off**). So this gesture is re-validated
-against current state on arrival, as every other browser-writable one already
-is, and the state it is validated against is `tc49/dispatch/state/run`:
+At start-up the constructor (`__init__`, :305) does this, in this order:
 
-| the run reads | a plain `off` |
-| --- | --- |
-| `held`, `moving` false | applied |
-| nothing yet — no dispatcher has stated a run | applied |
-| `held`, `moving` true | refused |
-| `running` or `draining`, either way | refused |
+1. Subscribes to the event topics, `power_wanted` among them (:404), so no
+   press is lost while it starts.
+2. Writes `wanted/track: off`, then `state/power: off` (:424-425).
+3. Writes `0.0` on every retained `wanted/traction` row (:439,
+   `_traction_rest` at :737).
+4. Subscribes to the state rows, `tc49/dispatch/state/run` (:448) and the
+   device rows (:450) among them. A supply row kept by a bus that outlived
+   the app then replaces the start-up `off` rather than being overwritten
+   by it.
 
-`held` and not merely "not moving", because an `off` on a running run with
-nothing granted would race the dispatcher's next grant by milliseconds. And
-**no run is no reason to refuse**: the guard refuses on evidence that
-something moves and on nothing else — with no dispatcher up nothing has been
-granted, and a railroad that could not be turned off would be worse than the
-race. A row that cannot be read leaves the run this app already held standing,
-and a row with no `moving` at all reads as nothing moving, an older dispatcher
-saying nothing about what is under way being no evidence either.
+That start-up `off` is not a command, and `TrackPower` never sees it.
 
-**What `moving` sees is the dispatcher's grants**, and a train somebody has
-taken in a throttle and is driving with no request behind it is neither active
-nor crossing. So the row reads not moving and the `off` is applied while that
-train rolls — this app writes its wheels on the throttle gesture alone, with
-no grant to ask about. Asking for power off with a train in hand is a user
-error the app does not guard (CONTEXT.md, **Moving**).
+`_on_run` (:1059) hands each `tc49/dispatch/state/run` frame to
+`TrackPower.run`, which keeps the latest by its stamp and ignores a frame it
+cannot read.
 
-**An `off` that is applied leaves the railroad at rest** (CONTEXT.md,
-**Railroad at rest**), as far as a write can leave it. Before the word goes
-out, `0.0` is written over every retained `wanted/traction` row, exactly as at
-startup below. "The railroad comes up at rest" is a promise about a **power
-off** and the `on` after it as well as about a process start, and the supply
-going is not a **restart**, so the startup rule does not reach it: an arrival
-zeroes the row of a train this app drives and nothing zeroes the row of one a
-person holds in a throttle, so a plain `off` would otherwise leave a speed
-standing and the next `on` would bring current back over it
-([#435](https://github.com/rails49/control/issues/435)). The order is
-load-bearing — a translator acts on desired rows as they arrive, so zeros first
-means the last thing the station is told before the supply goes is a stop — and
-it is only this `off`: a refused gesture changes nothing, and `stopped` is a run
-that is meant to resume from it, which zeroed rows would turn into a re-drive.
-`wanted/point` is left alone here for the reason it is left alone at startup.
+`_on_power_wanted` (:1083) asks `TrackPower.answer` for the value to apply,
+and returns where it is `None`. For an applied `off` it calls
+`_traction_rest` first, so the zeros reach a translator before the word
+does. It then writes `wanted/track` and calls `_publish_power`. It never
+writes `state/power` from the command, except for the held `stopped` that
+`TrackPower.stated` supplies.
 
-**That rest is what the cut writes, and not what the rails are guaranteed to
-carry a moment later.** The guard above reads the observed power and so does
-*no move while the rails are dead*, so ADR-0062 as amended reasons about a
-window between this app publishing `wanted/track: off` and the station
-reporting `device/track: off` in which a `run_wanted: running` from a second
-panel is accepted, the sweep grants, and the traction write of a crossing
-lands after the zeros
-([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-Nothing here closes it and neither gate changes: the outcome is a train
-holding locks for a move no sensor will answer, which ADR-0040 as amended by
-ADR-0049 already calls safe but wedged, with hold plus a placement as the
-recourse. How long the window is nobody has measured, and the simulator
-cannot show it at all: it has no station, so the word it states is the word it
-was commanded, with nothing in between
-([ADR-0070](../adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
+`_on_device` (:1169) keeps the latest `device/track` value and the latest
+`device/link/<id>` value per id, each by its stamp, and calls
+`_publish_power`. `_folded` (:1360) answers `off` unless every link it has
+heard reads `up`, and the supply's value otherwise. `_publish_power` (:1396)
+puts a held stop over that value and publishes `state/power` only when it
+changes.
 
-A refused `off` is **dropped**, in silence and to the trace with the reason,
-as every gesture this app cannot act on is
-([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
-It is not held for later: an intention kept would be the panel's stale wait
-moved server-side, and this app answers nothing that could clear it. A client
-that wants the supply removed from a running railroad has the panel's two
-words — ask for a drain, and cut when it is done. `on` and `stopped` are
-untouched and apply in every run state: an emergency stop asks the rails for
-less, and returning to `on` releases nothing (ADR-0041, ADR-0051).
-
-**`state/power` is otherwise folded from what the hardware reports.** The
-supply's own word, `device/track`, wherever every `device/link` that has ever
-been seen reads `up`; `off` otherwise, and it answers again the moment a held
-stop is cleared — *the emergency stop is held*, below — what the hardware said
-meanwhile being what the row then reads. A participant that cannot reach its
-hardware leaves a railroad no train may move on whatever the supply says,
-since the participant saying it may be the unreachable one. *Ever seen* and not
-*currently connected*: a link is a retained level, so one that said `down` and
-then died leaves the value standing, and forgetting it would turn a broken
-railroad back on
-([ADR-0050](../adr/0050-broken-hardware-is-reported-never-worked-around.md)).
-
-Each link row is keyed by the id its publisher calls itself — no drawing and
-no list of ours names one — so several participants each keep their own row
-and the second's `up` does not erase the first's `down`. An id this app has
-not heard is one it waits for no word from: nothing must announce itself for
-the railroad to come up (ADR-0058,
-[ADR-0059](../adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
-A supply reported `off` may carry a free-text `reason`, which is a person's
-to read and nothing this app branches on.
-
-Anything that cannot be read falls the same way, which is the direction a state
-topic must fail in
-([#181](https://github.com/rails49/control/issues/181)): a supply that cannot be
-read is not one a train may move on, and a link that cannot be read is not one
-this app may call good.
-
-**The supply is `on` or `off`.** An emergency stop leaves the rails live, so the
-observed row reads `on` under one and has no third value to say it with
-([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
-A frame that says it anyway says what no hardware can observe, and is refused
-with everything else this app cannot read. So the fold answers `on` while the
-railroad stands under a stop: saying that a person has yet to clear one is not
-a fold from hardware and never can be.
-
-**The emergency stop is held, and it is the one value on this row not read
-off hardware.** This app wrote `stopped`, so this app knows: on writing
-`wanted/track: stopped` it publishes `state/power: stopped` and keeps it, over
-whatever the fold says, until a person asks for the power back. Without it the
-board is green a second after the press and *emergency stop — clear it before
-driving* has no source (ADR-0041), the supply being live under a stop and
-going on saying so. It is held because no hardware can hold it, and for no other
-reason: this is the one piece of state the app keeps about the power, and
-ADR-0062 refused a "cut in flight" flag for being a second one.
-
-**Clearing it is `power_wanted: on`** — the railroad's own power control, and
-what a person reaches for to resume. No new topic, no fourth value and no new
-button, and the press that clears the stop is the same press that asks for the
-rails to be live. A dropped gesture clears nothing, an unreadable one and an
-`off` the guard refuses alike, and neither does an `off` that is applied: a cut
-is commanded and not observed, so clearing there would publish `on` — the
-fold's answer while the hardware still reports the supply it has not yet lost —
-in the moment this app is asking for that supply to go. The stop stands over a
-dark railroad instead, which is a word the dispatcher and every UI already hold
-the run on, and the person clears it with the press they need anyway.
-
-**On startup the railroad is off.** The app comes up having written
-`wanted/track: off` and `state/power: off`, so nothing moves and no turnout
-throws until a person turns it on, normally from the panel. That `off` is not
-a gesture and the guard above does not reach it. Thereafter it never writes
-`off` of its own accord: it writes the word it was told to write, and the
-supply going away below it moves `state/power` and never `wanted/track`.
-
-**And on startup the railroad is at rest.** The app also comes up having
-written `0.0` over every retained `wanted/traction` row it finds. A traction
-row is retained, so a broker that outlived the app hands the last run's speed
-straight back and a translator sends it at the first connect — a locomotive
-rolling on the power-on with no grant and the run still held
-([#333](https://github.com/rails49/control/issues/333)). Zero is written here
-rather than by a translator standing down, because this app is the row's one
-writer and the ruling then holds when a process is killed as well as when it
-exits. `wanted/point` is left to replay: traction has a resting value and a
-point has none, so the retained belief about where the last session left the
-blades is the only answer short of throwing every point at startup
-([ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
+`_cross` (:548) acts on no `move` while `state/power` is not `on` (:598).
 
 ## What is not here yet
 
