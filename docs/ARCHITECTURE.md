@@ -40,8 +40,7 @@ table exists anywhere (ADR-0043).
 That repository depends on this one as a package, for `tc49.lib` and nothing
 else: a translator meets these apps on the bus and over the store's face, on
 the terms every app meets them on. Every translator after it is on those
-terms: one for another hardware system — whatever `jmri/…` addresses reach,
-say — is a repository of its own as well, never a package added here.
+terms: a repository of its own, never a package added here.
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
 over the event bus and the asset store's CRUD contract, so each one can be
