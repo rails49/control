@@ -157,7 +157,6 @@ from tc49.lib.inventory import (
     OCCUPIED,
     OFF,
     ON,
-    STOPPED,
     UNKNOWN,
     device_topic,
     split_device,
@@ -176,13 +175,10 @@ from tc49.lib.payload import (
     Command,
     Mode,
     Ordering,
-    Run,
     alignment,
     command,
-    commanded_power,
     detected,
     kept_facing,
-    kept_run,
     link_up,
     named_train,
     placement,
@@ -192,7 +188,7 @@ from tc49.lib.payload import (
     wanted_mode,
     wanted_throttle,
 )
-from tc49.lib.power import off_refused
+from tc49.lib.power import TrackPower
 from tc49.lib.roster import FORWARD, Roster
 
 _log = logging.getLogger(__name__)
@@ -375,12 +371,10 @@ class LayoutInterface:
         self._occupied: dict[str, bool] = {}
         self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
-        # The run the dispatcher last stated, and `None` until it states one.
-        # Held for the one thing that reads it: a plain `off` is applied only
-        # where nothing is moving (ADR-0062, `_on_power_wanted`). `None` is
-        # not a fourth run word — it is this app having no evidence, which is
-        # no reason to refuse.
-        self._run: Run | None = None
+        # How a power press is answered, the rule both bindings keep: the run
+        # row a plain `off` is judged against (ADR-0062), and the emergency
+        # stop this app commanded, which no hardware can report (ADR-0063).
+        self._track_power = TrackPower()
         # The two halves of the power fold, and what was last said about it.
         # A link is held under the id its publisher calls itself, which is
         # the topic's and nothing this app holds a list of: an id is learned
@@ -388,13 +382,6 @@ class LayoutInterface:
         self._track = OFF
         self._links: dict[str, bool] = {}
         self._power = OFF
-        # And the one value on that row this app holds rather than folds:
-        # whether the railroad stands under an emergency stop it commanded.
-        # No hardware can report one — a stop leaves the rails live, so the
-        # supply reads `on` under it (ADR-0063) — so the app that wrote the
-        # word is the only thing that knows, and it holds it until a person
-        # asks for the power back (`_on_power_wanted`, `_publish_power`).
-        self._stopped = False
         # The stamps held against the state topics this app consumes: the
         # aspects, the facing and every device row. Two values of one topic
         # delivered
@@ -1091,12 +1078,7 @@ class LayoutInterface:
         what the dispatcher said on one bad frame would leave this app with
         no evidence, and no evidence applies an `off`.
         """
-        if not self._ordering.accepts(topic, payload):
-            return
-        held = kept_run(payload)
-        if held is None:
-            return
-        self._run = held
+        self._track_power.run(topic, payload)
 
     def _on_power_wanted(self, topic: str, payload: Payload) -> None:
         """A person asked the railroad for power, an emergency stop, or the
@@ -1144,7 +1126,8 @@ class LayoutInterface:
         mid-transit and strand it where no sensor will ever say it stopped
         (CONTEXT.md, **Power off**). So this one gesture is re-validated
         against current state on arrival, as every other browser-writable one
-        already is, and `lib.power.off_refused` is the whole check.
+        already is, and `lib.power.TrackPower` is the whole check, the same
+        one the simulator makes.
 
         A refused `off` is **dropped**, in silence and to the trace with the
         reason, as every gesture this app cannot act on is (ADR-0034). It is
@@ -1175,19 +1158,11 @@ class LayoutInterface:
         (ADR-0062), and `stopped` is a run that is meant to resume, which
         zeroed rows would turn into a re-drive.
         """
-        wanted = commanded_power(payload)
+        wanted = self._track_power.answer(payload)
         if wanted is None:
             return
         if wanted == OFF:
-            refusal = off_refused(self._run)
-            if refusal is not None:
-                _log.info("power off refused: %s", refusal)
-                return
             self._traction_rest()
-        if wanted == STOPPED:
-            self._stopped = True
-        elif wanted == ON:
-            self._stopped = False
         self._bus.publish(WANTED_TRACK, {"power": wanted})
         self._publish_power()
 
@@ -1439,7 +1414,7 @@ class LayoutInterface:
         said meanwhile is what the row then reads, rather than an `on` this
         app has taken its own word for.
         """
-        stated = STOPPED if self._stopped else self._folded()
+        stated = self._track_power.stated(self._folded())
         if stated != self._power:
             self._power = stated
             self._bus.publish(POWER, {"power": stated})

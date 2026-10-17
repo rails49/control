@@ -33,10 +33,11 @@ this app, and never on any topic (ADR-0030). No RNG: transit times are
 fixed, so a run is reproducible by construction.
 
 It answers the band's **power** presses as the layout interface does
-(ADR-0070). It comes up `off`, and states on `state/power` the word each
-answered `power_wanted` commanded, having no hardware to report one; a plain
-`off` is applied only while the run is held and nothing moves (ADR-0062), the
-check being `lib.power`'s and the layout's own. While the power is not `on`
+(ADR-0070). It comes up `off`, and states on `state/power` the last `on` or
+`off` it applied, having no hardware to report one, with `stopped` held over
+it until `on`; a plain `off` is applied only while the run is held and nothing
+moves (ADR-0062). The rule is `lib.power.TrackPower`'s, which the layout keeps
+too. While the power is not `on`
 no move starts and none advances: a `move` is dropped, and the sensor events
 of a transit under way wait, firing at ON with the time they had left — a
 train under an emergency stop on steel goes on at its kept speed.
@@ -65,7 +66,6 @@ lives in the broker and nowhere else, and a placement is nothing the
 inventory names (ADR-0030, ADR-0059 decision 3, `tc49/simulator/__main__.py`).
 """
 
-import logging
 import time
 from collections.abc import Callable
 from heapq import heapify, heappop, heappush
@@ -74,19 +74,8 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import OFF, ON, STOPPED
 from tc49.lib.layout import Layout, block_of, end_across
-from tc49.lib.payload import (
-    Command,
-    Ordering,
-    Run,
-    command,
-    commanded_power,
-    kept_run,
-    named_train,
-    placement,
-)
-from tc49.lib.power import off_refused
-
-_log = logging.getLogger(__name__)
+from tc49.lib.payload import Command, command, named_train, placement
+from tc49.lib.power import TrackPower
 
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
@@ -133,15 +122,17 @@ class Simulator:
         # clears (ADR-0069 decision 7). A block a train was put in and never
         # read occupied for it is not here.
         self._occupied: dict[str, list[str]] = {}
-        # The word this binding last stated on `state/power`, and the run
-        # clock's reading when it last left `on`: what the waiting events are
-        # moved later by when it comes back (ADR-0070, decision 4).
+        # The word this binding last stated on `state/power`, the last `on`
+        # or `off` it applied, and the run clock's reading when it last left
+        # `on`: what the waiting events are moved later by when it comes back
+        # (ADR-0070, decision 4).
         self._power = OFF
+        self._supply = OFF
         self._cut_at = clock.now
-        # The last run row the dispatcher stated, for the check on a plain
-        # `off` (ADR-0062), stamp-guarded as `layout` keeps it (#240).
-        self._run: Run | None = None
-        self._ordering = Ordering()
+        # How a power press is answered, the rule the layout keeps as well:
+        # the run row a plain `off` is judged against (ADR-0062), and the
+        # emergency stop held until `on`.
+        self._track_power = TrackPower()
         # The commands, subscribed **before** a word is published. A publish
         # is asynchronous where a subscribe waits to be acknowledged, so an
         # app that published first would be deaf for as long as its own
@@ -183,55 +174,42 @@ class Simulator:
 
     def _on_run(self, topic: str, payload: Payload) -> None:
         """Where the dispatcher holds the run, and whether anything moves
-        under it: what a plain `off` is checked against (ADR-0062). Read as
-        `layout` reads it — an earlier stamp is ignored, and a value that
-        cannot be read leaves the run already held standing."""
-        if not self._ordering.accepts(topic, payload):
-            return
-        held = kept_run(payload)
-        if held is None:
-            return
-        self._run = held
+        under it: what a plain `off` is checked against (ADR-0062), kept by
+        `lib.power.TrackPower` as `layout` keeps it."""
+        self._track_power.run(topic, payload)
 
     def _on_power_wanted(self, topic: str, payload: Payload) -> None:
         """A person asked for power, an emergency stop, or the supply removed,
         and this binding answers it as the layout interface does (ADR-0070).
-        There is no hardware to report the supply, so the word commanded is
-        the word stated, and `stopped` stands until `on`: an `off` under a
-        stop changes nothing here, the supply it removes being one this
-        binding does not have (#752).
-
-        A press that cannot be read is dropped, and so is a plain `off` that
-        `lib.power.off_refused` refuses, to the log with the reason: the
-        supply is removed only while the run is held and nothing moves
-        (ADR-0062).
+        There is no hardware to report the supply, so the supply is the last
+        `on` or `off` applied, and `stopped` stands over it until `on` (#752).
+        Whether a press is applied at all is `lib.power.TrackPower`'s, the
+        same rule the layout keeps (ADR-0062).
 
         Leaving `on` stops the scheduled sensor events where they are; coming
         back to it moves each one later by the time the power was not `on`,
         so a transit goes on with the time it had left and the events keep
         their order (decision 4).
         """
-        wanted = commanded_power(payload)
+        wanted = self._track_power.answer(payload)
         if wanted is None:
             return
-        if wanted == OFF:
-            refusal = off_refused(self._run)
-            if refusal is not None:
-                _log.info("power off refused: %s", refusal)
-                return
-            if self._power == STOPPED:
-                return
-        if self._power == ON and wanted != ON:
+        if wanted != STOPPED:
+            self._supply = wanted
+        stated = self._track_power.stated(self._supply)
+        if stated == self._power:
+            return
+        if self._power == ON:
             self._cut_at = self._clock.now
-        elif self._power != ON and wanted == ON:
+        elif stated == ON:
             waited = self._clock.now - self._cut_at
             self._events = [
                 (at + waited, seq, leaf, train, block)
                 for at, seq, leaf, train, block in self._events
             ]
             heapify(self._events)
-        self._power = wanted
-        self._bus.publish("tc49/layout/state/power", {"power": wanted})
+        self._power = stated
+        self._bus.publish("tc49/layout/state/power", {"power": stated})
 
     def _on_placed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a locomotive and put it somewhere else (#152).
