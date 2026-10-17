@@ -5,7 +5,8 @@ the boundary it was granted on — was never implemented. This is its
 replacement, and it is stronger: a stale `move` is a no-op on state alone,
 whether it was redelivered after arrival, granted against a placement a hand
 has since changed, or names a train that has left the layout. No clock, no
-stamp, no agreement between apps.
+stamp, no agreement between apps. Those stale cases are held to both bindings
+in `tests/system/test_layout_bindings.py`; what stays here is the fresh move.
 
 Driven at the layout interface: a `move` command in, sensor events out.
 """
@@ -31,46 +32,6 @@ def build() -> tuple[InProcessBus, Simulator]:
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
     return bus, simulator(bus, layout, placement(scenario.trains))
-
-
-def test_a_redelivered_move_is_a_no_op() -> None:
-    """After arrival the train stands at the far end, not the near one, so
-    the same `move` delivered again moves nothing and no sensor speaks."""
-    bus, sim = build()
-    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(sim)
-
-    seen = sensors(bus)
-    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(sim)
-    assert seen == []
-
-
-def test_a_move_overtaken_by_a_placement_is_ignored() -> None:
-    """A hand moved the steel after the grant: the train no longer stands at
-    the transit's near end, so acting on the command would vacate a block
-    nobody is leaving."""
-    bus, sim = build()
-    bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
-    bus.drain()
-
-    seen = sensors(bus)
-    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(sim)
-    assert seen == []
-
-
-def test_a_move_for_a_train_off_the_layout_is_ignored() -> None:
-    """The train was lifted off before its command arrived: it stands
-    nowhere, so it stands at no near end."""
-    bus, sim = build()
-    bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
-    bus.drain()
-
-    seen = sensors(bus)
-    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(sim)
-    assert seen == []
 
 
 def test_a_live_move_still_moves() -> None:

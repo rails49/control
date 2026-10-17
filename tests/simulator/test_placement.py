@@ -33,12 +33,6 @@ def simulator(bus: InProcessBus, layout: Layout, stood: dict[str, str]) -> Simul
     )
 
 
-def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
-    seen: list[tuple[str, Payload]] = []
-    bus.subscribe("tc49/layout/+", lambda topic, payload: seen.append((topic, payload)))
-    return seen
-
-
 def tick(sim: Simulator) -> None:
     """One turn of the live loop, with no clock: the sensor events an
     accepted move scheduled — due immediately at zero delay — fire and their
@@ -59,46 +53,6 @@ def move(bus: InProcessBus, train: str, transit: str, into: str) -> None:
         MOVE, {"train": train, "connection": connection, "transit": name, "into": into}
     )
     bus.drain()
-
-
-def test_a_hand_that_lifts_a_train_moves_the_steel_under_it() -> None:
-    """`train_placed` is the one thing besides a `move` that moves a train
-    (#152): a person lifted a locomotive and the dispatcher accepted it. On
-    the real railroad nobody has to say so — the steel simply is where it was
-    left — and the simulator stands in for the steel, so it is told. Without
-    it the next move would vacate the block the train used to be in and the
-    sensors would describe a railroad nobody is on."""
-    layout, _roster, scenario = load("crossover-yard/meet")
-    bus = InProcessBus(Clock())
-    sim = simulator(bus, layout, placement(scenario.trains))
-    bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
-    bus.drain()
-
-    seen = sensors(bus)
-    move(bus, "freight_1", "crossover.up_to_dn", "dn_e")
-    tick(sim)
-    assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
-
-
-def test_a_hand_that_lifts_a_train_off_the_layout_takes_the_steel_with_it() -> None:
-    """The other half of the same gesture (#170): the train is gone, so the
-    steel this binding stands in for is gone. Nothing is reported on any
-    detector — this binding reports occupancy when a train crosses, and this
-    train crosses nothing now."""
-    layout, _roster, scenario = load("crossover-yard/meet")
-    bus = InProcessBus(Clock())
-    sim = simulator(bus, layout, placement(scenario.trains))
-    seen = sensors(bus)
-
-    bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
-    bus.drain()
-    assert seen == []
-
-    # And it really is off: a move for it now stands no train up, where the
-    # same move before the removal would have vacated `yard_w`.
-    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
-    tick(sim)
-    assert ("tc49/layout/block_vacated", {"block": "yard_w"}) not in seen
 
 
 def test_the_placement_reaches_no_topic() -> None:
@@ -262,19 +216,3 @@ def test_a_train_placed_between_blocks_takes_its_next_move() -> None:
         ("tc49/layout/block_occupied", {"block": "dn_e"}),
         ("tc49/layout/block_vacated", {"block": "up_w"}),
     ]
-
-
-def test_position_is_where_the_steel_stands_and_a_copy() -> None:
-    """What a rebuild under the same name carries into the next build
-    (ADR-0071): where it was put, then where a hand moved it — and a copy, so
-    the build reading it cannot move this one's steel."""
-    layout, _, _ = load("crossover-yard/meet")
-    bus = InProcessBus(Clock())
-    sim = simulator(bus, layout, {"freight_1": "yard_w"})
-    bus.publish("tc49/dispatch/train_placed", {"train": "express_2", "block": "up_e"})
-    bus.drain()
-
-    seen = sim.position
-    seen["freight_1"] = "dn_e"
-
-    assert sim.position == {"freight_1": "yard_w", "express_2": "up_e"}

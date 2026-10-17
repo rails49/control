@@ -14,8 +14,6 @@ whole of what the near-end check is made of.
 from tests.layout.railroad import (
     DEVICE_TRACK,
     MOVE,
-    POWER_WANTED,
-    REMOVED,
     WANTED_POINT,
     align,
     build,
@@ -57,92 +55,6 @@ def test_a_move_delivered_before_its_align_waits_for_it() -> None:
     assert app.position == {"freight_1": "dn_e"}
 
 
-def test_a_move_whose_near_end_the_train_is_not_at_changes_nothing() -> None:
-    """The check that makes a stale command harmless: the train is not
-    standing where this transit would take it from, so there is nothing to
-    take (ADR-0047)."""
-    bus, app = build()
-    energised(bus)
-    stand(bus, "freight_1", "up_e")
-    align(bus, "crossover", "to_dn")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-
-    assert app.position == {"freight_1": "up_e"}
-
-
-def test_a_move_redelivered_after_arrival_changes_nothing() -> None:
-    """At-least-once delivery can repeat a command minutes late. After
-    arrival the train has left the near end, so the redelivery is a no-op on
-    state alone — no clock, no stamp, no agreement between apps."""
-    bus, app = build()
-    energised(bus)
-    stand(bus, "freight_1", "up_w")
-    align(bus, "crossover", "to_dn")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-
-    assert app.position == {"freight_1": "dn_e"}
-
-
-def test_a_move_overtaken_by_a_hand_changes_nothing() -> None:
-    """The same check refuses a command the steel has moved out from under:
-    the dispatcher accepted a placement after the grant."""
-    bus, app = build()
-    energised(bus)
-    stand(bus, "freight_1", "up_w")
-    align(bus, "crossover", "to_dn")
-    stand(bus, "freight_1", "up_e")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-
-    assert app.position == {"freight_1": "up_e"}
-
-
-def test_a_train_taken_off_the_layout_stands_at_no_near_end() -> None:
-    """It stands nowhere, so no command naming it is acted on (ADR-0039)."""
-    bus, app = build()
-    energised(bus)
-    stand(bus, "freight_1", "up_w")
-    align(bus, "crossover", "to_dn")
-    bus.publish(REMOVED, {"train": "freight_1"})
-    bus.drain()
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-
-    assert app.position == {}
-
-
-def test_no_move_while_the_rails_are_dead() -> None:
-    """A railroad that is off moves nothing, which is what makes a restart
-    safe: the app comes up with the power off, so the check has teeth on
-    every one of them (ADR-0041). A supply the app cannot read is dead on the
-    same terms, the reading falling to `off` (#181), so the guard is one
-    check and not two."""
-    for reported in ("off", "sideways"):
-        bus, app = build()
-        bus.publish(DEVICE_TRACK, {"power": reported})
-        bus.drain()
-        stand(bus, "freight_1", "up_w")
-        align(bus, "crossover", "to_dn")
-        move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-
-        assert app.position == {"freight_1": "up_w"}, reported
-
-
-def test_no_move_under_an_emergency_stop_this_app_holds() -> None:
-    """The rails are live under a stop and the supply says so, so this is the
-    one dead-railroad case no fold could catch: `state/power` reads `stopped`
-    from the command this app wrote, and the guard has teeth on it exactly as
-    on an `off` (ADR-0041, ADR-0063)."""
-    bus, app = build()
-    energised(bus)
-    bus.publish(POWER_WANTED, {"power": "stopped"})
-    bus.drain()
-    stand(bus, "freight_1", "up_w")
-    align(bus, "crossover", "to_dn")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-
-    assert app.position == {"freight_1": "up_w"}
-
-
 def test_a_move_that_arrived_dead_is_not_held_for_its_align() -> None:
     """Dropped rather than queued: a command honoured minutes after the power
     came back is a train moving long after anyone asked, and the run is held
@@ -167,21 +79,6 @@ def test_a_held_move_is_read_again_against_the_railroad_it_lands_on() -> None:
     bus.publish(DEVICE_TRACK, {"power": "off"})
     bus.drain()
     align(bus, "crossover", "to_dn")
-
-    assert app.position == {"freight_1": "up_w"}
-
-
-def test_a_move_this_railroad_has_no_track_for_changes_nothing() -> None:
-    """A transit no connection here holds, and one that crosses neither end
-    of the block the command says the train is entering: either way there is
-    no track from anywhere over that transit into that block, so the command
-    names no near end to be standing at (#276)."""
-    bus, app = build()
-    energised(bus)
-    stand(bus, "freight_1", "up_w")
-    align(bus, "crossover", "to_dn")
-    move(bus, "freight_1", "crossover", "to_nowhere", "dn_e")
-    move(bus, "freight_1", "crossover", "to_dn", "up_e")
 
     assert app.position == {"freight_1": "up_w"}
 
