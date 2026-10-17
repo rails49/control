@@ -1494,8 +1494,9 @@ class Dispatcher:
         What it cannot do is undo the cut. A train granted a move that no
         sensor will ever answer keeps its locks and its `crossing` entry, and
         every train waiting on those resources waits with it, until somebody
-        restarts the session — the hold is a brake and not an emergency stop,
-        and nothing on the bus retracts a `move` already sent.
+        takes that train off or places it again under the hold, which cancels
+        its request (ADR-0049) — the hold is a brake and not an emergency
+        stop, and nothing on the bus retracts a `move` already sent.
         """
         self._state.power = power(payload)
         if self._state.power != ON:
