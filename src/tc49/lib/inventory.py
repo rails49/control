@@ -205,9 +205,9 @@ mast will not accept — which is common and otherwise entirely silent; what it
 misses is hardware that answers and does not obey, which no protocol reports.
 A refusal that is published happened, and one that is not published is no
 evidence that none occurred: where a participant cannot attribute a refusal to
-its own command it publishes nothing, and DEVICES.md says which those are
-(ADR-0063, #463). `layout` does not read it — nothing branches on it, and it
-is there for a person.
+its own command it publishes nothing, and each translator's own doc says
+which those are (ADR-0063, #463). `layout` does not read it — nothing
+branches on it, and it is there for a person.
 
 Separate from ``TOPICS`` rather than in it because ``TOPICS`` maps a whole
 topic to its field order, and a device row's whole topic is not knowable until

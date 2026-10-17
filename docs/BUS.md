@@ -897,9 +897,9 @@ protocol reports and this row does not pretend to
 [#463](https://github.com/rails49/control/issues/463)). A refusal that is
 published happened, and one that is not published is no evidence that none
 occurred: where a participant cannot attribute a refusal to its own command it
-publishes nothing, and [layout/DEVICES.md](layout/DEVICES.md) says which those
-are. `layout` does not subscribe it. It is for a UI, for a person to read, and
-nothing branches on it.
+publishes nothing, and each translator's own doc says which those are, linked
+from [layout/DEVICES.md](layout/DEVICES.md). `layout` does not subscribe it.
+It is for a UI, for a person to read, and nothing branches on it.
 
 Two of the observed rows are published today, both by a translator:
 `device/track` and `device/link`, which are two of the three `layout` reads
