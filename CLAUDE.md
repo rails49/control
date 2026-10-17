@@ -19,39 +19,11 @@ app, never a field, a topic or a branch in any other app
 
 ## Apps
 
-An **app** is a unit that will run as its own container: `store`, `scheduler`,
-`dispatcher`, `driver`, `simulator`, `layout`
-([ADR-0043](docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)),
-and a `ui` later. Two of them have left: the `dccex-usb` port mirror with #567
-and the `dccex` translator with #587, both
-[`rails49/dccex`](https://github.com/rails49/dccex) now. What this repository
-sees of them is the 2560 the mirror publishes and the bus the translator joins
-like any other client. Each gets one package in
-`src/tc49/`. Apps import `tc49.lib` and themselves, **never each other**; they
-meet over the event bus and the store's CRUD contract.
-
-`docs/BUS.md` and `docs/SYSTEM.md` are the normative definition of those
-contracts. `lib/bus.py` and `lib/mqtt.py` are the bus's Python binding — the
-interface every app is handed, and its two transports — so a TypeScript UI
-gets a sibling binding written against `BUS.md`, as `ui/src/model/trace.ts`
-is. `lib/payload.py` is not part of that: it is this repository's own
-defensive reading, organised by which of our apps reads which frame and
-importing `lib.layout`, so none of it carries over — except the desired half
-of the device vocabulary, which the translator reads through the package and
-which is why `desired_speed`, `desired_position`, `desired_aspect` and
-`desired_function` are here with no caller in `src/tc49` (#587). `src/tc49/bench/` is the
-research harness, not an app, and is the only code that wires apps together;
-top-level `bench/` is the fixture data it roots itself at, while a session and
-the store server read an installation's own store. `tests/` mirrors the same
-structure; `tests/system/test_app_boundaries.py` enforces the import rule.
-
-`docs/` splits the same way: repo-wide pages at the top level, an app's
-implementation details in a subfolder named for its package. ADRs are the
-exception — one numbered sequence in `docs/adr/`, never split by app.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[ADR-0013](docs/adr/0013-apps-are-deployment-units.md), and
-[ADR-0014](docs/adr/0014-python-apps-typescript-ui.md).
+Apps import `tc49.lib` and themselves, never each other;
+`tests/system/test_app_boundaries.py` enforces it. `desired_speed`,
+`desired_position`, `desired_aspect` and `desired_function` in
+`lib/payload.py` have no caller in `src/tc49`: the `dccex` translator reads
+them through the package (#587). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Landing work
 
@@ -80,6 +52,10 @@ What `ready-for-agent` asserts, and why an issue does not carry it: `docs/agents
 ### Domain docs
 
 Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
+
+What each doc holds, and that an accepted ADR does not change: the
+organisation's
+[ADR-0017](https://github.com/rails49/.github/blob/main/docs/adr/0017-each-fact-has-one-owner-and-an-accepted-adr-does-not-change.md).
 
 ### Batch implementation
 
