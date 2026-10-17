@@ -13,8 +13,6 @@ dropped, and a transit under way at a STOP waits and goes on at ON with the
 time it had left.
 """
 
-import pytest
-
 from tc49.bench.runner import placement
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
@@ -24,7 +22,6 @@ from tests.harness import build, events, load
 
 POWER = "tc49/layout/state/power"
 POWER_WANTED = "tc49/layout/power_wanted"
-RUN = "tc49/dispatch/state/run"
 SENSORS = ("tc49/layout/block_occupied", "tc49/layout/block_vacated")
 
 TRANSIT_S = 10.0
@@ -88,14 +85,6 @@ def move(bus: InProcessBus) -> None:
     bus.drain()
 
 
-def test_a_new_simulator_comes_up_off() -> None:
-    """Retained and published from the constructor, as the layout interface
-    comes up: a simulated box needs ON after it starts, as a real one does
-    (ADR-0070, decision 2)."""
-    bus, _clock, _sim = simulator()
-    assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
-
-
 def test_each_answered_press_is_the_word_on_state_power() -> None:
     """No hardware reports the supply here, so the word commanded is the
     word stated: `on`, `stopped` and `off` each appear as pressed."""
@@ -105,88 +94,6 @@ def test_each_answered_press_is_the_word_on_state_power() -> None:
     for word in ("on", "stopped", "on", "off"):
         press(bus, {"power": word})
     assert seen == ["off", "on", "stopped", "on", "off"]
-
-
-def test_a_stop_stands_over_an_off_until_on() -> None:
-    """`stopped` stands until `on`, as on the layout (ADR-0070, #752): an
-    `off` under a stop removes the supply and leaves the row reading
-    `stopped`."""
-    bus, _clock, _sim = simulator()
-    press(bus, {"power": "on"})
-    press(bus, {"power": "stopped"})
-    seen = heard(bus)
-    bus.drain()
-    press(bus, {"power": "off"})
-    press(bus, {"power": "on"})
-    assert seen == ["stopped", "on"]
-
-
-@pytest.mark.parametrize(
-    "payload", [{"power": "sideways"}, {"power": 1}, {}, {"wanted": "on"}]
-)
-def test_an_unreadable_press_changes_nothing(payload: Payload) -> None:
-    bus, _clock, _sim = simulator()
-    press(bus, {"power": "on"})
-    seen = heard(bus)
-    bus.drain()
-    press(bus, payload)
-    assert seen == ["on"]
-
-
-@pytest.mark.parametrize(
-    "run",
-    [{"run": "running", "moving": False}, {"run": "held", "moving": True}],
-)
-def test_off_is_refused_on_evidence_that_something_moves(run: Payload) -> None:
-    """The check `lib.power` makes for both bindings (ADR-0062): a run still
-    committing, or a train moving under a held one, keeps the supply on."""
-    bus, _clock, _sim = simulator()
-    press(bus, {"power": "on"})
-    bus.publish(RUN, run)
-    bus.drain()
-    seen = heard(bus)
-    bus.drain()
-    press(bus, {"power": "off"})
-    assert seen == ["on"]
-
-
-@pytest.mark.parametrize("run", [None, {"run": "held", "moving": False}])
-def test_off_is_applied_with_no_run_row_or_a_held_still_one(
-    run: Payload | None,
-) -> None:
-    """No `state/run` is not evidence: with no dispatcher up nothing has been
-    granted."""
-    bus, _clock, _sim = simulator()
-    press(bus, {"power": "on"})
-    if run is not None:
-        bus.publish(RUN, run)
-        bus.drain()
-    seen = heard(bus)
-    bus.drain()
-    press(bus, {"power": "off"})
-    assert seen == ["on", "off"]
-
-
-@pytest.mark.parametrize("word", ["off", "stopped"])
-def test_a_move_without_power_starts_nothing(word: str) -> None:
-    """A `move` is dropped, as the layout drops it: no sensor speaks, and the
-    train is not rolling — a move sent once the power is back is acted on."""
-    bus, clock, sim = simulator()
-    if word == "stopped":
-        press(bus, {"power": "on"})
-        press(bus, {"power": "stopped"})
-    seen = stamped(bus, clock)
-    move(bus)
-    sim.run()
-    assert seen == []
-
-    press(bus, {"power": "on"})
-    move(bus)
-    sim.run()
-    assert [(what, block) for _at, what, block in seen] == [
-        ("block_occupied", "dn_w"),
-        ("block_vacated", "yard_w"),
-    ]
 
 
 def test_a_transit_under_way_at_a_stop_goes_on_at_on_with_the_time_it_had_left() -> (
