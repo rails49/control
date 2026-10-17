@@ -4,45 +4,17 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root — the canonical glossary (block, terminal block, connection, transit, train, request, route, lock, tick).
+- **`CONTEXT.md`** at the repo root — the canonical glossary (block, terminal block, connection, transit, train, request, route, lock).
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
-## File structure
+## What each doc holds
 
-Top level is repo-wide; each app's implementation details sit in its own subfolder, named for the app package in `src/tc49/`.
-
-```
-/
-├── CONTEXT.md                              ← the glossary
-├── bench/
-│   ├── layouts/                            ← the encoded railroads
-│   ├── catalogue/                          ← the models an installation knows
-│   └── scenarios/                          ← the harness's request lists
-├── docs/
-│   ├── GOALS.md                            ← assets and operations
-│   ├── MILESTONE-1.md                      ← scope: what is built first, what is not
-│   ├── SYSTEM.md                           ← the apps, the store, the footprints, the trace
-│   ├── BUS.md                              ← the bus contract: topics, payloads, time
-│   ├── ARCHITECTURE.md                     ← repo organization, app boundaries, tests
-│   ├── adr/
-│   │   ├── 0001-no-reversal-within-a-route.md
-│   │   └── ...
-│   ├── dispatcher/
-│   │   ├── DISPATCH.md                     ← dispatch semantics, locking
-│   │   ├── SAFETY.md                       ← the deadlock-freedom argument
-│   │   └── INTERNALS.md                    ← state, the locking seam
-│   ├── store/
-│   │   └── LAYOUT.md                       ← layout, roster and scenario formats
-│   └── bench/
-│       ├── BENCHMARKS.md                   ← layouts, workloads, sweep axes
-│       └── METRICS.md                      ← how each number is derived
-```
-
-Everything under `docs/` except `adr/` is spec prose, not glossary or decisions — read it for what the system does; read `CONTEXT.md` for what the words mean.
-
-ADRs are **not** split by app: they are one numbered sequence in `docs/adr/`, and several of them decide contracts between apps rather than anything inside one.
+The organisation's
+[ADR-0017](https://github.com/rails49/.github/blob/main/docs/adr/0017-each-fact-has-one-owner-and-an-accepted-adr-does-not-change.md)
+says what each kind of doc holds and that an accepted ADR does not change.
+Where `docs/` files an app's pages: [ARCHITECTURE.md](../ARCHITECTURE.md#documentation-layout).
 
 ## Use the glossary's vocabulary
 
