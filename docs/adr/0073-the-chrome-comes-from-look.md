@@ -1,5 +1,11 @@
 # The chrome comes from look
 
+**Noted for [#764](https://github.com/rails49/control/issues/764), 2026-10-17:** the organisation's decision is
+[rails49/.github ADR-0016](https://github.com/rails49/.github/blob/main/docs/adr/0016-the-chrome-comes-from-look.md),
+accepted after this one. It supersedes org ADR-0005 and ADR-0010 and amends
+ADR-0003, ADR-0007 and ADR-0012, the rules this decision departed from.
+Nothing below is rewritten.
+
 The decision is [rails49/look#12](https://github.com/rails49/look/issues/12#issuecomment-6156396667),
 and the work is [#749](https://github.com/rails49/control/issues/749).
 Supersedes [ADR-0064](0064-the-chrome-is-a-band-and-a-rail.md). Amends
