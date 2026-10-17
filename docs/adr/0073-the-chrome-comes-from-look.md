@@ -25,7 +25,7 @@ control's chrome maps onto it, and look v0.2.0 added what control needed.
 
 1. **Control's band, rail, track-power control, dialog shell, Shoelace theme
    and glyphs come from `@rails49/look`**, pinned to a release tag
-   (`github:rails49/look#v0.2.0`). `tc-app` draws `look-shell`, `look-band`
+   (`github:rails49/look#v0.5.0`). `tc-app` draws `look-shell`, `look-band`
    and `look-rail` and listens for `look-press`, `look-view` and
    `look-power`.
 2. **Control styles none of it.** `scripts/check.sh` runs
