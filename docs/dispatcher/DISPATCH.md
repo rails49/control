@@ -43,18 +43,12 @@ avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md)
 ### Aspects
 
 A signal shows one of three aspects, read off how far ahead the dispatcher has
-locked for the train standing at it (ADR-0025):
-
-| Aspect | Locked ahead | Swiss | Meaning to the driver |
-| --- | --- | --- | --- |
-| `stop` | nothing | Halt | stand |
-| `caution` | one block | Fb 2 | proceed, prepared to stop at the next signal |
-| `clear` | two or more | Freie Fahrt (Fb 1) | full speed |
-
-The Swiss column is what each aspect answers to, not a translation. Fb 2 names
-a speed, 40 km/h, where `caution` names a braking instruction. Which of the
-two the middle aspect finally is stays open (ADR-0025,
-[GOALS.md](../GOALS.md#driving)).
+locked for the train standing at it; the table is in
+[GOALS.md](../GOALS.md#dispatching) (ADR-0025). Each aspect answers to a Swiss
+one: `stop` to Halt, `caution` to Fb 2, `clear` to Freie Fahrt (Fb 1). That is
+not a translation. Fb 2 names a speed, 40 km/h, where `caution` names a braking
+instruction, and which of the two the middle aspect finally is stays open
+(ADR-0025).
 
 ### Requests
 
