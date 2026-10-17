@@ -634,11 +634,22 @@ derived from a clock.
 It **holds facing**, which is scheduler state
 ([ADR-0019](adr/0019-facing-is-scheduler-state.md)). A train's facing starts
 at the placement the dispatcher accepts for it, and a **drag's departure end
-is read off it** rather than being it. The scheduler then carries it
-forward from the end each `move_granted` was entered by, and from the
-departure end of a committed route, and publishes it on a state topic that
-every view reads to draw the train's direction arrow
-([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
+is read off it** rather than being it. After that four rules change it, each
+for something the stock did. Routes are strict pass-throughs, so a train that
+left nose-first faces away from the end it entered through. A train
+**propelled**, pushed out of the end its nose points away from, enters the
+next block tail-first and faces the end it entered through. On a terminal
+block facing is the run that departs by its one connected end, whatever a
+placement or a route says. A reversal at rest turns it. Committing to a route
+changes nothing
+([#295](https://github.com/rails49/control/issues/295)). The scheduler
+publishes facing on a state topic that every view reads to draw the train's
+direction arrow
+([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md))
+and `layout` reads to give a speed its sign
+([ADR-0052](adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
+The dispatcher does not read it: a request's departure end carries what it
+needs, and may disagree with facing.
 Keeping that up to date is why the scheduler reads the layout: `move_granted`
 names a transit and the block entered but not the end entered through, so the
 ends a transit joins have to come from somewhere.
