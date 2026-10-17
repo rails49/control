@@ -14,6 +14,7 @@ both the way it would on a railroad. The bus stamps nothing, so a case can
 hand a run row the stamp it wants (#240).
 """
 
+import logging
 from collections.abc import Callable
 from typing import Protocol
 
@@ -228,27 +229,40 @@ def test_it_comes_up_with_the_trains_it_is_given(build: Build) -> None:
 
 
 @pytest.mark.parametrize(
-    ("row", "after"),
+    ("row", "refusal"),
     [
-        (None, "off"),
-        ({"run": "held", "moving": False}, "off"),
-        ({"run": "held"}, "off"),
-        ({"run": "held", "moving": True}, "on"),
-        ({"run": "running", "moving": False}, "on"),
-        ({"run": "draining", "moving": True}, "on"),
+        (None, None),
+        ({"run": "held", "moving": False}, None),
+        ({"run": "held"}, None),
+        ({"run": "held", "moving": True}, "a train is moving"),
+        ({"run": "running", "moving": False}, "the run reads running"),
+        (
+            {"run": "draining", "moving": True},
+            "the run reads draining and a train is moving",
+        ),
     ],
 )
 def test_off_is_applied_only_where_nothing_moves(
-    build: Build, row: Payload | None, after: str
+    build: Build,
+    row: Payload | None,
+    refusal: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """No run row is no evidence, and neither is a row without `moving`
-    (ADR-0062, #406)."""
+    (ADR-0062, #406). A refusal goes to the log with its reason, for the
+    person reading the trace (ADR-0034)."""
     binding = build()
     press(binding, "on")
     if row is not None:
         runs(binding, row)
-    press(binding, "off")
-    assert power(binding) == after
+    with caplog.at_level(logging.INFO, logger="tc49.lib.power"):
+        press(binding, "off")
+    if refusal is None:
+        assert power(binding) == "off"
+        assert caplog.messages == []
+    else:
+        assert power(binding) == "on"
+        assert caplog.messages == [f"power off refused: {refusal}"]
 
 
 def test_a_refused_off_is_not_kept_for_later(build: Build) -> None:

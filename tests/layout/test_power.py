@@ -68,7 +68,7 @@ def refusals(commanding: Callable[[], None]) -> list[str]:
     cannot act on is dropped in silence and to the trace with its reason, and
     the log is where that reason is (ADR-0034)."""
     kept = Kept()
-    log = logging.getLogger("tc49.layout.interface")
+    log = logging.getLogger("tc49.lib.power")
     log.addHandler(kept)
     log.setLevel(logging.INFO)
     try:
