@@ -260,8 +260,9 @@ name, and what the containers below publish is on the LAN beside it.
 The command station is mirrored on 2560 at the LAN address, and that port is
 not this file's: it is published by [`rails49/dccex`](https://github.com/rails49/dccex),
 a stack of its own on the same box. `/camera` is the same arrangement: a
-camera app, of which none exists yet, claims the prefix under the box's name with a door label of its own, and neither its
-container nor that label is in this repository's compose file
+camera app, of which none exists yet, claims the prefix under the box's name
+with a door label of its own, and neither its container nor that label is in
+this repository's compose file
 ([#629](https://github.com/rails49/control/issues/629)).
 
 ### The store, and the documents it serves
@@ -537,12 +538,12 @@ door serves sends one.
 `broker` join `rails49`, the network the installation creates and every stack
 on the box shares; `scheduler`, `dispatcher`, `driver`, the layout interface
 and the simulator stay on this stack's own network, because they talk to the
-bus and not to browsers. No translator runs in this stack: `rails49/dccex`'s
-joins `rails49` from its own stack, and reaches `broker` and `store` there. Each of the three is on two networks
-and names the shared one again in a label, or the docker provider picks
-whichever container address it finds first. That is
+bus and not to browsers. Each of the three is on two networks and names the
+shared one again in a label, or the docker provider picks whichever container
+address it finds first. That is
 [ADR-0001](https://github.com/rails49/installation/blob/main/docs/adr/0001-only-what-the-door-reaches-joins-the-shared-network.md)
-in `rails49/installation`.
+in `rails49/installation`. No translator runs in this stack: `rails49/dccex`'s
+joins `rails49` from its own stack, and reaches `broker` and `store` there.
 
 The network is the installation's to create, and compose declares it external
 here, so a box that has not installed the installation is told so rather than

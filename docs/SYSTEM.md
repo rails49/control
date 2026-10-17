@@ -313,8 +313,9 @@ LAN is still the trust boundary and a browser is not on it
   that writes the first car has to read, and a translator handed nothing has
   nothing to run. Both callers are apps rather than pages — the translator that
   loads the script, and the face that edits it, each `rails49/dccex`'s and
-  reaching `store:8765` over `rails49`, the box's shared network — so these two prefixes are on no proxy in front of a
-  page, no browser reaches one, and the origin rule below is untouched
+  reaching `store:8765` over `rails49`, the box's shared network — so these
+  two prefixes are on no proxy in front of a page, no browser reaches one, and
+  the origin rule below is untouched
   ([ADR-0055](adr/0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md)).
   There is no `DELETE`, as for every document, and no `ETag`: a translator
   holding a script compares the text itself

@@ -485,7 +485,7 @@ that was seconds away. Nothing republishes a retained row for a late reader.
 `simulator` instead ([layout](../layout/README.md),
 [`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md) in
 [`rails49/dccex`](https://github.com/rails49/dccex), where the translator
-lives). No command line names the railroad: a person loads one from the
+lives). No app's command line names the railroad: a person loads one from the
 settings dialog while the apps run, the store records which, and the box
 comes back on that one
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
