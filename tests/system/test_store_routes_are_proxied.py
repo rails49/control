@@ -32,7 +32,7 @@ translator that loads it and written by the face that edits it, each
 network, so the door in front of the app never sees one
 ([#586](https://github.com/rails49/control/issues/586), ADR-0055). The
 railroad recorded as loaded is read and written by the layout binding alone,
-over the same network (ADR-0072)."""
+over this stack's own network (ADR-0072)."""
 
 
 def store_prefixes() -> set[str]:

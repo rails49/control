@@ -985,8 +985,8 @@ _Avoid_: backend, mode, target
 **Camera app**:
 What answers `GET /camera/snapshot` with one picture. It is a binding of the
 one route [SYSTEM.md](docs/SYSTEM.md) defines that no app of this repository
-answers: the responder is not code here and none exists yet, and a different camera
-is a different image answering the same route. A **200** carries `image/jpeg`,
+answers: the responder is not code here and none exists yet, and a different
+camera is a different image answering the same route. A **200** carries `image/jpeg`,
 the picture as the camera took it, and any other status means no picture.
 One of them answers per box: its own stack claims `/camera` beside the paths
 the store's container claims, and in development vite proxies the prefix to
