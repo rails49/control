@@ -330,8 +330,7 @@ not checked; what the hardware answers to is knowledge the drawing cannot hold.
 It reaches no layout: this is a hardware address, and the derived document
 carries none of them but the ones a transit needs
 ([ADR-0022](../adr/0022-a-symbol-carries-its-hardware-address.md)). Whoever
-publishes `device/sensor` reads it from the drawing
-([DEVICES.md](../layout/DEVICES.md)), which is why a translator that publishes
+publishes `device/sensor` reads it from the drawing, which is why a translator that publishes
 sensors has a railroad to be told about.
 
 **A point's address names no system**, the rule its signal wears above and
