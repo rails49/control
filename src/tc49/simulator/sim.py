@@ -72,7 +72,7 @@ from heapq import heapify, heappop, heappush
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import OFF, ON
+from tc49.lib.inventory import OFF, ON, STOPPED
 from tc49.lib.layout import Layout, block_of, end_across
 from tc49.lib.payload import (
     Command,
@@ -197,7 +197,9 @@ class Simulator:
         """A person asked for power, an emergency stop, or the supply removed,
         and this binding answers it as the layout interface does (ADR-0070).
         There is no hardware to report the supply, so the word commanded is
-        the word stated, and `stopped` stands until `on`.
+        the word stated, and `stopped` stands until `on`: an `off` under a
+        stop changes nothing here, the supply it removes being one this
+        binding does not have (#752).
 
         A press that cannot be read is dropped, and so is a plain `off` that
         `lib.power.off_refused` refuses, to the log with the reason: the
@@ -216,6 +218,8 @@ class Simulator:
             refusal = off_refused(self._run)
             if refusal is not None:
                 _log.info("power off refused: %s", refusal)
+                return
+            if self._power == STOPPED:
                 return
         if self._power == ON and wanted != ON:
             self._cut_at = self._clock.now
