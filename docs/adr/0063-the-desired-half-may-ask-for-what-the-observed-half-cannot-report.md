@@ -10,7 +10,7 @@ is no longer folded from what the hardware reports alone.
 The device vocabulary was checked row by row against the two paths that exist
 — a command station's own protocol, and JMRI's JSON servlet, which reaches
 every railroad JMRI drives and is therefore the wider test. The mapping is
-[docs/layout/DEVICES.md](../layout/DEVICES.md); this records what the check
+[rails49/jmri's docs/DEVICES.md](https://github.com/rails49/jmri/blob/main/docs/DEVICES.md); this records what the check
 changed.
 
 Nine of the ten rows survived the check unaltered in meaning. That is the
@@ -173,7 +173,7 @@ translator holds. A UI that wants that view can build it from the stream.
 boolean, which is a payload change and lands as its own communication issue.
 So does each other changed row; the rows this decision leaves alone stay where
 they are, with the argument for them in
-[docs/layout/DEVICES.md](../layout/DEVICES.md).
+[rails49/jmri's docs/DEVICES.md](https://github.com/rails49/jmri/blob/main/docs/DEVICES.md).
 
 A translator that publishes sensors needs store access and a railroad, which
 is a deployment change as well as a code one, and the app boundary test still
