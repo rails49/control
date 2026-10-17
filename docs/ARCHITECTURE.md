@@ -53,7 +53,9 @@ and `lib/documents.py` the store's. A TypeScript UI gets a sibling language
 binding of the same spec
 ([ADR-0014](adr/0014-python-apps-typescript-ui.md)), so nothing an app depends
 on is defined only in Python. `BUS.md` says what such a binding implements and
-what it does not.
+what it does not. `lib/payload.py` is not part of the binding: it is this
+repository's own defensive reading, organised by which app reads which frame,
+so none of it carries over to another language.
 
 `src/tc49/bench/` is not an app. It is the research harness, and the only code
 that wires apps together. Top-level `bench/` is the fixture data it roots
