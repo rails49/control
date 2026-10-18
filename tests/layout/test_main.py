@@ -453,9 +453,11 @@ def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
     `yard_e`: the train standing in it has no block left in the drawing to
     stand in, and the one in `yard_w` is kept."""
     store.start()
-    witness, heard = watching(broker)
+    witness, _ = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    # Not the mode row: the interface writes it as it is constructed, before
+    # `built` holds it.
+    assert drained(witness, lambda: built != []), "it never came up"
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
     hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
