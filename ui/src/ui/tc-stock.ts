@@ -998,7 +998,7 @@ export class TcStock extends LitElement {
    * it writes a refused edit back where an ordinary binding skips it. Binding
    * every field with it did that on **every** render, and this view redraws
    * for reasons that have nothing to do with the field being typed in: the
-   * app hands it `placed`, and every `run-status` the run view fires replaces
+   * app hands it `placed`, and every new status the session answers replaces
    * the run state whole. Power going off then wrote the document's `122` over
    * the `12` somebody was half way through typing (#444). So `live` is
    * reached for by name: the field the edit was typed into, on the render

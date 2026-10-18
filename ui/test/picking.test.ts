@@ -4,7 +4,7 @@
  * Choosing a railroad in the settings dialog, end to end through the app
  * ([ADR-0060](../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
  * [ADR-0072](../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)):
- * the press goes out on the client the run view holds, on
+ * the press goes out on the client the session holds, on
  * `tc49/layout/railroad_wanted`, which whichever binding of the layout
  * interface is running is what answers.
  *

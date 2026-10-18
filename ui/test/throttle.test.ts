@@ -13,7 +13,7 @@
  * screen is the number that went out, and that nothing at all leaves the view
  * while the rails have no power.
  *
- * The session is the run view's whichever view is current, so this joins the
+ * The session is the app's whichever view is current, so this joins the
  * same one every other suite does (`support/session.ts`).
  */
 

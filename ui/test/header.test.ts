@@ -5,7 +5,7 @@
  * (ADR-0073): which railroad is loaded, whether it holds unsaved edits, only
  * what a person would act on (#517), the gear, and track power.
  *
- * A DOM test through the app and the run view's session, the band's facts
+ * A DOM test through the app and its session, the band's facts
  * being what those two hand it. Pressing power is `power.test.ts`; what the
  * power control shows is `commands.test.ts`.
  */

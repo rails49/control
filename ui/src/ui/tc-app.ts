@@ -6,16 +6,19 @@
  * It holds the loaded railroad — its name, the document, and what the store
  * says the document means — and hands it to whichever view is current. The
  * views hold what is theirs: the editor its selection and its dialogs, the run
- * view its session and what the bus has shown it, the throttle the train a
- * person picked and where they have put the lever. Which railroad they are
- * about is not one of those things, which is why it is here.
+ * view its drag and its menu, the throttle the train a person picked and where
+ * they have put the lever. Which railroad they are about is not one of those
+ * things, which is why it is here.
  *
- * **One session, and it is the run view's.** The throttle is a view of this
- * app with nothing of its own to join, so what it draws comes down from the
- * view that holds the broker's client and its gestures go back the same way
- * the band's power presses do (ui/THROTTLE.md). The stock screen takes the same route for
- * what it needs of the run: which trains are placed, and track power, which
- * is what its length guard reads (ui/STOCK.md).
+ * **One session, and it is the app's** (`model/session.ts`, #756). The page's
+ * one connection to the broker, and what follows from it — the railroad the
+ * row names, the run's picture, track power and the drain — is held here
+ * beside the loaded railroad, and every press goes to it: the band's, the
+ * rail's HOLD/GO, the settings dialog's railroad and the throttle's gestures
+ * (ui/THROTTLE.md). What it answers comes down as properties: the panel model
+ * to the run view, the cabs to the throttle, and to the stock screen which
+ * trains are placed and track power, which is what its length guard reads
+ * (ui/STOCK.md).
  *
  * It also draws the chrome, out of `@rails49/look`'s elements
  * ([ADR-0073](../../../docs/adr/0073-the-chrome-comes-from-look.md)). The band
@@ -31,13 +34,13 @@
  * ([#371](https://github.com/rails49/control/issues/371)). One broker runs one
  * railroad and the layout interface says which on a retained row
  * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
- * decision 2), so the run view reads that row and hands the name up here, and
+ * decision 2), so the session reads that row and hands the name up here, and
  * the loaded railroad (`model/railroad.ts`) reads the documents off the store
  * and holds them for every view (#758). The settings dialog does not load one
  * either: it asks on `tc49/layout/railroad_wanted` and this carries the press
  * out the way the band's power presses go
  * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
- * so what is loaded is still whatever the row says and the run view and this
+ * so what is loaded is still whatever the row says and the session and this
  * cannot come to name different ones. The editor holds that railroad and no
  * other (ADR-0072, decision 3): nothing here starts or forks a drawing, and a
  * row naming none closes the one open, so nothing asks before edits are
@@ -64,6 +67,7 @@ import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
 import { Railroad } from "../model/railroad.js";
+import { brokerAt, connecting, QUIET, Session, type RunStatus } from "../model/session.js";
 import type { Cab } from "../model/throttle.js";
 import type { Power, Run } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
@@ -76,7 +80,7 @@ import "./tc-stock.js";
 import "./tc-throttle.js";
 import type { TcBackup } from "./tc-backup.js";
 import type { TcEditor } from "./tc-editor.js";
-import type { RunStatus, TcPanel } from "./tc-panel.js";
+import type { TcPanel } from "./tc-panel.js";
 import type { TcStock } from "./tc-stock.js";
 import type { ModeWanted, ThrottleWanted } from "./tc-throttle.js";
 import { editable } from "./tc-properties.js";
@@ -92,19 +96,6 @@ const CONTROLS = "sl-input, sl-select, input, textarea";
 /** How long the page waits after a restore before it reloads: long enough for
  *  the press asking for the loaded railroad again to leave on the bus. */
 const RELOAD_MS = 500;
-
-/** What the run view says about itself before it has said anything. */
-const QUIET: RunStatus = {
-  joined: false,
-  railroad: null,
-  linked: false,
-  run: null,
-  power: null,
-  draining: false,
-  trouble: null,
-  fault: null,
-  placed: [],
-};
 
 @customElement("tc-app")
 export class TcApp extends LitElement {
@@ -166,16 +157,15 @@ export class TcApp extends LitElement {
    *  opens, so a railroad another page made is there to load. */
   @state() private settling = false;
 
-  /** What the run view says about itself: the broker, how far the run has
-   *  got, and what went wrong. The band reads it, and the run view is the only
-   *  thing that knows any of it. */
-  @state() private status: RunStatus = QUIET;
+  /** The page's one session with the broker (`model/session.ts`, #756),
+   *  opened as the app comes onto the page and let go of as it leaves. */
+  private session: Session | null = null;
 
-  /** The trains there are to drive, one cab each, as the view holding the
-   *  session works them out (`model/throttle.ts`). The throttle is a view of
-   *  this app like the others and has no session: what it draws comes down
-   *  here and its gestures go back the way the band's do (ui/THROTTLE.md). */
-  @state() private cabs: readonly Cab[] = [];
+  /** The status and the cabs this last drew with. The session keeps each the
+   *  same object until it says something new, so a frame that moves neither
+   *  redraws the run view and not the whole page. */
+  private drewStatus: RunStatus = QUIET;
+  private drewCabs: readonly Cab[] = [];
 
   /** Seconds the joined session has been on screen, `null` with no session
    *  joined. The session clock: elapsed time on the page's own clock — a
@@ -192,6 +182,10 @@ export class TcApp extends LitElement {
     window.addEventListener("keydown", this.key);
     window.addEventListener("hashchange", this.hashed);
     this.view = viewOf(location.hash);
+    this.session = new Session(brokerAt(location), connecting, {
+      notify: () => this.told(),
+      named: (railroad) => this.loaded(railroad),
+    });
     void this.filing.load();
     // Asked for the band's note and the File menu's mark rather than for the
     // dialog: a copy that has been failing for a day, and a railroad that has
@@ -209,7 +203,44 @@ export class TcApp extends LitElement {
     window.removeEventListener("hashchange", this.hashed);
     if (this.sessionTimer !== undefined) clearInterval(this.sessionTimer);
     this.sessionTimer = undefined;
+    this.session?.end();
+    this.session = null;
     super.disconnectedCallback();
+  }
+
+  /** What the run view says about itself: the broker, how far the run has
+   *  got, and what went wrong. The band reads it, and the session is the only
+   *  thing that knows any of it. */
+  private get status(): RunStatus {
+    return this.session?.status ?? QUIET;
+  }
+
+  /** The trains there are to drive, one cab each, as the session works them
+   *  out (`model/throttle.ts`). The throttle is a view of this app like the
+   *  others and has no session: what it draws comes down here and its
+   *  gestures go back the way the band's do (ui/THROTTLE.md). */
+  private get cabs(): readonly Cab[] {
+    return this.session?.cabs ?? [];
+  }
+
+  /**
+   * The session said something moved. The run view paints every frame; the
+   * app redraws only where the status or the cabs are a different object
+   * from the ones it last drew with, so a frame that changes nothing the app
+   * shows does not redraw the page.
+   */
+  private told(): void {
+    this.running?.requestUpdate();
+    if (this.status !== this.drewStatus || this.cabs !== this.drewCabs) this.requestUpdate();
+  }
+
+  /** The loaded railroad's documents handed to the session on every render,
+   *  which rebuilds its panel model only when the railroad or whether it
+   *  derives has changed (`model/session.ts`). */
+  override willUpdate(): void {
+    this.session?.documents(this.editor.drawing, this.filing.reviewed, this.railroad.trains);
+    this.drewStatus = this.status;
+    this.drewCabs = this.cabs;
   }
 
   override updated(): void {
@@ -272,14 +303,7 @@ export class TcApp extends LitElement {
         .drawing=${this.editor.drawing}
         .review=${this.filing.reviewed}
         .current=${this.view === "run"}
-        .trains=${this.railroad.trains}
-        @railroad=${(event: CustomEvent<string>) => this.loaded(event.detail)}
-        @run-status=${(event: CustomEvent<RunStatus>) => {
-          this.status = event.detail;
-        }}
-        @cabs=${(event: CustomEvent<Cab[]>) => {
-          this.cabs = event.detail;
-        }}
+        .session=${this.session}
       ></tc-panel>
 
       <tc-throttle
@@ -288,11 +312,11 @@ export class TcApp extends LitElement {
         .power=${this.status.power}
         .linked=${this.status.linked}
         @mode-wanted=${(event: CustomEvent<ModeWanted>) =>
-          this.running?.pressMode(event.detail.train, event.detail.mode)}
+          this.session?.pressMode(event.detail.train, event.detail.mode)}
         @throttle-wanted=${(event: CustomEvent<ThrottleWanted>) =>
-          this.running?.pressThrottle(event.detail.train, event.detail.speed)}
+          this.session?.pressThrottle(event.detail.train, event.detail.speed)}
         @reversal-wanted=${(event: CustomEvent<string>) =>
-          this.running?.pressReversal(event.detail)}
+          this.session?.pressReversal(event.detail)}
       ></tc-throttle>
 
       <tc-stock
@@ -481,19 +505,19 @@ export class TcApp extends LitElement {
     }
   }
 
-  /** HOLD or GO, pressed on the rail. The broker's client is the run view's,
+  /** HOLD or GO, pressed on the rail. The broker's client is the session's,
    *  so the press goes there: the rail draws the run's word and this carries
    *  it, and neither decides anything about the run. */
   private held(run: Run): void {
-    this.running?.press(run);
+    this.session?.press(run);
   }
 
   /** Track power asked for on the band: `on`, `stopped`, or `off`, which is
    *  the drain request (ADR-0062). The same path HOLD and GO take and for the
-   *  same reason: the client is the run view's, and the band decides nothing
-   *  about the railroad it is naming (ADR-0051). */
+   *  same reason: the client is the session's, and the band decides nothing
+   *  about the railroad it is naming (ADR-0074). */
   private supplying(power: Power): void {
-    this.running?.pressPower(power);
+    this.session?.pressPower(power);
   }
 
   /** A railroad pressed in the settings dialog, or one its New or Copy
@@ -506,7 +530,7 @@ export class TcApp extends LitElement {
    *  exactly where it was. The store's list is asked for again, so a railroad
    *  the dialog just made is there to tick when the row names it. */
   private wanting(railroad: string): void {
-    this.running?.pressRailroad(railroad);
+    this.session?.pressRailroad(railroad);
     void this.filing.load();
   }
 
@@ -546,7 +570,7 @@ export class TcApp extends LitElement {
    */
   private restored(): void {
     const loaded = this.loadedRailroad;
-    if (loaded !== null) this.running?.pressRailroad(loaded);
+    if (loaded !== null) this.session?.pressRailroad(loaded);
     setTimeout(() => this.reload(), RELOAD_MS);
   }
 
@@ -558,7 +582,7 @@ export class TcApp extends LitElement {
    * what it saved. A roster of any other railroad is only a file.
    */
   private lengthened(railroad: string): void {
-    if (railroad === this.status.railroad) this.running?.pressRailroad(railroad);
+    if (railroad === this.status.railroad) this.session?.pressRailroad(railroad);
   }
 
   // --- the rail and the keyboard -------------------------------------------
@@ -568,9 +592,9 @@ export class TcApp extends LitElement {
    *  does, and it is what both the rail and the keyboard ask. */
   private get standing(): Standing {
     // Track power freezes the drawing, and the loaded railroad's edits hold
-    // ON (ADR-0071). The run view is what knows either: power and the
-    // railroad's name come up here with the rest of what it says about
-    // itself, and go back down to the band that says why and the editing view
+    // ON (ADR-0071). The session is what knows either: power and the
+    // railroad's name are read off it with the rest of what it says about
+    // the run, and go down to the band that says why and the editing view
     // whose gestures it kills.
     const one = this.inspecting;
     const spec = one === null ? undefined : this.editor.drawing.symbols[one];
@@ -596,7 +620,7 @@ export class TcApp extends LitElement {
   private async saving(): Promise<void> {
     const loaded = isLoaded(this.standing);
     await this.filing.save(this.editor);
-    if (loaded && this.filing.saved) this.running?.pressRailroad(this.filing.opened);
+    if (loaded && this.filing.saved) this.session?.pressRailroad(this.filing.opened);
   }
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
@@ -703,11 +727,11 @@ export class TcApp extends LitElement {
   }
 
   /**
-   * The railroad the broker runs, as the run view read it off the retained row
+   * The railroad the broker runs, as the session read it off the retained row
    * the layout interface owns
    * ([#371](https://github.com/rails49/control/issues/371)).
    *
-   * One broker runs one railroad at a time. The row arrives as the run view's
+   * One broker runs one railroad at a time. The row arrives as the session's
    * subscription lands, and again whenever another railroad is loaded while
    * the apps run (ADR-0060). Either way it is not a person's press: the
    * settings dialog asks on the bus and the load comes back here as a fact the
