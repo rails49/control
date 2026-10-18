@@ -31,6 +31,7 @@
  * The session itself is `support/session.ts`, shared with the other suites.
  */
 
+import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
@@ -64,7 +65,7 @@ async function powered(power: "on" | "off" = "on"): Promise<TcApp> {
  *  applied. The toggle asks for `off` while the supply is on and for `on`
  *  otherwise. */
 async function pressing(shell: TcApp, which: "toggle" | "stop"): Promise<void> {
-  power(shell).shadowRoot!.querySelector<HTMLElement>(which === "toggle" ? ".power" : ".stop")!.click();
+  press(power(shell), which);
   await settled(shell);
 }
 

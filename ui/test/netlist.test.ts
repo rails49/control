@@ -14,6 +14,7 @@
  * editor is for (ADR-0024).
  */
 
+import { press } from "@rails49/look/testing";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
@@ -24,7 +25,6 @@ import {
   editing,
   inside,
   mounted,
-  press,
   railButton,
   serving,
   settled,

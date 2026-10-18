@@ -12,6 +12,7 @@
  */
 
 import type { LookBandPress } from "@rails49/look";
+import { press as pressOn } from "@rails49/look/testing";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import "../src/ui/tc-backup.js";
@@ -25,7 +26,6 @@ import {
   band,
   edited,
   mounted,
-  press as pressOn,
   pressed,
   serving,
   session,

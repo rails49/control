@@ -8,6 +8,7 @@
  */
 
 import type { LookCommand, LookView } from "@rails49/look";
+import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { VIEWS } from "../src/model/views.js";
@@ -16,7 +17,6 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import {
   editing,
   mounted,
-  press,
   pressed,
   rail,
   railButton,
@@ -66,7 +66,7 @@ describe("the views", () => {
 
   it("switches to the view pressed, and says so in the hash", async () => {
     const shell = await mounted("run");
-    press(rail(shell).querySelector('look-view[name="stock"]')!);
+    press(rail(shell).querySelector<LookView>('look-view[name="stock"]')!);
     await settled(shell);
     expect(location.hash).toBe("#stock");
     expect(rail(shell).querySelector<LookView>('look-view[name="stock"]')!.current).toBe(true);
