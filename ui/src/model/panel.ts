@@ -917,9 +917,9 @@ export class Panel {
    * name so the pane that lists them does not reshuffle as the railroad
    * moves (#169).
    *
-   * One answer for two readers: the roster pane draws a row each, and the
-   * freeze rule counts them — trains on the layout freeze the drawing
-   * (ADR-0038). A crossing train is one of them and stands in no block: it is
+   * The roster pane draws a row each. The freeze rule does not count them:
+   * track power on or stopped freezes the drawing, whatever trains stand
+   * (ADR-0071). A crossing train is placed and stands in no block: it is
    * holding a transit, which is as on the layout as a train gets.
    *
    * A train whose head is in the next block while its tail has not cleared
