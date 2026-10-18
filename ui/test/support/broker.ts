@@ -4,10 +4,10 @@
  * after that, and publishes its own gestures back.
  *
  * **It stands where MQTT.js does.** `vite.config.ts` puts this module behind
- * the bare specifier `mqtt` for the test run, so the view's own client is the
+ * the bare specifier `mqtt` for the test run, so the session's own client is the
  * one thing standing in and what a suite drives is the broker's side of it —
  * which is the side the suites are about. The surface below is the whole of
- * what `tc-panel` asks of MQTT.js: `connect`, `on`, `subscribe`, `publish`
+ * what `model/session.ts` asks of MQTT.js: `connect`, `on`, `subscribe`, `publish`
  * and `end`. Reconnecting is the library's and is driven here by hand:
  * `closes()` then `opens()` is what it does on its own.
  *

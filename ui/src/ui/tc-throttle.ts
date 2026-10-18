@@ -31,8 +31,8 @@ import type { Mode, Power } from "../model/trace.js";
 import { throttleStyles } from "./tc-throttle.styles.js";
 
 /** A gesture the view asks for: the train it is about, and what is wanted of
- *  it. The view writes nothing itself — the session is the run view's, and
- *  the app carries the press there as it carries the band's (ADR-0051's
+ *  it. The view writes nothing itself — the session is the app's, and
+ *  the app carries the press there as it carries the band's (ADR-0074's
  *  path, ui/THROTTLE.md). */
 export interface ModeWanted {
   train: string;

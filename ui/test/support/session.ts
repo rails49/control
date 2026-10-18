@@ -119,7 +119,7 @@ export async function loads(shell: TcApp, railroad: string): Promise<void> {
 }
 
 /** An app with the toy railroad loaded and the broker answering, showing the
- *  run view or another: the session is the run view's whichever is on screen,
+ *  run view or another: the session is the app's whichever is on screen,
  *  so a suite about the throttle joins the same way (ui/THROTTLE.md). */
 export async function joined(view: ViewId = "run"): Promise<TcApp> {
   const shell = await mounted(view);

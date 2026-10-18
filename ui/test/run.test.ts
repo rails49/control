@@ -20,7 +20,8 @@ import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
 import { RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { brokerAt, GONE } from "../src/ui/tc-panel.js";
+import { brokerAt, gone } from "../src/model/session.js";
+import { VIEWS } from "../src/model/views.js";
 import {
   chips,
   CLEAN,
@@ -32,6 +33,7 @@ import {
   running,
   serving,
   settled,
+  shows,
 } from "./support/shell.js";
 import {
   Broker,
@@ -48,6 +50,10 @@ import {
 } from "./support/session.js";
 
 beforeEach(brokering);
+
+/** What the band says while the broker is not answering, read off the module
+ *  for the address this page asks. */
+const GONE = gone(brokerAt(location));
 
 afterEach(unbrokered);
 
@@ -143,9 +149,8 @@ describe("joining the railroad the broker runs", () => {
 
   /** The broker going is a container restarting or a network that dropped.
    *  What it was saying is no longer being said, so the page holds no session:
-   *  the band drops the badge, and a press in between must not pretend to have
-   *  been heard — a publish made while the client is reconnecting is queued
-   *  rather than refused.
+   *  the band drops the badge, and nothing is said to have been heard — that a
+   *  press in between publishes nothing is the session's (session.test.ts).
    *
    *  Getting back in is the client's own. It reconnects and resubscribes, and
    *  the fresh subscription is answered with every retained row, so the same
@@ -161,7 +166,6 @@ describe("joining the railroad the broker runs", () => {
     // The band has no word for the link either way since #517: a broker that
     // has gone says so in the trouble line, in words naming what to look at.
     expect(health(shell)).toBe(GONE);
-    running(shell).press("running");
     expect(written()).toEqual([]);
     expect(notice(shell)).toBeNull();
 
@@ -171,6 +175,33 @@ describe("joining the railroad the broker runs", () => {
     expect(Broker.opened).toHaveLength(1);
     expect(health(shell)).toBeNull();
     expect(hold(shell).word).toBe("GO");
+  });
+
+  /** The connection is the page's and not a view's (ADR-0059, decision 4):
+   *  the app holds the one session (#756), so going through every view and
+   *  another railroad arriving open nothing more. */
+  it("opens one connection for the life of the page", async () => {
+    const shell = await joined();
+    for (const view of VIEWS) await shows(shell, view.id);
+    await loads(shell, "yard");
+
+    expect(named(shell)).toBe("yard");
+    expect(Broker.opened).toHaveLength(1);
+  });
+
+  /** The session keeps the status and the cabs the same objects across a
+   *  frame that moves neither, and that is what keeps the app from redrawing
+   *  the whole page on every event the bus carries. */
+  it("does not redraw the app on a frame that changes nothing it shows", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    const drawing = vi.spyOn(shell as unknown as { render(): unknown }, "render");
+
+    await said(shell, "tc49/dispatch/state/aspects", { aspects: {} });
+    expect(drawing).not.toHaveBeenCalled();
+
+    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    expect(drawing).toHaveBeenCalled();
   });
 
   /** Nothing at the address at all: the band names where it looked, which is

@@ -2,7 +2,7 @@
 
 /**
  * Commanding track power from the band, end to end through the app
- * (ADR-0051, #293): the press goes out on the socket the run view holds, on
+ * (ADR-0074, #293): the press goes out on the socket the session holds, on
  * `tc49/layout/power_wanted`, which `layout` is what answers.
  *
  * The one press that is not a single frame is OFF. It is the drain trigger
@@ -16,7 +16,9 @@
  * abandoned, where one repeating the word the press was made against is the
  * drain still outstanding, whatever `moving` now says (#441). A row that says
  * nothing about `moving` at all never ends the wait, an older dispatcher's
- * silence being no licence to cut.
+ * silence being no licence to cut. Those rules are the session's and are
+ * driven against the broker alone in `session.test.ts` (#756); what is left
+ * here is the press reaching the band and the two ends of the drain.
  *
  * The other direction is here too: what the hardware says back about the
  * supply on `tc49/layout/state/device/track`, which the band shows as a fault
@@ -25,7 +27,7 @@
  * goes on reporting the railroad as powered
  * ([ADR-0050](../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md)).
  *
- * A DOM test because it crosses the band, the app and the run view's socket.
+ * A DOM test because it crosses the band, the app and the session's socket.
  * The session itself is `support/session.ts`, shared with the other suites.
  */
 
@@ -124,161 +126,6 @@ describe("OFF is the drain trigger", () => {
     expect(written()).toEqual([
       { topic: RUN_WANTED, payload: { run: "draining" } },
       { topic: POWER_WANTED, payload: { power: "off" } },
-    ]);
-    expect(draining(shell)).toBe(false);
-  });
-
-  /** OFF asks for a drain from a held run too: it is the moving that decides,
-   *  and a person's HOLD writes `held` with trains still rolling. */
-  it("asks a held run to drain and waits while it is moving", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "held", moving: true });
-
-    await pressing(shell, "toggle");
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-
-    await said(shell, STATE_RUN, { run: "held", moving: false });
-
-    expect(written()).toEqual([
-      { topic: RUN_WANTED, payload: { run: "draining" } },
-      { topic: POWER_WANTED, payload: { power: "off" } },
-    ]);
-  });
-
-  /** The dispatcher answering a held run with `held` publishes no frame, so
-   *  the wait would never end — and there is nothing left to drain anyway:
-   *  the run is held and nothing is moving, which is the whole of what the
-   *  wait waits for. */
-  it("removes it at once where the run is held and nothing moves", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "held", moving: false });
-
-    await pressing(shell, "toggle");
-
-    expect(written()).toEqual([
-      { topic: RUN_WANTED, payload: { run: "draining" } },
-      { topic: POWER_WANTED, payload: { power: "off" } },
-    ]);
-  });
-
-  /** An older dispatcher publishes the word alone, and a row that says
-   *  nothing about what is under way never lets this button cut: the wait
-   *  goes on standing, which costs a word on a button, where cutting on it
-   *  would cost a train stranded where no sensor will ever say it stopped. */
-  it("never cuts on a row that says nothing about moving", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await said(shell, STATE_RUN, { run: "held" });
-
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-  });
-
-  /** The same silence at the press: a run held by a dispatcher that says
-   *  nothing about moving is asked to drain like any other, and the supply
-   *  stays until a row says `moving: false`. */
-  it("waits where a held run says nothing about moving", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "held" });
-
-    await pressing(shell, "toggle");
-
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-  });
-
-  /** The railroad stays powered, and the button says why it is still there.
-   *  A drain that never lands is exactly the case an abrupt cut would have
-   *  hidden. */
-  it("leaves the railroad powered while the run never settles", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await said(shell, "tc49/dispatch/state/aspects", { aspects: {} });
-    await said(shell, STATE_RUN, { run: "draining", moving: true });
-
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-  });
-
-  /** The run word changing back to `running` while the wait stands is a drain
-   *  somebody abandoned — a GO on this panel or on another — and the wait goes
-   *  with it. Left standing, the HOLD that came hours later would cut the
-   *  power out of a press the person had moved on from (ADR-0062). The
-   *  dispatcher answers the drain before anybody can release it, so the word
-   *  leaves `running` on the way: a `running` row twice over is a sequence no
-   *  dispatcher publishes, it comparing the whole row before it writes. */
-  it("drops the wait when the run is released", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await said(shell, STATE_RUN, { run: "draining", moving: true });
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    expect(draining(shell)).toBe(false);
-
-    await said(shell, STATE_RUN, { run: "held", moving: false });
-
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(false);
-  });
-
-  /** The last train arriving republishes the run word the press was made
-   *  against, `moving` having moved under it (#406): the drain is still
-   *  outstanding, and reading the value rather than the change would drop the
-   *  wait here and leave the railroad powered with nothing on screen saying
-   *  so. */
-  it("keeps the wait where the last train arrives under a running run", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await said(shell, STATE_RUN, { run: "running", moving: false });
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-
-    await said(shell, STATE_RUN, { run: "held", moving: false });
-
-    expect(written()).toEqual([
-      { topic: RUN_WANTED, payload: { run: "draining" } },
-      { topic: POWER_WANTED, payload: { power: "off" } },
-    ]);
-    expect(draining(shell)).toBe(false);
-  });
-
-  /** `draining` with nothing moving is the drain answered and not the drain
-   *  landed: the dispatcher writes the `held` this button waits for itself, at
-   *  the first moment no train is left, and until it does there is a run word
-   *  that still commits nothing of its own. */
-  it("keeps the wait where the drain is answered with nothing moving", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await said(shell, STATE_RUN, { run: "draining", moving: false });
-
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-  });
-
-  /** The person has said what they want the supply to do, so the cut the
-   *  earlier press would have made later is abandoned: a supply going away
-   *  out of a press that has been moved on from is the surprise this button
-   *  exists to avoid. */
-  it("abandons the wait when ON is pressed instead", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await pressing(shell, "toggle");
-    await said(shell, STATE_RUN, { run: "held", moving: false });
-
-    expect(written()).toEqual([
-      { topic: RUN_WANTED, payload: { run: "draining" } },
-      { topic: POWER_WANTED, payload: { power: "on" } },
     ]);
     expect(draining(shell)).toBe(false);
   });

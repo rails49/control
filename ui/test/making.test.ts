@@ -1205,8 +1205,8 @@ describe("a refused edit", () => {
  * railroad is not news about what somebody is typing (#444).
  *
  * The stock view redraws for reasons that have nothing to do with the field
- * being typed in — the app hands it `placed`, and every `run-status` event
- * the run view fires replaces the run state whole — so power going off is a
+ * being typed in — the app hands it `placed`, and every new status the
+ * session answers replaces the run state whole — so power going off is a
  * render, and the person correcting a length is halfway through the number.
  */
 describe("an edit standing in a field", () => {
