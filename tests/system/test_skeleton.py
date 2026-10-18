@@ -7,7 +7,7 @@ from tc49.bench.runner import placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.layout import Layout, block_of, departure_end, end_on
+from tc49.lib.layout import Layout, block_of, departure_end, transit_ends
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tests.harness import events, load, run, stock
@@ -189,8 +189,9 @@ def assert_routes_leave_by_their_departure_end(layout: Layout, trace: str) -> No
             end = depart
         else:
             assert previous is not None, chosen
-            entered = end_on(layout, previous[-1], previous[-2])
-            end = departure_end(layout, entered)
+            ends = transit_ends(layout, previous[-1], previous[-2])
+            assert ends is not None, chosen
+            end = departure_end(layout, ends[0])
         reachable = [transit for transit, _ in layout.transits_at(end)]
         assert first in reachable, chosen
 

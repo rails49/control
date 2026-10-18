@@ -43,7 +43,7 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
 from tc49.lib.inventory import DRAINING, HELD, ON, RUNNING, Aspect, Refusal
-from tc49.lib.layout import Layout, block_of, departure_end, end_on
+from tc49.lib.layout import Layout, block_of, departure_end, transit_ends
 from tc49.lib.payload import (
     Ordering,
     gesture,
@@ -316,12 +316,13 @@ def aspects(state: State) -> dict[str, str]:
         standing = active.cur_index - (1 if active.outstanding else 0)
         if standing >= len(active.route.transits):
             continue  # in its arrival block; nothing left to leave by
-        end = end_on(
+        ends = transit_ends(
             state.layout,
             active.route.blocks[standing],
             active.route.transits[standing],
         )
-        shown[end] = aspect_of(locked_ahead(state, train, active.route, standing))
+        assert ends is not None  # a route's transits reach its blocks
+        shown[ends[0]] = aspect_of(locked_ahead(state, train, active.route, standing))
     return shown
 
 
@@ -1759,11 +1760,13 @@ class Dispatcher:
         # lets a request dragged in mid-route be answered while it is asked.
         # Which end the route comes in through is read here: `lib` states the
         # rule and takes the end, knowing nothing of routes (#155).
-        entered = end_on(
+        ends = transit_ends(
             self._state.layout,
             launched.route.arrival_block,
             launched.route.transits[-1],
         )
+        assert ends is not None  # a route's transits reach its blocks
+        entered = ends[0]
         self._state.departure[req.train] = departure_end(self._state.layout, entered)
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment

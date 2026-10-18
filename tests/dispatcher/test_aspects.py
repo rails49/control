@@ -13,7 +13,7 @@ from tc49.dispatcher.dispatch import (
 )
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import HELD, RUNNING
-from tc49.lib.layout import Layout, block_of, end_on, opposite_end
+from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
 from tests.harness import RUN_WANTED, events, load, press, run, ticks
 
 
@@ -67,7 +67,9 @@ def test_only_ends_something_can_leave_by_carry_a_signal() -> None:
 def test_the_aspect_is_how_far_ahead_the_dispatcher_has_locked() -> None:
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    end = end_on(layout, route.blocks[0], route.transits[0])
+    ends = transit_ends(layout, route.blocks[0], route.transits[0])
+    assert ends is not None
+    end = ends[0]
 
     for ahead, expected in ((0, "stop"), (1, "caution"), (2, "clear"), (3, "clear")):
         shown = aspects(a_state(layout, route, ahead))
@@ -80,7 +82,9 @@ def test_an_end_no_train_is_leaving_by_shows_stop() -> None:
     including the other end of the very block it stands in."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    end = end_on(layout, route.blocks[0], route.transits[0])
+    ends = transit_ends(layout, route.blocks[0], route.transits[0])
+    assert ends is not None
+    end = ends[0]
     shown = aspects(a_state(layout, route, 2))
 
     assert [e for e, a in shown.items() if a != "stop"] == [end]

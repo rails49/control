@@ -73,7 +73,7 @@ from heapq import heapify, heappop, heappush
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import OFF, ON, STOPPED
-from tc49.lib.layout import Layout, block_of, end_across
+from tc49.lib.layout import Layout, block_of, transit_ends
 from tc49.lib.payload import Command, command, named_train, placement
 from tc49.lib.power import TrackPower
 
@@ -272,17 +272,13 @@ class Simulator:
         reaches neither end of the block named.
 
         The command states the connection and a bare transit and the layout
-        names a transit qualified, so the two halves go back together to ask
-        it. Either way the command names no block a train could start from —
+        names a transit qualified, so it asks with `Command.transit_id`.
+        Either way the command names no block a train could start from —
         there is no track over that transit into that block — and neither is
         an error to raise on but a command with nowhere to go (rule 4).
         """
-        end = end_across(
-            self._layout,
-            commanded.into,
-            f"{commanded.connection}.{commanded.transit}",
-        )
-        return None if end is None else block_of(end)
+        ends = transit_ends(self._layout, commanded.into, commanded.transit_id)
+        return None if ends is None else block_of(ends[1])
 
     def _on_move(self, topic: str, payload: Payload) -> None:
         """One transit accepted: the train starts rolling and its two sensor

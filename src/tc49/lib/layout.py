@@ -14,9 +14,8 @@ Routing stays outside — Layout is a data structure, not a policy.
 The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
-take one apart, ``end_on`` reads one off a transit and ``end_crossed`` does
-the same for a transit that came off the bus with ``end_across`` answering
-the other side of it, ``connected_end`` says which end of a block a connection
+take one apart, ``transit_ends`` reads both ends off a transit, the one on a
+given block first and the one across it second, ``connected_end`` says which end of a block a connection
 holds, and ``departure_end`` composes that over ``opposite_end`` into the end
 a train leaves a block by. The ``<block>.<A-to-B|B-to-A>`` **facing** form is
 parsed beside it and nowhere else: ``FACINGS`` is the vocabulary,
@@ -409,72 +408,42 @@ def connected_facing(layout: Layout, candidate: str) -> str:
     return facing_towards(connected_end(layout, facing_ends(candidate)[1]))
 
 
-def end_on(layout: Layout, block: str, transit: str) -> str:
-    """The end of `block` that `transit` crosses.
+def transit_ends(layout: Layout, block: str, transit: str) -> tuple[str, str] | None:
+    """The two ends `transit` joins, the end on `block` first and the end
+    across it second, or None where the layout holds no such transit or that
+    transit crosses neither end of `block`.
 
-    Which end that is does not depend on which way a train is going over it:
-    leaving, it is the departure end the train goes out through, and so the
-    signal the aspect belongs to; entering, it is the arrival end the train
-    comes in through. Neither is on the bus — `move_granted` names the transit
-    and the block, and `route_chosen` names the route — so both the dispatcher
-    and the scheduler read it from the layout here.
+    `transit` is qualified, `<connection>.<transit>`: the form
+    `Layout.transits_at` gives, `Layout.conflicts` takes and the dispatcher
+    holds in routes and locks. A connection the layout does not hold, a
+    transit no connection here declares, an unqualified name and a block the
+    transit does not reach all answer None.
 
-    It takes the two names as the layout's own, which is what the dispatcher
-    holds: the route it just chose crosses the blocks it is made of. A caller
-    holding names that came off the bus asks `end_crossed` below.
-    """
-    connection, _, name = transit.partition(".")
-    first, second = layout.connections[connection].transits[name]
-    return first if block_of(first) == block else second
+    The end on `block` does not depend on which way a train is going over the
+    transit: leaving, it is the departure end the train goes out through, and
+    so the signal the aspect belongs to; entering, it is the arrival end the
+    train comes in through. Neither is on the bus — `move_granted` names the
+    transit and the block, and `route_chosen` names the route — so the
+    dispatcher and the scheduler both read it from the layout here. The end
+    across is what a binding handed a `move` asks: the command names the block
+    the train is to end up in, and the block across the transit from there is
+    the one it must be standing in now (ADR-0047). "Across" names the axis it
+    reads along: the far end of a *block* is its second sensor, the one a
+    train trips after the near one as it enters, so the name this lookup
+    carried until #279 said a different axis in the very module a hardware
+    binding reads.
 
+    A consumer may not raise on a payload (BUS.md, rule 4), so names that came
+    off the bus answer None rather than a `KeyError`. The pair is read
+    together because a grant names both and neither is meaningful alone: a
+    transit crossing no end of the block named leaves no end to face away
+    from, and answering the other block's end instead would carry a frame the
+    layout contradicts into facing. Nor is there a near end for a run there is
+    no track for, and a command describing something the layout does not do
+    has nothing to execute (#276).
 
-def end_crossed(layout: Layout, block: str, transit: str) -> str | None:
-    """`end_on` asked of names that came off the bus: the end of `block` that
-    `transit` crosses, or None where the layout holds no such transit or that
-    transit crosses neither end of that block.
-
-    A consumer may not raise on a payload (BUS.md, rule 4), and `end_on`
-    reaches straight into the layout, so a transit no connection here holds is
-    a `KeyError` out of a handler. The pair is read together because a grant
-    names both and neither is meaningful alone: a transit crossing no end of
-    the block named leaves no end to face away from, and answering the far
-    block's end instead would carry a frame the layout contradicts into
-    facing.
-    """
-    connection, _, name = transit.partition(".")
-    held = layout.connections.get(connection)
-    ends = held.transits.get(name) if held is not None else None
-    if ends is None:
-        return None
-    first, second = ends
-    if block_of(first) == block:
-        return first
-    return second if block_of(second) == block else None
-
-
-def end_across(layout: Layout, block: str, transit: str) -> str | None:
-    """The end `transit` crosses on its other side from `block`, or None where
-    the layout holds no such transit or that transit crosses neither end of
-    that block.
-
-    `end_on` read from the other side and asked of names that came off the
-    bus, which is what a binding handed a `move` asks: the command names the
-    block the train is to end up in, and the block across the transit from
-    there is the one it must be standing in now (ADR-0047).
-
-    Named for the axis it reads along. The far end of a *block* is its second
-    sensor, the one a train trips after the near one as it enters, so the name
-    this lookup carried until #279 said a different axis in the very module a
-    hardware binding reads.
-
-    It fails the two ways `end_crossed` fails, and answers None for both. A
-    transit under no connection here, or one no connection declares, is a
-    `KeyError` for a caller reaching into the layout and a payload is never a
-    reason to raise (rule 4). A transit the layout does hold that crosses
-    neither end of `block` reaches no block a train could be standing in to
-    take it: answering its first end anyway would hand back a near end for a
-    run there is no track for, and a command describing something the layout
-    does not do has nothing to execute (#276).
+    Where both ends of the transit are on `block` the pair comes back in the
+    order the layout stores it.
     """
     connection, _, name = transit.partition(".")
     held = layout.connections.get(connection)
@@ -483,5 +452,7 @@ def end_across(layout: Layout, block: str, transit: str) -> str | None:
         return None
     first, second = ends
     if block_of(first) == block:
-        return second
-    return first if block_of(second) == block else None
+        return first, second
+    if block_of(second) == block:
+        return second, first
+    return None
