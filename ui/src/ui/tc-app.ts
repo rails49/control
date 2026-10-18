@@ -56,6 +56,7 @@ import {
   RAIL,
   backupWords,
   frozen,
+  frozenWhy,
   isLoaded,
   holding,
   supply,
@@ -379,7 +380,9 @@ export class TcApp extends LitElement {
    * A fault is a chip with the whole sentence as its title, so a long one is
    * read by hovering. The frozen drawing is told only while the editing view
    * is current (#517): the mark explains the editor's dead verbs, and power on
-   * is the ordinary state of a railroad being run.
+   * is the ordinary state of a railroad being run. Its title says which of
+   * the two freezes it is: power, or a page that has not heard which railroad
+   * is loaded (#792).
    */
   private band(loaded: string | null, still: boolean) {
     const trouble = this.filing.trouble ?? this.railroad.trouble ?? this.status.trouble;
@@ -394,9 +397,7 @@ export class TcApp extends LitElement {
         ></look-about>
         ${this.filing.derives ? nothing : chip("does not derive")}
         ${still && this.view === "edit"
-          ? html`<look-reading title="track power is on, so the drawing is read-only"
-              >drawing frozen</look-reading
-            >`
+          ? html`<look-reading title=${frozenWhy(this.standing)}>drawing frozen</look-reading>`
           : nothing}
         ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
         ${note === null
@@ -591,11 +592,11 @@ export class TcApp extends LitElement {
    *  (model/commands.ts). Nothing here decides what is dead; that module
    *  does, and it is what both the rail and the keyboard ask. */
   private get standing(): Standing {
-    // Track power freezes the drawing, and the loaded railroad's edits hold
-    // ON (ADR-0071). The session is what knows either: power and the
-    // railroad's name are read off it with the rest of what it says about
-    // the run, and go down to the band that says why and the editing view
-    // whose gestures it kills.
+    // Track power freezes the drawing, and so does a drawing open with no
+    // railroad heard; the loaded railroad's edits hold ON (ADR-0071). The
+    // session is what knows any of it: power and the railroad's name are read
+    // off it with the rest of what it says about the run, and go down to the
+    // band that says why and the editing view whose gestures it kills.
     const one = this.inspecting;
     const spec = one === null ? undefined : this.editor.drawing.symbols[one];
     return {

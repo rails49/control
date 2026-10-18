@@ -40,6 +40,7 @@ import {
   shows,
 } from "./support/shell.js";
 import {
+  Broker,
   brokering,
   DERIVES,
   joined,
@@ -472,6 +473,110 @@ describe("saving the loaded railroad", () => {
     expect(store.saved).toEqual([]);
     expect(session(shell).drawing.drawing).toBe("toy");
     expect(band(shell).querySelector("look-about")!.detail).toBe("unsaved");
+  });
+});
+
+/**
+ * Losing the broker freezes the drawing too. The editor holds no railroad but
+ * the one the row last named (ADR-0072, decision 3), so a drawing still open
+ * with no row heard is the loaded railroad's, and the page cannot know whether
+ * its track has power: a page's link drops while the broker, `layout` and the
+ * dispatcher go on, and trains with them. Nothing is latched: the row heard
+ * again with power off lifts it.
+ */
+describe("losing the broker", () => {
+  /** What the band's frozen mark gives as its reason. */
+  function why(shell: TcApp): string | null {
+    const said = [...band(shell).querySelectorAll("look-reading")].find(
+      (one) => one.textContent!.trim() === "drawing frozen",
+    );
+    return said === undefined ? null : said.getAttribute("title");
+  }
+
+  /** The page's link dropping, and coming back with the rows still retained. */
+  async function closes(shell: TcApp): Promise<void> {
+    Broker.last!.closes();
+    await settled(shell);
+  }
+
+  async function reopens(shell: TcApp): Promise<void> {
+    Broker.last!.opens();
+    await settled(shell);
+  }
+
+  /** ⌘S with nothing focused, as the shell hears it. */
+  async function saved(shell: TcApp): Promise<void> {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "s", metaKey: true, bubbles: true, cancelable: true }),
+    );
+    await settled(shell);
+  }
+
+  it("keeps the drawing frozen with power on", async () => {
+    const shell = await frozen();
+    await closes(shell);
+    session(shell).select(["a"]);
+    const was = drawn(shell);
+
+    await typed(shell, "r");
+
+    expect(editing(shell).hasAttribute("frozen")).toBe(true);
+    expect(drawn(shell)).toEqual(was);
+    expect(railButton(shell, "save")!.disabled).toBe(true);
+  });
+
+  it("writes nothing and names nothing on ⌘S, an edit made with power off", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    const shell = await unsaved("off");
+    await closes(shell);
+
+    await saved(shell);
+
+    expect(store.saved).toEqual([]);
+    expect(wants()).toEqual([]);
+  });
+
+  it("lifts when the row is heard again and power reads off", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    const shell = await unsaved("off");
+    await closes(shell);
+    await reopens(shell);
+
+    expect(editing(shell).hasAttribute("frozen")).toBe(false);
+    await pressedOnRail(shell, "save");
+
+    expect(store.saved.map(({ path }) => path)).toContain("/drawings/toy");
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+  });
+
+  it("stays frozen when the row is heard again with power on", async () => {
+    const shell = await frozen();
+    await closes(shell);
+    await reopens(shell);
+
+    expect(editing(shell).hasAttribute("frozen")).toBe(true);
+    expect(why(shell)).toBe("track power is on, so the drawing is read-only");
+  });
+
+  it("says why in the band", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "off" });
+    await closes(shell);
+
+    expect(says(shell)).toBe("drawing frozen");
+    expect(why(shell)).toBe(
+      "the layout has not said whether the track has power, so the drawing is read-only",
+    );
   });
 });
 

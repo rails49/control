@@ -151,9 +151,10 @@ describe("the glyph on the button", () => {
 
 describe("what a drawing has to be open for", () => {
   it("saves only a drawing that is open and has edits in it", () => {
+    const open = { opened: "reversing-loops", loaded: "reversing-loops" };
     expect(on("save")).toBe(false);
-    expect(on("save", { opened: "reversing-loops", saved: true })).toBe(false);
-    expect(on("save", { opened: "reversing-loops", saved: false })).toBe(true);
+    expect(on("save", { ...open, saved: true })).toBe(false);
+    expect(on("save", { ...open, saved: false })).toBe(true);
   });
 
   /** The export writes the drawing that is open, saved or not: it is a
@@ -259,6 +260,19 @@ describe("what track power freezes", () => {
   it("thaws when power goes off", () => {
     expect(on("rotate", { selection: 1, power: "on" })).toBe(false);
     expect(on("rotate", { selection: 1, power: "off" })).toBe(true);
+  });
+
+  /** A drawing open with no row heard is the loaded railroad's, the editor
+   *  holding no other (ADR-0072, decision 3): the page has lost the broker,
+   *  and cannot know whether the track has power. A page with nothing open
+   *  holds no railroad to drift from. It keys on the row and not on power,
+   *  which reads null too on a joined page whose drawing does not derive. */
+  it("freezes an open drawing while the row naming the loaded railroad is not heard", () => {
+    expect(frozen(standing({ opened: "toy", loaded: null, power: null }))).toBe(true);
+    expect(frozen(standing({ opened: "toy", loaded: null, power: "off" }))).toBe(true);
+    expect(frozen(standing({ opened: "", loaded: null }))).toBe(false);
+    expect(frozen(standing({ opened: "toy", loaded: "toy", power: null }))).toBe(false);
+    expect(on("save", { opened: "toy", loaded: null, saved: false })).toBe(false);
   });
 });
 
