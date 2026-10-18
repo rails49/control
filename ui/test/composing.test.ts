@@ -15,7 +15,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LENGTH_UNHEARD,
   LIGHT_ENGINE,
+  lengthHeld,
   MIXED,
   merged,
   mint,
@@ -478,6 +480,36 @@ describe("the length guard", () => {
       expect(screen.catalogue["hopper"]!.length).toBe(110);
     }
   });
+
+  /** A page that has lost the broker still holds the roster, and cannot know
+   *  whether the track has power (#804). Power on keeps its own words. */
+  describe("with the row naming the railroad not heard", () => {
+    const UNHEARD =
+      "the layout has not said whether the track has power, so a length cannot be corrected";
+
+    it("answers why, whatever power last read", () => {
+      expect(lengthHeld(null, false)).toBe(UNHEARD);
+      expect(lengthHeld("off", false)).toBe(UNHEARD);
+      expect(lengthHeld("on", false)).toBe(WORDS);
+      expect(lengthHeld("stopped", false)).toBe(WORDS);
+      expect(lengthHeld(null)).toBeNull();
+    });
+
+    it("is off, and moves no length", () => {
+      for (const power of ["off", null] as const) {
+        const screen = stock();
+        expect(screen.cars(power, false)[0]!.held).toBe(UNHEARD);
+        expect(screen.modelRows(power, false).every((row) => row.held === UNHEARD)).toBe(
+          true,
+        );
+        expect(screen.carLength("krokodil-a", 130, power, false)).toBe(UNHEARD);
+        expect(screen.modelLength("hopper", 110, power, false)).toBe(UNHEARD);
+        expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
+        expect(screen.catalogue["hopper"]!.length).toBe(100);
+        expect(screen.edits).toBe(false);
+      }
+    });
+  });
 });
 
 /** A length correction waits for power off to be saved, and the roster records
@@ -562,6 +594,25 @@ describe("a length edit in the roster", () => {
     expect(screen.waitsForPower("stopped")).toBe(WAITS);
     expect(screen.waitsForPower("off")).toBeNull();
     expect(screen.waitsForPower(null)).toBeNull();
+  });
+
+  /** The row not heard, a length edit waits for it: the page cannot know
+   *  whether the track has power (#804). */
+  it("holds the Save while the row is not heard, in its own words", () => {
+    const screen = stock();
+    screen.carLength("krokodil-a", 130, "off");
+    expect(LENGTH_UNHEARD).toBe(
+      "a length has changed — the layout has not said whether the track has power",
+    );
+    expect(screen.waitsForPower(null, false)).toBe(LENGTH_UNHEARD);
+    expect(screen.waitsForPower("off", false)).toBe(LENGTH_UNHEARD);
+    expect(screen.waitsForPower("on", false)).toBe(WAITS);
+  });
+
+  it("holds nothing for another edit with the row not heard", () => {
+    const screen = stock();
+    screen.carAddress("krokodil-a", "7");
+    expect(screen.waitsForPower(null, false)).toBeNull();
   });
 
   it("holds nothing for another edit with power on", () => {
