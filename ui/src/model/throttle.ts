@@ -111,13 +111,16 @@ export const STILL: Record<Power, string | null> = {
 
 /**
  * Why nothing can be driven, `null` where something can. Only one is ever
- * shown, the first that holds: no session answering — a gesture into a socket
- * that is not there is swallowed — then the track as the layout last said it.
+ * shown, the first that holds: no broker answering — `linked` is the session's
+ * `connected`, false before the first connect and after the broker closes, and
+ * a gesture then is swallowed; the words follow `gone()` (`model/session.ts`),
+ * which the band shows for the same state — then the track as the layout last
+ * said it.
  * A supply not yet heard (`null`) is refused: a train moves only on `on`
  * (ui/THROTTLE.md).
  */
 export function driveRefusal(linked: boolean, power: Power | null): string | null {
-  if (!linked) return "no session — the run view joins one";
+  if (!linked) return "no broker answering — is the bus running?";
   if (power === null) return "the layout has not said whether the track is live";
   return STILL[power];
 }

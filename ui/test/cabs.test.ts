@@ -270,9 +270,9 @@ describe("what a person can switch", () => {
  *  the track as the layout last said it (ui/THROTTLE.md, ADR-0041). */
 describe("why a train cannot be driven", () => {
   it.each(["on", "stopped", "off", null] as const)(
-    "is refused with no session, power %s",
+    "is refused with no broker answering, power %s",
     (power) => {
-      expect(driveRefusal(false, power)).toBe("no session — the run view joins one");
+      expect(driveRefusal(false, power)).toBe("no broker answering — is the bus running?");
     },
   );
 

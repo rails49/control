@@ -12,8 +12,8 @@
  *
  * It works nothing out. Every train it offers, who is driving each, which way
  * each points, what each is reading and what a person can switch on it arrive
- * as `Cab`s (`model/throttle.ts`), and the frames go out through the view that
- * holds the session, exactly as the band's power presses do.
+ * as `Cab`s (`model/throttle.ts`), and the frames go to the app, which carries
+ * them to the session, exactly as the band's power presses do.
  *
  * **The lever is in the train's frame.** `+` is the way the train points, and
  * `layout` composes the sign each locomotive is given from the train's facing
@@ -96,7 +96,7 @@ export class TcThrottle extends LitElement {
           ? html`<p class="hint">
               ${this.linked
                 ? "no train is on the layout — place one in the run view"
-                : "no session — the run view joins one"}
+                : driveRefusal(this.linked, this.power)}
             </p>`
           : html`<ul>
               ${this.cabs.map((cab) => this.row(cab))}

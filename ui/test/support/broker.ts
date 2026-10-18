@@ -1,5 +1,5 @@
 /**
- * The broker, as far as the run view uses one: a page connects, subscribes,
+ * The broker, as far as the session (`model/session.ts`) uses one: a page connects, subscribes,
  * is answered with the retained rows, is delivered whatever is published
  * after that, and publishes its own gestures back.
  *
