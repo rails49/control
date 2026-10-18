@@ -306,18 +306,31 @@ So **length editing is disabled while track power is on or stopped**, with the
 reason said on the control: the field keeps its box, takes the hint colour, and
 carries `track power is on — turn it off to correct a length` both as its title
 and beside it. A field that vanished would leave a person looking for it. With
-power off, or with no session, a length can be corrected whether or not a train
-is placed ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+power off, a length can be corrected whether or not a train is placed
+([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+
+It is **disabled as well while the page has not heard which railroad is
+loaded** and still holds a roster, titled `the layout has not said whether the
+track has power, so a length cannot be corrected`. A page that has lost the
+broker keeps the roster it was editing, but cannot know whether the track has
+power: its link can drop while the broker, `layout` and the dispatcher go on
+running trains by the lengths they hold. The guard keys on the row naming the
+railroad and not on power reading nothing, which a joined page whose drawing
+does not derive also reads, and whose lengths stay editable. Nothing is
+latched: once the row is heard again with power off, lengths are editable
+(#804).
 
 A correction is an edit to the page, and reaches the store on the roster's
 **Save**. While power is on or stopped, **Save is disabled if the unsaved edits
 change a length**, titled `a length has changed — turn track power off to save`:
 the layout builds only with power off, so a length saved then could not be
-built. Other roster edits save as before. **A save that changed a length names
+built. While the row naming the railroad is not heard it is disabled for the
+same edits, titled `a length has changed — the layout has not said whether the
+track has power`. Other roster edits save as before. **A save that changed a length names
 the loaded railroad again** on `tc49/layout/railroad_wanted`, so the dispatcher
 fits trains with the new length; a train now longer than its block comes off
-the layout and is listed as **unfit**. A save that lands after the broker has
-gone owes the request: it is sent once the broker is back, the row names the
+the layout and is listed as **unfit**. A save pressed while the broker was up
+that lands after it has gone owes the request: it is sent once the broker is back, the row names the
 same railroad and power reads off, and dropped if the row names another
 railroad or none (#803).
 
