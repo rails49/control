@@ -188,7 +188,14 @@ class State:
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
         or None if it can. Transits also require no conflicting locked
-        transit at their connection (instantaneous admissibility)."""
+        transit at their connection (instantaneous admissibility).
+
+        A block that reads occupied is not entered, whoever holds it, the
+        train's own residue included, and with holder "" where nobody does
+        (ADR-0077): a cut of cars would be hit, and a stuck detector takes
+        the block out of use until it reads clear."""
+        if self.reported.get(resource) is True:
+            return (Refusal.HELD, resource, self.locks.get(resource, ""))
         holder = self.locks.get(resource)
         if holder is not None and holder != train:
             return (Refusal.HELD, resource, holder)
@@ -1137,8 +1144,11 @@ class Dispatcher:
         # A train that is off the layout holds no standing lock and has none
         # to give up: this gesture is what puts it back on (ADR-0039, #164).
         # Placing one is otherwise the same act.
+        # Released only if the train holds it: a lock table that has stopped
+        # describing the railroad is the case a person is placing in front
+        # of, and another train's lock is not this train's to give up.
         standing = state.block_of.get(train)
-        if standing is not None:
+        if standing is not None and state.locks.get(standing) == train:
             del state.locks[standing]
         state.locks[block] = train
         state.block_of[train] = block
@@ -1342,10 +1352,12 @@ class Dispatcher:
         over. A placement does not defer: the person is saying where the train
         actually *is*, and the placement is what answers the move — a move
         whose sensors may never come is the case they are standing in front
-        of. So the request retires at the gesture, and a sensor that does
-        arrive for it afterwards explains nothing and holds the run
+        of. So the request retires at the gesture, and an occupied reading
+        that does arrive for it afterwards explains nothing and holds the run
         (ADR-0048), which is the right answer to a detector firing under a
-        train somebody has just moved by hand.
+        train somebody has just moved by hand. A clear reading on track the
+        gesture gave up is a block nobody holds reading clear, and holds
+        nothing (ADR-0077).
 
         `keep` overrides the standing lock as what the active request leaves
         held, for a removal, which keeps what still reads occupied instead.
@@ -1520,22 +1532,55 @@ class Dispatcher:
             self._move_run(HELD)
 
     def _arrived(self, block: str) -> None:
-        """`block_occupied` records where the train arrived. The move is not
-        over: the tail is still in the origin block, the train is between
+        """`block_occupied` records where the train arrived, and ends the move
+        if its origin already reads clear (ADR-0077). Otherwise the move is
+        not over: the tail is still in the origin block, the train is between
         blocks, and it takes no further grant until the vacate ends the move
         (ADR-0047)."""
         found = self._explained(block)
         if found is None or found[2].into != block:
             self._unexplained()
             return
-        train, _active, _move = found
+        train, active, move = found
         self._state.block_of[train] = block
-        self._publish_allocation()
+        if self._state.reported.get(move.from_block) is False:
+            self._ended(train, active, move)
+        else:
+            self._publish_allocation()
 
     def _cleared(self, block: str) -> None:
-        """`block_vacated` releases the origin block and the transit, ends
-        the move and completes the request — and what it released is why a
-        sweep runs here (ADR-0047).
+        """`block_vacated` of a move's origin ends the move once its arrival
+        block reads occupied (ADR-0077).
+
+        **Before the arrival it does nothing at all**: no release, no grant,
+        and no hold. The layout publishes a vacate when the origin's own
+        detectors go clear, and a train shorter than the gap to the next
+        block's entry detector reads clear behind before it reads occupied
+        ahead, which is normal running. The train may be standing on the
+        connection's points, so the origin and the transit stay locked, and
+        the arrival ends the move.
+
+        A clear reading on a block nobody holds is explained too: a stray or
+        a stuck detector clearing, which gives back a block a train may be
+        waiting on, so it sweeps rather than holding the run.
+        """
+        state = self._state
+        found = self._explained(block)
+        if found is None or found[2].from_block != block:
+            if block not in state.locks:
+                self._sweep()
+            elif not self._lifted(block):
+                self._unexplained()
+            return
+        train, active, move = found
+        if state.block_of.get(train) == move.into:
+            self._ended(train, active, move)
+
+    def _ended(self, train: str, active: Active, move: Move) -> None:
+        """A move over, on both its readings — origin clear, arrival
+        occupied, in either order (ADR-0077): it releases the origin block
+        and the transit and completes the request, and what it released is
+        why a sweep runs here (ADR-0047).
 
         **A cancelled request retires here instead**, wherever along its route
         it had got to: the person's gesture landed while this move was
@@ -1547,21 +1592,16 @@ class Dispatcher:
         because the train did not arrive.
         """
         state = self._state
-        found = self._explained(block)
-        if found is None or found[2].from_block != block:
-            if not self._lifted(block):
-                self._unexplained()
-            return
-        train, active, move = found
         active.outstanding = None
         del state.crossing[train]
         if active.request.cancelled:
             self._retire(train, active, Cancellation.REVOKED)
         else:
-            del state.locks[block]
+            del state.locks[move.from_block]
             del state.locks[move.transit]
             self._publish(
-                "lock_released", {"train": train, "resources": [block, move.transit]}
+                "lock_released",
+                {"train": train, "resources": [move.from_block, move.transit]},
             )
             if active.cur_index == len(active.route.blocks) - 1:
                 del state.active[train]
