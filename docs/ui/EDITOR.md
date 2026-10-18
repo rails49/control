@@ -966,7 +966,9 @@ the drawing](#track-power-freezes-the-drawing): the rebuild after it keeps
 the trains that still fit, and those that do not come off and are listed as
 unfit (#710, ADR-0071). With a railroad loaded a restore waits for track power
 to read off, and refuses a backup that does not hold the loaded railroad —
-rules the app hands the dialog and the store server does not check; after a
+rules the app hands the dialog and the store server does not check. A restore
+also waits for the layout to say which railroad is loaded, as a load does: until
+it has, nothing says the backup holds the railroad the apps run (#759). After a
 restore that worked the app asks for the loaded railroad again and reloads the
 page (#688, [store/BACKUP.md](../store/BACKUP.md#restoring)).
 
