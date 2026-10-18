@@ -157,13 +157,15 @@ drives each, the end each points at, the aspect there, the road ahead and the
 functions arrive as `Cab`s from `ui/src/model/throttle.ts`, which is a pure
 function over five apps' answers and holds no state of its own.
 
-**The session is the run view's.** There is one socket per page, and the view
+**The session is the app's.** There is one socket per page, and the session
 that holds it is the one that joined the railroad the app has loaded
-(PANEL.md, [#171](https://github.com/rails49/control/issues/171)). So the cabs
-are worked out where the model and the roster already are and handed up to the
-app, and this view's gestures go back down the same path the band's track-power
-presses take (ADR-0051): the view asks, the app carries, `tc-panel` writes. Two
-sockets on one page would be two clients of one run, every frame applied twice.
+(`ui/src/model/session.ts`, PANEL.md,
+[#171](https://github.com/rails49/control/issues/171),
+[#756](https://github.com/rails49/control/issues/756)). So the cabs are worked
+out where the model and the roster already are and handed down by the app, and
+this view's gestures go the same path the band's track-power presses take
+(ADR-0074): the view asks, the app carries, the session writes. Two sockets on
+one page would be two clients of one run, every frame applied twice.
 
 What is this view's own is what belongs to the person at it: the train they
 picked and where they have put the lever. Neither is on the bus — nothing
