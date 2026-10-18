@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import type { Wire } from "../src/model/drawing.js";
 import { Panel } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
-import { cabs } from "../src/model/throttle.js";
+import { cabs, driveRefusal } from "../src/model/throttle.js";
 import type { TraceEvent } from "../src/model/trace.js";
 
 /** Two blocks joined by one transit: enough for a train to stand, face an
@@ -263,5 +263,25 @@ describe("what a person can switch", () => {
     standing(model);
     expect(drive(model, { t1: { length: 400 } })[0]!.functions).toEqual([]);
     expect(drive(model)[0]!.functions).toEqual([]);
+  });
+});
+
+/** Why nothing can be driven: a session that is not answering first, then
+ *  the track as the layout last said it (ui/THROTTLE.md, ADR-0041). */
+describe("why a train cannot be driven", () => {
+  it.each(["on", "stopped", "off", null] as const)(
+    "is refused with no session, power %s",
+    (power) => {
+      expect(driveRefusal(false, power)).toBe("no session — the run view joins one");
+    },
+  );
+
+  it.each([
+    ["on", null],
+    ["stopped", "emergency stop — clear it before driving"],
+    ["off", "the track has no power — switch it on to drive"],
+    [null, "the layout has not said whether the track is live"],
+  ] as const)("with a session and power %s says %s", (power, said) => {
+    expect(driveRefusal(true, power)).toBe(said);
   });
 });

@@ -26,7 +26,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import type { Cab } from "../model/throttle.js";
+import { driveRefusal, type Cab } from "../model/throttle.js";
 import type { Mode, Power } from "../model/trace.js";
 import { throttleStyles } from "./tc-throttle.styles.js";
 
@@ -48,16 +48,6 @@ export interface ThrottleWanted {
  *  than a hand on a knob resolves and coarser than the noise of a drag, and
  *  the number a person reads is what goes on the bus. */
 const STEP = 0.05;
-
-/** What a person is told when a gesture would go nowhere, by what is in the
- *  way of it. Only one is ever shown, and each names the action that clears
- *  it: an emergency stop is cleared where a supply is switched back on
- *  (ADR-0041). */
-const STILL: Record<Power, string | null> = {
-  on: null,
-  stopped: "emergency stop — clear it before driving",
-  off: "the track has no power — switch it on to drive",
-};
 
 @customElement("tc-throttle")
 export class TcThrottle extends LitElement {
@@ -171,14 +161,13 @@ export class TcThrottle extends LitElement {
    *  rails a train may move on. The view says which is missing, and every
    *  control that would write is dead while it is (ui/THROTTLE.md). */
   private get live(): boolean {
-    return this.linked && this.power === "on";
+    return this.still === null;
   }
 
-  /** Why nothing can be driven, or `null` where something can. */
+  /** Why nothing can be driven, or `null` where something can
+   *  (`model/throttle.ts`). */
   private get still(): string | null {
-    if (!this.linked) return "no session — the run view joins one";
-    return this.power === null ? "the layout has not said whether the track is live"
-      : STILL[this.power];
+    return driveRefusal(this.linked, this.power);
   }
 
   private cabinet(cab: Cab) {
