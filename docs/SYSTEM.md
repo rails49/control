@@ -735,9 +735,11 @@ so a client that joins an idle railroad has something to draw
 **The run is held, running or draining**, on `state/run`. The dispatcher
 publishes it from its constructor, so a client that joins is served a value
 rather than left to read one out of an absence. A session starting fresh
-publishes `running`. One that came up on a restored picture publishes `held`,
-because that picture says where the last session believed the railroad was
-rather than where it stands now.
+publishes `held`, since its layout is empty and placing a train needs a held
+run. One that came up on a restored picture publishes `held` too, because that
+picture says where the last session believed the railroad was rather than where
+it stands now. Only a session whose document stood its trains publishes
+`running`: the harness's batch loop.
 
 A person moves it with `tc49/dispatch/run_wanted`. The three values differ by
 what the dispatcher will commit, and all three **admit**:
