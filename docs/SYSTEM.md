@@ -97,8 +97,8 @@ One turn of the machine (ADR-0047):
 3. The driver turns each grant it sees into a `move`.
 4. The layout interface executes it and reports occupancy: the head into the
    next block, then the tail off the last one.
-5. The vacate releases the origin block and the transit, ends the move, and
-   the sweep it triggers grants whatever that freed.
+5. The later of the two readings releases the origin block and the transit,
+   ends the move, and the sweep it triggers grants whatever that freed.
 
 The trace tap watches all of it.
 
@@ -875,7 +875,9 @@ not a clear reading**, so a binding that reports no occupancy at all disputes
 nothing rather than disputing the whole railroad. A train the picture says is
 crossing takes no part either, standing in no block. Releasing the hold with
 entries outstanding is allowed, the person deciding rather than the check, and
-it empties the set: once the run is running, the dispatcher's placement is
+it empties the set; a block disputed for reading occupied is not entered until
+it reads clear
+([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)): once the run is running, the dispatcher's placement is
 what its sensors have just told it
 ([#153](https://github.com/rails49/control/issues/153)).
 
@@ -920,7 +922,10 @@ and a no-op. A change either explains a granted move — `block_occupied`
 records where the train arrived, `block_vacated` releases the origin block
 and the transit, ends the move and completes the request — or explains
 nothing, which **holds the run** (ADR-0048) and is the dispute check's
-subject either way. The grant pass is a **sweep** over the
+subject either way. A move ends on both readings in either order: a vacate
+before the arrival releases nothing and holds nothing, and the arrival then
+ends the move; and a clear reading on a block nobody holds is explained and
+sweeps ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)). The grant pass is a **sweep** over the
 whole waiting set, run where the lock table or the waiting set changes: a
 request admitted, a vacate, the run released. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
@@ -1017,8 +1022,11 @@ dispatcher recovers identity from its own lock table. A block has **two
 detectors, both inside the interface**: a train entering trips the far
 block's first detector with its head and its second once it is fully in, so
 the interface publishes `block_occupied` on the way in and `block_vacated`
-for the block behind once the tail clears — occupied then vacated, the only
-order the physical railroad can produce (ADR-0047).
+for the block behind once the tail clears — usually occupied then vacated
+(ADR-0047). A block's own detectors going clear publish its vacate as well, so
+a train shorter than the gap to the next block's entry detector, or a dead
+detector there, gives the other order, and the dispatcher takes either
+([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 
 Commands name a **transit** rather than a piece of hardware. An `align` names
 a connection and a transit, and carries the points that transit needs as
