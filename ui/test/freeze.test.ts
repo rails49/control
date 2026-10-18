@@ -44,6 +44,7 @@ import {
   DERIVES,
   joined,
   loads,
+  PAPER,
   said,
   STOCK,
   stored,
@@ -96,6 +97,23 @@ async function pressed(shell: TcApp, at: { x: number; y: number }): Promise<void
     .dispatchEvent(
       new PointerEvent("pointerdown", { bubbles: true, clientX: at.x, clientY: at.y }),
     );
+  await settled(shell);
+}
+
+/** A click on the canvas: a press and then its release, where a portal's mate
+ *  in flight would land. */
+async function released(shell: TcApp, at: { x: number; y: number }): Promise<void> {
+  const svg = (inside(shell, "tc-canvas") as TcCanvas).renderRoot.querySelector("svg")!;
+  for (const type of ["pointerdown", "pointerup"]) {
+    svg.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        composed: true,
+        clientX: at.x,
+        clientY: at.y,
+      }),
+    );
+  }
   await settled(shell);
 }
 
@@ -225,6 +243,43 @@ describe("track power on", () => {
     await said(shell, POWER, { power: "on" });
 
     expect(session(shell).pendingFrom).toBeNull();
+  });
+
+  /** A portal's mate stays in flight after its first half drops, until a
+   *  click of its own (ADR-0020). It is a placement begun before the freeze,
+   *  so it goes like a wire: kept, it would follow the pointer across the
+   *  frozen sheet and land on the first click after the thaw. */
+  it("cancels a portal's mate left in flight", async () => {
+    const shell = await editor();
+    session(shell).beginPlace("portal");
+    session(shell).dropPending(10.5, 10.5);
+    expect(session(shell).mating).toBe(true);
+
+    await said(shell, POWER, { power: "on" });
+    expect(session(shell).pending).toBeNull();
+
+    await said(shell, POWER, { power: "off" });
+    await released(shell, PAPER);
+
+    const portals = Object.values(session(shell).drawing.symbols).filter(
+      (one) => one.kind === "portal",
+    );
+    expect(portals).toHaveLength(1);
+  });
+
+  /** A tile still held when the freeze lands: the release would cancel it,
+   *  but the turn while held would get through first. */
+  it("cancels a palette drag it lands under", async () => {
+    const shell = await editor();
+    inside(shell, "tc-palette").dispatchEvent(
+      new CustomEvent("take", { detail: "block", bubbles: true, composed: true }),
+    );
+    await settled(shell);
+    expect(session(shell).pending).not.toBeNull();
+
+    await said(shell, POWER, { power: "on" });
+
+    expect(session(shell).pending).toBeNull();
   });
 
   /** Looking is what a frozen drawing is still for. */
