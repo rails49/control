@@ -127,17 +127,19 @@ export class TcEditor extends LitElement {
     // nothing to clear it.
     if (changed.has("netlist") && !this.netlist) this.chosen = null;
     // Power going on freezes the drawing under whatever is open (ADR-0071),
-    // and each of the three would still write to it. The properties dialog
+    // and each of the four would still write to it. The properties dialog
     // and the right-click menu are edits this view offers outside
     // `model/commands.ts`, so they go rather than standing there with
-    // buttons that have stopped meaning anything; the half-drawn wire is the
+    // buttons that have stopped meaning anything; the half-drawn wire and the
+    // symbol on its way from the palette — a portal's mate included — are the
     // document's rather than the gesture machine's, so abandoning presses does
-    // not reach it and it is cancelled here. The canvas is asked to redraw
-    // because it holds the same `Editor` and sees no property change.
+    // not reach them and they are cancelled here. The canvas is asked to
+    // redraw because it holds the same `Editor` and sees no property change.
     if (changed.has("frozen") && this.frozen) {
       this.editing = null;
       this.menu = null;
       this.editor.cancelWire();
+      this.editor.cancelPending();
       this.canvas?.requestUpdate();
     }
   }
