@@ -325,6 +325,7 @@ export class TcApp extends LitElement {
         .railroad=${this.railroad}
         .placed=${this.status.placed}
         .power=${this.status.power}
+        .loaded=${this.status.railroad}
         @lengths-saved=${(event: CustomEvent<string>) => this.lengthened(event.detail)}
       ></tc-stock>
 

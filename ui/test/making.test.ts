@@ -459,6 +459,10 @@ const POWER = "tc49/layout/state/power";
 const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 const HELD = "track power is on — turn it off to correct a length";
 const WAITS = "a length has changed — turn track power off to save";
+const UNHEARD =
+  "the layout has not said whether the track has power, so a length cannot be corrected";
+const UNHEARD_WAITS =
+  "a length has changed — the layout has not said whether the track has power";
 
 /** What the page has asked for on `railroad_wanted`. */
 function wants(): unknown[] {
@@ -569,6 +573,73 @@ describe("the length guard", () => {
     );
     expect(parts(shell, ".why")).toHaveLength(0);
   });
+
+  /** A page that has lost the broker still holds the roster, and cannot know
+   *  whether the track has power: the broker, `layout` and the dispatcher may
+   *  be running without it (#804). The hold lifts once the row is heard again
+   *  with power off; nothing is latched. */
+  describe("with the broker gone", () => {
+    function lengths(shell: TcApp): HTMLInputElement[] {
+      return [
+        ...parts(shell, "li.car input.length"),
+        ...parts(shell, "li.product input.length"),
+      ] as HTMLInputElement[];
+    }
+
+    it("holds every length, refuses one typed, and saves no length edit", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+      store.saved.length = 0;
+      Broker.last!.closes();
+      await settled(shell);
+
+      for (const field of lengths(shell)) {
+        expect(field.disabled).toBe(true);
+        expect(field.title).toBe(UNHEARD);
+      }
+      await typed(shell, parts(shell, "li.product input.length")[1]!, "110");
+      expect(trouble(shell)).toBe(UNHEARD);
+
+      expect(saving(shell).disabled).toBe(true);
+      expect(saving(shell).title).toBe(UNHEARD_WAITS);
+      await pressed(shell, "sl-button.save");
+      expect(store.saved).toEqual([]);
+    });
+
+    it("lifts once the row is heard again with power off, and Save writes", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+      store.saved.length = 0;
+      Broker.last!.closes();
+      await settled(shell);
+      Broker.last!.opens();
+      await settled(shell);
+
+      for (const field of lengths(shell)) {
+        expect(field.disabled).toBe(false);
+      }
+      expect(saving(shell).disabled).toBe(false);
+      await pressed(shell, "sl-button.save");
+      expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+    });
+
+    it("says power is on once the row is heard again with power on", async () => {
+      const shell = await opened();
+      await placed(shell, "off");
+      Broker.last!.closes();
+      await settled(shell);
+      Broker.last!.says(POWER, { power: "on" });
+      Broker.last!.opens();
+      await settled(shell);
+
+      for (const field of lengths(shell)) {
+        expect(field.disabled).toBe(true);
+        expect(field.title).toBe(HELD);
+      }
+    });
+  });
 });
 
 /**
@@ -637,15 +708,23 @@ describe("the roster's Save with a length corrected", () => {
 
   /** A save that lands with the broker gone has nobody to name the railroad
    *  to, and the row coming back names the same one, so the press is owed
-   *  and sent once the row and power off are replayed (#803). */
-  it("names the railroad once the broker is back, for a save made while it was gone", async () => {
+   *  and sent once the row and power off are replayed (#803). It is pressed
+   *  while the broker is up and lands after it went: a length edit is not
+   *  saved with the broker gone (#804). */
+  it("names the railroad once the broker is back, for a save landing while it was gone", async () => {
     const shell = await opened();
     await placed(shell, "off");
     await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
-    Broker.last!.closes();
-    await settled(shell);
+    let answer: () => void = () => {};
+    store.held = (path) =>
+      path.startsWith("/rosters/") ? new Promise<void>((resolve) => (answer = resolve)) : null;
 
     await pressed(shell, "sl-button.save");
+    Broker.last!.closes();
+    await settled(shell);
+    store.held = () => null;
+    answer();
+    await settled(shell);
     expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
     expect(wants()).toEqual([]);
 
