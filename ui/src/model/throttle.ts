@@ -16,7 +16,7 @@
 import type { Aspect } from "../render/artwork.js";
 import type { Ahead, EndRef, Placed } from "./panel.js";
 import type { Fn, TrainDoc } from "./store.js";
-import type { Mode } from "./trace.js";
+import type { Mode, Power } from "./trace.js";
 
 /**
  * One train, as a throttle shows it.
@@ -98,4 +98,26 @@ export function cabs(driving: Driving): Cab[] {
         functions: stock[train]?.functions ?? [],
       };
     });
+}
+
+/** What a person is told when a gesture would go nowhere, by what the track
+ *  is doing. Each names the action that clears it: an emergency stop is
+ *  cleared where a supply is switched back on (ADR-0041). */
+export const STILL: Record<Power, string | null> = {
+  on: null,
+  stopped: "emergency stop — clear it before driving",
+  off: "the track has no power — switch it on to drive",
+};
+
+/**
+ * Why nothing can be driven, `null` where something can. Only one is ever
+ * shown, the first that holds: no session answering — a gesture into a socket
+ * that is not there is swallowed — then the track as the layout last said it.
+ * A supply not yet heard (`null`) is refused: a train moves only on `on`
+ * (ui/THROTTLE.md).
+ */
+export function driveRefusal(linked: boolean, power: Power | null): string | null {
+  if (!linked) return "no session — the run view joins one";
+  if (power === null) return "the layout has not said whether the track is live";
+  return STILL[power];
 }
