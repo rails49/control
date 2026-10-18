@@ -150,13 +150,10 @@ def command_line(
 
     **All five start here**, and the argument says which of the two an app
     takes rather than which apps write a parser of their own. Every app is
-    given a broker, having nowhere to publish and nothing to read without one. `store=False` is the
-    driver's, which reads no documents (SYSTEM.md, driver footprint), and the
-    translator's, which is told about no documents at all — hardware needs no
-    layout, and an address is the string the hardware answers to rather than
-    something looked up (ADR-0059, decisions 5 and 6). What an app adds on
-    top of what it is handed here — a station, a startup file, an id — it
-    adds to the parser this returns.
+    given a broker, having nowhere to publish and nothing to read without one.
+    `store=False` is the driver's, which reads no documents (SYSTEM.md, driver
+    footprint). What an app adds on top of what it is handed here — a
+    station, a startup file, an id — it adds to the parser this returns.
 
     **Which railroad is not a flag.** The store records which railroad is
     loaded: the binding of the layout interface writes the record each time
