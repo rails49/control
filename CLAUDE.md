@@ -23,7 +23,8 @@ Apps import `tc49.lib` and themselves, never each other;
 `tests/system/test_app_boundaries.py` enforces it. Another repository imports
 four `lib` modules and three deploy names
 ([ADR-0075](docs/adr/0075-another-repository-uses-the-bus-binding-the-inventory-and-three-deploy-names.md));
-changing one files an issue there. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+changing one files an issue in rails49/dccex and rails49/jmri. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Landing work
 
