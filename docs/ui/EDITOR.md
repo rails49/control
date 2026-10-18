@@ -1084,7 +1084,10 @@ off, so while power is on or stopped that Save is dead, and so is any Save
 while no railroad is heard. The rule reads the
 two names and not the editor: a save of a drawing that is not the loaded
 railroad would name nothing, being only a file, though the editor opens no
-such drawing now.
+such drawing now. A save that lands after the broker has gone cannot publish,
+so the request is owed: it is sent once the broker is back, the row names the
+same railroad and power reads off, and dropped if the row names another
+railroad or none (#803).
 
 **Power on waits for the save.** The run view draws the open drawing, so power
 on with the loaded railroad's edits unsaved would run trains under track no app

@@ -316,7 +316,10 @@ the layout builds only with power off, so a length saved then could not be
 built. Other roster edits save as before. **A save that changed a length names
 the loaded railroad again** on `tc49/layout/railroad_wanted`, so the dispatcher
 fits trains with the new length; a train now longer than its block comes off
-the layout and is listed as **unfit**.
+the layout and is listed as **unfit**. A save that lands after the broker has
+gone owes the request: it is sent once the broker is back, the row names the
+same railroad and power reads off, and dropped if the row names another
+railroad or none (#803).
 
 A **model** corrected on its row is written by that Save too, with
 `PUT /catalogue/<name>`, before the roster: each corrected model once, with its
