@@ -18,7 +18,8 @@
  * `tc-app`, and that import is what makes it a DOM suite.
  */
 
-import type { LookBand, LookCommand, LookPower, LookRail } from "@rails49/look";
+import type { LookBand, LookCommand, LookPower, LookRail, LookView } from "@rails49/look";
+import { press } from "@rails49/look/testing";
 
 import type { Drawing } from "../../src/model/drawing.js";
 import type { Editor } from "../../src/model/editor.js";
@@ -360,16 +361,10 @@ export async function mounted(view: ViewId = "edit"): Promise<TcApp> {
   return shell;
 }
 
-/** Press one of look's elements the way a pointer does: the button it draws
- *  inside itself, which is what its listener is on. */
-export function press(part: Element): void {
-  part.shadowRoot!.querySelector<HTMLElement>("button, sl-icon-button")!.click();
-}
-
 /** Press the rail's view for one view, which is the one control that switches:
  *  one per view, the current one marked (ADR-0038). */
 export async function shows(shell: TcApp, view: ViewId): Promise<void> {
-  press(rail(shell).querySelector(`look-view[name="${view}"]`)!);
+  press(rail(shell).querySelector<LookView>(`look-view[name="${view}"]`)!);
   await settled(shell);
 }
 

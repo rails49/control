@@ -14,6 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LookCommand } from "@rails49/look";
+import { press } from "@rails49/look/testing";
 
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
@@ -28,7 +29,6 @@ import {
   mounted,
   named,
   power,
-  press,
   rail,
   running,
   serving,
