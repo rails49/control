@@ -231,13 +231,19 @@ workload. Skipping a scan when nothing was released *and* nothing was
 admitted since the previous phase is a valid optimization, not a semantic
 rule.
 
-The scan order is most-refused first, admission order among equals (#34;
-[ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md) records why
-plain arrival order starved through-traffic). Aging gives a starved request
-first claim on whatever just freed. The refusal count is dispatcher state,
-never wall-clock, so the order stays deterministic; a train's chained
-requests keep their order for free, since an untried later one has no
-refusals and a later seq. The ordering key remains an explicit policy point:
+The scan order is the train's priority first, lowest number highest and a
+train with none after every train that has one
+([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+Within a priority it is most-refused first, admission order among equals
+(#34; [ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md)
+records why plain arrival order starved through-traffic). Where a higher and
+a lower request could both launch, the higher goes; where the higher cannot,
+the lower still goes, since a refused request is skipped. Aging bounds
+starvation within a priority and not across priorities, and gives a starved
+request first claim on whatever just freed. Priority and the refusal count
+are dispatcher state, never wall-clock, so the order stays deterministic; a
+train's chained requests keep their order for free, since they share a
+priority and an untried later one has no refusals and a later seq. The ordering key remains an explicit policy point:
 it only chooses which *safe* launch is tried first, and could change again
 without touching the safety core.
 
@@ -405,8 +411,8 @@ and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
 **Grant order** — within a sweep, active trains first (by request arrival
-order, tie-break train id), then pending launches in the aging order of the
-queue discipline above.
+order, tie-break train id), then pending launches in the order of the queue
+discipline above.
 Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
 the witness ordering is always safe, while launching adds a resource holder.
