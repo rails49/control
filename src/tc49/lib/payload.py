@@ -36,7 +36,7 @@ keeps facing off `move_granted`, `route_chosen`, `train_placed` and
 claiming to be one of those may not take the scheduler down. They are the
 first payloads read here that no gesture writes, which is why they are read
 by shape alone — `grant` and `chosen` say that names were named, and whether
-those names name anything is the layout's (`lib.layout.end_crossed`).
+those names name anything is the layout's (`lib.layout.transit_ends`).
 
 `move_granted` has a second reader in the driver, which turns each grant into
 the command that moves the train (#261). Two apps reading one payload is what
@@ -648,6 +648,12 @@ class Command:
     into: str
     speed: float | None = None
 
+    @property
+    def transit_id(self) -> str:
+        """The transit qualified, `<connection>.<transit>`: the form the layout
+        and the dispatcher name a transit by."""
+        return f"{self.connection}.{self.transit}"
+
 
 def command(payload: object) -> Command | None:
     """The move the payload commands, or None where it commands none.
@@ -655,7 +661,8 @@ def command(payload: object) -> Command | None:
     The transit is bare and the connection stands beside it, which is the
     shape the command has and the grant has not: the driver splits the
     qualified transit, and a binding that has to ask the layout puts the two
-    halves back together (`lib.layout.end_across`). Whether they name anything
+    halves back together (`Command.transit_id`, asked of
+    `lib.layout.transit_ends`). Whether they name anything
     on this railroad is that layout question and not this one — a name is all
     there is to read in a payload.
 
@@ -692,6 +699,14 @@ class Alignment:
     connection: str | None
     transit: str | None
     points: tuple[Point, ...]
+
+    @property
+    def transit_id(self) -> str | None:
+        """The transit qualified, `<connection>.<transit>`, or None for a throw
+        by hand, which names none."""
+        if self.connection is None or self.transit is None:
+            return None
+        return f"{self.connection}.{self.transit}"
 
 
 def alignment(payload: object) -> Alignment | None:

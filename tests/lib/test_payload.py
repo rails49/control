@@ -514,6 +514,22 @@ def test_a_command_reads_as_the_train_the_transit_and_the_block_entered() -> Non
     ) == Command("freight_1", "west_ladder", "to_dn", "dn_w")
 
 
+def test_a_command_names_its_transit_qualified() -> None:
+    """The command states the transit bare beside its connection, and the
+    layout names it `<connection>.<transit>`: `transit_id` is that name, so a
+    binding asking the layout does not put the halves together itself."""
+    read = command(
+        {
+            "train": "freight_1",
+            "connection": "west_ladder",
+            "transit": "to_dn",
+            "into": "dn_w",
+        }
+    )
+    assert read is not None
+    assert read.transit_id == "west_ladder.to_dn"
+
+
 def test_a_command_carries_the_speed_it_states_and_none_where_it_states_one_badly() -> (
     None
 ):
@@ -598,6 +614,23 @@ def test_an_alignment_naming_no_transit_is_a_throw_by_hand() -> None:
             "points": [{"addr": "dccex/12", "position": "closed"}],
         }
     ) == Alignment(None, None, (Point("dccex/12", "closed"),))
+
+
+def test_an_alignment_names_its_transit_qualified_and_a_throw_by_hand_none() -> None:
+    """The same qualified name `Command.transit_id` gives, and None for a
+    throw by hand, which names no transit (ADR-0068)."""
+    named = alignment({"connection": "crossover", "transit": "up_to_dn", "points": []})
+    assert named is not None
+    assert named.transit_id == "crossover.up_to_dn"
+    by_hand = alignment(
+        {
+            "connection": None,
+            "transit": None,
+            "points": [{"addr": "dccex/12", "position": "closed"}],
+        }
+    )
+    assert by_hand is not None
+    assert by_hand.transit_id is None
 
 
 def test_a_pair_that_cannot_be_read_fails_the_whole_alignment() -> None:
