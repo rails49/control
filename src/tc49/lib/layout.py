@@ -15,9 +15,10 @@ The ``check_*`` helpers are shared with the scenario validation in
 ``store.py``. The ``<block>.<A|B>`` end form is parsed here and nowhere else:
 ``check_end`` validates one, ``block_of``, ``end_letter`` and ``opposite_end``
 take one apart, ``transit_ends`` reads both ends off a transit, the one on a
-given block first and the one across it second, ``connected_end`` says which end of a block a connection
-holds, and ``departure_end`` composes that over ``opposite_end`` into the end
-a train leaves a block by. The ``<block>.<A-to-B|B-to-A>`` **facing** form is
+given block first and the one across it second, ``connected_end`` says which
+end of a block a connection holds, and ``departure_end`` composes that over
+``opposite_end`` into the end a train leaves a block by. The
+``<block>.<A-to-B|B-to-A>`` **facing** form is
 parsed beside it and nowhere else: ``FACINGS`` is the vocabulary,
 ``facing_ends`` takes one apart into the two ends it runs between,
 ``facing_towards`` writes one from the end a train would depart through, and
