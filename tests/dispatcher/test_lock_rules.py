@@ -2,15 +2,14 @@
 
 `broken` is a pure function of `State` and is tested on its own: a valid
 state breaks nothing, and each rule broken alone gives one line naming what
-broke it. Then the dispatcher at the bus, on two paths the physical railroad
-produces and the simulator does not — a detector stuck occupied with GO
-pressed over it, and a vacate delivered before the occupy ahead of it — where
-the newly broken rule holds the run once and a person's GO is honoured.
+broke it. Then the dispatcher at the bus, over a table broken by hand — no
+path the railroad produces is known to break it (ADR-0077) — where the newly
+broken rule holds the run once and a person's GO is honoured.
 """
 
 import pytest
 
-from tc49.bench.runner import DEFAULT_K, Assembly, placement
+from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
 from tc49.dispatcher.dispatch import Active, Request, State, broken
 from tc49.dispatcher.locking import Move, Refused
@@ -18,12 +17,9 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
-from tests.harness import RUN_WANTED, events, live, load, press, runs, ticks
+from tests.harness import RUN_WANTED, load
 
-REQUEST_WANTED = "tc49/schedule/request_wanted"
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
-OCCUPIED = "tc49/layout/block_occupied"
-VACATED = "tc49/layout/block_vacated"
 
 
 def a_route(layout: Layout) -> Route:
@@ -200,45 +196,9 @@ def test_a_strategy_writes_nothing(strategy: type[Incremental | FullRoute]) -> N
 # -- at the bus --------------------------------------------------------------
 
 
-def test_a_request_completed_over_a_stuck_detector_holds_the_run(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`yard_e` reads occupied before GO, a person releases over it, and
-    `freight_1` is sent there. Its arrival repeats a level already held and
-    is dropped, so the vacate behind it completes the move with the train
-    still placed where it left: a placed train not holding its block."""
-    assembly = live("crossover-yard/meet")
-    press(assembly, OCCUPIED, {"block": "yard_e"})
-    press(assembly, RUN_WANTED, {"run": "running"})
-    assert runs(assembly) == ["running", "held", "running"]
-    capsys.readouterr()
-
-    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-    ticks(assembly, 8)
-
-    assert events(assembly.trace, "request_completed")
-    assert runs(assembly)[-1] == "held"
-    said = capsys.readouterr().err
-    assert any(
-        line.startswith("dispatcher: lock table:") and "freight_1" in line
-        for line in said.splitlines()
-    ), said
-
-    go_is_honoured(assembly)
-
-
-def go_is_honoured(assembly: Assembly) -> None:
-    """GO over the same broken rule leaves the run running through the next
-    sweep: a rule still broken from the last check does not hold again."""
-    press(assembly, RUN_WANTED, {"run": "running"})
-    assert assembly.dispatcher.state.run == "running"
-    assert broken(assembly.dispatcher.state)  # still broken, and not held for it
-    press(assembly, REQUEST_WANTED, {"train": "express_2", "dest": ["up_w.B"]})
-    ticks(assembly, 2)
-    assert runs(assembly)[-1] == "running"
-
-
-def a_bus_dispatcher() -> tuple[InProcessBus, Dispatcher, list[tuple[str, Payload]]]:
+def a_bus_dispatcher(
+    strategy: type[Incremental | FullRoute] = Incremental,
+) -> tuple[InProcessBus, Dispatcher, list[tuple[str, Payload]]]:
     """A dispatcher on a bus of its own over `crossover-yard/meet`, running,
     and everything it publishes."""
     layout, roster, scenario = load("crossover-yard/meet")
@@ -249,7 +209,7 @@ def a_bus_dispatcher() -> tuple[InProcessBus, Dispatcher, list[tuple[str, Payloa
         layout,
         roster,
         placement(scenario.trains),
-        Incremental(layout, DEFAULT_K),
+        strategy(layout, DEFAULT_K),
     )
     bus.subscribe(
         "tc49/dispatch/#", lambda topic, payload: said.append((topic, payload))
@@ -263,35 +223,43 @@ def deliver(bus: InProcessBus, topic: str, payload: Payload) -> None:
     bus.drain()
 
 
-def test_a_vacate_before_the_occupy_ahead_holds_the_run() -> None:
-    """A dead detector at `dn_w`'s entry: `yard_w` reads clear before `dn_w`
-    reads occupied. The vacate releases `yard_w` while `freight_1` is still
-    placed there, and the sweep it runs grants nothing."""
-    bus, dispatcher, said = a_bus_dispatcher()
+def test_a_newly_broken_rule_holds_the_run_once(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The table broken by hand — `express_2` standing in `up_e` with the
+    lock on it gone — and an event delivered: the run holds, and the line
+    names the train."""
+    bus, dispatcher, _said = a_bus_dispatcher()
     assert dispatcher.state.run == "running"
+    capsys.readouterr()
+
+    del dispatcher.state.locks["up_e"]
     deliver(
         bus,
         REQUEST_SUBMITTED,
-        {"id": "r-1", "train": "freight_1", "depart": "yard_w.B", "dest": ["yard_e.A"]},
+        {"id": "r-1", "train": "freight_1", "depart": "yard_w.B", "dest": ["dn_w.A"]},
     )
-    granted = [p for t, p in said if t.endswith("/move_granted")]
-    assert [p["into"] for p in granted] == ["dn_w"]
-
-    mark = len(said)
-    deliver(bus, VACATED, {"block": "yard_w"})
 
     assert dispatcher.state.run == "held"
-    assert not [t for t, _ in said[mark:] if t.endswith("/move_granted")]
+    said = capsys.readouterr().err
+    assert any(
+        line.startswith("dispatcher: lock table:") and "express_2" in line
+        for line in said.splitlines()
+    ), said
 
-    # GO, and the next sweep — a request admitted runs one — leaves it
-    # running over the rule still broken.
+    go_is_honoured(bus, dispatcher)
+
+
+def go_is_honoured(bus: InProcessBus, dispatcher: Dispatcher) -> None:
+    """GO over the same broken rule leaves the run running through the next
+    sweep: a rule still broken from the last check does not hold again."""
     deliver(bus, RUN_WANTED, {"run": "running"})
     assert dispatcher.state.run == "running"
+    assert broken(dispatcher.state)  # still broken, and not held for it
     deliver(
         bus,
         REQUEST_SUBMITTED,
-        {"id": "r-2", "train": "express_2", "depart": "up_e.A", "dest": ["up_w.B"]},
+        {"id": "r-2", "train": "freight_1", "depart": "yard_w.B", "dest": ["up_w.A"]},
     )
-    assert any(p.get("id") == "r-2" for t, p in said if t.endswith("/request_admitted"))
     assert broken(dispatcher.state)
     assert dispatcher.state.run == "running"

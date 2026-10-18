@@ -13,6 +13,7 @@ the lock ledger from it, so the dispatcher is the lock table's one writer
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -71,6 +72,12 @@ class ReadOnlyState(Protocol):
     @property
     def active(self) -> Mapping[str, Active]: ...
 
+    @property
+    def reported(self) -> Mapping[str, bool]: ...
+
+    @property
+    def residue(self) -> AbstractSet[str]: ...
+
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
 
 
@@ -90,10 +97,22 @@ class LockingStrategy(Protocol):
         ...
 
 
+def standing_still(state: ReadOnlyState) -> list[str]:
+    """The blocks that read occupied and that nobody holds or that are
+    residue: obstacles as permanent as an idle train's block, since nothing
+    is granted into them until they read clear (ADR-0077)."""
+    return sorted(
+        block
+        for block, occupied in state.reported.items()
+        if occupied and (block not in state.locks or block in state.residue)
+    )
+
+
 def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
     """The congested blocks route selection steers around (#33): blocks
-    locked by another train — idle holders included — and blocks on the
-    committed remaining route of another active train. The committed part is
+    locked by another train — idle holders included — blocks on the
+    committed remaining route of another active train, and blocks that read
+    occupied with nobody standing in them (ADR-0077). The committed part is
     what restores to `Incremental` the signal `FullRoute`'s up-front locks
     carry for free; a deterministic function of state, so ordering stays
     reproducible."""
@@ -102,6 +121,7 @@ def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
         for resource, holder in state.locks.items()
         if holder != train and "." not in resource
     }
+    blocks.update(standing_still(state))
     for other, active in state.active.items():
         if other != train:
             blocks.update(active.route.blocks[active.cur_index :])
@@ -110,7 +130,8 @@ def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
 
 class FullRoute:
     """The baseline: launch locks the entire route or refuses; grant walks
-    the already-locked route with no further check."""
+    the already-locked route, asking only that the block it moves into does
+    not read occupied (ADR-0077)."""
 
     def __init__(self, layout: Layout, k: int) -> None:
         self._layout = layout
@@ -147,13 +168,19 @@ class FullRoute:
             obstacles.append({"resource": blocking[1], "holder": blocking[2]})
         return Refused(reason, obstacles)
 
-    def grant(self, train: str, state: ReadOnlyState) -> Move:
+    def grant(self, train: str, state: ReadOnlyState) -> Move | Refused:
         active = state.active[train]
         i = active.cur_index
+        into = active.route.blocks[i + 1]
+        blocking = state.obstacle(into, train)
+        if blocking is not None:
+            return Refused(
+                blocking[0], [{"resource": blocking[1], "holder": blocking[2]}]
+            )
         return Move(
             active.route.blocks[i],
             active.route.transits[i],
-            active.route.blocks[i + 1],
+            into,
             locked=[],
             ahead=[],
         )
@@ -284,7 +311,8 @@ def safety_view(
 
     What a train holds ahead is read off the lock table rather than off the
     strategy's depth, so the check describes the state it is given whatever
-    asked for it."""
+    asked for it. A block that reads occupied with nobody standing in it is
+    an idle obstacle beside the idle trains' blocks (ADR-0077)."""
     cur: dict[str, str] = {}
     rem: dict[str, list[str]] = {}
     held: dict[str, list[str]] = {}
@@ -298,6 +326,7 @@ def safety_view(
         for train, block in state.block_of.items()
         if train not in state.active and train != skip
     ]
+    idle += standing_still(state)
     return cur, rem, idle, held
 
 
@@ -307,7 +336,8 @@ def _unsafe_obstacle(
     """Name the obstacle behind an unsafe verdict: the first remaining
     block another train holds, or — the shared-destination case, where
     nothing is locked yet — the block another active train is committed to
-    parking on."""
+    parking on, or the first remaining block that reads occupied with nobody
+    standing in it, holder "" where nobody holds it (ADR-0077)."""
     for block in remaining:
         holder = state.locks.get(block)
         if holder is not None and holder != train:
@@ -316,4 +346,8 @@ def _unsafe_obstacle(
         dest = state.active[other].route.arrival_block
         if other != train and dest in remaining:
             return (dest, other)
+    still = standing_still(state)
+    for block in remaining:
+        if block in still:
+            return (block, state.locks.get(block, ""))
     return (remaining[-1], state.locks.get(remaining[-1], ""))
