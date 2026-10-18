@@ -184,8 +184,9 @@ both being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 And beside that, the other thing the band says about the drawing: that it is
-**frozen**, track power being on or stopped ([Track power freezes the
-drawing](#track-power-freezes-the-drawing)). It reads as the session clock
+**frozen**, track power being on or stopped, or the page not having heard
+which railroad is loaded ([Track power freezes the
+drawing](#track-power-freezes-the-drawing)); its title says which. It reads as the session clock
 does rather than as the refusal above it — a railroad with power on is the
 ordinary state and nothing about it is wrong — and it is what explains a
 rail of dead verbs to whoever looks at one. **In the editing view alone**
@@ -1045,9 +1046,23 @@ With track power on or stopped, this view is read-only: look, zoom, inspect
 the netlist, do not draw. The run moves trains over what the dispatcher built,
 and the drawing must not drift from it
 ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
-decision 5). With power off, or with no session, it is editable — trains
-standing on the layout included. Nothing moves with power off, and the save
-brings the apps up to date.
+decision 5). With power off it is editable — trains standing on the layout
+included. Nothing moves with power off, and the save brings the apps up to
+date.
+
+**A drawing open with no railroad heard is frozen too** (#792). A page that
+has lost the broker still holds the drawing, while the broker, the layout and
+the dispatcher may well go on and trains with them. The editor holds no
+railroad but the one the row last named
+([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md),
+decision 3), so that drawing is the loaded railroad's, and the page cannot know
+whether its track has power; an edit saved then would be drawn by the run view
+over a build no app has. A page loaded without a broker holds no drawing, so
+it has nothing to freeze. The rule keys on the row and not on power: power
+also reads nothing on a joined page whose drawing does not derive, and that
+drawing must stay editable so it can be fixed. The band's mark then says *the
+layout has not said whether the track has power, so the drawing is
+read-only*.
 
 This was a freeze on trains placed
 ([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
@@ -1062,7 +1077,8 @@ has loaded — the name on `tc49/layout/state/railroad` — writes it and then
 publishes `railroad_wanted` naming it, so every app builds what was written and
 keeps the trains that fit; those that do not are listed as unfit. The page does
 not reload: it already holds what it saved. The layout builds only with power
-off, so while power is on or stopped that Save is dead. The rule reads the
+off, so while power is on or stopped that Save is dead, and so is any Save
+while no railroad is heard. The rule reads the
 two names and not the editor: a save of a drawing that is not the loaded
 railroad would name nothing, being only a file, though the editor opens no
 such drawing now.
@@ -1106,9 +1122,9 @@ the machine can abandon.
 **Power off thaws it.** The rule is read off `state/power` afresh and nothing
 latches it, so the band's power toggle asking for off — once the run has
 drained — lifts the freeze.
-Leaving the session lifts it too: the freeze rests on what a joined session is
-saying, and a page that has left one is told nothing about the layout, exactly
-as a page that has just loaded is. It does not rest on the last thing the page
+Losing the broker does not lift it: the drawing is still open and no railroad
+is heard, which is a freeze of its own. Hearing the row again with power off
+does, and with power on it stays. Nothing rests on the last thing the page
 happened to hear, which would be a state no reload could reproduce and nothing
 could clear.
 
