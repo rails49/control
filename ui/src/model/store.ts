@@ -20,11 +20,12 @@
 import type { Position } from "../symbols.generated.js";
 import type { Drawing } from "./drawing.js";
 
-/** How long a view waits before asking the store again.
+/** How long the page waits before asking again.
  *
- *  The run view's retry after a session it lost, and the stock view's after a
- *  read that got no document: both begin by asking the store, so the wait is
- *  one number and lives beside the routes rather than in either view.
+ *  The loaded railroad's wait before a store read is made again
+ *  (`model/railroad.ts`), and the session's reconnect period to the broker
+ *  (`model/session.ts`). Neither view retries anything: the wait is one number
+ *  and lives beside the routes rather than in either model.
  *
  *  The loaded railroad **is** the run (#171), so a page with a railroad on it
  *  wants to be on that railroad and there is no choice left for a person to

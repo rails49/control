@@ -122,8 +122,8 @@ describe("picking a train", () => {
   });
 
   /** The throttle is a view of the app like the others, reached from the
-   *  band's selector, and the session it draws is the one the run view
-   *  joined (ADR-0038). */
+   *  band's selector, and the session it draws is the app's, the same one
+   *  the run view paints from (ADR-0038). */
   it("is reachable from the band without leaving the session", async () => {
     const shell = await joined();
     await said(shell, ALLOCATION, PICTURE);
@@ -384,7 +384,7 @@ describe("with the rails dead", () => {
   /** A gesture into a socket that is not there is swallowed, so the view says
    *  so rather than letting a press look like it landed. A session that went
    *  takes the picture with it, exactly as it does in the run view. */
-  it("is dead with no session joined", async () => {
+  it("is dead with no broker answering", async () => {
     const shell = await driving();
     await pick(shell, "goods");
 
@@ -392,6 +392,8 @@ describe("with the rails dead", () => {
     await settled(shell);
 
     expect(offered(shell)).toEqual([]);
-    expect(throttling(shell).renderRoot.textContent).toContain("no session");
+    expect(throttling(shell).renderRoot.textContent).toContain(
+      "no broker answering — is the bus running?",
+    );
   });
 });

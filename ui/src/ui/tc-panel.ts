@@ -1,6 +1,6 @@
 /**
  * The run view (ui/PANEL.md): the drawing with the railroad's state painted on
- * top, fed by the broker it is a client of, and scheduling by drag and
+ * top — the panel model the app's session feeds — and scheduling by drag and
  * turning a train around or cancelling its request by right-click.
  *
  * The railroad it is painting is not its own — the app holds it and hands over
@@ -68,7 +68,6 @@ interface Clicked {
  *  handler cannot drift apart. */
 const TURN_AROUND = "turn-around";
 const CANCEL_REQUEST = "cancel-request";
-
 
 @customElement("tc-panel")
 export class TcPanel extends LitElement {

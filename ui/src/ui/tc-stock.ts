@@ -144,12 +144,13 @@ export class TcStock extends LitElement {
    *  handed it down. */
   @property({ attribute: false }) railroad: Railroad | undefined = undefined;
 
-  /** The trains the run has on the layout, as the run view says. The trains'
-   *  rows say which of them are. */
+  /** The trains the run has on the layout, as the session says
+   *  (`RunStatus.placed`). The trains' rows say which of them are. */
   @property({ attribute: false }) placed: readonly string[] = [];
 
-  /** The run's track power, as the run view says, `null` with no session. The
-   *  length guard and the roster's Save read it (ADR-0071). */
+  /** The run's track power, as the session says (`RunStatus.power`), `null`
+   *  with no session. The length guard and the roster's Save read it
+   *  (ADR-0071). */
   @property({ attribute: false }) power: Power | null = null;
 
   /** The documents this view last drew, so what was about them — the train

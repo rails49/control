@@ -22,7 +22,7 @@ export interface TraceEvent {
 /** One message the browser publishes: the topic, and the payload that goes on
  *  it. A pair and not a wrapper, because the browser is a client of the broker
  *  ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
- *  decision 4): what a gesture composes is what MQTT carries, and the run view
+ *  decision 4): what a gesture composes is what MQTT carries, and the session
  *  hands the two straight to `publish`. */
 export interface Frame {
   topic: string;

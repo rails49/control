@@ -76,7 +76,7 @@ function health(shell: TcApp): string | null {
 
 describe("where the broker is", () => {
   /** A page served over TLS must ask for `wss://`. A plain `ws://` from it is
-   *  mixed content, which the browser refuses outright, so the run view would
+   *  mixed content, which the browser refuses outright, so the page would
    *  never connect on the layout server at all (ADR-0042). */
   it("follows the page's own scheme", () => {
     expect(brokerAt({ protocol: "https:", host: "control.gleis49.org", search: "" })).toBe(

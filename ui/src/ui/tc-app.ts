@@ -209,7 +209,7 @@ export class TcApp extends LitElement {
     super.disconnectedCallback();
   }
 
-  /** What the run view says about itself: the broker, how far the run has
+  /** What the session says about the run: the broker, how far the run has
    *  got, and what went wrong. The band reads it, and the session is the only
    *  thing that knows any of it. */
   private get status(): RunStatus {
