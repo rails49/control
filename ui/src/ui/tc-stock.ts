@@ -35,9 +35,9 @@
  * run. It is made up here and put on the layout in the run view.
  *
  * The run state comes down from the app because the app is the only thing on
- * the page that has any: the length guard reads its power, the trains' rows
- * read which are placed, and a second browser editing stock during a run is
- * not covered (ui/STOCK.md#the-length-guard,
+ * the page that has any: the length guard reads its power and whether the
+ * row naming the railroad is heard, the trains' rows read which are
+ * placed, and a second browser editing stock during a run is not covered (ui/STOCK.md#the-length-guard,
  * [ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
  *
  * **A model's photo is on every row**, and the camera behind Take photo is the
@@ -153,6 +153,12 @@ export class TcStock extends LitElement {
    *  (ADR-0071). */
   @property({ attribute: false }) power: Power | null = null;
 
+  /** The railroad the broker's row names (`RunStatus.railroad`), `null` while
+   *  it has not been heard — a page that has lost the broker among them. The
+   *  roster is held across that, and the length guard holds lengths while it
+   *  lasts: the page cannot know whether the track has power (#804). */
+  @property({ attribute: false }) loaded: string | null = null;
+
   /** The documents this view last drew, so what was about them — the train
    *  being composed, what an edit was refused with — goes when the loaded
    *  railroad holds others. */
@@ -249,6 +255,12 @@ export class TcStock extends LitElement {
     return this.railroad?.stock ?? null;
   }
 
+  /** Whether the row naming the railroad is heard, which the length guard
+   *  reads beside power (#804). */
+  private get heard(): boolean {
+    return this.loaded !== null;
+  }
+
   override willUpdate(): void {
     // The loaded railroad holds other documents — another railroad, or none —
     // so what is being composed belongs to the ones that went.
@@ -269,8 +281,8 @@ export class TcStock extends LitElement {
     const stock = this.stock;
     return html`
       <section class="parts">
-        ${this.carList(stock?.cars(this.power) ?? [])}
-        ${this.modelList(stock?.modelRows(this.power) ?? [])}
+        ${this.carList(stock?.cars(this.power, this.heard) ?? [])}
+        ${this.modelList(stock?.modelRows(this.power, this.heard) ?? [])}
       </section>
       ${this.trainList(stock?.trains(this.placed) ?? [])}
       ${this.dialog()} ${this.photoDialog()}
@@ -338,7 +350,7 @@ export class TcStock extends LitElement {
           ?disabled=${car.held !== null}
           @change=${(event: Event) =>
             this.did(
-              this.stock?.carLength(car.name, millimetres(event), this.power),
+              this.stock?.carLength(car.name, millimetres(event), this.power, this.heard),
               `car:${car.name}:length`,
             )}
         />
@@ -416,7 +428,12 @@ export class TcStock extends LitElement {
           ?disabled=${model.held !== null}
           @change=${(event: Event) =>
             this.did(
-              this.stock?.modelLength(model.model, millimetres(event) ?? 0, this.power),
+              this.stock?.modelLength(
+                model.model,
+                millimetres(event) ?? 0,
+                this.power,
+                this.heard,
+              ),
               `model:${model.model}:length`,
             )}
         />
@@ -701,11 +718,11 @@ export class TcStock extends LitElement {
             class="save"
             size="small"
             variant="primary"
-            title=${this.stock?.waitsForPower(this.power) ?? nothing}
+            title=${this.stock?.waitsForPower(this.power, this.heard) ?? nothing}
             ?disabled=${this.stock === null ||
             this.railroad?.saving === true ||
             !this.stock.edits ||
-            this.stock.waitsForPower(this.power) !== null}
+            this.stock.waitsForPower(this.power, this.heard) !== null}
             @click=${this.save}
             >Save</sl-button
           >
@@ -949,7 +966,7 @@ export class TcStock extends LitElement {
     const railroad = this.railroad;
     if (railroad === undefined) return;
     this.trouble = null;
-    const reached = await railroad.save(this.power);
+    const reached = await railroad.save(this.power, this.heard);
     if (!reached) return;
     this.dispatchEvent(
       new CustomEvent<string>("lengths-saved", {
