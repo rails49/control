@@ -20,7 +20,7 @@
 
 import type { PowerShown } from "@rails49/look";
 
-import type { Power, Run } from "./trace.js";
+import { trackLive, type Power, type Run } from "./trace.js";
 import type { ViewId } from "./views.js";
 
 export type CommandId =
@@ -136,7 +136,7 @@ export const NOTHING: Standing = {
  * its own.
  */
 export function frozen({ power }: Standing): boolean {
-  return power === "on" || power === "stopped";
+  return trackLive(power);
 }
 
 /** Whether the open drawing is the railroad the run has loaded: the one whose

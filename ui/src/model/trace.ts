@@ -126,6 +126,14 @@ export type Run = "held" | "running" | "draining";
  *  other back on, which is why the panel says which. */
 export type Power = "on" | "stopped" | "off";
 
+/** Whether the track has power: `on`, or `stopped`, which leaves the track
+ *  live with every locomotive told to stand (CONTEXT.md, **Emergency stop**).
+ *  A supply not yet heard (`null`) is not live here; what that means to each
+ *  rule is the rule's to say. */
+export function trackLive(power: Power | null): boolean {
+  return power === "on" || power === "stopped";
+}
+
 /** The ordinary shutdown: the run launches nothing more, lets what is
  *  crossing finish, and settles at `held`. Named because OFF is the drain
  *  trigger and this is the word it writes

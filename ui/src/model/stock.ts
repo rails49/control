@@ -27,7 +27,7 @@
  */
 
 import { isName, lengthTrouble } from "./rules.js";
-import type { Power } from "./trace.js";
+import { trackLive, type Power } from "./trace.js";
 import type {
   CarDoc,
   Coupled,
@@ -267,17 +267,11 @@ export function heldBy(what: string, holders: string[]): string {
  * during a run is not covered, and the store enforces none of it (ADR-0071).
  */
 export function lengthHeld(power: Power | null): string | null {
-  return running(power) ? "track power is on — turn it off to correct a length" : null;
+  return trackLive(power) ? "track power is on — turn it off to correct a length" : null;
 }
 
 /** What the roster's Save says while a length edit waits for power off. */
 export const LENGTH_WAITS = "a length has changed — turn track power off to save";
-
-/** Whether the run is under power: on, or stopped, which is an emergency stop
- *  somebody clears back to on rather than a rest. */
-function running(power: Power | null): boolean {
-  return power === "on" || power === "stopped";
-}
 
 // --- the screen's session -------------------------------------------------
 
@@ -418,7 +412,7 @@ export class Stock {
    *  with track power on or stopped. Any other edit saves as ever — it moves
    *  nothing the dispatcher fits. */
   waitsForPower(power: Power | null): string | null {
-    return this.lengthEdits && running(power) ? LENGTH_WAITS : null;
+    return this.lengthEdits && trackLive(power) ? LENGTH_WAITS : null;
   }
 
   /**

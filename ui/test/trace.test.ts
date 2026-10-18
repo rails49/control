@@ -25,6 +25,7 @@ import {
   STATE_NAMES,
   THROTTLE_WANTED,
   throttleWanted,
+  trackLive,
 } from "../src/model/trace.js";
 
 describe("Live", () => {
@@ -226,6 +227,18 @@ describe("powerWanted", () => {
   });
 });
 
+/** The one reading of "the track has power": on, or stopped, which is every
+ *  locomotive told to stand with the track still live (ADR-0041). */
+describe("trackLive", () => {
+  it.each([
+    ["on", true],
+    ["stopped", true],
+    ["off", false],
+    [null, false],
+  ] as const)("reads %s as live: %s", (power, live) => {
+    expect(trackLive(power)).toBe(live);
+  });
+});
 
 /** The stamp a state payload carries, and the order two values of one topic
  *  are kept in (#240). The browser's half of the rule `tc49.lib.payload`
