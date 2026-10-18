@@ -57,11 +57,10 @@ from tc49.lib.layout import (
     connected_end,
     connected_facing,
     departure_end,
-    end_across,
-    end_crossed,
     end_letter,
     facing_ends,
     facing_towards,
+    transit_ends,
 )
 from tc49.lib.payload import (
     gesture,
@@ -356,7 +355,7 @@ class Scheduler:
 
         Neither end is on the bus — the grant names the transit and the block
         entered — so both are read off the layout, and read there through
-        `end_crossed` and `end_across`. Dropping a transit no connection here
+        `transit_ends`. Dropping a transit no connection here
         holds, or one that crosses neither end of the block named, is not this
         reader's own strictness but the rule every reader of a transit and a
         block that arrived together keeps (SYSTEM.md): the frame describes a
@@ -384,10 +383,10 @@ class Scheduler:
         granted = grant(payload)
         if granted is None:
             return
-        entered = end_crossed(self._layout, granted.into, granted.transit)
-        if entered is None:  # not a transit into that block on this railroad
+        ends = transit_ends(self._layout, granted.into, granted.transit)
+        if ends is None:  # not a transit into that block on this railroad
             return
-        left_by = end_across(self._layout, granted.into, granted.transit)
+        entered, left_by = ends
         facing = self._facing.get(granted.train)
         propelled = facing is not None and left_by == facing_ends(facing)[0]
         self._facing[granted.train] = facing_towards(

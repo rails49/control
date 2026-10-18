@@ -165,11 +165,10 @@ from tc49.lib.layout import (
     FACINGS,
     Layout,
     block_of,
-    end_across,
-    end_crossed,
     end_letter,
     facing_ends,
     opposite_end,
+    transit_ends,
 )
 from tc49.lib.payload import (
     Command,
@@ -529,9 +528,9 @@ class LayoutInterface:
             self._bus.publish(
                 device_topic(WANTED_POINT, addr), {"addr": addr, "position": position}
             )
-        if aligning.connection is None or aligning.transit is None:
+        transit = aligning.transit_id
+        if transit is None:
             return
-        transit = f"{aligning.connection}.{aligning.transit}"
         self._aligned.add(transit)
         waiting = self._held.pop(transit, None)
         if waiting is not None:
@@ -585,16 +584,11 @@ class LayoutInterface:
         could supply: no detector names the block a train is leaving, so the
         move that was carried out is the only thing that knows it (#288).
         """
-        transit = f"{commanded.connection}.{commanded.transit}"
-        # The two ends the transit joins, read off names that came off the
-        # bus: the near end the train must be standing at, and the end of the
-        # entered block it comes in through — the end across the transit from
-        # where it stands, which asked of the block being entered is
-        # `end_crossed`. Both fail the same two ways and neither is an error.
-        near = end_across(self._layout, commanded.into, transit)
-        entered = end_crossed(self._layout, commanded.into, transit)
-        if near is None or entered is None:
+        transit = commanded.transit_id
+        ends = transit_ends(self._layout, commanded.into, transit)
+        if ends is None:
             return
+        entered, near = ends
         if self._power != ON:
             return
         if self._position.get(commanded.train) != block_of(near):
