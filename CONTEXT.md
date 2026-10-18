@@ -400,8 +400,8 @@ _Avoid_: connection (between blocks), health, heartbeat, status, system
 (formerly, for the id)
 
 **Enum**:
-A field whose values are a closed set the contract names, listed beside the
-field in `tc49.lib.inventory` ([BUS.md](docs/BUS.md#payload-schemas)).
+A field whose values are a closed set the contract names
+([BUS.md](docs/BUS.md#payload-schemas)).
 _Avoid_: word (formerly), status
 
 **Command**:
