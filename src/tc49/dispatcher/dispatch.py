@@ -86,6 +86,10 @@ class Request:
     # outstanding: nothing further is granted for it, and it retires as
     # `request_cancelled` when that move's sensors finish (ADR-0049).
     cancelled: bool = False
+    # The train's `priority_key` from the roster, taken at admission; the
+    # pending scan's first key (ADR-0045). The default is the key of a train
+    # with no priority.
+    priority: tuple[int, int] = (1, 0)
 
 
 def resolve_departure(depart: str, origin: str) -> str:
@@ -105,11 +109,12 @@ def departs_elsewhere(depart: str, expected: str | None) -> bool:
     return block_of(depart) != expected
 
 
-def aging_order(req: Request) -> tuple[int, int]:
-    """The pending scan's key: most-refused first, admission order among
-    equals. Refusal count is dispatcher state, never wall-clock, so the
-    order stays a deterministic function of the run."""
-    return (-req.refusals, req.seq)
+def aging_order(req: Request) -> tuple[tuple[int, int], int, int]:
+    """The pending scan's key: highest priority first, then most-refused
+    first, then admission order (ADR-0045, ADR-0012). Refusal count is
+    dispatcher state, never wall-clock, so the order stays a deterministic
+    function of the run."""
+    return (req.priority, -req.refusals, req.seq)
 
 
 @dataclass
@@ -575,6 +580,9 @@ class Dispatcher:
         # and what is left here is whether there is a value at all (#278).
         picture = bus.last_values.get(ALLOCATION, {})
         adopted = restored(picture, layout, roster, placement)
+        self._priority = {
+            name: train.priority_key for name, train in roster.trains.items()
+        }
         self._state = State(
             layout,
             roster.lengths(),
@@ -767,6 +775,7 @@ class Dispatcher:
                 tuple(surviving),
                 self._next_seq,
                 self._phases,
+                priority=self._priority[request.train],
             )
         )
         self._next_seq += 1
@@ -1559,9 +1568,10 @@ class Dispatcher:
         # pending — refused, or launched and now active — the rest of that
         # train's queue waits. Letting a later request overtake a refused one
         # would run a train's chain out of order and from the wrong origin.
-        # Across trains the scan ages (#34): a request refused N times is
-        # tried before fresher ones, so a starved request gets first claim on
-        # whatever just freed. A train's own chain order is preserved for
+        # Across trains the scan takes priority first (ADR-0045), then ages
+        # (#34): within a priority a request refused N times is tried before
+        # fresher ones, so a starved request gets first claim on whatever just
+        # freed. A train's own chain order is preserved for
         # free — an untried later request has no refusals and a later seq.
         waiting: set[str] = set(state.active)
         for req in sorted(self._pending, key=aging_order):
