@@ -1,7 +1,7 @@
 """The simulator's pacing and termination (#39).
 
 The layout interface owns time (ADR-0009, ADR-0047) and this binding is the
-milestone-1 one: an accepted `move` schedules its two sensor events on fixed
+simulator: an accepted `move` schedules its two sensor events on fixed
 delays of its own, a batch run jumps the clock event to event and stops at
 quiescence, and a live run sleeps the same spans and never stops. Everything
 downstream is timed off those stamps — a benchmark's makespan, the order two
@@ -191,7 +191,7 @@ def test_a_run_that_ended_left_no_train_rolling() -> None:
 
 
 def test_a_live_run_keeps_waiting_after_the_last_train_has_arrived() -> None:
-    """Where batch stops, live waits: quiescence is milestone-1 pacing and
+    """Where batch stops, live waits: quiescence is the simulator's pacing and
     not the contract, and a binding driving track never terminates at all
     (SYSTEM.md, layout interface). Ten turns past the last sensor it is still
     polling on its period, and the trace is the batch run's — waiting is not

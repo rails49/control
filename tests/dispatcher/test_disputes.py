@@ -133,7 +133,7 @@ def test_a_picture_the_detectors_agree_with_disputes_nothing() -> None:
 
 
 def test_a_layout_reporting_no_occupancy_disputes_nothing() -> None:
-    """**Silence is not a clear reading.** The milestone-1 simulator publishes
+    """**Silence is not a clear reading.** The simulator publishes
     sensors for moves alone and reports nothing at startup (SYSTEM.md), and
     reading every unreported block as clear would make the whole railroad a
     dispute on every restore."""

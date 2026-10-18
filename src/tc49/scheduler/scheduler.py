@@ -5,7 +5,7 @@ submitted whole at the start of a run, in the file's order, and a person
 gesturing on the two topics the scheduler declares,
 `tc49/schedule/request_wanted` and `tc49/schedule/reversal_wanted`. Time is
 the scheduler's responsibility, and a timetable released against a clock is
-a milestone-2 feature nothing needs yet (ADR-0047); the queue does the
+a feature nothing needs yet (ADR-0047); the queue does the
 staggering, there never being enough tracks to satisfy every request at
 once. A gesture is not a request — it names a train and
 where to put it, and the id and the departure end are what the scheduler

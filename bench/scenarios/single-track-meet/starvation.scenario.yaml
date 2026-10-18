@@ -15,7 +15,7 @@
 # request follows in the queue and runs it west; the moment it clears east_1,
 # waiter launches and completes. How *long* a blocker sits idle is submission
 # timing, which is the scheduler's (ADR-0047): the wait here is squatter's
-# whole journey, and a timetable that stretches it returns with milestone 2.
+# whole journey, and nothing builds a timetable that stretches it yet.
 #
 # The two latencies are the point. Both requests complete — the run drains —
 # but waiter's is several times squatter's, and the gap is entirely the wait,

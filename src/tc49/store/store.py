@@ -1,4 +1,4 @@
-"""Asset store: the CRUD contract over the milestone-1 YAML binding.
+"""Asset store: the CRUD contract over the YAML binding.
 
 Two coarse document types (ADR-0010) keyed by name — `crossover-yard` for
 drawings, layout-qualified `crossover-yard/meet` for scenarios, with a

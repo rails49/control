@@ -678,7 +678,7 @@ a beat, and never learns what time it is.
 every workday at 7:00"; the scheduler posts the request that morning. The
 dispatcher's contract carries no time, and a simulator that wants timed
 submissions owns that timing itself, inside the `simulator` app
-(ADR-0047). Milestone 1 needs none of it: a timetable goes in whole at the
+(ADR-0047). Nothing needs it yet: a timetable goes in whole at the
 start of a run, and the queue does the staggering.
 
 **No event payload carries a timestamp.** Time on the record is observation:

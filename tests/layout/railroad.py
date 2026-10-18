@@ -112,7 +112,7 @@ class Unstamped(InProcessBus):
     """A bus that stamps nothing, so a value carries the stamp it was handed.
 
     What a binding on the other side of a broker can put on a topic, and what
-    it takes to stage the reordering MQTT permits: the milestone-1 bus stamps
+    it takes to stage the reordering MQTT permits: the in-process bus stamps
     from a clock that only goes forwards, so a pair cannot arrive backwards
     on it (ADR-0008, #240). Two suites stage it — the aspects and the sensor
     rows — so it lives here beside the rest of the wiring.

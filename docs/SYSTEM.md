@@ -71,7 +71,7 @@ flowchart TB
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 - **Layout interface** — the seam to whatever runs the track. Sensor
   readings come out; turnout and throttle commands go in. A simulator
-  implements it in milestone 1, a hardware adapter later.
+  implements it, and so does the physical binding.
 - **Asset store** — serves the drawing a layout derives from and the
   railroad's roster. It is not on the bus, because it answers queries and the
   bus does not.
@@ -85,7 +85,7 @@ flowchart TB
 These are **roles, not implementations**. Each names a boundary that different
 implementations can sit behind unchanged. The simulator and a hardware adapter
 publish the same layout topics, and a future scheduling UI or freight
-generator publishes the same schedule topics as the milestone-1 scheduler.
+generator publishes the same schedule topics as the scheduler does now.
 
 One turn of the machine (ADR-0047):
 
@@ -403,7 +403,7 @@ LAN is still the trust boundary and a browser is not on it
   makes: that a scenario's layout exists, that the blocks it names exist, and
   that a connection's endpoints are real block ends. It checks at whichever
   verb the document came in through. `put` rejects an invalid document, and
-  the milestone-1 YAML binding runs the same validator at `get`, because its
+  the YAML binding runs the same validator at `get`, because its
   documents are hand-authored files that never passed through `put`. The
   layout derived from a drawing is validated too, which catches a bug in the
   derivation. A mistyped end is then reported when the document loads rather
@@ -413,7 +413,7 @@ LAN is still the trust boundary and a browser is not on it
   arrival-end expansion and fit pruning.
 - **A document holds only what a document can hold** — text, finite numbers,
   booleans, nothing, lists and mappings, which is what every binding of this
-  contract can carry. The milestone-1 YAML binding reads a hand-written date
+  contract can carry. The YAML binding reads a hand-written date
   as the text it was typed as, so `bought: 2026-10-05` is `"2026-10-05"` to
   the Python library and over HTTP alike, and refuses a value further out in
   YAML's vocabulary — `!!binary`, a set — naming the file it read, the way it
@@ -677,7 +677,7 @@ the gesture that ended it was a person's. Facing needs no case of its own:
 `displaced` by `train_placed`, which already recomputes it.
 
 When the last timetable request has gone out it sets `exhausted`, which is
-how milestone 1 knows the run is over. Where a **`state/facing` value survived
+how a run knows it is over. Where a **`state/facing` value survived
 a restart** it adopts that value, and a train the value does not name — or
 names in a spelling this build refuses — has no facing until it is placed.
 That value is **read** like any other payload: rule 4 does not exempt the
@@ -1001,7 +1001,7 @@ and the desired half of the device vocabulary
 That is the **role's** footprint, and its two bindings meet all of it. The
 core app `layout` folds a block's two detectors into the sensor events and
 debounces the levels on the way
-([layout/README.md](layout/README.md)); the milestone-1 simulator answers the
+([layout/README.md](layout/README.md)); the simulator answers the
 two commands and the two placement facts, publishes the sensors from delays of
 its own
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)), and
@@ -1075,7 +1075,7 @@ say so. This is one rule about reading a transit and a block that arrived
 together, and it holds wherever the pair is read: the scheduler keeps it on
 `move_granted` too, where a transit crossing neither end of the block entered
 leaves no end to face the train away from. `align` is read by whatever acts on
-it, and the milestone-1 simulator throws no points, so it reads nothing off
+it, and the simulator throws no points, so it reads nothing off
 that one and nothing on it can fail to be read.
 
 **Manual driving.** A train is **automatic** or **manual**: taking it in a
@@ -1117,7 +1117,7 @@ through the same traction write a `move` does
 nose-first where a move states the block it is going into, and the sign each
 decoder is given is composed the same way from there. They are not on the
 *Subscribes* line above because that is the **role's** footprint and this is
-the physical binding's alone: the milestone-1 simulator has no person's hand on
+the physical binding's alone: the simulator has no person's hand on
 it, every train it runs is automatic, and a railroad running under it publishes
 no `state/mode` at all.
 
@@ -1129,12 +1129,12 @@ which is the device vocabulary of [BUS.md](BUS.md#device-vocabulary).
 The control loop that carries out a `move` — throttle up, watch the detector,
 stop — stays private hardware configuration.
 
-The milestone-1 **simulator** is a discrete-event engine: on an accepted
+The **simulator** is a discrete-event engine: on an accepted
 `move` it schedules the two sensor events on fixed delays of its own, and it
 owns pacing and termination — a batch run jumps the clock event to event and
 stops when nothing is scheduled, nothing pending and no train rolling
 ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)); live mode sleeps the same
-spans and never terminates. That stop rule is milestone-1 pacing rather than
+spans and never terminates. That stop rule is the simulator's pacing rather than
 part of the bus contract, and a hardware adapter never terminates at all.
 
 Sensor events report moves only. Initial occupancy is never published: the
@@ -1172,7 +1172,7 @@ They place what they find and press GO; a block reading clear again releases
 nothing, exactly as power returning releases nothing.
 
 The simulator publishes no sensors for a placement, so nothing behind the
-milestone-1 binding produces such a reading. The rule is written for the
+simulator produces such a reading. The rule is written for the
 layout that detects occupancy, which is the binding that decides
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
 
@@ -1182,9 +1182,9 @@ layout that detects occupancy, which is the binding that decides
 and subscribes to nothing. That is why it exists as a second contract —
 components need answers to queries, and the bus has no request and reply.
 
-### Beyond milestone 1
+### How these contracts grow
 
-The contracts above are what milestone 1 builds, and they are not final.
+The contracts above are what runs now, and they are not final.
 [GOALS.md](GOALS.md) describes the whole system. Two decisions still to come
 will extend these contracts, and they are listed here so that no footprint
 above is read as the last word. Two others have already landed: the scheduler

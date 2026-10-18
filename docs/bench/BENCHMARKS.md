@@ -243,7 +243,7 @@ rolling and no sensor is coming ([SYSTEM.md](../SYSTEM.md#layout-interface)).
 That is exact, not heuristic: every request went in at the start, the
 dispatcher is deterministic and event-driven, and a sweep runs wherever a
 lock frees — no events means no change, forever. The stop rule is
-milestone-1 pacing, not bus contract; a hardware adapter never terminates.
+the simulator's pacing, not bus contract; a hardware adapter never terminates.
 
 If requests remain pending when the trace ends, [SAFETY.md](../dispatcher/SAFETY.md) leaves
 exactly one possible cause: a permanent obstacle — an idle train parked across
