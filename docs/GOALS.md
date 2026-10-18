@@ -154,8 +154,6 @@ still goes. Starvation then stays bounded within a priority level by the
 queue's aging, and is unbounded across levels, which is why freight runs at
 night
 ([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-Nothing implements this yet
-([#774](https://github.com/rails49/control/issues/774)).
 
 ### Driving
 
