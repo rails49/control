@@ -51,11 +51,14 @@ assets, the bus carries the run
 ([ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)) —
 and the pane is handed one list. A train the picture has and the roster does
 not still gets a row: it is on the layout, and hiding it would hide what the
-operator can see. The roster is read when the session is joined and forgotten
-when it is left: a page told nothing must not claim every train is off the
-layout.
+operator can see. The roster is not this view's to read: the loaded railroad
+(`ui/src/model/railroad.ts`) reads it with the drawing when the row names a
+railroad, and the app hands it down
+([#758](https://github.com/rails49/control/issues/758)). The pane shows it while
+a session is joined and nothing when one is left: a page told nothing must not
+claim every train is off the layout.
 
-**It is read again when this becomes the current view.** The store is not on
+**The app has it read again when this becomes the current view.** The store is not on
 the bus, so nothing publishes a roster change: a person who makes a train up in
 the [stock view](STOCK.md) and switches here must see it, and until then the run
 keeps the roster it joined with. Only the roster — the session is joined, the
@@ -518,13 +521,13 @@ the dispatcher's own picture rather than on an empty layout
 Three seconds is long enough not to hammer a port nothing is listening on and
 short enough to land while the operator is still looking at the tab.
 
-The one retry left of the view's own is the store's. What stock a railroad
-owns is its asset and no topic carries it (ADR-0039), so a roster read that
-failed is made again on the same interval until it lands, and only one try is
-ever waiting. The interval is `RETRY_MS` in `ui/src/model/store.ts`, where it
-is argued and where a test reads it rather than spelling 3000: the stock view
-waits the same before reading again, and both waits begin by asking the
-store.
+The store's retry is not this view's. What stock a railroad owns is its asset
+and no topic carries it (ADR-0039), so a roster read the store did not answer
+is made again on the same interval until it lands, by the loaded railroad
+(`ui/src/model/railroad.ts`), which reads the drawing and the stock view's
+documents again on the same one timer. A refusal is read once. The interval is
+`RETRY_MS` in `ui/src/model/store.ts`, where it is argued and where a test reads
+it rather than spelling 3000.
 
 **The band reports the wait rather than the page looking dead.** It has no
 word for the link either way ([#517](https://github.com/rails49/control/issues/517)):
@@ -532,8 +535,8 @@ a broker that is answering is the ordinary case and says nothing, so the one
 time the link speaks is the time it is down. What stands there is the trouble
 the last failure named — *no broker at ws://…/mqtt — is the bus running?* where
 there is nothing at the address or where the connection has closed under a live
-run, and what the failed roster read said where a read got no roster. It clears
-when the client reconnects and the railroad's row arrives again.
+run. What a failed roster read said stands there too, the loaded railroad's,
+and clears when a read lands.
 
 The words name the address and ask the one question a person can act on. A bare
 *not connected* leaves them with a working app and no idea which of several
@@ -575,8 +578,8 @@ routes and live requests come from the dispatcher's retained picture;
 scheduler's own retained topic. Both are written by apps that are always
 running, so there is no cold start to seed, and no topic describes the run — a
 topic that did would be the transport describing itself (#67). The one thing the
-view reads from the store is the loaded railroad's roster
-(`GET /rosters/<railroad>/trains`) — what stock there is and how long each train is,
+view takes from the store is the loaded railroad's roster
+(`GET /rosters/<railroad>/trains`, read by `ui/src/model/railroad.ts`) — what stock there is and how long each train is,
 an asset rather than a fact about the run, which is the line
 [ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)
 already draws. Everything else is derived from the bus: the state topics carry

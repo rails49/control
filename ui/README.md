@@ -88,6 +88,9 @@ src/
     throttle.ts  what the throttle draws for each train there is to drive
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
+    railroad.ts  the loaded railroad's documents: read when the row names
+                 it, read again until the store answers, and the roster's
+                 Save
     scene.ts     what the drawing alone answers: the frame a fit and an export
                  are drawn in, an arrow's pose, which symbol wears an address
   render/
