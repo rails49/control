@@ -148,9 +148,9 @@ page follows it (#371, ADR-0060); a row naming `""` is no railroad, and this
 view holds none for it. A rake composed and not saved used to go with no
 trace, the guard reading only the drawing
 ([#415](https://github.com/rails49/control/issues/415)). The words are
-`tc-app.ts`'s, as the railroad is: this view says whether its `Stock` holds
-edits — a `roster-edits` event, the way the run view says what its session is
-doing — and the app hands the dialogs what to refuse over. **Switching view
+the loaded railroad's, as the documents are: `ui/src/model/railroad.ts` holds
+the `Stock` and the filing both, says which of them holds edits, and the app
+hands the dialogs what to refuse over (#758). **Switching view
 changes no railroad**, so nothing is read again and the rake comes back as it
 was left. Closing or reloading the browser is not refused; neither is the
 drawing.
@@ -178,9 +178,14 @@ read on the row rather than run into: the store's catalogue face has **no
 DELETE for any document** and an unused model costs nothing
 (`store/server.py`), so this screen offers no way to remove a model at all.
 
-**No session.** Like the editor, this is a document view: it reads and writes
-the store, and the bus carries nothing about what a railroad owns
+**No session.** Like the editor, this is a document view, and the bus carries
+nothing about what a railroad owns
 ([ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)).
+**It reads no document itself.** The roster and the catalogue are read, held
+and saved by the loaded railroad (`ui/src/model/railroad.ts`), which every view
+shares, so no view can hold a railroad the row no longer names
+([#758](https://github.com/rails49/control/issues/758)). What this screen
+writes itself is a new model and a photo.
 
 ## A model's photo
 
@@ -370,16 +375,17 @@ result rather than a message of its own: it used to name `tc49 serve` for all
 three, and told a person to start a store that was up and answering
 ([#405](https://github.com/rails49/control/issues/405)).
 
-**The read is made again after the first two**, on the same interval the run
-view retries a lost session on — `RETRY_MS`, argued in `ui/src/model/store.ts`
-— and the message goes when a read lands. Both are things to wait out: the
-store starting, or whatever is in front of it learning where it is. A refusal
-is not, the store having answered, and nothing is read again after one. There
-is nothing on this screen to press, so without the try the message stood until
-somebody reloaded the page. The try is dropped when the app loads another
-railroad and when this view is left. So is what was being composed: a roster
-edited for the railroad that was open goes when another is loaded, the app
-having asked about it first (#415).
+**The read is made again after the first two**, on `RETRY_MS`, argued in
+`ui/src/model/store.ts` — and the message goes when a read lands. Both are
+things to wait out: the store starting, or whatever is in front of it learning
+where it is. A refusal is not, the store having answered, and nothing is read
+again after one. There is nothing on this screen to press, so without the try
+the message stood until somebody reloaded the page. The try is the loaded
+railroad's, one timer for the drawing, the roster and the trains, made whichever
+view is current, and dropped when the row names another railroad. So is what
+was being composed: a roster edited for the railroad that was open goes when
+another is loaded, the app having asked about it first (#415). A Save still in
+flight then writes its answer onto nothing the new railroad shows (#758).
 
 **A failed Create leaves the dialog open**, with the message beside the button
 — *PUT /catalogue/hopper answered 404* — so the product is still written down
@@ -395,7 +401,7 @@ about ([#446](https://github.com/rails49/control/issues/446)).
 
 ## The run view beside it
 
-**The run view re-reads the roster when it becomes the current view.** The
+**The trains are read again when the run view becomes the current view.** The
 store is not on the bus, so nothing publishes a roster change: a person who
 adds a locomotive here and switches to Run must see it. The run keeps the
 roster it joined with until then.
