@@ -357,9 +357,9 @@ view of their own, [THROTTLE.md](THROTTLE.md)
 ([#207](https://github.com/rails49/control/issues/207),
 [#291](https://github.com/rails49/control/issues/291)). Taking a train in a
 throttle and turning it are a person's actions on a UI like any other, and
-`INBOUND` is this app's write surface. The client they go out on is this
-view's: there is one connection per page and this is what holds it, so the
-throttle asks and the run view publishes.
+`INBOUND` is this app's write surface. The client they go out on is the
+app's session (`ui/src/model/session.ts`): there is one connection per page,
+so the throttle asks, the app carries and the session publishes.
 
 **Right-clicking** the block a train stands in opens a menu with two items,
 **Turn around** and **Cancel request**. **Turn around** publishes
@@ -459,11 +459,11 @@ validator, and the front end shares the editor's stack and symbol library.
 **The broker says which railroad it is.** One broker runs one railroad, and
 the layout interface publishes its name on `tc49/layout/state/railroad`
 (ADR-0059, decision 2,
-[#371](https://github.com/rails49/control/issues/371)). The run view reads
-that row and hands the name to the app, which loads the drawing and the review
-off the store — so the picture and what feeds it can never be two railroads.
-A row naming `""` is no railroad loaded: the view leaves the session, reads no
-roster, and the band says `no railroad loaded`; the editor and the stock view
+[#371](https://github.com/rails49/control/issues/371)). The session reads
+that row, and the app has the loaded railroad (`ui/src/model/railroad.ts`)
+read the drawing and the review off the store — so the picture and what feeds
+it can never be two railroads. A row naming `""` is no railroad loaded: the
+session leaves, the loaded railroad reads no roster, and the band says `no railroad loaded`; the editor and the stock view
 hold nothing for it either (#734). The band names this row's railroad, which
 is the one the editor holds (ADR-0072, decision 3).
 Which railroad that is, is a person's choice made while the apps run: the
@@ -749,8 +749,9 @@ Until the station has said where power stands the control is dead and says
 
 **The band shows what the hardware says is wrong with the supply**, in the
 health area beside the store and the broker
-([#602](https://github.com/rails49/control/issues/602)). The run view reads
-`tc49/layout/state/device/track`, which is the one device row any view reads,
+([#602](https://github.com/rails49/control/issues/602)). The session reads
+`tc49/layout/state/device/track` into the panel model
+(`ui/src/model/panel.ts`), which is the one device row any view reads,
 and keeps the free-text `reason` alone: `power` there is one translator's
 reading of its own hardware, and what the picture draws is the railroad-wide
 `state/power` that `layout` folds it into. The reason is what nothing else
@@ -795,9 +796,9 @@ first*. With power on or stopped it never waits
 **The toggle asking for `off` is the drain trigger, never an immediate
 cut.** The press publishes
 `tc49/dispatch/run_wanted: draining` — always, a run already reading `held`
-included — and starts a wait; both topics are ones this view already writes.
+included — and starts a wait; both topics are ones the session already writes.
 **The wait ends on two conditions together**: `tc49/dispatch/state/run` reads
-`run: held` *and* `moving: false`, and the view then publishes `power_wanted:
+`run: held` *and* `moving: false`, and the session then publishes `power_wanted:
 off` once
 ([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 The word alone will not do: a held run can be moving, a move already granted
