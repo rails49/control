@@ -13,10 +13,10 @@
  * the presses end to end through the band.
  *
  * Beside it: HOLD and GO with the release notice (#153), nothing published
- * while the broker is not answering, the rows held until the documents land,
- * a row naming no railroad (#727), and `status` and `cabs` keeping their
- * identity across a frame that moves neither — which is what keeps the app
- * from redrawing on every frame.
+ * while the broker is not answering but the railroad press it owes (#803), the
+ * rows held until the documents land, a row naming no railroad (#727), and
+ * `status` and `cabs` keeping their identity across a frame that moves
+ * neither — which is what keeps the app from redrawing on every frame.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -295,6 +295,76 @@ describe("the broker not answering", () => {
     expect(stood.session.released).toBeNull();
     expect(stood.session.status.linked).toBe(false);
     expect(stood.session.status.joined).toBe(false);
+  });
+});
+
+/**
+ * A Save in progress when the broker drops finishes after the connection has
+ * gone, and its `railroad_wanted` could not be sent. Nothing else would name
+ * the railroad again — the row coming back names the same one — so the press
+ * is owed, and sent once the broker is back, the row names the same railroad
+ * and power reads off: `layout` drops the request otherwise (#803).
+ */
+describe("a railroad press made while the broker has gone", () => {
+  const WANTED = { topic: "tc49/layout/railroad_wanted", payload: { railroad: "toy" } };
+
+  /** Joined with power off, the broker gone, and `toy` pressed meanwhile. */
+  function owing(): Stood {
+    const stood = joined();
+    stood.broker.says(STATE_POWER, { power: "off" });
+    stood.broker.closes();
+    stood.session.pressRailroad("toy");
+    return stood;
+  }
+
+  it("is sent once the broker is back with the same railroad and power off", () => {
+    const stood = owing();
+    expect(written(stood)).toEqual([]);
+
+    stood.broker.opens();
+
+    expect(written(stood)).toEqual([WANTED]);
+  });
+
+  it("is sent once and not again on the next reconnect", () => {
+    const stood = owing();
+    stood.broker.opens();
+    stood.broker.closes();
+    stood.broker.opens();
+
+    expect(written(stood)).toEqual([WANTED]);
+  });
+
+  it("waits for power to read off", () => {
+    const stood = owing();
+    stood.broker.retains(STATE_POWER, { power: "on" });
+    stood.broker.opens();
+    expect(written(stood)).toEqual([]);
+
+    stood.broker.says(STATE_POWER, { power: "off" });
+
+    expect(written(stood)).toEqual([WANTED]);
+  });
+
+  it("is dropped where the row names another railroad", () => {
+    const stood = owing();
+    stood.broker.retains(RAILROAD, { name: "other" });
+    stood.broker.opens();
+    stood.broker.says(STATE_POWER, { power: "off" });
+    expect(written(stood)).toEqual([]);
+
+    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(STATE_POWER, { power: "off" });
+
+    expect(written(stood)).toEqual([]);
+  });
+
+  it("is dropped where the row names no railroad", () => {
+    const stood = owing();
+    stood.broker.retains(RAILROAD, { name: "" });
+    stood.broker.opens();
+
+    expect(written(stood)).toEqual([]);
   });
 });
 
