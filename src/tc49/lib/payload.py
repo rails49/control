@@ -147,6 +147,7 @@ from tc49.lib.inventory import (
     SUPPLY,
     THROWN,
     UNKNOWN,
+    Link,
     is_state_topic,
 )
 from tc49.lib.layout import Point
@@ -773,9 +774,10 @@ def shown_aspects(payload: object) -> dict[str, str] | None:
 
     Read an entry at a time, as `kept_facing` is and for the same reason: the
     value is the whole picture of the railroad's signals, so an entry that
-    cannot be read costs that end its aspect and no other. An **aspect is not
-    an enum** (CONTEXT.md), so the name is read as a name — what a signal
-    makes of it is a translator's, as what a speed is worth is the driver's.
+    cannot be read costs that end its aspect and no other. The name is read
+    as a name, and whether it is one of ``Aspect`` is left to the reader —
+    what a signal makes of it is a translator's, as what a speed is worth is
+    the driver's.
 
     Whether an end named here is one this railroad has, and whether a signal
     stands at it, is the layout's question (`Layout.signal_at`).
@@ -802,7 +804,7 @@ def link_up(payload: object) -> bool:
     """
     if not isinstance(payload, dict):
         return False
-    return cast(dict[str, object], payload).get("link") == "up"
+    return cast(dict[str, object], payload).get("link") == Link.UP
 
 
 def desired_speed(payload: object) -> float | None:
@@ -855,9 +857,9 @@ def desired_position(payload: object) -> str | None:
 
 def desired_aspect(payload: object) -> str | None:
     """The aspect a `wanted/signal` value asks a signal for, or None where it
-    asks for none. An **aspect is not an enum** (CONTEXT.md): the name is read
-    as a name here and what a head makes of it is the translator's, which is
-    the same reading `shown_aspects` makes one end at a time."""
+    asks for none. The name is read as a name here and what a head makes of
+    it is the translator's, which is the same reading `shown_aspects` makes
+    one end at a time."""
     return _stated(payload, "aspect")
 
 

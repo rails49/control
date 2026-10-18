@@ -23,9 +23,10 @@ a bug there must not take the driver down.
 from collections.abc import Mapping
 
 from tc49.lib.bus import Bus, Payload
+from tc49.lib.inventory import Aspect
 from tc49.lib.payload import grant, granted_aspect
 
-SPEEDS: Mapping[str, float] = {"clear": 1.0, "caution": 0.4}
+SPEEDS: Mapping[str, float] = {Aspect.CLEAR: 1.0, Aspect.CAUTION: 0.4}
 """What each aspect is worth as a speed, a fraction of the locomotive's
 maximum (ADR-0025).
 

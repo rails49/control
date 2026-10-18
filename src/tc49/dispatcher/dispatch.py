@@ -41,7 +41,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
-from tc49.lib.inventory import DRAINING, HELD, ON, RUNNING
+from tc49.lib.inventory import DRAINING, HELD, ON, RUNNING, Aspect, Refusal
 from tc49.lib.layout import Layout, block_of, departure_end, end_on
 from tc49.lib.payload import (
     Ordering,
@@ -185,7 +185,7 @@ class State:
         transit at their connection (instantaneous admissibility)."""
         holder = self.locks.get(resource)
         if holder is not None and holder != train:
-            return ("held", resource, holder)
+            return (Refusal.HELD, resource, holder)
         if "." in resource:  # a transit: check the conflict matrix
             for locked, by in sorted(self.locks.items()):
                 if (
@@ -193,7 +193,7 @@ class State:
                     and "." in locked
                     and self.layout.conflicts(resource, locked)
                 ):
-                    return ("transit_conflict", locked, by)
+                    return (Refusal.TRANSIT_CONFLICT, locked, by)
         return None
 
     def free(self, block: str, train: str | None = None) -> bool:
@@ -272,8 +272,8 @@ def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
 def aspect_of(depth: int) -> str:
     """The aspect a signal shows for a locked-ahead depth (ADR-0025)."""
     if depth >= 2:
-        return "clear"
-    return "caution" if depth else "stop"
+        return Aspect.CLEAR
+    return Aspect.CAUTION if depth else Aspect.STOP
 
 
 def aspects(state: State) -> dict[str, str]:
@@ -301,7 +301,9 @@ def aspects(state: State) -> dict[str, str]:
     stands in a block nothing is locked beyond — which shows `stop` off the
     locks, with no rule of its own.
     """
-    shown = {end: "stop" for end in sorted(state.layout.end_connection)}
+    shown: dict[str, str] = {
+        end: Aspect.STOP for end in sorted(state.layout.end_connection)
+    }
     if state.run == HELD:
         return shown
     for train, active in state.active.items():
