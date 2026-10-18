@@ -36,9 +36,9 @@ has gone. The page is reached as `localhost`; vite also binds every interface,
 because a browser on the LAN has exactly one way to a UI under development and
 an address is it, while the store stays on loopback behind vite's proxy.
 
-It also brings up the broker the run view is a client of — mosquitto in a
-container of its own, `1883` for native clients and `9001` for the browser,
-reached through the app's own origin at `/mqtt`. It starts no app: each has a
+It also brings up the broker the page's session (`src/model/session.ts`)
+connects to — mosquitto in a container of its own, `1883` for native clients
+and `9001` for the browser, reached through the app's own origin at `/mqtt`. It starts no app: each has a
 command line of its own and comes up alone (ADR-0059, decision 5), so a
 simulated railroad to drive is `python -m tc49.simulator --broker
 127.0.0.1:1883 --store http://127.0.0.1:8765`, which comes up on the railroad

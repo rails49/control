@@ -1232,7 +1232,7 @@ A drawing that still has a generic connection symbol has to open, so the editor
 draws it as a box with the pins it declares and no turnout detail. It stays off
 the palette, having no fixed pin set to place.
 
-The run view reads the bus off the broker alongside it
+The app's session reads the bus off the broker alongside it
 ([PANEL.md](PANEL.md#implementation)).
 
 Symbol pins and transits are generated into `ui/src/symbols.generated.ts` from

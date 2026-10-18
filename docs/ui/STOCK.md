@@ -165,7 +165,7 @@ displayed a name, an address or a length nothing had (#416).
 render that edit asked for, and it names the field it came from. A frame about
 the railroad is not news about what somebody is typing: this view redraws for
 reasons that have nothing to do with the field being typed in — the app hands
-it `placed`, and every `run-status` the run view fires replaces the run state
+it `placed`, and every new status the session answers replaces the run state
 whole — and a person half way through correcting a length lost it to whoever
 pressed GO on the panel ([#444](https://github.com/rails49/control/issues/444)).
 A refusal on one field leaves an edit standing in another alone for the same
@@ -330,7 +330,7 @@ the store no longer holds. A model correction names the railroad again whether
 or not the loaded roster uses that model.
 
 This is a **UI guard in one browser**. `tc-app.ts` holds the run state — track
-power, and which trains the run view says are placed — and passes it down, the
+power, and which trains the session says are placed — and passes it down, the
 same path the throttle's cabs take. A second browser editing stock during a run
 is not covered, and the store enforces none of it (ADR-0071).
 
