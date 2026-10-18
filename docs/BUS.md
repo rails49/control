@@ -390,20 +390,46 @@ layout names it, a **block end** as `<block>.<A|B>`, and a **transit** either
 qualified as `<connection>.<transit>` or split into its two names, as each
 topic states.
 
-An **enum** is a field whose values are a closed set the contract names,
-listed beside the field in `tc49.lib.inventory`. Three fields are enums:
-`run`, `power` and `mode`. The closed set goes wherever the field goes: `run`
-is an enum on `tc49/dispatch/state/run` and on the `run_wanted` gesture that
-asks to move it. So a new value is a change to the contract, not a payload a
-reader tolerates. Which way an unreadable value falls is the reader's choice,
-made by what a drop would cost:
+An **enum** is a field whose values are a closed set the contract names.
+Each set has one home:
+
+| field | home in `tc49.lib` |
+| --- | --- |
+| `run` | `inventory`, `HELD`, `RUNNING`, `DRAINING` |
+| `mode` | `inventory`, `AUTOMATIC`, `MANUAL` |
+| `power` | `inventory`, `ON`, `STOPPED`, `OFF` |
+| `power` on `device/track` | `inventory`, `SUPPLY` |
+| `occupancy` | `inventory`, `OCCUPIED`, `CLEAR`, `UNKNOWN` |
+| `position` | `inventory`, `CLOSED`, `THROWN` |
+| `aspect` | `inventory`, `Aspect` |
+| `link` | `inventory`, `Link` |
+| `reason` on `grant_refused` | `inventory`, `Refusal` |
+| `reason` on `request_rejected`, and on `request_admitted`'s `pruned` | `rejection` |
+| `reason` on `request_cancelled` | `cancellation` |
+
+The closed set goes wherever the field goes: `run` is an enum on
+`tc49/dispatch/state/run` and on the `run_wanted` gesture that asks to move
+it. So a new value is a change to the contract, not a payload a reader
+tolerates. Which way an unreadable value falls is the reader's choice, made by
+what a drop would cost:
 
 - An unreadable `power` reads as `off` and holds the run. Dropping it would
-  leave the run committing over track whose state could not be read.
+  leave the run committing over track whose state could not be read. An
+  unreadable supply on `device/track` reads as `off` too.
 - An unreadable `run` is dropped, and nothing is set
   ([#175](https://github.com/rails49/control/issues/175)).
 - An unreadable `mode` is dropped too. Neither value is safe to invent for a
   train when nobody could read who drives it.
+- An unreadable `occupancy` reads as `unknown`: no information about that end,
+  and the level last held stands.
+- A `point_wanted` whose `position` is neither value is dropped.
+- A grant whose `aspect` the driver has no speed for sends no move, so the
+  train stays where it is, as on `stop`.
+- Any `link` but `up` reads as not up, and the railroad's power folds to
+  `off`.
+- The reasons on `request_rejected`, `request_cancelled` and `grant_refused`
+  are read only for what a person is shown. The UI shows a reason it has no
+  words for as it came.
 
 #### `layout`
 
@@ -599,8 +625,8 @@ payload is read defensively, and one that fails the read is dropped.
   power on or off
   ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 - `tc49/dispatch/request_admitted` — `id`; `dest`: the arrival ends that
-  survived pruning; `pruned`: list of `{end, reason}`, `reason` one of
-  `no_fit`, `no_entry`, `unreachable`.
+  survived pruning; `pruned`: list of `{end, reason}`, `reason` enum
+  `no_fit`, `no_entry` or `unreachable`, from `tc49.lib.rejection`.
 - `tc49/dispatch/request_rejected` — `id`; `reason`: enum `malformed`,
   `unknown_train`, `unknown_block`, `no_origin`, `wrong_origin`, `no_fit`,
   `no_entry`, `unreachable` — the set is `tc49.lib.rejection`, and the UI's
@@ -619,8 +645,9 @@ payload is read defensively, and one that fails the read is dropped.
   `caution` or `clear`
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 - `tc49/dispatch/grant_refused` — `id`; `reason`: enum `unsafe`, `held` or
-  `transit_conflict`; `obstacles`: list of `{resource, holder}` — the block
-  or transit that blocked a candidate, and the train holding it.
+  `transit_conflict`, the set `tc49.lib.inventory.Refusal`; `obstacles`: list
+  of `{resource, holder}` — the block or transit that blocked a candidate, and
+  the train holding it.
 - `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;
   `resources`: list of blocks and transits.
 - `tc49/dispatch/train_placed` — `train`; `block`.
