@@ -502,9 +502,11 @@ what a drop would cost:
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
   re-asserts what a consumer already holds and at-least-once delivery needs
-  no counter; the physical order is occupied then vacated, the head into the
-  next block before the tail clears the last
-  ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+  no counter; the usual physical order is occupied then vacated, the head
+  into the next block before the tail clears the last
+  ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)),
+  and a train shorter than the gap between two blocks' detectors gives the
+  other ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 - `tc49/layout/alive_confirmed` — payload `{}`. `layout` publishes it once a
   second, by the monotonic clock and not once a turn, from its drain loop
   while it is built on a railroad; a `layout` that is standing, or reloading

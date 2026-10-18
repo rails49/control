@@ -440,8 +440,11 @@ first detector with its head and its second once it is fully in. The first is
 `block_occupied(Y)`; the second is `block_vacated(X)`, and X is the block this
 app's own accepted `move` left. That is the one event no detector could
 produce: occupancy is anonymous, and nothing below the interface knows what is
-behind a train. So the physical order is **occupied then vacated**, which is
-the order the dispatcher already expects (ADR-0047).
+behind a train. So the usual physical order is **occupied then vacated**
+(ADR-0047). The block behind also reads clear when its own detectors do, so a
+train shorter than the gap to the next block's entry detector gives the other
+order; the dispatcher ends a move on both readings in either
+([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 
 Which end of the entered block the train comes in at is the end across the
 transit, read off the layout from the `move` that was carried out. The block's

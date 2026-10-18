@@ -186,8 +186,10 @@ topology ordering; #33 made it congestion-aware. The chooser:
 3. Order by transit count — which under the simulator is travel time, since
    every transit costs the same fixed delays regardless of length.
 4. Break ties on congestion: the number of route blocks beyond the origin that
-   are locked by another train — idle holders included — or lie on the
-   committed remaining route of another active train.
+   are locked by another train — idle holders included — lie on the
+   committed remaining route of another active train, or read occupied with
+   nobody standing in them: unheld, or residue
+   ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 5. Break remaining ties on the lexicographically smallest block-id sequence,
    so repeated runs are bit-identical.
 
@@ -292,11 +294,18 @@ physical railroad drive it the same way, each pacing its own sensor stream.
 
 **A reading applies where it lands.** A detector reports a level, so a
 repeated reading re-asserts what the dispatcher already holds and is an
-at-least-once no-op. A change splits the move's two facts by role:
-`block_occupied` records where the train arrived, and `block_vacated` —
-which follows it, the tail clearing after the head arrives — releases the
-origin block and the transit, ends the move and completes the request.
-Between the two the train is between blocks and takes no further grant.
+at-least-once no-op. A move ends on both its readings — its origin reads
+clear and its arrival block reads occupied — in either order
+([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+`block_occupied` records where the train arrived; the later of the two
+releases the origin block and the transit, ends the move and completes the
+request. Usually that is the `block_vacated`, the tail clearing after the
+head arrives; a train shorter than the gap between one block's exit detector
+and the next block's entry detector reads clear behind first, and that
+vacate releases nothing, grants nothing and does not hold the run. Between
+the two the train is between blocks and takes no further grant. A clear
+reading on a block nobody holds is explained and sweeps, so a train waiting
+on that block is reconsidered.
 Every grant is `safe()`-checked before it commits, so arrival order picks
 among options that were all safe and never reaches an unsafe state; under a
 future MQTT transport a straggling sensor delays a grant, conservative and
@@ -429,9 +438,10 @@ Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
 the witness ordering is always safe, while launching adds a resource holder.
 
-**Handoff follows the vacate.** A lock a move held is released by the
-`block_vacated` that ends it, and the sweep that vacate triggers is where the
-waiting train is granted — a convoy flows as each tail clears the block
+**Handoff follows the later of the two readings.** A lock a move held is
+released by the reading that ends it — the `block_vacated`, unless the vacate
+came first and the `block_occupied` ahead ends it — and the sweep that reading
+triggers is where the waiting train is granted — a convoy flows as each tail clears the block
 behind it, the backward-propagating start wave real trains have. Minimum
 latency is the travel time of the route's transits; the degenerate request's
 launch-and-complete is the zero-transit case.

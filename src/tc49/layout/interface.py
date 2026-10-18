@@ -1269,8 +1269,13 @@ class LayoutInterface:
         so the block behind is clear. That is the one event no detector could
         produce: occupancy is anonymous and the block behind is named by the
         move this app carried out. The entered block's own event has already
-        gone out on its first sensor, so the order is occupied then vacated —
-        the only order the steel can produce (ADR-0047).
+        gone out on its first sensor, so the order is occupied then vacated.
+        It is not the only order the steel can produce: a block's own
+        detectors going clear publish its vacate too, and a train shorter
+        than the gap to the next block's entry detector, or a dead detector
+        there, reads clear behind before it reads occupied ahead. The
+        dispatcher ends a move on both readings in either order (ADR-0077,
+        amending ADR-0047).
         """
         self._level[end] = level
         # This end has just said something of its own, so whatever a departure

@@ -20,10 +20,13 @@ collision mechanism, and it is not one.
   anything — it only vetoes grants that the lock table would otherwise make.
 
 A consequence worth stating: a train mid-transit from `X` to `Y` holds
-`{X, T, Y}`, and its lock on `X` is released on `block_vacated(X)` — the
-sensor confirming the train has fully cleared it — never on
-`block_occupied(Y)`. Real trains straddle the boundary; the release rule
-handles that without the dispatcher knowing. The simulator publishes the two
+`{X, T, Y}`, and its lock on `X` is released only once `block_vacated(X)` —
+the sensor confirming the train has fully cleared it — and
+`block_occupied(Y)` have both arrived, in either order
+([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+Real trains straddle the boundary, and a short one can stand between the two
+blocks' detectors on the connection's points; the release rule handles both
+without the dispatcher knowing. The simulator publishes the two
 in the same order, `block_vacated(X)` a fixed delay after `block_occupied(Y)`
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)),
 so the two behave identically.
@@ -34,6 +37,12 @@ so the two behave identically.
 - **Idle** trains are all the rest — parked, whether or not a request for them
   is pending. An idle train holds the standing lock on its block and nothing in
   the dispatcher will move it, so *its block is permanently unavailable*.
+- A block that **reads occupied** with nobody standing in it — unheld, or
+  residue — is a permanent obstacle beside the idle trains' blocks: no train
+  is granted into it until it reads clear
+  ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+  These blocks are `still`, and the check counts them as it counts the idle
+  trains' blocks.
 - For an active train `t`: `cur(t)` is the block it occupies; if it is
   mid-transit, `cur(t)` is the block it is crossing *into*. `rem(t)` is the
   blocks of its route strictly after `cur(t)`, ending at `dest(t)`. `held(t)`
@@ -61,7 +70,10 @@ safe(state):
                                                 #   where they stand, and
                                                 #   what they already hold
      ∧ b ∉ {dest(u) : u ∈ S}                    # finishers, parked
-     ∧ b ∉ {cur(u) : u ∈ idle}                  # permanent obstacles
+     ∧ b ∉ {cur(u) : u ∈ idle} ∪ still          # permanent obstacles:
+                                                #   idle trains, and blocks
+                                                #   reading occupied, unheld
+                                                #   or residue
 
   safe_from(S) = (S == active)
               or ∃ t ∈ active \ S: feasible(t, S) ∧ safe_from(S ∪ {t})
