@@ -98,7 +98,7 @@ a route is longer than the lookahead.
 
 None of this is bought back yet. Every transit costs one tick
 ([ADR-0027](0027-the-tick-is-the-simulators-grant-boundary.md),
-[MILESTONE-1.md](../MILESTONE-1.md)), so a train at `clear` and a train at
+[MILESTONE-1.md](https://github.com/rails49/control/blob/167bc029fbc29fc6d669ba1c8ad1efa60425ad4b/docs/MILESTONE-1.md)), so a train at `clear` and a train at
 `caution` advance at the same rate. The benefit ADR-0026 claims, running
 through a block at speed, cannot appear in a model without speed. Depth two is
 recorded as a prerequisite: it is what makes the three aspects real, and its

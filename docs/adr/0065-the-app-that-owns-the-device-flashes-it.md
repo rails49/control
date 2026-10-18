@@ -10,7 +10,7 @@ Records the decision behind [#519](https://github.com/rails49/control/issues/519
 [#522](https://github.com/rails49/control/issues/522). Amends
 [rails49/dccex](https://github.com/rails49/dccex): its claim that the app has
 no bus topic, no state and no contract in [SYSTEM.md](../SYSTEM.md). Amends
-[docs/MILESTONE-2.md](../MILESTONE-2.md): its out-of-scope row placing a way to
+[docs/MILESTONE-2.md](https://github.com/rails49/control/blob/167bc029fbc29fc6d669ba1c8ad1efa60425ad4b/docs/MILESTONE-2.md): its out-of-scope row placing a way to
 flash the command station outside this repository.
 
 The command station's firmware is built elsewhere, against the station's own

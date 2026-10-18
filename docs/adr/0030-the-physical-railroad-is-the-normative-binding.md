@@ -61,7 +61,7 @@ simulator. The decision stands, and is amended there rather than superseded.
 ## Consequences
 
 This is a precedence rule, not a roadmap. Hardware stays a later effort and
-[MILESTONE-1.md](../MILESTONE-1.md) is unchanged. What changes is which
+[MILESTONE-1.md](https://github.com/rails49/control/blob/167bc029fbc29fc6d669ba1c8ad1efa60425ad4b/docs/MILESTONE-1.md) is unchanged. What changes is which
 argument wins when the two bindings pull apart. It is stated in
 [GOALS.md](../GOALS.md#approach), in `CLAUDE.md` so an agent meets it before
 designing anything, and as **layout binding** in
