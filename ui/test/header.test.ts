@@ -44,6 +44,11 @@ function readings(shell: TcApp): string[] {
 }
 
 describe("what the band names", () => {
+  /** After look's mark, the UI by its name (org ADR-0019), then the railroad. */
+  it("names the UI, control", async () => {
+    expect(band(await joined()).ui).toBe("control");
+  });
+
   it("names the railroad that is loaded", async () => {
     expect(named(await joined())).toBe("toy");
   });
