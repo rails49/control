@@ -224,6 +224,9 @@ export class Session {
   /** Whether the row names no railroad, `""`: there is no session to join,
    *  but the broker has said, which is not the same as not having said. */
   private nameless = false;
+  /** The railroad a `railroad_wanted` pressed while the broker had gone was
+   *  to name, `null` while no press is owed (#803). The last press wins. */
+  private owed: string | null = null;
   private connected = false;
   private trouble: string | null = null;
   /** Whether the run was running when the last frame was applied, which is
@@ -546,8 +549,19 @@ export class Session {
    * rails have power, or because the store has no such railroad, leaves the
    * page on the railroad that is still running rather than on the one nobody
    * loaded (ADR-0035).
+   *
+   * The one press not dropped while the broker has gone: a Save that lands
+   * then names the railroad nowhere else, the row coming back naming the same
+   * one, so the request is owed and `settle` sends it once the row names that
+   * railroad again and power reads off, the only power `layout` builds under.
+   * A row naming another railroad, or none, drops it (#803).
    */
   pressRailroad(railroad: string): void {
+    if (this.client === null || !this.connected) {
+      this.owed = railroad;
+      return;
+    }
+    this.owed = null;
     this.send(railroadWanted(railroad));
   }
 
@@ -580,7 +594,8 @@ export class Session {
   /** One frame, published on its own topic: the presses above, and the
    *  gestures the run view composes. `connected` and not merely a client:
    *  MQTT.js queues a publish made while it is reconnecting, and a gesture
-   *  nobody heard must not look like one that landed. */
+   *  nobody heard must not look like one that landed — it is dropped, all
+   *  but a `pressRailroad`, which is owed instead (#803). */
   send(frame: Frame): void {
     if (this.client === null || !this.connected) return;
     this.client.publish(frame.topic, JSON.stringify(frame.payload));
@@ -663,6 +678,7 @@ export class Session {
   private settle(): void {
     const joined = this.session !== null;
     const model = joined ? this.panel : null;
+    this.repay(model?.power ?? null);
     const now: RunStatus = {
       joined,
       railroad: this.nameless ? "" : this.session,
@@ -683,6 +699,22 @@ export class Session {
     if (written !== this.saidCabs) {
       this.saidCabs = written;
       this.cabs = driving;
+    }
+  }
+
+  /** The press owed since the broker went, sent where the row names its
+   *  railroad again and power reads off, and dropped where the row names
+   *  another or none. Power on or stopped, or not yet replayed after the
+   *  reconnect (`panel.reset()`), keeps it waiting: `layout` would drop the
+   *  request. Cleared before it is sent, so it goes once. */
+  private repay(power: Power | null): void {
+    const owed = this.owed;
+    if (owed === null || !this.connected) return;
+    if (this.nameless || (this.session !== null && this.session !== owed)) {
+      this.owed = null;
+    } else if (this.session === owed && power === "off") {
+      this.owed = null;
+      this.send(railroadWanted(owed));
     }
   }
 
