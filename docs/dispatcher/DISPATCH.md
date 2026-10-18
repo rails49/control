@@ -393,6 +393,18 @@ asserting on dirt. The run holds by the path power takes, and nothing is
 guessed: occupancy is anonymous, so there is no train to place. It does not
 raise, a payload never being a reason to leave the bus (BUS.md, rule 4).
 
+**So does a lock table that stops agreeing with itself**
+([ADR-0076](../adr/0076-a-broken-lock-table-holds-the-run.md)). The four maps
+that say where each train is and what it holds keep rules between them — a
+placed train holds the lock on its block, every lock is a placed train's or
+residue, an idle train holds its block and its residue and nothing more, an
+active train holds and is crossing what its outstanding move took, and no two
+trains' locked transits conflict — and the dispatcher checks them after every
+event and before every grant pass. A rule newly broken holds the run by the
+same path and is written to stderr; nothing new goes on the bus. A rule still
+broken from the last check does not hold again, so a person's GO is honoured,
+and one that clears and breaks later holds again.
+
 **A held run also asks the detectors.** The sensor readings the layout has
 reported are compared against the placement, and the two contradictions — a
 train standing in a block that reads clear, a block reading occupied with

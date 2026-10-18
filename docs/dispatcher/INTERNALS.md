@@ -36,8 +36,12 @@ dispatcher's answer, not the strategy's (DISPATCH.md, requests).
 locked; `Refused` carries the reason and one `{resource, holder}` obstacle
 per blocked candidate, the payload of `grant_refused`. `None` from `launch`
 means no candidate route exists (the request is rejected `unreachable`).
-Strategies mutate `state.locks` and report what they locked, so the
-dispatcher can publish the lock ledger.
+Strategies write nothing: they are handed a `ReadOnlyState`, which `State`
+satisfies and through which `state.locks` cannot be written, and return what
+to lock. The dispatcher locks it and publishes the lock ledger from it, so
+`dispatch.py` is the lock table's one writer, and `broken` checks the table it
+writes after every event
+([ADR-0076](../adr/0076-a-broken-lock-table-holds-the-run.md)).
 
 Two adapters, both real from day one:
 

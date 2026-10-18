@@ -1166,6 +1166,15 @@ It guesses nothing: occupancy is anonymous, so there is no train to place. It
 does not raise either, a payload never being a reason to leave the bus
 (rule 4).
 
+A lock table that has stopped agreeing with itself **holds the run** the same
+way ([ADR-0076](adr/0076-a-broken-lock-table-holds-the-run.md)). After every
+event and before every grant pass the dispatcher checks the rules its maps
+keep between them, such as a placed train holding the lock on its block; a
+rule broken now and not at the last check holds the run and is written to the
+dispatcher's stderr as `dispatcher: lock table: …`, with nothing new on the
+bus. A rule still broken does not hold again, so GO is honoured as it is over
+a dispute.
+
 The **dispute check** is what the hold turns on, and it is this comparison
 exactly: the block reading occupied with nothing claiming it, or the train
 whose block reads clear, is named on `state/disputed` for a person to walk.
