@@ -76,13 +76,10 @@ Frame = dict[str, Any]
 
 
 def _keeps(frame: Frame, key: str, kept: dict[str, str] | None) -> bool:
-    """Whether a map the reader answered holds every entry the frame's did."""
+    """Whether a map the reader answered equals the frame's: an entry
+    dropped, added or changed is not kept."""
     stated = frame.get(key)
-    return (
-        kept is not None
-        and isinstance(stated, dict)
-        and len(kept) == len(cast(dict[object, object], stated))
-    )
+    return kept is not None and kept == stated
 
 
 def _submitted(frame: Frame) -> bool:
@@ -280,9 +277,9 @@ def test_every_topic_in_the_table_has_a_recorded_frame(
 def test_every_frame_an_app_writes_passes_its_reader(
     runs: dict[str, Recorded],
 ) -> None:
-    """Dropped, fallen back to a default, or short of a map entry — as
-    published or after JSON — and the topic, the reader and the frame are
-    named. Each distinct failure once, however often a run repeats it."""
+    """Dropped, fallen back to a default, or a map entry dropped, added or
+    changed — as published or after JSON — and the topic, the reader and
+    the frame are named. Each distinct failure once, however often a run repeats it."""
     failures: dict[str, None] = {}
     for run, seen in runs.items():
         for topic, payload in seen:
