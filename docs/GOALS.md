@@ -81,9 +81,7 @@ way an evening starts rather than a fault.
 
 Railroad operations divide into three distinct functions, each of them an app
 ([ADR-0013](adr/0013-apps-are-deployment-units.md)). What follows is the whole
-of them; [MILESTONE-1.md](MILESTONE-1.md) says which parts were built first
-and [MILESTONE-2.md](MILESTONE-2.md) which are being built on a physical
-layout.
+of them.
 
 ### Scheduling
 
@@ -197,8 +195,6 @@ the second binding. It is useful for testing and for evaluating a layout before
 it is built, may grow as elaborate as those uses need, and stays confined to
 its own app rather than shaping the contract
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
-Milestone 1 builds only the simulator, which is an order of work rather than a
-rank.
 
 The layout interface also owns time
 ([ADR-0009](adr/0009-layout-interface-owns-time.md)) and is the only part that
@@ -253,3 +249,17 @@ an evening and how every session starts
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)), and it ends with a
 person confirming a placement. The deviation is moving a train the app
 believes is somewhere else, or driving one it does not know is moving.
+
+### What the system does not do
+
+- **Prove deadlock freedom mechanically.** A written argument is the bar
+  ([SAFETY.md](dispatcher/SAFETY.md#rigor)).
+- **Plan for a crash.** A driver can go through a stop signal as a car can run
+  a red light, and a crash can follow. The system does not model rogue
+  operation and has no mechanism to prevent it. An asleep driver who does not
+  stop a train causes an accident on a real railroad too.
+- **Share a model catalogue between railroaders.** The catalogue is one local
+  database for the installation, shared between one owner's railroads and no
+  further ([#199](https://github.com/rails49/control/issues/199)).
+- **Program decoders.** Tools made for it reach the command station directly,
+  and the app never knows.

@@ -11,10 +11,6 @@ This repo (eventually) implements the features described in the docs:
 - [Goals](docs/GOALS.md) — the end state: assets (tracks, blocks, connections,
   stock) and the three operations performed on them — scheduling, dispatching,
   driving.
-- [Milestone 1](docs/MILESTONE-1.md) — reached: what the first slice built, and
-  what is deliberately still out of scope.
-- [Milestone 2](docs/MILESTONE-2.md) — not reached: trains on a physical
-  layout, what is built for it, and what only a running railroad decides.
 - [System](docs/SYSTEM.md) — the apps: the asset store's contract, each
   component's footprint, and the trace.
 - [Bus](docs/BUS.md) — the bus contract: what it promises, every topic and
@@ -52,3 +48,6 @@ Each app's implementation details live beside it:
   editor](docs/ui/EDITOR.md), the [run view](docs/ui/PANEL.md), the
   [throttle](docs/ui/THROTTLE.md) a person drives a train from and the [stock
   view](docs/ui/STOCK.md) they make cars and trains in, living in [ui/](ui).
+
+Python throughout, with `uv` for versions and environments — run things with
+`uv run`. Ruff, Black and Pyright for lint, format and type-check.
