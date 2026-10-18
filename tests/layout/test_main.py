@@ -20,6 +20,7 @@ import time
 from collections.abc import Callable, Iterator
 from http.server import HTTPServer
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -29,11 +30,13 @@ from tc49.layout.interface import (
     BLOCK_OCCUPIED,
     DEVICE_SENSOR,
     MODE,
+    PLACED,
     POWER,
     POWER_WANTED,
     RAILROAD,
     WANTED_TRACK,
     WANTED_TRACTION,
+    LayoutInterface,
 )
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
@@ -423,3 +426,50 @@ def test_a_recorded_railroad_the_store_no_longer_has_leaves_it_standing(
     finally:
         app.stop()
         witness.close()
+
+
+@pytest.fixture
+def built(monkeypatch: pytest.MonkeyPatch) -> list[LayoutInterface]:
+    """Every layout interface the app builds, in order: the one it came up
+    on, then one per rebuild. What a rebuild carries over is held in no row —
+    the steel's position is on no topic (ADR-0030) — so it is read off the
+    object."""
+    interfaces: list[LayoutInterface] = []
+
+    class Recorded(LayoutInterface):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            interfaces.append(self)
+
+    monkeypatch.setattr("tc49.layout.__main__.LayoutInterface", Recorded)
+    return interfaces
+
+
+def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
+    broker: Broker, store: Store, root: Path, app: App, built: list[LayoutInterface]
+) -> None:
+    """With track power off a saved edit changes the drawing and not the
+    track, so a train stands where it stood (ADR-0071). The edit here renames
+    `yard_e`: the train standing in it has no block left in the drawing to
+    stand in, and the one in `yard_w` is kept."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
+    hand.publish(PLACED, {"train": "express_2", "block": "yard_e"})
+    assert drained(
+        witness, lambda: len(built[0].position) == 2
+    ), "the placements never landed"
+
+    # The rails are dead as the app comes up, so the gesture is answered.
+    drawing = root / "layouts" / f"{NAME}.drawing.yaml"
+    drawing.write_text(drawing.read_text().replace("yard_e", "siding_e"))
+    hand.publish(RAILROAD_WANTED, {"railroad": NAME})
+
+    assert drained(witness, lambda: len(built) == 2), "it was never rebuilt"
+    assert built[1].position == {"freight_1": "yard_w"}
+    hand.close()
+    witness.close()
