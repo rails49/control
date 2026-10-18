@@ -193,7 +193,7 @@ transit, nothing cancels a request, and the operator's path out is the hold
 plus a placement.
 
 **This is milestone-2 work**, not milestone 1
-([MILESTONE-1.md](../MILESTONE-1.md)) — there is no hardware adapter yet, and
+([MILESTONE-1.md](https://github.com/rails49/control/blob/167bc029fbc29fc6d669ba1c8ad1efa60425ad4b/docs/MILESTONE-1.md)) — there is no hardware adapter yet, and
 the transit bound arrives with the DCC-EX driver. Only
 the `boundary` field on `move` and its refusal rule land earlier, because they
 are contract and because a stale command is dangerous the day the broker
