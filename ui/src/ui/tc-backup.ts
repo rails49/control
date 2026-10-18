@@ -12,11 +12,12 @@
  * whether a restore is refused, what a missing remote means — and this draws
  * what came back and presses what a person chose
  * ([ADR-0053](../../../docs/adr/0053-backup-drives-git-and-does-not-own-it.md)).
- * The one rule it wears is the app's, and is handed in: a restore waits while
- * the physical layout could disagree with the store — track power on, or the
- * loaded railroad absent from the backup (#688). Trains on the layout do not
- * hold it back: the rebuild keeps the ones that still fit and lists the rest
- * as unfit (#710, ADR-0071).
+ * The one rule it wears is the app's, `restoreRefusal` in `model/settings.ts`:
+ * a restore waits while the physical layout could disagree with the store —
+ * track power on, the loaded railroad absent from the backup, or the layout
+ * not yet having said which railroad is loaded (#688, #759). Trains on the
+ * layout do not hold it back: the rebuild keeps the ones that still fit and
+ * lists the rest as unfit (#710, ADR-0071).
  * git's words are shown as they came: the app knows nothing to add to them,
  * and paraphrasing a rejected push would be inventing an explanation.
  *
@@ -37,6 +38,7 @@ import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import type { Backing } from "../model/backup.js";
 import type { Backup, BackupDoc, Copy } from "../model/store.js";
+import { restoreRefusal } from "../model/settings.js";
 import type { Power } from "../model/trace.js";
 import { backupStyles } from "./tc-backup.styles.js";
 
@@ -63,9 +65,10 @@ export class TcBackup extends LitElement {
    *  the rails to be dead as picking a railroad does (#688). */
   @property({ attribute: false }) power: Power | null = null;
 
-  /** The railroad the apps are running, `null` while none is loaded. A
+  /** The railroad the apps are running as the layout's row names it: `null`
+   *  while the page has not heard the row, `""` while none is loaded. A
    *  backup without it would leave them running a railroad the store no
-   *  longer holds (#688). */
+   *  longer holds (#688), and a row not heard says nothing either way (#759). */
   @property({ attribute: false }) railroad: string | null = null;
 
   /** What a restore would discard, in the words of the app's own discard
@@ -95,7 +98,7 @@ export class TcBackup extends LitElement {
     const backing = this.backing;
     if (backing === null) return nothing;
     const stands = backing.stands;
-    const refused = this.refusal(stands);
+    const refused = restoreRefusal(this.railroad, this.power, this.chosen(stands));
     return html`
       <look-dialog open label="Backup" @sl-after-hide=${this.close}>
         ${stands === null
@@ -152,26 +155,10 @@ export class TcBackup extends LitElement {
     `;
   }
 
-  /**
-   * Why Restore cannot be pressed now, `null` where it can. Each is a way the
-   * physical layout could come to disagree with the store, and the app wears
-   * them because the store hears nothing from the bus (#688):
-   *
-   * - a railroad loaded with track power not off: the rails and the drawing
-   *   would change under a moving train;
-   * - the picked backup without the loaded railroad: the apps would go on
-   *   running a railroad the store no longer holds.
-   */
-  private refusal(stands: BackupDoc | null): string | null {
-    if (this.railroad === null) return null;
-    if (this.power !== "off") {
-      return "track power is on — turn it off to restore";
-    }
-    const picked = stands?.backups.find((backup) => backup.commit === this.picked);
-    if (picked !== undefined && !picked.railroads.includes(this.railroad)) {
-      return `this backup has no ${this.railroad} — load another railroad first`;
-    }
-    return null;
+  /** The backup picked, as the store last listed it: what a restore is
+   *  checked against (`restoreRefusal`). */
+  private chosen(stands: BackupDoc | null): Backup | undefined {
+    return stands?.backups.find((backup) => backup.commit === this.picked);
   }
 
   /** What backup has not got, each in the words of the command that would
@@ -410,7 +397,8 @@ export class TcBackup extends LitElement {
   private async restore(): Promise<void> {
     const backing = this.backing;
     if (backing === null || this.picked === null) return;
-    if (this.refusal(backing.stands) !== null) return;
+    const picked = this.chosen(backing.stands);
+    if (restoreRefusal(this.railroad, this.power, picked) !== null) return;
     if (!(await backing.restore(this.picked))) return;
     this.dispatchEvent(
       new CustomEvent<void>("restored", { bubbles: true, composed: true }),

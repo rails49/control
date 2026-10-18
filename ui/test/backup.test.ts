@@ -230,6 +230,9 @@ async function dialog(stands: BackupDoc = KEPT): Promise<{
   const store = new Fake();
   store.stands = { ...stands };
   const surface = document.createElement("tc-backup");
+  // The row heard and naming none: what a dialog with no railroad loaded is
+  // handed (#759). The suites that load one set it.
+  surface.railroad = "";
   document.body.append(surface);
   const held = new Backing(() => {
     surface.requestUpdate();
@@ -901,9 +904,25 @@ describe("what follows a restore", () => {
   it("reloads the page with no railroad loaded, naming none", async () => {
     serving({ drawings: [], backup: RESTORED });
     const shell = await mounted("edit");
+    await loads(shell, "");
 
     expect(await restores(shell)).toHaveLength(1);
     expect(written()).toEqual([]);
+  });
+
+  /** With the broker not answering, nothing says which railroad the apps
+   *  run, so nothing says the backup holds it: Restore waits, as a load does
+   *  (#759). */
+  it("will not restore while the layout has not said which railroad is loaded", async () => {
+    serving({ drawings: ["reversing-loops"], backup: RESTORED });
+    const shell = await mounted("edit");
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    expect(restoring(surface).disabled).toBe(true);
+    expect(reads(surface)).toContain("the layout has not said which railroad is loaded");
   });
 
   /** A refusal changed nothing, so there is nothing to read again (#699). */

@@ -8,7 +8,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { boxRefusal, copyRefusal, refusal } from "../src/model/settings.js";
+import {
+  boxRefusal,
+  copyRefusal,
+  refusal,
+  restoreRefusal,
+} from "../src/model/settings.js";
+import type { Backup } from "../src/model/store.js";
 
 describe("why the railroad part is refused", () => {
   it("is refused while the layout has not said which railroad is loaded", () => {
@@ -89,4 +95,58 @@ describe("why turning the box off is refused", () => {
   it("is open with the track dead", () => {
     expect(boxRefusal("off")).toBeNull();
   });
+});
+
+/** A restore waits while the physical layout could come to disagree with the
+ *  store (#688), and while the page has not heard which railroad it runs
+ *  (#759). */
+describe("why a restore is refused", () => {
+  const holding: Backup = { commit: "a1", said: "", when: "", railroads: ["otira"] };
+  const without: Backup = { commit: "b2", said: "", when: "", railroads: ["mainline"] };
+
+  it.each(["on", "stopped", "off", null] as const)(
+    "is refused while the layout has not said which railroad is loaded, power %s",
+    (power) => {
+      expect(restoreRefusal(null, power, holding)).toBe(
+        "the layout has not said which railroad is loaded",
+      );
+      expect(restoreRefusal(null, power, undefined)).toBe(
+        "the layout has not said which railroad is loaded",
+      );
+    },
+  );
+
+  it.each(["on", "stopped", null] as const)(
+    "is refused while a railroad is loaded and the track reads %s",
+    (power) => {
+      expect(restoreRefusal("otira", power, holding)).toBe(
+        "track power is on — turn it off to restore",
+      );
+      expect(restoreRefusal("otira", power, without)).toBe(
+        "track power is on — turn it off to restore",
+      );
+    },
+  );
+
+  it("is refused for a backup without the loaded railroad", () => {
+    expect(restoreRefusal("otira", "off", without)).toBe(
+      "this backup has no otira — load another railroad first",
+    );
+  });
+
+  it("is open with the track dead and a backup holding the railroad, or none picked", () => {
+    expect(restoreRefusal("otira", "off", holding)).toBeNull();
+    expect(restoreRefusal("otira", "off", undefined)).toBeNull();
+  });
+
+  /** With nothing loaded there is no run to drift from, and any backup will
+   *  do (#697). */
+  it.each(["on", "stopped", "off", null] as const)(
+    "is open with no railroad loaded, power %s, whatever the backup holds",
+    (power) => {
+      expect(restoreRefusal("", power, holding)).toBeNull();
+      expect(restoreRefusal("", power, without)).toBeNull();
+      expect(restoreRefusal("", power, undefined)).toBeNull();
+    },
+  );
 });

@@ -340,7 +340,7 @@ export class TcApp extends LitElement {
       <tc-backup
         .backing=${this.backingUp ? this.backing : null}
         .power=${this.status.power}
-        .railroad=${loaded}
+        .railroad=${this.status.railroad}
         .unsaved=${this.unsaved}
         @backup-closed=${() => {
           this.backingUp = false;
@@ -711,9 +711,9 @@ export class TcApp extends LitElement {
   // --- the loaded railroad --------------------------------------------------
 
   /** The railroad the apps run, as the layout interface's row names it, and
-   *  `null` where it names none or has not said (#732). The band, the
-   *  restore's refusal and the name a restore asks for again are all about
-   *  what runs. */
+   *  `null` where it names none or has not said (#732). The band and the
+   *  name a restore asks for again are about what runs. A restore's refusal
+   *  tells the two apart, and is handed the row itself (#759). */
   private get loadedRailroad(): string | null {
     const railroad = this.status.railroad;
     return railroad === null || railroad === "" ? null : railroad;

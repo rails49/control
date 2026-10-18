@@ -16,6 +16,7 @@
  * are (EDITOR.md#tests): the dialog draws what these say and decides nothing.
  */
 
+import type { Backup } from "./store.js";
 import type { Power } from "./trace.js";
 
 /**
@@ -45,6 +46,38 @@ export function refusal(
     return "the track has power: switch it off to load another railroad";
   }
   if (unsaved !== null) return `${unsaved} has unsaved edits — save first`;
+  return null;
+}
+
+/**
+ * Why Restore is refused, `null` where it is not. Each is a way the physical
+ * layout could come to disagree with the store, and the app wears them because
+ * the store hears nothing from the bus (#688). The first that holds is the
+ * reason:
+ *
+ * - `railroad` is `null`: the layout has not said which railroad is loaded, so
+ *   nothing says the backup holds the railroad the apps run (#759);
+ * - a railroad is loaded and the track has power — on or stopped — or has
+ *   not said: the rails and the drawing would change under a moving train;
+ * - `picked` is without the loaded railroad: the apps would go on running a
+ *   railroad the store no longer holds.
+ *
+ * `railroad` is the row as `refusal` reads it. With none loaded (`""`) there
+ * is no run to drift from, so any backup will do whatever the supply (#697).
+ * Trains on the layout do not hold it back: the rebuild keeps the ones that
+ * still fit (#710, ADR-0071).
+ */
+export function restoreRefusal(
+  railroad: string | null,
+  power: Power | null,
+  picked: Backup | undefined,
+): string | null {
+  if (railroad === null) return "the layout has not said which railroad is loaded";
+  if (railroad === "") return null;
+  if (power !== "off") return "track power is on — turn it off to restore";
+  if (picked !== undefined && !picked.railroads.includes(railroad)) {
+    return `this backup has no ${railroad} — load another railroad first`;
+  }
   return null;
 }
 
