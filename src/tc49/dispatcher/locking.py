@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from tc49.dispatcher.routing import Route, candidates
 from tc49.dispatcher.safety import safe
+from tc49.lib.inventory import Refusal
 from tc49.lib.layout import Layout
 
 if TYPE_CHECKING:
@@ -192,7 +193,7 @@ class Incremental:
                         state.locks[resource] = req.train
                     return Launched(route, tried, increment)
                 blocking = (
-                    "unsafe",
+                    Refusal.UNSAFE,
                     *_unsafe_obstacle(route.blocks[1:], state, req.train),
                 )
             reason = reason or blocking[0]
@@ -225,7 +226,7 @@ class Incremental:
                 ahead = self._reach_ahead(train, i, state)
                 return Move(active.route.blocks[i], transit, into, newly, ahead)
             blocking = (
-                "unsafe",
+                Refusal.UNSAFE,
                 *_unsafe_obstacle(active.route.blocks[i + 1 :], state, train),
             )
         return Refused(blocking[0], [{"resource": blocking[1], "holder": blocking[2]}])

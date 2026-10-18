@@ -20,14 +20,18 @@ Browser-writability is a mark on the row rather than a prefix to read:
 where somebody writes ``browser=True``.
 
 Where a field's *values* are a closed set the contract names, they live here
-too, beside the field they belong to: ``run``, ``power`` and ``mode`` are
-those fields. What an **enum** is, and which way an unreadable one falls, is
-BUS.md, payload schemas.
+too, beside the field they belong to: ``run``, ``mode``, ``power``, the
+supply, ``occupancy``, ``position``, ``aspect``, the ``grant_refused``
+``reason`` and ``link``. The ``request_rejected`` and ``request_cancelled``
+reasons are ``tc49.lib.rejection`` and ``tc49.lib.cancellation``. What an
+**enum** is, and which way an unreadable one falls, is BUS.md, payload
+schemas.
 
 ``AT`` is the one field no app supplies: every state row leads with it and
 the binding that publishes stamps it (#240).
 """
 
+from enum import StrEnum
 from typing import NamedTuple
 
 
@@ -352,6 +356,37 @@ THROWN = "thrown"
 ``tc49/dispatch/point_wanted``: the same two a way wants its points in on
 ``tc49/layout/align``. The gesture is read against them, so a word outside
 the two is dropped there rather than carried on to a point (ADR-0068)."""
+
+
+class Aspect(StrEnum):
+    """The three values of ``aspect`` on ``tc49/dispatch/move_granted``, and
+    of every entry in ``tc49/dispatch/state/aspects``: what a signal shows,
+    read off how far ahead the dispatcher has locked (ADR-0025). A class and
+    not three names, because `clear` is also an occupancy."""
+
+    STOP = "stop"
+    CAUTION = "caution"
+    CLEAR = "clear"
+
+
+class Refusal(StrEnum):
+    """The three values of ``reason`` on ``tc49/dispatch/grant_refused``: the
+    move was unsafe, a resource it needs is held by another train, or a
+    transit it needs conflicts with one locked at the same connection. A
+    class and not three names, because `held` is also a run."""
+
+    UNSAFE = "unsafe"
+    HELD = "held"
+    TRANSIT_CONFLICT = "transit_conflict"
+
+
+class Link(StrEnum):
+    """The two values of ``link`` on
+    ``tc49/layout/state/device/link/<id>``: whether a participant can reach
+    the hardware it drives."""
+
+    UP = "up"
+    DOWN = "down"
 
 
 def is_state_topic(topic: str) -> bool:
