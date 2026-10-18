@@ -446,13 +446,13 @@ in [BUS.md](BUS.md#device-vocabulary).
 2. A person asks for power on `tc49/layout/power_wanted`, with the same three
    values. Any client may publish it, and the page publishes it to the broker
    directly. A command that cannot be read is dropped
-   ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md),
+   ([ADR-0074](adr/0074-a-person-commands-track-power-and-it-is-cut-when-layout-goes-silent.md),
    [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)).
 3. `layout` answers a command by writing `tc49/layout/state/wanted/track`,
    and whatever supplies power acts on that row. No app expects a particular
    kind of hardware, and `layout` does not check that the power went away
-   (ADR-0051, [#232](https://github.com/rails49/control/issues/232)).
-4. A command is applied when it arrives. Nothing buffers it (ADR-0051,
+   (ADR-0074, [#232](https://github.com/rails49/control/issues/232)).
+4. A command is applied when it arrives. Nothing buffers it (ADR-0074,
    [#243](https://github.com/rails49/control/issues/243)).
 5. The hardware reports the supply on `tc49/layout/state/device/track` as `on`
    or `off`, with an optional free-text `reason`. There is one railroad-wide
@@ -498,7 +498,7 @@ in [BUS.md](BUS.md#device-vocabulary).
 13. At start-up `layout` writes `wanted/track: off` and `state/power: off`,
     then `0.0` to every retained `wanted/traction` row. `wanted/point` keeps
     its retained value and replays it. After that `layout` writes `off` only
-    when asked (ADR-0051,
+    when asked (ADR-0074,
     [ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
 14. The dispatcher holds the run on any value but `on`, as a person's HOLD
     does, and every signalled end shows `stop`. `stopped` and `off` are the
@@ -540,9 +540,8 @@ in [BUS.md](BUS.md#device-vocabulary).
     ([EDITOR.md](ui/EDITOR.md#track-power-freezes-the-drawing)).
 21. `layout` publishes `tc49/layout/alive_confirmed` once a second while it is
     built on a railroad. Each translator that drives trains, and any device on
-    the bus that cuts track power, cuts it when that event stops
-    ([#716](https://github.com/rails49/control/issues/716)). Beyond that cut a
-    person stops the railroad when the software cannot (ADR-0051).
+    the bus that cuts track power, cuts it when that event stops. Beyond that
+    cut a person stops the railroad when the software cannot (ADR-0074).
 22. After an `off` no point position can be trusted, because the accessory
     decoders lose power too. Every grant sets its points again. A point thrown
     by hand while power is off is stored and moves when power returns
