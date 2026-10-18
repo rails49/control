@@ -876,7 +876,10 @@ interface publishes names it, and `model/filing.ts` opens it off the store.
 A row naming `""` — a box with no railroad loaded (#727) — closes it: the
 editor holds an empty drawing under no name, the filing reads as saved with
 no trouble and no review, Save and Export are dead, and the
-[stock view](STOCK.md) beside it holds no railroad either. `File ▸ New…` and
+[stock view](STOCK.md) beside it holds no railroad either. A read, review or
+Save of the drawing that answers after the row names another railroad writes
+nothing, even where the row has since named the first one again (#798).
+`File ▸ New…` and
 `Save As…`, which left the editor and the stock view on a drawing nothing
 runs while the band named what did, went with #734; making a railroad is the
 settings dialog's, where New writes an empty drawing and Copy loaded as…

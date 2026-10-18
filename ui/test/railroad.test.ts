@@ -37,13 +37,18 @@ function failure(how: Failing, path: string): Error {
 }
 
 /** Every route the loaded railroad asks, counted by path, each failing as a
- *  test says. Writes are recorded in order, and one can be held in flight. */
+ *  test says. Writes are recorded in order, and one route — a read, a write
+ *  or a review — can be held in flight. */
 class Fake implements Store, StockStore {
   asked: string[] = [];
   saved: string[] = [];
   failing: Record<string, Failing> = {};
-  /** The next write on a path starting with `prefix`, held in flight until
-   *  the test lets it answer. */
+  /** What the store refuses each drawing with on review, by name, so a late
+   *  review is told apart from the one that should stand. */
+  refusing: Record<string, string> = {};
+  /** The next route on a path starting with `prefix` — a review's being
+   *  `/review/<drawing>` — held in flight until the test lets it answer. How
+   *  it answers is decided on release, so a test can fail it in between. */
   private held: { prefix: string; gate: Promise<void> } | null = null;
 
   hold(prefix: string): () => void {
@@ -57,25 +62,31 @@ class Fake implements Store, StockStore {
     return this.asked.filter((one) => one === path).length;
   }
 
-  private ask<T>(path: string, answer: () => T): Promise<T> {
-    this.asked.push(path);
-    const how = this.failing[path] ?? null;
-    return how === null ? Promise.resolve(answer()) : Promise.reject(failure(how, path));
-  }
-
-  private write(path: string): Promise<void> {
-    const done = (): Promise<void> => {
-      const how = this.failing[path] ?? null;
-      if (how !== null) return Promise.reject(failure(how, path));
-      this.saved.push(path);
-      return Promise.resolve();
-    };
+  /** `done` answered now, or once the held route on this path is let go. */
+  private gated<T>(path: string, done: () => Promise<T>): Promise<T> {
     const held = this.held;
     if (held !== null && path.startsWith(held.prefix)) {
       this.held = null;
       return held.gate.then(done);
     }
     return done();
+  }
+
+  private ask<T>(path: string, answer: () => T): Promise<T> {
+    this.asked.push(path);
+    return this.gated(path, () => {
+      const how = this.failing[path] ?? null;
+      return how === null ? Promise.resolve(answer()) : Promise.reject(failure(how, path));
+    });
+  }
+
+  private write(path: string): Promise<void> {
+    return this.gated(path, () => {
+      const how = this.failing[path] ?? null;
+      if (how !== null) return Promise.reject(failure(how, path));
+      this.saved.push(path);
+      return Promise.resolve();
+    });
   }
 
   listDrawings(): Promise<string[]> {
@@ -90,12 +101,15 @@ class Fake implements Store, StockStore {
     }));
   }
 
-  saveDrawing(): Promise<void> {
-    return Promise.resolve();
+  saveDrawing(drawing: Drawing): Promise<void> {
+    return this.write(`/drawings/${drawing.drawing}`);
   }
 
-  review(): Promise<Review> {
-    return Promise.resolve(CLEAN);
+  review(drawing: Drawing): Promise<Review> {
+    const name = drawing.drawing;
+    return this.gated(`/review/${name}`, () =>
+      Promise.resolve({ ...CLEAN, refused: this.refusing[name] ?? null }),
+    );
   }
 
   readTrains(railroad: string): Promise<TrainsDoc> {
@@ -350,6 +364,98 @@ describe("the row naming another railroad", () => {
 
     expect(store.asked.length).toBe(asked);
     expect(railroad.unsaved).toBe("the drawing and the roster");
+  });
+
+  it("drops the first's drawing where it arrives after the second's", async () => {
+    const { railroad, filing, editor, store } = made();
+    const answer = store.hold("/drawings/toy");
+    railroad.named("toy");
+    await flushed();
+
+    railroad.named("otira");
+    await flushed();
+    answer();
+    await flushed();
+
+    expect(filing.opened).toBe("otira");
+    expect(editor.drawing.drawing).toBe("otira");
+    expect(filing.trouble).toBeNull();
+  });
+
+  it("drops the first's drawing failing after the second's arrived, and retries nothing of it", async () => {
+    const { railroad, filing, store } = made();
+    const answer = store.hold("/drawings/toy");
+    railroad.named("toy");
+    await flushed();
+
+    railroad.named("otira");
+    await flushed();
+    store.failing["/drawings/toy"] = "unanswered";
+    answer();
+    await flushed();
+
+    expect(filing.trouble).toBeNull();
+    await waited();
+    expect(store.count("/drawings/toy")).toBe(1);
+  });
+
+  it("keeps the edits to the same name named again after another, whatever the first read brings", async () => {
+    const { railroad, filing, editor, store } = made();
+    const answer = store.hold("/drawings/toy");
+    railroad.named("toy");
+    await flushed();
+    railroad.named("otira");
+    await flushed();
+    railroad.named("toy");
+    await flushed();
+    const edit = { ...editor.drawing, symbols: {} };
+    editor.reset(edit);
+    void filing.edited(editor);
+    await flushed();
+
+    answer();
+    await flushed();
+
+    expect(editor.drawing).toEqual(edit);
+    expect(railroad.unsaved).toBe("the drawing");
+  });
+
+  it("drops the first's review where it arrives after the second opened", async () => {
+    const { railroad, filing, store } = made();
+    store.refusing.toy = "toy does not derive";
+    const answer = store.hold("/review/toy");
+    railroad.named("toy");
+    await flushed();
+
+    railroad.named("otira");
+    await flushed();
+    answer();
+    await flushed();
+
+    expect(filing.reviewed?.refused).toBeNull();
+    expect(filing.derives).toBe(true);
+  });
+
+  it("drops the first's Save where it lands after the second was edited, and answers false", async () => {
+    const { railroad, filing, editor, store } = made();
+    railroad.named("toy");
+    await flushed();
+    editor.reset({ ...editor.drawing, symbols: {} });
+    void filing.edited(editor);
+    await flushed();
+    const answer = store.hold("/drawings/toy");
+    const saving = filing.save(editor);
+
+    railroad.named("otira");
+    await flushed();
+    editor.reset({ ...editor.drawing, symbols: {} });
+    void filing.edited(editor);
+    await flushed();
+    answer();
+
+    expect(await saving).toBe(false);
+    expect(filing.saved).toBe(false);
+    expect(railroad.unsaved).toBe("the drawing");
   });
 });
 

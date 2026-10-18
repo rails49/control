@@ -447,6 +447,28 @@ describe("saving the loaded railroad", () => {
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
   });
 
+  /** What it wrote is toy's, and otira is what is loaded once the write
+   *  answers: naming either would rebuild something nobody asked for (#798). */
+  it("names nothing where the row named another railroad before the write answered", async () => {
+    let answer: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    serving({
+      drawings: ["toy", "otira"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+      held: (path) => (path === "/drawings/toy" ? gate : null),
+    });
+    const shell = await unsaved("off");
+
+    await pressedOnRail(shell, "save");
+    await loads(shell, "otira");
+    answer();
+    await settled(shell);
+
+    expect(wants()).toEqual([]);
+  });
+
   /** ⇧⌘S was Save As, which went with #734: the editor holds the loaded
    *  railroad and no other (ADR-0072, decision 3). The key is still taken
    *  from the browser, and does nothing else. */
