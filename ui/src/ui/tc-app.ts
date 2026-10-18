@@ -31,8 +31,9 @@
  * ([#371](https://github.com/rails49/control/issues/371)). One broker runs one
  * railroad and the layout interface says which on a retained row
  * ([ADR-0059](../../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
- * decision 2), so the run view reads that row and hands the name up here; this
- * reads the documents off the store. The settings dialog does not load one
+ * decision 2), so the run view reads that row and hands the name up here, and
+ * the loaded railroad (`model/railroad.ts`) reads the documents off the store
+ * and holds them for every view (#758). The settings dialog does not load one
  * either: it asks on `tc49/layout/railroad_wanted` and this carries the press
  * out the way the band's power presses go
  * ([ADR-0060](../../../docs/adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
@@ -62,6 +63,7 @@ import { Backing } from "../model/backup.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
+import { Railroad } from "../model/railroad.js";
 import type { Cab } from "../model/throttle.js";
 import type { Power, Run } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
@@ -75,6 +77,7 @@ import "./tc-throttle.js";
 import type { TcBackup } from "./tc-backup.js";
 import type { TcEditor } from "./tc-editor.js";
 import type { RunStatus, TcPanel } from "./tc-panel.js";
+import type { TcStock } from "./tc-stock.js";
 import type { ModeWanted, ThrottleWanted } from "./tc-throttle.js";
 import { editable } from "./tc-properties.js";
 
@@ -116,6 +119,20 @@ export class TcApp extends LitElement {
    *  has moved and the app redraws. */
   private filing = new Filing(() => this.redraw());
 
+  /** The loaded railroad's documents — the drawing through the filing, the
+   *  roster and the catalogue, the trains — read and held in one place
+   *  (`model/railroad.ts`, #758). The row drives it, through `loaded`, and
+   *  every view reads it rather than the store. */
+  private railroad = new Railroad(
+    this.filing,
+    () => this.editor,
+    () => this.redraw(),
+  );
+
+  /** The railroad the editor's canvas was last fitted to, so it is fitted
+   *  once per railroad that arrives and left where a person put it after. */
+  private fitted = "";
+
   /** What backup says about the store the app is served from, and the presses
    *  that drive it (`model/backup.ts`, ADR-0053). The store is the whole
    *  app's rather than a view's, which is why this is held here beside the
@@ -137,12 +154,6 @@ export class TcApp extends LitElement {
    *  Netlist button that opens it, so the flag is the chrome's side of the app
    *  rather than the view's. */
   @state() private netlist = false;
-
-  /** Whether the stock view holds roster edits the store has not been given,
-   *  as that view last said. The drawing's own are the filing's; the roster is
-   *  the second document a person can lose when the railroad changes, and a
-   *  restore and a load are refused over either (#415, #703, #733). */
-  @state() private rosterEdits = false;
 
   /** Whether the backup dialog is up. The store is asked when the app comes
    *  up, every hour after, and whenever the dialog is opened: what a railroad
@@ -202,6 +213,13 @@ export class TcApp extends LitElement {
   }
 
   override updated(): void {
+    // A railroad that has arrived in the editor is fitted to once. The run view
+    // fits its own.
+    const opened = this.filing.opened;
+    if (opened !== this.fitted) {
+      this.fitted = opened;
+      if (opened !== "") this.edit?.fit();
+    }
     const joined = this.status.joined;
     if (joined && this.sessionTimer === undefined) {
       this.sessionStart = Date.now();
@@ -217,7 +235,6 @@ export class TcApp extends LitElement {
   }
 
   override render() {
-    const name = this.filing.opened === "" ? null : this.filing.opened;
     const loaded = this.loadedRailroad;
     // One reading of the rule for the two that wear it: the band says why and
     // the editing view is what it is about (model/commands.ts). A restore
@@ -255,6 +272,7 @@ export class TcApp extends LitElement {
         .drawing=${this.editor.drawing}
         .review=${this.filing.reviewed}
         .current=${this.view === "run"}
+        .trains=${this.railroad.trains}
         @railroad=${(event: CustomEvent<string>) => this.loaded(event.detail)}
         @run-status=${(event: CustomEvent<RunStatus>) => {
           this.status = event.detail;
@@ -279,13 +297,9 @@ export class TcApp extends LitElement {
 
       <tc-stock
         class=${this.view === "stock" ? "" : "off"}
-        .railroad=${name}
-        .current=${this.view === "stock"}
+        .railroad=${this.railroad}
         .placed=${this.status.placed}
         .power=${this.status.power}
-        @roster-edits=${(event: CustomEvent<boolean>) => {
-          this.rosterEdits = event.detail;
-        }}
         @lengths-saved=${(event: CustomEvent<string>) => this.lengthened(event.detail)}
       ></tc-stock>
 
@@ -343,7 +357,7 @@ export class TcApp extends LitElement {
    * is the ordinary state of a railroad being run.
    */
   private band(loaded: string | null, still: boolean) {
-    const trouble = this.filing.trouble ?? this.status.trouble;
+    const trouble = this.filing.trouble ?? this.railroad.trouble ?? this.status.trouble;
     const fault = this.status.fault;
     const note = this.backupNote();
     const power = supply(this.standing, this.status);
@@ -421,15 +435,25 @@ export class TcApp extends LitElement {
    *  is this that holds it. */
   private showing(view: ViewId): void {
     if (this.view === view) return;
-    this.view = view;
+    this.viewing(view);
     location.hash = hashOf(view);
   }
 
   /** The hash changed under the app — a bookmark opened, a back button
    *  pressed — which is the same choice by another route. */
   private hashed = (): void => {
-    this.view = viewOf(location.hash);
+    const view = viewOf(location.hash);
+    if (this.view !== view) this.viewing(view);
   };
+
+  /** Another view current. **The trains are read again when the run view
+   *  becomes current**: the store is not on the bus, so nothing publishes a
+   *  roster change (ADR-0010), and a person who adds a locomotive on the stock
+   *  screen and switches to the run must see it (ui/STOCK.md). */
+  private viewing(view: ViewId): void {
+    this.view = view;
+    if (view === "run") void this.railroad.reread();
+  }
 
   private get edit(): TcEditor | null {
     return this.renderRoot.querySelector<TcEditor>("tc-editor");
@@ -670,21 +694,11 @@ export class TcApp extends LitElement {
     return railroad === null || railroad === "" ? null : railroad;
   }
 
-  /** Which document a refusal is about: the drawing, the roster, or both. A
-   *  person who spent the evening composing a rake is told that is what is at
-   *  stake, rather than reading a sentence about a drawing they have not
-   *  touched (#415). The backup dialog and the settings dialog both read it,
-   *  through `unsaved`. */
-  private get losing(): string {
-    if (!this.rosterEdits) return "the drawing";
-    return this.filing.edits ? "the drawing and the roster" : "the roster";
-  }
-
-  /** What changing the railroad would discard, in `losing`'s words, `null`
-   *  while nothing is unsaved: what a restore and a load are both refused
-   *  over (#703, #733). */
+  /** What changing the railroad would discard, `null` while nothing is
+   *  unsaved: what a restore and a load are both refused over (#703, #733).
+   *  The loaded railroad's to say, holding both documents (#758). */
   private get unsaved(): string | null {
-    return this.filing.edits || this.rosterEdits ? this.losing : null;
+    return this.railroad.unsaved;
   }
 
   /**
@@ -700,33 +714,16 @@ export class TcApp extends LitElement {
    * none is a broker with no railroad loaded (#727), and the editor and the
    * stock view hold nothing for it: there is no drawing called `""` to open,
    * and whatever was open is a railroad nothing runs (ADR-0072, decision 3).
+   *
+   * Everything about the documents is the loaded railroad's
+   * (`model/railroad.ts`). Another railroad arrives with the netlist shut,
+   * whatever the last one left open: it belongs to the railroad being
+   * replaced, and the netlist is opened when something looks wrong rather
+   * than kept up (ADR-0024).
    */
   private loaded(railroad: string): void {
-    if (railroad === this.filing.opened) return;
-    if (railroad === "") {
-      this.netlist = false;
-      this.filing.close(this.editor);
-      return;
-    }
-    void this.opening(railroad);
-  }
-
-  /**
-   * The railroad the row names, read off the store. It arrives with the
-   * netlist shut, whatever the last one left open: it belongs to the railroad
-   * being replaced, and the netlist is opened when something looks wrong
-   * rather than kept up (ADR-0024).
-   *
-   * Fitting the editor's canvas is what is left over for the app — the two DOM
-   * touches `Filing` cannot take with it, and it says whether a railroad
-   * arrived to fit to. The run view fits its own.
-   */
-  private async opening(wanted: string): Promise<void> {
-    this.netlist = false;
-    const arrived = await this.filing.open(wanted, this.editor);
-    if (!arrived) return;
-    await this.updateComplete;
-    this.edit?.fit();
+    if (railroad !== this.railroad.name) this.netlist = false;
+    this.railroad.named(railroad);
   }
 
   // --- edits ---------------------------------------------------------------
@@ -747,6 +744,9 @@ export class TcApp extends LitElement {
     this.requestUpdate();
     this.edit?.redraw();
     this.running?.requestUpdate();
+    // The stock view holds the same `Railroad`, and the `Stock` inside it
+    // keeps its identity across an edit and a Save.
+    this.renderRoot.querySelector<TcStock>("tc-stock")?.requestUpdate();
     // The dialog holds the same `Backing` across a press, so Lit sees no
     // changed property and would draw what git said before it said it.
     this.renderRoot.querySelector<TcBackup>("tc-backup")?.requestUpdate();

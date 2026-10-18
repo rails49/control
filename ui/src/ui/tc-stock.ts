@@ -3,11 +3,15 @@
  * above, models below — and the trains on the right. You compose right from
  * left.
  *
- * The railroad it is editing is not its own: the app holds which one is loaded
- * and hands the name down, exactly as it hands the drawing to the editor
+ * The railroad it is editing is not its own: the app holds the loaded railroad
+ * and hands it down, exactly as it hands the drawing to the editor
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
- * **No session**, like the editor: this is a document view, and what it reads
- * and writes are the store's two stock routes (#388, #392).
+ * **No session**, like the editor: this is a document view. **It reads no
+ * document either**: the roster and the catalogue are the loaded railroad's to
+ * read, to read again where the store did not answer, and to drop when the row
+ * names another railroad, and the roster's Save is its too
+ * (`model/railroad.ts`, #758). What this writes itself is a new model and a
+ * photo (#392, #630).
  *
  * It works nothing out. Every length, kind and function shown is
  * `model/stock.ts`'s answer, and so is every refusal: what promotes an entry
@@ -59,17 +63,13 @@ import {
   type ModelRow,
   type TrainRow,
 } from "../model/stock.js";
+import type { Railroad } from "../model/railroad.js";
 import {
   photoUrl,
-  readCatalogue,
-  readRoster,
-  RETRY_MS,
   said,
   saveModel,
   savePhoto,
-  saveRoster,
   takePicture,
-  Unanswered,
   type ModelDoc,
   type ModelFn,
   type Picture,
@@ -137,14 +137,12 @@ const UNREAD = "the roster and the catalogue are not read yet";
 export class TcStock extends LitElement {
   static override styles = [lookTheme, stockStyles];
 
-  /** The loaded railroad, whose roster this edits. `null` while none is
-   *  loaded, which is a screen with nothing to edit and not a fault. */
-  @property({ attribute: false }) railroad: string | null = null;
-
-  /** Whether this view is the current one. The documents are read when the
-   *  railroad changes and not on every switch, so edits survive a look at the
-   *  run and come back as they were left. */
-  @property({ type: Boolean }) current = false;
+  /** The loaded railroad, whose roster this edits: the app's one instance,
+   *  which reads the documents, holds them and saves the roster
+   *  (`model/railroad.ts`). It holds them across a look at another view, so
+   *  edits come back as they were left. `undefined` only before the app has
+   *  handed it down. */
+  @property({ attribute: false }) railroad: Railroad | undefined = undefined;
 
   /** The trains the run has on the layout, as the run view says. The trains'
    *  rows say which of them are. */
@@ -154,13 +152,10 @@ export class TcStock extends LitElement {
    *  length guard and the roster's Save read it (ADR-0071). */
   @property({ attribute: false }) power: Power | null = null;
 
-  /** The roster and the catalogue, and every edit to either
-   *  (`model/stock.ts`). `null` until the store has answered. */
-  @state() private stock: Stock | null = null;
-
-  /** The railroad the documents were read for, so they are read again when
-   *  the app loads another and kept when anything else changes. */
-  @state() private held: string | null = null;
+  /** The documents this view last drew, so what was about them — the train
+   *  being composed, what an edit was refused with — goes when the loaded
+   *  railroad holds others. */
+  private held: Stock | null = null;
 
   /** The train a press on the left is about, as a **name**. Composing right
    *  from left needs somewhere for the left to go, and one train is current
@@ -168,8 +163,10 @@ export class TcStock extends LitElement {
    *  hold on the train, and the roster can stop having it (#445). */
   @state() private train: string | null = null;
 
-  /** What was refused — by this screen before the store had to see it, or by
-   *  the store — in the words of whichever refused it. */
+  /** What an edit was refused with, by this screen before the store had to
+   *  see it. What the store said about reading the documents or the last
+   *  Save is the loaded railroad's `stockTrouble`, and reads on the same
+   *  line. */
   @state() private trouble: string | null = null;
 
   /** The model being written, `null` while the dialog is shut. */
@@ -221,13 +218,6 @@ export class TcStock extends LitElement {
    *  cost it. */
   @state() private keeping: Shot | null = null;
 
-  /** The documents whose Save is in flight, `null` where none is. Save is dead
-   *  from the press until the roster's write answers, so one press writes the
-   *  roster once; the rest of the screen stays editable, and an edit made
-   *  meanwhile is written by the next Save (#723). The `Stock` rather than a
-   *  flag, so a railroad loaded meanwhile has its own Save live. */
-  @state() private saving: Stock | null = null;
-
   /** How many times a model's photo has been saved from this screen, by model.
    *  It is what the `?v=<n>` on a thumbnail carries: the bytes at that URL have
    *  changed and the browser is holding the ones from before, and the store
@@ -251,127 +241,27 @@ export class TcStock extends LitElement {
    *  edit bumps `beat`, so the render it names is already asked for. */
   private back: string | null = null;
 
-  /** The read waiting to be made again, `null` while none is. */
-  private waiting: ReturnType<typeof setTimeout> | null = null;
-
-  /** Whether the roster held edits the store had not been given when this view
-   *  last said so. `null` before it has said anything, so the first answer is
-   *  reported whatever it is. */
-  private told: boolean | null = null;
-
-  override disconnectedCallback(): void {
-    this.drop();
-    super.disconnectedCallback();
+  /** The roster and the catalogue, and every edit to either
+   *  (`model/stock.ts`), as the loaded railroad holds them: `null` until the
+   *  store has answered for both. */
+  private get stock(): Stock | null {
+    return this.railroad?.stock ?? null;
   }
 
-  override willUpdate(changed: Map<string, unknown>): void {
-    if (!changed.has("railroad") && !changed.has("current")) return;
-    // A try waiting is a try on the railroad that was showing, in the view
-    // that was showing: neither is what to read when either changes.
-    this.drop();
-    // The app has loaded another railroad, so what is being composed belongs
-    // to the one that was open. It goes now rather than the next time this
-    // view is looked at: the app asked about it before the railroad moved
-    // (#415), and edits kept past that answer would be asked about again.
-    if (changed.has("railroad") && this.railroad !== this.held) this.forget();
-    if (!this.current || this.railroad === null || this.railroad === this.held) return;
-    void this.load(this.railroad);
-  }
-
-  /** Everything that was about the railroad that was loaded. */
-  private forget(): void {
-    this.stock = null;
-    this.held = null;
+  override willUpdate(): void {
+    // The loaded railroad holds other documents — another railroad, or none —
+    // so what is being composed belongs to the ones that went.
+    if (this.stock === this.held) return;
+    this.held = this.stock;
     this.train = null;
     this.trouble = null;
   }
 
-  /**
-   * What this view holds that the store has not been given, told to the app.
-   *
-   * The app guards the loaded railroad and this view holds the second document
-   * a person can lose with it, so what would discard the roster asks first the
-   * way it does for the drawing (#101, #415). Told rather than asked, which is
-   * the way the run view says what its session is doing: this view is a Lit
-   * child, and the app holds nothing of its own to read.
-   */
   override updated(): void {
     // The render the field was named for has happened, so the name goes: a
     // frame about the railroad draws this view again and is not news about
     // what somebody is typing (#444).
     this.back = null;
-    const now = this.stock?.edits ?? false;
-    if (now === this.told) return;
-    this.told = now;
-    this.dispatchEvent(
-      new CustomEvent<boolean>("roster-edits", {
-        detail: now,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-
-  /**
-   * The railroad's roster and the installation's catalogue.
-   *
-   * Both, because a car is only complete against its model: a roster answers
-   * names, and what a length is comes from the catalogue (ADR-0045). A
-   * railroad with no roster and an installation with no `catalogue/` are
-   * answered the empty documents, which is what a fresh box is and what the
-   * screen writing the first car draws itself from.
-   */
-  private async load(railroad: string): Promise<void> {
-    this.held = railroad;
-    try {
-      const [roster, catalogue] = await Promise.all([
-        readRoster(railroad),
-        readCatalogue(),
-      ]);
-      if (this.held !== railroad) return;
-      this.stock = new Stock(roster, catalogue);
-      this.train = this.first();
-      this.trouble = null;
-    } catch (failure) {
-      if (this.held !== railroad) return;
-      // Which of the three it was is the store helper's to say
-      // (model/store.ts, #411). A fixed string here named `tc49 serve` for
-      // every one of them, and a proxy answering `GET /catalogue` with its own
-      // 404 page sent a person after a store that was up and answering (#405).
-      this.stock = null;
-      this.held = null;
-      this.trouble = said(failure);
-      // Nothing came back, so there is something to wait for: the store
-      // starting, or whatever is in front of it learning where it is. A
-      // refusal is the store answering and would be refused again the same.
-      if (failure instanceof Unanswered) this.retry(railroad);
-    }
-  }
-
-  /**
-   * Read again in a moment, unless a read is already waiting.
-   *
-   * There is nothing on this screen to press — the railroad is loaded and the
-   * documents are read when it arrives — so a person who kept looking at a
-   * message until they reloaded the page is what the run view's retry already
-   * spares an operator (PANEL.md). What runs is the same `load` the railroad
-   * arriving runs, and a screen that has read by the time it comes round is
-   * one it leaves alone.
-   */
-  private retry(railroad: string): void {
-    if (this.waiting !== null) return;
-    this.waiting = setTimeout(() => {
-      this.waiting = null;
-      if (this.current && this.railroad === railroad && this.stock === null) {
-        void this.load(railroad);
-      }
-    }, RETRY_MS);
-  }
-
-  /** Drop the try that is waiting, where there is one. */
-  private drop(): void {
-    if (this.waiting !== null) clearTimeout(this.waiting);
-    this.waiting = null;
   }
 
   override render() {
@@ -793,6 +683,7 @@ export class TcStock extends LitElement {
   // --- the trains -----------------------------------------------------------
 
   private trainList(trains: TrainRow[]) {
+    const trouble = this.trouble ?? this.railroad?.stockTrouble ?? null;
     return html`
       <section class="trains">
         <header class="head">
@@ -811,16 +702,14 @@ export class TcStock extends LitElement {
             variant="primary"
             title=${this.stock?.waitsForPower(this.power) ?? nothing}
             ?disabled=${this.stock === null ||
-            this.saving === this.stock ||
+            this.railroad?.saving === true ||
             !this.stock.edits ||
             this.stock.waitsForPower(this.power) !== null}
             @click=${this.save}
             >Save</sl-button
           >
         </header>
-        ${this.trouble === null
-          ? nothing
-          : html`<p class="trouble">${this.trouble}</p>`}
+        ${trouble === null ? nothing : html`<p class="trouble">${trouble}</p>`}
         ${trains.length === 0
           ? html`<p class="hint">
               no trains yet — make one up, then press + beside a car or a model
@@ -944,7 +833,7 @@ export class TcStock extends LitElement {
    */
   private unwritable(): string | null {
     if (this.stock !== null) return null;
-    return this.railroad === null ? UNLOADED : UNREAD;
+    return (this.railroad?.name ?? "") === "" ? UNLOADED : UNREAD;
   }
 
   /** A one-field prompt, as the app names a railroad with: a dialog for a
@@ -1044,66 +933,30 @@ export class TcStock extends LitElement {
   }
 
   /**
-   * The roster, whole. A `PUT` is the whole document, so a car left out is a
-   * car removed (#388), and the store validates it against the catalogue and
-   * writes nothing where it does not validate — which is why a refusal is
-   * shown here rather than left to be discovered later.
-   *
-   * A model whose length was corrected on its row is written first, each in
-   * turn, and the roster after them (#718). A refusal stops the Save where it
-   * happened: what was written stays written, and the rest waits for the next
-   * Save.
+   * The roster's Save, which is the loaded railroad's (`model/railroad.ts`):
+   * the corrected models and then the roster, and what the store said on the
+   * line under the trains.
    *
    * A save that changed a length tells the app, which names the loaded
    * railroad again so the dispatcher fits trains with the new length and a
-   * train now longer than its block comes off and is listed (ADR-0071). It
-   * tells it as well where a model was written and the roster then refused:
-   * power is off, and the dispatcher must not go on fitting trains by a length
-   * the store no longer holds. Save is dead while such an edit waits for power
-   * off, so the guard below is a second answer and not a press met with
-   * silence.
+   * train now longer than its block comes off and is listed (ADR-0071). Save
+   * is dead while such an edit waits for power off, and while its own write is
+   * in flight (#723), so the guards inside are a second answer and not a press
+   * met with silence.
    */
   private save = async (): Promise<void> => {
-    // Save is dead with no roster read, so nobody is waiting on this return.
-    const stock = this.stock;
-    if (stock === null || this.saving === stock) return;
-    // Asked before the `PUT` so the words are this screen's own and the saved
-    // roster is untouched: a train with nothing in it is one the store
-    // refuses whole, and the refusal names the row to go and fill (#412).
-    const stopped = stock.stopsSaving() ?? stock.waitsForPower(this.power);
-    if (stopped !== null) {
-      this.did(stopped);
-      return;
-    }
-    const lengths = stock.lengthEdits;
-    const railroad = this.held;
-    const written = stock.roster;
-    let reached = false;
-    this.saving = stock;
-    try {
-      for (const model of stock.corrections) {
-        await saveModel(model);
-        stock.landed(model);
-        reached = true;
-      }
-      await saveRoster(written);
-      stock.kept(written);
-      if (lengths) reached = true;
-      this.trouble = null;
-      this.beat++;
-    } catch (trouble) {
-      this.trouble = said(trouble);
-    }
-    if (this.saving === stock) this.saving = null;
-    if (reached && railroad !== null) {
-      this.dispatchEvent(
-        new CustomEvent<string>("lengths-saved", {
-          detail: railroad,
-          bubbles: true,
-          composed: true,
-        }),
-      );
-    }
+    const railroad = this.railroad;
+    if (railroad === undefined) return;
+    this.trouble = null;
+    const reached = await railroad.save(this.power);
+    if (!reached) return;
+    this.dispatchEvent(
+      new CustomEvent<string>("lengths-saved", {
+        detail: railroad.name,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   };
 
   /** An edit that cannot refuse. It still goes through `did`, so the screen
@@ -1131,6 +984,9 @@ export class TcStock extends LitElement {
     this.trouble = refused ?? null;
     this.back = field;
     this.beat++;
+    // What the last Save was refused with is about a roster that has moved
+    // since, and the app reads what is unsaved off the railroad.
+    this.railroad?.edited();
   }
 
   /**
@@ -1314,8 +1170,8 @@ export class TcStock extends LitElement {
     if (this.wrote !== null) return;
     // A dialog that opened is a dialog that answers when its button is
     // pressed. The button that opens it is dead without the documents, so the
-    // way here is the railroad moving under an open dialog — `forget` takes
-    // the documents and leaves what somebody is writing (#565).
+    // way here is the railroad moving under an open dialog, which takes the
+    // documents and leaves what somebody is writing (#565).
     const stock = this.stock;
     if (stock === null) {
       this.refusal = this.unwritable();

@@ -773,7 +773,9 @@ describe("the roster's Save in flight", () => {
 
     await pressed(shell, "sl-button.save");
     expect(saving(shell).disabled).toBe(true);
-    await screen(shell)["save"]();
+    // A second press on the dead button writes nothing more. The guard behind
+    // it, for a press that reached the handler anyway, is `railroad.test.ts`'s.
+    await pressed(shell, "sl-button.save");
     await answer();
 
     expect(puts()).toBe(1);
@@ -789,7 +791,9 @@ describe("the roster's Save in flight", () => {
 
     await pressed(shell, "sl-button.save");
     expect(saving(shell).disabled).toBe(true);
-    await screen(shell)["save"]();
+    // A second press on the dead button writes nothing more. The guard behind
+    // it, for a press that reached the handler anyway, is `railroad.test.ts`'s.
+    await pressed(shell, "sl-button.save");
     await answer();
 
     expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper", "/rosters/toy"]);

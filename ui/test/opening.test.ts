@@ -19,24 +19,28 @@
  * any away now.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
 import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
-import type { ModelDoc, RosterDoc } from "../src/model/store.js";
+import { RETRY_MS, type ModelDoc, type RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
+import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import {
   band,
   edited,
   mounted,
+  named,
   railButton,
+  running,
   serving,
   session,
   settled,
   shows,
   stocking,
+  type Answers,
 } from "./support/shell.js";
-import { loads } from "./support/session.js";
+import { DERIVES, loads, stored as derived, unbrokered } from "./support/session.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -151,11 +155,11 @@ describe("the row naming no railroad", () => {
 
   it("leaves the stock view with no railroad", async () => {
     const shell = await opened("stock");
-    expect(stocking(shell).railroad).toBe("reversing-loops");
+    expect(stocking(shell).railroad!.name).toBe("reversing-loops");
 
     await loads(shell, "");
 
-    expect(stocking(shell).railroad).toBeNull();
+    expect(stocking(shell).railroad!.name).toBe("");
     const making = stocking(shell).renderRoot.querySelector<HTMLButtonElement>(
       "button.new-model",
     )!;
@@ -229,5 +233,101 @@ describe("the roster across a look at another view", () => {
 
     expect(asked(shell)).toBeNull();
     expect(entries(shell)).toBe(2);
+  });
+});
+
+/**
+ * The store not answering when the row names a railroad (#758). The row is
+ * the broker's and arrives whatever the store is doing, so the documents it
+ * names are read again until the store answers — and until then no view holds
+ * the railroad that was loaded before, whose drawing under another railroad's
+ * name is a picture of nothing that runs (ADR-0072, decision 3).
+ */
+describe("the store not answering for the railroad the row names", () => {
+  const HOPPER: ModelDoc = { model: "hopper", kind: "freight", length: 100 };
+
+  /** A store with a deriving drawing, a train and a rake for any railroad
+   *  asked for, each named after it. */
+  function served(): Answers {
+    return serving({
+      drawings: ["toy", "otira"],
+      read: derived,
+      review: () => Promise.resolve(DERIVES),
+      rosterOf: (railroad) => ({ [`${railroad}-goods`]: { length: 400 } }),
+      documentOf: (railroad) => ({
+        roster: railroad,
+        trains: { [`${railroad}-ore`]: { cars: [{ model: "hopper" }] } },
+      }),
+      catalogue: { hopper: HOPPER },
+    });
+  }
+
+  /** What each view holds of a railroad: the editor's drawing, the run view's
+   *  painted drawing and its roster pane, and the stock view's trains. */
+  function held(shell: TcApp) {
+    const canvas = running(shell).renderRoot.querySelector<TcCanvas>("tc-canvas");
+    const pane = running(shell).renderRoot.querySelector("tc-roster")!.renderRoot;
+    return {
+      editor: session(shell).drawing.drawing,
+      run: canvas === null ? null : canvas.drawing.drawing,
+      roster: [...pane.querySelectorAll("span.name")].map((one) => one.textContent!.trim()),
+      stock: [
+        ...stocking(shell).renderRoot.querySelectorAll<HTMLInputElement>("li.train input.name"),
+      ].map((one) => one.value),
+    };
+  }
+
+  /** Everything of one railroad, in every view. */
+  function all(railroad: string) {
+    return {
+      editor: railroad,
+      run: railroad,
+      roster: [`${railroad}-goods`],
+      stock: [`${railroad}-ore`],
+    };
+  }
+
+  const NOTHING = { editor: "", run: null, roster: [], stock: [] };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    unbrokered();
+  });
+
+  it("holds the railroad in every view once the store answers, with no reload", async () => {
+    const store = served();
+    store.broken = new Error("connection refused");
+    const shell = await mounted("run");
+    await loads(shell, "toy");
+    expect(held(shell)).toEqual(NOTHING);
+
+    store.broken = null;
+    await vi.advanceTimersByTimeAsync(RETRY_MS);
+    await settled(shell);
+
+    expect(held(shell)).toEqual(all("toy"));
+  });
+
+  it("holds nothing of the last railroad until the next one is read", async () => {
+    const store = served();
+    const shell = await mounted("run");
+    await loads(shell, "toy");
+    expect(held(shell)).toEqual(all("toy"));
+
+    store.broken = new Error("connection refused");
+    await loads(shell, "otira");
+
+    expect(named(shell)).toBe("otira");
+    expect(held(shell)).toEqual(NOTHING);
+
+    store.broken = null;
+    await vi.advanceTimersByTimeAsync(RETRY_MS);
+    await settled(shell);
+
+    expect(held(shell)).toEqual(all("otira"));
   });
 });

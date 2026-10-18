@@ -57,14 +57,7 @@ import {
   type RosterRow,
 } from "../model/panel.js";
 import { pointsOffered, positionsBySymbol } from "../model/scene.js";
-import {
-  readTrains,
-  RETRY_MS,
-  said,
-  UNREVIEWED,
-  type Review,
-  type TrainDoc,
-} from "../model/store.js";
+import { RETRY_MS, UNREVIEWED, type Review, type TrainDoc } from "../model/store.js";
 import { cabs, type Cab } from "../model/throttle.js";
 import {
   cancellation,
@@ -225,17 +218,15 @@ export class TcPanel extends LitElement {
    *  has no layout to paint on, and the band already says so. */
   @property({ attribute: false }) review: Review | null = null;
 
-  /** Whether this view is the current one.
-   *
-   *  **The roster is read again when it becomes current.** The store is not on
-   *  the bus, so nothing publishes a roster change (ADR-0010): a person who
-   *  adds a locomotive on the stock screen and switches here must see it, and
-   *  the run keeps the roster it joined with until then (ui/STOCK.md). It is
-   *  the roster and not the session — the connection is untouched, and what the
-   *  bus says about where the trains are is not re-read, because nothing about
-   *  it went stale. The connection is untouched: it is the page's and not a
-   *  view's. */
+  /** Whether this view is the current one. */
   @property({ type: Boolean }) current = false;
+
+  /** The railroad's trains: every train it owns, how long each is and what a
+   *  person driving it can switch, as the loaded railroad read them off the
+   *  store (`model/railroad.ts`, ADR-0039, ADR-0045). The bus says where the
+   *  trains are and never what there is to place or what one is made of. The
+   *  app reads them again whenever this view becomes current (#758). */
+  @property({ attribute: false }) trains: Record<string, TrainDoc> = {};
 
   /** The railroad the broker says it runs, `null` while it has not said —
    *  before the connection lands, and again after it has gone (#371). */
@@ -245,11 +236,6 @@ export class TcPanel extends LitElement {
   @state() private nameless = false;
   @state() private connected = false;
   @state() private trouble: string | null = null;
-  /** The railroad's roster: every train it owns, how long each is and what a
-   *  person driving it can switch, read off the store when the session is
-   *  joined (ADR-0039, ADR-0045). The bus says where the trains are and never
-   *  what there is to place or what one is made of. */
-  @state() private stock: Record<string, TrainDoc> = {};
   /** What was still disputed at the moment the hold was released, in words,
    *  `null` while there is nothing to say. */
   @state() private released: string | null = null;
@@ -285,18 +271,12 @@ export class TcPanel extends LitElement {
    *  railroad: one broker runs one railroad (ADR-0059, decision 2), so it is
    *  opened once and kept. */
   private client: MqttClient | null = null;
-  /** Whether the roster of the railroad the broker named has been read. The
-   *  store is not on the bus, so a read that failed is retried until it
-   *  lands — and a railroad that owns no stock is read, not empty. */
-  private stocked = false;
   /** What arrived between the broker naming the railroad and the store
    *  answering for its documents, `null` when there is nothing to wait for.
    *  Retained values arrive as the subscription lands (ADR-0032) and there is
    *  no second delivery of them, so a page that dropped them would show an
    *  empty railroad until something happened to be published. */
   private held: TraceEvent[] | null = null;
-  /** The retry waiting to be made, `null` while none is. */
-  private waiting: ReturnType<typeof setTimeout> | null = null;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -333,9 +313,6 @@ export class TcPanel extends LitElement {
    * layout to build from, so nothing is painted and the band says why.
    */
   override willUpdate(changed: Map<string, unknown>): void {
-    if (changed.has("current") && this.current && this.session !== null) {
-      void this.reread(this.session);
-    }
     if (!changed.has("drawing") && !changed.has("review")) return;
     const name = this.drawing?.drawing ?? null;
     const layout = this.review?.layout ?? null;
@@ -383,8 +360,8 @@ export class TcPanel extends LitElement {
    * **Getting back in is the client's own.** MQTT.js reconnects at `RETRY_MS`
    * and resubscribes, and a fresh subscription is answered with every retained
    * row (ADR-0032) — the picture the page had, republished. So there is no
-   * retry of this view's here, and the only one left is the store's, the store
-   * not being on the bus.
+   * retry of this view's here: the store's is the loaded railroad's
+   * (`model/railroad.ts`), the store not being on the bus.
    */
   private connect(): void {
     this.live = new Live();
@@ -447,16 +424,15 @@ export class TcPanel extends LitElement {
    * and hands the documents down (ADR-0038), so this says which and the app
    * reads it from the store. The settings dialog asks on `railroad_wanted` and
    * is answered here or not at all: what a person pressed never loads anything
-   * by itself (ADR-0060). The roster is read here because it is the railroad's
-   * asset and not the run's — what stock there is to place, which no topic
-   * carries (ADR-0039). Everything else comes off the bus: placement, locks
+   * by itself (ADR-0060). The trains come down from the app, which has the
+   * loaded railroad read them off the store — what stock there is to place,
+   * which no topic carries (ADR-0039, #758). Everything else comes off the bus: placement, locks
    * and live requests off the dispatcher's retained picture, facing off the
    * scheduler's (ADR-0032, ADR-0036).
    */
   private named(railroad: string): void {
     if (railroad === "") {
-      // No railroad loaded (#727): nothing to join and no roster to read, so
-      // the session goes and what is said instead is that none is.
+      // No railroad loaded (#727): nothing to join, so the session goes and what is said instead is that none is.
       if (this.nameless) return;
       this.leave();
       this.nameless = true;
@@ -486,58 +462,6 @@ export class TcPanel extends LitElement {
         composed: true,
       }),
     );
-    void this.read(railroad);
-  }
-
-  /** The railroad's roster, off the store. A read that fails says so and is
-   *  tried again: the store is not on the bus, so nothing will republish it. */
-  private async read(railroad: string): Promise<void> {
-    try {
-      const stock = await readTrains(railroad);
-      if (this.session !== railroad) return;
-      this.stock = stock.trains;
-      this.stocked = true;
-      this.trouble = null;
-      this.beat++;
-    } catch (failure) {
-      // Which of the three it was is the store helper's to say (model/store.ts,
-      // #411): a store that is not running, an answer that came from something
-      // else, or the store refusing. A fixed string here named the fix for the
-      // first whichever it was, and sent a person after a store that was up
-      // (#405).
-      if (this.session !== railroad) return;
-      this.trouble = said(failure);
-      this.retry();
-    }
-  }
-
-  /**
-   * The railroad's roster, read again over a session that is already up.
-   *
-   * Only the roster: the connection is open and every retained topic has been
-   * replayed, so there is nothing else to go back for. A read that fails
-   * leaves what the view already has — the roster it joined with is a better
-   * answer than none, and the store not answering is already said elsewhere.
-   */
-  private async reread(railroad: string): Promise<void> {
-    try {
-      const stock = await readTrains(railroad);
-      if (this.session === railroad) this.stock = stock.trains;
-    } catch {
-      // Kept as it was: see above.
-    }
-  }
-
-  /** Read the roster again in a moment, unless a read is already waiting. Only
-   *  one is ever waiting, so a second failure inside the interval does not
-   *  start a second run of tries. */
-  private retry(): void {
-    if (this.waiting !== null) return;
-    this.waiting = setTimeout(() => {
-      this.waiting = null;
-      const railroad = this.session;
-      if (railroad !== null && !this.stocked) void this.read(railroad);
-    }, RETRY_MS);
   }
 
   private heard(topic: string, payload: string): void {
@@ -738,12 +662,8 @@ export class TcPanel extends LitElement {
    *  must not flash — and everything the last session put on screen of its own
    *  goes. */
   private leave(): void {
-    if (this.waiting !== null) clearTimeout(this.waiting);
-    this.waiting = null;
     this.drag.cancel();
     this.menu = null;
-    this.stock = {};
-    this.stocked = false;
     this.released = null;
     this.wasRunning = false;
     this.held = null;
@@ -991,12 +911,19 @@ export class TcPanel extends LitElement {
     return this.panel?.placed() ?? [];
   }
 
+  /** The trains the railroad owns, as far as this view shows them: none with
+   *  no session joined, as `leave` makes it, a page that has left a session
+   *  having nothing of it to place or drive. */
+  private get owned(): Record<string, TrainDoc> {
+    return this.session === null ? {} : this.trains;
+  }
+
   /** What the roster pane draws: every train the railroad owns, marked with
    *  where the run has it (`model/panel.ts`). Two sources because they are two
    *  things — the store says what stock there is, the bus says where it stands
    *  (ADR-0010) — and the pane is handed the answer rather than either. */
   private get roster(): RosterRow[] {
-    return roster(this.stock, this.standing);
+    return roster(this.owned, this.standing);
   }
 
   /**
@@ -1023,7 +950,7 @@ export class TcPanel extends LitElement {
       inFlight: new Set(
         placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
       ),
-      stock: this.stock,
+      stock: this.owned,
     });
   }
 
