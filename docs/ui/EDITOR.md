@@ -55,6 +55,9 @@ view of the app and the run view is another ([PANEL.md](PANEL.md)); the band is
 the app's and is the same band in both. It is `@rails49/look`'s `look-band`,
 and `tc-app` fills it.
 
+The band starts with look's mark and the UI's name, `control`
+([org ADR-0019](https://github.com/rails49/.github/blob/main/docs/adr/0019-the-band-starts-with-the-mark-and-the-ui-name.md)).
+
 **The railroad the app has loaded is named here**, as
 `tc49/layout/state/railroad` reports it, and the name is not pressed. Loading
 another is the **settings dialog's**, behind the gear between the health area

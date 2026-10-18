@@ -344,7 +344,8 @@ export class TcApp extends LitElement {
   // --- the band and the rail ------------------------------------------------
 
   /**
-   * The band: what is true of the whole system. The loaded railroad's name and
+   * The band: what is true of the whole system. After look's mark, the UI by
+   * its name, control (org ADR-0019); then the loaded railroad's name and
    * whether it holds unsaved edits; then only what a person would act on
    * (#517) — what the app could not do, a drawing that does not derive, what
    * the hardware says is wrong with the supply, a frozen drawing in the
@@ -362,7 +363,7 @@ export class TcApp extends LitElement {
     const note = this.backupNote();
     const power = supply(this.standing, this.status);
     return html`
-      <look-band>
+      <look-band ui="control">
         <look-about
           name=${loaded ?? "no railroad loaded"}
           detail=${this.filing.saved ? "" : "unsaved"}
