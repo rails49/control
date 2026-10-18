@@ -365,7 +365,7 @@ requests:
   ([DISPATCH.md](../dispatcher/DISPATCH.md#requests)).
 - **Requests go in at the start of a run, in the file's order.** A scenario
   states no submission times: the queue does the staggering, and a timetable
-  released against a clock is the scheduler's own milestone-2 work
+  released against a clock is the scheduler's own work
   ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 - **`from` requires the end and takes the block optionally.** `from: yard_w.B`
   states the working the way a reader wants to see it. A chained working may

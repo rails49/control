@@ -227,7 +227,7 @@ class Roster:
     fact rather than one per scenario. A scenario says where a train starts;
     how long it is, is here.
 
-    `trains` comes first because it is what milestone 1 reads and every
+    `trains` comes first because it came first and every
     caller already passes it positionally; the cars a train is made of are
     resolved at load, so a train answers for its own length without the
     roster in hand.

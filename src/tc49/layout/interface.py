@@ -143,7 +143,7 @@ writes nothing and giving it back writes what its grant implies, which is
 
 What is **not** here yet: the function topic beside the traction write, which
 is nobody's until a gesture carries a function press. The simulator is
-untouched and remains the milestone-1 binding of the same interface
+untouched and remains the second binding of the same interface
 (ADR-0030).
 """
 

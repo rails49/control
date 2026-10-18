@@ -176,7 +176,7 @@ not idle, so its next simply cannot launch yet.
 
 ### Route selection
 
-The route chooser is a **pluggable strategy**. Milestone 1 shipped a pure
+The route chooser is a **pluggable strategy**. It began as a pure
 topology ordering; #33 made it congestion-aware. The chooser:
 
 1. Consider routes to **every** surviving arrival end, merged into one list.

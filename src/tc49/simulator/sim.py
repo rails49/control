@@ -1,4 +1,4 @@
-"""Simulator: the milestone-1 layout interface, as a discrete-event engine.
+"""Simulator: the second layout interface binding, a discrete-event engine.
 
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
 interface; ADR-0009, ADR-0047). The commands it responds to,

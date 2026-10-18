@@ -46,7 +46,7 @@ POWER = "tc49/layout/state/power"
 class Reordering(InProcessBus):
     """A bus that hands one topic's values to its subscribers backwards.
 
-    The milestone-1 binding delivers in one total order, so the reordering
+    The in-process bus delivers in one total order, so the reordering
     MQTT permits has to be staged deliberately (#240): a publisher's
     reconnect, or a QoS-1 retransmission with more than one message in
     flight, can put a pair on the wire in one order and take it off in the

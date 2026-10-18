@@ -208,7 +208,7 @@ def _waiting(stop: threading.Event) -> Callable[[float], None]:
 def main() -> None:
     parser = command_line(
         prog="python -m tc49.simulator",
-        description="Run the simulator against a broker: the milestone-1"
+        description="Run the simulator against a broker: the second"
         " binding of the layout interface, standing in for the steel.",
     )
     args = parser.parse_args()

@@ -52,7 +52,7 @@ the interface responds to it and says nothing about who published this frame,
 and the process that publishes it today is the driver — another container
 under MQTT, whose bug must not stop the binding running the railroad. It is
 the first payload here read by whatever drives the track rather than by an app
-on the bus's other side, so the milestone-1 simulator and a hardware binding
+on the bus's other side, so the simulator and a hardware binding
 read the one reading (ADR-0030).
 
 The **sensor** row is read here for that same reason (#288): `layout` folds a
@@ -65,7 +65,7 @@ else the core app `layout` is handed (#287): the power a page commands, the
 aspects the dispatcher shows, and the two device rows the railroad's power is
 folded from. They arrive from four different publishers and `layout` answers
 none of them — it reports observations — so every one of them is a frame that
-must be droppable. The milestone-1 simulator reads the power a page commands
+must be droppable. The simulator reads the power a page commands
 and the run row its plain `off` is checked against, answering the band's
 presses as `layout` does (ADR-0070), and none of the rest: its points are
 always aligned, which is why `align` had no reader at all until there was an
@@ -626,7 +626,7 @@ class Command:
     connection's which transit, into which block — and the speed it asks for.
 
     The four names are what makes a command readable and the speed is not
-    (#283): the milestone-1 binding takes a fixed delay per transit, so it
+    (#283): the simulator takes a fixed delay per transit, so it
     has nothing to do with a fraction of a locomotive's maximum, and a reader
     demanding one would drop commands that binding can carry out perfectly
     well. So it is read **beside** them and answers None where the frame
@@ -700,7 +700,7 @@ def alignment(payload: object) -> Alignment | None:
     reason (#287): the layout interface acts on it, the topic names the
     interface rather than whoever published this frame, and a binding that
     raised on one would be taken down by that publisher. Until `layout` the
-    topic had no reader at all — the milestone-1 simulator's points are
+    topic had no reader at all — the simulator's points are
     always aligned, so it reads nothing off one.
 
     A pair that cannot be read fails the **whole** frame, where a retained

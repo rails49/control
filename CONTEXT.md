@@ -499,8 +499,7 @@ _Avoid_: revert, roll back, undo (the editor's, over one drawing), recovery
 One implementation of a contract that BUS.md or SYSTEM.md defines. The
 contract is the authority, and replacing a binding changes no app
 ([ARCHITECTURE.md](docs/ARCHITECTURE.md#bindings)).
-_Avoid_: implementation, adapter, backend, driver (an app), milestone binding
-(formerly)
+_Avoid_: implementation, adapter, backend, driver (an app)
 
 **Language binding**:
 One binding per language, all of them kept

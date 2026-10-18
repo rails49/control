@@ -154,7 +154,7 @@ src/tc49/
                               broker, the translator on it, then a drain
                               loop that ends on a signal. No store — this
                               app reads no documents (ADR-0059)
-  simulator/    sim.py        Simulator — the milestone-1 layout interface:
+  simulator/    sim.py        Simulator — the second layout interface binding:
                               a discrete-event engine that schedules each
                               accepted move's sensors on fixed delays, owns
                               the run clock, pacing and termination
