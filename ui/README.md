@@ -85,6 +85,8 @@ src/
     views.ts     the views the app has of the railroad, and the hash they are
                  bookmarked by
     panel.ts     the run's model: bus payloads in, render state out
+    session.ts   the page's one broker connection: the railroad the row
+                 names, the panel model it feeds, the presses, the OFF drain
     throttle.ts  what the throttle draws for each train there is to drive
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
@@ -109,10 +111,10 @@ src/
     tc-menu.ts     the right-click menu
     tc-settings.ts the settings dialog behind the band's gear: which railroad
                    is loaded, New and Copy loaded as…, and the way into backup
-    tc-panel.ts    the run view: the session, and the overlay it hands the
-                   canvas to paint
+    tc-panel.ts    the run view: the overlay it hands the canvas to paint,
+                   the drag, the right-click menu and the roster pane
     tc-throttle.ts the throttle view: pick a train, take it, drive it, give
-                   it back — the session stays the run view's
+                   it back — the session stays the app's
     tc-stock.ts    the stock view: cars and models on the left, the trains
                    composed from them on the right
     dismissal.ts   the overlay a menu drops over the page, worn by all three

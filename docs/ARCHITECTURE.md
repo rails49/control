@@ -207,7 +207,8 @@ ui/                         the layout editor: TypeScript, pnpm, Lit
                             lib/rejection.py's reason set; a test asserts
                             each is current
               src/model/    the document, the geometry, the editing session,
-                            connection naming and the store client — no DOM,
+                            connection naming, the store client and the
+                            broker session — no DOM,
                             and what the Vitest tests target
               src/render/   the artwork, hand-written per kind
               src/ui/       the Lit components: shell, palette, canvas,

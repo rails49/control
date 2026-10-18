@@ -542,7 +542,7 @@ The words name the address and ask the one question a person can act on. A bare
 *not connected* leaves them with a working app and no idea which of several
 containers is down; the broker is the first hop and the only one this page opens
 itself, the store being asked over HTTP and saying so in its own words, so
-naming it is naming what to look at. `GONE` in `ui/src/ui/tc-panel.ts` is the
+naming it is naming what to look at. `gone` in `ui/src/model/session.ts` is the
 sentence, exported so a test reads it rather than respelling it — the same
 reason `RETRY_MS` is read off its module. It is said on `close` as well as on
 `error`, so a page that loses the broker mid-run does not go quiet just because
@@ -666,11 +666,15 @@ the bus stays this view's, the model naming the train and the ends and nothing
 else. `tc-menu` renders the items it is given, the editor and the run view
 each working out their own list. `model/scene.ts` is what the drawing alone
 answers: the frame a fit and an export are drawn in, an arrow's pose, and
-which symbol an address is worn by. `tc-panel` holds the session, feeds the
-model, hands the canvas an overlay, hands `tc-roster` the railroad's roster
-marked with where the run has each train, and sends. Where a drag from the
-pane landed is asked of the canvas, which is what turns a client pixel into a
-point on the drawing.
+which symbol an address is worn by. The session is `model/session.ts`, held by
+the app ([#756](https://github.com/rails49/control/issues/756)): the page's one
+connection, the railroad the row names, the rows held until the documents
+land, the panel model it feeds, HOLD/GO and the release notice, track power
+and the OFF drain, and every frame the page sends. `tc-panel` reads the model
+off it, hands the canvas an overlay, hands `tc-roster` the railroad's roster
+marked with where the run has each train, and gives the session the gestures
+it composes. Where a drag from the pane landed is asked of the canvas, which is
+what turns a client pixel into a point on the drawing.
 
 **The component gets a suite where only mounting it can see the answer.** Each
 rule is tested at its own seam — `trainAt` in `drag.test.ts`, `standsIn` and
@@ -680,7 +684,11 @@ this view and drives the right-click, and `run.test.ts` walks the session: a
 menu offered over a train's block and nowhere else, the browser's own menu
 suppressed either way, one `reversal_wanted` and no second frame, a refusal
 shown in the band rather than swallowed, and a menu coming down when the train
-leaves the block or the session goes. The last of those is the shape both bugs
+leaves the block or the session goes. The session's own rules — the drain,
+HOLD and GO, the rows held for the documents, and that a frame changing nothing
+the app shows leaves `status` and `cabs` the same objects — are driven against
+the broker double with no DOM in `session.test.ts`. The last of the menu's is
+the shape both bugs
 [#124](https://github.com/rails49/control/issues/124) found in Chrome took,
 and catching that shape is what the suite is for
 ([#157](https://github.com/rails49/control/issues/157)). It walks the session
@@ -695,9 +703,9 @@ holds retained, because what a suite about the run view has to drive is the
 broker's side of it.
 
 The railroad it paints is not its own: the app holds it and hands over the
-drawing and the review (ADR-0038). The name comes the other way — this view
+drawing and the review (ADR-0038). The name comes the other way — the session
 reads it off the broker's retained row and the app loads the documents — and
-the connection is opened once the view is on screen, for as long as it is
+the connection is opened once the app is on the page, for as long as it is
 there.
 
 The chrome is the band and the rail the editor also wears (#84,
