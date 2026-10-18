@@ -1094,7 +1094,9 @@ machine abandons every press while the drawing is frozen ([Canvas](#canvas)),
 so a gesture the freeze lands in the middle of leaves the sheet as it found it
 and writes nothing. A palette drag starts on a tile rather than on the sheet,
 so this view refuses that one itself and the tiles are greyed while it holds
-([Palette](#palette)).
+([Palette](#palette)). The freeze also cancels a wire in flight and a symbol on
+its way from the palette, the portal's mate included, since neither is a press
+the machine can abandon.
 
 **Power off thaws it.** The rule is read off `state/power` afresh and nothing
 latches it, so the band's power toggle asking for off — once the run has
