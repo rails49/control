@@ -99,8 +99,9 @@ export class TcEditor extends LitElement {
    *  attribute is what `tc-editor.styles.ts` can read. */
   @property({ type: Boolean, reflect: true }) netlist = false;
 
-  /** Whether the drawing is frozen: track power is on or stopped, and this
-   *  view is read-only until it is off (`model/commands.ts`, ADR-0071). The app
+  /** Whether the drawing is frozen: track power is on or stopped, or the page
+   *  has not heard which railroad is loaded, and this view is read-only until
+   *  the row is heard with power off (`model/commands.ts`, ADR-0071). The app
    *  owns the rule, the run being what knows; it is reflected onto the host
    *  because the palette is greyed by a stylesheet, and an attribute is what
    *  `tc-editor.styles.ts` can read. */

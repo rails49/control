@@ -360,9 +360,10 @@ export class Session {
     client.on("close", () => {
       if (client !== this.client || !this.connected) return;
       // The broker has gone. What it was saying is no longer being said, so
-      // the page holds no session at all: the roster empties, the drawing
-      // thaws, and the picture the last frame left stays on screen with
-      // nothing to gesture at.
+      // the page holds no session at all: the roster empties, and the picture
+      // the last frame left stays on screen with nothing to gesture at. The
+      // drawing stays frozen: it is still open with no railroad heard, and
+      // the track may well have power (#792).
       this.connected = false;
       // Said here as well as on `error`, and in the same words. The band draws
       // no "connected" of its own any more (#517): a link that is up is the

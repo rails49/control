@@ -56,12 +56,15 @@ export interface Standing {
    *  Power on or stopped freezes the drawing (`frozen` below); it is read
    *  afresh and nothing is latched, so switching it off thaws the drawing on
    *  its own. Trains standing on the layout do not freeze it: a save names
-   *  the railroad again and the rebuild keeps them where they fit (ADR-0071). */
+   *  the railroad again and the rebuild keeps them where they fit (ADR-0071).
+   *  Null power alone freezes nothing: a joined page whose drawing does not
+   *  derive reads none, and that drawing must stay editable to be fixed. */
   power: Power | null;
   /** The railroad the run has loaded, as `tc49/layout/state/railroad` names
    *  it, `null` with no session. Where it is the open drawing, a save is what
    *  the apps build next, so Save waits for power off and ON waits for the
-   *  save (`isLoaded` below). */
+   *  save (`isLoaded` below). Null with a drawing open is a page that has
+   *  lost the broker, and that freezes the drawing (`unheard` below). */
   loaded: string | null;
 }
 
@@ -127,16 +130,39 @@ export const NOTHING: Standing = {
  * built, so the drawing must not drift from it; with power off nothing moves,
  * and a save of the loaded railroad builds it again with the trains kept where
  * they fit. Stopped is frozen too: it is an emergency stop somebody clears
- * back to on, not a rest. With no session (`null`) there is no run to drift
- * from.
+ * back to on, not a rest.
+ *
+ * It is frozen as well while a drawing is open and the page has not heard
+ * which railroad is loaded (`unheard` below). A page with nothing open holds
+ * no railroad, so there is nothing to drift.
  *
  * The one reading of the rule. `editing` below kills the commands that would
  * change the document, the editing view's gestures ask it before they mean
  * anything, and the band prints its word off it rather than reading power of
  * its own.
  */
-export function frozen({ power }: Standing): boolean {
-  return trackLive(power);
+export function frozen(standing: Standing): boolean {
+  return trackLive(standing.power) || unheard(standing);
+}
+
+/** Whether a drawing is open and the row naming the loaded railroad is not
+ *  heard: the page has lost the broker (#792). The editor holds no railroad
+ *  but the one the row last named (ADR-0072, decision 3), so the open drawing
+ *  is the loaded railroad's, and the page cannot know whether its track has
+ *  power. It keys on the row, not on power, which also reads null on a joined
+ *  page whose drawing does not derive. Nothing is latched: the row heard again
+ *  with power off lifts it. */
+export function unheard({ opened, loaded }: Standing): boolean {
+  return opened !== "" && loaded === null;
+}
+
+/** What the band's frozen mark gives as its reason, the freeze being one of
+ *  two: track power, or a page that has not heard which railroad is loaded.
+ *  Power is named first where both hold. */
+export function frozenWhy(standing: Standing): string {
+  return trackLive(standing.power)
+    ? "track power is on, so the drawing is read-only"
+    : "the layout has not said whether the track has power, so the drawing is read-only";
 }
 
 /** Whether the open drawing is the railroad the run has loaded: the one whose
@@ -212,11 +238,12 @@ export const COMMANDS: Record<CommandId, Command> = {
     key: "Mod+S",
     // Saving the loaded railroad names it again, and the layout builds only
     // with power off, so while it is frozen the save would write a drawing no
-    // app runs (ADR-0071). Any other drawing is only a file.
+    // app runs (ADR-0071). A drawing open with no row heard is the loaded
+    // railroad's (`unheard`). Any other drawing is only a file.
     enabled: (standing) =>
       standing.opened !== "" &&
       !standing.saved &&
-      !(frozen(standing) && isLoaded(standing)),
+      !(frozen(standing) && (isLoaded(standing) || unheard(standing))),
   },
   // The picture is of what is on the sheet, so unsaved edits are in it and
   // only having nothing open makes it dead.
