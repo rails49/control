@@ -16,7 +16,10 @@
  * What is open is the loaded railroad and no other (ADR-0072, decision 3):
  * the row the layout interface publishes names it, the shell opens it here,
  * and a row naming none closes it. Nothing here starts or forks a drawing;
- * making a railroad is the settings dialog's (#737).
+ * making a railroad is the settings dialog's (#737). A read, review or Save
+ * that answers after the row names another railroad — the same name named
+ * again after another included — writes nothing: each takes the count of
+ * closes when it starts and drops its answer where that has moved (#798).
  *
  * The `Editor` is taken per call and never held, as `gesture.ts` states the
  * rule and for the same reason: the shell is the single owner of the instance
@@ -35,9 +38,10 @@ import {
   type Review,
 } from "./store.js";
 
-/** What came of opening a drawing: it arrived, the store did not answer, or
- *  the store refused. */
-export type Opened = "opened" | "unanswered" | "refused";
+/** What came of opening a drawing: it arrived, the store did not answer, the
+ *  store refused, or the row named another railroad before the answer came
+ *  (#798). */
+export type Opened = "opened" | "unanswered" | "refused" | "gone";
 
 /** The store's routes, as the editor uses them. */
 export interface Store {
@@ -56,6 +60,10 @@ export class Filing {
   private clean = true;
   private wrong: string | null = null;
   private said: Review | null = null;
+  /** How often what was open has been closed. An answer for a read, review
+   *  or Save started before the last close is for a railroad the row no
+   *  longer names, and writes nothing (#798). */
+  private closes = 0;
 
   constructor(
     private readonly notify: () => void,
@@ -130,8 +138,11 @@ export class Filing {
    * railroad's (`model/railroad.ts`, #758).
    */
   async open(name: string, editor: Editor): Promise<Opened> {
+    const closes = this.closes;
     try {
-      editor.reset(await this.store.readDrawing(name));
+      const drawing = await this.store.readDrawing(name);
+      if (closes !== this.closes) return "gone";
+      editor.reset(drawing);
       this.name = name;
       // Staging is an edit, so a railroad that arrives without placement
       // opens with something to save, and something to lose, rather than
@@ -139,6 +150,7 @@ export class Filing {
       this.clean = !editor.stage();
       this.wrong = null;
     } catch (failure) {
+      if (closes !== this.closes) return "gone";
       this.wrong = String(failure);
       this.notify();
       return failure instanceof Unanswered ? "unanswered" : "refused";
@@ -153,6 +165,7 @@ export class Filing {
    * view reads the same `""` and holds nothing either (ADR-0072, decision 3).
    */
   close(editor: Editor): void {
+    this.closes += 1;
     editor.reset(emptyDrawing(""));
     this.name = "";
     this.clean = true;
@@ -162,11 +175,17 @@ export class Filing {
   }
 
   /** The open drawing, given to the store. Saving needs a drawing to save
-   *  into: nothing is open until the row names a railroad. */
-  async save(editor: Editor): Promise<void> {
-    if (this.name === "") return;
+   *  into: nothing is open until the row names a railroad. It answers whether
+   *  the drawing reached the store with the same railroad still open, which
+   *  is what has the shell name it again (ADR-0071). */
+  async save(editor: Editor): Promise<boolean> {
+    if (this.name === "") return false;
+    const closes = this.closes;
+    let reached = false;
     try {
       await this.store.saveDrawing(editor.drawing);
+      if (closes !== this.closes) return false;
+      reached = true;
       this.clean = true;
       this.wrong = null;
       // The list is asked for again when a railroad is wanted, so a name it
@@ -175,9 +194,11 @@ export class Filing {
         this.list = [...this.list, this.name].sort();
       }
     } catch (failure) {
+      if (closes !== this.closes) return false;
       this.wrong = String(failure);
     }
     this.notify();
+    return reached;
   }
 
   /** The drawing changed. The dot goes up on the keystroke and the store is
@@ -207,9 +228,11 @@ export class Filing {
    * happens once, before anything is drawn from the answer.
    */
   private async reviewing(editor: Editor, opening = false): Promise<void> {
+    const closes = this.closes;
     try {
       const at = editor.revision;
       const first = await this.store.review(editor.drawing);
+      if (closes !== this.closes) return;
       this.wrong = null;
       const named = opening
         ? editor.remint(first, at)
@@ -219,11 +242,14 @@ export class Filing {
         // it was written with are not the ones it now holds. Minting them is
         // an edit like any other, and puts the dot up (#147).
         this.clean = false;
-        this.said = await this.store.review(editor.drawing);
+        const second = await this.store.review(editor.drawing);
+        if (closes !== this.closes) return;
+        this.said = second;
       } else {
         this.said = first;
       }
     } catch (failure) {
+      if (closes !== this.closes) return;
       this.wrong = String(failure);
     }
     this.notify();

@@ -616,12 +616,14 @@ export class TcApp extends LitElement {
    * railroad — named again on `railroad_wanted`, so every app builds what was
    * written and keeps the trains that fit (ADR-0071), as `restored` does. No
    * reload: the page already holds what it saved, and `loaded` ignores a row
-   * naming the drawing already open. A save that did not land names nothing.
+   * naming the drawing already open. A save that did not land names nothing,
+   * and nor does one that landed after the row named another railroad: what
+   * it wrote is not what is loaded (#798).
    */
   private async saving(): Promise<void> {
     const loaded = isLoaded(this.standing);
-    await this.filing.save(this.editor);
-    if (loaded && this.filing.saved) this.session?.pressRailroad(this.filing.opened);
+    const reached = await this.filing.save(this.editor);
+    if (loaded && reached) this.session?.pressRailroad(this.filing.opened);
   }
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
