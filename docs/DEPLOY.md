@@ -428,6 +428,13 @@ not build.
 | `broker` | `tc49-mqtt` | `/mqtt`, prefix stripped, to the WebSocket listener on `:9001` |
 | `broker` | `tc49-mqtt-foreign` | the same from a page on another origin, answered 403 |
 
+[`rails49/dccex`](https://github.com/rails49/dccex) uses three of these
+names: the service `broker` on `rails49` for native MQTT on 1883, the service
+`store` on `rails49` for the face on 8765, and the Traefik service `tc49-mqtt`
+for the broker's WebSocket listener
+([ADR-0075](adr/0075-another-repository-uses-the-bus-binding-the-inventory-and-three-deploy-names.md)).
+`tests/system/test_what_another_repository_uses.py` fails when one changes.
+
 The names are keyed to the stack rather than to the site. The door sees every
 stack on the box, so a name has to be unique across all of them, and the site
 prefix named a route directory that no longer exists.

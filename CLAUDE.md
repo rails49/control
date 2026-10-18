@@ -20,10 +20,10 @@ app, never a field, a topic or a branch in any other app
 ## Apps
 
 Apps import `tc49.lib` and themselves, never each other;
-`tests/system/test_app_boundaries.py` enforces it. `desired_speed`,
-`desired_position`, `desired_aspect` and `desired_function` in
-`lib/payload.py` have no caller in `src/tc49`: the `dccex` translator reads
-them through the package (#587). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+`tests/system/test_app_boundaries.py` enforces it. Another repository imports
+four `lib` modules and three deploy names
+([ADR-0075](docs/adr/0075-another-repository-uses-the-bus-binding-the-inventory-and-three-deploy-names.md));
+changing one files an issue there. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Landing work
 
