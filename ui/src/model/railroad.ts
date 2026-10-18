@@ -199,15 +199,16 @@ export class Railroad {
    * Save at a time per `Stock` (#723). Where the row names another railroad
    * while it is in flight, nothing the new railroad shows is touched and it
    * answers `false`. A Save that landed reads the trains again, the lengths
-   * they derive having moved.
+   * they derive having moved. A length edit waits while power is on or
+   * stopped, or while the row naming the railroad is not `heard` (#804).
    */
-  async save(power: Power | null): Promise<boolean> {
+  async save(power: Power | null, heard: boolean = true): Promise<boolean> {
     const stock = this.held;
     if (stock === null || this.writing === stock) return false;
     // Asked before the `PUT` so the words are this screen's own and the saved
     // roster is untouched: a train with nothing in it is one the store
     // refuses whole, and the refusal names the row to go and fill (#412).
-    const stopped = stock.stopsSaving() ?? stock.waitsForPower(power);
+    const stopped = stock.stopsSaving() ?? stock.waitsForPower(power, heard);
     if (stopped !== null) {
       this.stockWrong = stopped;
       this.notify();

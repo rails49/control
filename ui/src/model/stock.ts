@@ -256,22 +256,39 @@ export function heldBy(what: string, holders: string[]): string {
  * a train the dispatcher fits into blocks. So it is off while track power is
  * on or stopped: the run is moving trains over what the dispatcher built, and
  * a correction could only be built with power off, the layout answering
- * `railroad_wanted` only then. With power off, or no session (`null`), it is
- * on, placed trains or not: the roster's Save names the railroad again and the
- * rebuild keeps the trains that still fit
+ * `railroad_wanted` only then. With power off, or no session (`null`) on a
+ * page that holds no roster from one, it is on, placed trains or not: the
+ * roster's Save names the railroad again and the rebuild keeps the trains
+ * that still fit
  * ([ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
  * ui/STOCK.md#the-length-guard).
+ *
+ * It is off as well where the row naming the railroad is not `heard`: a page
+ * that has lost the broker still holds the roster, and cannot know whether
+ * the track has power — the broker, `layout` and the dispatcher may well be
+ * running without it (#804). It keys on the row and not on `power === null`,
+ * which a joined page whose drawing does not derive also reads, and whose
+ * lengths stay editable. Nothing is latched: the row heard again with power
+ * off, a length can be corrected.
  *
  * **A guard in one browser.** The run's power comes down from the app, which
  * is the only thing on this page that has any; a second browser editing stock
  * during a run is not covered, and the store enforces none of it (ADR-0071).
  */
-export function lengthHeld(power: Power | null): string | null {
-  return trackLive(power) ? "track power is on — turn it off to correct a length" : null;
+export function lengthHeld(power: Power | null, heard: boolean = true): string | null {
+  if (trackLive(power)) return "track power is on — turn it off to correct a length";
+  return heard
+    ? null
+    : "the layout has not said whether the track has power, so a length cannot be corrected";
 }
 
 /** What the roster's Save says while a length edit waits for power off. */
 export const LENGTH_WAITS = "a length has changed — turn track power off to save";
+
+/** What the roster's Save says while a length edit waits for the row naming
+ *  the railroad to be heard again, and with it whether the track has power. */
+export const LENGTH_UNHEARD =
+  "a length has changed — the layout has not said whether the track has power";
 
 // --- the screen's session -------------------------------------------------
 
@@ -409,10 +426,12 @@ export class Stock {
   }
 
   /** Why the roster's Save waits, or `null` where it does not: a length edit
-   *  with track power on or stopped. Any other edit saves as ever — it moves
-   *  nothing the dispatcher fits. */
-  waitsForPower(power: Power | null): string | null {
-    return this.lengthEdits && trackLive(power) ? LENGTH_WAITS : null;
+   *  with track power on or stopped, or with the row not `heard` (#804). Any
+   *  other edit saves as ever — it moves nothing the dispatcher fits. */
+  waitsForPower(power: Power | null, heard: boolean = true): string | null {
+    if (!this.lengthEdits) return null;
+    if (trackLive(power)) return LENGTH_WAITS;
+    return heard ? null : LENGTH_UNHEARD;
   }
 
   /**
@@ -449,7 +468,7 @@ export class Stock {
 
   // --- what the three lists draw -------------------------------------------
 
-  cars(power: Power | null = null): CarRow[] {
+  cars(power: Power | null = null, heard: boolean = true): CarRow[] {
     return Object.entries(this.doc.cars ?? {})
       .sort(([one], [other]) => (one < other ? -1 : 1))
       .map(([name, car]) => {
@@ -461,12 +480,12 @@ export class Stock {
           length: whole?.length ?? null,
           kind: whole?.kind ?? null,
           own: car.length !== undefined,
-          held: lengthHeld(power),
+          held: lengthHeld(power, heard),
         };
       });
   }
 
-  modelRows(power: Power | null = null): ModelRow[] {
+  modelRows(power: Power | null = null, heard: boolean = true): ModelRow[] {
     return Object.values(this.models)
       .sort((one, other) => (one.model < other.model ? -1 : 1))
       .map((model) => ({
@@ -474,7 +493,7 @@ export class Stock {
         kind: model.kind,
         length: model.length,
         holders: modelHolders(model.model, this.doc),
-        held: lengthHeld(power),
+        held: lengthHeld(power, heard),
       }));
   }
 
@@ -646,10 +665,15 @@ export class Stock {
    * trains into blocks on the length this answers, and only a build with
    * power off brings it up to date (ui/STOCK.md#the-length-guard).
    */
-  carLength(name: string, mm: number | null, power: Power | null = null): string | null {
+  carLength(
+    name: string,
+    mm: number | null,
+    power: Power | null = null,
+    heard: boolean = true,
+  ): string | null {
     const car = this.doc.cars?.[name];
     if (car === undefined) return null;
-    const held = lengthHeld(power);
+    const held = lengthHeld(power, heard);
     if (held !== null) return held;
     if (mm === null) {
       const { length: _was, ...rest } = car;
@@ -705,10 +729,15 @@ export class Stock {
   /** Correcting a product's length changes every item of that product, which
    *  is the whole reason the length lives here as well as on the car. Refused
    *  while track power is on or stopped. Written on the roster's Save. */
-  modelLength(name: string, mm: number, power: Power | null = null): string | null {
+  modelLength(
+    name: string,
+    mm: number,
+    power: Power | null = null,
+    heard: boolean = true,
+  ): string | null {
     const model = this.models[name];
     if (model === undefined) return null;
-    const held = lengthHeld(power);
+    const held = lengthHeld(power, heard);
     if (held !== null) return held;
     const trouble = lengthTrouble(mm);
     if (trouble !== null) return trouble;

@@ -13,6 +13,7 @@ import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { Filing, type Store } from "../src/model/filing.js";
 import { Railroad, type StockStore } from "../src/model/railroad.js";
+import { LENGTH_UNHEARD } from "../src/model/stock.js";
 import {
   RETRY_MS,
   Unanswered,
@@ -546,6 +547,17 @@ describe("the roster's Save", () => {
 
     expect(store.saved).toEqual([]);
     expect(railroad.stockTrouble).not.toBeNull();
+  });
+
+  /** A page that has lost the broker cannot know whether the track has power
+   *  (#804). */
+  it("writes nothing with a length edit while the row is not heard, and says why", async () => {
+    const { railroad, store } = await edited();
+
+    expect(await railroad.save(null, false)).toBe(false);
+
+    expect(store.saved).toEqual([]);
+    expect(railroad.stockTrouble).toBe(LENGTH_UNHEARD);
   });
 
   it("writes nothing with a train that has nothing in it, and says why", async () => {
