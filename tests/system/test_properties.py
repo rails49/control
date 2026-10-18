@@ -8,11 +8,12 @@ the fixed library of `tests/generate.py`; what varies is the workload.
 
 from typing import Any
 
+import pytest
 import yaml
 from hypothesis import given, note, settings
 
 from tc49.dispatcher import FullRoute, Incremental
-from tc49.dispatcher.dispatch import Request, State, effective_departure
+from tc49.dispatcher.dispatch import Request, State, broken, effective_departure
 from tc49.dispatcher.locking import congested, safety_view
 from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.safety import safe
@@ -71,6 +72,29 @@ def test_safety_invariant_holds_after_every_grant(
     assembly.bus.subscribe("tc49/dispatch/move_granted", check)
     assembly.simulator.run(TICK_LIMIT)
     assert safe(*safety_view(assembly.dispatcher.state))
+
+
+@pytest.mark.parametrize("strategy", [Incremental, FullRoute])
+@given(scenarios())
+@EXAMPLES
+def test_the_lock_table_keeps_its_rules_after_every_event(
+    strategy: type[Incremental | FullRoute],
+    case: tuple[dict[str, Any], Any, Any, Any],
+) -> None:
+    """The lock table's rules (#761) hold between events under both
+    strategies: the bus delivers one event at a time, so a subscriber to
+    every topic reads the state each handler left behind, never one caught
+    mid-handler."""
+    doc, layout, roster, scenario = case
+    note(fixture_yaml(doc))
+    assembly = build(layout, roster, scenario, strategy, K)
+
+    def check(topic: str, payload: Payload) -> None:
+        assert broken(assembly.dispatcher.state) == [], f"after {topic} {payload}"
+
+    assembly.bus.subscribe("#", check)
+    assembly.simulator.run(TICK_LIMIT)
+    assert broken(assembly.dispatcher.state) == []
 
 
 def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:

@@ -34,6 +34,7 @@ not read. The one thing left that could take the app off the bus was a sensor
 reading no granted move accounts for; it holds the run instead (ADR-0048).
 """
 
+import sys
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 
@@ -423,6 +424,86 @@ def disputed(state: State) -> Payload:
     }
 
 
+def broken(state: State) -> list[str]:
+    """The lock table's rules that `state` breaks, one line each and sorted,
+    so equal states give equal lists (#761). Reads and writes nothing else.
+
+    The rules are what the four maps — `locks`, `block_of`, `crossing` and
+    `residue` — keep between them at the end of an event: a placed train
+    holds the lock on its block; every lock is a placed train's or residue;
+    an idle train holds its block and its residue and nothing more; residue
+    is locked, and a block in it reads occupied with nobody standing there; an
+    active train is placed, and holds and is crossing what its outstanding
+    move took; a crossing train is placed; and no two trains' locked transits
+    conflict (ADR-0006).
+
+    The dispatcher holds the run on a rule newly broken (ADR-0076). `safe()`
+    is not among them: its cost grows exponentially with the active trains
+    (ADR-0003).
+    """
+    lines: list[str] = []
+    placed = state.block_of
+    for train, block in placed.items():
+        holder = state.locks.get(block)
+        if holder != train:
+            lines.append(
+                f"{train} stands in {block}, which is locked to {holder or 'nobody'}"
+            )
+    for resource, holder in state.locks.items():
+        if holder not in placed and resource not in state.residue:
+            lines.append(f"{resource} is locked to {holder}, which is not placed")
+    for resource, holder in state.locks.items():
+        if (
+            holder in placed
+            and holder not in state.active
+            and resource != placed[holder]
+            and resource not in state.residue
+        ):
+            lines.append(f"{holder} is idle and holds {resource}")
+    for resource in state.residue:
+        holder = state.locks.get(resource)
+        if holder is None:
+            lines.append(f"{resource} is residue and not locked")
+        elif resource in state.layout.blocks:
+            if state.reported.get(resource) is not True:
+                lines.append(f"{resource} is {holder}'s residue and not read occupied")
+            if placed.get(holder) == resource:
+                lines.append(f"{resource} is {holder}'s residue and it stands there")
+        elif not any(
+            block in state.residue and state.locks.get(block) == holder
+            for block in transit_blocks(state.layout, resource)
+        ):
+            lines.append(f"{resource} is {holder}'s residue with neither block kept")
+    for train, active in state.active.items():
+        if train not in placed:
+            lines.append(f"{train} is active and not placed")
+        move = active.outstanding
+        if move is None:
+            if train in state.crossing:
+                lines.append(f"{train} has no move and is crossing")
+            continue
+        for resource in (move.transit, move.into):
+            if state.locks.get(resource) != train:
+                lines.append(f"{train} is moving through {resource} and not holding it")
+        if state.crossing.get(train) != move.transit:
+            lines.append(
+                f"{train} is moving through {move.transit} and not crossing it"
+            )
+    for train in state.crossing:
+        if train not in placed:
+            lines.append(f"{train} is crossing and not placed")
+    transits = sorted(
+        (resource, holder)
+        for resource, holder in state.locks.items()
+        if "." in resource
+    )
+    for i, (one, by) in enumerate(transits):
+        for other, also in transits[i + 1 :]:
+            if by != also and state.layout.conflicts(one, other):
+                lines.append(f"{one} locked to {by} conflicts with {other} of {also}")
+    return sorted(lines)
+
+
 @dataclass(frozen=True)
 class Adopted:
     """What a restart takes from the last picture (`restored`)."""
@@ -659,6 +740,9 @@ class Dispatcher:
         self._published_run: Payload | None = None
         # The trains the rebuild left off, until a person places each one.
         self._unfit = dict(adopted.unfit)
+        # The lock table's rules broken at the last check (`_check`), so only
+        # a rule newly broken holds the run.
+        self._broken: list[str] = []
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -676,6 +760,7 @@ class Dispatcher:
         self._publish_allocation()
         self._publish_disputed()
         self._publish_unfit()
+        self._check()
 
     # -- live state, for the property tests' oracles ------------------------
 
@@ -891,6 +976,7 @@ class Dispatcher:
             self._revoke(payload)
         elif leaf == "point_wanted":
             self._throw(payload)
+        self._check()
 
     def _set_run(self, payload: Payload) -> None:
         """Hold the run, or release it.
@@ -1086,9 +1172,9 @@ class Dispatcher:
         the train, and so does the transit it was crossing while either of
         that transit's blocks does. Those wait in `residue` for a clear
         reading (`_lifted`). Everything else goes in one `lock_released` —
-        the sweep is by holder, because a restored crossing train holds the
-        transit it was on and the block behind it as well (#154), and a
-        train mid-request holds its route. A block the layout has said
+        the sweep is by holder, because a train mid-request holds its route,
+        and a restored crossing train holds its block as any placed train
+        does (#154). A block the layout has said
         nothing about has nothing to wait for and is released, as everywhere
         else in the dispatcher.
 
@@ -1167,8 +1253,8 @@ class Dispatcher:
 
         **One release path**, because there is only one fact to state: the
         resources are free and nothing took them. A train at rest holds its
-        standing block, a restored crossing train holds the transit it was on
-        and the block behind it as well (#154), and a train under `FullRoute`
+        standing block, a restored crossing train holds its block as any
+        placed train does (#154), and a train under `FullRoute`
         holds every block of a route it will now never run — so the sweep is
         by **holder** rather than of a named set, and a caller that knew the
         set would be re-deriving the lock table.
@@ -1334,24 +1420,23 @@ class Dispatcher:
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "power":
-            if not self._ordering.accepts(topic, payload):
-                # An older value of the supply than the one already held, so
-                # the wire handed the pair over backwards: it is ignored, and
-                # quietly — the trace has it, as it has every frame. The
-                # sensor leaves below take no such guard, being event topics
-                # where a repeat re-asserts a level (ADR-0047).
-                return
-            self._on_power(payload)
+            # An older value of the supply than the one already held means
+            # the wire handed the pair over backwards: it is ignored, and
+            # quietly — the trace has it, as it has every frame. The sensor
+            # leaves below take no such guard, being event topics where a
+            # repeat re-asserts a level (ADR-0047).
+            if self._ordering.accepts(topic, payload):
+                self._on_power(payload)
         elif leaf in ("block_occupied", "block_vacated"):
             block = occupancy(payload)
-            if block is None:
-                # Dropped, and on the trace already by virtue of having been
-                # published (ADR-0034): the block stays out of `reported`, so
-                # it takes no part in the check and the next report settles
-                # it. Why this direction and not the power enum's is
-                # SYSTEM.md, sole payload authority (#181).
-                return
-            self._on_sensor(leaf == "block_occupied", block)
+            # None is dropped, and on the trace already by virtue of having
+            # been published (ADR-0034): the block stays out of `reported`,
+            # so it takes no part in the check and the next report settles
+            # it. Why this direction and not the power enum's is SYSTEM.md,
+            # sole payload authority (#181).
+            if block is not None:
+                self._on_sensor(leaf == "block_occupied", block)
+        self._check()
 
     def _on_sensor(self, occupied: bool, block: str) -> None:
         """One detector reading, applied where it lands (ADR-0047).
@@ -1409,6 +1494,29 @@ class Dispatcher:
         (#153). They walk the railroad, place what they find, and press GO.
         """
         self._move_run(HELD)
+
+    def _check(self) -> None:
+        """The lock table's rules, checked (`broken`): a rule broken now and
+        not at the last check **holds the run**, by the path an unexplained
+        reading takes, and is written to stderr (ADR-0076).
+
+        A rule still broken from the last check does nothing, so a person who
+        has looked and pressed GO is not overruled by the next sweep; one that
+        clears and breaks again holds again. It does not raise, for
+        ADR-0048's reason: an exception out of a handler takes the app off
+        the bus. Nothing goes on the bus for it either.
+
+        Called at the end of each event and before each grant pass, never
+        after a single write: a handler changes several maps in steps, and
+        the steps are not meant to agree with each other in between.
+        """
+        lines = broken(self._state)
+        new = [line for line in lines if line not in self._broken]
+        self._broken = lines
+        for line in new:
+            print(f"dispatcher: lock table: {line}", file=sys.stderr, flush=True)
+        if new:
+            self._move_run(HELD)
 
     def _arrived(self, block: str) -> None:
         """`block_occupied` records where the train arrived. The move is not
@@ -1534,6 +1642,9 @@ class Dispatcher:
         exactly what runs wherever a train can have stopped being active.
         """
         self._phases += 1
+        # Before the grant pass, so a table that has stopped agreeing with
+        # itself grants nothing in this sweep (ADR-0076).
+        self._check()
         if self._state.run != HELD:
             self._grant()
         self._publish_aspects()
