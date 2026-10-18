@@ -32,6 +32,7 @@ import {
   type Answers,
 } from "./support/shell.js";
 import {
+  Broker,
   brokering,
   DERIVES,
   loads,
@@ -632,6 +633,26 @@ describe("the roster's Save with a length corrected", () => {
 
     expect(trouble(shell)).not.toBeNull();
     expect(wants()).toEqual([]);
+  });
+
+  /** A save that lands with the broker gone has nobody to name the railroad
+   *  to, and the row coming back names the same one, so the press is owed
+   *  and sent once the row and power off are replayed (#803). */
+  it("names the railroad once the broker is back, for a save made while it was gone", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
+    Broker.last!.closes();
+    await settled(shell);
+
+    await pressed(shell, "sl-button.save");
+    expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+    expect(wants()).toEqual([]);
+
+    Broker.last!.opens();
+    await settled(shell);
+
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
   });
 
   /** A model's length corrected on its row is written on Save, before the

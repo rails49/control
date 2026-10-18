@@ -577,13 +577,16 @@ export class TcApp extends LitElement {
 
   /**
    * A roster save that changed a length landed, and the railroad it was for
-   * is named again where it is the one loaded, so the dispatcher fits trains
-   * with the new length and a train now longer than its block comes off and
-   * is listed (ADR-0071), as `restored` does. No reload: the stock view holds
-   * what it saved. A roster of any other railroad is only a file.
+   * is named again, so the dispatcher fits trains with the new length and a
+   * train now longer than its block comes off and is listed (ADR-0071), as
+   * `restored` does. No reload: the stock view holds what it saved. Not
+   * compared with `status.railroad`, which reads nothing once the broker has
+   * gone: `lengths-saved` fires only for the railroad still held, a save
+   * landing after the row named another answering `false`, and a
+   * press the broker was not there to hear is sent once it is back (#803).
    */
   private lengthened(railroad: string): void {
-    if (railroad === this.status.railroad) this.session?.pressRailroad(railroad);
+    this.session?.pressRailroad(railroad);
   }
 
   // --- the rail and the keyboard -------------------------------------------
@@ -618,7 +621,9 @@ export class TcApp extends LitElement {
    * reload: the page already holds what it saved, and `loaded` ignores a row
    * naming the drawing already open. A save that did not land names nothing,
    * and nor does one that landed after the row named another railroad: what
-   * it wrote is not what is loaded (#798).
+   * it wrote is not what is loaded (#798). One that landed with the broker
+   * gone names the railroad once the broker is back, the row names it again
+   * and power reads off (#803).
    */
   private async saving(): Promise<void> {
     const loaded = isLoaded(this.standing);
