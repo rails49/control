@@ -249,7 +249,6 @@ def test_a_grant_reaches_one_increment_past_what_it_needs() -> None:
     assert isinstance(move, Move)
     assert move.locked == [route.transits[0], route.blocks[1]]
     assert move.ahead == [route.transits[1], route.blocks[2]]
-    assert state.locks[route.blocks[2]] == "t"
 
 
 def test_an_unavailable_second_increment_refuses_nothing() -> None:

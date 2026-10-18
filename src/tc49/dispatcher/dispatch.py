@@ -1626,6 +1626,11 @@ class Dispatcher:
 
     def _launch(self, req: Request, launched: Launched) -> None:
         self._pending.remove(req)
+        # The strategy says what to lock and the dispatcher locks it (#761),
+        # before the grant below, which reads the launch's locks to tell what
+        # it newly locks.
+        for resource in launched.locked:
+            self._state.locks[resource] = req.train
         self._publish(
             "route_chosen",
             {
@@ -1664,6 +1669,8 @@ class Dispatcher:
                 },
             )
             return
+        for resource in (*result.locked, *result.ahead):
+            self._state.locks[resource] = active.request.train
         for resources in (result.locked, result.ahead):
             # Two grants, not one of four: a grant is a transit with its far
             # block, and the second increment is a separate one (ADR-0029).
@@ -1680,7 +1687,7 @@ class Dispatcher:
                 "train": active.request.train,
                 "transit": result.transit,
                 "into": result.into,
-                # Read off the locks the strategy has just taken, from where
+                # Read off the locks the move has just taken, from where
                 # the train still stands: cur_index advances below.
                 "aspect": aspect_of(
                     locked_ahead(

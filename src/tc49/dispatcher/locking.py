@@ -4,13 +4,15 @@ A strategy answers two questions against the dispatcher's live state:
 ``launch`` — commit a route for a pending request from the origin and
 departure end the dispatcher hands it, locking whatever the strategy's
 discipline requires; ``grant`` — advance an active train by one move. Both
-mutate ``state.locks`` and report what they newly locked so the dispatcher
-can publish the lock ledger.
+return what to lock and write nothing: the state they are handed is
+``ReadOnlyState``, and the dispatcher locks what they return and publishes
+the lock ledger from it, so the dispatcher is the lock table's one writer
+(#761).
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -20,7 +22,7 @@ from tc49.lib.inventory import Refusal
 from tc49.lib.layout import Layout
 
 if TYPE_CHECKING:
-    from tc49.dispatcher.dispatch import Request, State
+    from tc49.dispatcher.dispatch import Active, Request
 
 
 @dataclass(frozen=True)
@@ -49,9 +51,32 @@ class Move:
     ahead: list[str]
 
 
+class ReadOnlyState(Protocol):
+    """What a strategy reads of the dispatcher's `State`, and nothing it could
+    write: `State` satisfies it as it is, and a strategy handed one cannot
+    take a lock itself (#761)."""
+
+    @property
+    def layout(self) -> Layout: ...
+
+    @property
+    def roster(self) -> Mapping[str, int]: ...
+
+    @property
+    def locks(self) -> Mapping[str, str]: ...
+
+    @property
+    def block_of(self) -> Mapping[str, str]: ...
+
+    @property
+    def active(self) -> Mapping[str, Active]: ...
+
+    def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
+
+
 class LockingStrategy(Protocol):
     def launch(
-        self, req: Request, origin: str, depart: str, state: State
+        self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
         """Try to launch; None means no candidate routes exist (unreachable).
 
@@ -60,12 +85,12 @@ class LockingStrategy(Protocol):
         not the strategy's."""
         ...
 
-    def grant(self, train: str, state: State) -> Move | Refused:
+    def grant(self, train: str, state: ReadOnlyState) -> Move | Refused:
         """The active train's next move, or why it must wait."""
         ...
 
 
-def congested(state: State, train: str) -> frozenset[str]:
+def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
     """The congested blocks route selection steers around (#33): blocks
     locked by another train — idle holders included — and blocks on the
     committed remaining route of another active train. The committed part is
@@ -92,7 +117,7 @@ class FullRoute:
         self._k = k
 
     def launch(
-        self, req: Request, origin: str, depart: str, state: State
+        self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
         routes = candidates(
             self._layout,
@@ -117,15 +142,12 @@ class FullRoute:
                 None,
             )
             if blocking is None:
-                locked = route.crossing_order()
-                for resource in locked:
-                    state.locks[resource] = req.train
-                return Launched(route, tried, locked)
+                return Launched(route, tried, route.crossing_order())
             reason = reason or blocking[0]
             obstacles.append({"resource": blocking[1], "holder": blocking[2]})
         return Refused(reason, obstacles)
 
-    def grant(self, train: str, state: State) -> Move:
+    def grant(self, train: str, state: ReadOnlyState) -> Move:
         active = state.active[train]
         i = active.cur_index
         return Move(
@@ -155,7 +177,7 @@ class Incremental:
         self._k = k
 
     def launch(
-        self, req: Request, origin: str, depart: str, state: State
+        self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
         routes = candidates(
             self._layout,
@@ -189,8 +211,6 @@ class Incremental:
                 rem[req.train] = list(route.blocks[2:])
                 held[req.train] = []  # the increment is cur; nothing beyond it
                 if safe(cur, rem, idle, held):
-                    for resource in increment:
-                        state.locks[resource] = req.train
                     return Launched(route, tried, increment)
                 blocking = (
                     Refusal.UNSAFE,
@@ -200,7 +220,7 @@ class Incremental:
             obstacles.append({"resource": blocking[1], "holder": blocking[2]})
         return Refused(reason, obstacles)
 
-    def grant(self, train: str, state: State) -> Move | Refused:
+    def grant(self, train: str, state: ReadOnlyState) -> Move | Refused:
         active = state.active[train]
         i = active.cur_index
         transit, into = active.route.transits[i], active.route.blocks[i + 1]
@@ -221,8 +241,9 @@ class Incremental:
                 # The move after a launch re-grants the increment the launch
                 # already locked; report only what is newly locked.
                 newly = [r for r in (transit, into) if state.locks.get(r) != train]
-                state.locks[transit] = train
-                state.locks[into] = train
+                # Asked as if the first increment were locked, which is what
+                # it reads as: `obstacle` passes the train's own transits and
+                # `safety_view` skips the train.
                 ahead = self._reach_ahead(train, i, state)
                 return Move(active.route.blocks[i], transit, into, newly, ahead)
             blocking = (
@@ -231,7 +252,7 @@ class Incremental:
             )
         return Refused(blocking[0], [{"resource": blocking[1], "holder": blocking[2]}])
 
-    def _reach_ahead(self, train: str, i: int, state: State) -> list[str]:
+    def _reach_ahead(self, train: str, i: int, state: ReadOnlyState) -> list[str]:
         """The second increment, asked for once the first is granted. Returns
         what it locked, or [] — obstructed, unsafe, or a route with nothing
         that far ahead. Never a refusal: the move has already been granted,
@@ -252,13 +273,11 @@ class Incremental:
         held[train] = [into]
         if not safe(cur, rem, idle, held):
             return []
-        state.locks[transit] = train
-        state.locks[into] = train
         return [transit, into]
 
 
 def safety_view(
-    state: State, skip: str | None = None
+    state: ReadOnlyState, skip: str | None = None
 ) -> tuple[dict[str, str], dict[str, list[str]], list[str], dict[str, list[str]]]:
     """The safe() inputs for the current state, excluding `skip` (the train
     whose tentative position the caller supplies), if any.
@@ -283,7 +302,7 @@ def safety_view(
 
 
 def _unsafe_obstacle(
-    remaining: Sequence[str], state: State, train: str
+    remaining: Sequence[str], state: ReadOnlyState, train: str
 ) -> tuple[str, str]:
     """Name the obstacle behind an unsafe verdict: the first remaining
     block another train holds, or — the shared-destination case, where
