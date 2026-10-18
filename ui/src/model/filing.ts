@@ -31,8 +31,13 @@ import {
   readDrawing,
   review,
   saveDrawing,
+  Unanswered,
   type Review,
 } from "./store.js";
+
+/** What came of opening a drawing: it arrived, the store did not answer, or
+ *  the store refused. */
+export type Opened = "opened" | "unanswered" | "refused";
 
 /** The store's routes, as the editor uses them. */
 export interface Store {
@@ -119,10 +124,12 @@ export class Filing {
 
   /**
    * One drawing, read into the editor and reviewed. It answers whether a
-   * drawing arrived, which is what tells the shell to fit the canvas to it:
-   * the two DOM touches in this are the shell's and stay there.
+   * drawing arrived and, where none did, which way it failed: a store that did
+   * not answer is one to ask again, and a refusal would be refused again the
+   * same (`Unanswered`, model/store.ts). Reading again is the loaded
+   * railroad's (`model/railroad.ts`, #758).
    */
-  async open(name: string, editor: Editor): Promise<boolean> {
+  async open(name: string, editor: Editor): Promise<Opened> {
     try {
       editor.reset(await this.store.readDrawing(name));
       this.name = name;
@@ -134,10 +141,10 @@ export class Filing {
     } catch (failure) {
       this.wrong = String(failure);
       this.notify();
-      return false;
+      return failure instanceof Unanswered ? "unanswered" : "refused";
     }
     await this.reviewing(editor, true);
-    return true;
+    return "opened";
   }
 
   /**

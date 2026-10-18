@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { Filing, type Store } from "../src/model/filing.js";
-import type { Review } from "../src/model/store.js";
+import { Unanswered, type Review } from "../src/model/store.js";
 import { CLEAN } from "./support/shell.js";
 
 /** What derivation came back with over a way it refused (#93). */
@@ -123,7 +123,7 @@ describe("opening a drawing", () => {
 
     const arrived = await filing.open("reversing-loops", editor);
 
-    expect(arrived).toBe(true);
+    expect(arrived).toBe("opened");
     expect(filing.opened).toBe("reversing-loops");
     expect(Object.keys(editor.drawing.symbols).sort()).toEqual(["b1", "sw1"]);
   });
@@ -167,9 +167,22 @@ describe("opening a drawing", () => {
 
     const arrived = await filing.open("otira", editor);
 
-    expect(arrived).toBe(false);
+    expect(arrived).toBe("refused");
     expect(filing.opened).toBe("");
     expect(filing.trouble).toContain("no drawing 'otira'");
+  });
+
+  /** A store that did not answer is one to ask again, and a refusal is not:
+   *  the caller reading again is told which it was (#758). */
+  it("answers unanswered where nothing came back from the store", async () => {
+    const { filing, store, editor } = made(["reversing-loops"]);
+    store.broken = new Unanswered("the store is not answering");
+
+    const arrived = await filing.open("reversing-loops", editor);
+
+    expect(arrived).toBe("unanswered");
+    expect(filing.opened).toBe("");
+    expect(filing.trouble).toContain("the store is not answering");
   });
 });
 
