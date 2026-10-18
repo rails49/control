@@ -223,3 +223,12 @@ and each is worth a test.
   [ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md)) is the
   remedy — orthogonal to safety, since it only reorders which *safe* grants
   get issued and can never make an unsafe grant reachable.
+
+## Rigor
+
+Deadlock freedom is established by the written argument on this page. Each
+boundary condition above is backed by a test, one scenario per condition
+(`tests/system/test_safety_conditions.py`), and the safety invariant is checked
+by a Hypothesis property over the real assembly on the bus
+(`tests/system/test_properties.py`). Formal or mechanized verification is out
+of scope.

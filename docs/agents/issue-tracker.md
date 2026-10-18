@@ -91,7 +91,7 @@ None.
   stock view's thumbnail and dialog
   ([#631](https://github.com/rails49/control/issues/631)).
 - [Milestone 2 map: connect hardware and run trains](https://github.com/rails49/control/issues/193)
-  — the way to `docs/MILESTONE-2.md`: a physical binding of the layout
+  — the way to trains on a physical layout: a physical binding of the layout
   interface, a driver that turns an aspect into a speed, stock a real railroad
   has, a scheduler that runs trains unattended, and a person's throttle. Closed
   on 2026-09-03 to clear the tracker rather than at the end of the way.

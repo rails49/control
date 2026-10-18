@@ -5,12 +5,10 @@ Software for scheduling, dispatching, and driving trains on a model railroad. Se
 high-throughput dispatch ([docs/dispatcher/DISPATCH.md](docs/dispatcher/DISPATCH.md)).
 
 [docs/GOALS.md](docs/GOALS.md) is the **end state**: the three functions —
-scheduling, dispatching, driving — and how they meet. The repo builds it in
-slices: [docs/MILESTONE-1.md](docs/MILESTONE-1.md), reached, and
-[docs/MILESTONE-2.md](docs/MILESTONE-2.md), the physical layout, not reached.
-Read GOALS.md before any design change and say whether a change belongs to
-the end state or to a milestone. Where a
-doc and GOALS.md disagree, GOALS.md is right and the doc is a bug.
+scheduling, dispatching, driving — and how they meet.
+[docs/SYSTEM.md](docs/SYSTEM.md) is what runs now, and issues are what is
+next. Read GOALS.md before any design change. Where a doc and GOALS.md
+disagree, GOALS.md is right and the doc is a bug.
 
 **The physical railroad decides.** Before designing anything, say how it
 behaves on the actual layout. Consider the simulator only once that has an
