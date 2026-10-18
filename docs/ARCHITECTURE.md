@@ -37,9 +37,11 @@ table exists anywhere (ADR-0043).
 #567 and the translator with #587, and both are
 [`rails49/dccex`](https://github.com/rails49/dccex)
 ([its ADR-0014](https://github.com/rails49/dccex/blob/main/docs/adr/0014-the-translator-is-on-the-bus-through-controls-package.md)).
-That repository depends on this one as a package, for `tc49.lib` and nothing
-else: a translator meets these apps on the bus and over the store's face, on
-the terms every app meets them on. Every translator after it is on those
+That repository depends on this one as a package, for `tc49.lib.bus`,
+`tc49.lib.mqtt`, `tc49.lib.clock` and `tc49.lib.inventory` and nothing else
+([ADR-0075](adr/0075-another-repository-uses-the-bus-binding-the-inventory-and-three-deploy-names.md)):
+a translator meets these apps on the bus and over the store's face, on the
+terms every app meets them on. Every translator after it is on those
 terms: a repository of its own, never a package added here.
 
 Apps import `tc49.lib` and themselves, **never each other**. They meet only
