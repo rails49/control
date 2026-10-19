@@ -528,13 +528,16 @@ in [BUS.md](BUS.md#device-vocabulary).
     [ui/PANEL.md](ui/PANEL.md) and [ui/EDITOR.md](ui/EDITOR.md#the-band).
 18. The simulator answers `power_wanted` by the same rule, kept in
     `tc49.lib.power`, and starts `off`. Having no hardware, it states the last
-    `on` or `off` it applied, with a held `draining` over it. While power is
-    not `on` it starts no move. A transit under way follows the supply, as a
-    train on steel does: a drain leaves the supply on, so it runs to its
-    sensors, and while the supply is off it advances none and goes on with
-    the time it had left when power returns. The bench publishes
+    `on` or `off` it applied, with a held `draining` over it. It starts a
+    move while power reads `on` or `draining`, and keeps one that arrives
+    while the supply is off until it is on again, when the move starts if
+    its train still stands at the near end. A transit under way follows the
+    supply, as a train on steel does: a drain leaves the supply on, so it
+    runs to its sensors, and while the supply is off it advances none and
+    goes on with the time it had left when power returns. The bench publishes
     `power_wanted: on` before a run (ADR-0070, #752,
-    [#832](https://github.com/rails49/control/issues/832)).
+    [#832](https://github.com/rails49/control/issues/832),
+    [#863](https://github.com/rails49/control/issues/863)).
 19. `layout` and the simulator answer `tc49/layout/railroad_wanted` only while
     `state/power` reads `off`. A binding with no railroad loaded answers it
     whatever the power reads. The UI asks for power off before it loads,
