@@ -26,7 +26,6 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import type { RosterRow } from "../model/panel.js";
-import type { Run } from "../model/trace.js";
 import { rosterStyles } from "./tc-roster.styles.js";
 
 /** A row picked up, and where the pointer was when it was let go. Client
@@ -45,20 +44,19 @@ export class TcRoster extends LitElement {
    *  the order is the model's (`panel.roster`). */
   @property({ attribute: false }) trains: readonly RosterRow[] = [];
 
-  /** How the run stands, `null` while no session is joined. A placement is
-   *  accepted only while the run is **held** (ADR-0037), so that is when a row
-   *  may be dragged; the pane says so rather than letting a drag be swallowed
-   *  by the dispatcher. */
-  @property({ attribute: false }) run: Run | null = null;
+  /** Whether a session is joined. A placement is accepted at any power
+   *  (ADR-0080), so that is when a row may be dragged; which block it may
+   *  land on is the view's to judge. */
+  @property({ attribute: false }) live = false;
 
   /** The row being dragged, so it reads as picked up. Nothing else about the
    *  drag is here: where it lands is the view's. */
   @state() private held: string | null = null;
 
-  /** Whether a row may be picked up at all. A placement is accepted only
-   *  while the run is held, so that is the whole of the rule. */
+  /** Whether a row may be picked up at all: there is a session to send the
+   *  placement to, which is the whole of the rule. */
   private get pickable(): boolean {
-    return this.run === "held";
+    return this.live;
   }
 
   override render() {
@@ -71,11 +69,6 @@ export class TcRoster extends LitElement {
               ${this.trains.map((train) => this.row(train))}
             </ul>
           `}
-      ${this.run === "running"
-        ? html`<p class="hint">
-            the run is running — hold it to place trains
-          </p>`
-        : nothing}
     `;
   }
 

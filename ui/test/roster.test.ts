@@ -32,15 +32,12 @@ import {
   written,
 } from "./support/session.js";
 
-/** The pane, holding the rows it was handed, with the run held so its rows
- *  can be picked up. */
-async function pane(
-  trains: RosterRow[],
-  run: "held" | "running" | null = "held",
-): Promise<TcRoster> {
+/** The pane, holding the rows it was handed, with a session joined so its
+ *  rows can be picked up. */
+async function pane(trains: RosterRow[], live = true): Promise<TcRoster> {
   const roster = document.createElement("tc-roster");
   roster.trains = trains;
-  roster.run = run;
+  roster.live = live;
   document.body.append(roster);
   await roster.updateComplete;
   return roster;
@@ -181,8 +178,9 @@ describe("what fills it in a live session", () => {
  * a row picked up in the pane places its train, a marker picked up on the
  * canvas asks for a request, and dropping a marker back on the pane takes the
  * train off the layout. Never the run's state — one motion cannot mean two
- * things depending on a word in the band. The run's state only refuses: a
- * placement while running, never a removal (ADR-0069).
+ * things depending on a word in the band. Both are live at any power
+ * (ADR-0080): a placement only into a free block, a removal anywhere
+ * (ADR-0069).
  *
  * happy-dom's `getScreenCTM` is the identity, so a client pixel reads as a
  * grid square and a block's centre is the point to let go over.
@@ -315,11 +313,11 @@ describe("its drags", () => {
     ]);
   });
 
-  /** A placement is refused while the run is running: the dispatcher would
-   *  drop it, granting against the picture the whole time, and the pane says
-   *  so rather than letting a drag be swallowed. */
-  it("places nothing while the run is running, and says why", async () => {
+  /** With power on: a placement is accepted at any power into a free block
+   *  (#831), and the drag comes before the cars go down. */
+  it("places a train into a free block with power on", async () => {
     const shell = await joined();
+    await said(shell, "tc49/layout/state/power", { power: "on" });
     await said(shell, "tc49/dispatch/state/run", { run: "running" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
@@ -329,10 +327,53 @@ describe("its drags", () => {
 
     await dragRow(shell, "shunter", MIDDLE.b);
 
+    expect(written()).toContainEqual({
+      topic: "tc49/dispatch/placement_wanted",
+      payload: { train: "shunter", block: "b" },
+    });
+    expect(paneOf(shell).renderRoot.querySelector(".hint")).toBeNull();
+  });
+
+  /** A block another train holds the lock on is not free: the dispatcher
+   *  would drop the placement, so it is not sent. */
+  it("places nothing into a locked block", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods", b: "goods" },
+      requests: [],
+    });
+
+    await dragRow(shell, "shunter", MIDDLE.b);
+
     expect(written()).toEqual([]);
-    expect(paneOf(shell).renderRoot.querySelector(".hint")!.textContent).toContain(
-      "the run is running — hold it to place trains",
-    );
+  });
+
+  /** Nor is a block on an active train's remaining route, locked or not. */
+  it("places nothing into a block on an active route", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [
+        { id: "r1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "b"] },
+      ],
+    });
+
+    await dragRow(shell, "shunter", MIDDLE.b);
+
+    expect(written()).toEqual([]);
+  });
+
+  /** Nor a block a train stands in. */
+  it("places nothing into a block a train stands in", async () => {
+    const shell = await held();
+
+    await dragRow(shell, "shunter", MIDDLE.a);
+
+    expect(written()).toEqual([]);
   });
 
   /** A removal is not (ADR-0069): the dispatcher keeps what still reads
