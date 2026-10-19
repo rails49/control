@@ -475,7 +475,7 @@ function saving(shell: TcApp): HTMLElement & { disabled: boolean } {
 }
 
 /** The ore train saved and standing in block `a`, with track power as given. */
-async function placed(shell: TcApp, power: "on" | "stopped" | "off"): Promise<void> {
+async function placed(shell: TcApp, power: "on" | "draining" | "off"): Promise<void> {
   await ore(shell);
   await pressed(shell, "sl-button.save");
   store.rosterOf = () => ({ ore: { length: 422 } });
@@ -492,7 +492,7 @@ describe("the length guard", () => {
   /** A UI guard in one browser: `tc-app` holds the run's power and passes it
    *  down (ADR-0071). A second browser editing stock during a run is not
    *  covered. */
-  it.each(["on", "stopped"] as const)(
+  it.each(["on", "draining"] as const)(
     "kills length editing while power is %s, and says why",
     async (power) => {
       const shell = await opened();
@@ -644,7 +644,7 @@ describe("the length guard", () => {
 
 /**
  * A length correction is saved with the roster (ADR-0071, decision 6). The
- * layout builds only with power off, so while power is on or stopped the Save
+ * layout builds only with power off, so while power is on or draining the Save
  * waits if its edits change a length; a save that changed one names the loaded
  * railroad again, so the dispatcher fits trains with the new length.
  */
@@ -766,7 +766,7 @@ describe("the roster's Save with a length corrected", () => {
       expect(saving(shell).disabled).toBe(true);
     });
 
-    it.each(["on", "stopped"] as const)(
+    it.each(["on", "draining"] as const)(
       "is dead while power is %s, and says why",
       async (power) => {
         const shell = await opened();

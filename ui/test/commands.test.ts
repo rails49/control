@@ -197,7 +197,7 @@ describe("the ends of the snapshot stack", () => {
 });
 
 /**
- * Track power on or stopped freezes the drawing
+ * Track power on or draining freezes the drawing
  * ([ADR-0071](../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
  * decision 5). With power on the run moves trains over what the dispatcher
  * built, so every command that changes the document is dead and the rest are
@@ -221,9 +221,9 @@ describe("what track power freezes", () => {
     properties: { selection: 1, editable: true },
   };
 
-  it("kills every command that changes the drawing while power is on or stopped", () => {
+  it("kills every command that changes the drawing while power is on or draining", () => {
     for (const [id, alive] of Object.entries(CHANGES)) {
-      for (const power of ["on", "stopped"] as const) {
+      for (const power of ["on", "draining"] as const) {
         expect(on(id as CommandId, { ...alive, power }), `${id} ${power}`).toBe(false);
       }
     }
@@ -254,7 +254,7 @@ describe("what track power freezes", () => {
     expect(frozen(standing())).toBe(false);
     expect(frozen(standing({ power: "off" }))).toBe(false);
     expect(frozen(standing({ power: "on" }))).toBe(true);
-    expect(frozen(standing({ power: "stopped" }))).toBe(true);
+    expect(frozen(standing({ power: "draining" }))).toBe(true);
   });
 
   /** The rule is read off power afresh rather than latched, so switching it
@@ -287,9 +287,9 @@ describe("what track power freezes", () => {
 describe("saving the loaded railroad", () => {
   const edited = { opened: "toy", loaded: "toy", saved: false };
 
-  it("is dead while power is on or stopped", () => {
+  it("is dead while power is on or draining", () => {
     expect(on("save", { ...edited, power: "on" })).toBe(false);
-    expect(on("save", { ...edited, power: "stopped" })).toBe(false);
+    expect(on("save", { ...edited, power: "draining" })).toBe(false);
     expect(on("save", { ...edited, power: "off" })).toBe(true);
   });
 

@@ -1287,14 +1287,26 @@ describe("whether the rails have power", () => {
     expect(panel().power).toBeNull();
   });
 
-  it("takes the value the topic carries, either way of standing still", () => {
+  it("takes the value the topic carries", () => {
     const model = panel();
     feed(model, { event: "power", power: "off" });
     expect(model.power).toBe("off");
-    feed(model, { event: "power", power: "stopped" });
-    expect(model.power).toBe("stopped");
+    feed(model, { event: "power", power: "draining" });
+    expect(model.power).toBe("draining");
     feed(model, { event: "power", power: "on" });
     expect(model.power).toBe("on");
+  });
+
+  /** As `tc49.lib.payload.power` reads it: the retired `stopped`, and any
+   *  other word outside the three, is `off` (ADR-0078, #834). */
+  it("reads a word outside the three as off", () => {
+    const model = panel();
+    feed(model, { event: "power", power: "on" });
+    feed(model, { event: "power", power: "stopped" });
+    expect(model.power).toBe("off");
+    feed(model, { event: "power", power: "on" });
+    feed(model, { event: "power" });
+    expect(model.power).toBe("off");
   });
 
   it("is forgotten when the model starts over", () => {
@@ -1474,7 +1486,7 @@ describe("a state value that arrives out of order", () => {
     feed(
       model,
       { event: "power", at: 20, power: "on" },
-      { event: "power", power: "stopped" },
+      { event: "power", power: "draining" },
       { event: "power", at: 1, power: "off" },
     );
     expect(model.power).toBe("off");

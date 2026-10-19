@@ -135,7 +135,7 @@ describe("what the band says", () => {
 describe("track power", () => {
   it("shows where the supply stands", async () => {
     const shell = await joined();
-    for (const state of ["on", "stopped", "off"] as const) {
+    for (const state of ["on", "draining", "off"] as const) {
       await said(shell, STATE_POWER, { power: state });
       expect(power(shell).state).toBe(state);
       expect(power(shell).reason).toBe("");

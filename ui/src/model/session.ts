@@ -624,7 +624,7 @@ export class Session {
 
   /** The press owed since the broker went, sent where the row names its
    *  railroad again and power reads off, and dropped where the row names
-   *  another or none. Power on or stopped, or not yet replayed after the
+   *  another or none. Power on or draining, or not yet replayed after the
    *  reconnect (`panel.reset()`), keeps it waiting: `layout` would drop the
    *  request. Cleared before it is sent, so it goes once. */
   private repay(power: Power | null): void {

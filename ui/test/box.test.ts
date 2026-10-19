@@ -140,7 +140,7 @@ function installed(box: Reply, off: Reply | Promise<Reply> = { status: 202, body
 }
 
 /** An app joined to the broker, with the track reading `power`. */
-async function powered(power: "on" | "stopped" | "off"): Promise<TcApp> {
+async function powered(power: "on" | "draining" | "off"): Promise<TcApp> {
   const shell = await joined();
   await said(shell, POWER, { power });
   return shell;
@@ -194,7 +194,7 @@ describe("the dialog's Box part", () => {
     expect(hint(dialog)).toBeNull();
   });
 
-  it.each(["on", "stopped"] as const)(
+  it.each(["on", "draining"] as const)(
     "is dead and says why while the track reads %s",
     async (power) => {
       installed(CAN);
