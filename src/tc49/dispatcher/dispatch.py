@@ -98,6 +98,11 @@ class Request:
     # outstanding: nothing further is granted for it, and it retires as
     # `request_cancelled` when that move's sensors finish (ADR-0049).
     cancelled: bool = False
+    # The ids of the train's requests chained after this one when its cancel
+    # was asked: plans to carry on from where it would arrive, cancelled with
+    # it. One chained after it later departs from where the train stops
+    # (#836).
+    revoking: frozenset[str] = frozenset()
     # The train's `priority_key` from the roster, taken at admission: where
     # the request goes in the list, and nothing else (ADR-0080). The default
     # is the key of a train with no priority.
@@ -721,7 +726,8 @@ class Dispatcher:
         self._seen_ids: set[str] = set()
         # id -> (train, the end it leaves its follower departing by): each
         # request that has ended, so one chained after it is settled however
-        # late it arrives. The end is None where it ended without arriving.
+        # late it arrives. The end is None where it was rejected, ended by a
+        # placement or a removal, or cancelled while it waited.
         self._finished: dict[str, tuple[str, str | None]] = {}
         self._phases = 0  # sweeps run; stamps admissions for grant order
         self._aspects: dict[str, str] = {}  # last published, so only changes go
@@ -927,22 +933,32 @@ class Dispatcher:
         ended = self._finished.get(request.after)
         return ended is not None and ended[0] == request.train
 
-    def _ending(self, req: Request, onward: str | None) -> None:
+    def _ending(
+        self, req: Request, onward: str | None, revoking: Collection[str] = ()
+    ) -> None:
         """A request ended: `onward` is the end its train now leaves by,
-        where it arrived, and None where it was rejected or cancelled. The
-        requests chained after it are settled by it (`_follow`)."""
+        where it arrived or was cancelled underway, and None where it was
+        rejected, cancelled while it waited, or ended by a placement or a
+        removal. The requests chained after it are settled by it (`_follow`),
+        but for those in `revoking`, chained before its cancel was asked,
+        which are cancelled with it (#836)."""
         self._finished[req.id] = (req.train, onward)
-        for follower in [each for each in self._requests if each.after == req.id]:
-            self._follow(follower, onward)
+        for follower in self._followers(req):
+            self._follow(follower, None if follower.id in revoking else onward)
+
+    def _followers(self, req: Request) -> list[Request]:
+        """The requests listed that are chained after `req`."""
+        return [each for each in self._requests if each.after == req.id]
 
     def _follow(self, follower: Request, onward: str | None) -> None:
         """A chained request whose predecessor has ended. Where that one
-        arrived the follower departs by `onward`, the end of the arrival block
-        opposite the one the train came in through, so it carries on the way
-        it was going; where that end leads nowhere it is rejected
+        arrived, or was cancelled underway before this one was chained after
+        it, the follower departs by `onward`, the end of the block the train
+        stands in opposite the one it came in through, so it carries on the
+        way it was going; where that end leads nowhere it is rejected
         `unreachable`. Where the predecessor ended any other way it is
         cancelled `revoked`, and so is whatever follows it in turn
-        (ADR-0080)."""
+        (ADR-0080, #836)."""
         if onward is not None and onward in self._state.layout.end_connection:
             follower.depart = onward
             return
@@ -1304,7 +1320,9 @@ class Dispatcher:
         outstanding: nothing on the bus retracts a `move` already sent, so
         the request is marked instead, granted nothing further, and retires
         when that move's sensors end it (`_ended`). The requests chained after
-        it are cancelled `revoked` as it ends (`_follow`). An id the
+        it by then are cancelled `revoked` as it ends; one chained after it
+        once the cancel was asked departs from where the train stops
+        (`_follow`, #836). An id the
         dispatcher does not hold is dropped in silence and to the trace, as
         every gesture it cannot act on is (ADR-0034).
 
@@ -1323,6 +1341,7 @@ class Dispatcher:
         if active is not None and active.request is req:
             if req.cancelled:
                 return
+            req.revoking = frozenset(each.id for each in self._followers(req))
             if active.outstanding is not None:
                 # Deferred: it frees nothing yet and dequeues nothing, so
                 # there is nothing for a sweep to hand anybody.
@@ -1427,7 +1446,9 @@ class Dispatcher:
     ) -> None:
         """The active request ended: what it holds released, the train
         dropped out of everything that says it is running one, and the one
-        event that says so.
+        event that says so. A person's cancel leaves the requests chained
+        after it once it was asked departing from where the train stopped
+        (#836); a placement or a removal leaves none.
 
         `_seen_ids` is not pruned. A cancelled id stays used for the session,
         because an id is unique and not meaningful (ADR-0033) and a resubmit
@@ -1443,7 +1464,10 @@ class Dispatcher:
         state.departure.pop(train, None)
         self._requests.remove(active.request)
         self._publish("request_cancelled", {"id": active.request.id, "reason": reason})
-        self._ending(active.request, None)
+        if reason is Cancellation.REVOKED:
+            self._ending(active.request, self._stopped(active), active.request.revoking)
+        else:
+            self._ending(active.request, None)
 
     # -- the sensors, and the sweep they trigger ----------------------------
 
@@ -1853,6 +1877,22 @@ class Dispatcher:
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
         self._apply_move(self._state.active[req.train], move)
+
+    def _stopped(self, active: Active) -> str:
+        """The end a train whose request is cancelled underway carries on by:
+        the end of the block it stands in opposite the one it came in
+        through, or, where it never left its origin, the end its route
+        departed by (#836)."""
+        route, at = active.route, active.cur_index
+        if at == 0:
+            ends = transit_ends(self._state.layout, route.blocks[0], route.transits[0])
+            assert ends is not None  # a route's transits reach its blocks
+            return ends[0]
+        ends = transit_ends(
+            self._state.layout, route.blocks[at], route.transits[at - 1]
+        )
+        assert ends is not None
+        return opposite_end(ends[0])
 
     def _entered(self, route: Route) -> str:
         """The end of its arrival block a route comes in through."""

@@ -321,3 +321,87 @@ def test_a_gesture_that_cannot_be_read_at_all_is_dropped() -> None:
         press(assembly, CANCEL_WANTED, cast(Payload, payload))
 
     assert cancellations(assembly) == []
+
+
+# -- the requests chained after a cancelled one (#836) ------------------------
+
+
+def test_a_drag_made_once_the_cancel_is_asked_departs_where_the_train_stopped() -> None:
+    """The cancel is asked mid-move, so the request is still underway and the
+    second drag chains after it (#827). It was made knowing the first is
+    over, so it is not cancelled with it: once the train stops in `dn_w`,
+    which it entered through A, it carries on through B and completes."""
+    assembly = whole_route()
+    first = drag(assembly, "freight_1", "yard_e.A")
+    cancel(assembly, first)
+    second = drag(assembly, "freight_1", "yard_e.A")
+    assert last(assembly, "request_submitted")["after"] == first
+
+    ticks(assembly, 12)
+
+    assert [(c["id"], c["reason"]) for c in cancellations(assembly)] == [
+        (first, "revoked")
+    ]
+    [chosen] = events(assembly.trace, "route_chosen", rid=second)
+    assert chosen["route"][:2] == ["dn_w", "crossover.dn_straight"]
+    assert [line["id"] for line in leaves(assembly, "request_completed")] == [second]
+
+
+def test_a_drag_admitted_after_the_cancelled_request_retired_departs_too() -> None:
+    """The same once the request has retired: a scheduler that has not yet
+    heard it end chains after it, and the dispatcher settles the drag from
+    where the train stopped. Power off first, so the cancel retires at the
+    gesture."""
+    assembly = whole_route()
+    first = drag(assembly, "freight_1", "yard_e.A")
+    ticks(assembly, 2, at={0: power(OFF)})
+    cancel(assembly, first)
+    second = "freight_1-late"
+    press(
+        assembly,
+        "tc49/dispatch/request_submitted",
+        {"id": second, "train": "freight_1", "dest": ["yard_e.A"], "after": first},
+    )
+    press(assembly, *power(ON))
+
+    ticks(assembly, 12)
+
+    assert [c["id"] for c in cancellations(assembly)] == [first]
+    [chosen] = events(assembly.trace, "route_chosen", rid=second)
+    assert chosen["route"][:2] == ["dn_w", "crossover.dn_straight"]
+    assert [line["id"] for line in leaves(assembly, "request_completed")] == [second]
+
+
+def test_a_drag_chained_before_the_cancel_is_asked_is_cancelled_with_it() -> None:
+    """Made while the first request was still wanted, it was a plan to carry
+    on from where that one would arrive, and that plan is over."""
+    assembly = whole_route()
+    first = drag(assembly, "freight_1", "yard_e.A")
+    second = drag(assembly, "freight_1", "yard_w.B")
+    cancel(assembly, first)
+    assert cancellations(assembly) == []
+
+    ticks(assembly, 2)
+
+    assert [(c["id"], c["reason"]) for c in cancellations(assembly)] == [
+        (first, "revoked"),
+        (second, "revoked"),
+    ]
+    assert [line["id"] for line in leaves(assembly, "route_chosen")] == [first]
+
+
+def test_a_drag_chained_after_a_waiting_request_is_cancelled_with_it() -> None:
+    """A waiting request never moved the train, so nothing the person made
+    after it has anywhere to start from but the request it followed."""
+    assembly = whole_route()
+    press(assembly, *power(OFF))
+    first = drag(assembly, "freight_1", "yard_e.A")
+    second = drag(assembly, "freight_1", "yard_w.B")
+    assert last(assembly, "request_submitted")["after"] == first
+
+    cancel(assembly, first)
+
+    assert [(c["id"], c["reason"]) for c in cancellations(assembly)] == [
+        (first, "revoked"),
+        (second, "revoked"),
+    ]
