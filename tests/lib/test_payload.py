@@ -56,6 +56,7 @@ from tc49.lib.payload import (
     taken,
     wanted_driving,
     wanted_mode,
+    wanted_power,
     wanted_reorder,
     wanted_take,
     wanted_throttle,
@@ -423,6 +424,31 @@ def test_a_power_gesture_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert commanded_power(payload) is None, payload
+
+
+def test_a_power_press_reads_as_the_word_it_asks_for() -> None:
+    """The three words of the one switch on `power_wanted` (ADR-0078): the
+    supply on, a drain, and the supply removed at once."""
+    assert wanted_power({"power": "on"}) == ON
+    assert wanted_power({"power": "draining"}) == DRAINING
+    assert wanted_power({"power": "off"}) == OFF
+
+
+def test_a_power_press_that_cannot_be_read_is_dropped() -> None:
+    """Dropped and never taken for `off`, for `commanded_power`'s reason, and
+    `stopped` with the rest: the emergency stop with the track live is the
+    word ADR-0078 retires, and `off` is the emergency stop now."""
+    refused: list[object] = [
+        "on",  # not an object at all
+        {},  # no power
+        {"power": None},
+        {"power": 1},  # not a string
+        {"power": "ON"},  # a value outside the closed set
+        {"power": "stopped"},  # retired from the press (ADR-0078)
+        {"run": "draining"},  # the run's field, not this one
+    ]
+    for payload in refused:
+        assert wanted_power(payload) is None, payload
 
 
 def test_a_mode_gesture_reads_as_the_train_and_the_word_it_names() -> None:
