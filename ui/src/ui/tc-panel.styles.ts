@@ -12,6 +12,8 @@ import { css } from "lit";
  * (`--pane`), and takes the full height of the work row: it is the same
  * rectangle the editor's palette occupies, so a toggle does not move the pane
  * under the pointer ([#169](https://github.com/rails49/control/issues/169)).
+ * The request list sits under the roster in the same pane, each scrolling on
+ * its own (#829).
  */
 export const panelStyles = css`
   :host {
@@ -23,10 +25,24 @@ export const panelStyles = css`
       "roster sheet";
   }
 
-  tc-roster {
+  aside {
     grid-area: roster;
     border-right: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  tc-roster {
+    flex: 1 1 auto;
     overflow-y: auto;
+  }
+
+  tc-requests {
+    flex: 0 1 auto;
+    max-height: 50%;
+    overflow-y: auto;
+    border-top: 1px solid var(--rule);
   }
 
   /* Only drawn while there is something to say, so the row collapses and the

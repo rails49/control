@@ -17,8 +17,8 @@
  * are written once and this view has zoom, pan and fit for free
  * ([#168](https://github.com/rails49/control/issues/168)). What this holds is
  * what only the run view has: the overlay it hands the canvas, the machine
- * that says what a drag means (model/drag.ts), the right-click menu and the
- * roster pane.
+ * that says what a drag means (model/drag.ts), the right-click menu, the
+ * roster pane and the request list under it.
  *
  * Everything shown is the panel model's answer (model/panel.ts). It computes
  * nothing: occupancy, aspects, markers, the lit route, arrival ends and
@@ -45,13 +45,22 @@ import { roster, takenOff, type Overlay, type Panel, type RosterRow } from "../m
 import { pointsOffered, positionsBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
-import { cancellation, gesture, placement, pointWanted, reversal } from "../model/trace.js";
+import {
+  cancellation,
+  gesture,
+  placement,
+  pointWanted,
+  reorderWanted,
+  reversal,
+} from "../model/trace.js";
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-canvas.js";
 import "./tc-menu.js";
+import "./tc-requests.js";
 import "./tc-roster.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
+import type { RequestCancel, RequestReorder } from "./tc-requests.js";
 import type { RosterDrag, TcRoster } from "./tc-roster.js";
 
 /** What the right-click found, as the canvas hands it over: `trainAt`'s answer
@@ -309,6 +318,22 @@ export class TcPanel extends LitElement {
     }
   }
 
+  // --- the request list ---------------------------------------------------
+
+  /** A row's cancel: one `cancel_wanted` naming that request, the requests
+   *  chained after it ending with it (ADR-0080). */
+  private cancelled(event: CustomEvent<RequestCancel>): void {
+    this.session?.send(cancellation(event.detail.id));
+  }
+
+  /** A row let go elsewhere in the list: one `reorder_wanted`. The list
+   *  redraws when the dispatcher's picture says the order changed, not
+   *  before. */
+  private reordered(event: CustomEvent<RequestReorder>): void {
+    const { id, before } = event.detail;
+    this.session?.send(reorderWanted(id, before));
+  }
+
   // --- painting -------------------------------------------------------------
 
   override render() {
@@ -320,11 +345,19 @@ export class TcPanel extends LitElement {
     // same way: only while there is something to say.
     const off = this.inSession ? takenOff(this.panel?.unfit() ?? []) : [];
     return html`
-      <tc-roster
-        .trains=${this.roster}
-        .run=${this.inSession ? (this.panel?.run ?? null) : null}
-        @roster-dropped=${this.dropped}
-      ></tc-roster>
+      <aside>
+        <tc-roster
+          .trains=${this.roster}
+          .run=${this.inSession ? (this.panel?.run ?? null) : null}
+          @roster-dropped=${this.dropped}
+        ></tc-roster>
+        <tc-requests
+          .requests=${this.inSession ? (this.panel?.requestList() ?? []) : []}
+          ?live=${this.inSession}
+          @request-cancelled=${this.cancelled}
+          @request-reordered=${this.reordered}
+        ></tc-requests>
+      </aside>
 
       ${released === null && off.length === 0
         ? nothing
