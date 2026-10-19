@@ -70,6 +70,32 @@ back onto the railroad. They do not freeze the drawing: track power does
 ([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing)), and a save with power
 off keeps the trains that still fit.
 
+**The request list is under the roster**, in the same pane: `tc-requests`, a
+component of its own, read from `tc49/dispatch/state/allocation`'s `requests`
+([#829](https://github.com/rails49/control/issues/829),
+[ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+One row per request, in list order — the order the dispatcher serves them, so
+what the list shows is what the dispatcher does next. A row is the train,
+where the request starts, where it ends, and *waiting* or *underway*, a
+request with a `route` being underway. A request chained `after` an earlier
+one has no departure end of its own: its start is the earlier request's
+arrival ends, which is where that one leaves the train. A request only
+submitted is not listed until the dispatcher's picture has it, and a rejected
+one never is; its reason is on the drawing.
+
+Each row has a **cancel**, which publishes `tc49/dispatch/cancel_wanted`
+(`{id}`) naming that request, the requests chained after it ending with it. A
+**waiting** row can be dragged to another place in the list, which publishes
+`tc49/dispatch/reorder_wanted` (`{id, before}`): `before` is the first waiting
+request the row lands in front of, `null` for the end. An **underway** row
+cannot be dragged, having started, and a drag that would put a train's chained
+request above the one it follows — moving it up, or the one it follows down —
+is refused; the row goes back where it was and nothing is sent. Those are the
+moves the dispatcher would drop. The list moves when the picture does, not on
+the drop. The rows and what a drag asks are worked out in
+`ui/src/model/requests.ts`; the component draws them and reports where a row
+was let go.
+
 **A train between two blocks is drawn on the connection**, midway between the
 two block ends its transit joins, and stands in no block. The picture's
 `crossing` is what says so, train to the transit taking it out of the block
@@ -343,7 +369,8 @@ The gesture that ends a request **without** moving the train is **Cancel
 request** on the block's right-click menu, which publishes
 `tc49/dispatch/cancel_wanted` (`{id}`) naming the train's first request in
 flight, and so ends whatever that train has, pending and active: the requests
-chained after it go with it
+chained after it go with it. One request alone is cancelled from its row in
+the request list
 ([#660](https://github.com/rails49/control/issues/660), ADR-0049,
 [ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)). The
 dispatcher republishes its picture when it cancels, and the lit route and
