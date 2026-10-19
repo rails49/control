@@ -1091,39 +1091,48 @@ leaves no end to face the train away from. `align` is read by whatever acts on
 it, and the simulator throws no points, so it reads nothing off
 that one and nothing on it can fail to be read.
 
-**Manual driving.** A train is **automatic** or **manual**: taking it in a
-throttle makes it manual and releasing it puts it back
-([#207](https://github.com/rails49/control/issues/207)). Both gestures are
-this component's — `mode_wanted` hands a train over or takes it back,
-`train: null` handing over every train at once bar the ones `layout` is
-driving, and `throttle_wanted` is the throttle being turned — because the
-device row a throttle ends at has one writer and that writer is `layout`
-(rule 1), while a throttle is any number of writers, two tabs being two of
-them. The layout interface applies a `throttle_wanted` only while that
-train is manual and drops it otherwise, and on the transition back to
-automatic it writes the speed the train's current grant implies, which is
-`0.0` where there is none. It publishes `state/mode`, which is where a view
-reads who is driving what.
+**Who drives.** The railroad has one driving mode, `manual` or `automatic`,
+and at most one throttle holds a train
+([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+The gestures are this component's — `driving_wanted` switches the mode,
+`take_wanted` takes a train for a throttle or releases it, `throttle_alive`
+keeps a throttle's trains held, and `throttle_wanted` is the throttle being
+turned — because the device row a throttle ends at has one writer and that
+writer is `layout` (rule 1), while a throttle is any number of writers, two
+tabs being two of them. `layout` comes up `manual` with no train taken, and
+publishes `state/driving` and `state/taken`, which is where a view reads who
+is driving what. A second take of a held train is dropped, and a throttle not
+heard for 5 s has its trains released.
 
-Two things this does **not** change. The **driver** still turns a
-`move_granted` for a manual train into a `move`, so the points still throw and
-the transit is still armed; it never reads the mode and stays a pure function
-of the aspect. The **dispatcher** never learns of it either: a manual train
-still holds its block and may still be granted, a person is trusted to read
-the signal, and both kinds of train move only on a route the dispatcher
-allocated. *Manual* names who turns the throttle and nothing else; an operator
-running a signal at stop is rogue operation the system does not model.
+Within a granted move, a train a throttle holds is that throttle's to drive in
+either mode, a train no throttle holds is driven on its grant's speed in
+`automatic`, and it stands at its signal in `manual`. A lever is applied only
+from the throttle holding the train and only while the train has a move
+outstanding: the move ending at its sensor writes `0.0`, and the lever is
+dropped until the next grant. Released, a train is given its grant's speed in
+`automatic` and `0.0` in `manual`. Switching to `manual`, a train `layout` is
+driving finishes its move and then stands; switching to `automatic`, each
+train with a move outstanding and no throttle is given its grant's speed.
 
-A `move` for a manual train **still runs its course**: the points throw, the
+Two things this does **not** change. The **driver** still turns every
+`move_granted` into a `move`, so the points still throw and the transit is
+still armed; it never reads the mode and stays a pure function of the aspect.
+The **dispatcher** routes the same in both modes: every train holds its block
+and may be granted, and every train moves only on a route the dispatcher
+allocated. An operator running a signal at stop is rogue operation the system
+does not model.
+
+A `move` nobody is driving **still runs its course**: the points throw, the
 near end is checked and the crossing is recorded, because that is the route and
 the route is not the driving. The one thing that does not happen is the
-traction write, on the grant or on the arrival — a person stops their own
-train, and the signal at the far end is what tells them to.
+traction write on the grant.
 
-The UI's throttle view publishes both gestures
+The UI's throttle view publishes the gestures
 ([ui/THROTTLE.md](ui/THROTTLE.md),
-[#291](https://github.com/rails49/control/issues/291)) and the core app
-`layout` acts on both
+[#291](https://github.com/rails49/control/issues/291); it moves onto
+`take_wanted` and `throttle_alive` in
+[#830](https://github.com/rails49/control/issues/830)) and the core app
+`layout` acts on them
 ([#297](https://github.com/rails49/control/issues/297)), reaching a locomotive
 through the same traction write a `move` does
 ([#296](https://github.com/rails49/control/issues/296)) — a lever states
@@ -1131,8 +1140,8 @@ nose-first where a move states the block it is going into, and the sign each
 decoder is given is composed the same way from there. They are not on the
 *Subscribes* line above because that is the **role's** footprint and this is
 the physical binding's alone: the simulator has no person's hand on
-it, every train it runs is automatic, and a railroad running under it publishes
-no `state/mode` at all.
+it, every train it runs is driven on its grant, and a railroad running under it
+publishes no `state/driving` or `state/taken` at all.
 
 On the physical railroad the layout interface is the core app `layout`, and
 hardware sits under it by address, as thin translators speaking a device-level

@@ -329,7 +329,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/run`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
 | Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors |
 | Trace tap | `tc49/#` |
 
@@ -593,15 +593,17 @@ what a drop would cost:
   ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
   Which locomotive the speed reaches, and which way round it stands, is
   `layout`'s, which reads the roster. `tc49.lib.payload.wanted_throttle` reads
-  `throttle` as a field that may be absent; `layout` dropping a frame without
-  one is [#825](https://github.com/rails49/control/issues/825).
+  `throttle` as a field that may be absent, and `layout` drops a frame without
+  one. When the move ends at its sensor `layout` writes `0.0` and drops the
+  throttle's speeds until the next grant.
 - `tc49/layout/state/mode` — `modes`: map of train to enum `automatic` or
   `manual`. `automatic` is the resting value, so a train the map does not
   name is `automatic` and an unreadable entry leaves that train without a
   mode rather than being read as one.
-  `mode_wanted` and `state/mode` are removed in
-  [#834](https://github.com/rails49/control/issues/834), once nothing uses
-  them.
+  `layout` no longer answers `mode_wanted` or publishes `state/mode`
+  ([#825](https://github.com/rails49/control/issues/825)); the rows are
+  removed in [#834](https://github.com/rails49/control/issues/834), once
+  nothing uses them.
 - `tc49/layout/driving_wanted` — browser-writable — `driving`: enum `manual`
   or `automatic`, the same closed set `state/driving` below carries; any
   other value is dropped. Accepted at any power
@@ -609,7 +611,12 @@ what a drop would cost:
   `layout` answers it.
 - `tc49/layout/state/driving` — `driving`: enum `manual` or `automatic`, the
   railroad's driving mode. `layout` publishes `manual` when it starts. An
-  unreadable payload reads as `manual`.
+  unreadable payload reads as `manual`. In `manual`, a granted move of a train
+  no throttle holds writes no traction: it stands at its signal until a
+  throttle takes it. In `automatic`, `layout` writes the grant's speed for it.
+  Switching to `manual`, a train `layout` is driving finishes its outstanding
+  move and then stands; switching to `automatic`, each train with a move
+  outstanding and no throttle is given its grant's speed.
 - `tc49/layout/take_wanted` — browser-writable — `train`; `throttle`: a
   non-empty string, the id the throttle's page minted when it opened, or
   `null` to release the train. A take of a train no throttle holds is
