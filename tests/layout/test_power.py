@@ -34,6 +34,7 @@ from tests.layout.railroad import (
     POWER,
     POWER_WANTED,
     RAILROAD,
+    REMOVED,
     TAKEN,
     WANTED_TRACK,
     WANTED_TRACTION,
@@ -622,4 +623,136 @@ def test_on_in_manual_writes_nothing() -> None:
 
     commands(bus, "on")()
 
+    assert speeds(written) == []
+
+
+# -- a move granted as the power goes is kept ----------------------------------
+
+
+def granted(bus: InProcessBus) -> None:
+    """`single`'s move and its `align` arriving after the press that took the
+    power, the dispatcher not having read it yet when it granted the move."""
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+
+
+def drained(bus: InProcessBus) -> None:
+    """A railroad somebody turned on and then drained, the drain over and the
+    supply reporting it has gone."""
+    moves(bus, True)
+    live(bus)
+    commands(bus, "draining")()
+    moves(bus, False)
+    bus.publish(DEVICE_TRACK, {"power": "off"})
+    bus.drain()
+
+
+def test_a_move_granted_while_draining_runs_to_its_sensor() -> None:
+    """The supply is on through a drain and the move was granted, so it is
+    acted on as it is while `on`, and the drain ends at the next `moving:
+    false` (ADR-0078, decision 4)."""
+    bus, app = build()
+    moves(bus, True)
+    track = live(bus)
+    written = commanded(bus)
+    commands(bus, "draining")()
+
+    granted(bus)
+
+    assert app.position == {"single": "dn_e"}
+    assert speeds(written) == [("3", 0.6)]
+    assert powers(track) == ["on"]
+    moves(bus, False)
+    assert powers(track) == ["on", "off"]
+
+
+def test_a_move_granted_after_a_drain_is_kept_until_on() -> None:
+    """Dead rails act on no move, and `on` resumes every granted one
+    (ADR-0078, decision 6) — once the supply reports it back, since that is
+    when `state/power` reads `on`."""
+    bus, app = build()
+    drained(bus)
+    written = commanded(bus)
+
+    granted(bus)
+    assert app.position == {"single": "up_w"}
+    assert speeds(written) == []
+
+    commands(bus, "on")()
+    energised(bus)
+
+    assert app.position == {"single": "dn_e"}
+    assert speeds(written) == [("3", 0.6)]
+
+
+def test_a_kept_move_waits_for_an_align_that_also_lands_dead() -> None:
+    """The `align` arriving after the `move`, both over dead rails: the points
+    are written and the crossing authorised all the same, the rows being
+    stored for when the rails come back (ADR-0054), and at `on` the kept move
+    finds its `align` landed."""
+    bus, app = build()
+    drained(bus)
+    written = commanded(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    align(bus, "crossover", "to_dn")
+    assert app.position == {"single": "up_w"}
+
+    commands(bus, "on")()
+    energised(bus)
+
+    assert app.position == {"single": "dn_e"}
+    assert speeds(written) == [("3", 0.6)]
+
+
+def test_a_kept_move_for_a_train_taken_off_is_dropped_at_on() -> None:
+    """The near-end check is applied again when the kept move is acted on,
+    and a train no longer on the layout fails it."""
+    bus, app = build()
+    drained(bus)
+    written = commanded(bus)
+    granted(bus)
+    bus.publish(REMOVED, {"train": "single"})
+    bus.drain()
+
+    commands(bus, "on")()
+    energised(bus)
+
+    assert "single" not in app.position
+    assert speeds(written) == [("3", 0.0)], "the removal's zero, and nothing at on"
+
+
+def test_a_move_granted_after_an_emergency_stop_is_kept_until_on() -> None:
+    bus, app = build()
+    live(bus)
+    commands(bus, "off")()
+    bus.publish(DEVICE_TRACK, {"power": "off"})
+    bus.drain()
+    written = commanded(bus)
+
+    granted(bus)
+    assert app.position == {"single": "up_w"}
+    assert speeds(written) == []
+
+    commands(bus, "on")()
+    energised(bus)
+
+    assert app.position == {"single": "dn_e"}
+    assert speeds(written) == [("3", 0.6)]
+
+
+def test_a_kept_move_in_manual_is_a_crossing_with_no_speed_at_on() -> None:
+    """As any `manual` move is: the route and not the driving (ADR-0079)."""
+    bus, app = build(driving="manual")
+    drained(bus)
+    written = commanded(bus)
+    granted(bus)
+
+    commands(bus, "on")()
+    energised(bus)
+
+    assert app.position == {"single": "dn_e"}
     assert speeds(written) == []

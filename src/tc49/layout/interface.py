@@ -49,8 +49,14 @@ between apps. Where the train stands comes from `train_placed`,
 `train_removed` and the moves this app has itself carried out.
 
 **No move while the rails are dead.** Nothing is acted on while `state/power`
-is not `on` (ADR-0041). That is what makes a restart safe, and it has teeth on
-every one of them now that the app comes up with the railroad off.
+reads `off` (ADR-0041). That is what makes a restart safe, and it has teeth on
+every one of them now that the app comes up with the railroad off. A `move`
+that arrives then is **kept**, not dropped: the dispatcher granted it, and
+`on` resumes every granted move (ADR-0078, decision 6), so when `state/power`
+next reads `on` each kept move is put back through all three rules, as a held
+one is when its `align` lands. Through a drain the supply is on and a `move`
+is acted on as it is while `on`: the train runs into the next block and stops
+at its sensor, and the drain ends after it (#862).
 
 **Power is one switch: `on`, `draining` or `off`** (ADR-0078). A
 `power_wanted` is answered on arrival — there is no beat to quantise it
@@ -375,6 +381,9 @@ class LayoutInterface:
         # each spent by the move that takes it, and the moves waiting on one.
         self._aligned: set[str] = set()
         self._held: dict[str, Command] = {}
+        # The moves granted while the rails are dead, one per transit, each
+        # put back through the rules when `state/power` next reads `on`.
+        self._kept: dict[str, Command] = {}
         # The occupancy fold: the settled level at each block end, the level
         # each end has most recently said (which is what makes the log of an
         # `unknown` once per transition into it), the levels waiting out the
@@ -571,8 +580,19 @@ class LayoutInterface:
     def _cross(self, commanded: Command) -> None:
         """The three rules, in the order a command meets them, applied at the
         moment of acting: a held command is put back through all of them when
-        its `align` lands, since the railroad may have moved under it while it
-        waited.
+        its `align` lands, and a kept one when `state/power` next reads `on`,
+        since the railroad may have moved under it while it waited.
+
+        Dead rails **keep** the command rather than act on it or drop it
+        (#862). The dispatcher granted it before reading the `off`, so it
+        holds the train in a crossing no sensor will end unless the move is
+        carried out, and `on` resumes every granted move (ADR-0078, decision
+        6). It is kept before the near-end check, which is applied when it is
+        acted on: a train taken off or placed elsewhere meanwhile fails it
+        then and the move is dropped. A second `move` for the same transit
+        replaces the one kept, as it does the one held. `draining` is not
+        dead: the supply is on, and the move runs to its sensor before the
+        drain ends.
 
         A command naming a transit this railroad does not hold, or one whose
         transit reaches neither end of the block it says the train is
@@ -615,7 +635,8 @@ class LayoutInterface:
         if ends is None:
             return
         entered, near = ends
-        if self._power != ON:
+        if self._power == OFF:
+            self._kept[transit] = commanded
             return
         if self._position.get(commanded.train) != block_of(near):
             return
@@ -1445,3 +1466,20 @@ class LayoutInterface:
         if stated != self._power:
             self._power = stated
             self._bus.publish(POWER, {"power": stated})
+            if stated == ON:
+                self._carry_out_kept()
+
+    def _carry_out_kept(self) -> None:
+        """Every move kept over dead rails, put back through `_cross` now that
+        `state/power` reads `on` (#862).
+
+        Here and not on the `on` press, because what the row reads is folded
+        from the hardware and can come back after the press. Each one meets
+        every rule again: a train no longer at the near end is dropped, and a
+        move whose `align` has not landed is held for it. Where `_resume` also
+        writes a speed to a move carried out here, it is the same value on the
+        same row.
+        """
+        kept, self._kept = self._kept, {}
+        for commanded in kept.values():
+            self._cross(commanded)

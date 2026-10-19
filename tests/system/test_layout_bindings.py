@@ -149,14 +149,30 @@ def test_a_train_crosses_from_where_it_was_placed(build: Build) -> None:
     assert binding.position == {"freight_1": "dn_e"}
 
 
-@pytest.mark.parametrize("words", [[], ["on", "off"], ["on", "draining"]])
-def test_no_move_while_the_power_is_not_on(build: Build, words: list[str]) -> None:
+@pytest.mark.parametrize("words", [[], ["on", "off"]])
+def test_no_move_while_the_power_is_off(build: Build, words: list[str]) -> None:
     binding = build()
     for word in words:
         press(binding, word)
     stand(binding.bus, "freight_1", "up_w")
     crosses(binding, "freight_1", "to_dn", "dn_e")
     assert binding.position == {"freight_1": "up_w"}
+
+
+def test_a_move_granted_while_draining_is_carried_out(
+    build: Build, request: pytest.FixtureRequest
+) -> None:
+    """The supply is on through a drain and the move was granted, so the
+    train runs into the next block and stops at its sensor (#862)."""
+    if build is Simulated:
+        request.applymarker(
+            pytest.mark.xfail(strict=True, reason="the simulator drops it (#863)")
+        )
+    binding = live(build)
+    press(binding, "draining")
+    crosses(binding, "freight_1", "to_dn", "dn_e")
+    binding.settle()
+    assert binding.position == {"freight_1": "dn_e"}
 
 
 def test_a_move_redelivered_after_arrival_changes_nothing(build: Build) -> None:
