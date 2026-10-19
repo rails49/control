@@ -74,8 +74,20 @@ and it releases the trains of a throttle it has not heard for 5 s, so a phone
 gone to sleep does not leave a train running
 ([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
 BUS.md). The view moves onto these rows in
-[#830](https://github.com/rails49/control/issues/830); until then it takes and
-releases with `mode_wanted`, as below.
+[#830](https://github.com/rails49/control/issues/830). Until then it takes and
+releases with `mode_wanted`, as below, which `layout` no longer answers
+([#825](https://github.com/rails49/control/issues/825)): `state/mode` is not
+published, so the view never shows a train taken.
+
+**What `layout` does with them** (docs/layout/README.md, *Who drives*). The
+railroad is in one driving mode, `manual` or `automatic`, stated on
+`tc49/layout/state/driving`. A take of a train another throttle holds is
+dropped. The lever is applied only from the throttle holding the train and
+only while the train has a granted move outstanding: the move ending at its
+sensor writes `0.0`, and the lever does nothing until the next grant. A train
+no throttle holds stands at its signal in `manual` and is driven on its grant
+in `automatic`, so a release writes `0.0` in `manual` and the grant's speed in
+`automatic`.
 
 **Taking a train** publishes one `tc49/layout/mode_wanted`, `{train, mode}`,
 with `manual`; releasing publishes the same topic with `automatic`. The
@@ -91,7 +103,7 @@ while the train is taken and at no other time, so releasing takes it away.
 
 The release writes **one frame and no speed of its own**. On the transition
 back to automatic `layout` writes the speed the train's current grant implies,
-which is `0.0` where there is none (SYSTEM.md, *Manual driving*); a zero from
+which is `0.0` where there is none (SYSTEM.md, *Who drives*); a zero from
 here would be a second party deciding how fast the railroad drives it.
 
 **The lever is one signed number for the train.** `tc49/layout/throttle_wanted`

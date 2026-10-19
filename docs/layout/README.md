@@ -30,7 +30,8 @@ ride on `align`
 this app throws what it is told and holds no table of its own.
 
 *Subscribes* `tc49/layout/align`, `tc49/layout/move`,
-`tc49/layout/power_wanted`, `tc49/layout/mode_wanted`,
+`tc49/layout/power_wanted`, `tc49/layout/driving_wanted`,
+`tc49/layout/take_wanted`, `tc49/layout/throttle_alive`,
 `tc49/layout/throttle_wanted`, `tc49/dispatch/train_placed`,
 `tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects`,
 `tc49/dispatch/state/run`, `tc49/schedule/state/facing` and
@@ -40,7 +41,8 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/state/wanted/traction/<addr>`,
 `tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track`,
-`tc49/layout/state/power` and `tc49/layout/state/mode`.
+`tc49/layout/state/power`, `tc49/layout/state/driving` and
+`tc49/layout/state/taken`.
 
 The facing is the one topic here that is nobody's hardware and nobody's
 command: it is the scheduler's state, and this app reads it because the sign of
@@ -217,13 +219,14 @@ be standing at.
 
 On a `move` it acts on, this app publishes
 `tc49/layout/state/wanted/traction/<addr>` for every car of the train that has
-an address, and `0.0` to exactly those addresses again when the train arrives.
+an address, and `0.0` to those addresses again when the train arrives.
 It is the last thing between the device vocabulary and a wheel turning, and it
 is the one write here that composes two facts rather than passing one on.
 
-That is a train this app is **driving**. A train a person has taken in a
-throttle gets neither write, and the same rows are where their lever lands
-instead (*Who drives* below).
+That is a train this app is **driving**: in `automatic`, with no throttle
+holding it. A train a throttle holds gets the arrival's `0.0` and not the
+grant's speed, the same rows being where its lever lands, and a train nobody
+drives in `manual` gets neither write (*Who drives* below).
 
 **How fast** is the move's own `speed`, a magnitude in 0.0 … 1.0
 ([#283](https://github.com/rails49/control/issues/283)). The sign is this app's
@@ -288,94 +291,85 @@ commanded, since a car nothing was sent for is a car nothing may be sent for.
 A train may be taken off running
 ([ADR-0069](../adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)),
 and a decoder in a hand keeps the last speed it was told. So `train_removed`
-writes `0.0` to every addressed car of the train, manual or automatic and
+writes `0.0` to every addressed car of the train, held by a throttle or not and
 whatever the power, and forgets any move of that train in flight: its later
 readings write no speed for it, and the block behind reads clear on its own
 detectors like any other.
 
 ## Who drives, and a person's throttle
 
-A train is **automatic** or **manual**: taking it in a throttle makes it manual
-and giving it back puts it back
-([#207](https://github.com/rails49/control/issues/207)). The word names who
-turns the throttle and **nothing else** — a manual train is dispatched like any
-other, holds its block, is granted moves, and a person is trusted to read the
-signal it is given. Neither the dispatcher nor the driver ever hears of it.
+The railroad has one **driving mode**, `manual` or `automatic`, and at most one
+throttle holds a train
+([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+Neither changes the route: every train is dispatched the same, holds its block,
+is granted moves and gets its points thrown and its near end checked. What they
+decide is who writes the wheels within a granted move:
 
-**The map.** `tc49/layout/mode_wanted` states where a train's mode is to stand
-rather than asking for a change, so a second `manual` on a train already taken
-is not a race. This app holds the map and publishes the whole of it on
-`tc49/layout/state/mode` whenever it changes, holding only the manual trains:
-`automatic` is the resting value, so a train the map does not name is
-automatic. `train: null` names **every** train this app holds — every train it
-has a position for — which is a thing a person does to a railroad rather than
-to the train they have picked. Handing the railroad over that way **skips the
-trains this app is driving** and takes the rest
-([#436](https://github.com/rails49/control/issues/436)): a gesture about the
-railroad is not a person looking at a train, and taking one under way on a
-grant would stop the arrival being this app's to write, so it would keep its
-commanded speed past the block it was sent to. The skipped trains are dropped
-to the trace and nothing is published to name them — `state/mode` is what says
-where every train's mode now stands. A train somebody **names** is untouched in
-either direction, and so is `train: null` with `automatic`, which is giving
-trains back and asks nothing of a moving one. A gesture that cannot be read
-leaves the mode
-where it was: falling to `manual` would hand a train to a person who is not
-there, and falling to `automatic` would take one out of the hands of a person
-who is. On startup the map is empty and the topic says so, and a value a
-previous session left there is superseded rather than adopted — the mode is a
-person's hand on a throttle, and a restart is not a hand.
+| | no throttle holds the train | a throttle holds it |
+| --- | --- | --- |
+| `automatic` | this app, at the grant's speed | the throttle |
+| `manual` | nobody: the train stands at its signal | the throttle |
 
-**What the mode changes is one thing: whether this app writes the wheels.** A
-manual train's `move` still throws its points, still meets the near-end check
-and is still recorded as crossing — that is the route, and the route is not the
-driving. The traction write is the person's, so nothing goes out on the grant
-and no `0.0` goes out on the arrival: a person stops their own train, and the
-signal at the far end is what tells them to. The two refusals above have
-nothing to refuse either, a move with no facing being carried out like any
-other, since there is no sign here to guess at.
+**The mode.** `tc49/layout/driving_wanted` switches it, at any power, and this
+app states it on `tc49/layout/state/driving`. It comes up `manual`, and a value
+a previous session left there is superseded rather than adopted. A gesture that
+cannot be read is dropped.
+
+- **To `manual`**, nothing is written. A train this app is driving finishes its
+  outstanding move, is told `0.0` on arrival as before, and stands: its next
+  grant is nobody's until a throttle takes it.
+- **To `automatic`**, each train with a move outstanding and no throttle is
+  given the speed its grant implies.
+
+**Who holds which train.** `tc49/layout/take_wanted` `{train, throttle}` takes a
+train for the throttle with that id. A take of a train another throttle holds
+is dropped to the trace: the last take does not win. `throttle: null` releases
+the train whoever holds it, which is also a panel's force release; a frame with
+no `throttle` at all is dropped. This app states who holds which on
+`tc49/layout/state/taken`, empty at startup. A throttle publishes
+`tc49/layout/throttle_alive` once a second while it holds a train, and this app
+releases every train of a throttle it has not heard for 5 s
+(`THROTTLE_SILENCE_S`), checked each time the loop calls `settle()`.
 
 **Taking a train writes nothing.** It keeps whatever speed it had and the
 person's first movement of the lever is what changes it. Writing zero on
-take-over would stop a running train the instant somebody selected it, which is
-not what selecting it means. What does change is the arrival: a crossing this
-app was driving stops being its to stop.
+take-over would stop a running train the instant somebody selected it.
 
-**Giving it back writes the speed the train's current grant implies**, which is
-`0.0` where there is none — a train handed back mid-transit does not keep the
-speed a person left on it. There is no grant to imply a speed in three cases
-and they write `0.0`: no move of that train's is in flight, one is but this app
-could not sign it, and the rails are dead, over which a grant cannot be acted
-on at all and a running speed left standing on a row is a train that would
-start the moment the power came back.
+**Releasing it writes what the mode makes of it.** In `manual`, `0.0`. In
+`automatic`, the speed its outstanding grant implies, and `0.0` where there is
+none: no move outstanding, one this app could not sign, or dead rails, over
+which a grant cannot be acted on and a running speed left on a row would start
+the train when the power came back. A train no throttle held writes nothing.
+
+**A throttle drives only within a granted move.** A move this app is not
+driving still throws its points, meets the near-end check and is recorded as
+crossing, and nothing goes out on the grant. The facing refusal has nothing to
+refuse there, since no sign is composed. When the move ends at its sensor this
+app writes `0.0` whether it or a throttle was driving, and a train nobody drove
+is told nothing. From there until the next grant the lever is dropped, so a
+person cannot drive a train out of its block past the dispatcher's locks.
 
 **The lever** is `tc49/layout/throttle_wanted`, a speed in −1.0 … 1.0 signed
-for the train — positive nose-first — and it reaches the same rows a `move`
-does, one signed speed per addressed car composed the same way. The one
-difference is where nose-first comes from: a move states a destination block
-and the sign is composed against the train's facing, where a lever states the
-direction outright. So a person pushes forward and the train moves nose-first,
-whichever way round the locomotives are wired and however many of them there
-are.
+for the train — positive nose-first — and the `throttle` turning it. It reaches
+the same rows a `move` does, one signed speed per addressed car composed the
+same way. The one difference is where nose-first comes from: a move states a
+destination block and the sign is composed against the train's facing, where a
+lever states the direction outright. So a person pushes forward and the train
+moves nose-first, whichever way round the locomotives are wired and however
+many of them there are.
 
-Three things drop a gesture, and none of them is answered:
+These drop a lever, and none of them is answered:
 
-- **A train that is not manual.** The grant is what moves an automatic train,
-  and a lever nobody is holding does not get to overtake it.
+- **No `throttle`, or one that does not hold the train.**
+- **No move outstanding**: before the first grant, or after the arrival.
 - **Dead rails**, which refuse a person's hand as they refuse a grant
   (ADR-0041). Nothing is written rather than a zero: the row holds whatever it
-  last held, and a gesture that could not be acted on has said nothing about
-  it.
+  last held.
 - **A train it has no facing for** — none published, or one it cannot spell.
   Which **block** that facing names is not asked, where a `move` asks it: the
-  sign here is the lever's own, a facing lags the train it is about — another
-  app publishes it, on another topic — and a lever that went dead for as long
-  as the lag lasted would be a person pulling back to stop and not being heard.
-
-**Where the train stands is not asked** (#579). A manual train is where the
-person driving it can see it, and this app holds no position after a restart
-until a train is dispatched or dragged: asking for one left the lever dead on
-a live railroad for exactly that long.
+  sign here is the lever's own, a facing lags the train it is about, and a
+  lever that went dead for as long as the lag lasted would be a person pulling
+  back to stop and not being heard.
 
 ## Alignment
 
