@@ -344,12 +344,19 @@ export function throttleAlive(throttle: string): Frame {
 
 /** A `request_submitted` payload: what the scheduler composes out of a
  *  gesture, and what comes back as an event. Ends are written
- *  `<block>.<end>` throughout. */
+ *  `<block>.<end>` throughout.
+ *
+ *  `after` is the id of the train's request this one follows, and is absent
+ *  where it follows none. With it `depart` is `null`: the request starts
+ *  where the one it follows ends, the dispatcher choosing the departure end
+ *  once that one has arrived
+ *  ([#820](https://github.com/rails49/control/issues/820)). */
 export interface Submission {
   id: string;
   train: string;
-  depart: string;
+  depart: string | null;
   dest: string[];
+  after?: string;
 }
 
 

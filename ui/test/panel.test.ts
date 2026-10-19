@@ -224,6 +224,42 @@ describe("request layers", () => {
     ]);
   });
 
+  it("marks no departure end on a request chained after an earlier one", () => {
+    const model = panel();
+    placed(model);
+    feed(model, submitted, {
+      event: "request_submitted",
+      id: "t1-2",
+      train: "t1",
+      depart: null,
+      dest: ["a.A"],
+      after: "t1-1",
+    });
+    expect(model.markers().filter((marker) => marker.id === "t1-2")).toEqual([
+      { id: "t1-2", train: "t1", at: "a.A", role: "arrival" },
+    ]);
+  });
+
+  it("words a chained request's rejection on its arrival ends", () => {
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      {
+        event: "request_submitted",
+        id: "t1-2",
+        train: "t1",
+        depart: null,
+        dest: ["a.A"],
+        after: "t1-1",
+      },
+      { event: "request_rejected", id: "t1-2", reason: "unreachable" },
+    );
+    expect(model.markers()).toEqual([
+      { id: "t1-2", train: "t1", at: "a.A", role: "rejected", note: "no path exists" },
+    ]);
+  });
+
   it("lights the chosen route and drops the endpoint markers", () => {
     const model = panel();
     placed(model);
