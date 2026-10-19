@@ -841,15 +841,17 @@ run on to a destination it is no longer heading for. The key is read for
 **presence**: an explicit `null` says nowhere, and a frame that has lost the
 field is refused rather than read as a `null`.
 
-**It alone reads `tc49/dispatch/cancel_wanted`**, a person ending a train's
-work without it arriving
-([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
-The gesture names a train and no request — an id is the dispatcher's own — so
-it ends whatever that train has, the active request and everything queued
-behind it, and a train with nothing in flight is dropped like any other
-gesture there is no id to answer. It needs **no held run**: cancelling ends
-one train's work, and holding the whole railroad to do it would stop every
-other train to let one go.
+**It alone reads `tc49/dispatch/cancel_wanted`**, a person ending one
+request without it arriving
+([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)),
+and **`tc49/dispatch/reorder_wanted`**, a person moving one in the list it
+serves
+([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+Both name a request by its id. A cancel ends that request and the train's
+requests chained after it, and an id the dispatcher does not hold is dropped
+like any other gesture it cannot act on. It needs **no held run**:
+cancelling ends one request, and holding the whole railroad to do it would
+stop every other train to let one go.
 
 What a cancelled request held is released, **all of it but the block the train
 stands in** — under `FullRoute` that is the whole route, every transit and

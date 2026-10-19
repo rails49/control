@@ -303,8 +303,8 @@ tests/
   lib/         test_layout  test_bus  test_trace
   store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler  test_main
-  dispatcher/  test_routing  test_safety  test_incremental  test_aging
-               test_main
+  dispatcher/  test_routing  test_safety  test_incremental
+               test_request_list  test_main
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
                test_detector  test_readings
   driver/      test_driver  test_main
