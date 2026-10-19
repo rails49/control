@@ -261,10 +261,17 @@ services:
        "--store", "http://store:8765"]
 
   # No `--store`: the driver reads no documents.
+  #
+  # Its two speeds come from the env file, passed through by name; one the
+  # file leaves unset arrives empty, which the driver reads as its default
+  # (`clear` 0.6, `caution` 0.3).
   driver:
     build: *app
     profiles: [layout]
     restart: unless-stopped
+    environment:
+      TC49_DRIVER_CLEAR: "${TC49_DRIVER_CLEAR:-}"
+      TC49_DRIVER_CAUTION: "${TC49_DRIVER_CAUTION:-}"
     command:
       ["python", "-m", "tc49.driver",
        "--broker", "broker:1883"]
