@@ -319,6 +319,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
 | `tc49/dispatch/state/run` | state | dispatcher | held, running or draining, and whether anything is moving ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md), [ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)) |
+| `tc49/dispatch/state/moving` | state | dispatcher | whether any train is active or crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
@@ -439,6 +440,8 @@ what a drop would cost:
   train stays where it is, as on `stop`.
 - Any `link` but `up` reads as not up, and the railroad's power folds to
   `off`.
+- An unreadable `state/moving` reads as `true`, so it never ends a drain:
+  cutting the supply under a train strands it.
 - The reasons on `request_rejected`, `request_cancelled` and `grant_refused`
   are read only for what a person is shown. The UI shows a reason it has no
   words for as it came.
@@ -747,7 +750,10 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/grant_refused` — `id`; `reason`: enum `unsafe`, `held` or
   `transit_conflict`, the set `tc49.lib.inventory.Refusal`; `obstacles`: list
   of `{resource, holder}` — the block or transit that blocked a candidate, and
-  the train holding it.
+  the train holding it. `held` is a block or transit held by another train
+  (`Refusal.HELD`), never the run. A grant not made because power is not `on`
+  is not announced here
+  ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;
   `resources`: list of blocks and transits.
 - `tc49/dispatch/train_placed` — `train`; `block`.
@@ -764,6 +770,14 @@ payload is read defensively, and one that fails the read is dropped.
   granted is not. The row is republished when `moving` changes with the run
   word standing, and `layout` reads the pair to decide a plain `off`
   ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+- `tc49/dispatch/state/moving` — `moving`: boolean, true while any train is
+  active or crossing and false otherwise; republished when it changes. A
+  reader takes an unreadable value as `true`
+  ([Payload schemas](#payload-schemas)). It replaces `state/run`, which goes
+  with `run_wanted` once nothing reads either
+  ([#834](https://github.com/rails49/control/issues/834)), and `layout` reads
+  it to end a drain
+  ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
   aspect. An end nothing ever leaves does not appear.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
