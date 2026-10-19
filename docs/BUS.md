@@ -676,8 +676,15 @@ payload is read defensively, and one that fails the read is dropped.
   load-bearing: a payload without `block` fails the read, while an explicit
   `null` is a positive statement
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A block is
-  accepted only while the run is held; `null` in any run state
-  ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+  accepted at any power where it is **free**: no train placed there, no lock
+  on it, and on no active train's remaining route (`DispatchState.free()`);
+  a block that is not free is dropped. `null` is accepted at any power
+  ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
+  [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+  With power `on`, a block reading occupied that nothing claims is an
+  unexplained reading as before, so the drag comes before the cars go down.
+  The dispatcher accepts a block only while the run is held until
+  [#822](https://github.com/rails49/control/issues/822).
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
   end. A request waiting is cancelled at once. One underway is cancelled when
   the move it has outstanding ends at its sensor, and no further move is
@@ -754,7 +761,10 @@ payload is read defensively, and one that fails the read is dropped.
   aspect. An end nothing ever leaves does not appear.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
   in a block that reads clear; `blocks`: sorted list of blocks reading
-  occupied with nothing claiming them. Both empty unless the run is held.
+  occupied with nothing claiming them. Both empty unless power reads `off`
+  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md));
+  the dispatcher fills them while the run is held until
+  [#822](https://github.com/rails49/control/issues/822).
 - `tc49/dispatch/state/unfit` — `trains`: list of `{train, block, why}`, in
   train order: each train the last rebuild under the same railroad name took
   off the layout, the block it stood in, and `why` — `gone` where the new
