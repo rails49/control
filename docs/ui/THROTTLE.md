@@ -197,9 +197,7 @@ holds each, whether it has a move outstanding, the end each points at, the
 aspect there, the road ahead and the functions arrive as `Cab`s from
 `ui/src/model/throttle.ts`, which is a pure function over the apps' answers
 and this page's throttle id, and holds no state of its own. The panel model
-reads `state/taken` and `tc49/layout/move` (`ui/src/model/panel.ts`); nothing
-outside `ui/src/model/trace.ts` names `mode_wanted` or `state/mode`, whose
-rows go in [#834](https://github.com/rails49/control/issues/834).
+reads `state/taken` and `tc49/layout/move` (`ui/src/model/panel.ts`).
 
 **The session is the app's.** There is one socket per page, and the session
 that holds it is the one that joined the railroad the app has loaded

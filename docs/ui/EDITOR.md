@@ -184,7 +184,7 @@ both being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 And beside that, the other thing the band says about the drawing: that it is
-**frozen**, track power being on or stopped, or the page not having heard
+**frozen**, track power being on or draining, or the page not having heard
 which railroad is loaded ([Track power freezes the
 drawing](#track-power-freezes-the-drawing)); its title says which. It reads as the session clock
 does rather than as the refusal above it — a railroad with power on is the
@@ -1045,7 +1045,7 @@ left to the mark on the canvas, being a deliberate act
 
 ## Track power freezes the drawing
 
-With track power on or stopped, this view is read-only: look, zoom, inspect
+With track power on or draining, this view is read-only: look, zoom, inspect
 the netlist, do not draw. The run moves trains over what the dispatcher built,
 and the drawing must not drift from it
 ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
@@ -1080,7 +1080,7 @@ has loaded — the name on `tc49/layout/state/railroad` — writes it and then
 publishes `railroad_wanted` naming it, so every app builds what was written and
 keeps the trains that fit; those that do not are listed as unfit. The page does
 not reload: it already holds what it saved. The layout builds only with power
-off, so while power is on or stopped that Save is dead, and so is any Save
+off, so while power is on or draining that Save is dead, and so is any Save
 while no railroad is heard. The rule reads the
 two names and not the editor: a save of a drawing that is not the loaded
 railroad would name nothing, being only a file, though the editor opens no
@@ -1092,7 +1092,7 @@ railroad or none (#803).
 **Power on waits for the save.** The run view draws the open drawing, so power
 on with the loaded railroad's edits unsaved would run trains under track no app
 built. While they are unsaved and power is off, the band's power control is
-dead and says *Save the railroad first*. With power on or stopped it never
+dead and says *Save the railroad first*. With power on or draining it never
 waits.
 
 The freeze replaces the permission this page carried — "Editing and running the same

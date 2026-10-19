@@ -514,11 +514,10 @@ in [BUS.md](BUS.md#device-vocabulary).
     [#822](https://github.com/rails49/control/issues/822)).
 15. A `state/power` payload that cannot be read counts as `off`
     (ADR-0041, #181).
-16. The panel's off press drains first. It publishes `run_wanted: draining`,
-    on a held run too, waits for `state/run` to read `held` with `moving`
-    false, and then publishes `power_wanted: off` once. The wait ends with no
-    cut when the run changes to `running`, on an on press or a stop press, and
-    when the session ends (ADR-0062 decision 4).
+16. The panel's off press drains. It publishes `power_wanted: draining` and
+    keeps no wait of its own: the binding switches the supply off once
+    `tc49/dispatch/state/moving` reads false (ADR-0078,
+    [#828](https://github.com/rails49/control/issues/828)).
 17. In the UI the power toggle asking for `off` is that drain. Asking for `on`
     is refused while the loaded railroad has unsaved edits and power is off.
     The toggle and the stop sign are both dead in that case, while the station
@@ -545,7 +544,7 @@ in [BUS.md](BUS.md#device-vocabulary).
     ADR-0070 decision 5, ADR-0071 decisions 4 and 5,
     [ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)
     decision 4, [#564](https://github.com/rails49/control/issues/564)).
-20. The editor is read-only while power is `on` or `stopped`
+20. The editor is read-only while power is `on` or `draining`
     ([EDITOR.md](ui/EDITOR.md#track-power-freezes-the-drawing)).
 21. `layout` publishes `tc49/layout/alive_confirmed` once a second while it is
     built on a railroad. Each translator that drives trains, and any device on
