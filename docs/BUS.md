@@ -283,8 +283,8 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/alive_confirmed` | event | layout | `layout` is up and built on a railroad, said once a second ([#716](https://github.com/rails49/control/issues/716)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
-| `tc49/layout/power_wanted` | event | any (browser) | give the track power, stop every locomotive, or remove the supply ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)) |
-| `tc49/layout/state/power` | state | layout | whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)) |
+| `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
+| `tc49/layout/state/power` | state | layout | on, draining or off: whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/align` | command | any | throw these points, and authorise the transit it names, if any |
 | `tc49/layout/move` | command | any | take the train across, this fast |
 | `tc49/layout/mode_wanted` | event | any (browser) | a train is driven automatically, or by a person |
@@ -397,7 +397,7 @@ Each set has one home:
 | --- | --- |
 | `run` | `inventory`, `HELD`, `RUNNING`, `DRAINING` |
 | `mode` | `inventory`, `AUTOMATIC`, `MANUAL` |
-| `power` | `inventory`, `ON`, `STOPPED`, `OFF` |
+| `power` | `inventory`, `POWERS` |
 | `power` on `device/track` | `inventory`, `SUPPLY` |
 | `occupancy` | `inventory`, `OCCUPIED`, `CLEAR`, `UNKNOWN` |
 | `position` | `inventory`, `CLOSED`, `THROWN` |
@@ -522,29 +522,35 @@ what a drop would cost:
   rule below that a detector publishes no heartbeat does not reach it
   ([#716](https://github.com/rails49/control/issues/716)).
 - `tc49/layout/power_wanted` — browser-writable — `power`: enum `on`,
-  `stopped` or `off`, the same closed set `state/power` below carries; any
-  other value is dropped. `layout` is what answers it, and it answers by
-  writing `tc49/layout/state/wanted/track` — never by a page reaching a
-  translator directly (ADR-0051). A plain `off` is **guarded**: it is applied
-  where `tc49/dispatch/state/run` reads `held` with `moving` false, and where
-  `layout` holds no run at all, and it is dropped with its reason to the trace
-  where the run reads `running` or `draining` or something is moving
-  ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-  `on` and `stopped` are applied in every run state. Whichever binding of the
-  layout interface is running answers it, the simulator included: it has no
-  translator to write to, so it states the word on `state/power` itself,
-  under the same guard, and while the power is not `on` it starts no move and
-  advances none
+  `draining` or `off`, the same closed set `state/power` below carries; any
+  other value is dropped ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). `layout` is what answers it, and it answers
+  by writing `tc49/layout/state/wanted/track` — never by a page reaching a
+  translator directly (ADR-0051).
+  - `on`: the supply on. From `draining` it ends the drain.
+  - `draining`: from `on` only, and dropped otherwise. `layout` publishes
+    `state/power: draining` and keeps the supply on until
+    `tc49/dispatch/state/moving` reads `false`, then writes
+    `wanted/track: off`, zeroes every retained `wanted/traction` row, and
+    publishes `off`.
+  - `off`: the emergency stop. Applied at once in every state, with no
+    guard: `wanted/track: off`, and every `wanted/traction` row zeroed.
+
+  Whichever binding of the layout interface is running answers it, the
+  simulator included: it has no translator to write to, so it states the word
+  on `state/power` itself, under the same rules, and while the power is not
+  `on` it starts no move and advances none
   ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
-- `tc49/layout/state/power` — `power`: enum `on`, `stopped` or `off`. An
-  unreadable payload reads as `off`: dropping it would mean *not* holding the
-  run, over track whose state could not be read. `on` and `off` are folded
-  from `device/track` and the links; `stopped` is `layout`'s own, published on
-  writing `wanted/track: stopped` and held over the fold until a
-  `power_wanted: on` clears it, no hardware being able to report an emergency
-  stop (ADR-0063). The simulator publishes `off` from its constructor, as
-  `layout` does, and then the word each answered `power_wanted` commanded
-  (ADR-0070).
+- `tc49/layout/state/power` — `power`: enum `on`, `draining` or `off`
+  ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). An unreadable payload reads as `off`: dropping it would mean *not*
+  holding the run, over track whose state could not be read. `on` and `off`
+  are folded from `device/track` and the links — `off` where `device/track`
+  reads `off` or a link reads `down`; `draining` is `layout`'s own, published
+  on answering `power_wanted: draining` and held over the fold until the
+  drain ends, no hardware being able to report one (ADR-0063). The simulator
+  publishes `off` from its constructor, as `layout` does, and then the word
+  each answered `power_wanted` commanded (ADR-0070). `stopped`, the emergency
+  stop with the track live that [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) retires, stays readable until nothing
+  publishes it ([#834](https://github.com/rails49/control/issues/834)).
 - `tc49/layout/align` — `connection`; `transit`: bare name within the
   connection; `points`: list of `{addr, position}`, `position` enum `closed`
   or `thrown`; `[]` where nothing needs throwing. `connection` and `transit`
@@ -762,7 +768,7 @@ addresses it recognises and holds no table of the ones it does not
 | `tc49/layout/state/wanted/function/<addr>/<number>` | `addr`, `function`, `value` | `function` the function number as a string; `value` a **boolean** |
 | `tc49/layout/state/wanted/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
 | `tc49/layout/state/wanted/signal/<addr>` | `addr`, `aspect` | `aspect` `stop`, `caution` or `clear` |
-| `tc49/layout/state/wanted/track` | `power` | `power` `on`, `stopped` or `off` |
+| `tc49/layout/state/wanted/track` | `power` | `power` `on` or `off` |
 
 The address is **trailing levels rather than a leaf**, so a row is named by the
 topic above it and the payload repeats the address as `addr`, which is what
@@ -827,19 +833,16 @@ A publisher may set an MQTT last will of `down` on its own row, which
 [ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md)
 permits as a faster signal no safety property depends on (ADR-0059).
 
-**The supply is `on` or `off`.** The observed row carries no emergency stop
-where the desired one does, and that asymmetry is the vocabulary's own: what
-the railroad may be **asked** for is not bounded by what a sensor can answer.
-An emergency stop leaves the rails live — which is what tells it apart from
-cutting the supply, and is physical rather than a modelling choice — so under
-one the supply reads `on`, and that is the truth about the supply rather than
-a gap in what a publisher can report
+**The supply is `on` or `off`.** The observed row carries no drain, and
+that asymmetry is the vocabulary's own: what the railroad is doing with its
+supply is not bounded by what a sensor can answer. A drain keeps the rails
+live until nothing is moving, so under one the supply reads `on`, and that is
+the truth about the supply rather than a gap in what a publisher can report
 ([ADR-0063](adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
-Whether the railroad is standing under an emergency stop is
-`tc49/layout/state/power`, which keeps all three values and gets that one from
-`layout`'s own command rather than from this row. A `device/track` frame
-stating a third value is refused like any other value outside the closed set,
-and reads `off` with them.
+Whether the railroad is draining is `tc49/layout/state/power`, which gets that
+value from `layout`'s own answer rather than from this row. A `device/track`
+frame stating any third value is refused like any other value outside the
+closed set, and reads `off` with them.
 
 **`reason` on the supply is for the participant that cannot reach it**:
 `{power: off, reason: "…"}`, so a person reads why the railroad is dark
