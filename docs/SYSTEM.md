@@ -633,7 +633,12 @@ derived from a clock.
 It **holds facing**, which is scheduler state
 ([ADR-0019](adr/0019-facing-is-scheduler-state.md)). A train's facing starts
 at the placement the dispatcher accepts for it, and a **drag's departure end
-is read off it** rather than being it. After that four rules change it, each
+is read off it** rather than being it — where the train has nothing in
+flight. A drag of a train with a request in flight **chains** instead: it is
+submitted `after` the latest of them with no departure end, and starts where
+that one ends
+([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md),
+[#827](https://github.com/rails49/control/issues/827)). After that four rules change it, each
 for something the stock did. Routes are strict pass-throughs, so a train that
 left nose-first faces away from the end it entered through. A train
 **propelled**, pushed out of the end its nose points away from, enters the
