@@ -302,7 +302,7 @@ A length lives on the **model** as well as on the **car** — `stock._car` takes
 changes every item of that product, including the one under a train the
 dispatcher is fitting into blocks right now.
 
-So **length editing is disabled while track power is on or stopped**, with the
+So **length editing is disabled while track power is on or draining**, with the
 reason said on the control: the field keeps its box, takes the hint colour, and
 carries `track power is on — turn it off to correct a length` both as its title
 and beside it. A field that vanished would leave a person looking for it. With
@@ -321,7 +321,7 @@ latched: once the row is heard again with power off, lengths are editable
 (#804).
 
 A correction is an edit to the page, and reaches the store on the roster's
-**Save**. While power is on or stopped, **Save is disabled if the unsaved edits
+**Save**. While power is on or draining, **Save is disabled if the unsaved edits
 change a length**, titled `a length has changed — turn track power off to save`:
 the layout builds only with power off, so a length saved then could not be
 built. While the row naming the railroad is not heard it is disabled for the

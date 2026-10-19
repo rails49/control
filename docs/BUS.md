@@ -289,9 +289,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/state/power` | state | layout | on, draining or off: whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/align` | command | any | throw these points, and authorise the transit it names, if any |
 | `tc49/layout/move` | command | any | take the train across, this fast |
-| `tc49/layout/mode_wanted` | event | any (browser) | a train is driven automatically, or by a person |
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
-| `tc49/layout/state/mode` | state | layout | who drives each train |
 | `tc49/layout/driving_wanted` | event | any (browser) | switch the railroad's driving mode ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/state/driving` | state | layout | manual or automatic: who drives the trains ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/take_wanted` | event | any (browser) | a throttle takes a train, or the train is released ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
@@ -302,7 +300,6 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
 | `tc49/schedule/state/facing` | state | scheduler | the run each train would make across its block |
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
-| `tc49/dispatch/run_wanted` | event | any (browser) | hold the run, release it, or drain it |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/cancel_wanted` | event | any (browser) | end one request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md), [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
 | `tc49/dispatch/reorder_wanted` | event | any (browser) | move one request in the list the dispatcher serves ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
@@ -318,7 +315,6 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/lock_released` | event | dispatcher | resources released |
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/run` | state | dispatcher | held, running or draining, and whether anything is moving ([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md), [ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)) |
 | `tc49/dispatch/state/moving` | state | dispatcher | whether any train is active or crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
@@ -404,8 +400,6 @@ Each set has one home:
 
 | field | home in `tc49.lib` |
 | --- | --- |
-| `run` | `inventory`, `HELD`, `RUNNING`, `DRAINING` |
-| `mode` | `inventory`, `AUTOMATIC`, `MANUAL` |
 | `driving` | `inventory`, `DRIVINGS` |
 | `power` | `inventory`, `POWERS` |
 | `power` on `device/track` | `inventory`, `SUPPLY` |
@@ -417,19 +411,17 @@ Each set has one home:
 | `reason` on `request_rejected`, and on `request_admitted`'s `pruned` | `rejection` |
 | `reason` on `request_cancelled` | `cancellation` |
 
-The closed set goes wherever the field goes: `run` is an enum on
-`tc49/dispatch/state/run` and on the `run_wanted` gesture that asks to move
+The closed set goes wherever the field goes: `power` is an enum on
+`tc49/layout/state/power` and on the `power_wanted` gesture that asks to move
 it. So a new value is a change to the contract, not a payload a reader
 tolerates. Which way an unreadable value falls is the reader's choice, made by
 what a drop would cost:
 
-- An unreadable `power` reads as `off` and holds the run. Dropping it would
-  leave the run committing over track whose state could not be read. An
-  unreadable supply on `device/track` reads as `off` too.
-- An unreadable `run` is dropped, and nothing is set
-  ([#175](https://github.com/rails49/control/issues/175)).
-- An unreadable `mode` is dropped too. Neither value is safe to invent for a
-  train when nobody could read who drives it.
+- An unreadable `power` on `state/power` reads as `off`, and the dispatcher
+  routes nothing. Dropping it would leave the dispatcher committing over
+  track whose state could not be read. An unreadable supply on `device/track`
+  reads as `off` too. On `power_wanted` an unreadable `power` is dropped, and
+  nothing is set ([#175](https://github.com/rails49/control/issues/175)).
 - An unreadable `driving` on `state/driving` reads as `manual`, where the
   railroad comes up and under which a train no throttle holds stands; on
   `driving_wanted` it is dropped.
@@ -558,16 +550,16 @@ what a drop would cost:
   ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md),
   [#832](https://github.com/rails49/control/issues/832)).
 - `tc49/layout/state/power` — `power`: enum `on`, `draining` or `off`
-  ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). An unreadable payload reads as `off`: dropping it would mean *not*
-  holding the run, over track whose state could not be read. `on` and `off`
+  ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). An unreadable payload reads as `off`: dropping it would leave the
+  dispatcher routing over track whose state could not be read. `on` and `off`
   are folded from `device/track` and the links — `off` where `device/track`
   reads `off` or a link reads `down`; `draining` is `layout`'s own, published
   on answering `power_wanted: draining` and held over the fold until the
   drain ends, no hardware being able to report one (ADR-0063). The simulator
   publishes `off` from its constructor, as `layout` does, and then the word
   each answered `power_wanted` commanded (ADR-0070). `stopped`, the emergency
-  stop with the track live that [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) retires, stays readable until nothing
-  publishes it ([#834](https://github.com/rails49/control/issues/834)).
+  stop with the track live that [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) retires, is outside the set and reads
+  as `off` ([#834](https://github.com/rails49/control/issues/834)).
 - `tc49/layout/align` — `connection`; `transit`: bare name within the
   connection; `points`: list of `{addr, position}`, `position` enum `closed`
   or `thrown`; `[]` where nothing needs throwing. `connection` and `transit`
@@ -582,13 +574,6 @@ what a drop would cost:
   which way the train goes along the track is the layout interface's, which
   holds the geometry and the way round the locomotive stands
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-- `tc49/layout/mode_wanted` — browser-writable — `train`: the train to hand
-  over or take back, or `null` for **every** train; `mode`: enum `automatic`
-  or `manual`; any other value is dropped, and so is the whole gesture, the
-  train's mode staying where it was. `null` with `manual` skips the trains
-  `layout` is driving — one mid-transit under a grant would otherwise run on
-  past the block it was sent to — and takes the rest
-  ([#436](https://github.com/rails49/control/issues/436)).
 - `tc49/layout/throttle_wanted` — browser-writable — `train`; `speed`: a
   number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
   stop, signed for which way the train runs along its own length — positive
@@ -601,14 +586,6 @@ what a drop would cost:
   `throttle` as a field that may be absent, and `layout` drops a frame without
   one. When the move ends at its sensor `layout` writes `0.0` and drops the
   throttle's speeds until the next grant.
-- `tc49/layout/state/mode` — `modes`: map of train to enum `automatic` or
-  `manual`. `automatic` is the resting value, so a train the map does not
-  name is `automatic` and an unreadable entry leaves that train without a
-  mode rather than being read as one.
-  `layout` no longer answers `mode_wanted` or publishes `state/mode`
-  ([#825](https://github.com/rails49/control/issues/825)); the rows are
-  removed in [#834](https://github.com/rails49/control/issues/834), once
-  nothing uses them.
 - `tc49/layout/driving_wanted` — browser-writable — `driving`: enum `manual`
   or `automatic`, the same closed set `state/driving` below carries; any
   other value is dropped. Accepted at any power
@@ -684,8 +661,6 @@ payload is read defensively, and one that fails the read is dropped.
   admission as above. The scheduler composes a drag with `after` wherever
   the train has a request in flight, naming the latest of them
   ([#827](https://github.com/rails49/control/issues/827)).
-- `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held`,
-  `running` or `draining`; any other value is dropped.
 - `tc49/dispatch/placement_wanted` — browser-writable — `train`; `block`:
   block name, or `null` for off the layout. The key's presence is
   load-bearing: a payload without `block` fails the read, while an explicit
@@ -698,8 +673,6 @@ payload is read defensively, and one that fails the read is dropped.
   [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
   With power `on`, a block reading occupied that nothing claims is an
   unexplained reading as before, so the drag comes before the cars go down.
-  The dispatcher accepts a block only while the run is held until
-  [#822](https://github.com/rails49/control/issues/822).
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
   end. A request waiting is cancelled at once. One underway is cancelled when
   the move it has outstanding ends at its sensor, and no further move is
@@ -760,35 +733,17 @@ payload is read defensively, and one that fails the read is dropped.
   `resources`: list of blocks and transits.
 - `tc49/dispatch/train_placed` — `train`; `block`.
 - `tc49/dispatch/train_removed` — `train`.
-- `tc49/dispatch/state/run` — `run`: enum `held`, `running` or `draining`; a
-  reader drops an unreadable value ([Payload schemas](#payload-schemas)).
-  The dispatcher writes `draining` when it is asked for and writes `held`
-  itself when the drain completes
-  ([#294](https://github.com/rails49/control/issues/294)).
-  `moving`: boolean, true while any train is active or crossing — the same
-  test the drain's completion makes — and false otherwise. It is orthogonal
-  to `run` and not a fourth value of it: a held run can be moving, because a
-  move already granted runs to its sensor, and a running run with nothing
-  granted is not. The row is republished when `moving` changes with the run
-  word standing. No binding of the layout interface reads it: a plain `off`
-  is no longer guarded, and a drain ends on `state/moving`
-  ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/state/moving` — `moving`: boolean, true while any train is
   active or crossing and false otherwise; republished when it changes. A
   reader takes an unreadable value as `true`
-  ([Payload schemas](#payload-schemas)). It replaces `state/run`, which goes
-  with `run_wanted` once nothing reads either
-  ([#834](https://github.com/rails49/control/issues/834)), and `layout` reads
-  it to end a drain
+  ([Payload schemas](#payload-schemas)). `layout` reads it to end a drain
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
   aspect. An end nothing ever leaves does not appear.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
   in a block that reads clear; `blocks`: sorted list of blocks reading
   occupied with nothing claiming them. Both empty unless power reads `off`
-  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md));
-  the dispatcher fills them while the run is held until
-  [#822](https://github.com/rails49/control/issues/822).
+  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
 - `tc49/dispatch/state/unfit` — `trains`: list of `{train, block, why}`, in
   train order: each train the last rebuild under the same railroad name took
   off the layout, the block it stood in, and `why` — `gone` where the new
