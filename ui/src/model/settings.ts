@@ -25,7 +25,7 @@ import type { Power } from "./trace.js";
  *
  * - `loaded` is `null`: the layout has not said which railroad is loaded, so
  *   no binding is there to answer a press;
- * - a railroad is loaded and the track has power — on or stopped — or has
+ * - a railroad is loaded and the track has power — on or draining — or has
  *   not said: the rails would change under a train;
  * - something is unsaved: the load would discard it.
  *
@@ -57,7 +57,7 @@ export function refusal(
  *
  * - `railroad` is `null`: the layout has not said which railroad is loaded, so
  *   nothing says the backup holds the railroad the apps run (#759);
- * - a railroad is loaded and the track has power — on or stopped — or has
+ * - a railroad is loaded and the track has power — on or draining — or has
  *   not said: the rails and the drawing would change under a moving train;
  * - `picked` is without the loaded railroad: the apps would go on running a
  *   railroad the store no longer holds.
@@ -99,7 +99,7 @@ export function copyRefusal(
 
 /**
  * Why turning the box off is refused, `null` where it is not: the layout has
- * not said whether the track has power, or it has power — on, or stopped.
+ * not said whether the track has power, or it has power — on, or draining.
  */
 export function boxRefusal(power: Power | null): string | null {
   if (power === null) return "the layout has not said whether the track has power";

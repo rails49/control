@@ -53,7 +53,7 @@ export interface Standing {
   undo: boolean;
   redo: boolean;
   /** The run's track power, as `state/power` says, `null` with no session.
-   *  Power on or stopped freezes the drawing (`frozen` below); it is read
+   *  Power on or draining freezes the drawing (`frozen` below); it is read
    *  afresh and nothing is latched, so switching it off thaws the drawing on
    *  its own. Trains standing on the layout do not freeze it: a save names
    *  the railroad again and the rebuild keeps them where they fit (ADR-0071).
@@ -124,7 +124,7 @@ export const NOTHING: Standing = {
 };
 
 /**
- * Whether the drawing is frozen: track power on or stopped, and it is
+ * Whether the drawing is frozen: track power on or draining, and it is
  * ([ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
  * decision 5). With power on the run moves trains over what the dispatcher
  * built, so the drawing must not drift from it; with power off nothing moves,

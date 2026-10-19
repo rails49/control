@@ -9,13 +9,10 @@ import { describe, expect, it } from "vitest";
 import {
   CANCEL_WANTED,
   cancellation,
-  DRAINING,
   DRIVING_WANTED,
   drivingWanted,
   gesture,
   Live,
-  MODE_WANTED,
-  modeWanted,
   Ordering,
   POINT_WANTED,
   pointWanted,
@@ -26,8 +23,6 @@ import {
   REQUEST_WANTED,
   reversal,
   REVERSAL_WANTED,
-  RUN_WANTED,
-  runWanted,
   STATE_NAMES,
   TAKE_WANTED,
   takeWanted,
@@ -152,47 +147,6 @@ describe("pointWanted", () => {
   });
 });
 
-/** Holding the run and releasing it (ADR-0037): the third thing the page may
- *  write. It says where the run should stand rather than asking for a change,
- *  so two presses of the same value are not a race. */
-describe("runWanted", () => {
-  it("names where the run should stand and nothing else", () => {
-    expect(runWanted("held")).toEqual({
-      topic: "tc49/dispatch/run_wanted",
-      payload: { run: "held" },
-    });
-    expect(runWanted("running").payload).toEqual({ run: "running" });
-    expect(RUN_WANTED).toBe("tc49/dispatch/run_wanted");
-  });
-
-  /** The drain is a third value of the same word rather than a state of its
-   *  own (#123, #294), and it is what the band's OFF asks for first
-   *  (ADR-0051). `state/run` reads it back like any other value of the run,
-   *  and what the OFF sequence waits for is the `held` the dispatcher writes
-   *  itself when the drain completes. */
-  it("carries the drain on the same word", () => {
-    expect(runWanted(DRAINING).payload).toEqual({ run: "draining" });
-  });
-});
-
-/** Taking a train in a throttle and giving it back (#207): the fifth thing
- *  the page may write. It names where the mode should stand rather than
- *  asking for a change, as the run's and the supply's gestures do, and who is
- *  driving is read back off `state/mode` rather than assumed from the press. */
-describe("modeWanted", () => {
-  it("names the train and where its mode should stand", () => {
-    expect(modeWanted("t1", "manual")).toEqual({
-      topic: "tc49/layout/mode_wanted",
-      payload: { train: "t1", mode: "manual" },
-    });
-    expect(modeWanted("t1", "automatic").payload).toEqual({
-      train: "t1",
-      mode: "automatic",
-    });
-    expect(MODE_WANTED).toBe("tc49/layout/mode_wanted");
-  });
-});
-
 /** The throttle being turned (#207): the sixth. One number for the train,
  *  signed for the way the train points — which locomotive it reaches, and
  *  which way round that one stands, is `layout`'s (CONTEXT.md,
@@ -249,9 +203,6 @@ describe("throttleAlive", () => {
   });
 });
 
-/** Commanding track power (ADR-0051): the same three values the layout
- *  reports, in the command direction. One topic and one axis, so no consumer
- *  has to decide what powered-off-and-emergency-stopped means. */
 describe("drivingWanted", () => {
   it("names the railroad's driving mode and nothing else", () => {
     expect(drivingWanted("automatic")).toEqual({
@@ -263,11 +214,13 @@ describe("drivingWanted", () => {
   });
 });
 
+/** Commanding track power (ADR-0051, ADR-0078): the same three values the
+ *  layout reports, in the command direction. */
 describe("powerWanted", () => {
   it("names where the supply should stand and nothing else", () => {
-    expect(powerWanted("stopped")).toEqual({
+    expect(powerWanted("draining")).toEqual({
       topic: "tc49/layout/power_wanted",
-      payload: { power: "stopped" },
+      payload: { power: "draining" },
     });
     expect(powerWanted("on").payload).toEqual({ power: "on" });
     expect(powerWanted("off").payload).toEqual({ power: "off" });
@@ -283,14 +236,12 @@ describe("powerWanted", () => {
   });
 });
 
-/** The one reading of "the track has power": on; draining, which keeps the
- *  supply on until nothing is moving (ADR-0078); or stopped, which is every
- *  locomotive told to stand with the track still live (ADR-0041). */
+/** The one reading of "the track has power": on, or draining, which keeps
+ *  the supply on until nothing is moving (ADR-0078). */
 describe("trackLive", () => {
   it.each([
     ["on", true],
     ["draining", true],
-    ["stopped", true],
     ["off", false],
     [null, false],
   ] as const)("reads %s as live: %s", (power, live) => {
@@ -324,7 +275,7 @@ describe("Ordering", () => {
     const ordering = new Ordering();
     expect(ordering.accepts(power(20, "on"))).toBe(true);
     expect(ordering.accepts(power(undefined, "off"))).toBe(true);
-    expect(ordering.accepts(power(1, "stopped"))).toBe(true);
+    expect(ordering.accepts(power(1, "draining"))).toBe(true);
   });
 
   it("reads no stamp off anything but a number", () => {
@@ -334,13 +285,13 @@ describe("Ordering", () => {
     // that reader refuses a boolean in a line of its own.
     expect(ordering.accepts({ event: "power", at: true, power: "off" })).toBe(true);
     expect(ordering.accepts({ event: "power", at: "20", power: "off" })).toBe(true);
-    expect(ordering.accepts(power(1, "stopped"))).toBe(true);
+    expect(ordering.accepts(power(1, "draining"))).toBe(true);
   });
 
   it("holds a stamp per state topic and not one for the page", () => {
     const ordering = new Ordering();
     expect(ordering.accepts(power(20, "off"))).toBe(true);
-    expect(ordering.accepts({ event: "run", at: 1, run: "held" })).toBe(true);
+    expect(ordering.accepts({ event: "moving", at: 1, moving: false })).toBe(true);
   });
 
   it("orders no event topic at all", () => {
@@ -373,11 +324,9 @@ describe("Ordering", () => {
       "driving",
       "exhausted",
       "facing",
-      "mode",
       "moving",
       "power",
       "railroad",
-      "run",
       "taken",
       "unfit",
     ]);

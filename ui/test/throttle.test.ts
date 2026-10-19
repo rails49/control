@@ -441,12 +441,11 @@ describe("what a person can switch", () => {
 
 describe("with the rails dead", () => {
   /** The view is disabled with the reason shown whenever `state/power` is not
-   *  `on`, and the two ways of standing still ask for different actions by a
-   *  person (ADR-0041). */
+   *  `on`, and a drain asks a person to switch it back on (ADR-0078). */
   it("sends nothing at all, and says why", async () => {
     const shell = await driving();
     await taken(shell);
-    await said(shell, POWER, { power: "stopped" });
+    await said(shell, POWER, { power: "draining" });
     const before = written().length;
 
     take(shell).click();
@@ -456,7 +455,7 @@ describe("with the rails dead", () => {
     await settled(shell);
 
     expect(written().length).toBe(before);
-    expect(part(shell, ".still")!.textContent).toContain("emergency stop");
+    expect(part(shell, ".still")!.textContent).toContain("draining");
   });
 
   it("says the supply is off where that is what it is", async () => {

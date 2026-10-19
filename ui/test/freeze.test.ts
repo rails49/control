@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * Track power on or stopped freezes the drawing
+ * Track power on or draining freezes the drawing
  * ([ADR-0071](../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
  * decision 5): the run moves trains over what the dispatcher built, and the
  * drawing must not drift from it. Trains standing with power off freeze
@@ -192,10 +192,11 @@ describe("track power on", () => {
     expect(session(shell).pending).toBeNull();
   });
 
-  /** Stopped is an emergency stop somebody clears back to on, not a rest. */
-  it("is frozen stopped as well", async () => {
+  /** Draining keeps the supply on until nothing is moving, so it is not a
+   *  rest either (ADR-0078). */
+  it("is frozen draining as well", async () => {
     const shell = await editor();
-    await said(shell, POWER, { power: "stopped" });
+    await said(shell, POWER, { power: "draining" });
     session(shell).select(["a"]);
     const was = drawn(shell);
 

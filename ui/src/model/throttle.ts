@@ -119,12 +119,11 @@ export function cabs(driving: Driving): Cab[] {
 }
 
 /** What a person is told when a gesture would go nowhere, by what the track
- *  is doing. Each names the action that clears it: an emergency stop is
- *  cleared where a supply is switched back on (ADR-0041). */
+ *  is doing. Each names the action that clears it: switching the supply back
+ *  on (ADR-0078). */
 export const STILL: Record<Power, string | null> = {
   on: null,
   draining: "the railroad is draining — switch it on to drive",
-  stopped: "emergency stop — clear it before driving",
   off: "the track has no power — switch it on to drive",
 };
 

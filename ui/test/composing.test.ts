@@ -455,8 +455,8 @@ describe("a refusal names what holds the thing", () => {
 describe("the length guard", () => {
   const WORDS = "track power is on — turn it off to correct a length";
 
-  it("is off while power is on or stopped, and moves no length", () => {
-    for (const power of ["on", "stopped"] as const) {
+  it("is off while power is on or draining, and moves no length", () => {
+    for (const power of ["on", "draining"] as const) {
       const screen = stock();
       expect(screen.cars(power)[0]!.held).toBe(WORDS);
       expect(screen.modelRows(power).every((row) => row.held === WORDS)).toBe(true);
@@ -491,7 +491,7 @@ describe("the length guard", () => {
       expect(lengthHeld(null, false)).toBe(UNHEARD);
       expect(lengthHeld("off", false)).toBe(UNHEARD);
       expect(lengthHeld("on", false)).toBe(WORDS);
-      expect(lengthHeld("stopped", false)).toBe(WORDS);
+      expect(lengthHeld("draining", false)).toBe(WORDS);
       expect(lengthHeld(null)).toBeNull();
     });
 
@@ -587,11 +587,11 @@ describe("a length edit in the roster", () => {
     expect(screen.lengthEdits).toBe(false);
   });
 
-  it("holds the Save while power is on or stopped, and only then", () => {
+  it("holds the Save while power is on or draining, and only then", () => {
     const screen = stock();
     screen.carLength("krokodil-a", 130, "off");
     expect(screen.waitsForPower("on")).toBe(WAITS);
-    expect(screen.waitsForPower("stopped")).toBe(WAITS);
+    expect(screen.waitsForPower("draining")).toBe(WAITS);
     expect(screen.waitsForPower("off")).toBeNull();
     expect(screen.waitsForPower(null)).toBeNull();
   });

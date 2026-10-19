@@ -197,7 +197,7 @@ export class Gesture {
   /** Everything in flight dropped, writing nothing. What a frozen drawing
    *  answers every press with (#169): a gesture the freeze lands in the middle
    *  of leaves the sheet as it found it rather than finishing on a railroad
-   *  with track power on or stopped (ADR-0071). */
+   *  with track power on or draining (ADR-0071). */
   abandon(): Outcome {
     const drawn = this.press !== null || this.drag !== null || this.rubber !== null;
     this.press = null;
@@ -286,7 +286,7 @@ export class Gesture {
  * over another when a railroad is opened.
  *
  * `frozen` is read the same way, and it is the whole of the freeze on this
- * surface: with track power on or stopped every press is abandoned rather
+ * surface: with track power on or draining every press is abandoned rather
  * than meant (`model/commands.ts`, ADR-0071). The canvas goes on converting pixels to
  * squares and asking, as it does with no session in the run view — a view
  * whose gestures mean nothing is the shape both of them already have.

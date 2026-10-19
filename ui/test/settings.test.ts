@@ -26,7 +26,7 @@ describe("why the railroad part is refused", () => {
     );
   });
 
-  it.each(["on", "stopped", null] as const)(
+  it.each(["on", "draining", null] as const)(
     "is refused while a railroad is loaded and the track reads %s",
     (power) => {
       expect(refusal("otira", power, "the drawing")).toBe(
@@ -86,7 +86,7 @@ describe("why turning the box off is refused", () => {
     expect(boxRefusal(null)).toBe("the layout has not said whether the track has power");
   });
 
-  it.each(["on", "stopped"] as const)("is refused while the track reads %s", (power) => {
+  it.each(["on", "draining"] as const)("is refused while the track reads %s", (power) => {
     expect(boxRefusal(power)).toBe(
       "the track has power: switch it off before turning the box off",
     );
@@ -104,7 +104,7 @@ describe("why a restore is refused", () => {
   const holding: Backup = { commit: "a1", said: "", when: "", railroads: ["otira"] };
   const without: Backup = { commit: "b2", said: "", when: "", railroads: ["mainline"] };
 
-  it.each(["on", "stopped", "off", null] as const)(
+  it.each(["on", "draining", "off", null] as const)(
     "is refused while the layout has not said which railroad is loaded, power %s",
     (power) => {
       expect(restoreRefusal(null, power, holding)).toBe(
@@ -116,7 +116,7 @@ describe("why a restore is refused", () => {
     },
   );
 
-  it.each(["on", "stopped", null] as const)(
+  it.each(["on", "draining", null] as const)(
     "is refused while a railroad is loaded and the track reads %s",
     (power) => {
       expect(restoreRefusal("otira", power, holding)).toBe(
@@ -141,7 +141,7 @@ describe("why a restore is refused", () => {
 
   /** With nothing loaded there is no run to drift from, and any backup will
    *  do (#697). */
-  it.each(["on", "stopped", "off", null] as const)(
+  it.each(["on", "draining", "off", null] as const)(
     "is open with no railroad loaded, power %s, whatever the backup holds",
     (power) => {
       expect(restoreRefusal("", power, holding)).toBeNull();

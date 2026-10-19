@@ -254,7 +254,7 @@ export function heldBy(what: string, holders: string[]): string {
  *
  * A length lives on the model as well as the car, and correcting either moves
  * a train the dispatcher fits into blocks. So it is off while track power is
- * on or stopped: the run is moving trains over what the dispatcher built, and
+ * on or draining: the run is moving trains over what the dispatcher built, and
  * a correction could only be built with power off, the layout answering
  * `railroad_wanted` only then. With power off, or no session (`null`) on a
  * page that holds no roster from one, it is on, placed trains or not: the
@@ -426,7 +426,7 @@ export class Stock {
   }
 
   /** Why the roster's Save waits, or `null` where it does not: a length edit
-   *  with track power on or stopped, or with the row not `heard` (#804). Any
+   *  with track power on or draining, or with the row not `heard` (#804). Any
    *  other edit saves as ever — it moves nothing the dispatcher fits. */
   waitsForPower(power: Power | null, heard: boolean = true): string | null {
     if (!this.lengthEdits) return null;
@@ -661,7 +661,7 @@ export class Stock {
    * A length corrected on this item and not on the product. `null` takes the
    * override off, and the car reads its model's length again.
    *
-   * Refused while track power is on or stopped: the dispatcher is fitting
+   * Refused while track power is on or draining: the dispatcher is fitting
    * trains into blocks on the length this answers, and only a build with
    * power off brings it up to date (ui/STOCK.md#the-length-guard).
    */
@@ -728,7 +728,7 @@ export class Stock {
 
   /** Correcting a product's length changes every item of that product, which
    *  is the whole reason the length lives here as well as on the car. Refused
-   *  while track power is on or stopped. Written on the roster's Save. */
+   *  while track power is on or draining. Written on the roster's Save. */
   modelLength(
     name: string,
     mm: number,

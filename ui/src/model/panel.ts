@@ -563,9 +563,10 @@ export class Panel {
       case "power": {
         // Power as `layout` says it, whole from the topic: `on`, `draining`
         // or `off` (ADR-0078). The dispatcher reads the same value and routes
-        // only while it is `on`.
-        const { power } = event as unknown as { power: Power };
-        this.powerWord = power;
+        // only while it is `on`, and a word outside the three reads as `off`,
+        // as `tc49.lib.payload.power` reads it.
+        const { power } = event as unknown as { power?: unknown };
+        this.powerWord = power === "on" || power === "draining" ? power : "off";
         return;
       }
       case "device/track": {
@@ -920,7 +921,7 @@ export class Panel {
    * moves (#169).
    *
    * The roster pane draws a row each. The freeze rule does not count them:
-   * track power on or stopped freezes the drawing, whatever trains stand
+   * track power on or draining freezes the drawing, whatever trains stand
    * (ADR-0071). A crossing train is placed and stands in no block: it is
    * holding a transit, which is as on the layout as a train gets.
    *

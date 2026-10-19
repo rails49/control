@@ -90,9 +90,7 @@ export class Live {
  *  ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
 export const REQUEST_WANTED = "tc49/schedule/request_wanted";
 export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
-export const MODE_WANTED = "tc49/layout/mode_wanted";
 export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
-export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
 export const REORDER_WANTED = "tc49/dispatch/reorder_wanted";
@@ -103,51 +101,19 @@ export const DRIVING_WANTED = "tc49/layout/driving_wanted";
 export const TAKE_WANTED = "tc49/layout/take_wanted";
 export const THROTTLE_ALIVE = "tc49/layout/throttle_alive";
 
-/** How a run stands: the dispatcher will commit nothing while it is `held`,
- *  it commits everything while it is `running`, and while it is `draining` it
- *  grants the trains already moving and launches nothing
- *  ([ADR-0037](../../../docs/adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
- *  [#294](https://github.com/rails49/control/issues/294)).
- *  An enum and not a boolean, on the topic and here — which is what let the
- *  drain take a third value rather than invent a state of its own. The same
- *  three a person's `run_wanted` may name.
- *
- *  `state/run` carries `moving` beside the word, and it is not a fourth value
- *  of this: a boolean, true while any train is active or crossing, so a power
- *  cut now would strand it. A held run can be moving, because a move already
- *  granted runs to its sensor, and a running run with nothing granted is not
- *  ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
- *  A `run_wanted` names the word alone: `moving` is what the railroad is
- *  doing and nothing a person asks for. */
-export type Run = "held" | "running" | "draining";
-
 /** What the layout says about whether a train may move at all: `on`;
  *  `draining`, the supply kept on while each moving train stops and nothing
  *  new starts, until `layout` switches it off; or `off`, the supply removed
  *  ([ADR-0078](../../../docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
- *  `stopped`, an emergency stop with the track still live
- *  ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)),
- *  stays readable until nothing publishes it (#834). */
-export type Power = "on" | "draining" | "stopped" | "off";
+ *  A word outside the three reads as `off`. */
+export type Power = "on" | "draining" | "off";
 
-/** Whether the track has power: `on`; `draining`, which keeps the supply on
- *  until nothing is moving; or `stopped`, which leaves the track live with
- *  every locomotive told to stand (CONTEXT.md, **Emergency stop**). A supply
- *  not yet heard (`null`) is not live here; what that means to each rule is
- *  the rule's to say. */
+/** Whether the track has power: `on`, or `draining`, which keeps the supply
+ *  on until nothing is moving. A supply not yet heard (`null`) is not live
+ *  here; what that means to each rule is the rule's to say. */
 export function trackLive(power: Power | null): boolean {
-  return power === "on" || power === "draining" || power === "stopped";
+  return power === "on" || power === "draining";
 }
-
-/** The ordinary shutdown: the run launches nothing more, lets what is
- *  crossing finish, and settles at `held`. Named because OFF is the drain
- *  trigger and this is the word it writes
- *  ([ADR-0051](../../../docs/adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)),
- *  and what the OFF sequence then waits for is `held`, which the dispatcher
- *  writes itself when the drain completes
- *  ([#294](https://github.com/rails49/control/issues/294)). `state/run` reads
- *  it back like any other value of the run. */
-export const DRAINING = "draining";
 
 /** A `request_wanted` payload: what a drag means. A request minus the two
  *  fields the scheduler owns — no `id`, because the scheduler is the single
@@ -216,22 +182,12 @@ export function pointWanted(wanted: PointWanted): Frame {
   return { topic: POINT_WANTED, payload: { ...wanted } };
 }
 
-/** A `run_wanted` frame: hold the run, release it, or drain it. It says where
- *  the run should stand rather than asking for a change, so a press that
- *  agrees with where it already stands is not a race — and the dispatcher is
- *  the one writer of `state/run`, this being a gesture like the other two. */
-export function runWanted(run: Run): Frame {
-  return { topic: RUN_WANTED, payload: { run } };
-}
-
-/** A `power_wanted` frame: give the track power, stop every locomotive where
- *  it stands, or remove the supply. The same three values the layout reports
- *  on `state/power`, in the command direction — one topic and one axis, so no
- *  consumer has to decide what powered-off-and-emergency-stopped means
- *  (ADR-0041, ADR-0051).
+/** A `power_wanted` frame: give the track power, drain it, or remove the
+ *  supply at once. The same three values the layout reports on `state/power`,
+ *  in the command direction — one topic and one axis (ADR-0051, ADR-0078).
  *
- *  It names where the power should stand rather than asking for a change, as
- *  `run_wanted` does, so a press that agrees with where it already stands is
+ *  It names where the power should stand rather than asking for a change, so
+ *  a press that agrees with where it already stands is
  *  not a race. `layout` is what answers it, and a page never reaches the
  *  hardware itself. */
 export function powerWanted(power: Power): Frame {
@@ -258,28 +214,6 @@ export function powerWanted(power: Power): Frame {
  *  the rails match the drawing just loaded (ADR-0051). */
 export function railroadWanted(railroad: string): Frame {
   return { topic: RAILROAD_WANTED, payload: { railroad } };
-}
-
-/** Who turns a train's throttle: `automatic` at rest, `manual` while a person
- *  has taken it in a throttle and until they give it back
- *  ([#207](https://github.com/rails49/control/issues/207)). The same two words
- *  the `mode_wanted` gesture names and every entry of the `modes` map on
- *  `tc49/layout/state/mode` carries. Not said of the *system*, which is
- *  **held** or **running** and a different thing on a different topic
- *  (CONTEXT.md). */
-export type Mode = "automatic" | "manual";
-
-/** A `mode_wanted` frame: take this train in a throttle, or give it back. It
- *  names where the mode should stand rather than asking for a change, as
- *  `run_wanted` and `power_wanted` do, so a second `manual` on a train
- *  already taken is not a race — and the view goes on reading who drives off
- *  `state/mode`, which `layout` writes and this never assumes (ADR-0035).
- *
- *  The train is always named here. `train: null` on the topic hands over
- *  **every** train at once, which is a thing a person does to a railroad and
- *  not to the train they have picked, so no gesture of this view writes it. */
-export function modeWanted(train: string, mode: Mode): Frame {
-  return { topic: MODE_WANTED, payload: { train, mode } };
 }
 
 /** Who drives the trains, said once for the whole railroad: `manual`, where
@@ -374,18 +308,15 @@ export interface Submission {
  *  [#602](https://github.com/rails49/control/issues/602)).
  *
  *  `moving` is the dispatcher's `state/moving`: a boolean, true while any
- *  train is active or crossing, which replaces `state/run` once nothing reads
- *  it, and a payload that cannot be read says `true`
+ *  train is active or crossing, and a payload that cannot be read says `true`
  *  ([ADR-0078](../../../docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). */
 export const STATE_NAMES: ReadonlySet<string> = new Set([
   "railroad",
   "power",
-  "mode",
   "driving",
   "taken",
   "exhausted",
   "facing",
-  "run",
   "moving",
   "aspects",
   "disputed",
