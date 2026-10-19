@@ -343,15 +343,23 @@ locomotive on the track and lifting it off are the same act with a different
 destination, so there is one leaf and one answer — `train_placed` or
 `train_removed`, which the picture follows.
 
-Placing is **greyed while the run is running** and the pane says why. A
-placement into a block is accepted only while the run is **held**: the
-dispatcher grants against its picture of where the trains are, and a block
-that fills under it invalidates what it has already granted. This is a second
-pre-judgement beside the right-click's, and it earns the exception for the
-same reason — a still row says the run is running, where a swallowed gesture
-says nothing. Taking a train off is not greyed: it only frees track, and the
-blocks the train reads occupied in stay held by it until they read clear
+Placing is **live at any power**, and **only onto a free block**: no train
+standing there, no other train's lock on it, and on no other train's
+remaining route, read from `tc49/dispatch/state/allocation` — the
+dispatcher's own rule, `DispatchState.free()`
+([ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md),
+BUS.md `placement_wanted`). The dragged train's own request and locks do not
+count, because the dispatcher cancels that request before it asks. A row let
+go over a block that is not free writes nothing, since the dispatcher would
+drop it; this is a second pre-judgement beside the right-click's. With power
+`on` the drag comes before the cars go down, so the block does not read
+occupied with nothing claiming it. Taking a train off is live everywhere too:
+it only frees track, and the blocks the train reads occupied in stay held by
+it until they read clear
 ([ADR-0069](../adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+The rows are still only while no session is joined. The dispatcher accepts a
+block only while the run is held until
+[#822](https://github.com/rails49/control/issues/822).
 A train between two blocks is picked up from where it is drawn. A drop with
 no block under it — back on the pane, or on bare paper — writes nothing.
 
@@ -594,7 +602,7 @@ its own page ([#405](https://github.com/rails49/control/issues/405)).
 
 **A run comes up with an empty layout and held.** There is nothing on the
 rails until a person puts something there: every train the railroad owns is in
-the roster pane, and the run is held so the placing gesture is honoured
+the roster pane, and the placing gesture is honoured at any power
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
 [ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)). A **scenario** is
 the harness's file and never reaches the browser: `bench/replay.py`
