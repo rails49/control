@@ -296,8 +296,8 @@ def chosen(payload: object) -> Chosen | None:
 
 def moving(payload: object) -> bool:
     """Whether a retained `tc49/dispatch/state/moving` value states that a
-    train is moving: true while any train is **active** or **crossing**
-    (CONTEXT.md, **Moving**).
+    train is moving: true while any train is **crossing** (CONTEXT.md,
+    **Moving**).
 
     A boolean rather than a value, as `link_up` is, because what reads it asks
     one question: whether `layout` may end a drain by switching the supply off
