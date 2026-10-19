@@ -527,7 +527,7 @@ export class Panel {
         return;
       }
       case "moving": {
-        // Whether any train is active or crossing, whole from the
+        // Whether any train is crossing, whole from the
         // dispatcher's own topic (ADR-0078). A row whose `moving` is not a
         // boolean says nothing rather than saying false, and what a reader
         // makes of that silence is the reader's (#408).
@@ -697,7 +697,7 @@ export class Panel {
     }
   }
 
-  /** Whether any train is active or crossing, so a power cut now would
+  /** Whether any train is crossing, so a power cut now would
    *  strand it (CONTEXT.md, **Moving**), as `state/moving` last said, `null`
    *  where it has said nothing readable. Read and never derived: the picture
    *  a page draws says where trains stand, not what the dispatcher has

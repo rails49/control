@@ -1384,7 +1384,7 @@ describe("what the hardware says about the supply", () => {
   });
 });
 
-/** Whether any train is active or crossing (ADR-0078): the dispatcher's own
+/** Whether any train is crossing (ADR-0078): the dispatcher's own
  *  value on `state/moving`, read and never derived. A row that carries no
  *  boolean says nothing rather than saying false (#408). */
 describe("whether anything is moving", () => {

@@ -1,12 +1,13 @@
 """`state/moving`: whether a power cut now would strand a train (ADR-0078,
-ADR-0062, #822).
+ADR-0062, #822, #844).
 
 `layout` ends a drain by switching the supply off, and the moment it may is
 the first at which nothing is moving. The dispatcher, which knows what is
-granted, states it on a row of its own: true while any train is **active** or
-**crossing** (CONTEXT.md, **Moving**). It is a boolean beside power and not a
-value of it — a drain can be moving, because a move already granted runs to
-its sensor, and `on` with nothing granted is not.
+granted, states it on a row of its own: true while any train is **crossing**
+(CONTEXT.md, **Moving**). It is a boolean beside power and not a value of it —
+a drain can be moving, because a move already granted runs to its sensor, and
+a train standing partway along its route, or `on` with nothing granted, is
+not.
 
 Driven at the bus: the gestures and `state/power` in, `state/moving` and the
 trace out.
@@ -101,3 +102,25 @@ def test_power_changes_nothing_moving_says() -> None:
     said = movings(assembly)
     press(assembly, *power(OFF))
     assert movings(assembly) == said
+
+
+def test_a_train_standing_partway_along_its_route_is_not_moving() -> None:
+    """A drain stops a train under way in the block it is entering, with its
+    route and its locks (ADR-0078, decision 4). Standing there it loses
+    nothing when the supply goes, so the row reads false once the move's
+    sensor has fired, though the request is still active (#844)."""
+    assembly = under_way()
+    press(assembly, *power(DRAINING))
+    state = assembly.dispatcher.state
+    assert movings(assembly)[-1] is True
+
+    ticks(assembly, 6)
+
+    assert movings(assembly)[-1] is False
+    assert not state.crossing
+    assert "freight_1" in state.active
+    assert state.block_of["freight_1"] == "dn_w"
+    assert state.active["freight_1"].route.blocks[-1] == "yard_e"
+    assert {"dn_w", "crossover.dn_straight", "dn_e"} <= {
+        resource for resource, holder in state.locks.items() if holder == "freight_1"
+    }

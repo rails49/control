@@ -197,7 +197,7 @@ def test_a_payload_naming_no_chosen_route_reads_as_none() -> None:
 
 
 def test_a_moving_row_reads_as_the_boolean_it_states() -> None:
-    """`state/moving` is true while any train is active or crossing, and
+    """`state/moving` is true while any train is crossing, and
     `layout` reads it to end a drain (ADR-0078)."""
     assert moving({"at": 1.0, "moving": True})
     assert not moving({"at": 1.0, "moving": False})

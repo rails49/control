@@ -1098,7 +1098,7 @@ class LayoutInterface:
     # -- the power ----------------------------------------------------------
 
     def _on_moving(self, topic: str, payload: Payload) -> None:
-        """Whether the dispatcher says a train is moving: active or crossing
+        """Whether the dispatcher says a train is moving: some train crossing
         (CONTEXT.md, **Moving**).
 
         The one thing this app reads it for is the end of a drain: the supply

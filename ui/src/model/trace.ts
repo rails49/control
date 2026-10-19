@@ -308,7 +308,7 @@ export interface Submission {
  *  [#602](https://github.com/rails49/control/issues/602)).
  *
  *  `moving` is the dispatcher's `state/moving`: a boolean, true while any
- *  train is active or crossing, and a payload that cannot be read says `true`
+ *  train is crossing, and a payload that cannot be read says `true`
  *  ([ADR-0078](../../../docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). */
 export const STATE_NAMES: ReadonlySet<string> = new Set([
   "railroad",
