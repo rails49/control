@@ -341,11 +341,6 @@ export class Panel {
    *  `state/taken`. A train the map does not name, no throttle holds
    *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)). */
   private holders = new Map<string, string>();
-  /** train → the block its outstanding move enters, from the `move` the
-   *  dispatcher sent `layout`. The move ends at that block's sensor, and
-   *  `layout` drops a throttle's speeds from then until the next grant
-   *  (BUS.md, `throttle_wanted`). */
-  private moves = new Map<string, string>();
   private requests = new Map<string, Request>();
   /** Whether the opening picture has arrived: a lock on a block before it is
    *  the run's opening placement, there being no occupancy event for a
@@ -397,7 +392,6 @@ export class Panel {
     this.powerWord = null;
     this.faultWord = null;
     this.holders.clear();
-    this.moves.clear();
     this.requests.clear();
     this.started = false;
     this.ordering.reset();
@@ -449,11 +443,6 @@ export class Panel {
       }
       case "block_occupied": {
         const { block } = event as unknown as { block: string };
-        // The sensor a move ends at: `layout` writes `0.0` there and takes no
-        // throttle's speed until the next grant.
-        for (const [train, into] of this.moves) {
-          if (into === block) this.moves.delete(train);
-        }
         const holder = this.locks.get(block);
         if (holder === undefined) return;
         this.standing.set(block, holder);
@@ -534,11 +523,6 @@ export class Panel {
             },
           ]),
         ]);
-        // A train the picture no longer has was taken off the layout, and
-        // `layout` forgets its move in flight with it.
-        for (const train of this.moves.keys()) {
-          if (!(train in trains)) this.moves.delete(train);
-        }
         this.started = true;
         return;
       }
@@ -608,16 +592,6 @@ export class Panel {
           }
         }
         this.holders = read;
-        return;
-      }
-      case "move": {
-        // A move the dispatcher granted, on its way to `layout`: the train
-        // has a move outstanding until the sensor of the block it enters
-        // fires, and a throttle's lever does something only then (ADR-0079).
-        const { train, into } = event as unknown as { train?: unknown; into?: unknown };
-        if (typeof train === "string" && typeof into === "string") {
-          this.moves.set(train, into);
-        }
         return;
       }
       case "disputed": {
@@ -953,16 +927,24 @@ export class Panel {
   }
 
   /**
-   * The trains with a move outstanding: granted, sent to `layout` on
-   * `tc49/layout/move`, and not yet arrived at the sensor of the block it
-   * enters. `layout` applies a throttle's speed only then (BUS.md,
-   * `throttle_wanted`), so it is what makes the throttle's lever live.
+   * The trains with a move outstanding: granted and not yet arrived at the
+   * sensor of the block it enters. `layout` applies a throttle's speed only
+   * then (BUS.md, `throttle_wanted`), so it is what makes the throttle's
+   * lever live.
    *
-   * A command and not a retained row, so a page opened mid-move has not seen
-   * it and calls the train's move not outstanding until the next grant.
+   * Read off the retained picture, so a page opened mid-move sees the move
+   * as `layout` holds it: a train is crossing from its grant to its arrival
+   * sensor (the dispatcher's own outstanding set), and a request of its
+   * carrying a route is the move behind it. The crossing the dispatcher
+   * restores after a restart has no request behind it, and no move `layout`
+   * is known to hold, so it grants nothing.
    */
   granted(): ReadonlySet<string> {
-    return new Set(this.moves.keys());
+    const running = new Set<string>();
+    for (const request of this.requests.values()) {
+      if (request.route !== undefined) running.add(request.train);
+    }
+    return new Set([...this.crossing.keys()].filter((train) => running.has(train)));
   }
 
   /**
