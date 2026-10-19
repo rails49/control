@@ -158,6 +158,55 @@ def test_a_vacate_before_the_arrival_waits_for_it() -> None:
     assert {"id": "r-1"} in railroad.leaf("request_completed")
 
 
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_a_clear_reading_from_before_the_grant_does_not_end_the_move(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """`yard_w` drops out under `freight_1` and GO is pressed over it: the
+    arrival waits for a vacate heard while the move is outstanding (#806)."""
+    railroad = Railroad(strategy)
+    railroad.deliver(VACATED, {"block": "yard_w"})
+    state = railroad.dispatcher.state
+    assert state.run == "held"
+    railroad.deliver(RUN_WANTED, {"run": "running"})
+    railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
+    assert [p["into"] for p in railroad.granted()] == ["dn_w"]
+
+    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+
+    released = railroad.leaf("lock_released")
+    assert not [p for p in released if "yard_w" in p["resources"]]
+    assert state.locks["yard_w"] == "freight_1"
+    assert state.locks["west_ladder.to_dn"] == "freight_1"
+    assert "freight_1" in state.crossing
+    assert state.block_of["freight_1"] == "dn_w"
+
+    railroad.deliver(OCCUPIED, {"block": "yard_w"}, answer=False)
+    assert state.run == "held"
+    railroad.deliver(RUN_WANTED, {"run": "running"}, answer=False)
+    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+
+    assert {
+        "train": "freight_1",
+        "resources": ["yard_w", "west_ladder.to_dn"],
+    } in railroad.leaf("lock_released")
+    assert state.crossing.get("freight_1") != "west_ladder.to_dn"
+
+
+def test_a_clear_reading_taken_back_does_not_end_the_move() -> None:
+    railroad = Railroad()
+    railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
+    state = railroad.dispatcher.state
+
+    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(OCCUPIED, {"block": "yard_w"}, answer=False)
+    assert state.run == "held"
+    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+
+    assert "freight_1" in state.crossing
+    assert state.locks["yard_w"] == "freight_1"
+
+
 def test_a_repeat_reading_changes_nothing() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
