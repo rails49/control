@@ -655,8 +655,20 @@ payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/dispatch/request_submitted` — `id`: opaque unique string
   ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)); `train`;
-  `depart`: the block end the train departs through; `dest`: list of arrival
-  block ends, at least one.
+  `depart`: the block end the train departs through, or `null` with `after`;
+  `dest`: list of arrival block ends, at least one; `after` *optional*: the
+  id of the train's request this one follows, so that it starts where that
+  one ends. A request with `after` is admitted and goes in the list, and is
+  not routed until the request it follows has arrived. Its departure end is
+  then the end of the arrival block opposite the end the train came in
+  through, so the train carries on the way it was going; where that end
+  leads nowhere, the request is rejected `unreachable` at that time. Where
+  the request it follows ends by rejection or cancellation, it is cancelled
+  `revoked`
+  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+  The scheduler composes `after` from
+  [#827](https://github.com/rails49/control/issues/827) and the dispatcher
+  reads it from [#823](https://github.com/rails49/control/issues/823).
 - `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held`,
   `running` or `draining`; any other value is dropped.
 - `tc49/dispatch/placement_wanted` — browser-writable — `train`; `block`:
@@ -707,8 +719,9 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/request_completed` — `id`.
 - `tc49/dispatch/request_cancelled` — `id`; `reason`: enum `revoked`,
   `removed`, `displaced` — the set is `tc49.lib.cancellation`. `revoked` is
-  the gesture that names the request's own end, and the other two are the
-  two directions of a placement that retired it.
+  the gesture that names the request's own end, or the end of the request
+  it follows, and the other two are the two directions of a placement that
+  retired it.
 - `tc49/dispatch/route_chosen` — `id`; `route`: list alternating block and
   transit names, starting and ending on a block, a single block for the
   degenerate already-there case; `k_tried`: integer, candidate routes
@@ -758,11 +771,12 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/state/allocation` — `trains`: map of train to standing
   block; `crossing`: map of crossing train to its transit; `locks`: map of
   resource to holding train; `requests`: list of
-  `{id, train, depart, dest, route}` in **list order**, the order the
+  `{id, train, depart, dest, after, route}` in **list order**, the order the
   dispatcher serves them
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),
-  `route` *optional* — present once the route is committed, which is when
-  the request has started. Until
+  `after` *optional* — present where the request follows an earlier one,
+  as on `request_submitted`; `route` *optional* — present once the route is
+  committed, which is when the request has started. Until
   [#823](https://github.com/rails49/control/issues/823) the dispatcher
   publishes them in admission order. Kept through a rebuild under the
   same railroad name, then republished by the new build: each train is placed
