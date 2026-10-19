@@ -52,7 +52,7 @@ export const rosterStyles = css`
     border-top: 1px solid var(--rule);
   }
 
-  /* No drag to start: the run is running, or there is no session at all. */
+  /* No drag to start: there is no session at all. */
   li.still {
     cursor: default;
   }

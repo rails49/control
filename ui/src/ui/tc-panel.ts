@@ -208,14 +208,17 @@ export class TcPanel extends LitElement {
   // The roster's two drags (ADR-0039). **The source decides what a drag
   // means**, never the run's state: a row picked up in the pane places its
   // train, a marker picked up on the canvas asks for a request, and one motion
-  // cannot come to mean two things depending on a word in the band. A
-  // placement is refused while the run is running, which the pane says; a
-  // removal is not, the dispatcher keeping what still reads occupied until it
-  // reads clear (ADR-0069).
+  // cannot come to mean two things depending on a word in the band. Both are
+  // live at any power (ADR-0080): a placement only into a free block, a
+  // removal anywhere, the dispatcher keeping what still reads occupied until
+  // it reads clear (ADR-0069).
 
   /**
    * A row let go somewhere: one `placement_wanted` naming the block under the
-   * pointer, or nothing where there is no block there.
+   * pointer, or nothing where there is no block there or the block is not
+   * free — a train stands in it, another holds its lock, or it is on another
+   * train's remaining route (`Panel.free`). The dispatcher would drop that
+   * placement, so it is not sent.
    *
    * The pane says a row was dragged and where the pointer let go; what is
    * under it is the canvas's to answer, which is the same question the drag of
@@ -233,9 +236,9 @@ export class TcPanel extends LitElement {
     const { train, x, y } = event.detail;
     const painted = this.painted;
     const at = this.onCanvas({ x, y }) ? (this.canvas?.gridAt(x, y) ?? null) : null;
-    if (painted === null || at === null || this.panel?.run !== "held") return;
+    if (painted === null || at === null || this.panel === null) return;
     const block = blockAt(painted.drawing, painted.review, at);
-    if (block === null) return;
+    if (block === null || !this.panel.free(block, train)) return;
     this.session?.send(placement(train, block));
   }
 
@@ -348,7 +351,7 @@ export class TcPanel extends LitElement {
       <aside>
         <tc-roster
           .trains=${this.roster}
-          .run=${this.inSession ? (this.panel?.run ?? null) : null}
+          .live=${this.inSession}
           @roster-dropped=${this.dropped}
         ></tc-roster>
         <tc-requests
