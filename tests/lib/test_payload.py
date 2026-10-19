@@ -22,8 +22,10 @@ from tc49.lib.payload import (
     Ordering,
     Placement,
     Run,
+    Take,
     Throttle,
     alignment,
+    alive_throttle,
     chosen,
     command,
     commanded_power,
@@ -49,8 +51,10 @@ from tc49.lib.payload import (
     shown_aspects,
     stamp,
     supply,
+    taken,
     wanted_driving,
     wanted_mode,
+    wanted_take,
     wanted_throttle,
 )
 
@@ -442,6 +446,28 @@ def test_a_throttle_gesture_reads_as_the_train_and_the_signed_speed() -> None:
     )
 
 
+def test_a_throttle_gesture_reads_the_throttle_that_turns_it() -> None:
+    """The id of the throttle turning the lever, which `layout` compares with
+    the one holding the train (ADR-0079)."""
+    assert wanted_throttle(
+        {"train": "freight_1", "speed": 0.4, "throttle": "k3x9"}
+    ) == Throttle("freight_1", 0.4, "k3x9")
+
+
+def test_a_throttle_gesture_without_a_throttle_reads_as_naming_none() -> None:
+    """`throttle` may be absent, and an unreadable one reads as absent: the
+    reader keeps the train and the speed, and whether a frame naming no
+    throttle is dropped is `layout`'s (#825)."""
+    for payload in [
+        {"train": "freight_1", "speed": 0.4},
+        {"train": "freight_1", "speed": 0.4, "throttle": None},
+        {"train": "freight_1", "speed": 0.4, "throttle": ""},
+        {"train": "freight_1", "speed": 0.4, "throttle": 7},
+    ]:
+        assert wanted_throttle(payload) == Throttle("freight_1", 0.4), payload
+    assert Throttle("freight_1", 0.4).throttle is None
+
+
 def test_a_payload_turning_no_throttle_reads_as_none() -> None:
     """A throttle is a speed, so a frame that states none turns nothing and
     there is nothing left to act on."""
@@ -456,6 +482,74 @@ def test_a_payload_turning_no_throttle_reads_as_none() -> None:
     ]
     for payload in refused:
         assert wanted_throttle(payload) is None, payload
+
+
+def test_a_take_reads_as_the_train_and_the_throttle_taking_it() -> None:
+    """A throttle names itself by the id its page minted (ADR-0079)."""
+    assert wanted_take({"train": "freight_1", "throttle": "k3x9"}) == Take(
+        "freight_1", "k3x9"
+    )
+
+
+def test_a_take_naming_null_releases_the_train() -> None:
+    """`null` is the release, whoever holds the train: the force release a
+    panel makes is the same frame."""
+    assert wanted_take({"train": "freight_1", "throttle": None}) == Take(
+        "freight_1", None
+    )
+
+
+def test_a_take_that_cannot_be_read_is_dropped() -> None:
+    """A **missing** `throttle` fails the read and an explicit `null`
+    succeeds, the rule `wanted_mode` keeps on its `train`: releasing a train
+    out of a person's hands is too much to read into a frame that lost a
+    field on the way."""
+    refused: list[object] = [
+        None,
+        "freight_1",  # not an object
+        {"throttle": "k3x9"},  # no train
+        {"train": None, "throttle": "k3x9"},  # no train either
+        {"train": 1, "throttle": "k3x9"},  # not a name
+        {"train": "freight_1"},  # no throttle: not a release
+        {"train": "freight_1", "throttle": ""},  # an id is non-empty
+        {"train": "freight_1", "throttle": 7},  # not a string
+    ]
+    for payload in refused:
+        assert wanted_take(payload) is None, payload
+
+
+def test_a_throttle_alive_reads_as_the_throttle_it_names() -> None:
+    """Once a second from every throttle holding a train (ADR-0079)."""
+    assert alive_throttle({"throttle": "k3x9"}) == "k3x9"
+
+
+def test_a_throttle_alive_that_cannot_be_read_is_dropped() -> None:
+    """Dropped, which costs the throttle nothing it can notice: the next one
+    arrives a second later, well inside the 5 s `layout` waits."""
+    refused: list[object] = [None, "k3x9", {}, {"throttle": None}, {"throttle": ""}]
+    for payload in refused:
+        assert alive_throttle(payload) is None, payload
+
+
+def test_taken_reads_as_the_throttle_holding_each_train() -> None:
+    """A map of train to throttle id: a train it does not name, no throttle
+    holds."""
+    assert taken({"at": 1.0, "taken": {"freight_1": "k3x9", "local": "p2"}}) == {
+        "freight_1": "k3x9",
+        "local": "p2",
+    }
+    assert taken({"at": 1.0, "taken": {}}) == {}
+
+
+def test_taken_is_read_an_entry_at_a_time() -> None:
+    """An unreadable entry costs its own train and nobody else's, and a
+    payload that cannot be read at all holds nothing — what `layout` starts
+    with."""
+    assert taken(
+        {"taken": {"freight_1": "k3x9", "local": None, "yard": "", "x": 7}}
+    ) == {"freight_1": "k3x9"}
+    for payload in [None, "k3x9", {}, {"taken": None}, {"taken": ["freight_1"]}]:
+        assert taken(payload) == {}, payload
 
 
 def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
