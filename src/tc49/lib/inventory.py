@@ -106,7 +106,11 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/request_submitted": Topic(("id", "train", "depart", "dest")),
     "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
     "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
-    "tc49/dispatch/cancel_wanted": Topic(("train",), browser=True),
+    # The waiting requests are a list a person orders (ADR-0080): one
+    # request is cancelled by its id, and one moved in front of `before`, or
+    # to the end of the list where `before` is `null`.
+    "tc49/dispatch/cancel_wanted": Topic(("id",), browser=True),
+    "tc49/dispatch/reorder_wanted": Topic(("id", "before"), browser=True),
     "tc49/dispatch/point_wanted": Topic(("addr", "position"), browser=True),
     "tc49/dispatch/request_admitted": Topic(("id", "dest", "pruned")),
     "tc49/dispatch/request_rejected": Topic(("id", "reason")),
@@ -445,7 +449,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the page's write surface, and what a broker's
 ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
 the rows' marks rather than off a prefix — a topic names the component that
-responds to it, so the ten gestures sit under `schedule`, `dispatch` and
+responds to it, so the fourteen gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 
