@@ -676,8 +676,9 @@ payload is read defensively, and one that fails the read is dropped.
   An `after` that names no request of the same train the dispatcher has
   admitted or answered, or that comes with a `depart`, is rejected
   `malformed`; one naming a request that has already ended is settled at
-  admission as above. The scheduler composes `after` from
-  [#827](https://github.com/rails49/control/issues/827).
+  admission as above. The scheduler composes a drag with `after` wherever
+  the train has a request in flight, naming the latest of them
+  ([#827](https://github.com/rails49/control/issues/827)).
 - `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held`,
   `running` or `draining`; any other value is dropped.
 - `tc49/dispatch/placement_wanted` — browser-writable — `train`; `block`:
