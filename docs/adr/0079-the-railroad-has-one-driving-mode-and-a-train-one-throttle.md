@@ -1,5 +1,7 @@
 # The railroad has one driving mode, and a train one throttle
 
+*Amended by [ADR-0081](0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md) (#847): decisions 6 and 7 are superseded. A throttle drives its train outside a grant, and a train released in `automatic` keeps its speed until its move ends.*
+
 Part of [#813](https://github.com/rails49/control/issues/813). Amends
 [ADR-0054](0054-the-railroad-comes-up-at-rest-and-points-replay.md) and the
 throttle in [THROTTLE.md](../ui/THROTTLE.md).
