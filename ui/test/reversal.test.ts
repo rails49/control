@@ -82,7 +82,6 @@ function offered(shell: TcApp): { label: string; greyed: boolean }[] {
  *  where a train is turned around. */
 async function standing(requests: unknown[] = []): Promise<TcApp> {
   const shell = await joined();
-  await said(shell, "tc49/dispatch/state/run", { run: "held" });
   await said(shell, ALLOCATION, picture(requests));
   return shell;
 }

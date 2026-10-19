@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 
 /**
- * Holding the run and releasing it, end to end through the app: the bar draws
- * the value the dispatcher published, the press is published on the topic that
- * names it, and a release with disputes outstanding says what was accepted
- * (ADR-0037, #152, #153).
+ * The run view joined to the railroad the broker runs, end to end through the
+ * app: the picture the bus feeds, and the rail's driving control, which draws
+ * the mode `layout` published and publishes the press on the topic that names
+ * it (ADR-0079, #828).
  *
  * A DOM test because it crosses three components and the broker. The session
  * itself — the toy railroad, the broker double and the app joined to it — is
@@ -28,7 +28,6 @@ import {
   CLEAN,
   mounted,
   named,
-  power,
   rail,
   running,
   serving,
@@ -57,16 +56,9 @@ const GONE = gone(brokerAt(location));
 
 afterEach(unbrokered);
 
-/** The HOLD/GO press on the rail. */
-function hold(shell: TcApp): LookCommand {
-  return rail(shell).querySelector<LookCommand>("look-command[data-run]")!;
-}
-
-/** What the run view is saying about the release, `null` while it says
- *  nothing. */
-function notice(shell: TcApp): string | null {
-  const said = running(shell).renderRoot.querySelector(".released");
-  return said === null ? null : said.textContent!.trim();
+/** The driving control on the rail. */
+function steering(shell: TcApp): LookCommand {
+  return rail(shell).querySelector<LookCommand>("look-command[data-driving]")!;
 }
 
 /** The fault the band is showing, `null` while it shows none. */
@@ -129,7 +121,7 @@ describe("joining the railroad the broker runs", () => {
     const shell = await mounted("run");
     const broker = Broker.last!;
     broker.retains(RAILROAD, { name: "toy" });
-    broker.retains("tc49/dispatch/state/run", { run: "held" });
+    broker.retains("tc49/layout/state/driving", { driving: "automatic" });
     broker.retains("tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
       locks: { a: "goods" },
@@ -138,7 +130,7 @@ describe("joining the railroad the broker runs", () => {
     broker.opens();
     await settled(shell);
 
-    expect(hold(shell).word).toBe("GO");
+    expect(steering(shell).word).toBe("AUTOMATIC");
     expect(
       running(shell)
         .renderRoot.querySelector("tc-canvas")!
@@ -158,7 +150,7 @@ describe("joining the railroad the broker runs", () => {
   it("lets the session go when the broker goes, and is fed again when it is back", async () => {
     const shell = await joined();
     const broker = Broker.last!;
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
+    await said(shell, "tc49/layout/state/driving", { driving: "automatic" });
 
     broker.closes();
     await settled(shell);
@@ -167,14 +159,13 @@ describe("joining the railroad the broker runs", () => {
     // has gone says so in the trouble line, in words naming what to look at.
     expect(health(shell)).toBe(GONE);
     expect(written()).toEqual([]);
-    expect(notice(shell)).toBeNull();
 
     broker.opens();
     await settled(shell);
 
     expect(Broker.opened).toHaveLength(1);
     expect(health(shell)).toBeNull();
-    expect(hold(shell).word).toBe("GO");
+    expect(steering(shell).word).toBe("AUTOMATIC");
   });
 
   /** The connection is the page's and not a view's (ADR-0059, decision 4):
@@ -194,13 +185,16 @@ describe("joining the railroad the broker runs", () => {
    *  the whole page on every event the bus carries. */
   it("does not redraw the app on a frame that changes nothing it shows", async () => {
     const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    const drawing = vi.spyOn(shell as unknown as { render(): unknown }, "render");
+    await said(shell, "tc49/layout/state/driving", { driving: "manual" });
+    const drawing = vi.spyOn(
+      shell as unknown as { render(): unknown },
+      "render",
+    );
 
     await said(shell, "tc49/dispatch/state/aspects", { aspects: {} });
     expect(drawing).not.toHaveBeenCalled();
 
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    await said(shell, "tc49/layout/state/driving", { driving: "automatic" });
     expect(drawing).toHaveBeenCalled();
   });
 
@@ -511,169 +505,74 @@ describe("the viewport the run view gained", () => {
   });
 });
 
-describe("the word on the button", () => {
-  it("is dead until the session says where the run stands", async () => {
-    const shell = await joined();
-    expect(hold(shell).disabled).toBe(true);
-  });
-
-  it("offers GO on a held run and HOLD on a running one", async () => {
-    const shell = await joined();
-
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    expect(hold(shell).word).toBe("GO");
-
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
-    expect(hold(shell).word).toBe("HOLD");
-  });
-
-  /** A draining run is not a running one: it launches nothing, so the button
-   *  that would set it going again is the one to offer, and the press
-   *  resumes launching (#294). */
-  it("offers GO on a draining run", async () => {
-    const shell = await joined();
-
-    await said(shell, "tc49/dispatch/state/run", { run: "draining" });
-    expect(hold(shell).word).toBe("GO");
-
-    press(hold(shell));
-
-    expect(written()).toEqual([
-      { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
-    ]);
-  });
-
-  /** One press, no confirmation: a clearly labelled button is the explicit
-   *  GO. */
-  it("writes the gesture the word names", async () => {
-    const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-
-    press(hold(shell));
-
-    expect(written()).toEqual([
-      { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
-    ]);
-  });
-});
-
 /**
- * The layout's half of the same button (ADR-0041, #159). The dispatcher drops
- * a release while the rails are dead, so the page does not offer one — and the
- * band says which of the two ways of standing still it is, which is what the
- * person recovering acts on.
+ * The driving control on the rail, where GO and HOLD were (ADR-0079): it shows
+ * `state/driving` and publishes `driving_wanted` naming the other mode. What
+ * it draws is `layout`'s answer and not the press, and it is live at any
+ * power, `layout` accepting the gesture whatever power reads.
  */
-describe("what the rails say about the button", () => {
-  it("greys GO and says why, and lets go of both when the power returns", async () => {
+describe("the driving control", () => {
+  it("is dead until layout says the driving mode", async () => {
     const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    await said(shell, "tc49/layout/state/power", { power: "on" });
-    expect(hold(shell).disabled).toBe(false);
-    expect(power(shell).state).toBe("on");
-
-    await said(shell, "tc49/layout/state/power", { power: "off" });
-    expect(hold(shell).word).toBe("GO");
-    expect(hold(shell).disabled).toBe(true);
-    expect(power(shell).state).toBe("off");
-
-    await said(shell, "tc49/layout/state/power", { power: "on" });
-    expect(hold(shell).disabled).toBe(false);
+    expect(steering(shell).disabled).toBe(true);
   });
 
-  /** An emergency stop is the other value, and the band tells them apart. */
-  it("names an emergency stop as one", async () => {
+  it("shows the mode layout says", async () => {
     const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    await said(shell, "tc49/layout/state/power", { power: "stopped" });
 
-    expect(power(shell).state).toBe("stopped");
-    expect(hold(shell).disabled).toBe(true);
+    await said(shell, "tc49/layout/state/driving", { driving: "manual" });
+    expect(steering(shell).word).toBe("MANUAL");
+    expect(steering(shell).disabled).toBe(false);
+
+    await said(shell, "tc49/layout/state/driving", { driving: "automatic" });
+    expect(steering(shell).word).toBe("AUTOMATIC");
   });
 
-  /** HOLD asks for less, and the dispatcher honours it whatever the supply is
-   *  doing. */
-  it("leaves HOLD pressable with the rails dead", async () => {
+  /** One press, no confirmation, and the press alone changes nothing on
+   *  screen. */
+  it("asks for automatic from manual", async () => {
     const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
-    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await said(shell, "tc49/layout/state/driving", { driving: "manual" });
 
-    expect(hold(shell).word).toBe("HOLD");
-    expect(hold(shell).disabled).toBe(false);
-
-    press(hold(shell));
-    expect(written()).toEqual([
-      { topic: "tc49/dispatch/run_wanted", payload: { run: "held" } },
-    ]);
-  });
-});
-
-/**
- * #153's other half. Releasing with disputes outstanding is allowed — the
- * person decides, not the check — and the panel says what is still disputed at
- * the moment of release. The amber marks go with the hold, so the words are
- * what is left of them.
- */
-describe("releasing with disputes outstanding", () => {
-  async function held(): Promise<TcApp> {
-    const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    return shell;
-  }
-
-  it("says what is disputed, and lets the release through", async () => {
-    const shell = await held();
-    await said(shell, "tc49/dispatch/state/disputed", {
-      trains: ["t1"],
-      blocks: ["b"],
-    });
-
-    press(hold(shell));
+    press(steering(shell));
     await settled(shell);
 
-    expect(notice(shell)).toBe(
-      "released with t1 in a block that reads clear, b reads occupied",
-    );
     expect(written()).toEqual([
-      { topic: "tc49/dispatch/run_wanted", payload: { run: "running" } },
+      {
+        topic: "tc49/layout/driving_wanted",
+        payload: { driving: "automatic" },
+      },
+    ]);
+    expect(steering(shell).word).toBe("MANUAL");
+  });
+
+  it("asks for manual from automatic", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/layout/state/driving", { driving: "automatic" });
+
+    press(steering(shell));
+
+    expect(written()).toEqual([
+      { topic: "tc49/layout/driving_wanted", payload: { driving: "manual" } },
     ]);
   });
 
-  it("says nothing where nothing is disputed", async () => {
-    const shell = await held();
-    await said(shell, "tc49/dispatch/state/disputed", { trains: [], blocks: [] });
+  it.each(["on", "draining", "off"] as const)(
+    "is live with power %s",
+    async (power) => {
+      const shell = await joined();
+      await said(shell, "tc49/layout/state/driving", { driving: "manual" });
+      await said(shell, "tc49/layout/state/power", { power });
 
-    press(hold(shell));
-    await settled(shell);
+      expect(steering(shell).disabled).toBe(false);
+    },
+  );
 
-    expect(notice(shell)).toBeNull();
-  });
-
-  /** The notice stands through the run it was a decision about, and a fresh
-   *  hold is a fresh decision. Not the value but the transition: the run is
-   *  still `held` between the press and the dispatcher's answer. */
-  it("stands while that run runs, and goes with the next hold", async () => {
-    const shell = await held();
-    await said(shell, "tc49/dispatch/state/disputed", { trains: ["t1"], blocks: [] });
-    press(hold(shell));
-    await settled(shell);
-
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
-    expect(notice(shell)).not.toBeNull();
-
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
-    expect(notice(shell)).toBeNull();
-  });
-
-  /** Holding is not a decision about anything outstanding. */
-  it("says nothing when the run is held rather than released", async () => {
-    const shell = await held();
-    await said(shell, "tc49/dispatch/state/disputed", { trains: ["t1"], blocks: [] });
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
-
-    press(hold(shell));
-    await settled(shell);
-
-    expect(notice(shell)).toBeNull();
+  /** GO and HOLD are gone, and nothing on the page writes `run_wanted`. */
+  it("is the only press at the rail's far end", async () => {
+    const shell = await joined();
+    expect(rail(shell).querySelector("look-command[data-run]")).toBeNull();
+    expect(steering(shell).closest("look-group")!.end).toBe(true);
   });
 });
 

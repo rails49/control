@@ -190,11 +190,10 @@ describe("its drags", () => {
 
   afterEach(unbrokered);
 
-  /** The run held, with `goods` standing in `a` and `shunter` off the layout:
-   *  the state both drags are made from. */
+  /** `goods` standing in `a` and `shunter` off the layout: the state both
+   *  drags are made from. */
   async function held(): Promise<TcApp> {
     const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "held" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
       locks: { a: "goods" },
@@ -318,7 +317,6 @@ describe("its drags", () => {
   it("places a train into a free block with power on", async () => {
     const shell = await joined();
     await said(shell, "tc49/layout/state/power", { power: "on" });
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
       locks: { a: "goods" },
@@ -377,11 +375,11 @@ describe("its drags", () => {
   });
 
   /** A removal is not (ADR-0069): the dispatcher keeps what still reads
-   *  occupied until it reads clear, so taking a train off is safe in any run
-   *  state. */
-  it("takes a train off the layout while the run is running", async () => {
+   *  occupied until it reads clear, so taking a train off is safe at any
+   *  power. */
+  it("takes a train off the layout with power on", async () => {
     const shell = await joined();
-    await said(shell, "tc49/dispatch/state/run", { run: "running" });
+    await said(shell, "tc49/layout/state/power", { power: "on" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
       locks: { a: "goods" },

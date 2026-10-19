@@ -12,13 +12,13 @@
  *
  * **One session, and it is the app's** (`model/session.ts`, #756). The page's
  * one connection to the broker, and what follows from it — the railroad the
- * row names, the run's picture, track power and the drain — is held here
+ * row names, the run's picture, power and the driving mode — is held here
  * beside the loaded railroad, and every press goes to it: the band's, the
- * rail's HOLD/GO, the settings dialog's railroad and the throttle's gestures
- * (ui/THROTTLE.md). What it answers comes down as properties: the panel model
- * to the run view, the cabs to the throttle, and to the stock screen which
- * trains are placed and track power, which is what its length guard reads
- * (ui/STOCK.md).
+ * rail's driving control, the settings dialog's railroad and the throttle's
+ * gestures (ui/THROTTLE.md). What it answers comes down as properties: the
+ * panel model to the run view, the cabs to the throttle, and to the stock
+ * screen which trains are placed and track power, which is what its length
+ * guard reads (ui/STOCK.md).
  *
  * It also draws the chrome, out of `@rails49/look`'s elements
  * ([ADR-0073](../../../docs/adr/0073-the-chrome-comes-from-look.md)). The band
@@ -50,6 +50,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "@rails49/look";
+import type { PowerState } from "@rails49/look";
 
 import {
   COMMANDS,
@@ -58,7 +59,8 @@ import {
   frozen,
   frozenWhy,
   isLoaded,
-  holding,
+  asked,
+  driving,
   supply,
   type CommandId,
   type Standing,
@@ -70,7 +72,7 @@ import { Filing } from "../model/filing.js";
 import { Railroad } from "../model/railroad.js";
 import { brokerAt, connecting, QUIET, Session, type RunStatus } from "../model/session.js";
 import type { Cab } from "../model/throttle.js";
-import type { Power, Run } from "../model/trace.js";
+import type { DrivingMode } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
@@ -296,7 +298,7 @@ export class TcApp extends LitElement {
               </look-group>
             `,
           )}
-          ${this.view === "run" ? this.runPress() : nothing}
+          ${this.view === "run" ? this.drivingPress() : nothing}
         </look-rail>
 
       <tc-panel
@@ -416,7 +418,7 @@ export class TcApp extends LitElement {
         <look-power
           state=${power.state}
           reason=${power.reason}
-          @look-power=${(event: CustomEvent<{ state: Power }>) =>
+          @look-power=${(event: CustomEvent<{ state: PowerState }>) =>
             this.supplying(event.detail.state)}
         ></look-power>
       </look-band>
@@ -439,18 +441,18 @@ export class TcApp extends LitElement {
     `;
   }
 
-  /** HOLD or GO, at the rail's far end. What it says and when it is dead
-   *  is `holding` in `model/commands.ts`. */
-  private runPress() {
-    const { word, going, dead } = holding(this.status.run, this.status.power);
+  /** The driving control, at the rail's far end. What it says and when it
+   *  is dead is `driving` in `model/commands.ts`. */
+  private drivingPress() {
+    const { word, label, next, dead } = driving(this.status.driving);
     return html`
-      <look-group end label="Run">
+      <look-group end label="Driving">
         <look-command
-          data-run
+          data-driving
           word=${word}
-          label=${going ? "Hold the run" : "Let the run go"}
+          label=${label}
           ?disabled=${dead}
-          @look-press=${() => this.held(going ? "held" : "running")}
+          @look-press=${() => this.drive(next)}
         ></look-command>
       </look-group>
     `;
@@ -508,19 +510,20 @@ export class TcApp extends LitElement {
     }
   }
 
-  /** HOLD or GO, pressed on the rail. The broker's client is the session's,
-   *  so the press goes there: the rail draws the run's word and this carries
-   *  it, and neither decides anything about the run. */
-  private held(run: Run): void {
-    this.session?.press(run);
+  /** The driving mode asked for on the rail. The broker's client is the
+   *  session's, so the press goes there: the rail draws `state/driving` and
+   *  this carries the press, and neither decides anything about the mode. */
+  private drive(mode: DrivingMode): void {
+    this.session?.pressDriving(mode);
   }
 
-  /** Track power asked for on the band: `on`, `stopped`, or `off`, which is
-   *  the drain request (ADR-0062). The same path HOLD and GO take and for the
-   *  same reason: the client is the session's, and the band decides nothing
-   *  about the railroad it is naming (ADR-0074). */
-  private supplying(power: Power): void {
-    this.session?.pressPower(power);
+  /** Power asked for on the band, in look's words, and sent in the
+   *  railroad's: the toggle's `off` is the drain and the stop sign is `off`
+   *  at once (`asked`, ADR-0078). The same path the driving control takes and
+   *  for the same reason: the client is the session's, and the band decides
+   *  nothing about the railroad it is naming (ADR-0074). */
+  private supplying(press: PowerState): void {
+    this.session?.pressPower(asked(press));
   }
 
   /** A railroad pressed in the settings dialog, or one its New or Copy

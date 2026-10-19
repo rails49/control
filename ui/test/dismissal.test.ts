@@ -64,7 +64,6 @@ afterEach(() => {
  *  not opened over. */
 async function standing(): Promise<TcApp> {
   const shell = await joined();
-  await said(shell, "tc49/dispatch/state/run", { run: "held" });
   await said(shell, ALLOCATION, {
     trains: { goods: "a", shunter: "b" },
     locks: { a: "goods", b: "shunter" },

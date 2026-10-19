@@ -2,17 +2,11 @@
  * The session, driven by the broker alone (#756): frames in off the broker
  * double, frames out onto it, and nothing mounted.
  *
- * The OFF drain is a small state machine with a history (#406, #441), and its
- * rules are here rather than behind the band: OFF asks the run to drain,
- * watches `tc49/dispatch/state/run` reach `held` with `moving` false, and
- * removes the supply only then (ADR-0062, ADR-0074). The wait is dropped by
- * news about the run word and not by news about `moving`: a row whose word has
- * *changed* to `running` is a drain somebody abandoned, where one repeating
- * the word the press was made against is the drain still outstanding. A row
- * that says nothing about `moving` never ends the wait. `power.test.ts` keeps
- * the presses end to end through the band.
+ * Power and the driving mode are each one frame naming where they should
+ * stand, and the page keeps no wait of its own: `layout` does the drain
+ * (ADR-0078). `power.test.ts` keeps the presses end to end through the band.
  *
- * Beside it: HOLD and GO with the release notice (#153), nothing published
+ * Beside them: nothing published
  * while the broker is not answering but the railroad press it owes (#803), the
  * rows held until the documents land, a row naming no railroad (#727), and
  * `status` and `cabs` keeping their identity across a frame that moves
@@ -27,10 +21,10 @@ import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
 const URL = "ws://localhost:5173/mqtt";
 
 const POWER_WANTED = "tc49/layout/power_wanted";
-const RUN_WANTED = "tc49/dispatch/run_wanted";
+const DRIVING_WANTED = "tc49/layout/driving_wanted";
 const STATE_RUN = "tc49/dispatch/state/run";
 const STATE_POWER = "tc49/layout/state/power";
-const DISPUTED = "tc49/dispatch/state/disputed";
+const STATE_DRIVING = "tc49/layout/state/driving";
 const ALLOCATION = "tc49/dispatch/state/allocation";
 
 /** A session over the broker double, and what it told the app. `answering`
@@ -87,192 +81,64 @@ function written(stood: Stood): unknown[] {
   }));
 }
 
-const DRAIN = { topic: RUN_WANTED, payload: { run: "draining" } };
-const CUT = { topic: POWER_WANTED, payload: { power: "off" } };
-
 beforeEach(() => {
   Broker.last = null;
   Broker.opened = [];
 });
 
-describe("OFF is the drain trigger", () => {
-  /** OFF asks for a drain from a held run too: it is the moving that decides,
-   *  and a person's HOLD writes `held` with trains still rolling. */
-  it("asks a held run to drain and waits while it is moving", () => {
+/** Each press is one frame naming where power or the driving mode should
+ *  stand, and the session waits on nothing after it (ADR-0078, ADR-0079). */
+describe("the presses", () => {
+  it.each(["on", "draining", "off"] as const)(
+    "asks for power %s and nothing else",
+    (power) => {
+      const stood = powered();
+
+      stood.session.pressPower(power);
+
+      expect(written(stood)).toEqual([
+        { topic: POWER_WANTED, payload: { power } },
+      ]);
+    },
+  );
+
+  /** The drain is `layout`'s: nothing the dispatcher says afterwards makes the
+   *  page cut the supply itself. */
+  it("leaves the drain to layout", () => {
     const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "held", moving: true });
+    stood.session.pressPower("draining");
 
-    stood.session.pressPower("off");
-    expect(written(stood)).toEqual([DRAIN]);
-
+    stood.broker.says("tc49/dispatch/state/moving", { moving: false });
     stood.broker.says(STATE_RUN, { run: "held", moving: false });
 
-    expect(written(stood)).toEqual([DRAIN, CUT]);
+    expect(written(stood)).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+    ]);
   });
 
-  /** The dispatcher answering a held run with `held` publishes no frame, so
-   *  the wait would never end — and there is nothing left to drain anyway. */
-  it("removes it at once where the run is held and nothing moves", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "held", moving: false });
+  it.each(["manual", "automatic"] as const)(
+    "asks for driving %s",
+    (driving) => {
+      const stood = joined();
 
-    stood.session.pressPower("off");
+      stood.session.pressDriving(driving);
 
-    expect(written(stood)).toEqual([DRAIN, CUT]);
-    expect(stood.session.status.draining).toBe(false);
-  });
+      expect(written(stood)).toEqual([
+        { topic: DRIVING_WANTED, payload: { driving } },
+      ]);
+    },
+  );
 
-  /** An older dispatcher publishes the word alone, and a row that says
-   *  nothing about what is under way never lets this button cut. */
-  it("never cuts on a row that says nothing about moving", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    stood.session.pressPower("off");
-
-    stood.broker.says(STATE_RUN, { run: "held" });
-
-    expect(written(stood)).toEqual([DRAIN]);
-    expect(stood.session.status.draining).toBe(true);
-  });
-
-  /** The same silence at the press. */
-  it("waits where a held run says nothing about moving", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "held" });
-
-    stood.session.pressPower("off");
-
-    expect(written(stood)).toEqual([DRAIN]);
-    expect(stood.session.status.draining).toBe(true);
-  });
-
-  /** A drain that never lands leaves the railroad powered, and a frame about
-   *  anything else leaves the wait alone. */
-  it("leaves the railroad powered while the run never settles", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    stood.session.pressPower("off");
-
-    stood.broker.says("tc49/dispatch/state/aspects", { aspects: {} });
-    stood.broker.says(STATE_RUN, { run: "draining", moving: true });
-
-    expect(written(stood)).toEqual([DRAIN]);
-    expect(stood.session.status.draining).toBe(true);
-  });
-
-  /** The run word changing back to `running` is a drain somebody abandoned,
-   *  and the wait goes with it (ADR-0062). */
-  it("drops the wait when the run is released", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    stood.session.pressPower("off");
-
-    stood.broker.says(STATE_RUN, { run: "draining", moving: true });
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    expect(stood.session.status.draining).toBe(false);
-
-    stood.broker.says(STATE_RUN, { run: "held", moving: false });
-
-    expect(written(stood)).toEqual([DRAIN]);
-    expect(stood.session.status.draining).toBe(false);
-  });
-
-  /** The last train arriving republishes the run word the press was made
-   *  against (#406): the drain is still outstanding (#441). */
-  it("keeps the wait where the last train arrives under a running run", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    stood.session.pressPower("off");
-
-    stood.broker.says(STATE_RUN, { run: "running", moving: false });
-    expect(written(stood)).toEqual([DRAIN]);
-    expect(stood.session.status.draining).toBe(true);
-
-    stood.broker.says(STATE_RUN, { run: "held", moving: false });
-
-    expect(written(stood)).toEqual([DRAIN, CUT]);
-    expect(stood.session.status.draining).toBe(false);
-  });
-
-  /** `draining` with nothing moving is the drain answered and not the drain
-   *  landed: the dispatcher writes the `held` this waits for itself. */
-  it("keeps the wait where the drain is answered with nothing moving", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    stood.session.pressPower("off");
-
-    stood.broker.says(STATE_RUN, { run: "draining", moving: false });
-
-    expect(written(stood)).toEqual([DRAIN]);
-    expect(stood.session.status.draining).toBe(true);
-  });
-
-  /** The person has said what they want the supply to do, so the cut the
-   *  earlier press would have made later is abandoned. */
-  it("abandons the wait when ON is pressed instead", () => {
-    const stood = powered();
-    stood.broker.says(STATE_RUN, { run: "running", moving: true });
-    stood.session.pressPower("off");
-
-    stood.session.pressPower("on");
-    stood.broker.says(STATE_RUN, { run: "held", moving: false });
-
-    expect(written(stood)).toEqual([DRAIN, { topic: POWER_WANTED, payload: { power: "on" } }]);
-    expect(stood.session.status.draining).toBe(false);
-  });
-});
-
-describe("holding the run and releasing it", () => {
-  function held(): Stood {
+  /** What the rail draws is `layout`'s answer and not the press. */
+  it("reads the driving mode off state/driving", () => {
     const stood = joined();
-    stood.broker.says(STATE_RUN, { run: "held" });
-    return stood;
-  }
+    expect(stood.session.status.driving).toBeNull();
 
-  it("says what is disputed, and lets the release through", () => {
-    const stood = held();
-    stood.broker.says(DISPUTED, { trains: ["t1"], blocks: ["b"] });
+    stood.session.pressDriving("automatic");
+    expect(stood.session.status.driving).toBeNull();
 
-    stood.session.press("running");
-
-    expect(stood.session.released).toBe(
-      "released with t1 in a block that reads clear, b reads occupied",
-    );
-    expect(written(stood)).toEqual([{ topic: RUN_WANTED, payload: { run: "running" } }]);
-  });
-
-  it("says nothing where nothing is disputed", () => {
-    const stood = held();
-    stood.broker.says(DISPUTED, { trains: [], blocks: [] });
-
-    stood.session.press("running");
-
-    expect(stood.session.released).toBeNull();
-  });
-
-  /** A fresh hold is a fresh decision. Not the value but the transition: the
-   *  run is still `held` between the press and the dispatcher's answer. */
-  it("stands while that run runs, and goes with the next hold", () => {
-    const stood = held();
-    stood.broker.says(DISPUTED, { trains: ["t1"], blocks: [] });
-    stood.session.press("running");
-
-    stood.broker.says(STATE_RUN, { run: "running" });
-    expect(stood.session.released).not.toBeNull();
-
-    stood.broker.says(STATE_RUN, { run: "held" });
-    expect(stood.session.released).toBeNull();
-  });
-
-  it("says nothing when the run is held rather than released", () => {
-    const stood = held();
-    stood.broker.says(DISPUTED, { trains: ["t1"], blocks: [] });
-    stood.broker.says(STATE_RUN, { run: "running" });
-
-    stood.session.press("held");
-
-    expect(stood.session.released).toBeNull();
-    expect(written(stood)).toEqual([{ topic: RUN_WANTED, payload: { run: "held" } }]);
+    stood.broker.says(STATE_DRIVING, { driving: "automatic" });
+    expect(stood.session.status.driving).toBe("automatic");
   });
 });
 
@@ -281,11 +147,11 @@ describe("the broker not answering", () => {
    *  between must not pretend to have been heard. */
   it("publishes nothing while the broker has gone", () => {
     const stood = joined();
-    stood.broker.says(STATE_RUN, { run: "held" });
+    stood.broker.says(STATE_DRIVING, { driving: "manual" });
     stood.broker.closes();
 
-    stood.session.press("running");
-    stood.session.pressPower("off");
+    stood.session.pressPower("draining");
+    stood.session.pressDriving("automatic");
     stood.session.pressRailroad("toy");
     stood.session.pressTake("goods");
     stood.session.pressRelease("goods");
@@ -293,7 +159,6 @@ describe("the broker not answering", () => {
     stood.session.pressReversal("goods");
 
     expect(written(stood)).toEqual([]);
-    expect(stood.session.released).toBeNull();
     expect(stood.session.status.linked).toBe(false);
     expect(stood.session.status.joined).toBe(false);
   });
@@ -376,7 +241,7 @@ describe("the rows that arrive before the documents", () => {
   it("applies them once the documents arrive", () => {
     const stood = standing();
     stood.answering = false;
-    stood.broker.retains(STATE_RUN, { run: "held" });
+    stood.broker.retains(STATE_DRIVING, { driving: "automatic" });
     stood.broker.retains(ALLOCATION, {
       trains: { goods: "a" },
       locks: { a: "goods" },
@@ -390,7 +255,7 @@ describe("the rows that arrive before the documents", () => {
 
     answer(stood, "toy");
 
-    expect(stood.session.status.run).toBe("held");
+    expect(stood.session.status.driving).toBe("automatic");
     expect(stood.session.status.placed).toEqual(["goods"]);
   });
 
@@ -400,13 +265,14 @@ describe("the rows that arrive before the documents", () => {
     const stood = standing();
     stood.answering = false;
     stood.broker.opens();
-    for (let i = 0; i < HELD; i++) stood.broker.says(STATE_RUN, { run: "held" });
-    stood.broker.says(STATE_RUN, { run: "running" });
+    for (let i = 0; i < HELD; i++)
+      stood.broker.says(STATE_DRIVING, { driving: "manual" });
+    stood.broker.says(STATE_DRIVING, { driving: "automatic" });
     stood.broker.says(RAILROAD, { name: "toy" });
 
     answer(stood, "toy");
 
-    expect(stood.session.status.run).toBe("held");
+    expect(stood.session.status.driving).toBe("manual");
   });
 });
 
@@ -415,14 +281,14 @@ describe("a row naming no railroad", () => {
    *  is told none is, which is not the same as not having said. */
   it("leaves the session and says so", () => {
     const stood = joined();
-    stood.broker.says(STATE_RUN, { run: "held" });
+    stood.broker.says(STATE_DRIVING, { driving: "manual" });
 
     stood.broker.says(RAILROAD, { name: "" });
 
     expect(stood.names).toEqual(["toy", ""]);
     expect(stood.session.status.joined).toBe(false);
     expect(stood.session.status.railroad).toBe("");
-    expect(stood.session.status.run).toBeNull();
+    expect(stood.session.status.driving).toBeNull();
   });
 });
 
@@ -446,7 +312,7 @@ describe("what it answers", () => {
     expect(stood.session.status).toBe(status);
     expect(stood.session.cabs).toBe(cabs);
 
-    stood.broker.says(STATE_RUN, { run: "held" });
+    stood.broker.says(STATE_DRIVING, { driving: "automatic" });
 
     expect(stood.session.status).not.toBe(status);
     expect(stood.session.cabs).toBe(cabs);

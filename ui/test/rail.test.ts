@@ -3,8 +3,9 @@
 /**
  * The rail down the left, as the app draws it out of look's elements
  * (ADR-0073): the views, what each view's groups carry, and what a dead
- * command does. What is dead and what is alive is `commands.test.ts`; HOLD and
- * GO are `run.test.ts`; this asks that the rail draws what those say.
+ * command does. What is dead and what is alive is `commands.test.ts`; the
+ * driving control is `run.test.ts`; this asks that the rail draws what those
+ * say.
  */
 
 import type { LookCommand, LookView } from "@rails49/look";
@@ -95,17 +96,17 @@ describe("what each view's rail carries", () => {
   });
 
   /** The run view's document is a railroad somebody else is running: no File
-   *  and no Edit, and what it presses instead is HOLD and GO, pinned to the
-   *  rail's far end. */
-  it("gives the run view the three view commands and HOLD/GO", async () => {
+   *  and no Edit, and what it presses instead is the driving control, pinned
+   *  to the rail's far end. */
+  it("gives the run view the three view commands and the driving control", async () => {
     const shell = await mounted("run");
     expect(commands(shell).map((one) => one.dataset["command"])).toEqual([
       "zoom-out",
       "zoom-in",
       "fit",
     ]);
-    const run = rail(shell).querySelector("look-command[data-run]")!;
-    expect(run.closest("look-group")!.end).toBe(true);
+    const steering = rail(shell).querySelector("look-command[data-driving]")!;
+    expect(steering.closest("look-group")!.end).toBe(true);
   });
 
   /** Neither draws a document with a viewport, so the views are the whole of

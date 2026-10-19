@@ -18,9 +18,9 @@
  * without one is a compile error.
  */
 
-import type { PowerShown } from "@rails49/look";
+import type { PowerShown, PowerState } from "@rails49/look";
 
-import { trackLive, type Power, type Run } from "./trace.js";
+import { trackLive, type DrivingMode, type Power } from "./trace.js";
 import type { ViewId } from "./views.js";
 
 export type CommandId =
@@ -181,10 +181,11 @@ export function unbuilt(standing: Standing): boolean {
 }
 
 /**
- * What the band's track-power control shows: where the supply stands, and why
- * the control is dead, `""` where it is live (look#12). The toggle asking for
- * `off` is the drain request (ADR-0062), so while the drain is outstanding it
- * reads `draining`, and pressing it then asks for `on`.
+ * What the band's track-power control shows: where power stands, and why
+ * the control is dead, `""` where it is live (look#12). Power is `layout`'s
+ * and the control draws it as `layout` says it, `draining` included: the page
+ * keeps no wait of its own, `layout` switching the supply off once nothing is
+ * moving (ADR-0078).
  *
  * Dead before the station has said where the supply stands and while the
  * broker is not answering, which would swallow the press; and dead while the
@@ -193,13 +194,12 @@ export function unbuilt(standing: Standing): boolean {
  */
 export function supply(
   standing: Standing,
-  { linked, draining }: { linked: boolean; draining: boolean },
+  { linked }: { linked: boolean },
 ): { state: PowerShown; reason: string } {
   const { power } = standing;
   if (power === null || !linked) {
     return { state: power ?? "off", reason: "Waiting for the station" };
   }
-  if (draining) return { state: "draining", reason: "" };
   if (power === "off" && unbuilt(standing)) {
     return { state: "off", reason: "Save the railroad first" };
   }
@@ -207,18 +207,45 @@ export function supply(
 }
 
 /**
- * The run's press on the rail: HOLD while the run is running and GO otherwise
- * (ADR-0037). Dead until the dispatcher has said where the run stands. GO is
- * dead while the layout says power is off or stopped, since the dispatcher
- * drops such a release (ADR-0041). HOLD is never dead.
+ * What a press on the band's power control asks `layout` for, on
+ * `power_wanted` (ADR-0078). The control says what was pressed in look's
+ * words: the toggle asks `off` from `on` and `on` from anything else, and the
+ * stop sign asks `stopped`. The toggle's `off` is the drain, so it asks for
+ * `draining`; its `on` is `on`, from `off` and from `draining` alike, ending
+ * a drain; and the stop sign is the emergency stop, `off` at once.
  */
-export function holding(
-  run: Run | null,
-  power: Power | null,
-): { word: "HOLD" | "GO"; going: boolean; dead: boolean } {
-  const going = run === "running";
-  const dead = run === null || (!going && power !== null && power !== "on");
-  return { word: going ? "HOLD" : "GO", going, dead };
+export function asked(press: PowerState): Power {
+  switch (press) {
+    case "on":
+      return "on";
+    case "off":
+      return "draining";
+    case "stopped":
+      return "off";
+  }
+}
+
+/**
+ * The driving control on the rail: the railroad's driving mode as `layout`
+ * says it on `state/driving`, and the mode a press asks for, the other one
+ * (ADR-0079). Dead until `layout` has said, a press against a mode not heard
+ * being one that could ask for the mode already standing.
+ */
+export function driving(mode: DrivingMode | null): {
+  word: "MANUAL" | "AUTOMATIC";
+  label: string;
+  next: DrivingMode;
+  dead: boolean;
+} {
+  const automatic = mode === "automatic";
+  return {
+    word: automatic ? "AUTOMATIC" : "MANUAL",
+    label: automatic
+      ? "Driving mode automatic: press for manual"
+      : "Driving mode manual: press for automatic",
+    next: automatic ? "manual" : "automatic",
+    dead: mode === null,
+  };
 }
 
 export interface Command {
@@ -331,8 +358,8 @@ export interface Group {
  * the document that view has open (ADR-0038, ADR-0064). The editor's document
  * is a drawing, so it has a `File` and an `Edit`; the run view's is a railroad
  * somebody else is running, so it has neither, and what it presses instead —
- * HOLD and GO — is not a command and has no key, being a gesture on the bus
- * rather than a verb of this app's.
+ * the driving control — is not a command and has no key, being a gesture on
+ * the bus rather than a verb of this app's.
  *
  * **`View` comes first wherever there is one.** Zoom and fit are pressed
  * constantly — while drawing, and while following a train across a railroad

@@ -1,24 +1,14 @@
 // @vitest-environment happy-dom
 
 /**
- * Commanding track power from the band, end to end through the app
- * (ADR-0074, #293): the press goes out on the socket the session holds, on
- * `tc49/layout/power_wanted`, which `layout` is what answers.
- *
- * The one press that is not a single frame is OFF. It is the drain trigger
- * and never an immediate cut: it asks the run to drain, watches
- * `tc49/dispatch/state/run` reach `held` with `moving` false, and removes the
- * supply only then (ADR-0062, #408). An abrupt `off` would leave no point
- * position trustworthy and strand whatever was mid-transit; after a completed
- * drain nothing is crossing, nothing is committed, and every grant re-aligns.
- * The wait is dropped by news about the run word and not by news about
- * `moving`: a row whose word has *changed* to `running` is a drain somebody
- * abandoned, where one repeating the word the press was made against is the
- * drain still outstanding, whatever `moving` now says (#441). A row that says
- * nothing about `moving` at all never ends the wait, an older dispatcher's
- * silence being no licence to cut. Those rules are the session's and are
- * driven against the broker alone in `session.test.ts` (#756); what is left
- * here is the press reaching the band and the two ends of the drain.
+ * Commanding power from the band, end to end through the app (ADR-0078,
+ * #828): the press goes out on the socket the session holds, on
+ * `tc49/layout/power_wanted`, which `layout` is what answers. Every press is
+ * one frame. The toggle asks for `on` from `off` and from `draining`, and for
+ * `draining` from `on`; the stop sign asks for `off` at once, the emergency
+ * stop. The page keeps no wait for the drain: `layout` switches the supply
+ * off once nothing is moving, and the toggle shows `state/power` as `layout`
+ * says it.
  *
  * The other direction is here too: what the hardware says back about the
  * supply on `tc49/layout/state/device/track`, which the band shows as a fault
@@ -44,8 +34,6 @@ beforeEach(brokering);
 afterEach(unbrokered);
 
 const POWER_WANTED = "tc49/layout/power_wanted";
-const RUN_WANTED = "tc49/dispatch/run_wanted";
-const STATE_RUN = "tc49/dispatch/state/run";
 const STATE_POWER = "tc49/layout/state/power";
 /** What the hardware reports about the supply it drives, and what `layout`
  *  asks of it: two rows of the device vocabulary, and only the observed one
@@ -53,25 +41,21 @@ const STATE_POWER = "tc49/layout/state/power";
 const DEVICE_TRACK = "tc49/layout/state/device/track";
 const WANTED_TRACK = "tc49/layout/state/wanted/track";
 
-/** A joined session whose supply stands at `power`: the control is dead until
+/** A joined session whose power stands at `power`: the control is dead until
  *  the station has said. */
-async function powered(power: "on" | "off" = "on"): Promise<TcApp> {
+async function powered(
+  power: "on" | "draining" | "off" = "on",
+): Promise<TcApp> {
   const shell = await joined();
   await said(shell, STATE_POWER, { power });
   return shell;
 }
 
 /** The power toggle or the stop sign, pressed, and everything it set in motion
- *  applied. The toggle asks for `off` while the supply is on and for `on`
- *  otherwise. */
+ *  applied. */
 async function pressing(shell: TcApp, which: "toggle" | "stop"): Promise<void> {
   press(power(shell), which);
   await settled(shell);
-}
-
-/** Whether the band's power control says the drain is outstanding. */
-function draining(shell: TcApp): boolean {
-  return power(shell).state === "draining";
 }
 
 /** What the band says is wrong with the supply, `null` while it says
@@ -80,56 +64,59 @@ function fault(shell: TcApp): string | null {
   return chips(shell)[0] ?? null;
 }
 
-describe("the presses that are one frame", () => {
-  /** Returning to `on` releases nothing on its own, so an explicit GO still
-   *  follows and this press asks the run for nothing (ADR-0041). */
-  it("gives the track power and says nothing about the run", async () => {
+describe("the power toggle", () => {
+  /** One press turns the railroad on (ADR-0078). */
+  it("asks for on from off", async () => {
     const shell = await powered("off");
     await pressing(shell, "toggle");
     expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
   });
 
-  /** One click and no dialog: an emergency stop that asks "are you sure?" is
-   *  not one, and `stopped` is cheap to recover from with the points still
-   *  where you left them. */
-  it("stops every locomotive on one click", async () => {
-    const shell = await powered();
-    await pressing(shell, "stop");
-    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "stopped" } }]);
+  /** A person asking for `on` during a drain ends it. */
+  it("asks for on from draining", async () => {
+    const shell = await powered("draining");
+    await pressing(shell, "toggle");
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "on" } },
+    ]);
+  });
+
+  /** The drain, and nothing more: `layout` switches the supply off once
+   *  nothing is moving, and the page waits for nothing. */
+  it("asks for draining from on", async () => {
+    const shell = await powered("on");
+    await pressing(shell, "toggle");
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+    ]);
+  });
+
+  /** What it shows is `state/power`, each of the three, and not the press. */
+  it("shows the three states as layout says them", async () => {
+    const shell = await powered("on");
+    expect(power(shell).state).toBe("on");
+    await pressing(shell, "toggle");
+    expect(power(shell).state).toBe("on");
+    for (const state of ["draining", "off", "on"] as const) {
+      await said(shell, STATE_POWER, { power: state });
+      expect(power(shell).state).toBe(state);
+    }
   });
 });
 
-describe("OFF is the drain trigger", () => {
-  it("asks the run to drain and leaves the supply alone", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running" });
-
-    await pressing(shell, "toggle");
-
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-  });
-
-  /** The word alone is not the wait's answer. A held run can be moving — a
-   *  move already granted runs to its sensor — and cutting there strands it
-   *  where no sensor will ever say it stopped (ADR-0062). */
-  it("removes the supply once the run reads held with nothing moving", async () => {
-    const shell = await powered();
-    await said(shell, STATE_RUN, { run: "running", moving: true });
-    await pressing(shell, "toggle");
-
-    await said(shell, STATE_RUN, { run: "held", moving: true });
-    expect(written()).toEqual([{ topic: RUN_WANTED, payload: { run: "draining" } }]);
-    expect(draining(shell)).toBe(true);
-
-    await said(shell, STATE_RUN, { run: "held", moving: false });
-
-    expect(written()).toEqual([
-      { topic: RUN_WANTED, payload: { run: "draining" } },
-      { topic: POWER_WANTED, payload: { power: "off" } },
-    ]);
-    expect(draining(shell)).toBe(false);
-  });
+describe("the stop sign", () => {
+  /** One click and no dialog: an emergency stop that asks "are you sure?" is
+   *  not one. It is `off` at once, without a drain (ADR-0078). */
+  it.each(["on", "draining", "off"] as const)(
+    "asks for off from %s",
+    async (from) => {
+      const shell = await powered(from);
+      await pressing(shell, "stop");
+      expect(written()).toEqual([
+        { topic: POWER_WANTED, payload: { power: "off" } },
+      ]);
+    },
+  );
 });
 
 /**
