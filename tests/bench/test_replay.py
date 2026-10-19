@@ -3,7 +3,7 @@
 A run is built from a railroad and a person places its trains, so the harness
 keeps its file format by standing where the person stands: it publishes one
 `tc49/dispatch/placement_wanted` per train, turns the ones the document faces the
-other way, presses GO, and feeds the requests in the file's order — every
+other way, presses ON, and feeds the requests in the file's order — every
 one of them a topic a browser writes.
 
 What is asserted here is the two halves of AC 5: that the trains arrive
