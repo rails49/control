@@ -35,14 +35,14 @@ import { cabs, type Cab } from "./throttle.js";
 import {
   DRAINING,
   Live,
-  modeWanted,
   powerWanted,
   railroadWanted,
   reversal,
   runWanted,
+  takeWanted,
+  throttleAlive,
   throttleWanted,
   type Frame,
-  type Mode,
   type Power,
   type Run,
   type TraceEvent,
@@ -201,6 +201,21 @@ const RAILROAD = "tc49/layout/state/railroad";
  *  holds, so the hold stops here rather than growing without bound. */
 export const HELD = 1000;
 
+/** How often a throttle holding a train says it is still there. `layout`
+ *  releases the trains of a throttle it has not heard for 5 s, so a phone
+ *  gone to sleep does not leave a train running
+ *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)). */
+export const ALIVE_MS = 1000;
+
+/** A throttle id: a random string the page mints when it opens, naming the
+ *  throttle that holds a train (BUS.md, `take_wanted`). From
+ *  `getRandomValues` and not `randomUUID`, which a page served over plain
+ *  HTTP on the layout's own network does not have. */
+export function minted(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export class Session {
   /** The panel model the bus feeds, `null` while the loaded railroad has no
    *  layout to build one from (model/panel.ts). The run view paints from it. */
@@ -217,6 +232,10 @@ export class Session {
   /** What was still disputed at the moment the hold was released, in words,
    *  `null` while there is nothing to say. */
   released: string | null = null;
+
+  /** This page's throttle id, minted when the session is made and kept for
+   *  the life of the page: every take, speed and alive frame names it. */
+  readonly throttle = minted();
 
   /** The railroad the broker says it runs, `null` while it has not said —
    *  before the connection lands, and again after it has gone (#371). */
@@ -260,6 +279,9 @@ export class Session {
    *  every frame, so what one frame's answer is compared against is its
    *  text. */
   private saidCabs = "[]";
+  /** The timer saying `throttle_alive`, `null` while this throttle holds no
+   *  train. */
+  private alive: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly url: string,
@@ -566,22 +588,29 @@ export class Session {
   }
 
   /**
-   * Take a train in a throttle, or give it back: one `mode_wanted` naming the
-   * train and where its mode should stand
-   * ([#207](https://github.com/rails49/control/issues/207)). `layout` answers
-   * by publishing `state/mode`, and the throttle reads who is driving off that
-   * rather than off its own press (ADR-0035).
+   * Take a train in this throttle: one `take_wanted` naming the train and
+   * this page's id
+   * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+   * `layout` answers by publishing `state/taken`, and the throttle reads who
+   * holds the train off that rather than off its own press (ADR-0035).
    */
-  pressMode(train: string, mode: Mode): void {
-    this.send(modeWanted(train, mode));
+  pressTake(train: string): void {
+    this.send(takeWanted(train, this.throttle));
+  }
+
+  /** Release a train: one `take_wanted` with `null`, which releases it
+   *  whoever holds it — this throttle giving it back and the force release
+   *  of one held elsewhere are the same frame (BUS.md). */
+  pressRelease(train: string): void {
+    this.send(takeWanted(train, null));
   }
 
   /** The throttle turned: one `throttle_wanted` carrying the number the lever
-   *  shows. One signed speed for the train — which locomotive it reaches, and
-   *  which way round that one stands, is `layout`'s (CONTEXT.md,
-   *  **Throttle**). */
+   *  shows and this page's id. One signed speed for the train — which
+   *  locomotive it reaches, and which way round that one stands, is
+   *  `layout`'s (CONTEXT.md, **Throttle**). */
   pressThrottle(train: string, speed: number): void {
-    this.send(throttleWanted(train, speed));
+    this.send(throttleWanted(train, speed, this.throttle));
   }
 
   /** Turn a train round where it stands, from the throttle: the same
@@ -700,6 +729,20 @@ export class Session {
       this.saidCabs = written;
       this.cabs = driving;
     }
+    this.beat(driving.some(({ taken }) => taken === "here"));
+  }
+
+  /** `throttle_alive` once every `ALIVE_MS` while `state/taken` names this
+   *  throttle for a train on the layout, and silence otherwise. Started on
+   *  the row and not on the press: `layout` counts the take itself as hearing
+   *  from this throttle. */
+  private beat(holding: boolean): void {
+    if (holding && this.alive === null) {
+      this.alive = setInterval(() => this.send(throttleAlive(this.throttle)), ALIVE_MS);
+    } else if (!holding && this.alive !== null) {
+      clearInterval(this.alive);
+      this.alive = null;
+    }
   }
 
   /** The press owed since the broker went, sent where the row names its
@@ -723,8 +766,9 @@ export class Session {
    * (`model/throttle.ts`, ui/THROTTLE.md).
    *
    * Worked out here because everything it is made of is here — the run's
-   * picture, `layout`'s modes, the scheduler's facing, the dispatcher's
-   * aspects and the railroad's roster. Nothing of the throttle's own is in
+   * picture, which throttle `layout` says holds each train, the moves
+   * granted, the scheduler's facing, the dispatcher's aspects and the
+   * railroad's roster. Nothing of the throttle's own is in
    * it: which train a person picked and where they have put the lever are
    * theirs, and live in the view with the pointer.
    */
@@ -734,7 +778,9 @@ export class Session {
     const placed = model.placed();
     return cabs({
       placed,
-      modes: model.modes(),
+      taken: model.taken(),
+      throttle: this.throttle,
+      granted: model.granted(),
       noses: model.noses(),
       aspects: model.aspects(),
       ahead: model.ahead(),

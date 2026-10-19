@@ -4,13 +4,16 @@
  *
  * A view of this app beside the run view and the editor
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)),
- * and a person's actions on it ride the bus as the two gestures the inventory
- * marks browser-writable — `tc49/layout/mode_wanted` and
- * `tc49/layout/throttle_wanted`. It reaches no command station, shows no
+ * and a person's actions on it ride the bus as gestures the inventory marks
+ * browser-writable — `tc49/layout/take_wanted` and
+ * `tc49/layout/throttle_wanted`, each naming this page's throttle id, which
+ * the session mints and keeps alive on `tc49/layout/throttle_alive`
+ * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+ * It reaches no command station, shows no
  * decoder step and names no hardware address: the UI reaches the bus and the
  * store and there is no other world for it.
  *
- * It works nothing out. Every train it offers, who is driving each, which way
+ * It works nothing out. Every train it offers, who holds each, which way
  * each points, what each is reading and what a person can switch on it arrive
  * as `Cab`s (`model/throttle.ts`), and the frames go to the app, which carries
  * them to the session, exactly as the band's power presses do.
@@ -27,18 +30,14 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { driveRefusal, type Cab } from "../model/throttle.js";
-import type { Mode, Power } from "../model/trace.js";
+import type { Power } from "../model/trace.js";
 import { throttleStyles } from "./tc-throttle.styles.js";
 
-/** A gesture the view asks for: the train it is about, and what is wanted of
- *  it. The view writes nothing itself — the session is the app's, and
- *  the app carries the press there as it carries the band's (ADR-0074's
- *  path, ui/THROTTLE.md). */
-export interface ModeWanted {
-  train: string;
-  mode: Mode;
-}
-
+/** The lever moved: the train it is about, and the speed it now shows. The
+ *  view writes nothing itself — the session is the app's, and the app carries
+ *  the press there as it carries the band's (ADR-0074's path,
+ *  ui/THROTTLE.md). A take and a release carry the train alone, as
+ *  `take-wanted` and `release-wanted`. */
 export interface ThrottleWanted {
   train: string;
   speed: number;
@@ -80,10 +79,16 @@ export class TcThrottle extends LitElement {
     // is nothing under the lever, so the throttle is on no train rather than
     // on the name of one that is gone.
     if (this.picked !== null && this.cab === null) this.letGo();
-    // Given back by anything but this view — another tab, or `layout` itself
-    // — the lever is not a person's any more and must not go on showing a
-    // speed nobody is asking for.
-    else if (this.cab !== null && this.cab.mode !== "manual" && this.lever !== 0) {
+    // Given back by anything but this view — a force release, or `layout`
+    // itself — the lever is not a person's any more and must not go on
+    // showing a speed nobody is asking for. Nor once the move has ended at
+    // its sensor: `layout` has written `0.0`, and the lever shows the train
+    // standing.
+    else if (
+      this.cab !== null &&
+      (this.cab.taken !== "here" || !this.cab.granted) &&
+      this.lever !== 0
+    ) {
       this.lever = 0;
     }
   }
@@ -115,12 +120,10 @@ export class TcThrottle extends LitElement {
     return this.cabs.find((cab) => cab.train === this.picked) ?? null;
   }
 
-  /** One train to pick: its name, where it stands, and whether a person has
-   *  it. *Manual* is `layout`'s word and is drawn wherever it is true —
-   *  including a train another tab is driving, which is a thing worth seeing
-   *  before you reach for it. */
+  /** One train to pick: its name, where it stands, and whether a throttle
+   *  holds it — this one, or another, which is a thing worth seeing before
+   *  you reach for it. */
   private row(cab: Cab) {
-    const taken = cab.mode === "manual";
     return html`
       <li>
         <button
@@ -130,7 +133,11 @@ export class TcThrottle extends LitElement {
           @click=${() => this.pick(cab.train)}
         >
           <span class="name">${cab.train}</span>
-          ${taken ? html`<span class="taken">manual</span>` : nothing}
+          ${cab.taken === null
+            ? nothing
+            : html`<span class=${`taken ${cab.taken}`}>
+                ${cab.taken === "here" ? "yours" : "taken"}
+              </span>`}
           <span class="where">${cab.block ?? "crossing a transit"}</span>
         </button>
       </li>
@@ -171,24 +178,56 @@ export class TcThrottle extends LitElement {
   }
 
   private cabinet(cab: Cab) {
-    const taken = cab.mode === "manual";
     const still = this.still;
     return html`
       <header>
         <h2>${cab.train}</h2>
-        ${this.facing(cab)}
-        <button
-          class=${`take ${taken ? "release" : ""}`}
-          ?disabled=${!this.live}
-          @click=${() => this.wanting(cab.train, taken ? "automatic" : "manual")}
-        >
-          ${taken ? "Release" : "Take"}
-        </button>
+        ${this.facing(cab)} ${this.holding(cab)}
       </header>
       ${still === null ? nothing : html`<p class="still">${still}</p>`}
-      ${taken ? this.driving(cab) : html`<p class="hint">take the train to drive it</p>`}
+      ${cab.taken === "here"
+        ? this.driving(cab)
+        : html`<p class="hint">
+            ${cab.taken === "elsewhere"
+              ? "another throttle holds this train"
+              : "take the train to drive it"}
+          </p>`}
       ${this.road(cab)} ${this.functions(cab)}
     `;
+  }
+
+  /** Take, Release, or — on a train another throttle holds, which cannot be
+   *  taken — Force release, which is the same `null` take as a Release and
+   *  frees the train whoever holds it (BUS.md, `take_wanted`). */
+  private holding(cab: Cab) {
+    if (cab.taken === "here") {
+      return html`<button
+        class="take release"
+        ?disabled=${!this.live}
+        @click=${() => this.releasing(cab.train)}
+      >
+        Release
+      </button>`;
+    }
+    if (cab.taken === "elsewhere") {
+      return html`<button class="take" disabled title="another throttle holds it">
+          Take
+        </button>
+        <button
+          class="force"
+          ?disabled=${!this.live}
+          @click=${() => this.releasing(cab.train)}
+        >
+          Force release
+        </button>`;
+    }
+    return html`<button
+      class="take"
+      ?disabled=${!this.live}
+      @click=${() => this.taking(cab.train)}
+    >
+      Take
+    </button>`;
   }
 
   /** Which way the train points, as an arrow and the end it runs to: what
@@ -211,10 +250,18 @@ export class TcThrottle extends LitElement {
    * between. Turning the train round is offered from here as well, and only
    * while the lever reads zero: flipping the facing under a moving train
    * would reverse it on the spot.
+   *
+   * The lever is live only while the train has a move outstanding: `layout`
+   * applies a throttle's speed only within a granted move, and a lever that
+   * moved with nothing granted would show a speed the train is not running
+   * at (ADR-0079).
    */
   private driving(cab: Cab) {
     const inFlight = cab.inFlight;
     return html`
+      ${cab.granted
+        ? nothing
+        : html`<p class="hint">no move granted — the lever waits for the next one</p>`}
       <div class="lever">
         <input
           type="range"
@@ -223,10 +270,10 @@ export class TcThrottle extends LitElement {
           max="1"
           step=${STEP}
           .value=${String(this.lever)}
-          ?disabled=${!this.live}
+          ?disabled=${!this.live || !cab.granted}
           aria-label="speed"
           @input=${(event: Event) =>
-            this.drive(cab.train, Number((event.target as HTMLInputElement).value))}
+            this.lean(cab, Number((event.target as HTMLInputElement).value))}
         />
         <span class="reading">${this.lever.toFixed(2)}</span>
         <button class="stop" ?disabled=${!this.live} @click=${() => this.drive(cab.train, 0)}>
@@ -279,8 +326,8 @@ export class TcThrottle extends LitElement {
    *
    * The buttons are **drawn and not live**: a function reaches a decoder
    * through the device vocabulary, `layout` is its one writer, and no gesture
-   * carries a function press yet — the two rows a throttle rides on are the
-   * mode and the speed
+   * carries a function press yet — the rows a throttle rides on are the
+   * take and the speed
    * ([#296](https://github.com/rails49/control/issues/296)). Drawing them is
    * what says a train has them; the day the gesture is declared, this is
    * where it is sent from.
@@ -302,17 +349,29 @@ export class TcThrottle extends LitElement {
 
   // --- what goes on the bus -------------------------------------------------
 
-  /** Take the train, or give it back. The view goes on reading who is driving
-   *  off `state/mode` and marks nothing taken on its own press: `layout`
-   *  holds the mode, and a person is holding a train when it says so
-   *  (ADR-0035). */
-  private wanting(train: string, mode: Mode): void {
+  /** Take the train in this throttle. The view goes on reading who holds it
+   *  off `state/taken` and marks nothing taken on its own press: `layout`
+   *  holds the answer, and drops a take of a train another throttle holds
+   *  (ADR-0035, ADR-0079). */
+  private taking(train: string): void {
     if (!this.live) return;
-    // Given back, the lever is nobody's. `layout` writes the speed the
-    // train's current grant implies on the way back to automatic, so this
-    // sends no zero of its own — one gesture per press.
-    if (mode === "automatic") this.lever = 0;
-    this.say<ModeWanted>("mode-wanted", { train, mode });
+    this.say<string>("take-wanted", train);
+  }
+
+  /** Give the train back, or force the release of one another throttle
+   *  holds: the same frame. `layout` writes the speed a release implies, so
+   *  this sends no zero of its own — one gesture per press. */
+  private releasing(train: string): void {
+    if (!this.live) return;
+    this.lever = 0;
+    this.say<string>("release-wanted", train);
+  }
+
+  /** The lever pushed by a hand: dropped with no move granted, where `layout`
+   *  would drop the speed. */
+  private lean(cab: Cab, speed: number): void {
+    if (!cab.granted) return;
+    this.drive(cab.train, speed);
   }
 
   /** The lever moved: one `throttle_wanted` carrying the number that is now

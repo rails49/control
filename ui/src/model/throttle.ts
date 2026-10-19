@@ -3,10 +3,11 @@
  * (ui/THROTTLE.md, [#207](https://github.com/rails49/control/issues/207)).
  *
  * No DOM, and nothing derived that an app already publishes. Which trains
- * there are to drive is the run's picture, who drives each is `layout`'s
- * answer on `tc49/layout/state/mode`, which way a train points is the
- * scheduler's **facing**, the aspect it is reading is the dispatcher's, and
- * what a person can switch on it is the railroad's roster. This puts the five
+ * there are to drive is the run's picture, which throttle holds each is
+ * `layout`'s answer on `tc49/layout/state/taken`, whether its lever does
+ * anything is the move the dispatcher granted it, which way a train points is
+ * the scheduler's **facing**, the aspect it is reading is the dispatcher's,
+ * and what a person can switch on it is the railroad's roster. This puts them
  * beside each other train by train, and decides none of them.
  *
  * It holds no lever position and no chosen train: those are the person's, and
@@ -16,13 +17,17 @@
 import type { Aspect } from "../render/artwork.js";
 import type { Ahead, EndRef, Placed } from "./panel.js";
 import type { Fn, TrainDoc } from "./store.js";
-import type { Mode, Power } from "./trace.js";
+import type { Power } from "./trace.js";
+
+/** Who holds a train, as this page sees it: this throttle, another one, or
+ *  none (`null`). */
+export type Holder = "here" | "elsewhere" | null;
 
 /**
  * One train, as a throttle shows it.
  *
- * `mode` is `layout`'s word and never the view's: a train is taken when the
- * mode topic says `manual` and not when somebody pressed for it
+ * `taken` is `layout`'s word and never the view's: a train is taken when
+ * `state/taken` names a throttle for it and not when somebody pressed for it
  * (ui/THROTTLE.md).
  */
 export interface Cab {
@@ -30,7 +35,11 @@ export interface Cab {
   /** The block it stands in, `null` while it is crossing a transit and
    *  stands in none — on the layout all the same (CONTEXT.md, **Placed**). */
   block: string | null;
-  mode: Mode;
+  taken: Holder;
+  /** Whether it has a move outstanding: granted and not yet at the sensor it
+   *  ends at. `layout` applies a throttle's speed only then, so the lever is
+   *  live only then (BUS.md, `throttle_wanted`). */
+  granted: boolean;
   /** The end of its block it points at, `<block>.<end>`, `null` where the
    *  scheduler has said no facing for it. It is the way `+` runs, which is
    *  why the view draws it before anything moves. */
@@ -53,13 +62,19 @@ export interface Cab {
   functions: readonly Fn[];
 }
 
-/** What the throttle is worked out from: the run's picture, `layout`'s modes,
- *  the scheduler's facing, the dispatcher's aspects and the railroad's
- *  roster. Five sources because they are five apps' answers, and one list,
- *  because a person picking a train to drive is not choosing between them. */
+/** What the throttle is worked out from: the run's picture, which throttle
+ *  `layout` says holds each train, the moves granted, the scheduler's
+ *  facing, the dispatcher's aspects and the railroad's roster. Several
+ *  sources because they are several apps' answers, and one list, because a
+ *  person picking a train to drive is not choosing between them. */
 export interface Driving {
   placed: readonly Placed[];
-  modes: ReadonlyMap<string, Mode>;
+  /** train → the id of the throttle holding it (`state/taken`). */
+  taken: ReadonlyMap<string, string>;
+  /** This page's throttle id, which says which of those is this one. */
+  throttle: string;
+  /** The trains with a move outstanding. */
+  granted: ReadonlySet<string>;
   noses: ReadonlyMap<string, EndRef>;
   aspects: ReadonlyMap<EndRef, Aspect>;
   ahead: ReadonlyMap<string, readonly Ahead[]>;
@@ -82,15 +97,18 @@ export interface Driving {
  * the thing the operator can see — the same rule the roster pane keeps.
  */
 export function cabs(driving: Driving): Cab[] {
-  const { placed, modes, noses, aspects, ahead, inFlight, stock } = driving;
+  const { placed, taken, throttle, granted, noses, aspects, ahead, inFlight, stock } =
+    driving;
   return [...placed]
     .sort((one, other) => one.train.localeCompare(other.train))
     .map(({ train, block }) => {
       const nose = noses.get(train) ?? null;
+      const holder = taken.get(train);
       return {
         train,
         block,
-        mode: modes.get(train) ?? "automatic",
+        taken: holder === undefined ? null : holder === throttle ? "here" : "elsewhere",
+        granted: granted.has(train),
         nose,
         aspect: (nose === null ? undefined : aspects.get(nose)) ?? null,
         ahead: ahead.get(train) ?? [],
