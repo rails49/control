@@ -124,6 +124,8 @@ class Active:
     route: Route
     cur_index: int  # index into route.blocks of cur(t)
     outstanding: Move | None  # granted move whose sensors are pending
+    # the outstanding move's origin read clear since its grant
+    origin_cleared: bool = False
 
 
 @dataclass
@@ -1533,9 +1535,10 @@ class Dispatcher:
 
     def _arrived(self, block: str) -> None:
         """`block_occupied` records where the train arrived, and ends the move
-        if its origin already reads clear (ADR-0077). Otherwise the move is
-        not over: the tail is still in the origin block, the train is between
-        blocks, and it takes no further grant until the vacate ends the move
+        if its origin already reads clear (ADR-0077), on a clear reading heard
+        while the move was outstanding (#806). Otherwise the move is not over:
+        the tail is still in the origin block, the train is between blocks,
+        and it takes no further grant until the vacate ends the move
         (ADR-0047)."""
         found = self._explained(block)
         if found is None or found[2].into != block:
@@ -1543,7 +1546,7 @@ class Dispatcher:
             return
         train, active, move = found
         self._state.block_of[train] = block
-        if self._state.reported.get(move.from_block) is False:
+        if active.origin_cleared and self._state.reported.get(move.from_block) is False:
             self._ended(train, active, move)
         else:
             self._publish_allocation()
@@ -1552,11 +1555,11 @@ class Dispatcher:
         """`block_vacated` of a move's origin ends the move once its arrival
         block reads occupied (ADR-0077).
 
-        **Before the arrival it does nothing at all**: no release, no grant,
-        and no hold. The layout publishes a vacate when the origin's own
-        detectors go clear, and a train shorter than the gap to the next
-        block's entry detector reads clear behind before it reads occupied
-        ahead, which is normal running. The train may be standing on the
+        **Before the arrival it only marks the move's origin cleared**: no
+        release, no grant, and no hold. The layout publishes a vacate when the
+        origin's own detectors go clear, and a train shorter than the gap to
+        the next block's entry detector reads clear behind before it reads
+        occupied ahead, which is normal running. The train may be standing on the
         connection's points, so the origin and the transit stay locked, and
         the arrival ends the move.
 
@@ -1575,6 +1578,8 @@ class Dispatcher:
         train, active, move = found
         if state.block_of.get(train) == move.into:
             self._ended(train, active, move)
+        else:
+            active.origin_cleared = True
 
     def _ended(self, train: str, active: Active, move: Move) -> None:
         """A move over, on both its readings — origin clear, arrival
@@ -1854,6 +1859,7 @@ class Dispatcher:
             },
         )
         active.outstanding = result
+        active.origin_cleared = False
         self._state.crossing[active.request.train] = result.transit
         active.cur_index += 1
 
