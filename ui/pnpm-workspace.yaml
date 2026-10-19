@@ -1,2 +1,8 @@
 allowBuilds:
   esbuild: true
+# The native packages for linux on arm64 as well as this machine's, so the
+# same node_modules runs vitest and vite inside implement-loop's sandbox.
+supportedArchitectures:
+  os: [current, linux]
+  cpu: [current, arm64]
+  libc: [current, glibc]
