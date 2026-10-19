@@ -34,13 +34,13 @@ fixed, so a run is reproducible by construction.
 
 It answers the band's **power** presses as the layout interface does
 (ADR-0070). It comes up `off`, and states on `state/power` the last `on` or
-`off` it applied, having no hardware to report one, with `stopped` held over
-it until `on`; a plain `off` is applied only while the run is held and nothing
-moves (ADR-0062). The rule is `lib.power.TrackPower`'s, which the layout keeps
-too. While the power is not `on`
+`off` it applied, having no hardware to report one, with `draining` held over
+it from the press until `tc49/dispatch/state/moving` reads false; `off` is
+applied at once (ADR-0078). The rule is `lib.power.TrackPower`'s, which the
+layout keeps too. While the power is not `on`
 no move starts and none advances: a `move` is dropped, and the sensor events
 of a transit under way wait, firing at ON with the time they had left — a
-train under an emergency stop on steel goes on at its kept speed.
+train a cut left between blocks finishes its move when the power comes back.
 
 The **speed** the command carries is ignored here for that same reason
 (#283): a delay this app chose is not a distance divided by a speed, so
@@ -72,7 +72,7 @@ from heapq import heapify, heappop, heappush
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import OFF, ON, STOPPED
+from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, transit_ends
 from tc49.lib.payload import Command, command, named_train, placement
 from tc49.lib.power import TrackPower
@@ -130,8 +130,7 @@ class Simulator:
         self._supply = OFF
         self._cut_at = clock.now
         # How a power press is answered, the rule the layout keeps as well:
-        # the run row a plain `off` is judged against (ADR-0062), and the
-        # emergency stop held until `on`.
+        # the word applied, and the moving row a drain ends on (ADR-0078).
         self._track_power = TrackPower()
         # The commands, subscribed **before** a word is published. A publish
         # is asynchronous where a subscribe waits to be acknowledged, so an
@@ -150,7 +149,7 @@ class Simulator:
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
         bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
         bus.subscribe("tc49/layout/power_wanted", self._on_power_wanted)
-        bus.subscribe("tc49/dispatch/state/run", self._on_run)
+        bus.subscribe("tc49/dispatch/state/moving", self._on_moving)
         # Which railroad this binding stands in for, stated from the
         # constructor like the supply below: one broker runs one railroad and
         # a view needs to know which, and the binding of the layout interface
@@ -172,30 +171,33 @@ class Simulator:
         (ADR-0071), as the layout interface's own `position` is."""
         return dict(self._position)
 
-    def _on_run(self, topic: str, payload: Payload) -> None:
-        """Where the dispatcher holds the run, and whether anything moves
-        under it: what a plain `off` is checked against (ADR-0062), kept by
-        `lib.power.TrackPower` as `layout` keeps it."""
-        self._track_power.run(topic, payload)
+    def _on_moving(self, topic: str, payload: Payload) -> None:
+        """Whether the dispatcher says a train is moving: what a drain ends
+        on (ADR-0078), kept by `lib.power.TrackPower` as `layout` keeps it."""
+        word = self._track_power.moving(topic, payload)
+        if word is not None:
+            self._apply(word)
 
     def _on_power_wanted(self, topic: str, payload: Payload) -> None:
-        """A person asked for power, an emergency stop, or the supply removed,
-        and this binding answers it as the layout interface does (ADR-0070).
-        There is no hardware to report the supply, so the supply is the last
-        `on` or `off` applied, and `stopped` stands over it until `on` (#752).
-        Whether a press is applied at all is `lib.power.TrackPower`'s, the
-        same rule the layout keeps (ADR-0062).
+        """A press on the one switch, `on`, `draining` or `off`, answered as
+        the layout interface answers it (ADR-0070, ADR-0078): which press is
+        applied, and when a drain ends, is `lib.power.TrackPower`'s."""
+        word = self._track_power.answer(payload, self._supply)
+        if word is not None:
+            self._apply(word)
+
+    def _apply(self, word: str) -> None:
+        """The word the rule settled on. There is no hardware to report the
+        supply, so the supply is the last `on` or `off` applied, which a drain
+        leaves on, and `draining` stands over it until the drain ends (#752).
 
         Leaving `on` stops the scheduled sensor events where they are; coming
         back to it moves each one later by the time the power was not `on`,
         so a transit goes on with the time it had left and the events keep
         their order (decision 4).
         """
-        wanted = self._track_power.answer(payload)
-        if wanted is None:
-            return
-        if wanted != STOPPED:
-            self._supply = wanted
+        if word != DRAINING:
+            self._supply = word
         stated = self._track_power.stated(self._supply)
         if stated == self._power:
             return

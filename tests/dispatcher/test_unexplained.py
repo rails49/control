@@ -22,7 +22,7 @@ from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import AT, DRAINING, OFF, ON
 from tc49.lib.scenario import TrainSpec
-from tests.harness import drains, events, load, power, press, run
+from tests.harness import POWER, drains, events, load, power, press, run
 
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
@@ -90,11 +90,11 @@ def test_the_drain_names_the_block_for_a_person_to_walk(standing: Assembly) -> N
     """The drain alone would say only that something is wrong. The dispute
     check is published once the power is off and is this comparison exactly,
     so the reading that stopped the railroad is the entry the person is sent
-    to (#153)."""
+    to (#153). Nothing is moving here, so the binding answers the drain with
+    the supply off at once (ADR-0078)."""
     reading(standing, OCCUPIED, "up_w")
-    assert disputed(standing) == {"trains": [], "blocks": []}
 
-    drained(standing)
+    assert standing.bus.last_values[POWER]["power"] == OFF
     assert disputed(standing) == {"trains": [], "blocks": ["up_w"]}
 
 

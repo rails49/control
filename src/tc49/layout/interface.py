@@ -18,8 +18,8 @@ becomes the addresses that answer for it, no address ever reaching a command
 **Everything the bus hands it is read and never trusted** (BUS.md, rule 4).
 Twelve topics from six publishers — the detectors joining them with the fold
 (#288), the throttle's three gestures and the driving mode coming from where
-a person's press already does (#297, ADR-0079), and the run row the guard on a
-plain `off` reads (#407) — none of which this app answers — it reports
+a person's press already does (#297, ADR-0079), and the moving row a drain
+ends on (ADR-0078) — none of which this app answers — it reports
 observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
 one would take the app running the railroad down at the whim of whoever
@@ -52,41 +52,36 @@ between apps. Where the train stands comes from `train_placed`,
 is not `on` (ADR-0041). That is what makes a restart safe, and it has teeth on
 every one of them now that the app comes up with the railroad off.
 
-**Power is commanded on arrival and observed from below.** A `power_wanted` is
-written through to `wanted/track` — there is no beat to quantise it against,
-and an emergency stop that waits is not one (ADR-0051) — and what this app
-publishes on `state/power` is folded from what the hardware reports: `_folded`
-is the rule for `on` and `off`. It cannot verify that the supply really went
-and does not try; it is the system designer's job to put a device there that
-does (#232).
+**Power is one switch: `on`, `draining` or `off`** (ADR-0078). A
+`power_wanted` is answered on arrival — there is no beat to quantise it
+against, and an emergency stop that waits is not one (ADR-0051) — and the
+rule is `lib.power.TrackPower`'s, the one the simulator keeps. `on` writes
+`wanted/track: on`; `off` is the emergency stop, the traction rows zeroed and
+`wanted/track: off` written at once whatever is moving; `draining`, from `on`
+only, keeps the supply on while each moving train stops, and becomes that
+same `off` the moment `tc49/dispatch/state/moving` reads false. `on` during a
+drain ends it. The supply going is the one thing this app does without a
+press of its own, and only at the end of a drain a person or the dispatcher
+asked for.
 
-**The emergency stop is the one value held rather than folded.** A stop leaves
-the rails live, so the supply reads `on` under one and no hardware can report
-it (ADR-0063). This app wrote the word, so this app holds it: `state/power`
-reads `stopped` from the command until a person asks for the power back with
-`power_wanted: on`, which is what leaves ADR-0041's *clear it before driving*
-with a source. `on` and `off` are still nobody's to command onto this row.
+**What `state/power` reads is observed from below, bar two words.** `on` and
+`off` are folded from what the hardware reports: `_folded` is the rule. It
+cannot verify that the supply really went and does not try; it is the system
+designer's job to put a device there that does (#232). `draining` is held
+from the press until the drain ends, no hardware being able to report one
+(ADR-0063), and a cut reads `off` from the moment it is applied until the next
+`on`, the supply still reporting live for as long as it takes to go dark.
 
-**A plain `off` is applied only where nothing is moving.** The one command
-here that is not written through as it came. A topic names the app that
-answers it and never the process that sent the frame, so a raw client, a test
-or a later UI publishing `off` would cut the supply under whatever is
-mid-transit and strand it where no sensor will ever say it stopped — which is
-why the drain-first check is made where the command is answered rather than
-trusted to the sender (ADR-0062). `tc49/dispatch/state/run` is subscribed to
-for it: `off` applies where the run reads `held` with `moving` false, and
-where this app holds no run at all, no dispatcher having stated one. It is
-refused where the run is `running` or `draining`, or where something is
-moving, and a refusal is dropped with its reason rather than kept for later —
-an intention kept would be the panel's stale wait moved server-side. `on` and
-`stopped` are untouched, and so is the `off` this app writes at its own start,
-which is not a gesture.
+**`on` resumes.** A train left between blocks by a cut has a move outstanding
+and nothing turning its wheels, the cut having zeroed them, so the press that
+brings the power back gives each one this app drives the speed its grant
+implies and it finishes its move (ADR-0078, decision 6).
 
 **On startup the railroad is off, and at rest.** The app comes up having
 written `wanted/track: off` and `state/power: off`, so nothing moves and no
 turnout throws until a person turns it on, normally from the panel. It never
 writes `off` of its own accord thereafter: it writes the word it was told to
-write. It also comes up having written `0.0` over every retained
+write, and the `off` a drain it was asked for ends in. It also comes up having written `0.0` over every retained
 `wanted/traction` row it finds, so a speed the last run left on the broker is
 not sent to a station at the first connect and the locomotive does not roll on
 the power-on (ADR-0054). `wanted/point` replays instead: a point has
@@ -158,6 +153,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import (
     AUTOMATIC,
+    DRAINING,
     MANUAL,
     OCCUPIED,
     OFF,
@@ -208,7 +204,7 @@ THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
-RUN = "tc49/dispatch/state/run"
+MOVING = "tc49/dispatch/state/moving"
 FACING = "tc49/schedule/state/facing"
 DEVICE = "tc49/layout/state/device/#"
 
@@ -391,9 +387,8 @@ class LayoutInterface:
         self._occupied: dict[str, bool] = {}
         self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
-        # How a power press is answered, the rule both bindings keep: the run
-        # row a plain `off` is judged against (ADR-0062), and the emergency
-        # stop this app commanded, which no hardware can report (ADR-0063).
+        # How a power press is answered, the rule both bindings keep: the
+        # word applied, and the moving row a drain ends on (ADR-0078).
         self._track_power = TrackPower()
         # The two halves of the power fold, and what was last said about it.
         # A link is held under the id its publisher calls itself, which is
@@ -467,7 +462,7 @@ class LayoutInterface:
         bus.publish(DRIVING, {"driving": MANUAL})
         bus.publish(TAKEN, {"taken": {}})
         bus.subscribe(ASPECTS, self._on_aspects)
-        bus.subscribe(RUN, self._on_run)
+        bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
         bus.subscribe(DEVICE, self._on_device)
 
@@ -1102,115 +1097,98 @@ class LayoutInterface:
 
     # -- the power ----------------------------------------------------------
 
-    def _on_run(self, topic: str, payload: Payload) -> None:
-        """Where the dispatcher holds the run, and whether anything is moving
-        under it.
+    def _on_moving(self, topic: str, payload: Payload) -> None:
+        """Whether the dispatcher says a train is moving: active or crossing
+        (CONTEXT.md, **Moving**).
 
-        The one thing this app reads it for is the guard below: the check
-        that the supply is not removed under a train in motion is made where
-        the command is answered, rather than trusted to whoever published it
-        (ADR-0062). Nothing else here branches on the run — a `move` is acted
-        on because it was granted, and a held run grants none.
+        The one thing this app reads it for is the end of a drain: the supply
+        goes the first moment it reads false, and not before, because a cut
+        under a train in motion strands it where no sensor will ever say it
+        stopped (ADR-0062, ADR-0078). Nothing else here branches on it — a
+        `move` is acted on because it was granted.
 
         It is a **retained** state topic, so the last value is handed over on
         subscribing even with the dispatcher down, and stamp-guarded like
         every other state topic this app takes (#240): two values delivered
-        backwards would leave this app believing a run the railroad has moved
-        on from, which on this row is a cut refused or allowed on stale
-        evidence.
-
-        A value that cannot be read at all is no value and the run already
-        held stands, which is the same direction as the facing: forgetting
-        what the dispatcher said on one bad frame would leave this app with
-        no evidence, and no evidence applies an `off`.
+        backwards would end a drain on stale evidence. A value that cannot be
+        read reads as a train moving, and so does no value at all, which
+        leaves a drain running until a person presses `off`.
         """
-        self._track_power.run(topic, payload)
+        word = self._track_power.moving(topic, payload)
+        if word is not None:
+            self._apply(word)
 
     def _on_power_wanted(self, topic: str, payload: Payload) -> None:
-        """A person asked the railroad for power, an emergency stop, or the
-        supply removed: the word is written through to the device vocabulary
-        and applied on arrival (ADR-0051), bar the one that is guarded.
+        """A person asked the railroad for power, a drain, or the supply
+        removed at once (ADR-0078), or the dispatcher asked for a drain on a
+        fault. `lib.power.TrackPower` decides what is applied, the same rule
+        the simulator keeps.
 
-        Nothing is said about `state/power` here bar the one word no
-        hardware can report. What this app publishes there is otherwise what
-        the hardware reports, and a command is not a report: a railroad that
-        answered `on` because somebody pressed ON would be this app taking
-        its own word for the state of the track.
-
-        **The emergency stop is held from the command that asked for it.** A
-        stop leaves the rails live, so the supply reads `on` under one and
-        the fold would call the railroad good again a second after the press
-        (ADR-0063). This app wrote `stopped`, so it knows, and it holds it —
-        which is what leaves ADR-0041's *clear it before driving* with a
-        source, and what stops a move while it stands. **Clearing it is
-        `power_wanted: on`**, the railroad's own power control and what a
-        person reaches for to resume: no second topic, no fourth value and no
-        new button.
-
-        **`on` alone clears it**, and an `off` does not. A cut is commanded
-        and not observed, so clearing on the press would publish `on` here —
-        the fold's answer while the hardware still reports the supply it has
-        not yet lost — in the moment this app is asking for the supply to go,
-        which is the one direction this row must never fail in. So the stop
-        stands over a dark railroad until somebody asks for the power back:
-        both words hold the run either way (ADR-0041), and a person loading a
-        drawing over a held stop clears it first, the press that clears it
-        being the one they need to make the rails live again anyway.
-
-        A gesture that is dropped commanded nothing and moves nothing here,
-        an unreadable one and an `off` the guard refuses alike (ADR-0062).
-
-        A gesture that cannot be read is dropped rather than taken for `off`,
+        A press that cannot be read is dropped rather than taken for `off`,
         which is the other direction from the reading of the same axis: `off`
-        is a word this app writes only when it was told to.
-
-        **A plain `off` is applied only where nothing is moving** (ADR-0062).
-        A topic names the app that answers it and never the process that sent
-        the frame, so nothing about `power_wanted` says the panel wrote it and
-        its drain-first sequence stood behind it; a raw client, a test or a
-        later UI publishing `off` would cut the supply under whatever is
-        mid-transit and strand it where no sensor will ever say it stopped
-        (CONTEXT.md, **Power off**). So this one gesture is re-validated
-        against current state on arrival, as every other browser-writable one
-        already is, and `lib.power.TrackPower` is the whole check, the same
-        one the simulator makes.
-
-        A refused `off` is **dropped**, in silence and to the trace with the
-        reason, as every gesture this app cannot act on is (ADR-0034). It is
-        not held for later: an intention kept would be the panel's stale wait
-        moved server-side, and this app answers nothing that could clear it.
-        A client that wants the supply removed from a running railroad has the
-        panel's two words — ask for a drain, and cut when it is done.
-
-        `on` and `stopped` are untouched: an emergency stop asks the rails for
-        less and returning to `on` releases nothing (ADR-0041, ADR-0051). Nor
-        is the `off` this app writes at its own start affected — that is not a
-        gesture and never comes through here.
-
-        **An `off` that is applied leaves the railroad at rest**, the traction
-        rows zeroed the way they are at startup (#435, ADR-0054). "The
-        railroad comes up at rest" is a promise about a **power off** and the
-        `on` after it as well as about a process start, and the supply going
-        is not a restart, so the startup rule does not reach it: an arrival
-        zeroes the row of a train this app drives and nothing zeroes the row
-        of one a person holds in a throttle, so a plain `off` would otherwise
-        leave a speed standing and the next `on` would bring current back over
-        it.
-
-        The zeros go out **before** the word, and the order is load-bearing:
-        a translator acts on desired rows as they arrive, so zeros first means
-        the last thing the station is told before the supply goes is a stop.
-        Only on the `off` that is applied — a refused gesture changes nothing
-        (ADR-0062), and `stopped` is a run that is meant to resume, which
-        zeroed rows would turn into a re-drive.
+        is a word this app writes only when it was told to, or at the end of a
+        drain it was told to make. A `draining` from anything but `on` is
+        dropped with it, to the trace with the reason (ADR-0034): there is
+        nothing running to drain, and a drain from `off` would be one that
+        turned the supply back on.
         """
-        wanted = self._track_power.answer(payload)
-        if wanted is None:
-            return
-        if wanted == OFF:
+        word = self._track_power.answer(payload, self._folded())
+        if word is not None:
+            self._apply(word)
+
+    def _apply(self, word: str) -> None:
+        """The word the rule settled on, applied to the device vocabulary.
+
+        **`off` leaves the railroad at rest**, the traction rows zeroed the
+        way they are at startup (#435, ADR-0054), whether it is a person's
+        emergency stop or the end of a drain. "The railroad comes up at rest"
+        is a promise about a **power off** and the `on` after it as well as
+        about a process start: an arrival zeroes the row of a train this app
+        drives and nothing zeroes the row of one a person holds in a
+        throttle, so a cut would otherwise leave a speed standing and the
+        next `on` would bring current back over it. The zeros go out
+        **before** the word, and the order is load-bearing: a translator
+        acts on desired rows as they arrive, so the last thing the station is
+        told before the supply goes is a stop.
+
+        **`draining` writes nothing to the hardware.** The supply stays on
+        and only `state/power` moves: the dispatcher grants nothing new, and
+        each moving train stops at the end of the move it was granted.
+
+        **`on` resumes** what a cut left between blocks (`_resume`).
+        """
+        if word == OFF:
             self._traction_rest()
-        self._bus.publish(WANTED_TRACK, {"power": wanted})
+        if word != DRAINING:
+            self._bus.publish(WANTED_TRACK, {"power": word})
         self._publish_power()
+        if word == ON:
+            self._resume()
+
+    def _resume(self) -> None:
+        """Every train with a move outstanding that this app drives — no
+        throttle holds it, in `automatic` — given the speed its grant
+        implies, so a train a cut left between blocks carries on to its
+        sensor (ADR-0078, decision 6).
+
+        Written on the press and not when the hardware reports the supply
+        back: a translator holds the row and sends it once the rails are
+        live, and a press that waited for the report would leave the train
+        standing on a live railroad with its move outstanding. In `manual`
+        nothing is written, the trains that carry on being the ones a
+        throttle holds, whose speed the person sets (#825). A train still
+        running when `on` ends a drain is written the speed it already has.
+        """
+        if self._driving != AUTOMATIC:
+            return
+        for train in {crossing.train for crossing in self._crossing.values()}:
+            flight = self._outstanding(train)
+            if train in self._taken or flight is None or not flight[1].implied:
+                continue
+            block, crossing = flight
+            self._crossing[block] = replace(crossing, driving=True)
+            for addr, speed in crossing.implied:
+                self._traction_write(addr, speed)
 
     def _on_device(self, topic: str, payload: Payload) -> None:
         """What the hardware reports about itself. Three of the five rows are
@@ -1432,14 +1410,12 @@ class LayoutInterface:
         the direction a state topic must fail in is already in the readers
         (#181).
 
-        The supply's own word is `on` or `off` and never an emergency stop:
-        a stop leaves the rails live, so the row reads `on` under one, and a
-        frame claiming otherwise claims something no hardware can observe and
-        is refused with everything else this cannot read (ADR-0063). So this
-        answers `on` while the railroad stands under a stop, and that is the
-        truth about the hardware: whether a person has yet to clear one is
-        not a fold from hardware and never can be. It is held instead, and
-        `_publish_power` is where the two meet.
+        The supply's own word is `on` or `off`, and never `draining`: a drain
+        keeps the supply on, so the row reads `on` through one, and a frame
+        claiming otherwise claims something no hardware can observe and is
+        refused with everything else this cannot read (ADR-0063). Whether the
+        railroad is draining is not a fold from hardware and never can be. It
+        is held instead, and `_publish_power` is where the two meet.
         """
         if not all(self._links.values()):
             return OFF
@@ -1453,18 +1429,17 @@ class LayoutInterface:
         anything is served a value rather than left to read one out of an
         absence (ADR-0032).
 
-        **A held emergency stop outranks the fold**, and is the one value on
-        this row not read from hardware. It is held because no hardware can
-        hold it: the supply is live under a stop and goes on saying so, so a
-        row folded from `device/track` alone would clear the stop nobody has
-        cleared and leave the person who pressed it with nothing saying the
-        railroad is waiting for them (ADR-0063, ADR-0041). It outranks a fold
-        of `off` as well as one of `on`: both are "not `on`" to every reader
-        (ADR-0041), and the held word is the one that says a person has
-        something to clear. Everything else is the fold's, unchanged, and the
-        fold answers again the moment the stop is cleared — what the hardware
-        said meanwhile is what the row then reads, rather than an `on` this
-        app has taken its own word for.
+        **Two held words outrank the fold**, and are the ones on this row not
+        read from hardware. `draining` is held because no hardware can hold
+        it: the supply is live through a drain and goes on saying so, so a
+        row folded from `device/track` alone would read `on` and the
+        dispatcher would route into the drain (ADR-0063, ADR-0078). `off` is
+        held from a cut until the next `on` for the same reason the other way
+        round: the hardware reports the supply live until it has gone, and in
+        that moment the row must not read `on`. Everything else is the
+        fold's, unchanged, and the fold answers again on `on` — what the
+        hardware said meanwhile is what the row then reads, rather than an
+        `on` this app has taken its own word for.
         """
         stated = self._track_power.stated(self._folded())
         if stated != self._power:

@@ -28,7 +28,7 @@ THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
-RUN = "tc49/dispatch/state/run"
+MOVING = "tc49/dispatch/state/moving"
 FACING = "tc49/schedule/state/facing"
 
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
@@ -197,10 +197,10 @@ def energised(bus: InProcessBus) -> None:
     bus.drain()
 
 
-def runs(bus: InProcessBus, run: str, moving: bool = False) -> None:
-    """The dispatcher stating where the run stands and whether anything is
-    moving under it — the row `layout` guards a plain `off` against."""
-    bus.publish(RUN, {"run": run, "moving": moving})
+def moves(bus: InProcessBus, moving: bool) -> None:
+    """The dispatcher stating whether any train is moving — the row a drain
+    ends on (ADR-0078)."""
+    bus.publish(MOVING, {"moving": moving})
     bus.drain()
 
 

@@ -25,6 +25,7 @@ from tc49.bench.runner import (
 from tc49.bench.runner import load as load_scenario
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.inventory import DRAINING
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster, Train
 from tc49.lib.scenario import Scenario
@@ -244,11 +245,12 @@ def minted(assembly: Assembly, train: str, nth: int = 1) -> str:
 
 
 def drains(assembly: Assembly) -> list[str]:
-    """Every power pressed on `power_wanted` after the harness's own opening
-    `on` (`bench.runner.powered`): on a railroad no test presses the switch
-    on, the drains the dispatcher has asked `layout` for (ADR-0078)."""
+    """Every `draining` pressed on `power_wanted`: on a railroad no test
+    asks to drain, the drains the dispatcher has asked `layout` for
+    (ADR-0078). The harness's own opening `on` (`bench.runner.powered`), and
+    a test's `on` acknowledging a drain, are not among them."""
     pressed = [str(line["power"]) for line in leaves(assembly, "power_wanted")]
-    return pressed[1:]
+    return [word for word in pressed if word == DRAINING]
 
 
 def movings(assembly: Assembly) -> list[bool]:

@@ -9,9 +9,9 @@ simulator's sensor timing — stays in that binding's own suite.
 
 Both run on the bench railroad `tests/layout/railroad.py` draws. The layout is
 given a station that reports the supply it is told to have, live under `on`
-and under a stop and dead under `off`, so a press reaches `state/power` on
-both the way it would on a railroad. The bus stamps nothing, so a case can
-hand a run row the stamp it wants (#240).
+and dead under `off`, so a press reaches `state/power` on both the way it
+would on a railroad. The bus stamps nothing, so a case can hand a moving row
+the stamp it wants (#240).
 """
 
 import logging
@@ -27,11 +27,11 @@ from tc49.simulator import Simulator
 from tests.layout.railroad import (
     DEVICE_TRACK,
     MOVE,
+    MOVING,
     POWER,
     POWER_WANTED,
     RAILROAD,
     REMOVED,
-    RUN,
     WANTED_TRACK,
     Unstamped,
     align,
@@ -111,8 +111,8 @@ def power(binding: Binding) -> str:
     return str(binding.bus.last_values[POWER]["power"])
 
 
-def runs(binding: Binding, row: Payload) -> None:
-    binding.bus.publish(RUN, row)
+def moves(binding: Binding, row: Payload) -> None:
+    binding.bus.publish(MOVING, row)
     binding.bus.drain()
 
 
@@ -149,7 +149,7 @@ def test_a_train_crosses_from_where_it_was_placed(build: Build) -> None:
     assert binding.position == {"freight_1": "dn_e"}
 
 
-@pytest.mark.parametrize("words", [[], ["on", "off"], ["on", "stopped"]])
+@pytest.mark.parametrize("words", [[], ["on", "off"], ["on", "draining"]])
 def test_no_move_while_the_power_is_not_on(build: Build, words: list[str]) -> None:
     binding = build()
     for word in words:
@@ -229,95 +229,91 @@ def test_it_comes_up_with_the_trains_it_is_given(build: Build) -> None:
 
 
 @pytest.mark.parametrize(
-    ("row", "refusal"),
-    [
-        (None, None),
-        ({"run": "held", "moving": False}, None),
-        ({"run": "held"}, None),
-        ({"run": "held", "moving": True}, "a train is moving"),
-        ({"run": "running", "moving": False}, "the run reads running"),
-        (
-            {"run": "draining", "moving": True},
-            "the run reads draining and a train is moving",
-        ),
-    ],
+    "row", [None, {"moving": False}, {"moving": True}, {"moving": "no"}]
 )
-def test_off_is_applied_only_where_nothing_moves(
-    build: Build,
-    row: Payload | None,
-    refusal: str | None,
-    caplog: pytest.LogCaptureFixture,
+def test_off_is_applied_at_once_whatever_moves(
+    build: Build, row: Payload | None
 ) -> None:
-    """No run row is no evidence, and neither is a row without `moving`
-    (ADR-0062, #406). A refusal goes to the log with its reason, for the
-    person reading the trace (ADR-0034)."""
+    """The emergency stop, with no guard (ADR-0078, decision 5)."""
     binding = build()
     press(binding, "on")
     if row is not None:
-        runs(binding, row)
-    with caplog.at_level(logging.INFO, logger="tc49.lib.power"):
-        press(binding, "off")
-    if refusal is None:
-        assert power(binding) == "off"
-        assert caplog.messages == []
-    else:
-        assert power(binding) == "on"
-        assert caplog.messages == [f"power off refused: {refusal}"]
+        moves(binding, row)
+    press(binding, "off")
+    assert power(binding) == "off"
 
 
-def test_a_refused_off_is_not_kept_for_later(build: Build) -> None:
+def test_a_drain_ends_off_once_nothing_moves(build: Build) -> None:
     binding = build()
     press(binding, "on")
-    runs(binding, {"run": "draining", "moving": True})
-    press(binding, "off")
-    runs(binding, {"run": "held", "moving": False})
-    assert power(binding) == "on"
+    moves(binding, {"moving": True})
+    press(binding, "draining")
+    assert power(binding) == "draining"
+    moves(binding, {"moving": True})
+    assert power(binding) == "draining"
+    moves(binding, {"moving": False})
+    assert power(binding) == "off"
 
 
-@pytest.mark.parametrize("run", ["running", "draining", "held"])
-@pytest.mark.parametrize("moving", [True, False])
-def test_on_and_stopped_are_answered_in_every_run_state(
-    build: Build, run: str, moving: bool
+def test_a_drain_with_nothing_moving_ends_at_the_press(build: Build) -> None:
+    binding = build()
+    press(binding, "on")
+    moves(binding, {"moving": False})
+    press(binding, "draining")
+    assert power(binding) == "off"
+
+
+@pytest.mark.parametrize("row", [None, {}, {"moving": "no"}, {"at": 1.0}])
+def test_a_moving_row_absent_or_unreadable_is_a_train_moving(
+    build: Build, row: Payload | None
 ) -> None:
     binding = build()
-    runs(binding, {"run": run, "moving": moving})
-    press(binding, "stopped")
-    assert power(binding) == "stopped"
     press(binding, "on")
+    if row is not None:
+        moves(binding, row)
+    press(binding, "draining")
+    assert power(binding) == "draining"
+
+
+def test_on_during_a_drain_ends_it(build: Build) -> None:
+    binding = build()
+    press(binding, "on")
+    moves(binding, {"moving": True})
+    press(binding, "draining")
+    press(binding, "on")
+    assert power(binding) == "on"
+    moves(binding, {"moving": False})
     assert power(binding) == "on"
 
 
-def test_the_run_row_judged_by_is_the_last_one_stated(build: Build) -> None:
+@pytest.mark.parametrize("words", [[], ["on", "off"], ["on", "draining"]])
+def test_a_drain_from_anything_but_on_is_dropped(
+    build: Build, words: list[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """A refusal goes to the log with its reason, for the person reading the
+    trace (ADR-0034)."""
+    binding = build()
+    for word in words:
+        press(binding, word)
+    before = power(binding)
+    with caplog.at_level(logging.INFO, logger="tc49.lib.power"):
+        press(binding, "draining")
+    assert power(binding) == before
+    assert caplog.messages == [f"power draining dropped: the power reads {before}"]
+
+
+def test_a_moving_row_stamped_earlier_is_ignored(build: Build) -> None:
     binding = build()
     press(binding, "on")
-    runs(binding, {"run": "running", "moving": True})
-    press(binding, "off")
-    assert power(binding) == "on"
-    runs(binding, {"run": "held", "moving": False})
-    press(binding, "off")
-    assert power(binding) == "off"
+    moves(binding, {"at": 2.0, "moving": True})
+    moves(binding, {"at": 1.0, "moving": False})
+    press(binding, "draining")
+    assert power(binding) == "draining"
 
 
-def test_a_run_row_stamped_earlier_is_ignored(build: Build) -> None:
-    binding = build()
-    press(binding, "on")
-    runs(binding, {"at": 2.0, "run": "held", "moving": False})
-    runs(binding, {"at": 1.0, "run": "running", "moving": True})
-    press(binding, "off")
-    assert power(binding) == "off"
-
-
-def test_a_run_row_that_cannot_be_read_keeps_the_last(build: Build) -> None:
-    binding = build()
-    press(binding, "on")
-    runs(binding, {"run": "held", "moving": True})
-    runs(binding, {"run": "drained"})
-    runs(binding, {"run": "held", "moving": "no"})
-    press(binding, "off")
-    assert power(binding) == "on"
-
-
-@pytest.mark.parametrize("payload", [{"power": "sideways"}, {"power": 1}, {}])
+@pytest.mark.parametrize(
+    "payload", [{"power": "sideways"}, {"power": "stopped"}, {"power": 1}, {}]
+)
 def test_a_press_that_cannot_be_read_changes_nothing(
     build: Build, payload: Payload
 ) -> None:
@@ -325,15 +321,4 @@ def test_a_press_that_cannot_be_read_changes_nothing(
     press(binding, "on")
     binding.bus.publish(POWER_WANTED, payload)
     binding.bus.drain()
-    assert power(binding) == "on"
-
-
-def test_a_stop_stands_over_an_off_until_on(build: Build) -> None:
-    """`stopped` stands until `on` (ADR-0070, #752)."""
-    binding = build()
-    press(binding, "on")
-    press(binding, "stopped")
-    press(binding, "off")
-    assert power(binding) == "stopped"
-    press(binding, "on")
     assert power(binding) == "on"
