@@ -8,10 +8,12 @@ client is served a value rather than reading one out of an absence
 applied at once and `draining` holds until `state/moving` reads false
 (ADR-0078), the rule being `lib.power`'s and the same one the layout keeps.
 
-While the power is not `on` no move starts and none advances: a `move` is
-dropped, and a transit under way at an `off` waits and goes on at ON with the
-time it had left.
+While the power is not `on` no move starts: a `move` is dropped. A transit
+under way follows the supply (#832): through a drain it runs to its sensors,
+and at an `off` it waits and goes on at ON with the time it had left.
 """
+
+from collections.abc import Callable
 
 from tc49.bench.runner import placement
 from tc49.lib.bus import InProcessBus, Payload
@@ -146,3 +148,73 @@ def test_a_batch_run_says_off_then_on_and_nothing_after() -> None:
 
     said = [line["power"] for line in events(assembly.trace, "power")]
     assert said == ["off", "on"]
+
+
+def test_a_transit_under_way_at_a_drain_runs_to_its_sensors() -> None:
+    """A drain keeps the supply on, so a train crossing at the press rolls on
+    into the block it was granted, as it does on steel (ADR-0078 decision 4):
+    started at 0 and drained at 4, its head lands at 10 and its tail clears
+    at 15, the times it had with the power on throughout."""
+    bus, clock, sim = simulator()
+    press(bus, {"power": "on"})
+    seen = stamped(bus, clock)
+    move(bus)
+
+    presses = {4.0: "draining"}
+
+    def sleep(seconds: float) -> None:
+        word = presses.pop(clock.now + seconds, None)
+        if word is not None:
+            bus.publish(POWER_WANTED, {"power": word})
+
+    sim.run_live(2.0, sleep=sleep, stop=lambda: clock.now >= 40.0)
+
+    assert seen == [
+        (TRANSIT_S, "block_occupied", "dn_w"),
+        (TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+    ]
+
+
+def test_a_drain_starts_no_move() -> None:
+    """Nothing new starts in a drain: a `move` arriving while power reads
+    `draining` is dropped, as the layout drops it, and never runs after."""
+    bus, clock, sim = simulator()
+    press(bus, {"power": "on"})
+    press(bus, {"power": "draining"})
+    seen = stamped(bus, clock)
+    move(bus)
+    press(bus, {"power": "on"})
+    sim.run()
+    assert seen == []
+
+
+def test_a_drain_ends_off_and_on_resumes_what_off_left() -> None:
+    """Drained at 4 with the moving row still true, so the head lands at 10
+    with the supply on; `state/moving` reading false at 12 ends the drain in
+    `off` with the tail three seconds short. `on` at 20 lets it clear at 23."""
+    bus, clock, sim = simulator()
+    press(bus, {"power": "on"})
+    said = heard(bus)
+    seen = stamped(bus, clock)
+    move(bus)
+
+    def drained() -> None:
+        bus.publish("tc49/dispatch/state/moving", {"moving": False})
+
+    def pressed(word: str) -> Callable[[], None]:
+        return lambda: bus.publish(POWER_WANTED, {"power": word})
+
+    acts = {4.0: pressed("draining"), 12.0: drained, 20.0: pressed("on")}
+
+    def sleep(seconds: float) -> None:
+        act = acts.pop(clock.now + seconds, None)
+        if act is not None:
+            act()
+
+    sim.run_live(1.0, sleep=sleep, stop=lambda: clock.now >= 40.0)
+
+    assert said == ["on", "draining", "off", "on"]
+    assert seen == [
+        (TRANSIT_S, "block_occupied", "dn_w"),
+        (23.0, "block_vacated", "yard_w"),
+    ]
