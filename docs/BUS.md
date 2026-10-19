@@ -290,6 +290,8 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/mode_wanted` | event | any (browser) | a train is driven automatically, or by a person |
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
 | `tc49/layout/state/mode` | state | layout | who drives each train |
+| `tc49/layout/driving_wanted` | event | any (browser) | switch the railroad's driving mode ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
+| `tc49/layout/state/driving` | state | layout | manual or automatic: who drives the trains ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -397,6 +399,7 @@ Each set has one home:
 | --- | --- |
 | `run` | `inventory`, `HELD`, `RUNNING`, `DRAINING` |
 | `mode` | `inventory`, `AUTOMATIC`, `MANUAL` |
+| `driving` | `inventory`, `DRIVINGS` |
 | `power` | `inventory`, `POWERS` |
 | `power` on `device/track` | `inventory`, `SUPPLY` |
 | `occupancy` | `inventory`, `OCCUPIED`, `CLEAR`, `UNKNOWN` |
@@ -420,6 +423,9 @@ what a drop would cost:
   ([#175](https://github.com/rails49/control/issues/175)).
 - An unreadable `mode` is dropped too. Neither value is safe to invent for a
   train when nobody could read who drives it.
+- An unreadable `driving` on `state/driving` reads as `manual`, where the
+  railroad comes up and under which a train no throttle holds stands; on
+  `driving_wanted` it is dropped.
 - An unreadable `occupancy` reads as `unknown`: no information about that end,
   and the level last held stands.
 - A `point_wanted` whose `position` is neither value is dropped.
@@ -581,11 +587,19 @@ what a drop would cost:
   `manual`. `automatic` is the resting value, so a train the map does not
   name is `automatic` and an unreadable entry leaves that train without a
   mode rather than being read as one.
+- `tc49/layout/driving_wanted` — browser-writable — `driving`: enum `manual`
+  or `automatic`, the same closed set `state/driving` below carries; any
+  other value is dropped. Accepted at any power
+  ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+  `layout` answers it.
+- `tc49/layout/state/driving` — `driving`: enum `manual` or `automatic`, the
+  railroad's driving mode. `layout` publishes `manual` when it starts. An
+  unreadable payload reads as `manual`.
 
 #### `schedule`
 
-The ten browser-writable rows — the two here, the four under `dispatch`
-and the four under `layout` above — are where rule 4 bites hardest: each
+The eleven browser-writable rows — the two here, the four under `dispatch`
+and the five under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
