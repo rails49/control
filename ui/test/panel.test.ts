@@ -1102,6 +1102,86 @@ describe("the trains the run has placed", () => {
 });
 
 /**
+ * Which blocks a train may be put in by hand (#831): the dispatcher's
+ * `DispatchState.free()`, read off `state/allocation` — no train standing
+ * there, no other train's lock, and on no other train's remaining route.
+ * Power is not asked: a placement is accepted at any power (BUS.md,
+ * `placement_wanted`).
+ */
+describe("which blocks are free to place in", () => {
+  it("calls a block nothing claims free", () => {
+    const model = panel();
+    placed(model);
+    expect(model.free("b", "t2")).toBe(true);
+  });
+
+  it("calls a block a train stands in not free, to it as to another", () => {
+    const model = panel();
+    placed(model);
+    expect(model.free("a", "t2")).toBe(false);
+    expect(model.free("a", "t1")).toBe(false);
+  });
+
+  it("calls a block another train holds the lock on not free", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      locks: { a: "t1", b: "t1" },
+      requests: [],
+    });
+    expect(model.free("b", "t2")).toBe(false);
+  });
+
+  /** Under `Incremental` a committed route runs on ahead of its locks, and a
+   *  block on it is claimed all the same. */
+  it("calls a block on another train's remaining route not free", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      locks: { a: "t1" },
+      requests: [
+        { id: "r1", train: "t1", depart: "a.B", dest: ["c.A"], route: ["a", "sw.side", "c"] },
+      ],
+    });
+    expect(model.free("c", "t2")).toBe(false);
+    expect(model.free("b", "t2")).toBe(true);
+  });
+
+  /** The placement cancels the train's own request before the dispatcher
+   *  asks, so what that request claims is no obstacle to it. */
+  it("leaves the train's own route and its own locks out", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a" },
+      locks: { a: "t1", "sw.side": "t1", c: "t1" },
+      requests: [
+        { id: "r1", train: "t1", depart: "a.B", dest: ["c.A"], route: ["a", "sw.side", "c"] },
+      ],
+    });
+    expect(model.free("c", "t1")).toBe(true);
+    expect(model.free("c", "t2")).toBe(false);
+  });
+
+  /** What a request has already run through is behind it, not claimed. */
+  it("calls a block the route has left behind free", () => {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "c" },
+      locks: { c: "t1" },
+      requests: [
+        { id: "r1", train: "t1", depart: "a.B", dest: ["b.B"], route: ["a", "sw.side", "c", "jt.back", "b"] },
+      ],
+    });
+    expect(model.free("a", "t2")).toBe(true);
+    expect(model.free("b", "t2")).toBe(false);
+  });
+});
+
+/**
  * The roster pane's rows: what the railroad owns joined to what the run has
  * (#170). Two sources because they are two things — the store says what stock
  * there is, the bus says where it stands (ADR-0010).
