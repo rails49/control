@@ -1,5 +1,7 @@
 # The pending scan ages by refusal count
 
+*Superseded by [ADR-0080](0080-the-waiting-requests-are-a-list-a-person-orders.md) (#813): the waiting requests are a list a person orders, and refusal counts no longer reorder it.*
+
 *(Amended for #161: `reversing-loops/saturation` on this page means
 `reversing-loops-v0/saturation`. The netlist it was measured on is wrong about
 station-C track 3 and the west throat, and is frozen as `reversing-loops-v0` so

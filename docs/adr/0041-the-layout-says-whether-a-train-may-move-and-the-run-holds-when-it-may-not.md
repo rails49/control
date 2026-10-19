@@ -1,5 +1,7 @@
 # The layout says whether a train may move, and the run holds when it may not
 
+*Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): power is `on`, `draining` or `off`; `stopped` goes, and power returning to `on` resumes.*
+
 Track power has a topic of its own, `tc49/layout/state/power`, retained and
 written by the layout interface — one writing role, like every other topic
 ([ADR-0035](0035-a-topic-has-one-writing-role.md)). Three values: `on`,

@@ -1,5 +1,7 @@
 # Track power is cut only when nothing is moving, and the layout checks
 
+*Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): `layout` owns the drain and cuts the supply when nothing is moving; the emergency stop cuts it at once, past the guard.*
+
 *Amended by [ADR-0073](0073-the-chrome-comes-from-look.md) (#749): the panel's OFF is look's power toggle asking for `off`, and it still drains. While the wait stands the toggle shows `draining`, and pressing it asks for `on`, which drops the wait.*
 
 Resolves [#390](https://github.com/rails49/control/issues/390). Amends

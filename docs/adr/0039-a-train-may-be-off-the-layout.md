@@ -1,5 +1,7 @@
 # A train may be off the layout
 
+*Amended by [ADR-0080](0080-the-waiting-requests-are-a-list-a-person-orders.md) (#813): a train is placed at any time, into a free block, by a drag before its cars are put down.*
+
 **Amended under
 [ADR-0069](0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md):**
 taking a train off the layout is accepted in any run state, and the blocks it

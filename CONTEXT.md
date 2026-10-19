@@ -185,7 +185,8 @@ a direction on the track ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: direction, facing (the train's, about its block)
 
 **Priority**:
-A train's claim on the queue, lowest number highest
+Where a train's new request goes in the list of waiting requests: after every
+request of the same or a higher priority, lowest number highest
 ([GOALS.md](docs/GOALS.md#dispatching)).
 _Avoid_: rank, class, weight
 
@@ -198,10 +199,17 @@ _Avoid_: closet, fleet, inventory
 
 **Placed**:
 Of a train: present in the dispatcher's `block_of`, standing in that block and
-holding its standing lock. A train that is not placed is off the layout, an
-ordinary state rather than a fault
+holding its standing lock. A person drags the train from the roster into a
+free block, then puts its cars there. A train that is not placed is off the
+layout, an ordinary state rather than a fault
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: closet, positioned, not on the layout (say off the layout)
+
+**Free block**:
+A block no train is placed in, with no lock on it, and on no active train's
+remaining route. Only a free block takes a placement
+([ADR-0080](docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+_Avoid_: empty, clear (a detector reading), vacant, unlocked
 
 **Facing**:
 The run a parked train would make across its block, written `A-to-B` or
@@ -218,17 +226,18 @@ than pulled. It is an ordinary movement, not an error
 _Avoid_: reversing (turning round at rest), backing, shunting, pushed (as a
 noun)
 
-**Automatic / manual**:
-Who turns a train's throttle: the app, or a person who has taken the train in a
-throttle. Every train is automatic at rest
-([layout/README.md](docs/layout/README.md#who-drives-and-a-persons-throttle)).
-_Avoid_: hand control, taken over, mode (of the system, which is held or
-running)
+**Driving mode**:
+Who drives the trains, set for the whole railroad: `manual`, where people
+drive every train from throttles, or `automatic`, where the app drives every
+train no throttle has taken. The railroad comes up `manual`
+([ADR-0079](docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+_Avoid_: hand control, taken over, mode (alone), auto
 
 **Throttle**:
 The control a person drives a train with: a view of the UI whose commands ride
-the bus as two gestures, one taking a train and one turning its speed
-([THROTTLE.md](docs/ui/THROTTLE.md)).
+the bus as two gestures, one taking a train and one turning its speed. At most
+one throttle holds a train. Released, the train stops in manual driving mode
+and is driven on in automatic ([THROTTLE.md](docs/ui/THROTTLE.md)).
 _Avoid_: cab, controller, regulator, traction (what a decoder does with a
 speed), driver (an app)
 
@@ -237,8 +246,13 @@ speed), driver (an app)
 **Request**:
 An order to deliver a train out through one end of its block and in through
 one of a set of arrival ends. It ends by arrival, by rejection or by
-cancellation ([DISPATCH.md](docs/dispatcher/DISPATCH.md#semantics)).
-_Avoid_: order, job, working (kept only in the sweep's stored data)
+cancellation. A train's later request starts where its earlier one ends, so
+two in a row send a train by way of a block. The waiting requests are a list
+in the order the dispatcher serves them, and a person can cancel or reorder
+any request that has not started
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#semantics)).
+_Avoid_: order, job, working (kept only in the sweep's stored data), schedule
+(a timetable's), run, trip
 
 **Departure end**:
 The end of its block a train leaves through on a request, written `<block>.A`
@@ -275,25 +289,24 @@ Of a transit: locked or committed, as the run view draws it. Of a point: on a
 lit transit ([PANEL.md](docs/ui/PANEL.md#what-it-shows)).
 _Avoid_: reserved, highlighted
 
-**Held**:
-Of a run: the dispatcher commits nothing, choosing no route, granting no move
-and taking no lock, until a person releases it. It is one of the run's three
-values on `tc49/dispatch/state/run`, with running and draining
-([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
-_Avoid_: paused, stopped, frozen, held (also the `grant_refused` reason, about
-one request)
+**Power**:
+The railroad's one switch a person sets: `on`, `draining` or `off`. While `on`
+the dispatcher routes waiting requests as soon as it can; otherwise it
+routes nothing and they wait. The railroad comes up `off`
+([ADR-0078](docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+_Avoid_: run, go, hold, held, running (all formerly), track supply (what `on`
+and `off` switch)
 
 **Drain**:
-The ordinary way to turn a railroad off: the run stops launching, the trains
-already moving finish their routes, and the dispatcher writes `held` when none
-is left. `draining` is the run's third value
-([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
-_Avoid_: shutdown, wind-down, quiesce, stop admitting (it is launching that
-stops)
+The ordinary way from `on` to `off`: nothing new starts, every moving train
+stops in the next block and keeps its route, and the track supply goes off
+when none is moving. A person turning power back on ends it
+([ADR-0078](docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+_Avoid_: shutdown, wind-down, quiesce, finish the route (formerly)
 
 **Moving**:
-Of a run: some train is active or crossing, so a power cut now would strand
-it. It is a boolean beside the run's value, not a fourth value
+Some train is active or crossing, so cutting the track supply now would strand
+it. It is a boolean beside power, not a fourth value
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: busy, in motion, rolling, quiet, still (say not moving)
 
@@ -305,8 +318,8 @@ _Avoid_: abort, kill, delete, revoke (one of the three reasons), rejection
 (which refuses a request before it is queued)
 
 **Disputed**:
-Where the placement and the detectors contradict each other while the run is
-held: a train whose block reads clear, or a block reading occupied with
+Where the placement and the detectors contradict each other while power is
+off: a train whose block reads clear, or a block reading occupied with
 nothing claiming it. The set points a person at each and resolves nothing
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: mismatch, discrepancy, error, conflict (two transits that may not be
@@ -321,7 +334,7 @@ _Avoid_: invalid, orphaned, disputed (a placement against the detectors)
 **Unexplained reading**:
 A detector reading no granted move accounts for: a `block_occupied` with
 nothing claiming the block, or a `block_vacated` of a block a train stands in.
-It holds the run ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+It drains the railroad ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 (one cause of such a reading)
 
@@ -446,7 +459,7 @@ _Avoid_: reset, reload (a page reload is a rejoin), reboot, restart
 **Standing**:
 An app that is up with no railroad
 ([SYSTEM.md](docs/SYSTEM.md#interruptions)).
-_Avoid_: idle, waiting (the store's own retry), down, held (the run's state)
+_Avoid_: idle, waiting (the store's own retry), down, off (power)
 
 **Recovery**:
 Coming back after the layout lost power, when what was believed is suspect. It
@@ -455,15 +468,11 @@ ends with a person confirming each train's placement
 _Avoid_: restart, resync
 
 **Emergency stop**:
-Every locomotive told to stand, with the track still live. It reads `stopped`
-on `tc49/layout/state/power` and holds the run
-([SYSTEM.md](docs/SYSTEM.md#track-power)).
-_Avoid_: e-stop, stop (the aspect), hold (the run's state)
-
-**Power off**:
-The track supply removed. It reads `off` on `tc49/layout/state/power` and
-holds the run ([SYSTEM.md](docs/SYSTEM.md#track-power)).
-_Avoid_: shutdown, blackout, emergency stop (the track stays live for that)
+Power straight to `off`, without a drain. A train between blocks stands
+there, and carries on with its move when power is back `on`
+([ADR-0078](docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+_Avoid_: e-stop, stop (the aspect), stopped (formerly a third track supply
+value, with the track live)
 
 **Railroad at rest**:
 Every retained `tc49/layout/state/wanted/traction` row holding `0.0`. It is a

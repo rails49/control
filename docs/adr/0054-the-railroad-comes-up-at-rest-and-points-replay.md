@@ -1,5 +1,7 @@
 # The railroad comes up at rest, and points replay
 
+*Amended by [ADR-0079](0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md) (#813): the railroad comes up in `manual` driving mode, and no throttle holds a train.*
+
 Resolves [#333](https://github.com/rails49/control/issues/333).
 [ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)
 rules that the railroad comes up dark: `layout` starts having written

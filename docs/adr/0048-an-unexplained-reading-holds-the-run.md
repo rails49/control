@@ -1,5 +1,7 @@
 # An unexplained reading holds the run
 
+*Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): an unexplained reading drains the railroad in place of holding the run.*
+
 Resolves the question [SYSTEM.md](../SYSTEM.md)'s layout-interface footprint
 left open and [#260](https://github.com/rails49/control/issues/260) closes:
 what a **running** dispatcher does with a detector reading that no granted

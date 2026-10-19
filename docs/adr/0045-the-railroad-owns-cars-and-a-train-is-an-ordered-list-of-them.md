@@ -1,5 +1,7 @@
 # The railroad owns cars, and a train is an ordered list of them
 
+*Amended by [ADR-0080](0080-the-waiting-requests-are-a-list-a-person-orders.md) (#813): priority only decides where a new request goes in the list of waiting requests.*
+
 Resolves [#199](https://github.com/rails49/control/issues/199) of the
 milestone-2 map.
 [ADR-0039](0039-a-train-may-be-off-the-layout.md) left this open in as many

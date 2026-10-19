@@ -1,5 +1,7 @@
 # A person commands track power, and it is cut when `layout` goes silent
 
+*Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): `power_wanted` asks for `on`, a drain, or an emergency stop; `stopped` goes.*
+
 Resolves [#770](https://github.com/rails49/control/issues/770). Supersedes
 [ADR-0051](0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md).
 Applies the organisation's decision in
