@@ -20,6 +20,7 @@ from tc49.lib.inventory import (
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 RUN_WANTED = "tc49/dispatch/run_wanted"
+RUN = "tc49/dispatch/state/run"
 MOVING = "tc49/dispatch/state/moving"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
@@ -116,17 +117,20 @@ def test_every_device_row_repeats_the_address_it_names() -> None:
             assert key in (TRACK, OBSERVED_TRACK)
 
 
-def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
-    """Taking a train in a throttle and turning that throttle are gestures
-    (#284): a throttle is any number of writers — two tabs are two of them —
-    and the row names `layout`, which answers them, rather than whoever sent
-    one. The mode the two settle is `layout`'s own state topic and no page
-    writes it."""
-    assert {MODE_WANTED, THROTTLE_WANTED} <= INBOUND
-    assert MODE not in INBOUND
-    assert TOPICS[MODE_WANTED].fields == ("train", "mode")
+def test_turning_a_throttle_is_a_pages_to_write() -> None:
+    """Turning a throttle is a gesture (#284): a throttle is any number of
+    writers — two tabs are two of them — and the row names `layout`, which
+    answers them, rather than whoever sent one."""
+    assert THROTTLE_WANTED in INBOUND
     assert TOPICS[THROTTLE_WANTED].fields == ("train", "speed", "throttle")
-    assert TOPICS[MODE].fields == (AT, "modes")
+
+
+@pytest.mark.parametrize("topic", [RUN_WANTED, RUN, MODE_WANTED, MODE])
+def test_the_run_and_a_trains_mode_have_left_the_contract(topic: str) -> None:
+    """Power's three values replace the run, and the railroad's one driving
+    mode with a throttle's take replaces a train's mode (ADR-0078, ADR-0079),
+    so neither the gestures nor the state rows they settled remain (#834)."""
+    assert topic not in TOPICS
 
 
 def test_one_throttle_holds_a_train_and_layout_states_which() -> None:
@@ -228,12 +232,10 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
     assert INBOUND == {
         REQUEST_WANTED,
         REVERSAL_WANTED,
-        RUN_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
         REORDER_WANTED,
         POINT_WANTED,
-        MODE_WANTED,
         THROTTLE_WANTED,
         POWER_WANTED,
         RAILROAD_WANTED,

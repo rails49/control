@@ -3,12 +3,9 @@
 from tc49.lib.inventory import (
     AUTOMATIC,
     DRAINING,
-    HELD,
     MANUAL,
     OFF,
     ON,
-    RUNNING,
-    STOPPED,
 )
 from tc49.lib.layout import Point
 from tc49.lib.payload import (
@@ -18,11 +15,9 @@ from tc49.lib.payload import (
     Gesture,
     Grant,
     KeptAllocation,
-    Mode,
     Ordering,
     Placement,
     Reorder,
-    Run,
     Take,
     Throttle,
     alignment,
@@ -41,7 +36,6 @@ from tc49.lib.payload import (
     granted_aspect,
     kept_allocation,
     kept_facing,
-    kept_run,
     link_up,
     moving,
     named_train,
@@ -49,13 +43,11 @@ from tc49.lib.payload import (
     placement,
     power,
     reported_reason,
-    run_state,
     shown_aspects,
     stamp,
     supply,
     taken,
     wanted_driving,
-    wanted_mode,
     wanted_power,
     wanted_reorder,
     wanted_take,
@@ -204,68 +196,6 @@ def test_a_payload_naming_no_chosen_route_reads_as_none() -> None:
         assert chosen(payload) is None, payload
 
 
-def test_a_run_gesture_reads_as_the_state_it_asks_for() -> None:
-    """The whole payload is which of the three the operator pressed for: a
-    hold takes the brake off granting, a release puts it back (#152), and the
-    drain asks for neither — launch nothing more and settle at `held` when
-    what is moving has finished (#294)."""
-    assert run_state({"run": "held"}) == HELD
-    assert run_state({"run": "running"}) == RUNNING
-    assert run_state({"run": "draining"}) == DRAINING
-
-
-def test_a_payload_naming_no_run_state_reads_as_none() -> None:
-    """A fourth value is not a fourth state. The topic carries an enum rather
-    than a boolean, which is what let the drain add a third word to it, and
-    anything outside the three is dropped — a gesture has no id to answer to
-    (ADR-0034)."""
-    refused: list[object] = [
-        "held",  # not an object at all
-        ["held"],  # nor a list of its fields
-        {},  # no run
-        {"run": None},
-        {"run": "drained"},  # the drain's own word misspelt is not the drain
-        {"run": True},  # the boolean the topic deliberately is not
-    ]
-    for payload in refused:
-        assert run_state(payload) is None, payload
-
-
-def test_a_run_row_reads_as_the_word_and_what_moves_under_it() -> None:
-    """The state row's pair, which `layout` reads to guard a plain `off`:
-    `moving` rides beside the run word and is not a fourth value of it, so a
-    held run can be moving and a running one need not be (ADR-0062)."""
-    assert kept_run({"at": 1.0, "run": "held", "moving": False}) == Run(HELD, False)
-    assert kept_run({"at": 1.0, "run": "held", "moving": True}) == Run(HELD, True)
-    assert kept_run({"run": "running", "moving": False}) == Run(RUNNING, False)
-    assert kept_run({"run": "draining", "moving": True}) == Run(DRAINING, True)
-
-
-def test_a_run_row_without_moving_reads_as_nothing_moving() -> None:
-    """An older dispatcher says nothing about what is under way, and an
-    absence is not evidence that a train is in motion — the direction the
-    guard reading this falls in (#406)."""
-    assert kept_run({"run": "held"}) == Run(HELD, False)
-    assert kept_run({"run": "running"}) == Run(RUNNING, False)
-
-
-def test_a_run_row_that_cannot_be_read_reads_as_none() -> None:
-    """A reading of another app's state fails whole: the caller goes on with
-    the value it already held, rather than forgetting the run on one frame.
-    A `moving` that is there and is not a boolean is such a frame — absence
-    is a row an older build wrote, and a number is one nobody did."""
-    refused: list[object] = [
-        "held",  # not an object at all
-        {},  # no run
-        {"run": None},
-        {"run": "drained"},
-        {"run": "held", "moving": 1},  # the int a boolean is not
-        {"run": "held", "moving": "false"},
-    ]
-    for payload in refused:
-        assert kept_run(payload) is None, payload
-
-
 def test_a_moving_row_reads_as_the_boolean_it_states() -> None:
     """`state/moving` is true while any train is active or crossing, and
     `layout` reads it to end a drain (ADR-0078)."""
@@ -291,18 +221,23 @@ def test_a_moving_row_that_cannot_be_read_reads_as_moving() -> None:
 def test_a_power_payload_reads_as_the_value_the_layout_states() -> None:
     """The values of the topic, each read as itself: the dispatcher routes
     only on `on`, and the panel is where the others are told apart. `draining`
-    is the supply still on while the moving trains stop (ADR-0078); `stopped`
-    stays readable until nothing publishes it (#834)."""
+    is the supply still on while the moving trains stop (ADR-0078)."""
     assert power({"power": "on"}) == ON
     assert power({"power": "draining"}) == DRAINING
-    assert power({"power": "stopped"}) == STOPPED
     assert power({"power": "off"}) == OFF
+
+
+def test_a_power_payload_saying_stopped_reads_as_off() -> None:
+    """`stopped`, the emergency stop with the track live, is retired: `off`
+    is the emergency stop now (ADR-0078), and a frame still saying `stopped`
+    is one this build cannot read, which is `off` (#834)."""
+    assert power({"at": 1.0, "power": "stopped"}) == OFF
 
 
 def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
     """The opposite direction from every other reader here, and that is the
-    point. A dropped hold-or-release gesture means doing nothing; a dropped
-    power value would mean **not holding**, leaving the run committing over
+    point. A dropped gesture means doing nothing; a dropped power value
+    would mean **not holding**, leaving the dispatcher committing over
     track whose state could not be read. So an unreadable payload is one of
     the "anything but `on`" cases the contract already has (DISPATCH.md),
     and `off` is which of them because the dispatcher does not tell them
@@ -320,10 +255,9 @@ def test_a_power_payload_that_cannot_be_read_reads_as_off() -> None:
 
 
 def test_the_supply_reads_the_two_values_the_hardware_can_report() -> None:
-    """The observed row is `on` or `off` and nothing else: an emergency stop
-    leaves the rails live, so a publisher under one reports `on`, and that is
-    the truth about the supply rather than a gap in what it can see
-    (ADR-0063)."""
+    """The observed row is `on` or `off` and nothing else: a drain leaves the
+    rails live, so a publisher under one reports `on`, and that is the truth
+    about the supply rather than a gap in what it can see (ADR-0063)."""
     assert supply({"power": "on"}) == ON
     assert supply({"power": "off"}) == OFF
     assert supply({"power": "off", "reason": "no route to host"}) == OFF
@@ -400,11 +334,10 @@ def test_a_driving_gesture_that_cannot_be_read_is_dropped() -> None:
         assert wanted_driving(payload) is None, payload
 
 
-def test_a_power_gesture_reads_as_the_value_it_asks_for() -> None:
-    """The same closed set in the command direction (ADR-0051): a page asks
-    for one of the three and `layout` writes the word it was given."""
+def test_the_wanted_supply_reads_as_the_value_it_asks_for() -> None:
+    """`wanted/track` asks a translator for the supply on or off (ADR-0051):
+    a drain keeps it on, so `draining` is never written there."""
     assert commanded_power({"power": "on"}) == ON
-    assert commanded_power({"power": "stopped"}) == STOPPED
     assert commanded_power({"power": "off"}) == OFF
 
 
@@ -421,6 +354,8 @@ def test_a_power_gesture_that_cannot_be_read_is_dropped() -> None:
         {"power": None},
         {"power": 1},  # not a string
         {"power": "ON"},  # a value outside the closed set
+        {"power": "stopped"},  # retired (ADR-0078, #834)
+        {"power": "draining"},  # a person's word, not a translator's
     ]
     for payload in refused:
         assert commanded_power(payload) is None, payload
@@ -449,41 +384,6 @@ def test_a_power_press_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert wanted_power(payload) is None, payload
-
-
-def test_a_mode_gesture_reads_as_the_train_and_the_word_it_names() -> None:
-    """Taking a train in a throttle and giving it back: one gesture that names
-    where the mode should stand rather than asking for a change (#284)."""
-    assert wanted_mode({"train": "freight_1", "mode": "manual"}) == Mode(
-        "freight_1", MANUAL
-    )
-    assert wanted_mode({"train": "freight_1", "mode": "automatic"}) == Mode(
-        "freight_1", AUTOMATIC
-    )
-
-
-def test_a_null_train_is_every_train_at_once() -> None:
-    """The gesture a person makes to a railroad rather than to the train they
-    have picked, and an explicit `null` is how a page says it."""
-    assert wanted_mode({"train": None, "mode": "manual"}) == Mode(None, MANUAL)
-
-
-def test_a_payload_naming_no_mode_reads_as_none() -> None:
-    """A third word is dropped whole and the train's mode stays where it was:
-    falling to `manual` hands a train to a person who is not there, and
-    falling to `automatic` takes one out of the hands of a person who is."""
-    refused: list[object] = [
-        None,  # no payload at all
-        "manual",  # not an object
-        {"mode": "manual"},  # no train, where a null one is a statement
-        {"train": "freight_1"},  # no mode
-        {"train": 1, "mode": "manual"},  # not a name
-        {"train": "freight_1", "mode": None},
-        {"train": "freight_1", "mode": "Manual"},  # outside the closed set
-        {"train": "freight_1", "mode": "held"},  # the run's word, not this one
-    ]
-    for payload in refused:
-        assert wanted_mode(payload) is None, payload
 
 
 def test_a_throttle_gesture_reads_as_the_train_and_the_signed_speed() -> None:
@@ -1184,7 +1084,7 @@ def test_each_state_topic_is_ordered_against_itself_alone() -> None:
     is a stamp held per topic and never one for the consumer."""
     ordering = Ordering()
     assert ordering.accepts(POWER, {"at": 9.0, "power": OFF})
-    assert ordering.accepts("tc49/dispatch/state/run", {"at": 1.0, "run": HELD})
+    assert ordering.accepts("tc49/dispatch/state/moving", {"at": 1.0, "moving": False})
 
 
 def test_an_event_topic_is_not_ordered_at_all() -> None:

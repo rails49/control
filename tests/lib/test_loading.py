@@ -638,7 +638,7 @@ def test_a_rebuild_drops_its_rows_but_the_ones_it_keeps() -> None:
     every other row under the app's filters goes."""
     bus = bused()
     bus.publish("tc49/dispatch/state/allocation", {"trains": {"t": "b"}})
-    bus.publish("tc49/dispatch/state/run", {"run": "held"})
+    bus.publish("tc49/dispatch/state/moving", {"moving": False})
     bus.publish("tc49/schedule/state/facing", {"facing": {}})
 
     gone = dropped(
@@ -649,7 +649,7 @@ def test_a_rebuild_drops_its_rows_but_the_ones_it_keeps() -> None:
         keep=("tc49/dispatch/state/allocation",),
     )
 
-    assert gone == ["tc49/dispatch/state/run"]
+    assert gone == ["tc49/dispatch/state/moving"]
     assert set(bus.last_values) == {
         "tc49/dispatch/state/allocation",
         "tc49/schedule/state/facing",

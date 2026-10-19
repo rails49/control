@@ -27,7 +27,6 @@ NAMES = {
     "tc49.lib.inventory": (
         "ON",
         "OFF",
-        "STOPPED",
         "device_topic",
         "split_device",
         "TOPICS",
