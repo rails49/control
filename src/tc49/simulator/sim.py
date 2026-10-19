@@ -38,9 +38,11 @@ It answers the band's **power** presses as the layout interface does
 it from the press until `tc49/dispatch/state/moving` reads false; `off` is
 applied at once (ADR-0078). The rule is `lib.power.TrackPower`'s, which the
 layout keeps too. While the power is not `on`
-no move starts and none advances: a `move` is dropped, and the sensor events
-of a transit under way wait, firing at ON with the time they had left — a
-train a cut left between blocks finishes its move when the power comes back.
+no move starts: a `move` is dropped, as the layout drops it. A move under way
+follows the supply, as a train on steel does (#832): a drain leaves the supply
+on, so it runs to its sensors, and while the supply is off its sensor events
+wait, firing at ON with the time they had left — a train a cut left between
+blocks finishes its move when the power comes back.
 
 The **speed** the command carries is ignored here for that same reason
 (#283): a delay this app chose is not a distance divided by a speed, so
@@ -52,8 +54,8 @@ where the field means something.
 One event queue, ordered by (time, sequence), advances the run clock
 (`tc49.lib.clock`), with the wait injected: batch (``run``) jumps the clock
 to the next scheduled event and stops when the queue is empty — nothing is
-pending and no train is rolling — or when everything queued waits on power
-that is not `on`; the event budget is a backstop against live-lock bugs only. Live (``run_live``, #69) sleeps the same spans on a
+pending and no train is rolling — or when everything queued waits on a
+supply that is off; the event budget is a backstop against live-lock bugs only. Live (``run_live``, #69) sleeps the same spans on a
 wall clock, polls for commands each period, and never terminates on
 quiescence. The dispatcher cannot tell the modes apart: ADR-0009 stands,
 and the same run leaves the same trace.
@@ -123,9 +125,9 @@ class Simulator:
         # read occupied for it is not here.
         self._occupied: dict[str, list[str]] = {}
         # The word this binding last stated on `state/power`, the last `on`
-        # or `off` it applied, and the run clock's reading when it last left
-        # `on`: what the waiting events are moved later by when it comes back
-        # (ADR-0070, decision 4).
+        # or `off` it applied, and the run clock's reading when that supply
+        # last went off: what the waiting events are moved later by when it
+        # comes back (ADR-0070, decision 4).
         self._power = OFF
         self._supply = OFF
         self._cut_at = clock.now
@@ -191,25 +193,28 @@ class Simulator:
         supply, so the supply is the last `on` or `off` applied, which a drain
         leaves on, and `draining` stands over it until the drain ends (#752).
 
-        Leaving `on` stops the scheduled sensor events where they are; coming
-        back to it moves each one later by the time the power was not `on`,
-        so a transit goes on with the time it had left and the events keep
-        their order (decision 4).
+        The scheduled sensor events follow the supply, as a train on steel
+        does (#832): a drain leaves it on, so a transit under way runs to its
+        sensors. The supply going off stops them where they are, and coming
+        back on moves each one later by the time it was off, so a transit goes
+        on with the time it had left and the events keep their order (ADR-0070
+        decision 4).
         """
-        if word != DRAINING:
-            self._supply = word
+        supply = self._supply if word == DRAINING else word
+        if supply != self._supply:
+            if self._supply == ON:
+                self._cut_at = self._clock.now
+            elif supply == ON:
+                waited = self._clock.now - self._cut_at
+                self._events = [
+                    (at + waited, seq, leaf, train, block)
+                    for at, seq, leaf, train, block in self._events
+                ]
+                heapify(self._events)
+            self._supply = supply
         stated = self._track_power.stated(self._supply)
         if stated == self._power:
             return
-        if self._power == ON:
-            self._cut_at = self._clock.now
-        elif stated == ON:
-            waited = self._clock.now - self._cut_at
-            self._events = [
-                (at + waited, seq, leaf, train, block)
-                for at, seq, leaf, train, block in self._events
-            ]
-            heapify(self._events)
         self._power = stated
         self._bus.publish("tc49/layout/state/power", {"power": stated})
 
@@ -332,12 +337,12 @@ class Simulator:
         """Batch: jump the clock event to event and stop at quiescence —
         nothing scheduled means nothing pending and no train rolling.
 
-        It stops too where every queued event is waiting on power that is not
-        `on`: nothing can fire, and a batch run never sends STOP, so that case
-        is only for safety."""
+        It stops too where every queued event is waiting on a supply that is
+        off: nothing can fire, and a batch run never presses `off`, so that
+        case is only for safety."""
         self._bus.drain()  # the startup cascade: the whole timetable goes in
         for _ in range(event_limit):
-            if not self._events or self._power != ON:
+            if not self._events or self._supply != ON:
                 return
             event = heappop(self._events)
             self._clock.advance(event[0])
@@ -359,18 +364,19 @@ class Simulator:
         stops on a signal instead. No quiescence termination: an idle
         railroad keeps waiting until it is stopped.
 
-        While the power is not `on` the scheduled events wait: a turn is the
+        While the supply is off the scheduled events wait: a turn is the
         whole period, and nothing fires until a press brings the power back
-        and moves them later by the time it was gone."""
+        and moves them later by the time it was gone. A drain leaves the
+        supply on, so they fire through it."""
         self._bus.drain()  # the startup cascade: standing locks reach the trace
         while not stop():
             step = period_s
-            if self._events and self._power == ON:
+            if self._events and self._supply == ON:
                 step = min(step, self._events[0][0] - self._clock.now)
             sleep(max(step, 0.0))
             self._clock.advance(self._clock.now + max(step, 0.0))
             while (
-                self._power == ON
+                self._supply == ON
                 and self._events
                 and self._events[0][0] <= self._clock.now
             ):
