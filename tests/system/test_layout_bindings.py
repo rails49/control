@@ -159,15 +159,9 @@ def test_no_move_while_the_power_is_off(build: Build, words: list[str]) -> None:
     assert binding.position == {"freight_1": "up_w"}
 
 
-def test_a_move_granted_while_draining_is_carried_out(
-    build: Build, request: pytest.FixtureRequest
-) -> None:
+def test_a_move_granted_while_draining_is_carried_out(build: Build) -> None:
     """The supply is on through a drain and the move was granted, so the
-    train runs into the next block and stops at its sensor (#862)."""
-    if build is Simulated:
-        request.applymarker(
-            pytest.mark.xfail(strict=True, reason="the simulator drops it (#863)")
-        )
+    train runs into the next block and stops at its sensor (#862, #863)."""
     binding = live(build)
     press(binding, "draining")
     crosses(binding, "freight_1", "to_dn", "dn_e")

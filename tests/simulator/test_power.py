@@ -8,9 +8,11 @@ client is served a value rather than reading one out of an absence
 applied at once and `draining` holds until `state/moving` reads false
 (ADR-0078), the rule being `lib.power`'s and the same one the layout keeps.
 
-While the power is not `on` no move starts: a `move` is dropped. A transit
-under way follows the supply (#832): through a drain it runs to its sensors,
-and at an `off` it waits and goes on at ON with the time it had left.
+A `move` starts while the supply is on, so through a drain as well as at
+`on`; one arriving while it is off is kept and started at ON if its train
+still stands at the near end (#863). A transit under way follows the supply
+(#832): through a drain it runs to its sensors, and at an `off` it waits and
+goes on at ON with the time it had left.
 """
 
 from collections.abc import Callable
@@ -175,14 +177,68 @@ def test_a_transit_under_way_at_a_drain_runs_to_its_sensors() -> None:
     ]
 
 
-def test_a_drain_starts_no_move() -> None:
-    """Nothing new starts in a drain: a `move` arriving while power reads
-    `draining` is dropped, as the layout drops it, and never runs after."""
+def test_a_move_granted_while_draining_runs_to_its_sensors_and_the_drain_ends_off() -> (
+    None
+):
+    """A drain keeps the supply on, so a `move` arriving while power reads
+    `draining` starts as it does while `on` (#863): its head lands at 10 and
+    its tail clears at 15, and `state/moving` reading false after it ends the
+    drain in `off`."""
     bus, clock, sim = simulator()
     press(bus, {"power": "on"})
     press(bus, {"power": "draining"})
+    said = heard(bus)
     seen = stamped(bus, clock)
     move(bus)
+    sim.run()
+    bus.publish("tc49/dispatch/state/moving", {"moving": False})
+    bus.drain()
+
+    assert seen == [
+        (TRANSIT_S, "block_occupied", "dn_w"),
+        (TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+    ]
+    assert said == ["draining", "off"]
+
+
+def drained_off(bus: InProcessBus) -> None:
+    """On, drained, and the drain ended `off` with nothing moving."""
+    press(bus, {"power": "on"})
+    press(bus, {"power": "draining"})
+    bus.publish("tc49/dispatch/state/moving", {"moving": False})
+    bus.drain()
+
+
+def test_a_move_granted_while_off_is_kept_and_runs_at_on() -> None:
+    """A `move` the dispatcher granted as the drain ended arrives with the
+    supply off: it is kept, not dropped, and nothing fires while off. At ON
+    it starts, so the head lands a transit delay after the press (#863)."""
+    bus, clock, sim = simulator()
+    drained_off(bus)
+    seen = stamped(bus, clock)
+    move(bus)
+    sim.run()
+    assert seen == []
+
+    clock.advance(20.0)
+    press(bus, {"power": "on"})
+    sim.run()
+    assert seen == [
+        (20.0 + TRANSIT_S, "block_occupied", "dn_w"),
+        (20.0 + TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+    ]
+
+
+def test_a_kept_move_whose_train_was_taken_off_is_dropped_at_on() -> None:
+    """The kept move meets the near-end check again at ON: a train a hand
+    lifted off meanwhile stands nowhere, so the move is dropped (#863)."""
+    bus, clock, sim = simulator()
+    drained_off(bus)
+    seen = stamped(bus, clock)
+    move(bus)
+    bus.publish("tc49/dispatch/train_removed", {"train": "freight_1"})
+    bus.drain()
+
     press(bus, {"power": "on"})
     sim.run()
     assert seen == []

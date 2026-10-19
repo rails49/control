@@ -37,9 +37,10 @@ It answers the band's **power** presses as the layout interface does
 `off` it applied, having no hardware to report one, with `draining` held over
 it from the press until `tc49/dispatch/state/moving` reads false; `off` is
 applied at once (ADR-0078). The rule is `lib.power.TrackPower`'s, which the
-layout keeps too. While the power is not `on`
-no move starts: a `move` is dropped, as the layout drops it. A move under way
-follows the supply, as a train on steel does (#832): a drain leaves the supply
+layout keeps too. A `move` starts while the supply is on, which a drain
+leaves it; one arriving while the supply is off is **kept**, as the layout
+keeps it, and put back through the same checks when the supply is next on
+(#863). A move under way follows the supply, as a train on steel does (#832): a drain leaves the supply
 on, so it runs to its sensors, and while the supply is off its sensor events
 wait, firing at ON with the time they had left — a train a cut left between
 blocks finishes its move when the power comes back.
@@ -119,6 +120,9 @@ class Simulator:
         self._events: list[_Event] = []
         self._seq = 0
         self._rolling: set[str] = set()  # trains between blocks, mid-move
+        # The moves granted while the supply is off, one per train, each put
+        # back through `_start` when it is next on (#863).
+        self._kept: dict[str, Command] = {}
         # Per train, the blocks this binding's own detectors last read
         # occupied for it, in the order they were read: what a hand lifting it
         # clears (ADR-0069 decision 7). A block a train was put in and never
@@ -198,7 +202,8 @@ class Simulator:
         sensors. The supply going off stops them where they are, and coming
         back on moves each one later by the time it was off, so a transit goes
         on with the time it had left and the events keep their order (ADR-0070
-        decision 4).
+        decision 4). Coming back on also starts the moves kept while it was
+        off, each through `_start`'s checks again (#863).
         """
         supply = self._supply if word == DRAINING else word
         if supply != self._supply:
@@ -212,6 +217,10 @@ class Simulator:
                 ]
                 heapify(self._events)
             self._supply = supply
+            if supply == ON:
+                kept, self._kept = self._kept, {}
+                for commanded in kept.values():
+                    self._start(commanded)
         stated = self._track_power.stated(self._supply)
         if stated == self._power:
             return
@@ -299,10 +308,28 @@ class Simulator:
         reaches neither end of the block it says the train is entering
         (#276): that transit crosses no track to there, so the command names
         no near end to be standing at, and a train that happens to stand at
-        one end of it is not being asked for a run this railroad can make."""
+        one end of it is not being asked for a run this railroad can make.
+
+        It is the supply that decides, not the word stated (#863): a drain
+        leaves the supply on, so a move granted then starts as it does while
+        `on` and the drain ends after it. While the supply is off the move is
+        **kept**, not dropped — the dispatcher granted it before reading the
+        `off`, and it holds the train in a crossing no sensor would end — and
+        started when the supply is next on. It is kept before the checks,
+        which are applied when it starts: a train taken off or placed
+        elsewhere meanwhile fails them then and the move is dropped. A second
+        `move` for the same train replaces the one kept."""
         commanded = command(payload)
-        if commanded is None or self._power != ON:
+        if commanded is None:
             return
+        if self._supply != ON:
+            self._kept[commanded.train] = commanded
+            return
+        self._start(commanded)
+
+    def _start(self, commanded: Command) -> None:
+        """The checks a move meets at the moment it starts, and the start: its
+        train must stand at the transit's near end and not be rolling."""
         train, into = commanded.train, commanded.into
         origin = self._near_end(commanded)
         if origin is None:
