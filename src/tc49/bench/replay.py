@@ -19,6 +19,14 @@ a train and where to put it, and the scheduler supplies the end off facing
 facing. That is the whole of the difference, and it is a difference a browser
 has too.
 
+Nor can it drag a train again while that train has a request in flight: a
+drag then **chains** after it (ADR-0080, #827), carrying on out of the far end
+of the block it arrives in, where a document's next request for the train
+states a departure end of its own — a return working out of a stub, which no
+chain can leave. So a train's next request waits, here, until the one before
+it has been answered, which is what a person who wanted it run that way would
+do: watch the train arrive, then drag it again.
+
 A gesture the dispatcher cannot act on is **dropped in silence** (ADR-0034),
 which is right for a person and wrong for a document: a placement it refused
 would leave that train off the layout and every request for it answered
@@ -27,9 +35,12 @@ raises where a placement was not taken. It is the harness, and a fixture that
 cannot be stood up is a broken fixture rather than a run to report on.
 """
 
+from collections import deque
+
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import RUNNING
 from tc49.lib.layout import Layout, connected_facing
+from tc49.lib.payload import named_train, readable_id
 from tc49.lib.scenario import RequestSpec, Scenario
 
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
@@ -61,7 +72,10 @@ class Replay:
     def __init__(self, bus: Bus, layout: Layout, scenario: Scenario) -> None:
         self._bus = bus
         self._standing: set[str] = set()
+        self._train_of: dict[str, str] = {}  # request id in flight -> its train
+        self._waiting: dict[str, deque[RequestSpec]] = {}  # train -> drags held
         bus.subscribe("tc49/dispatch/train_placed", self._on_placed)
+        bus.subscribe("tc49/dispatch/#", self._on_answer)
         for train, spec in scenario.trains.items():
             # Each gesture drains before the next: the scheduler learns a
             # train's facing from the `train_placed` the dispatcher answers a
@@ -88,12 +102,35 @@ class Replay:
         self._send(RUN_WANTED, {"run": RUNNING})
         # One drain per drag, as a person's sequential drags land: each
         # request's cascade settles — grants, facing — before the next is
-        # composed against it.
+        # composed against it. A train with a request in flight has its next
+        # one held until that one is answered (`_on_answer`).
         for request in scenario.requests:
-            self._drag(request)
+            if request.train in self._train_of.values():
+                self._waiting.setdefault(request.train, deque()).append(request)
+            else:
+                self._drag(request)
 
     def _on_placed(self, topic: str, payload: Payload) -> None:
         self._standing.add(payload["train"])
+
+    def _on_answer(self, topic: str, payload: Payload) -> None:
+        """Which trains have a request in flight, and the held drag of one
+        whose last has been answered. Published and not drained: this runs
+        inside the drain that delivered the answer, which goes on to deliver
+        the drag."""
+        leaf = topic.rsplit("/", 1)[-1]
+        rid = readable_id(payload)
+        if rid is None:
+            return
+        if leaf == "request_submitted":
+            train = named_train(payload)
+            if train is not None:
+                self._train_of[rid] = train
+        elif leaf in ("request_completed", "request_rejected", "request_cancelled"):
+            train = self._train_of.pop(rid, None)
+            waiting = self._waiting.get(train) if train is not None else None
+            if waiting and train not in self._train_of.values():
+                self._publish_drag(waiting.popleft())
 
     def _send(self, topic: str, payload: Payload) -> None:
         self._bus.publish(topic, payload)
@@ -103,7 +140,11 @@ class Replay:
         """One request as the drag that asks for it: the train, and the ends
         it may arrive at. The id is the scheduler's and so is the departure
         end, exactly as they are for a person's drag (ADR-0036)."""
-        self._send(
+        self._publish_drag(request)
+        self._bus.drain()
+
+    def _publish_drag(self, request: RequestSpec) -> None:
+        self._bus.publish(
             REQUEST_WANTED,
             {"train": request.train, "dest": arrival_ends(request.arrivals)},
         )
