@@ -197,7 +197,10 @@ export interface Marker {
 interface Request {
   id: string;
   train: string;
-  depart: EndRef;
+  /** `null` on a request chained `after` an earlier one, whose start is
+   *  where that one ends. */
+  depart: EndRef | null;
+  after?: string;
   dest: EndRef[];
   pruned: { end: EndRef; reason: string }[];
   phase: "requested" | "admitted" | "committed" | "rejected";
@@ -498,8 +501,9 @@ export class Panel {
           requests: {
             id: string;
             train: string;
-            depart: EndRef;
+            depart: EndRef | null;
             dest: EndRef[];
+            after?: string;
             route?: string[];
           }[];
         };
@@ -662,7 +666,7 @@ export class Panel {
         return;
       }
       case "request_submitted": {
-        const { id, train, depart, dest } = event as unknown as Submission;
+        const { id, train, depart, dest, after } = event as unknown as Submission;
         for (const [old, request] of this.requests) {
           if (request.train === train && request.phase === "rejected") {
             this.requests.delete(old);
@@ -673,6 +677,7 @@ export class Panel {
           train,
           depart,
           dest,
+          ...(after === undefined ? {} : { after }),
           pruned: [],
           phase: "requested",
         });
@@ -1054,7 +1059,9 @@ export class Panel {
     for (const request of this.requests.values()) {
       const { id, train } = request;
       if (request.phase === "requested" || request.phase === "admitted") {
-        found.push({ id, train, at: request.depart, role: "depart" });
+        if (request.depart !== null) {
+          found.push({ id, train, at: request.depart, role: "depart" });
+        }
         for (const end of request.dest) {
           found.push({ id, train, at: end, role: "arrival" });
         }
@@ -1068,15 +1075,20 @@ export class Panel {
           });
         }
       } else if (request.phase === "rejected") {
-        found.push({
-          id,
-          train,
-          at: request.depart,
-          role: "rejected",
-          note: spell(REJECTED, request.reason ?? ""),
-        });
+        const note = spell(REJECTED, request.reason ?? "");
+        // A chained request has no departure end of its own, so its arrival
+        // ends carry the reason instead.
+        if (request.depart !== null) {
+          found.push({ id, train, at: request.depart, role: "rejected", note });
+        }
         for (const end of request.dest) {
-          found.push({ id, train, at: end, role: "rejected" });
+          found.push({
+            id,
+            train,
+            at: end,
+            role: "rejected",
+            ...(request.depart === null ? { note } : {}),
+          });
         }
       }
     }
