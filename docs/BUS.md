@@ -552,9 +552,11 @@ what a drop would cost:
 
   Whichever binding of the layout interface is running answers it, the
   simulator included: it has no translator to write to, so it states the word
-  on `state/power` itself, under the same rules, and while the power is not
-  `on` it starts no move and advances none
-  ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md)).
+  on `state/power` itself, under the same rules. While the power is not `on`
+  it starts no move, and a move under way advances only while the supply is
+  on, so it runs to its sensors through a drain and waits through `off`
+  ([ADR-0070](adr/0070-the-simulator-obeys-the-bands-power-presses.md),
+  [#832](https://github.com/rails49/control/issues/832)).
 - `tc49/layout/state/power` — `power`: enum `on`, `draining` or `off`
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). An unreadable payload reads as `off`: dropping it would mean *not*
   holding the run, over track whose state could not be read. `on` and `off`
