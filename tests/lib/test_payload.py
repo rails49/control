@@ -257,10 +257,12 @@ def test_a_run_row_that_cannot_be_read_reads_as_none() -> None:
 
 
 def test_a_power_payload_reads_as_the_value_the_layout_states() -> None:
-    """The three values of the topic, each read as itself: the dispatcher
-    branches on "not `on`", and the panel is where `stopped` and `off` are
-    told apart (ADR-0041)."""
+    """The values of the topic, each read as itself: the dispatcher routes
+    only on `on`, and the panel is where the others are told apart. `draining`
+    is the supply still on while the moving trains stop (ADR-0078); `stopped`
+    stays readable until nothing publishes it (#834)."""
     assert power({"power": "on"}) == ON
+    assert power({"power": "draining"}) == DRAINING
     assert power({"power": "stopped"}) == STOPPED
     assert power({"power": "off"}) == OFF
 

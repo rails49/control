@@ -294,29 +294,40 @@ only who turns the throttle (CONTEXT.md)."""
 ON = "on"
 STOPPED = "stopped"
 OFF = "off"
-"""The three values of ``tc49/layout/state/power``: the layout's answer to
-whether a train may move at all. `stopped` is an **emergency stop** — every
-locomotive told to stand with the track still live — and `off` is the supply
-removed. They differ for the person recovering, who clears one and switches
-the other back on, and not for the dispatcher, which branches on "not `on`"
-(ADR-0041). `stopped` and not `stop`, which is an aspect: a different thing
-on a different topic.
+"""The values of ``tc49/layout/state/power``, with ``DRAINING`` above: the
+layout's answer to whether a train may move at all, and the one switch a
+person turns (ADR-0078). `on` lets the dispatcher route; `draining` keeps the
+supply on while each moving train stops and nothing new starts, until
+``tc49/dispatch/state/moving`` reads false and `layout` switches it off; `off`
+is the supply removed. `draining` is the run's word for the same thing, a
+shutdown that lets what is moving stop, and it is one string on both topics.
 
-The same three on ``tc49/layout/power_wanted``, which is the command
-direction of the one axis: the closed set goes wherever the field goes, as
-``run`` does on its own gesture. A power command is applied on arrival —
-there is no beat to quantise it against (#243) — and it changes no lock and
-grants nothing, so it races with nothing the dispatcher is deciding
-(ADR-0051).
+The same values on ``tc49/layout/power_wanted``, which is the command
+direction of the one axis: the closed set goes wherever the field goes. A
+plain `off` there is the emergency stop, applied at once in every state, and
+`draining` the ordinary shutdown, answered from `on` only. A power command is
+applied on arrival — there is no beat to quantise it against (#243) — and it
+changes no lock and grants nothing, so it races with nothing the dispatcher is
+deciding (ADR-0051).
+
+`stopped` is the emergency stop ADR-0078 retires — every locomotive told to
+stand with the track still live — and stays readable until nothing publishes
+it (#834). Not `stop`, which is an aspect: a different thing on a different
+topic.
 
 The row the fold below reads is not one of them. ``SUPPLY`` is its own set of
-two, and the middle value here is the one thing no publisher can report
+two, and `draining` and `stopped` are the things no publisher can report
 (ADR-0063)."""
+
+
+POWERS = (ON, DRAINING, STOPPED, OFF)
+"""The closed set of ``tc49/layout/state/power`` as a reader takes it:
+``tc49.lib.payload.power`` reads each as itself and anything else as `off`."""
 
 
 SUPPLY = (ON, OFF)
 """The two values of ``tc49/layout/state/device/track``: what the hardware
-reports about the supply, and two where the row it folds into carries three.
+reports about the supply, and two where the row it folds into carries more.
 
 An emergency stop leaves the rails live — that is what tells it apart from
 cutting the supply, and the distinction is physical rather than a modelling

@@ -117,21 +117,22 @@ export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
  *  doing and nothing a person asks for. */
 export type Run = "held" | "running" | "draining";
 
-/** What the layout says about whether a train may move at all: `on`, or one
- *  of the two ways of standing still — `stopped` is an emergency stop, every
- *  locomotive told to stand with the track still live, and `off` is the supply
- *  removed
- *  ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
- *  The two differ for the person recovering, who clears one and switches the
- *  other back on, which is why the panel says which. */
-export type Power = "on" | "stopped" | "off";
+/** What the layout says about whether a train may move at all: `on`;
+ *  `draining`, the supply kept on while each moving train stops and nothing
+ *  new starts, until `layout` switches it off; or `off`, the supply removed
+ *  ([ADR-0078](../../../docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+ *  `stopped`, an emergency stop with the track still live
+ *  ([ADR-0041](../../../docs/adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)),
+ *  stays readable until nothing publishes it (#834). */
+export type Power = "on" | "draining" | "stopped" | "off";
 
-/** Whether the track has power: `on`, or `stopped`, which leaves the track
- *  live with every locomotive told to stand (CONTEXT.md, **Emergency stop**).
- *  A supply not yet heard (`null`) is not live here; what that means to each
- *  rule is the rule's to say. */
+/** Whether the track has power: `on`; `draining`, which keeps the supply on
+ *  until nothing is moving; or `stopped`, which leaves the track live with
+ *  every locomotive told to stand (CONTEXT.md, **Emergency stop**). A supply
+ *  not yet heard (`null`) is not live here; what that means to each rule is
+ *  the rule's to say. */
 export function trackLive(power: Power | null): boolean {
-  return power === "on" || power === "stopped";
+  return power === "on" || power === "draining" || power === "stopped";
 }
 
 /** The ordinary shutdown: the run launches nothing more, lets what is
