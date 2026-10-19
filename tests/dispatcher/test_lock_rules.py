@@ -259,7 +259,8 @@ def go_is_honoured(bus: InProcessBus, dispatcher: Dispatcher) -> None:
     deliver(
         bus,
         REQUEST_SUBMITTED,
-        {"id": "r-2", "train": "freight_1", "depart": "yard_w.B", "dest": ["up_w.A"]},
+        {"id": "r-2", "train": "express_2", "depart": "up_e.A", "dest": ["up_w.B"]},
     )
+    assert dispatcher.state.crossing["express_2"] == "crossover.up_straight"
     assert broken(dispatcher.state)
     assert dispatcher.state.run == "running"
