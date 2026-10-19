@@ -8,7 +8,11 @@ up first, which is why compose carries no `depends_on`.
 One flag, the one every compose service passes: where the broker is. **No
 `--store`**, because the driver reads no documents: it holds no state and
 reads no assets (SYSTEM.md, driver footprint), the grant and the two speeds
-being between them every field `move` needs. No railroad either, which no
+being between them every field `move` needs. The two speeds are not flags
+either: a container is configured by its environment, so they are
+`TC49_DRIVER_CLEAR` and `TC49_DRIVER_CAUTION` on the driver's service
+(docs/DEPLOY.md), read once here, and a bad one stops the app before it
+looks for a broker. No railroad either, which no
 app is told (ADR-0072, decision 5): the driver holds nothing keyed to one and
 looks nothing up by its name, and follows the row that names it all the same,
 so that what a person watching the containers reads is which railroad this
@@ -44,12 +48,13 @@ another process, and a bug there must not take this one down.
 """
 
 import contextlib
+import os
 import signal
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
-from tc49.driver.driver import Driver
+from tc49.driver.driver import SPEEDS, Driver, speeds
 from tc49.lib.loading import NO_RAILROAD, Loaded, named
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, command_line, connected
@@ -72,6 +77,7 @@ def serve(
     stop: threading.Event,
     period_s: float = PERIOD_S,
     log: Callable[[str], None] = to_stderr,
+    priced: Mapping[str, float] = SPEEDS,
 ) -> None:
     """The app and its loop: a broker, the translator on it, and a drain.
 
@@ -95,7 +101,7 @@ def serve(
         return
     loaded = Loaded(railroad)
     while not stop.is_set():
-        Driver(bus)
+        Driver(bus, priced)
         # After the app is built and not before: the row is retained, so
         # subscribing here is handed whatever it holds, and nothing this app
         # does on the way up moves — a grant published in the instant between
@@ -125,15 +131,20 @@ def main() -> None:
         host, port = address(args.broker)
     except ValueError as refused:
         parser.error(str(refused))
+    try:
+        priced = speeds(os.environ)
+    except ValueError as refused:
+        parser.error(str(refused))
     # A signal is what ends this app, and SIGTERM is the one a container is
     # stopped with: given SIGINT's own handler it raises where the process
     # stands, so a wait for a broker that never comes up ends on it too.
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     to_stderr(f"broker {host}:{port}")
+    to_stderr(", ".join(f"{aspect} at {speed}" for aspect, speed in priced.items()))
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, NO_RAILROAD, threading.Event())
+            serve(bus, NO_RAILROAD, threading.Event(), priced=priced)
     finally:
         bus.close()
 

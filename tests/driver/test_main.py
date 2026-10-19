@@ -19,7 +19,8 @@ from collections.abc import Iterator
 
 import pytest
 
-from tc49.driver.__main__ import serve
+from tc49.driver.__main__ import main, serve
+from tc49.driver.driver import CAUTION_ENV, CLEAR_ENV
 from tc49.lib.bus import Payload
 from tc49.lib.mqtt import MqttBus
 from tests.brokers import Broker, drained, settle
@@ -43,10 +44,10 @@ COMMANDED: Payload = {
     "connection": "west_ladder",
     "transit": "to_dn",
     "into": "dn_w",
-    "speed": 1.0,
+    "speed": 0.6,
 }
 """What `HONEST` becomes: the transit split, the train and the block entered
-carried across, and `clear` turned into full speed."""
+carried across, and `clear` turned into its speed."""
 
 
 class App:
@@ -213,3 +214,19 @@ def test_a_grant_it_cannot_read_leaves_it_running(broker: Broker, app: App) -> N
     assert rows(heard, MOVE) == [COMMANDED]
     hand.close()
     witness.close()
+
+
+@pytest.mark.parametrize("variable", [CLEAR_ENV, CAUTION_ENV])
+def test_a_bad_speed_stops_the_app_at_start_naming_the_variable(
+    variable: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A speed the deployment got wrong is said once, at start, and the app
+    exits rather than looking for a broker: a container in a restart loop
+    whose log names the variable is a line of the env file to fix, where a
+    driver that guessed would run trains at a speed nobody configured."""
+    monkeypatch.setenv(variable, "fast")
+    monkeypatch.setattr("sys.argv", ["tc49.driver", "--broker", "localhost:1"])
+    with pytest.raises(SystemExit) as stopped:
+        main()
+    assert stopped.value.code != 0
+    assert variable in capsys.readouterr().err

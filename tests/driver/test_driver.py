@@ -11,8 +11,10 @@ no other topic touched.
 
 from typing import cast
 
+import pytest
+
 from tc49.driver import Driver
-from tc49.driver.driver import SPEEDS
+from tc49.driver.driver import CAUTION_ENV, CLEAR_ENV, SPEEDS, speeds
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 
@@ -35,10 +37,10 @@ COMMANDED: Payload = {
     "connection": "west_ladder",
     "transit": "to_dn",
     "into": "dn_w",
-    "speed": 1.0,
+    "speed": 0.6,
 }
 """What `HONEST` becomes: the transit split, the train and the block entered
-carried across, and `clear` turned into full speed."""
+carried across, and `clear` turned into its speed."""
 
 
 def collect(bus: InProcessBus, topic_filter: str) -> list[Payload]:
@@ -143,7 +145,7 @@ def test_a_caution_grant_commands_the_slower_speed_a_clear_one_does_not() -> Non
     for aspect in ("clear", "caution"):
         grant(bus, {**HONEST, "aspect": aspect})
 
-    assert seen == [COMMANDED, {**COMMANDED, "speed": 0.4}]
+    assert seen == [COMMANDED, {**COMMANDED, "speed": 0.3}]
 
 
 def test_a_driver_given_another_mapping_commands_that_mappings_numbers() -> None:
@@ -163,7 +165,7 @@ def test_a_driver_given_another_mapping_commands_that_mappings_numbers() -> None
         grant(bus, {**HONEST, "aspect": aspect})
 
     assert [command["speed"] for command in seen] == [0.75, 0.1]
-    assert dict(SPEEDS) == {"clear": 1.0, "caution": 0.4}
+    assert dict(SPEEDS) == {"clear": 0.6, "caution": 0.3}
 
 
 def test_an_aspect_the_mapping_does_not_carry_commands_nothing() -> None:
@@ -225,3 +227,31 @@ def test_the_driver_publishes_the_command_and_nothing_else() -> None:
     grant(bus, {**HONEST, "transit": "to_dn"})  # unqualified: no connection
 
     assert [topic for topic in heard if topic != GRANTED] == [MOVE, MOVE]
+
+
+def test_a_deployment_that_says_nothing_runs_at_the_default_speeds() -> None:
+    """`clear` 0.6 and `caution` 0.3 of each locomotive's maximum (ADR-0079):
+    an environment naming neither variable, or exporting them empty, is the
+    default and not a failure to start."""
+    assert speeds({}) == SPEEDS
+    assert speeds({CLEAR_ENV: "", CAUTION_ENV: "  "}) == SPEEDS
+    assert dict(SPEEDS) == {"clear": 0.6, "caution": 0.3}
+
+
+def test_each_speed_is_overridden_by_its_own_variable() -> None:
+    """A railroad whose locomotives run too fast at 0.6 says so on the
+    driver's service, one variable per aspect, and the other keeps its
+    default."""
+    assert speeds({CLEAR_ENV: "0.8"}) == {"clear": 0.8, "caution": 0.3}
+    assert speeds({CAUTION_ENV: "0.15"}) == {"clear": 0.6, "caution": 0.15}
+    assert speeds({CLEAR_ENV: "1", CAUTION_ENV: "0"}) == {"clear": 1.0, "caution": 0.0}
+
+
+@pytest.mark.parametrize("variable", [CLEAR_ENV, CAUTION_ENV])
+@pytest.mark.parametrize("value", ["fast", "1.5", "-0.1", "nan", "inf", "0,5"])
+def test_a_bad_speed_is_refused_naming_its_variable(variable: str, value: str) -> None:
+    """A value outside 0.0 … 1.0, or not a number, stops the app at start:
+    a driver that guessed would run trains at a speed nobody configured, and
+    the message names the variable so the person knows which line to fix."""
+    with pytest.raises(ValueError, match=variable):
+        speeds({variable: value})

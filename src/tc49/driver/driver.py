@@ -26,9 +26,9 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import Aspect
 from tc49.lib.payload import grant, granted_aspect
 
-SPEEDS: Mapping[str, float] = {Aspect.CLEAR: 1.0, Aspect.CAUTION: 0.4}
+SPEEDS: Mapping[str, float] = {Aspect.CLEAR: 0.6, Aspect.CAUTION: 0.3}
 """What each aspect is worth as a speed, a fraction of the locomotive's
-maximum (ADR-0025).
+maximum (ADR-0025): `clear` 0.6 and `caution` 0.3 to start with (ADR-0079).
 
 `stop` is **absent rather than zero**: a grant showing it is not a permission
 to move, so there is no command to send and a mapping entry would invent one.
@@ -36,8 +36,44 @@ to move, so there is no command to send and a mapping entry would invent one.
 Two numbers and not a file: the first train to move (#211) does not earn a
 format, and braking distance waits until a train has run (GOALS.md, driving).
 Injected all the same, because a railroad whose locomotives crawl at `caution`
-is a constructor argument away and not a fork of this module.
+is a constructor argument away and not a fork of this module — and a
+deployment says so in `CLEAR_ENV` and `CAUTION_ENV`, read by `speeds`.
 """
+
+CLEAR_ENV = "TC49_DRIVER_CLEAR"
+"""The environment variable on the driver's service that overrides the speed
+for `clear` (docs/DEPLOY.md)."""
+
+CAUTION_ENV = "TC49_DRIVER_CAUTION"
+"""The environment variable on the driver's service that overrides the speed
+for `caution` (docs/DEPLOY.md)."""
+
+
+def speeds(environ: Mapping[str, str]) -> Mapping[str, float]:
+    """`SPEEDS` with whatever the deployment's environment overrides.
+
+    Each variable is a number in 0.0 … 1.0. One unset, or empty or blank, is
+    no value at all and leaves its aspect at the default, so that compose
+    passing an unset variable through as `""` means the same thing as not
+    passing it. Anything else that is not such a number raises `ValueError`
+    naming the variable: the app stops at start rather than running trains at
+    a speed nobody configured, and the person reading why knows which line of
+    the env file to fix.
+    """
+    priced = dict(SPEEDS)
+    for aspect, variable in ((Aspect.CLEAR, CLEAR_ENV), (Aspect.CAUTION, CAUTION_ENV)):
+        said = environ.get(variable, "").strip()
+        if not said:
+            continue
+        try:
+            speed = float(said)
+        except ValueError:
+            speed = None
+        # Written so that `nan`, which compares false with everything, fails.
+        if speed is None or not 0.0 <= speed <= 1.0:
+            raise ValueError(f"{variable} is {said!r}, not a number in 0.0 … 1.0")
+        priced[aspect] = speed
+    return priced
 
 
 class Driver:
