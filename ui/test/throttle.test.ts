@@ -40,7 +40,6 @@ afterEach(unbrokered);
 const ALLOCATION = "tc49/dispatch/state/allocation";
 const POWER = "tc49/layout/state/power";
 const TAKEN = "tc49/layout/state/taken";
-const MOVE = "tc49/layout/move";
 const FACING = "tc49/schedule/state/facing";
 const ASPECTS = "tc49/dispatch/state/aspects";
 
@@ -118,17 +117,23 @@ function mine(): string {
   return frame!.payload.throttle;
 }
 
-/** The move the dispatcher grants `goods`, on its way to `layout`. */
-const GRANT = { train: "goods", connection: "j", transit: "over", into: "b", speed: 0.6 };
+/** The dispatcher's picture with `goods` granted the move from `a` to `b`:
+ *  crossing the transit, the request behind it running its route. */
+const GRANTED = {
+  trains: { goods: "a" },
+  crossing: { goods: "j.over" },
+  locks: { a: "goods", "j.over": "goods", b: "goods" },
+  requests: [{ id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "j.over", "b"] }],
+};
 
 /** `goods`, taken and granted a move: the gesture, `layout`'s answer on the
- *  state topic, and the move the lever is live within. */
+ *  state topic, and the picture with the move the lever is live within. */
 async function taken(shell: TcApp): Promise<void> {
   await pick(shell, "goods");
   take(shell).click();
   await settled(shell);
   await said(shell, TAKEN, { taken: { goods: mine() } });
-  await said(shell, MOVE, GRANT);
+  await said(shell, ALLOCATION, GRANTED);
 }
 
 describe("picking a train", () => {
@@ -239,7 +244,7 @@ describe("the lever and the move", () => {
     await moved(shell, 0.5);
     expect(written().length).toBe(before);
 
-    await said(shell, MOVE, GRANT);
+    await said(shell, ALLOCATION, GRANTED);
     expect(lever(shell)!.disabled).toBe(false);
   });
 
@@ -326,7 +331,10 @@ describe("driving it", () => {
 describe("turning it round", () => {
   it("publishes reversal_wanted while the lever is at rest", async () => {
     const shell = await driving();
-    await taken(shell);
+    await pick(shell, "goods");
+    take(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: { goods: mine() } });
 
     await pressed(shell, "button.turn");
 
@@ -337,7 +345,9 @@ describe("turning it round", () => {
   });
 
   /** Flipping the facing under a moving train would reverse it on the spot,
-   *  so the control is offered only at zero. */
+   *  so the control is offered only at zero, and not while the move it is
+   *  making is still in flight: a train stopped on the transit stands
+   *  between two blocks. */
   it("is dead while the train is moving", async () => {
     const shell = await driving();
     await taken(shell);
@@ -346,6 +356,10 @@ describe("turning it round", () => {
     expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(true);
 
     await pressed(shell, "button.stop");
+    expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(true);
+
+    await said(shell, "tc49/layout/block_occupied", { block: "b" });
+    await said(shell, ALLOCATION, { trains: { goods: "b" }, locks: { b: "goods" }, requests: [] });
     expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(false);
   });
 });

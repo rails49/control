@@ -129,7 +129,15 @@ describe("who holds a train", () => {
 });
 
 describe("a move outstanding", () => {
-  const MOVE = { event: "move", train: "t1", connection: "j", transit: "over", into: "b", speed: 0.6 };
+  /** The picture with `t1` granted the move from `a` to `b`: crossing the
+   *  transit, and the request behind it running its route. */
+  const GRANTED = {
+    event: "allocation",
+    trains: { t1: "a" },
+    crossing: { t1: "j.over" },
+    locks: { a: "t1", "j.over": "t1", b: "t1" },
+    requests: [{ id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"], route: ["a", "j.over", "b"] }],
+  };
 
   it("has none before a move is granted", () => {
     const model = panel();
@@ -137,22 +145,38 @@ describe("a move outstanding", () => {
     expect(drive(model)[0]).toMatchObject({ granted: false });
   });
 
-  /** From the move the dispatcher sends `layout` to the sensor it ends at:
-   *  the span `layout` applies a throttle's speed in (BUS.md). */
-  it("has one from the move until the block it enters is occupied", () => {
+  /** From the grant to the sensor it ends at: the span `layout` applies a
+   *  throttle's speed in (BUS.md). Read off the retained picture alone, so a
+   *  page opened mid-move sees the lever as `layout` does. */
+  it("has one from the picture until the block it enters is occupied", () => {
     const model = panel();
-    standing(model);
-    feed(model, { event: "lock_granted", train: "t1", resources: ["j", "b"] }, MOVE);
-    expect(drive(model)[0]).toMatchObject({ granted: true });
+    feed(model, GRANTED);
+    expect(drive(model)[0]).toMatchObject({ train: "t1", granted: true });
 
     feed(model, { event: "block_occupied", block: "b" });
     expect(drive(model)[0]).toMatchObject({ granted: false });
   });
 
+  /** The crossing hint the dispatcher restores after a restart has no request
+   *  behind it, and so no move `layout` is known to hold. */
+  it("has none for a crossing train with no request running", () => {
+    const model = panel();
+    feed(model, { ...GRANTED, requests: [] });
+    expect(drive(model)[0]).toMatchObject({ granted: false });
+  });
+
+  it("has none for a crossing train whose request has no route", () => {
+    const model = panel();
+    const { route: _, ...admitted } = GRANTED.requests[0];
+    feed(model, { ...GRANTED, requests: [admitted] });
+    expect(model.granted().size).toBe(0);
+  });
+
   it("forgets the move of a train taken off the layout", () => {
     const model = panel();
-    standing(model);
-    feed(model, MOVE, { event: "allocation", trains: {}, locks: {}, requests: [] });
+    feed(model, GRANTED);
+    expect(model.granted().has("t1")).toBe(true);
+    feed(model, { event: "allocation", trains: {}, locks: {}, requests: [] });
     expect(model.granted().size).toBe(0);
   });
 });
