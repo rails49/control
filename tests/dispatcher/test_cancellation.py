@@ -99,11 +99,18 @@ def test_a_request_still_queued_is_revoked_and_never_launches() -> None:
 
 def test_the_gesture_ends_the_one_request_it_names() -> None:
     """A request of the same train that does not follow the cancelled one
-    stays in the list (ADR-0080)."""
+    stays in the list (ADR-0080). A second drag would follow the first
+    (#827), so the second is one a page submits with its own departure end
+    (BUS.md, rule 1)."""
     assembly = whole_route()
     press(assembly, RUN_WANTED, {"run": "held"})
     first = drag(assembly, "freight_1", "yard_e.A")
-    second = drag(assembly, "freight_1", "dn_w.A", "dn_w.B")
+    second = "freight_1-page-1"
+    press(
+        assembly,
+        "tc49/dispatch/request_submitted",
+        {"id": second, "train": "freight_1", "depart": "yard_w.B", "dest": ["dn_w.A"]},
+    )
 
     cancel(assembly, first)
 

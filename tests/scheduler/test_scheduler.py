@@ -577,6 +577,108 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
     assert [p["id"] for _, p in seen] == [f"freight_1-{NONCE}-1"]
 
 
+# -- a drag after a drag chains (ADR-0080, #827) ----------------------------
+
+
+def test_a_first_drag_departs_by_the_facing_and_follows_nothing() -> None:
+    """A train with nothing in flight composes as it always has: the
+    departure end off the facing, and no `after`."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    assert seen[-1][1]["depart"] == "yard_w.B"
+    assert "after" not in seen[-1][1]
+
+
+def test_a_second_and_a_third_drag_chain_in_order() -> None:
+    """Where the train has a request in flight, the facing says where the
+    train stands now and not where it will stand once that request arrives,
+    so a drag follows the latest one in flight and leaves the departure end
+    to the dispatcher (BUS.md, ADR-0080): each drag after the one before."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    gesture(bus, {"train": "freight_1", "dest": ["yard_e.A"]})
+    gesture(bus, {"train": "freight_1", "dest": ["up_e.B"]})
+    assert [p for _, p in seen] == [
+        {
+            "id": f"freight_1-{NONCE}-1",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["dn_e.A"],
+        },
+        {
+            "id": f"freight_1-{NONCE}-2",
+            "train": "freight_1",
+            "depart": None,
+            "dest": ["yard_e.A"],
+            "after": f"freight_1-{NONCE}-1",
+        },
+        {
+            "id": f"freight_1-{NONCE}-3",
+            "train": "freight_1",
+            "depart": None,
+            "dest": ["up_e.B"],
+            "after": f"freight_1-{NONCE}-2",
+        },
+    ]
+
+
+def test_a_chain_is_per_train() -> None:
+    """Another train's request in flight is nothing to follow."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    gesture(bus, {"train": "express_2", "dest": ["dn_e.A"]})
+    assert seen[-1][1]["depart"] == "up_e.A"
+    assert "after" not in seen[-1][1]
+
+
+def test_a_drag_after_the_earlier_request_completes_follows_nothing() -> None:
+    """Once the request has arrived the facing has caught up with it, so the
+    next drag departs by the end the facing names, with no `after`."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
+    first = seen[-1][1]["id"]
+    announce(bus, "request_completed", {"id": first})
+
+    gesture(bus, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assert seen[-1][1]["depart"] == "yard_w.B"
+    assert "after" not in seen[-1][1]
+
+
+def test_a_drag_chains_after_a_request_somebody_else_submitted() -> None:
+    """In flight is every request the dispatcher has announced for the train,
+    whoever wrote it (BUS.md, rule 1), so a drag follows a page's request
+    exactly as it follows one of the scheduler's own (#439)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
+    announce(
+        bus,
+        "request_submitted",
+        {
+            "id": "page-7",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["dn_e.A"],
+        },
+    )
+
+    gesture(bus, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assert seen[-1][1]["after"] == "page-7"
+    assert seen[-1][1]["depart"] is None
+
+
 REVERSAL = "tc49/schedule/reversal_wanted"
 
 

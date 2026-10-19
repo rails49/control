@@ -38,14 +38,16 @@ def ids(assembly: Assembly, leaf: str) -> list[str]:
 
 def held_with_three_requests() -> Assembly:
     """A live railroad held with three gestures queued into it: two of
-    freight_1's in a chain around one of express_2's."""
+    freight_1's in a chain around one of express_2's. The chain runs through
+    `dn_w` and on to `yard_e`, the way a train carries on (ADR-0080): a chain
+    out of a stub is rejected `unreachable`, its far end leading nowhere."""
     assembly = live("crossover-yard/meet")
     press(assembly, RUN_WANTED, {"run": "held"})
-    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-    press(assembly, REQUEST_WANTED, {"train": "express_2", "dest": ["yard_w.B"]})
     press(
         assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["dn_w.A", "dn_w.B"]}
     )
+    press(assembly, REQUEST_WANTED, {"train": "express_2", "dest": ["yard_w.B"]})
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     return assembly
 
 
