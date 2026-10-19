@@ -427,8 +427,8 @@ def test_a_train_the_picture_names_unreadably_loses_only_itself(
 def test_it_subscribes_before_it_publishes_anything() -> None:
     """The opening rows go out with the subscriptions already live.
 
-    `state/run` is what a client waits for to learn the dispatcher is up, so a
-    gesture — a request, a hold, a placement — can arrive the instant after
+    `state/moving` is what a client waits for to learn the dispatcher is up,
+    so a gesture — a request, a cancel, a placement — can arrive the instant after
     it. Over a broker a publish is asynchronous where a subscribe waits to be
     acknowledged, so publishing first opens a window a round trip wide in
     which that gesture is dropped, and an event is not retained so nothing

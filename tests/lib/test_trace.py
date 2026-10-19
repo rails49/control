@@ -43,10 +43,12 @@ def test_a_state_line_shows_the_payloads_stamp_ahead_of_its_fields() -> None:
     TraceTap(bus, out, clock)
 
     clock.advance(30.0)
-    bus.publish("tc49/dispatch/state/run", {"run": "held"})
+    bus.publish("tc49/dispatch/state/moving", {"moving": False})
     bus.drain()
 
-    assert out.getvalue() == '{"time":30.0,"event":"run","at":30.0,"run":"held"}\n'
+    assert out.getvalue() == (
+        '{"time":30.0,"event":"moving","at":30.0,"moving":false}\n'
+    )
 
 
 def test_a_device_line_is_named_by_its_row_and_not_by_its_address() -> None:

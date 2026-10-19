@@ -12,8 +12,8 @@ the id and the departure end the scheduler adds (ADR-0036) and agree on the
 two fields a gesture is, so those two are read here and each app keeps its own
 shape. The scheduler's other leaf, `tc49/schedule/reversal_wanted`, names a
 train and nothing else, and is read here for the same reason: nothing raises.
-The dispatcher's own two leaves, `tc49/dispatch/run_wanted` and
-`tc49/dispatch/placement_wanted`, are read here beside them: which app reads a
+The dispatcher's own leaf `tc49/dispatch/placement_wanted` is read here
+beside them: which app reads a
 gesture is not what decides where the reading lives — that nothing raises is
 (#152).
 
@@ -66,8 +66,8 @@ aspects the dispatcher shows, and the two device rows the railroad's power is
 folded from. They arrive from four different publishers and `layout` answers
 none of them — it reports observations — so every one of them is a frame that
 must be droppable. The simulator reads the power a page commands
-and the run row its plain `off` is checked against, answering the band's
-presses as `layout` does (ADR-0070), and none of the rest: its points are
+and the `moving` row that ends a drain, answering the band's presses as
+`layout` does (ADR-0070), and none of the rest: its points are
 always aligned, which is why `align` had no reader at all until there was an
 app that throws something.
 
@@ -79,8 +79,7 @@ the roster and become a speed on a decoder — which is why neither reader knows
 anything of a train beyond its name. Each now names the throttle by the id its
 page minted, beside the `throttle_alive` that keeps its trains held and the
 `state/taken` that says who holds which (ADR-0079): `wanted_take`,
-`alive_throttle` and `taken`. `wanted_mode` reads the gesture `wanted_take`
-replaces, until nothing uses it (#834).
+`alive_throttle` and `taken`.
 
 The **desired half of the device vocabulary** is read here from the other
 side of the same seam (#289): `layout` writes those rows and a translator
@@ -114,11 +113,10 @@ the topic it sits on: the two are read side by side here so that neither app
 has its own way of reading its own last value, and the entry-at-a-time rule
 they share is `_named`.
 
-The dispatcher's **run row** is read here beside the aspects, and for the
-same reason one step on (#407): `layout` is handed it so that the guard on a
-plain `off` is made where the command is answered rather than trusted to
-whoever sent it (ADR-0062). The run word and `moving` are one reading,
-because the guard wants the pair.
+The dispatcher's **moving row** is read here beside the aspects, and for the
+same reason one step on (#407): `layout` is handed it so that a drain ends
+where the command is answered rather than on whoever sent it (ADR-0062,
+ADR-0078).
 
 A person's **throw by hand**, `tc49/dispatch/point_wanted`, is read here for
 the first reason of all (ADR-0068): a page writes it and the dispatcher
@@ -137,19 +135,15 @@ from typing import cast
 
 from tc49.lib.inventory import (
     AT,
-    AUTOMATIC,
     CLEAR,
     CLOSED,
     DRAINING,
     DRIVINGS,
-    HELD,
     MANUAL,
     OCCUPIED,
     OFF,
     ON,
     POWERS,
-    RUNNING,
-    STOPPED,
     SUPPLY,
     THROWN,
     UNKNOWN,
@@ -300,64 +294,6 @@ def chosen(payload: object) -> Chosen | None:
     return Chosen(rid, tuple(cast(list[str], legs)))
 
 
-def run_state(payload: object) -> str | None:
-    """The run state a gesture asks for, or None where it asks for none.
-
-    The three values are the topic's whole vocabulary — hold, release, and
-    the **drain** that asks for neither and ends at the first of them (#294)
-    — so a payload naming a fourth is dropped rather than set: a gesture
-    carries no id and there is nothing to address an answer to (ADR-0034).
-    """
-    if not isinstance(payload, dict):
-        return None
-    wanted = cast(dict[str, object], payload).get("run")
-    if not isinstance(wanted, str) or wanted not in (HELD, RUNNING, DRAINING):
-        return None
-    return wanted
-
-
-@dataclass(frozen=True)
-class Run:
-    """The run as its **state** row states it: the word the dispatcher holds
-    it at, and whether anything is moving under it.
-
-    The two are read together because what asks for them wants the pair:
-    `layout`'s guard on a plain `off` refuses on `moving` as well as on the
-    run word, a held run being able to be moving (ADR-0062).
-    """
-
-    run: str
-    moving: bool
-
-
-def kept_run(payload: object) -> Run | None:
-    """The run a retained `tc49/dispatch/state/run` value states, or None
-    where it states none.
-
-    `run_state`'s opposite number on the reading direction of the one axis,
-    as `power` is `commanded_power`'s, and it fails the way a reading of
-    another app's state must: a value that cannot be read is no value, and
-    the caller goes on with whatever it already held.
-
-    **A row with no `moving` reads as nothing moving.** An older dispatcher
-    says nothing about what is under way, and an absence is not evidence that
-    a train is in motion — which is the direction the guard reading this
-    falls in, refusing on evidence and on nothing else (ADR-0062, #406). A
-    `moving` that is there and is not a boolean is another matter: that is a
-    row this build cannot read, and it is dropped whole.
-    """
-    if not isinstance(payload, dict):
-        return None
-    fields = cast(dict[str, object], payload)
-    held = fields.get("run")
-    if not isinstance(held, str) or held not in (HELD, RUNNING, DRAINING):
-        return None
-    moving = fields.get("moving", False)
-    if not isinstance(moving, bool):
-        return None
-    return Run(held, moving)
-
-
 def moving(payload: object) -> bool:
     """Whether a retained `tc49/dispatch/state/moving` value states that a
     train is moving: true while any train is **active** or **crossing**
@@ -386,11 +322,11 @@ def supply(payload: object) -> str:
     move over, so there is no `None` here either.
 
     Its closed set is the two of ``SUPPLY`` and not the three `power` reads.
-    An emergency stop leaves the rails live, so a publisher reporting one
-    reports `on` (ADR-0063); a frame that says otherwise says something no
-    hardware can observe, and this refuses it as it refuses any other value
-    outside the set. Whether the railroad is standing under an emergency stop
-    is `state/power`'s to carry and never this row's.
+    A drain leaves the rails live, so a publisher reports `on` through one
+    (ADR-0063); a frame that says otherwise says something no hardware can
+    observe, and this refuses it as it refuses any other value outside the
+    set. Whether the railroad is draining is `state/power`'s to carry and
+    never this row's.
     """
     if not isinstance(payload, dict):
         return OFF
@@ -406,8 +342,8 @@ def power(payload: object) -> str:
 
     It fails in the opposite direction from every other reader here, and that
     is the point. A gesture that cannot be read is dropped, and dropping a
-    hold-or-release means doing nothing; dropping a *power* value would mean
-    **not holding**, leaving the run committing over track whose state could
+    press means doing nothing; dropping a *power* value would mean **not
+    holding**, leaving the dispatcher committing over track whose state could
     not be read. So an unreadable payload is one of the "anything but `on`"
     cases the contract already has (DISPATCH.md) rather than an exception,
     and there is no `None` for a caller to have to think about.
@@ -416,7 +352,8 @@ def power(payload: object) -> str:
     routes only on `on` (ADR-0078), and the others differ only for the person
     recovering — who has an unreadable payload to recover from, not a drain
     or an emergency stop. `draining` is read as itself, the supply still on
-    while the moving trains stop, and `stopped` stays readable until #834.
+    while the moving trains stop; the retired `stopped` is a word this reads
+    as it reads any other outside the set, as `off`.
 
     This is `tc49/layout/state/power` alone. The observed row that folds into
     it is `supply`'s, and reads two values where this reads three.
@@ -430,12 +367,12 @@ def power(payload: object) -> str:
 
 
 def commanded_power(payload: object) -> str | None:
-    """The power a gesture asks the railroad for, or None where it asks for
-    none.
+    """The supply `layout` asks a translator for on ``wanted/track`` — `on`
+    or `off` — or None where it asks for none.
 
     `power`'s opposite number on the command direction of the one axis
     (ADR-0051), and it fails the other way round. A *reading* that cannot be
-    read must still hold the run, so `power` has no `None`; a **command**
+    read must still hold the dispatcher, so `power` has no `None`; a **command**
     that cannot be read is dropped like every other gesture, because cutting
     the supply on a malformed frame would be `layout` writing `off` of its
     own accord, which it never does (#287). A gesture carries no id, so there
@@ -444,7 +381,7 @@ def commanded_power(payload: object) -> str | None:
     if not isinstance(payload, dict):
         return None
     wanted = cast(dict[str, object], payload).get("power")
-    if not isinstance(wanted, str) or wanted not in (ON, STOPPED, OFF):
+    if not isinstance(wanted, str) or wanted not in SUPPLY:
         return None
     return wanted
 
@@ -457,8 +394,7 @@ def wanted_power(payload: object) -> str | None:
     that is `wanted/track`, which `commanded_power` reads. The two differ by
     `draining`, which a person asks for and no translator is told — the
     supply stays on through a drain. A press that cannot be read is dropped
-    for `commanded_power`'s reason, and `stopped` with it: the emergency stop
-    is `off` now, and the word with the track live is retired.
+    for `commanded_power`'s reason.
     """
     if not isinstance(payload, dict):
         return None
@@ -499,50 +435,6 @@ def wanted_driving(payload: object) -> str | None:
     if not isinstance(wanted, str) or wanted not in DRIVINGS:
         return None
     return wanted
-
-
-@dataclass(frozen=True)
-class Mode:
-    """Who is to drive a train, as a `mode_wanted` gesture states it: the
-    train it names, or `None` for **every** train at once.
-
-    The `None` here is the gesture's own and is not the `None` `wanted_mode`
-    answers with, which says the payload could not be read at all — the pair
-    `Placement` carries, for the same reason: one gesture in two directions,
-    and the wider of the two is a thing a person does to a railroad rather
-    than to the train they have picked (#284).
-    """
-
-    train: str | None
-    mode: str
-
-
-def wanted_mode(payload: object) -> Mode | None:
-    """The mode a gesture asks for, or None where it asks for none.
-
-    An **enum**, read like the run state and the commanded power beside it: a
-    payload naming a third word is dropped whole and the train's mode stays
-    where it was, since falling to `manual` would hand a train to a person who
-    is not there and falling to `automatic` would take one out of the hands of
-    a person who is (`lib.inventory.AUTOMATIC`). A gesture carries no id, so
-    there is nothing to address a refusal to either (ADR-0034).
-
-    A **missing** `train` fails the read and an explicit `null` succeeds, the
-    rule `placement` keeps on its block: handing over the whole railroad is
-    too much to read into a frame that lost a field on the way, where a
-    `null` a page wrote is a positive statement about every train.
-    """
-    if not isinstance(payload, dict):
-        return None
-    fields = cast(dict[str, object], payload)
-    if "train" not in fields:
-        return None
-    train, mode = fields.get("train"), fields.get("mode")
-    if not (train is None or isinstance(train, str)):
-        return None
-    if not isinstance(mode, str) or mode not in (AUTOMATIC, MANUAL):
-        return None
-    return Mode(train, mode)
 
 
 @dataclass(frozen=True)
@@ -591,7 +483,7 @@ class Take:
 
     The `None` here is the gesture's own and is not the `None` `wanted_take`
     answers with, which says the payload could not be read at all — the pair
-    `Mode` carries on its train.
+    `Placement` carries on its block.
     """
 
     train: str
@@ -602,7 +494,7 @@ def wanted_take(payload: object) -> Take | None:
     """The take a gesture asks for, or None where it asks for none.
 
     A **missing** `throttle` fails the read and an explicit `null` succeeds,
-    the rule `wanted_mode` keeps on its `train`: a release takes a train out
+    the rule `placement` keeps on its block: a release takes a train out
     of a person's hands, too much to read into a frame that lost a field on
     the way. An id is a non-empty string, so an empty one fails too. Whether
     the take is applied — no other throttle holds the train — is `layout`'s.

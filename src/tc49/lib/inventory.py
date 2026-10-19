@@ -84,9 +84,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/state/power": Topic((AT, "power")),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
     "tc49/layout/move": Topic(("train", "connection", "transit", "into", "speed")),
-    "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
     "tc49/layout/throttle_wanted": Topic(("train", "speed", "throttle"), browser=True),
-    "tc49/layout/state/mode": Topic((AT, "modes")),
     # At most one throttle holds a train (ADR-0079). A throttle is named by
     # the id its page mints when it opens; `null` releases a train whoever
     # holds it. `throttle_alive` is said once a second while a throttle holds
@@ -110,7 +108,6 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/request_submitted": Topic(
         ("id", "train", "depart", "dest", "after")
     ),
-    "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
     "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
     # The waiting requests are a list a person orders (ADR-0080): one
     # request is cancelled by its id, and one moved in front of `before`, or
@@ -129,10 +126,8 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/lock_released": Topic(("train", "resources")),
     "tc49/dispatch/train_placed": Topic(("train", "block")),
     "tc49/dispatch/train_removed": Topic(("train",)),
-    "tc49/dispatch/state/run": Topic((AT, "run", "moving")),
     # True while any train is active or crossing, and what `layout` reads to
-    # end a drain; it replaces `state/run`, which goes with `run_wanted` once
-    # nothing reads either (ADR-0078, #834).
+    # end a drain (ADR-0078).
     "tc49/dispatch/state/moving": Topic((AT, "moving")),
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
     "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
@@ -275,59 +270,13 @@ def split_device(topic: str) -> tuple[str, str] | None:
     return None
 
 
-HELD = "held"
-RUNNING = "running"
-DRAINING = "draining"
-"""The three values of ``tc49/dispatch/state/run``, and of the ``run_wanted``
-gesture that moves it. An enum and not a boolean, which is what let the
-ordinary-shutdown **drain** take a third value here rather than invent a
-state of its own (#123, #294).
-
-They differ by what the dispatcher will commit. `running` admits, launches
-and grants; `draining` admits and grants a train already moving but launches
-nothing, so the work under way runs out and nothing takes its place; `held`
-admits and commits nothing at all. `draining` is therefore a value the
-dispatcher writes as well as reads: it ends itself at `held` the first moment
-no train is active and none is crossing, and that transition is the drain's
-completion (ADR-0037).
-
-Not to be read as the ``held`` ``grant_refused`` reason, which says a
-resource is locked by another train and is a different thing on a different
-topic (CONTEXT.md).
-
-``moving`` rides beside them on the state row and is not a fourth value: a
-boolean, true while any train is **active** or **crossing**, so a power cut
-now would strand it (CONTEXT.md, **Moving**; ADR-0062). It is orthogonal to
-the three — a `held` run can be moving, because a move already granted runs
-to its sensor, and a `running` run with nothing granted is not — and it is
-what says the drain's completion apart from a person's HOLD, which writes the
-same word with trains still rolling (#406).
-
-All of it goes with power's three values (ADR-0078): ``moving`` stays, on
-``tc49/dispatch/state/moving`` alone, and the run's words and their two
-topics leave the contract once nothing reads them (#834)."""
-
-
 AUTOMATIC = "automatic"
 MANUAL = "manual"
-"""The two values of ``mode`` on ``tc49/layout/mode_wanted``, and of every
-entry in the ``modes`` map on ``tc49/layout/state/mode``: who turns a train's
-throttle. `automatic` is the resting value — taking a train in a throttle
-makes it `manual` and releasing it puts it back — so a train the map does not
-name is `automatic`. An unreadable value is **dropped** and the train's mode
-stays where it was: falling to `manual` would hand a train to a person who is
-not there, and falling to `automatic` would take one out of the hands of a
-person who is (#207). Not a mode of the *system*: a manual train is still
-dispatched, still holds its block and still may be granted, and *manual* names
-only who turns the throttle (CONTEXT.md)."""
-
-
 DRIVINGS = (MANUAL, AUTOMATIC)
 """The closed set of ``driving`` on ``tc49/layout/state/driving`` and on the
 ``tc49/layout/driving_wanted`` gesture: the railroad's one **driving mode**
-(ADR-0079). The same two words as ``mode`` above, said of the whole railroad
-rather than of a train: in `manual` people drive every train, and in
-`automatic` the driver drives every train no throttle holds. The dispatcher
+(ADR-0079): in `manual` people drive every train, and in `automatic` the
+driver drives every train no throttle holds. The dispatcher
 routes the same in both.
 
 `manual` first, because it is where the railroad comes up and what an
@@ -337,15 +286,13 @@ one is accepted at any power."""
 
 
 ON = "on"
-STOPPED = "stopped"
+DRAINING = "draining"
 OFF = "off"
-"""The values of ``tc49/layout/state/power``, with ``DRAINING`` above: the
-layout's answer to whether a train may move at all, and the one switch a
-person turns (ADR-0078). `on` lets the dispatcher route; `draining` keeps the
-supply on while each moving train stops and nothing new starts, until
-``tc49/dispatch/state/moving`` reads false and `layout` switches it off; `off`
-is the supply removed. `draining` is the run's word for the same thing, a
-shutdown that lets what is moving stop, and it is one string on both topics.
+"""The values of ``tc49/layout/state/power``: the layout's answer to whether a
+train may move at all, and the one switch a person turns (ADR-0078). `on`
+lets the dispatcher route; `draining` keeps the supply on while each moving
+train stops and nothing new starts, until ``tc49/dispatch/state/moving`` reads
+false and `layout` switches it off; `off` is the supply removed.
 
 The same values on ``tc49/layout/power_wanted``, which is the command
 direction of the one axis: the closed set goes wherever the field goes. A
@@ -355,17 +302,11 @@ applied on arrival — there is no beat to quantise it against (#243) — and it
 changes no lock and grants nothing, so it races with nothing the dispatcher is
 deciding (ADR-0051).
 
-`stopped` is the emergency stop ADR-0078 retires — every locomotive told to
-stand with the track still live — and stays readable until nothing publishes
-it (#834). Not `stop`, which is an aspect: a different thing on a different
-topic.
-
 The row the fold below reads is not one of them. ``SUPPLY`` is its own set of
-two, and `draining` and `stopped` are the things no publisher can report
-(ADR-0063)."""
+two, and `draining` is the thing no publisher can report (ADR-0063)."""
 
 
-POWERS = (ON, DRAINING, STOPPED, OFF)
+POWERS = (ON, DRAINING, OFF)
 """The closed set of ``tc49/layout/state/power`` as a reader takes it:
 ``tc49.lib.payload.power`` reads each as itself and anything else as `off`."""
 
@@ -374,17 +315,11 @@ SUPPLY = (ON, OFF)
 """The two values of ``tc49/layout/state/device/track``: what the hardware
 reports about the supply, and two where the row it folds into carries more.
 
-An emergency stop leaves the rails live — that is what tells it apart from
-cutting the supply, and the distinction is physical rather than a modelling
-choice — so the supply reads `on` under one and there is nothing else it
-could truthfully read. That is not a gap in what a publisher can observe, it
-is the truth about the supply, and the row says so by having no third value
-at all (ADR-0063).
-
-The asymmetry with ``wanted/track``, which keeps all three, is the
-vocabulary's own: what the railroad may be **asked** for is not bounded by
-what a sensor can answer. ``tc49.lib.payload.supply`` is the reader, and a
-frame outside this set falls the way every unreadable state frame falls."""
+A drain keeps the rails live, so the supply reads `on` through one and there
+is nothing else it could truthfully read (ADR-0063). ``wanted/track`` carries
+the same two: a translator is told to switch the supply, never to drain it.
+``tc49.lib.payload.supply`` is the reader, and a frame outside this set falls
+the way every unreadable state frame falls."""
 
 
 OCCUPIED = "occupied"
