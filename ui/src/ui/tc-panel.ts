@@ -295,14 +295,18 @@ export class TcPanel extends LitElement {
   }
 
   /** Chosen: one `reversal_wanted` naming the train, the scheduler flipping
-   *  its facing and the arrow following, or one `cancel_wanted`, the lit
-   *  route going out when the dispatcher's picture drops the request. */
+   *  its facing and the arrow following, or one `cancel_wanted` naming the
+   *  train's first request, the lit route going out when the dispatcher's
+   *  picture drops it and those chained after it. */
   private chose(event: CustomEvent<string>): void {
     const train = this.menu?.train;
     this.menu = null;
     if (train === undefined) return;
     if (event.detail === TURN_AROUND) this.session?.send(reversal(train));
-    if (event.detail === CANCEL_REQUEST) this.session?.send(cancellation(train));
+    if (event.detail === CANCEL_REQUEST) {
+      const id = this.panel?.firstRequest(train) ?? null;
+      if (id !== null) this.session?.send(cancellation(id));
+    }
   }
 
   // --- painting -------------------------------------------------------------

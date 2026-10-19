@@ -152,10 +152,10 @@ describe("choosing Turn around", () => {
 });
 
 /** Ending a train's request without it arriving (#660, ADR-0049). The
- *  gesture names the train and no request, and the dispatcher ends whatever
- *  that train has. */
+ *  gesture names the train's first request by id, and the dispatcher ends
+ *  it and those chained after it (ADR-0080). */
 describe("choosing Cancel request", () => {
-  it("writes one cancel_wanted naming the train, and no more", async () => {
+  it("writes one cancel_wanted naming the train's request, and no more", async () => {
     const shell = await standing([
       { id: "r1", train: "goods", depart: "a.B", dest: ["b.A"] },
     ]);
@@ -163,7 +163,7 @@ describe("choosing Cancel request", () => {
     await chose(shell, "Cancel request");
 
     expect(written()).toEqual([
-      { topic: "tc49/dispatch/cancel_wanted", payload: { train: "goods" } },
+      { topic: "tc49/dispatch/cancel_wanted", payload: { id: "r1" } },
     ]);
     expect(offered(shell)).toEqual([]);
   });

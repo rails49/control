@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CANCEL_WANTED,
+  cancellation,
   DRAINING,
   DRIVING_WANTED,
   drivingWanted,
@@ -19,6 +21,8 @@ import {
   pointWanted,
   POWER_WANTED,
   powerWanted,
+  REORDER_WANTED,
+  reorderWanted,
   REQUEST_WANTED,
   reversal,
   REVERSAL_WANTED,
@@ -390,5 +394,32 @@ describe("Ordering", () => {
     });
     expect(ordering.accepts(track(20))).toBe(true);
     expect(ordering.accepts(track(10, "district B tripped"))).toBe(false);
+  });
+});
+
+/** The waiting requests are a list a person orders (ADR-0080): a cancel
+ *  names one request by id, and a reorder moves one in front of another or,
+ *  with `null`, to the end. */
+describe("cancellation", () => {
+  it("names the request and nothing else", () => {
+    expect(cancellation("r1")).toEqual({
+      topic: "tc49/dispatch/cancel_wanted",
+      payload: { id: "r1" },
+    });
+    expect(CANCEL_WANTED).toBe("tc49/dispatch/cancel_wanted");
+  });
+});
+
+describe("reorderWanted", () => {
+  it("names the request and the one it goes in front of", () => {
+    expect(reorderWanted("r2", "r1")).toEqual({
+      topic: "tc49/dispatch/reorder_wanted",
+      payload: { id: "r2", before: "r1" },
+    });
+    expect(REORDER_WANTED).toBe("tc49/dispatch/reorder_wanted");
+  });
+
+  it("writes an explicit null for the end of the list", () => {
+    expect(reorderWanted("r1", null).payload).toEqual({ id: "r1", before: null });
   });
 });

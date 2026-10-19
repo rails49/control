@@ -95,6 +95,7 @@ export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const RUN_WANTED = "tc49/dispatch/run_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
+export const REORDER_WANTED = "tc49/dispatch/reorder_wanted";
 export const POINT_WANTED = "tc49/dispatch/point_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
@@ -180,12 +181,24 @@ export function placement(train: string, block: string | null): Frame {
   return { topic: PLACEMENT_WANTED, payload: { train, block } };
 }
 
-/** A `cancel_wanted` frame: end this train's request without it arriving.
- *  It names the train and no request, and the dispatcher ends whatever that
- *  train has, pending and active
- *  ([ADR-0049](../../../docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)). */
-export function cancellation(train: string): Frame {
-  return { topic: CANCEL_WANTED, payload: { train } };
+/** A `cancel_wanted` frame: end this request without it arriving. One
+ *  waiting is cancelled at once; one underway when the move it has
+ *  outstanding ends at its sensor. The requests chained after it go with it
+ *  ([ADR-0049](../../../docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
+ *  [ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)). */
+export function cancellation(id: string): Frame {
+  return { topic: CANCEL_WANTED, payload: { id } };
+}
+
+/** A `reorder_wanted` frame: move this request in front of `before`, or to
+ *  the end of the list the dispatcher serves where `before` is `null`. The
+ *  key is always written: a frame without it is dropped, and is not a move
+ *  to the end. The dispatcher drops it where either request has started or
+ *  is unknown, or where it would put a train's chained request before the
+ *  one it follows
+ *  ([ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)). */
+export function reorderWanted(id: string, before: string | null): Frame {
+  return { topic: REORDER_WANTED, payload: { id, before } };
 }
 
 /** What a person asks of a point: the position it should be thrown to, by
