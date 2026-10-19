@@ -1,26 +1,22 @@
-"""`moving` beside the run word on `state/run` (ADR-0062, #406).
+"""`state/moving`: whether a power cut now would strand a train (ADR-0078,
+ADR-0062, #822).
 
-`held` does not say the railroad is still. The dispatcher writes that word
-when a drain completes, and a person's HOLD writes the same word with trains
-still rolling, so a reader waiting to cut track power was answered by the
-wrong event and could strand a train mid-transit. The row carries a boolean
-beside the three values instead: true while any train is **active** or
-**crossing** (CONTEXT.md, **Moving**), which is the test the drain's
-completion already makes.
+`layout` ends a drain by switching the supply off, and the moment it may is
+the first at which nothing is moving. The dispatcher, which knows what is
+granted, states it on a row of its own: true while any train is **active** or
+**crossing** (CONTEXT.md, **Moving**). It is a boolean beside power and not a
+value of it — a drain can be moving, because a move already granted runs to
+its sensor, and `on` with nothing granted is not.
 
-It is orthogonal to the run and not a fourth value of it, and the row goes out
-whenever either of the two moves — a running run whose last train arrives says
-`running` again with `moving` false.
-
-Driven at the bus, which is where a person's press arrives: the gestures in,
-`state/run` and the trace out.
+Driven at the bus: the gestures and `state/power` in, `state/moving` and the
+trace out.
 """
 
 from tc49.bench.runner import Assembly
-from tests.harness import live, press, run_rows, runs, ticks
+from tc49.lib.inventory import DRAINING, OFF
+from tests.harness import live, movings, power, press, ticks
 
 REQUEST_WANTED = "tc49/schedule/request_wanted"
-RUN_WANTED = "tc49/dispatch/run_wanted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 ALLOCATION = "tc49/dispatch/state/allocation"
 
@@ -35,59 +31,31 @@ def under_way() -> Assembly:
     return assembly
 
 
-def test_a_granted_move_is_moving_and_the_arrival_is_not() -> None:
-    """The whole of the field on a running run: nothing is granted, so
-    nothing is moving; the launch grants and it is; the train arrives and it
-    is not again — with the run word standing at `running` throughout, which
-    is what makes this a value of its own and not a fourth run state."""
+def test_moving_goes_true_at_the_grant_and_false_at_the_completion() -> None:
+    """The whole of the row: nothing is granted, so nothing is moving; the
+    launch grants and it is; the request completes and it is not again. Each
+    value once, because the row moves only when what it says moves."""
     assembly = live("crossover-yard/meet")
-    assert run_rows(assembly) == []  # nothing said until the bus is turned
+    assert movings(assembly) == []  # nothing said until the bus is turned
 
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-    assert run_rows(assembly) == [("running", False), ("running", True)]
-
-    ticks(assembly, 40)
-    assert run_rows(assembly)[-1] == ("running", False)
-    assert runs(assembly) == ["running"]
-
-
-def test_a_hold_over_a_train_under_way_is_moving() -> None:
-    """The failure ADR-0062 exists for: the hold is a brake and not an
-    emergency stop, so the move already granted runs to its sensor. `held`
-    goes out with `moving` true, and a reader that cut power on the word
-    alone would strand the train the hold did not stop."""
-    assembly = under_way()
-    press(assembly, RUN_WANTED, {"run": "held"})
-
-    assert run_rows(assembly)[-1] == ("held", True)
+    assert movings(assembly) == [False, True]
     assert assembly.dispatcher.state.crossing
 
-
-def test_a_held_train_goes_on_moving_until_its_request_ends() -> None:
-    """A train whose sensors have caught up with it is still **active**: it
-    has a committed route it has not finished, and a hold commits nothing
-    further rather than retiring what is committed. So the row does not go
-    quiet at the boundary the move ended on."""
-    assembly = under_way()
-    press(assembly, RUN_WANTED, {"run": "held"})
-    ticks(assembly, 10)
-
-    assert not assembly.dispatcher.state.crossing
-    assert assembly.dispatcher.state.active
-    assert run_rows(assembly)[-1] == ("held", True)
-
-
-def test_the_drains_completion_is_held_and_not_moving() -> None:
-    """The two the panel has to tell apart, said in one row: the drain ends
-    at `held` with `moving` false, where the hold above ends at `held` with
-    `moving` true. That row is what a reader waits for before cutting
-    power."""
-    assembly = under_way()
-    press(assembly, RUN_WANTED, {"run": "draining"})
-    assert run_rows(assembly)[-1] == ("draining", True)
-
     ticks(assembly, 40)
-    assert run_rows(assembly)[-1] == ("held", False)
+    assert assembly.dispatcher.state.active == {}
+    assert movings(assembly) == [False, True, False]
+
+
+def test_a_drain_over_a_train_under_way_is_moving() -> None:
+    """The failure ADR-0062 exists for: the move already granted runs to its
+    sensor, so a drain begins with `moving` true and a reader that cut the
+    supply on the power word alone would strand the train."""
+    assembly = under_way()
+    press(assembly, *power(DRAINING))
+
+    assert movings(assembly)[-1] is True
+    assert assembly.dispatcher.state.crossing
 
 
 def test_a_restored_crossing_hint_with_no_request_is_moving() -> None:
@@ -109,19 +77,27 @@ def test_a_restored_crossing_hint_with_no_request_is_moving() -> None:
     ticks(assembly, 1)
 
     assert not assembly.dispatcher.state.active
-    assert run_rows(assembly) == [("held", True)]
+    assert movings(assembly) == [True]
 
 
 def test_lifting_the_wedged_train_off_stops_the_moving() -> None:
-    """The documented way out of a drain a train holds open forever: hold,
-    and take the train off the layout (ADR-0039, #294). The gesture drops the
-    hint and the request together, and it is not a sweep — so the row is
-    published where the placement settles, or the reader waiting to cut power
-    would wait on a railroad that has nothing left on it."""
+    """The way out of a drain a train holds open forever: take the train off
+    the layout (ADR-0039, ADR-0069). The gesture drops the hint and the
+    request together, and the row follows it, or `layout` waiting to switch
+    the supply off would wait on a railroad that has nothing left on it."""
     assembly = under_way()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(DRAINING))
     press(assembly, PLACEMENT_WANTED, {"train": "freight_1", "block": None})
 
-    assert run_rows(assembly)[-1] == ("held", False)
+    assert movings(assembly)[-1] is False
     assert not assembly.dispatcher.state.crossing
     assert not assembly.dispatcher.state.active
+
+
+def test_power_changes_nothing_moving_says() -> None:
+    """Power going off moves no train, so it moves no row: `moving` answers
+    for the trains and not for the switch."""
+    assembly = under_way()
+    said = movings(assembly)
+    press(assembly, *power(OFF))
+    assert movings(assembly) == said

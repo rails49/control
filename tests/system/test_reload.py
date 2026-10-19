@@ -414,7 +414,7 @@ def test_the_dispatcher_clears_the_picture_it_held_and_rebuilds(
         held = picture(broker)
         allocation = held["tc49/dispatch/state/allocation"]
         assert (allocation["trains"], allocation["locks"]) == ({}, {})
-        assert held["tc49/dispatch/state/run"]["run"] == "held"
+        assert held["tc49/dispatch/state/moving"]["moving"] is False
         # Every signalled end is the new railroad's, which is the rebuild.
         signalled = held["tc49/dispatch/state/aspects"]["aspects"]
         assert signalled, "no aspects: it did not rebuild"
@@ -878,13 +878,13 @@ def placed(broker: Broker, store: Store, tmp_path: Path) -> Iterator[Placed]:
 def test_a_rebuild_under_the_same_name_keeps_the_placement(placed: Placed) -> None:
     """With track power off a restore or a saved edit changes the drawing
     and not the track, so every train stands where it stood (ADR-0071): the
-    dispatcher keeps it placed and comes up held, and the scheduler keeps the
+    dispatcher keeps it placed with nothing moving, and the scheduler keeps the
     way it faces. Where the layout interface keeps it reaches no row, so
     `tests/layout/test_main.py` reads it off the object."""
     placed.rebuilt(WAS)
 
     assert placed.placed() == {WAS_TRAIN: "yard_w"}
-    assert picture(placed.broker)["tc49/dispatch/state/run"]["run"] == "held"
+    assert picture(placed.broker)["tc49/dispatch/state/moving"]["moving"] is False
     assert placed.facing() == placed.facing_before
 
 

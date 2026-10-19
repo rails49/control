@@ -29,7 +29,7 @@ from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import Recording, load, retaining, subscribed_before_publishing
 
-RUN = "tc49/dispatch/state/run"
+POWER = "tc49/layout/state/power"
 REQUESTS = "tc49/dispatch/request_submitted"
 
 MOVED: dict[str, Any] = {
@@ -45,11 +45,10 @@ def restarted(
     tmp_path: Path,
     picture: object | None,
     aspects: dict[str, str] | None = None,
-    run: str | None = None,
     added: dict[str, str] | None = None,
 ) -> tuple[InProcessBus, Dispatcher, list[Payload]]:
     """A dispatcher on a bus whose file already holds that picture — and the
-    aspects and the run state the last session left, where a test wants them —
+    aspects the last session left, where a test wants them —
     with everything published on it collected as it goes.
 
     No picture at all is the first session of all naming a path: a file that
@@ -64,8 +63,6 @@ def restarted(
     kept: dict[str, Any] = {} if picture is None else {ALLOCATION: picture}
     if aspects is not None:
         kept[ASPECTS] = {"aspects": aspects}
-    if run is not None:
-        kept[RUN] = {"run": run}
     layout, roster, scenario = load("crossover-yard/meet")
     if added is not None:
         # Stock the scenario gained, which the railroad owns: on the roster,
@@ -345,57 +342,29 @@ def test_the_opening_statement_corrects_a_stale_aspect(tmp_path: Path) -> None:
     assert all(set(line["aspects"].values()) == {"stop"} for line in shown)
 
 
-def test_a_restored_session_comes_up_held(tmp_path: Path) -> None:
-    """The whole point of the hold on a real railroad (#154).
-
-    A picture nobody has looked at is not a railroad anyone should be
+def test_a_restored_session_routes_nothing_until_the_power_is_on(
+    tmp_path: Path,
+) -> None:
+    """A picture nobody has looked at is not a railroad anyone should be
     granting into: the steel is wherever the last session left it, and the
-    file says where it *believed* it was. So the constructor states `held`,
-    and the operator releases it once they have looked.
-    """
-    _, dispatcher, said = restarted(tmp_path, MOVED)
+    file says where it *believed* it was (#154). The railroad comes up `off`
+    (ADR-0078), so the dispatcher routes nothing until a person who has
+    looked turns the power on, and then routes at once."""
+    bus, dispatcher, said = restarted(tmp_path, MOVED)
+    bus.publish(
+        REQUESTS,
+        {"id": "r-1", "train": "freight_1", "depart": "dn_e.A", "dest": ["dn_w.B"]},
+    )
+    bus.drain()
 
-    assert dispatcher.state.run == "held"
-    # Once from the constructor's own publish and once as the last value the
-    # subscription replays; the value is what matters, and it never moved.
-    assert {line["run"] for line in said if line["event"] == RUN} == {"held"}
+    assert dispatcher.state.power == "off"
+    assert [line for line in said if line["event"].endswith("/request_admitted")]
+    assert not [line for line in said if line["event"].endswith("/route_chosen")]
 
+    bus.publish(POWER, {"power": "on"})
+    bus.drain()
 
-def test_a_session_with_nothing_to_adopt_still_comes_up_running(
-    tmp_path: Path,
-) -> None:
-    """A cold start is a cold start whether or not it names a file: the first
-    session of all writes the picture nobody has yet, and there is nothing
-    for a hold to protect (ADR-0037)."""
-    _, dispatcher, said = restarted(tmp_path, None)
-
-    assert dispatcher.state.block_of == {"express_2": "up_e", "freight_1": "yard_w"}
-    assert dispatcher.state.run == "running"
-    assert {line["run"] for line in said if line["event"] == RUN} == {"running"}
-
-
-def test_the_retained_value_is_not_what_decides_it(tmp_path: Path) -> None:
-    """The file keeps whatever was retained on every state topic, `state/run`
-    included, so a session cut while running finds `running` waiting for it.
-    Adoption overrides it: coming up running on the strength of a picture
-    nobody has looked at is the failure the hold exists to prevent (#123)."""
-    _, dispatcher, _ = restarted(tmp_path, MOVED, run="running")
-
-    assert dispatcher.state.run == "held"
-
-
-def test_a_picture_the_document_overruled_holds_the_run_all_the_same(
-    tmp_path: Path,
-) -> None:
-    """Where the picture contradicts the scenario the document wins the
-    contested block (`restored`) — and the steel does not go back to the
-    document with it. There was a session here and it was cut off, which is
-    exactly what a person has to come and look at."""
-    stacked = {**MOVED, "trains": {"freight_1": "up_e"}}  # express_2's own block
-    _, dispatcher, _ = restarted(tmp_path, stacked)
-
-    assert dispatcher.state.block_of == {"freight_1": "yard_w", "express_2": "up_e"}
-    assert dispatcher.state.run == "held"
+    assert [line for line in said if line["event"].endswith("/route_chosen")]
 
 
 def test_a_retained_value_that_states_no_picture_is_a_cold_start(
@@ -432,25 +401,6 @@ def test_a_retained_value_that_states_no_picture_is_a_cold_start(
         assert dispatcher.state.crossing == {}, picture
         assert dispatcher.pending == (), picture
         coherent(dispatcher)
-
-
-def test_a_value_that_states_no_picture_holds_the_run_all_the_same(
-    tmp_path: Path,
-) -> None:
-    """The hold turns on a value being there and not on what could be taken
-    from it.
-
-    A picture the document overruled holds the run, and one nothing at all
-    could be read out of is the far end of that same scale: a session left
-    something on this topic and its record is damaged, which is more for a
-    person to come and look at rather than less. Coming up running because
-    the record was too damaged to read would be the failure the hold exists
-    to prevent, arrived at backwards.
-    """
-    _, dispatcher, said = restarted(tmp_path, "nonsense")
-
-    assert dispatcher.state.run == "held"
-    assert {line["run"] for line in said if line["event"] == RUN} == {"held"}
 
 
 def test_a_train_the_picture_names_unreadably_loses_only_itself(

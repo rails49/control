@@ -164,7 +164,7 @@ APPS = (
         "dispatcher",
         store=True,
         rows=(
-            "tc49/dispatch/state/run",
+            "tc49/dispatch/state/moving",
             "tc49/dispatch/state/allocation",
             "tc49/dispatch/state/aspects",
             "tc49/dispatch/state/disputed",

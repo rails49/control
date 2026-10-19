@@ -12,9 +12,9 @@ from tc49.dispatcher.dispatch import (
     aspects,
 )
 from tc49.dispatcher.routing import Route, candidates
-from tc49.lib.inventory import HELD, RUNNING
+from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
-from tests.harness import RUN_WANTED, events, load, press, run, ticks
+from tests.harness import events, load, power, press, run, ticks
 
 
 def a_route(layout: Layout) -> Route:
@@ -40,7 +40,8 @@ def a_route(layout: Layout) -> Route:
 
 
 def a_state(layout: Layout, route: Route, ahead: int) -> State:
-    """`t` standing at the head of `route` with `ahead` blocks locked past it."""
+    """`t` standing at the head of `route` with `ahead` blocks locked past it,
+    the power on."""
     locks = {route.blocks[i]: "t" for i in range(ahead + 1)}
     request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0)
     return State(
@@ -49,6 +50,7 @@ def a_state(layout: Layout, route: Route, ahead: int) -> State:
         locks,
         {"t": route.blocks[0]},
         {"t": Active(request, route, 0, None)},
+        power=ON,
     )
 
 
@@ -92,39 +94,42 @@ def test_an_end_no_train_is_leaving_by_shows_stop() -> None:
     assert shown.get(other, "stop") == "stop"
 
 
-def test_a_held_run_puts_every_signal_to_stop() -> None:
+def test_power_not_on_puts_every_signal_to_stop() -> None:
     """An aspect answers "may the train in this block leave via this end",
-    and while held the answer is no at every end (ADR-0037). The real aspects
-    return on release: the state is a gate over the reading, not a rewrite of
-    it, so nothing about the locks has to be undone and put back."""
+    and while `draining` or `off` the answer is no at every end: nothing is
+    granted (ADR-0078). The real aspects return with the power: the power is
+    a gate over the reading, not a rewrite of it, so nothing about the locks
+    has to be undone and put back."""
     layout, _roster, _ = load("crossover-yard/meet")
     state = a_state(layout, a_route(layout), 2)
-    running = aspects(state)
-    assert "clear" in running.values()
+    routing = aspects(state)
+    assert "clear" in routing.values()
 
-    state.run = HELD
-    held = aspects(state)
-    assert set(held.values()) == {"stop"}
-    assert set(held) == set(running)  # the same ends, every time (ADR-0032)
+    for value in (DRAINING, OFF):
+        state.power = value
+        stopped = aspects(state)
+        assert set(stopped.values()) == {"stop"}, value
+        assert set(stopped) == set(routing)  # the same ends (ADR-0032)
 
-    state.run = RUNNING
-    assert aspects(state) == running
+    state.power = ON
+    assert aspects(state) == routing
 
 
-def test_holding_and_releasing_both_republish_the_aspects() -> None:
+def test_power_going_off_and_on_both_republish_the_aspects() -> None:
     """The topic is what a lineside signal and a panel read, so both
-    transitions have to reach it — a `clear` left standing over a held
-    railroad is a green light over dead track."""
+    transitions have to reach it — a `clear` left standing over a railroad
+    that grants nothing is a green light over a train that will not be let
+    past it."""
     assembly = assemble(*load("crossover-yard/meet"))
     ticks(assembly, 2)
     before = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
     assert "clear" in before.values()
 
-    press(assembly, RUN_WANTED, {"run": "held"})
-    held = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
-    assert set(held.values()) == {"stop"}
+    press(assembly, *power(OFF))
+    stopped = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
+    assert set(stopped.values()) == {"stop"}
 
-    press(assembly, RUN_WANTED, {"run": "running"})
+    press(assembly, *power(ON))
     after = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
     assert after == before
 

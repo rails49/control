@@ -13,9 +13,10 @@ empty and no request id resumes (ADR-0033) — the per-app tests pin those
 (tests/dispatcher/test_adoption.py, tests/scheduler/test_scheduler.py); this
 one is about the three of them agreeing after a real run.
 
-And it comes up **held** (#154): the picture is where the last run was cut
-off, not where the railroad now stands, so nothing moves until a person has
-looked and released it.
+And nothing moves while the power is off (#154, ADR-0078): the picture is
+where the last run was cut off, not where the railroad now stands, so the
+railroad comes up `off` and nothing moves until a person has looked and
+turned it on.
 
 The simulator is not among them. Its steel is on no topic, so the broker
 holds none of it and a restarted binding comes up with an empty layout while
@@ -31,8 +32,9 @@ from typing import Any
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bus import Payload
+from tc49.lib.inventory import OFF, ON
 from tc49.lib.layout import block_of
-from tests.harness import RUN_WANTED, events, load
+from tests.harness import events, load, power
 
 WANTED = "tc49/schedule/request_wanted"
 PLACED = "tc49/dispatch/placement_wanted"
@@ -50,10 +52,12 @@ def tick_until(assembly: Assembly, done: Callable[[], bool], limit: int = 50) ->
     assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
-def release(assembly: Assembly) -> None:
-    """The press a restored session waits for: it comes up held, and the
-    operator releases it once they have looked at the railroad (#154)."""
-    assembly.bus.publish(RUN_WANTED, {"run": "running"})
+def switched(assembly: Assembly, value: str) -> None:
+    """The layout stating the power, as it does once a person has turned the
+    switch: `off` where a restarted railroad comes up (ADR-0078), `on` once
+    the operator has looked at it (#154). The harness turns the simulator on
+    before the apps come up, so the restart's `off` is stated over it."""
+    assembly.bus.publish(*power(value))
     assembly.bus.drain()
 
 
@@ -139,23 +143,23 @@ def test_the_restarted_run_carries_no_route_and_no_request() -> None:
     }
 
 
-def test_a_restarted_run_moves_nothing_until_it_is_released() -> None:
-    """It comes up **held** (#154). The picture says where the last run
-    believed the railroad was and nobody has looked at it since, so the
+def test_a_restarted_run_moves_nothing_until_the_power_is_on() -> None:
+    """It comes up `off` (#154, ADR-0078). The picture says where the last
+    run believed the railroad was and nobody has looked at it since, so the
     second run admits the work and grants none of it: the boundaries pass, no
-    route is chosen, and the release is what starts it."""
+    route is chosen, and the power coming on is what starts it."""
     stopped = run_to_a_standstill()
 
     again = restarted(kept(stopped))
+    switched(again, OFF)
     again.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_w.B"]})
     again.bus.drain()
     tick_until(again, lambda: False, limit=3)
 
-    assert events(again.trace, "run")[-1]["run"] == "held"
-    assert events(again.trace, "request_admitted"), "held blocks commitment only"
+    assert events(again.trace, "request_admitted"), "off blocks commitment only"
     assert events(again.trace, "route_chosen") == []
 
-    release(again)
+    switched(again, ON)
     tick_until(again, lambda: bool(events(again.trace, "route_chosen")))
 
     assert events(again.trace, "route_chosen")
@@ -176,7 +180,7 @@ def test_a_train_restored_mid_crossing_is_resolved_by_placing_it() -> None:
 
     layout, _roster, _scenario = load("crossover-yard/meet")
     again = restarted(kept(stopped))
-    again.bus.drain()
+    switched(again, OFF)
     transit = picture(again)["crossing"]["freight_1"]
     connection, _, name = transit.partition(".")
     behind = picture(again)["trains"]["freight_1"]
@@ -193,7 +197,7 @@ def test_a_train_restored_mid_crossing_is_resolved_by_placing_it() -> None:
     assert picture(again)["trains"]["freight_1"] == ahead
     assert events(again.trace, "train_placed")[-1]["block"] == ahead
 
-    release(again)
+    switched(again, ON)
     again.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
     again.bus.drain()
     tick_until(again, lambda: bool(events(again.trace, "request_completed")))

@@ -6,8 +6,8 @@ request id is both correlation and idempotency key. The dispatcher grants on
 the events that arrive (ADR-0047): a sensor reading is applied where it
 lands, and a **sweep** — one grant pass over the active trains and the whole
 pending queue — runs wherever the lock table or the waiting set changes: a
-request admitted, a vacated block releasing what a move held, the run
-released. Every grant is `safe()`-checked before it commits, so arrival
+request admitted, a vacated block releasing what a move held, the power
+coming back `on`. Every grant is `safe()`-checked before it commits, so arrival
 order picks among safe options and never reaches an unsafe state.
 Standing locks are seeded and published at startup — from the last
 picture where the bus binding has kept one across a restart, and from the
@@ -24,14 +24,15 @@ second scheduler submitting alongside the first needs no change here
 (BUS.md, rule 4).
 
 The whole of what arrives is read that way (#260). Two filters: the requests
-this app answers — `request_submitted`, `run_wanted`, `placement_wanted`,
+this app answers — `request_submitted`, `placement_wanted`,
 `cancel_wanted`, `reorder_wanted` and `point_wanted`, from the ui, the scheduler, or a second scheduler introduced
 later — and what
 the layout interface observes, on a filter that also carries the `align` and
 `move` commands, which name the layout and are passed by unread. Every leaf
 goes through a reader in `lib.payload` and nothing subscripts a frame it has
 not read. The one thing left that could take the app off the bus was a sensor
-reading no granted move accounts for; it holds the run instead (ADR-0048).
+reading no granted move accounts for; it drains the railroad instead
+(ADR-0048, ADR-0078).
 """
 
 import sys
@@ -42,7 +43,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
-from tc49.lib.inventory import DRAINING, HELD, ON, RUNNING, Aspect, Refusal
+from tc49.lib.inventory import DRAINING, OFF, ON, Aspect, Refusal
 from tc49.lib.layout import (
     Layout,
     block_of,
@@ -58,7 +59,6 @@ from tc49.lib.payload import (
     placement,
     power,
     readable_id,
-    run_state,
     wanted_point,
     wanted_reorder,
 )
@@ -70,6 +70,10 @@ from tc49.lib.roster import Roster
 # test seeding the file a session comes up on.
 ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
+POWER = "tc49/layout/state/power"
+POWER_WANTED = "tc49/layout/power_wanted"
+"""Where a fault asks `layout` for a drain, as a person's press would
+(ADR-0078)."""
 UNFIT = "tc49/dispatch/state/unfit"
 """The trains the last rebuild under the same name took off the layout (#709).
 The UI's run view reads it."""
@@ -156,25 +160,20 @@ class State:
     # with no route behind it, which is what makes it a placement hint and
     # not a resumed move.
     crossing: dict[str, str] = field(default_factory=dict[str, str])
-    # `held`, `running` or `draining`: what the dispatcher may commit
-    # (ADR-0037, #294). A brake and not an emergency stop — a move already
-    # granted is not retractable — so it gates the sweep's grant pass and the
-    # aspects, and nothing else. State rather than a flag on the dispatcher
+    # `on`, `draining` or `off`: what the layout last said about the one
+    # switch a person turns (ADR-0078). The dispatcher routes, grants and
+    # locks only while it reads `on`; `draining` and `off` commit nothing, and
+    # requests wait. Not an emergency stop for what is already granted — a
+    # move already sent is not retractable and runs to its sensor whatever
+    # the power — so it gates the sweep's grant pass and the aspects, and
+    # admission goes on: it is cheap and reversible, and launching is the
+    # commitment. `off` too is when the detectors are compared with the
+    # placement (`disputed`). State rather than a flag on the dispatcher
     # because `aspects()` answers off it.
     #
-    # The three differ by how much of the grant pass they open. `running`
-    # launches and grants; `draining` grants a train already moving and
-    # launches nothing, so the work under way runs out and nothing takes its
-    # place; `held` commits nothing at all. All three admit — admission is
-    # cheap and reversible, and launching is the commitment.
-    run: str = RUNNING
-    # `on`, `stopped` or `off`: what the layout last said about whether a
-    # train may move at all (ADR-0041). Read only as "not `on`", the two ways
-    # of standing still differing for the person recovering and not here.
-    # `on` until the layout says otherwise, which is the same opening the run
-    # takes: the binding states it from its constructor, so the value arrives
-    # before anything is granted.
-    power: str = ON
+    # `off` until the layout says otherwise, because the railroad comes up
+    # `off` and nothing is routed over rails nobody has heard from.
+    power: str = OFF
     # block -> whether the layout last reported it occupied: the level each
     # detector last stated, which is what makes an at-least-once repeat a
     # no-op (ADR-0047), and what the dispute check compares (#153). Only blocks
@@ -304,25 +303,20 @@ def aspects(state: State) -> dict[str, str]:
     stands in is one back. The aspect belongs to where it stands, not where
     it is going.
 
-    **A held run puts every signal to stop.** An aspect answers "may the
-    train in this block leave via this end", and while held the answer is no
-    at every end (ADR-0037). Reading the locks instead would show `clear`
+    **Power not `on` puts every signal to stop.** An aspect answers "may the
+    train in this block leave via this end", and while `draining` or `off`
+    the answer is no at every end: nothing is granted, so a train standing at
+    a signal goes nowhere, and a drain stops each moving train in the block
+    it is entering (ADR-0078). Reading the locks instead would show `clear`
     over a railroad that is going nowhere, and on the physical layout would
-    leave a lineside signal green over dead track. It qualifies ADR-0025
-    rather than superseding it: the depth still decides which of the other
-    two shows.
-
-    **A draining run does not**, and for the same reason read the other way:
-    a drain goes on granting the trains already moving, so the answer at the
-    end one of them is leaving by is yes and its signal has to say so (#294).
-    What the drain withholds is launching, and a train that never launched
-    stands in a block nothing is locked beyond — which shows `stop` off the
-    locks, with no rule of its own.
+    leave a lineside signal green over a train that will not be let past it,
+    or over dead track. It qualifies ADR-0025 rather than superseding it: the
+    depth still decides which of the other two shows.
     """
     shown: dict[str, str] = {
         end: Aspect.STOP for end in sorted(state.layout.end_connection)
     }
-    if state.run == HELD:
+    if state.power != ON:
         return shown
     for train, active in state.active.items():
         standing = active.cur_index - (1 if active.outstanding else 0)
@@ -393,13 +387,15 @@ def disputed(state: State) -> Payload:
     handful of trains. It **resolves** nothing: the check points, and a
     person ends every entry with a `placement_wanted`.
 
-    **Only while held**, which is the moment it is about: before anything
-    commits, over a placement nobody has looked at. A running dispatcher's
-    placement is what its sensors have just told it, so the two agree by
-    construction and a comparison would catch nothing but itself mid-transit.
-    Releasing therefore empties the set rather than freezing it — the person
-    has decided, and a set left standing would go on disputing a railroad
-    they accepted.
+    **Only while power reads `off`**, which is the moment it is about: before
+    anything commits, over a placement nobody has looked at, and after a
+    fault has drained the railroad to a stand (ADR-0078). A routing
+    dispatcher's placement is what its sensors have just told it, so the two
+    agree by construction and a comparison would catch nothing but itself
+    mid-transit — and a drain is still running trains to their sensors.
+    Anything but `off` therefore empties the set rather than freezing it: a
+    person turning the power on has decided, and a set left standing would
+    go on disputing a railroad they accepted.
 
     Only blocks `reported` carries take part, which is the load-bearing rule:
     a block the layout has said nothing about is not clear, it is unknown.
@@ -419,7 +415,7 @@ def disputed(state: State) -> Payload:
       the block a train has been granted a move into, which reads occupied
       the moment it arrives and is not a stray.
     """
-    if state.run != HELD:
+    if state.power != OFF:
         return {"trains": [], "blocks": []}
     return {
         "trains": sorted(
@@ -448,7 +444,8 @@ def broken(state: State) -> list[str]:
     move took; a crossing train is placed; and no two trains' locked transits
     conflict (ADR-0006).
 
-    The dispatcher holds the run on a rule newly broken (ADR-0076). `safe()`
+    The dispatcher drains the railroad on a rule newly broken (ADR-0076,
+    ADR-0078). `safe()`
     is not among them: its cost grows exponentially with the active trains
     (ADR-0003).
     """
@@ -694,44 +691,18 @@ class Dispatcher:
             {},
             {},
             {},
+            # The railroad comes up `off` (`State.power`), restored or cold,
+            # so nothing is routed until a person turns the power on
+            # (ADR-0078): a restored picture is wherever the last session
+            # left the steel, and the person turning it on is the one who has
+            # looked.
             crossing=adopted.crossing,
-            # **A run comes up held unless its own document stood its trains
-            # on the rails** (ADR-0037 as #171 amends it, ADR-0039).
-            #
-            # A **restored** session comes up held (#154), which is the whole
-            # point of the hold on a real railroad: the steel is wherever the
-            # last session left it, and coming up running on the strength of a
-            # picture nobody has looked at is the failure the hold exists to
-            # prevent. The retained `state/run` is not what decides it — a
-            # session cut while running left `running` waiting on that topic —
-            # and neither is how much of the picture was taken: a train the
-            # document overruled, or that adoption placed nowhere at all
-            # (`restored`), is one more thing to come and look at rather than
-            # a reason to start running. A value nothing could be taken from
-            # at all is the far end of that scale and not an exception to it
-            # (#278): a session left something on this topic and its record
-            # is damaged, which is more to come and look at rather than less.
-            # So the hold turns on a value **being there** and never on what
-            # could be read out of it.
-            #
-            # A cold session with an **empty layout** comes up held too, and
-            # for a plainer reason: the only thing there is to do on one is
-            # place trains, and `placement_wanted` is honoured while held and
-            # dropped while running. Coming up running would refuse the first
-            # gesture an operator makes. That is every run an operator starts
-            # (#171) — the hold is what lets them lay the railroad out.
-            #
-            # What is left is the harness's batch loop, whose document stands
-            # its trains before anything runs: nothing is left to place,
-            # and a run that refused to grant with nobody at a panel would be
-            # a fault that looks like a hang (ADR-0037).
-            run=HELD if picture or not adopted.standing else RUNNING,
         )
         # Before the opening rows and not after. Over a broker a publish is
         # asynchronous where a subscribe waits for the broker to acknowledge,
         # so publishing first opens a window a round trip wide in which a
-        # gesture addressed to this app is lost — `state/run` is what a client
-        # waits for to know the dispatcher is up, and a gesture is an event
+        # gesture addressed to this app is lost — `state/moving` is what a
+        # client waits for to know the dispatcher is up, and a gesture is an event
         # that nothing replays. In one process the window had no width and the
         # order did not show. Safe here because `_on_dispatch` already ignores
         # this app's own announcements coming back past it, and nothing on
@@ -762,27 +733,36 @@ class Dispatcher:
         # the track is dead while it is live, or the other way about, with
         # nothing to notice.
         self._ordering = Ordering()
-        # The last `state/run` row published, so the topic moves only when
-        # what it says moves — the run word or `moving`, either of them.
-        self._published_run: Payload | None = None
+        # The power, where the bus already holds a value of it: read here for
+        # the reason the picture is, so a railroad that is already on routes
+        # what is admitted from the first event rather than from the drain
+        # that delivers the subscription. Through the ordering, so the
+        # replay of the same value is no change. A bus holding none leaves
+        # the railroad `off` (`State.power`).
+        stated = bus.last_values.get(POWER)
+        if stated is not None and self._ordering.accepts(POWER, stated):
+            self._state.power = power(stated)
+        # The last `state/moving` value published, so the topic moves only
+        # when what it says moves.
+        self._published_moving: bool | None = None
         # The trains the rebuild left off, until a person places each one.
         self._unfit = dict(adopted.unfit)
         # The lock table's rules broken at the last check (`_check`), so only
-        # a rule newly broken holds the run.
+        # a rule newly broken drains the railroad.
         self._broken: list[str] = []
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
         # `caution` for a route this one did not restore would stand until
         # the first grant phase, and a panel joining in that window draws a
-        # clear road nothing holds a lock on. The run state opens it for the
+        # clear road nothing holds a lock on. `moving` opens it for the
         # same reason and one step earlier: it is the frame the rest is read
         # in, and a joining client is served a value rather than left to
         # read one out of an absence (ADR-0032). The disputed set closes it
         # for the same reason again: nothing has been reported yet, so the
         # set is empty, and saying so is what clears whatever the last
         # session left standing on that topic.
-        self._publish_run()
+        self._publish_moving()
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
@@ -1054,9 +1034,9 @@ class Dispatcher:
     # -- what is addressed to the dispatcher --------------------------------
 
     def _on_dispatch(self, topic: str, payload: Payload) -> None:
-        """The six topics the dispatcher responds to, on one filter.
+        """The five topics the dispatcher responds to, on one filter.
 
-        A request, and the five gestures a person makes on a page: all six
+        A request, and the four gestures a person makes on a page: all five
         name the dispatcher because the dispatcher is what answers them, and
         none of them says who sent it. The scheduler submits requests today
         and a second one could submit them tomorrow with nothing here to
@@ -1071,8 +1051,6 @@ class Dispatcher:
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "request_submitted":
             self._on_request(payload)
-        elif leaf == "run_wanted":
-            self._set_run(payload)
         elif leaf == "placement_wanted":
             self._place(payload)
         elif leaf == "cancel_wanted":
@@ -1083,87 +1061,6 @@ class Dispatcher:
             self._throw(payload)
         self._check()
 
-    def _set_run(self, payload: Payload) -> None:
-        """Hold the run, or release it.
-
-        Releasing runs a sweep: the release is what re-opens the gate the
-        hold closed, so the waiting set is reconsidered here and the first
-        wheel turns with the press (ADR-0047).
-
-        A release is **refused while the track has no power**, dropped in
-        silence and to the trace as every other gesture the dispatcher cannot
-        act on is (ADR-0034). Releasing into dead rails would choose routes,
-        grant moves and publish `move` over track nothing can move on, and
-        strand the next train exactly as the cut stranded the first
-        (ADR-0041). A **drain is refused there too**: it grants the trains
-        already under way, so over dead rails it asks for exactly what a
-        release asks for, and a railroad with no power has in any case
-        nothing left to drain. A hold is honoured whatever the power is
-        doing: it asks for less, and there is no state of the railroad in
-        which a person may not ask for it.
-        """
-        wanted = run_state(payload)
-        if wanted is None:
-            return
-        if wanted != HELD and self._state.power != ON:
-            return
-        self._move_run(wanted)
-
-    def _move_run(self, wanted: str) -> None:
-        """Where the run stands, however it was moved there: a person's
-        gesture, the layout saying the track has no power, or the drain
-        finding it has nothing left to wait for. One path, so no two of them
-        can come to publish different things — and a value that changes
-        nothing publishes nothing."""
-        if wanted == self._state.run:
-            return
-        self._state.run = wanted
-        self._publish_run()
-        self._publish_aspects()
-        # Held, and the detectors are asked what they make of the placement;
-        # released, and the set empties. Not a dispute swept away: a person
-        # releasing has decided the railroad is as they want it, and a
-        # running dispatcher's placement follows the sensors move by move, so
-        # there is nothing left for the check to compare (#153).
-        self._publish_disputed()
-        if wanted != HELD:
-            # A release re-opens the gate the hold closed, and a drain
-            # re-opens half of it: either way what may be granted has just
-            # widened, and a sweep is the one entry point into granting
-            # (ADR-0047). It is also where a drain over a railroad with
-            # nothing under way finds its first moment — such a drain ends at
-            # `held` in the press that started it, and the panel waiting on
-            # that value is answered rather than left waiting (#294).
-            self._sweep()
-
-    def _drained(self) -> None:
-        """The drain's completion: `held`, written by the dispatcher itself
-        at the first moment no train is active and none is crossing (#294).
-
-        That moment is what the panel watches for before cutting power
-        (ADR-0051), so it is stated on the topic rather than left to be
-        inferred from an empty picture. It is checked at the end of every
-        sweep, a sweep being what runs wherever the lock table or the waiting
-        set moves — which is wherever a train can have stopped being active.
-
-        A **crossing** train counts even with no request behind it: a
-        restored crossing hint is a train the dispatcher believes is between
-        two blocks, and a drain that ended over one would be telling the
-        panel it is safe to cut. Nothing clears such a hint but a person, and
-        the way out of a drain that waits forever is the same one as for a
-        wedged train — hold, and take the train off the layout (ADR-0039).
-
-        Manual trains need no mention here. Every train moves on a route the
-        dispatcher allocated, and *manual* names only who turns the throttle,
-        so a train being driven by hand is active exactly as any other is
-        (#207).
-        """
-        if self._state.run != DRAINING:
-            return
-        if self._moving():
-            return
-        self._move_run(HELD)
-
     def _place(self, payload: Payload) -> None:
         """Where a train actually is, said by the person who can see it: the
         block it stands in, or nowhere at all.
@@ -1173,11 +1070,14 @@ class Dispatcher:
         destination, so `block: null` is a placement whose answer is *off the
         layout* rather than a leaf of its own.
 
-        The train has to be known either way. **Putting it on a block needs
-        the run held**, since that direction takes a lock; **taking it off
-        does not** (ADR-0069): a person lifts a train whenever they need to,
-        and what the removal frees is freed the way a cancellation frees it,
-        with the track a loco still stands on kept until it reads clear. A
+        The train has to be known either way, and **either direction is
+        accepted at any power** (#821, ADR-0069): a person puts a train on
+        the rails or lifts it off whenever they need to, and what decides
+        whether a block can take it is whether the block is **free** — of
+        every lock and every route committed through it (`State.free`) —
+        rather than whether anything else is running. What a removal frees
+        is freed the way a cancellation frees it, with the track a loco still
+        stands on kept until it reads clear. A
         **request in flight was a precondition** and is not one any more
         (ADR-0049): the gesture cancels it first and then places the
         train, so `request_cancelled` precedes `train_placed` or
@@ -1213,9 +1113,18 @@ class Dispatcher:
             return
         if wanted.block is None:
             self._remove(wanted.train)
-        elif state.run == HELD:
+        else:
             self._cancel(wanted.train, Cancellation.DISPLACED)
             self._stand(wanted.train, wanted.block)
+            # What the cancellation gave up, or the block the train left, is
+            # track somebody else may have been refused for (ADR-0047). The
+            # sweep also publishes what a placement moves besides the lock
+            # table: the picture, the disputed set the entry just resolved
+            # leaves (#153), and `moving`, which saying where a crossing train
+            # stands drops — the way out of a drain a wedged train holds open
+            # (ADR-0062), so the row has to follow it or `layout` waits
+            # forever to switch the supply off.
+            self._sweep()
 
     def _stand(self, train: str, block: str) -> None:
         """A train put on the layout, or moved by hand from where it was.
@@ -1263,7 +1172,6 @@ class Dispatcher:
         # the block is a standing lock now, and no clear reading will come
         # for it as residue.
         self._open(train, self._spent(train))
-        self._settled()
 
     def _remove(self, train: str) -> None:
         """A train taken off the layout: lifted out of its block by hand.
@@ -1272,7 +1180,7 @@ class Dispatcher:
         again; what it loses is its place on the rails, which is absence from
         `block_of` and not a sentinel (ADR-0039).
 
-        Accepted in any run state (ADR-0069). Its requests are cancelled
+        Accepted at any power (ADR-0069). Its requests are cancelled
         first, `removed`, so `train_removed` describes a train with none.
 
         **What it held is released**, except what a loco may still be
@@ -1288,7 +1196,8 @@ class Dispatcher:
 
         Computed before the cancellation, which forgets which transit the
         train was crossing. Track a removal frees is what a cancellation
-        frees, so a run not held sweeps for it.
+        frees, so it sweeps for it, and the sweep grants only while power
+        reads `on`.
 
         A train that is already off the layout is left alone. The gesture
         asks for a state it is in, and there is no fact to announce.
@@ -1297,6 +1206,7 @@ class Dispatcher:
         kept = self._kept(train)
         self._cancel(train, Cancellation.REMOVED, keep=kept)
         if train not in state.block_of and train not in state.crossing:
+            self._sweep()  # for whatever the cancellation ended
             return
         self._release(train, keep=kept)
         state.residue |= kept
@@ -1305,10 +1215,7 @@ class Dispatcher:
         # a transit either: the hint goes with the placement it belonged to.
         state.crossing.pop(train, None)
         self._publish("train_removed", {"train": train})
-        if state.run == HELD:
-            self._settled()
-        else:
-            self._sweep()
+        self._sweep()
 
     def _kept(self, train: str) -> set[str]:
         """What a removal of `train` leaves held: each block it holds that a
@@ -1401,12 +1308,12 @@ class Dispatcher:
         dispatcher does not hold is dropped in silence and to the trace, as
         every gesture it cannot act on is (ADR-0034).
 
-        It does **not** require a held run. Cancelling is how a person ends
-        work the railroad cannot finish — a train that broke down, a route
-        chosen against a railroad that has since changed under it — and
-        making them hold the whole run first would stop every other train to
-        let one go. The hold is a brake on new commitment; this retires one
-        request, and what it frees the next sweep hands to somebody else.
+        It is accepted **at any power**. Cancelling is how a person ends work
+        the railroad cannot finish — a train that broke down, a route chosen
+        against a railroad that has since changed under it — and making them
+        turn the power off first would stop every other train to let one go.
+        This retires one request, and what it frees the next sweep hands to
+        somebody else.
         """
         rid = readable_id(payload)
         req = None if rid is None else self._listed(rid)
@@ -1493,7 +1400,7 @@ class Dispatcher:
         answers the move — a move whose sensors may never come is the case
         they are standing in front of. So the request retires at the gesture,
         and an occupied reading that does arrive for it afterwards explains
-        nothing and holds the run (ADR-0048), which is the right answer to a
+        nothing and drains the railroad (ADR-0048), which is the right answer to a
         detector firing under a train somebody has just moved by hand. A clear
         reading on track the gesture gave up is a block nobody holds reading
         clear, and holds nothing (ADR-0077).
@@ -1510,8 +1417,6 @@ class Dispatcher:
         for req in waiting:
             self._publish("request_cancelled", {"id": req.id, "reason": reason})
             self._ending(req, None)
-        if active is not None or waiting:
-            self._settled()
 
     def _retire(
         self,
@@ -1539,19 +1444,6 @@ class Dispatcher:
         self._requests.remove(active.request)
         self._publish("request_cancelled", {"id": active.request.id, "reason": reason})
         self._ending(active.request, None)
-
-    def _settled(self) -> None:
-        """What a placement changes besides the lock table: the picture a
-        joining client draws from, and the disputed set — the entry the person
-        just resolved leaves it, which is what empties it as the railroad is
-        walked (#153) — and `moving`, which a placement can move without a
-        sweep: saying where a crossing train stands drops the hint, and
-        lifting it off the layout drops the hint and its request together.
-        That is the documented way out of a drain a wedged train holds open
-        (ADR-0062), so the row has to follow it or the panel waits forever."""
-        self._publish_allocation()
-        self._publish_disputed()
-        self._publish_run()
 
     # -- the sensors, and the sweep they trigger ----------------------------
 
@@ -1591,7 +1483,7 @@ class Dispatcher:
         and a no-op, so delivery needs no counter and no dedup. A reading
         that *changes* the level either explains a granted move — recorded
         arrival for `block_occupied`, a finished move for `block_vacated` —
-        or explains nothing, which holds the run (ADR-0048). Either way the
+        or explains nothing, which drains the railroad (ADR-0048). Either way the
         level is recorded first: what the dispute check compares is every
         reading that arrived, explained or not (#153).
         """
@@ -1616,8 +1508,8 @@ class Dispatcher:
         return train, active, active.outstanding
 
     def _unexplained(self) -> None:
-        """A reading no granted move accounts for: **the run holds**
-        (ADR-0048).
+        """A reading no granted move accounts for: **the railroad drains**
+        (ADR-0048, ADR-0078).
 
         A hand putting a locomotive on a detected block, a train pushed while
         the supply was off, a cut of cars a broken coupling left standing, a
@@ -1628,28 +1520,30 @@ class Dispatcher:
         `safe()` believes free, and granting it is a collision the check would
         call safe.
 
-        So the run holds, by the path track power takes (ADR-0041) — nothing
-        new commits, every signalled end shows `stop`, and the move already
-        outstanding still runs to its sensors. It does not raise: the frame is
-        well formed and a handler that raised would take the app off the bus
-        for an ordinary act of a person's hand (BUS.md, rule 4). It is not
-        dropped either, and nothing is placed: occupancy is anonymous, so
-        there is no train to place, and the reading is on the trace and in the
-        dispute set the hold turns on, which is what points a person at it
-        (#153). They walk the railroad, place what they find, and press GO.
+        So the dispatcher asks `layout` for a drain, as a person's press would
+        (`_drain`): nothing new commits, every signalled end shows `stop`, the
+        move already outstanding still runs to its sensors, and the supply
+        goes off once nothing is moving. It does not raise: the frame is well
+        formed and a handler that raised would take the app off the bus for
+        an ordinary act of a person's hand (BUS.md, rule 4). It is not dropped
+        either, and nothing is placed: occupancy is anonymous, so there is no
+        train to place, and the reading is on the trace and in the dispute set
+        power `off` turns on, which is what points a person at it (#153). They
+        walk the railroad, place what they find, and turn the power on.
         """
-        self._move_run(HELD)
+        self._drain()
 
-    def _check(self) -> None:
+    def _check(self) -> bool:
         """The lock table's rules, checked (`broken`): a rule broken now and
-        not at the last check **holds the run**, by the path an unexplained
-        reading takes, and is written to stderr (ADR-0076).
+        not at the last check **drains the railroad**, by the path an
+        unexplained reading takes, and is written to stderr (ADR-0076,
+        ADR-0078). Answers whether one was.
 
         A rule still broken from the last check does nothing, so a person who
-        has looked and pressed GO is not overruled by the next sweep; one that
-        clears and breaks again holds again. It does not raise, for
-        ADR-0048's reason: an exception out of a handler takes the app off
-        the bus. Nothing goes on the bus for it either.
+        has looked and turned the power on again is not overruled by the next
+        sweep (#811); one that clears and breaks again drains again. It does
+        not raise, for ADR-0048's reason: an exception out of a handler takes
+        the app off the bus.
 
         Called at the end of each event and before each grant pass, never
         after a single write: a handler changes several maps in steps, and
@@ -1661,7 +1555,24 @@ class Dispatcher:
         for line in new:
             print(f"dispatcher: lock table: {line}", file=sys.stderr, flush=True)
         if new:
-            self._move_run(HELD)
+            self._drain()
+        return bool(new)
+
+    def _drain(self) -> None:
+        """A fault asking `layout` for a drain: `power_wanted: draining`, the
+        press a person makes for an ordinary shutdown (ADR-0078, decision 7).
+
+        Asked, not done. `layout` owns the switch and states the answer on
+        `state/power`, and the dispatcher stops routing when it reads it, as
+        it does for a person's press; holding the dispatcher on a value of its
+        own would split the switch again, and a person turning the power on
+        could then find it reading `on` and nothing routing. Only while power
+        reads `on`: `draining` is answered from `on` alone, so asking from
+        anywhere else asks for nothing — and a railroad that is already
+        draining or off is already where a fault would put it.
+        """
+        if self._state.power == ON:
+            self._bus.publish(POWER_WANTED, {"power": DRAINING})
 
     def _arrived(self, block: str) -> None:
         """`block_occupied` records where the train arrived, and ends the move
@@ -1685,7 +1596,7 @@ class Dispatcher:
         block reads occupied (ADR-0077).
 
         **Before the arrival it only marks the move's origin cleared**: no
-        release, no grant, and no hold. The layout publishes a vacate when the
+        release, no grant, and no drain. The layout publishes a vacate when the
         origin's own detectors go clear, and a train shorter than the gap to
         the next block's entry detector reads clear behind before it reads
         occupied ahead, which is normal running. The train may be standing on
@@ -1694,7 +1605,7 @@ class Dispatcher:
 
         A clear reading on a block nobody holds is explained too: a stray or
         a stuck detector clearing, which gives back a block a train may be
-        waiting on, so it sweeps rather than holding the run.
+        waiting on, so it sweeps rather than draining the railroad.
         """
         state = self._state
         found = self._explained(block)
@@ -1749,7 +1660,7 @@ class Dispatcher:
         has lifted the loco, and the block opens (ADR-0069). Answers whether
         the reading was that.
 
-        The reading is explained, so the run does not hold. It releases the
+        The reading is explained, so the railroad does not drain. It releases the
         block, and the transit kept for it once neither of that transit's
         blocks is still residue, in one `lock_released` — and what it frees is
         why a sweep runs here, as at the end of any move. A clear reading
@@ -1767,73 +1678,72 @@ class Dispatcher:
         return True
 
     def _on_power(self, payload: Payload) -> None:
-        """What the layout says about whether a train may move at all.
+        """What the layout says about the one switch a person turns: `on`,
+        `draining` or `off` (ADR-0078).
 
-        Anything but `on` **holds the run**, by the path a person's HOLD
-        takes: the dispatcher commits nothing more, and every signalled end
-        shows `stop` rather than going on showing `clear` over track with no
-        volts in it (ADR-0041). Which of `stopped` and `off` it is changes
-        nothing here — the two differ for the person recovering, who clears an
-        emergency stop or switches a supply back on, and the panel is where
-        that is said.
+        Anything but `on` **routes nothing**: no route is chosen, no move
+        granted and no lock taken, and every signalled end shows `stop`
+        rather than going on showing `clear` over a train that will not be
+        let past it (ADR-0041). Which of the others it is changes nothing here
+        but the disputed set, compared only under `off` — `layout` switches a
+        drain off once `state/moving` reads false, and the panel is where the
+        person is told which it is.
 
         "Anything but `on`" is read literally, so a payload that cannot be
         read at all is one of those cases rather than an exception: the value
         comes through `payload.power`, which answers `off` where a
         subscript would have raised (#175).
 
-        Power **returning** to `on` releases nothing. That is the bar the hold
-        exists for: an explicit GO before anything moves, whatever the rails
-        did in the meantime, and the same guarantee the hardware gives at
-        power-up by coming back idle.
+        Power **returning** to `on` runs a sweep (ADR-0078, decision 6): a
+        person turning the power on is the whole of the go, after a drain, a
+        cut or a fault alike, and every train carries on with what it was
+        granted while the waiting requests are routed.
 
         What it cannot do is undo the cut. A train granted a move that no
         sensor will ever answer keeps its locks and its `crossing` entry, and
         every train waiting on those resources waits with it, until somebody
-        takes that train off or places it again under the hold, which cancels
-        its request (ADR-0049) — the hold is a brake and not an emergency
-        stop, and nothing on the bus retracts a `move` already sent.
+        takes that train off or places it again, which cancels its request
+        (ADR-0049) — nothing on the bus retracts a `move` already sent.
         """
+        was = self._state.power
         self._state.power = power(payload)
-        if self._state.power != ON:
-            self._move_run(HELD)
+        if self._state.power == was:
+            return
+        if self._state.power == ON:
+            self._sweep()
+        else:
+            self._publish_aspects()
+            self._publish_disputed()
 
     def _sweep(self) -> None:
         """One grant pass, run where the lock table or the waiting set
         changed: a request admitted, cancelled or moved in the list, a vacated
-        block releasing what a move held, the run released. A sweep covers
-        the whole list, so a refused request is reconsidered exactly when the
-        resource it waited on frees (ADR-0047).
+        block releasing what a move held, the power coming back `on`. A sweep
+        covers the whole list, so a refused request is reconsidered exactly
+        when the resource it waited on frees (ADR-0047).
 
-        While the run is held nothing commits (ADR-0037): the hold is a brake
-        and not an emergency stop — nothing on the bus retracts a `move`
-        already sent — so a sensor still applies where it lands, and what is
-        withheld is everything that would commit something new. A **drain**
-        withholds half of that — the launches, and nothing else — so the
-        grant pass runs for anything but a hold and `_grant` reads the run
-        again for the queue (#294). `_phases` keeps counting whatever the run
-        is doing: a held run is still a run, and the count is what stamps an
-        admission with the grant order it joined at.
-
-        The drain's completion is read here at the end, because a sweep is
-        exactly what runs wherever a train can have stopped being active.
+        While power reads anything but `on` nothing commits (ADR-0078): a move
+        already sent is not retractable, so a sensor still applies where it
+        lands, and what is withheld is everything that would commit something
+        new — a drain grants no train its next move, and each stops in the
+        block it is entering. `_phases` keeps counting whatever the power is
+        doing: the count is what stamps an admission with the grant order it
+        joined at.
         """
         self._phases += 1
         # Before the grant pass, so a table that has stopped agreeing with
-        # itself grants nothing in this sweep (ADR-0076).
-        self._check()
-        if self._state.run != HELD:
+        # itself grants nothing in this sweep (ADR-0076), however long the
+        # drain it asked for takes to come back on `state/power`.
+        faulted = self._check()
+        if self._state.power == ON and not faulted:
             self._grant()
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
-        self._drained()
-        # And what `moving` reads, after the drain has had its say: a sweep
-        # grants the moves that start one and covers every place a train
-        # stops being active, so it is where the boolean moves under a run
-        # word that is standing still (ADR-0062). A completed drain has just
-        # published the pair itself, and this republishes nothing.
-        self._publish_run()
+        # And `moving`: a sweep grants the moves that start one and covers
+        # every place a train stops being active, so it is where the boolean
+        # moves (ADR-0062).
+        self._publish_moving()
 
     def _grant(self) -> None:
         state = self._state
@@ -1847,12 +1757,6 @@ class Dispatcher:
                 # making to end, and takes no other (ADR-0049).
                 continue
             self._apply_move(active, self._strategy.grant(train, state))
-        if state.run != RUNNING:
-            # Draining: the trains already moving have just been granted and
-            # nothing new is launched, which is the whole of the gate (#294).
-            # The list is untouched, so a drain a person turns back releases
-            # into the order the list holds.
-            return
         # The list in its order (ADR-0080): each waiting request is offered
         # the first claim in turn, and one that cannot start is skipped, so a
         # later one still starts where an earlier one cannot. A train's own
@@ -2045,9 +1949,9 @@ class Dispatcher:
         record of where it left the point. Every `align` sends all the points
         its transit needs, so the next route over this one sets it again.
 
-        Neither the hold nor the power stops it. Throwing a point on a road
-        nothing is lit over commits nothing, which is all the hold refuses;
-        with the power off the layout stores the row and the point moves
+        The power does not stop it. Throwing a point on a road nothing is lit
+        over commits nothing, which is all power not `on` refuses; with the
+        power off the layout stores the row and the point moves
         when power returns (ADR-0054).
         """
         point = wanted_point(payload)
@@ -2078,42 +1982,29 @@ class Dispatcher:
 
     def _moving(self) -> bool:
         """Whether a power cut now would strand something: any train active,
-        or any train crossing (CONTEXT.md, **Moving**).
-
-        One test, read by the two that need it — the drain's completion, and
-        the `moving` the row carries — because they are the same question and
-        a second copy of it could answer differently. A **crossing** train
+        or any train crossing (CONTEXT.md, **Moving**). A **crossing** train
         counts with no request behind it: a restored hint is a train the
-        dispatcher believes is between two blocks (`_drained`).
+        dispatcher believes is between two blocks, and a drain that ended
+        over one would have `layout` cut the supply under it.
         """
         return bool(self._state.active or self._state.crossing)
 
-    def _publish_run(self) -> None:
-        """Whether the run is held, running or draining, and whether anything
-        is moving, on a last-value topic. An enum and not a boolean, which is
-        what let the drain take a third value here rather than invent a state
-        of its own (#123, #294). The dispatcher writes the third one as well
-        as reading it: a drain ends itself at `held`, and that transition is
-        what the panel watches for (`_drained`).
+    def _publish_moving(self) -> None:
+        """Whether anything is moving, on `state/moving`: what `layout` reads
+        to end a drain by switching the supply off (ADR-0078, ADR-0062).
 
-        **`moving` rides beside the run word and is not a fourth value of
-        it** (ADR-0062). `held` alone does not say the railroad is still: the
-        dispatcher writes that word when a drain completes, and a person's
-        HOLD writes the same word with trains still rolling, so a reader
-        waiting to cut power was answered by the wrong event. Both are
-        published together, and either moving publishes the row — a running
-        run whose last train arrives says `running` with `moving` false.
-
-        The **whole row** is what is compared, so a value that changes
-        nothing publishes nothing, as it does for every other state topic
-        here. That is what lets this be called wherever `moving` can have
-        moved without a caller working out whether it did.
+        A boolean of its own and beside power rather than a value of it: power
+        says what a person asked the railroad for, and this says whether the
+        railroad has got there. A value that changes nothing publishes
+        nothing, as it does for every other state topic here, which is what
+        lets this be called wherever `moving` can have moved without a caller
+        working out whether it did.
         """
-        row: Payload = {"run": self._state.run, "moving": self._moving()}
-        if row == self._published_run:
+        moving = self._moving()
+        if moving == self._published_moving:
             return
-        self._published_run = row
-        self._publish("state/run", row)
+        self._published_moving = moving
+        self._publish("state/moving", {"moving": moving})
 
     def _publish_aspects(self) -> None:
         """The signalled ends, on a last-value topic, when any of them has
@@ -2139,7 +2030,7 @@ class Dispatcher:
         when it moves — the panel points a person at it, and a panel joining
         later must find it there (ADR-0032). Published from every place that
         moves either side of the comparison: a reading arriving, a placement,
-        and the hold itself."""
+        and the power reading `off` or leaving it."""
         found = disputed(self._state)
         if found != self._disputed:
             self._disputed = found

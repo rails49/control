@@ -19,17 +19,16 @@ The startup order is `lib/startup.py`'s, and this app runs all three of its
 steps. **Two documents**, the layout and the roster: the roster is the whole
 of what the dispatcher knows about stock, and being on it is what makes a
 train **known** (ADR-0039). **One row of its own to adopt**, the picture it
-already holds (`tc49/dispatch/state/allocation`) — missing it would lose the
-hold that picture imposes, and a restored session comes up held whatever the
-steel has been doing meanwhile. A railroad the store does not have leaves it
-**standing** — up, with no railroad, built on the first one the row names that
-the store can give (#564, `lib/loading.py`).
+already holds (`tc49/dispatch/state/allocation`) — missing it would lose
+where the last session left the trains. A railroad the store does not have
+leaves it **standing** — up, with no railroad, built on the first one the row
+names that the store can give (#564, `lib/loading.py`).
 
 What the layout says about the supply is *not* waited for: `state/power`
-arrives on the dispatcher's own filter at the first drain, and the run comes
-up **held** with nothing granted until a person releases it, so there is no
-window in which the dispatcher could commit a move over rails it has not yet
-heard about.
+arrives on the dispatcher's own filter at the first drain, and the dispatcher
+routes nothing until `state/power` reads `on` (ADR-0078), so there is no
+window in which it could commit a move over rails it has not yet heard
+about.
 
 Then the loop, which is a drain and a sleep. `Dispatcher` is handed a `Bus`
 and nothing else changes in the package: what a run an operator drives has is
@@ -111,8 +110,8 @@ def serve(
     the new railroad comes up empty and the trains are put on it by hand.
     **Under the same name it stays** (ADR-0071): a restore or a saved edit
     changed the drawing and not the track, so the picture is kept on the
-    broker and adopted exactly as after a restart — held, and each train
-    placed again where its block still exists and still holds it.
+    broker and adopted exactly as after a restart — each train placed again
+    where its block still exists and still holds it.
     """
     loaded = Loaded(railroad)
     if not connected(bus, stop, log):
@@ -126,7 +125,7 @@ def serve(
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     while not stop.is_set():
         retained(bus, ALLOCATION, stop, retained_s)
-        # No placement of its own: a run an operator drives comes up held, on
+        # No placement of its own: a run an operator drives comes up on
         # whatever picture the broker kept — one a restart or a rebuild under
         # the same name left (ADR-0071) — and otherwise with an empty layout,
         # every train arriving as a gesture (ADR-0039). Locking is

@@ -4,7 +4,8 @@
 state breaks nothing, and each rule broken alone gives one line naming what
 broke it. Then the dispatcher at the bus, over a table broken by hand — no
 path the railroad produces is known to break it (ADR-0077) — where the newly
-broken rule holds the run once and a person's GO is honoured.
+broken rule asks `layout` for a drain once, and a person turning the power on
+again is honoured (ADR-0078, #811).
 """
 
 import pytest
@@ -16,8 +17,9 @@ from tc49.dispatcher.locking import Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.inventory import DRAINING, ON
 from tc49.lib.layout import Layout
-from tests.harness import RUN_WANTED, load
+from tests.harness import POWER, POWER_WANTED, load
 
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
 
@@ -199,8 +201,9 @@ def test_a_strategy_writes_nothing(strategy: type[Incremental | FullRoute]) -> N
 def a_bus_dispatcher(
     strategy: type[Incremental | FullRoute] = Incremental,
 ) -> tuple[InProcessBus, Dispatcher, list[tuple[str, Payload]]]:
-    """A dispatcher on a bus of its own over `crossover-yard/meet`, running,
-    and everything it publishes."""
+    """A dispatcher on a bus of its own over `crossover-yard/meet`, with the
+    power on, and everything it publishes: its own topics, and every drain
+    it asks `layout` for."""
     layout, roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
     said: list[tuple[str, Payload]] = []
@@ -211,10 +214,9 @@ def a_bus_dispatcher(
         placement(scenario.trains),
         strategy(layout, DEFAULT_K),
     )
-    bus.subscribe(
-        "tc49/dispatch/#", lambda topic, payload: said.append((topic, payload))
-    )
-    bus.drain()
+    for topic in ("tc49/dispatch/#", POWER_WANTED):
+        bus.subscribe(topic, lambda topic, payload: said.append((topic, payload)))
+    deliver(bus, POWER, {"power": ON})
     return bus, dispatcher, said
 
 
@@ -223,14 +225,19 @@ def deliver(bus: InProcessBus, topic: str, payload: Payload) -> None:
     bus.drain()
 
 
-def test_a_newly_broken_rule_holds_the_run_once(
+def drains(said: list[tuple[str, Payload]]) -> list[object]:
+    """The powers the dispatcher has asked `layout` for."""
+    return [payload["power"] for topic, payload in said if topic == POWER_WANTED]
+
+
+def test_a_newly_broken_rule_drains_the_railroad_once(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The table broken by hand — `express_2` standing in `up_e` with the
-    lock on it gone — and an event delivered: the run holds, and the line
-    names the train."""
-    bus, dispatcher, _said = a_bus_dispatcher()
-    assert dispatcher.state.run == "running"
+    lock on it gone — and an event delivered: the dispatcher asks `layout`
+    for a drain, as a person's press would, grants nothing in the sweep that
+    found it, and the line names the train."""
+    bus, dispatcher, said = a_bus_dispatcher()
     capsys.readouterr()
 
     del dispatcher.state.locks["up_e"]
@@ -240,22 +247,26 @@ def test_a_newly_broken_rule_holds_the_run_once(
         {"id": "r-1", "train": "freight_1", "depart": "yard_w.B", "dest": ["dn_w.A"]},
     )
 
-    assert dispatcher.state.run == "held"
-    said = capsys.readouterr().err
+    assert drains(said) == [DRAINING]
+    assert dispatcher.state.crossing == {}
+    errors = capsys.readouterr().err
     assert any(
         line.startswith("dispatcher: lock table:") and "express_2" in line
-        for line in said.splitlines()
-    ), said
+        for line in errors.splitlines()
+    ), errors
 
-    go_is_honoured(bus, dispatcher)
+    power_on_is_honoured(bus, dispatcher, said)
 
 
-def go_is_honoured(bus: InProcessBus, dispatcher: Dispatcher) -> None:
-    """GO over the same broken rule leaves the run running through the next
-    sweep: a rule still broken from the last check does not hold again."""
-    deliver(bus, RUN_WANTED, {"run": "running"})
-    assert dispatcher.state.run == "running"
-    assert broken(dispatcher.state)  # still broken, and not held for it
+def power_on_is_honoured(
+    bus: InProcessBus, dispatcher: Dispatcher, said: list[tuple[str, Payload]]
+) -> None:
+    """The drain answered, and power turned on again over the same broken
+    rule: the dispatcher routes through the next sweep, because a rule still
+    broken from the last check does not drain again (#811)."""
+    deliver(bus, POWER, {"power": DRAINING})
+    deliver(bus, POWER, {"power": ON})
+    assert broken(dispatcher.state)  # still broken, and not drained for it
     deliver(
         bus,
         REQUEST_SUBMITTED,
@@ -263,4 +274,4 @@ def go_is_honoured(bus: InProcessBus, dispatcher: Dispatcher) -> None:
     )
     assert dispatcher.state.crossing["express_2"] == "crossover.up_straight"
     assert broken(dispatcher.state)
-    assert dispatcher.state.run == "running"
+    assert drains(said) == [DRAINING]

@@ -28,7 +28,7 @@ from tests.ports import free_port
 from tests.startup import WINDOW_S, a_stop_in_the_window_is_acted_on_there
 
 RAILROAD = "crossover-yard"
-RUN = "tc49/dispatch/state/run"
+MOVING = "tc49/dispatch/state/moving"
 DISPUTED = "tc49/dispatch/state/disputed"
 GRANTED = "tc49/dispatch/lock_granted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
@@ -158,17 +158,17 @@ def test_a_cold_start_publishes_the_apps_own_rows(
     """Against an empty broker with nothing else running: the four rows the
     dispatcher opens with, waiting for whoever subscribes next (ADR-0059).
 
-    Held, with an empty layout and every signal at stop: the only thing there
-    is to do on a railroad nothing stands on is place trains, and a run an
-    operator drives comes up that way (ADR-0037 as #171 amends it).
+    Nothing moving, with an empty layout and every signal at stop: the
+    railroad comes up `off` and routes nothing until a person turns it on
+    (ADR-0078), and on a railroad nothing stands on the thing to do first is
+    place trains (#171).
     """
     store.start()
     witness, heard = watching(broker)
     app.start()
 
     assert drained(witness, lambda: rows(heard, DISPUTED) != []), "it published nothing"
-    assert rows(heard, RUN)[-1]["run"] == "held"
-    assert rows(heard, RUN)[-1]["moving"] is False
+    assert rows(heard, MOVING)[-1]["moving"] is False
     assert set(rows(heard, ASPECTS)[-1]["aspects"].values()) == {"stop"}
     picture = rows(heard, ALLOCATION)[-1]
     assert (picture["trains"], picture["locks"], picture["requests"]) == ({}, {}, [])

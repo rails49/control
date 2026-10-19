@@ -6,8 +6,8 @@ answering every `move_granted` with `block_occupied` of the block it moves
 into and then `block_vacated` of the one it leaves, unless the case says
 otherwise — and the lock table breaks no rule after any delivery (ADR-0076).
 The four paths here are ones the physical railroad produces: a detector
-stuck occupied with GO pressed over it, a detector dropping out under a
-standing train with GO pressed over it, a train's own residue on its way back,
+stuck occupied with the power turned on again over it, a detector dropping
+out under a standing train with the power turned on again over it, a train's own residue on its way back,
 and a vacate behind before the occupy ahead, which a train shorter than the
 gap between two blocks' detectors gives in normal running.
 """
@@ -19,8 +19,9 @@ import pytest
 from tc49.dispatcher import FullRoute, Incremental
 from tc49.dispatcher.dispatch import broken
 from tc49.lib.bus import Payload
-from tests.dispatcher.test_lock_rules import a_bus_dispatcher, deliver
-from tests.harness import RUN_WANTED
+from tc49.lib.inventory import DRAINING, OFF, ON
+from tests.dispatcher.test_lock_rules import a_bus_dispatcher, deliver, drains
+from tests.harness import POWER
 
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
@@ -55,6 +56,17 @@ class Railroad:
             self.deliver(OCCUPIED, {"block": move.into}, answer=False)
             self.deliver(VACATED, {"block": move.from_block}, answer=False)
 
+    def power(self, value: str, answer: bool = True) -> None:
+        """The layout stating the power, as a binding answering a press
+        would."""
+        self.deliver(POWER, {"power": value}, answer)
+
+    def drained(self) -> None:
+        """The drain the dispatcher asked for, answered and run to `off`."""
+        assert drains(self.said)[-1] == DRAINING
+        self.power(DRAINING)
+        self.power(OFF)
+
     def request(self, rid: str, depart: str, dest: str, answer: bool = True) -> None:
         self.deliver(
             REQUEST_SUBMITTED,
@@ -70,12 +82,12 @@ class Railroad:
 
 
 def stuck_yard_e(strategy: type[Incremental | FullRoute]) -> Railroad:
-    """`yard_e` reads occupied, the run holds for it, and a person presses
-    GO over the dispute."""
+    """`yard_e` reads occupied, the railroad drains for it, and a person
+    turns the power on again over the dispute."""
     railroad = Railroad(strategy)
     railroad.deliver(OCCUPIED, {"block": "yard_e"})
-    assert railroad.dispatcher.state.run == "held"
-    railroad.deliver(RUN_WANTED, {"run": "running"})
+    railroad.drained()
+    railroad.power(ON)
     return railroad
 
 
@@ -89,7 +101,7 @@ def test_a_block_that_reads_occupied_is_not_entered(
     assert "yard_e" not in [p["into"] for p in railroad.granted()]
     refused = [p for p in railroad.leaf("grant_refused") if p["id"] == "r-1"]
     assert {"resource": "yard_e", "holder": ""} in refused[-1]["obstacles"]
-    assert railroad.dispatcher.state.run == "running"
+    assert drains(railroad.said) == [DRAINING]  # the reading's, and no other
 
     railroad.deliver(VACATED, {"block": "yard_e"})
 
@@ -117,9 +129,9 @@ def test_a_train_does_not_enter_its_own_residue() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "dn_w.A")
     railroad.deliver(PLACEMENT_WANTED, {"train": "freight_1", "block": None})
-    railroad.deliver(RUN_WANTED, {"run": "held"})
+    railroad.power(OFF)
     railroad.deliver(PLACEMENT_WANTED, {"train": "freight_1", "block": "yard_e"})
-    railroad.deliver(RUN_WANTED, {"run": "running"})
+    railroad.power(ON)
     state = railroad.dispatcher.state
     assert state.block_of["freight_1"] == "yard_e"
 
@@ -144,7 +156,7 @@ def test_a_vacate_before_the_arrival_waits_for_it() -> None:
 
     railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
 
-    assert state.run == "running"
+    assert drains(railroad.said) == []
     assert state.locks["yard_w"] == "freight_1"
     assert len(railroad.granted()) == 1
 
@@ -163,13 +175,14 @@ def test_a_vacate_before_the_arrival_waits_for_it() -> None:
 def test_a_clear_reading_from_before_the_grant_does_not_end_the_move(
     strategy: type[Incremental | FullRoute],
 ) -> None:
-    """`yard_w` drops out under `freight_1` and GO is pressed over it: the
-    arrival waits for a vacate heard while the move is outstanding (#806)."""
+    """`yard_w` drops out under `freight_1` and the power is turned on again
+    over it: the arrival waits for a vacate heard while the move is
+    outstanding (#806)."""
     railroad = Railroad(strategy)
     railroad.deliver(VACATED, {"block": "yard_w"})
     state = railroad.dispatcher.state
-    assert state.run == "held"
-    railroad.deliver(RUN_WANTED, {"run": "running"})
+    railroad.drained()
+    railroad.power(ON)
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
     assert [p["into"] for p in railroad.granted()] == ["dn_w"]
 
@@ -183,8 +196,11 @@ def test_a_clear_reading_from_before_the_grant_does_not_end_the_move(
     assert state.block_of["freight_1"] == "dn_w"
 
     railroad.deliver(OCCUPIED, {"block": "yard_w"}, answer=False)
-    assert state.run == "held"
-    railroad.deliver(RUN_WANTED, {"run": "running"}, answer=False)
+    # Asked for, and not answered: the train is still crossing, so a person
+    # ends the drain before `layout` would switch anything off.
+    assert drains(railroad.said) == [DRAINING, DRAINING]
+    railroad.power(DRAINING, answer=False)
+    railroad.power(ON, answer=False)
     railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
 
     assert {
@@ -201,7 +217,7 @@ def test_a_clear_reading_taken_back_does_not_end_the_move() -> None:
 
     railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
     railroad.deliver(OCCUPIED, {"block": "yard_w"}, answer=False)
-    assert state.run == "held"
+    assert drains(railroad.said) == [DRAINING]
     railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
 
     assert "freight_1" in state.crossing
@@ -224,7 +240,7 @@ def test_a_repeat_reading_changes_nothing() -> None:
         assert state.locks == locks
         assert state.block_of == block_of
         assert len(railroad.said) == said
-        assert state.run == "running"
+        assert drains(railroad.said) == []
 
 
 def test_a_vacate_before_the_arrival_on_the_last_move() -> None:
@@ -259,7 +275,7 @@ def test_a_placement_over_a_broken_table() -> None:
     """The lock on `freight_1`'s block gone by hand: placing it elsewhere
     gives up only what it holds."""
     railroad = Railroad()
-    railroad.deliver(RUN_WANTED, {"run": "held"})
+    railroad.power(OFF)
     state = railroad.dispatcher.state
     del state.locks["yard_w"]
 
