@@ -20,7 +20,8 @@ Browser-writability is a mark on the row rather than a prefix to read:
 where somebody writes ``browser=True``.
 
 Where a field's *values* are a closed set the contract names, they live here
-too, beside the field they belong to: ``run``, ``mode``, ``power``, the
+too, beside the field they belong to: ``run``, ``mode``, ``driving``,
+``power``, the
 supply, ``occupancy``, ``position``, ``aspect``, the ``grant_refused``
 ``reason`` and ``link``. The ``request_rejected`` and ``request_cancelled``
 reasons are ``tc49.lib.rejection`` and ``tc49.lib.cancellation``. What an
@@ -86,6 +87,10 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
     "tc49/layout/throttle_wanted": Topic(("train", "speed"), browser=True),
     "tc49/layout/state/mode": Topic((AT, "modes")),
+    # The railroad's one driving mode, asked for at any power and stated by
+    # `layout`, which comes up `manual` (ADR-0079).
+    "tc49/layout/driving_wanted": Topic(("driving",), browser=True),
+    "tc49/layout/state/driving": Topic((AT, "driving")),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
@@ -289,6 +294,20 @@ not there, and falling to `automatic` would take one out of the hands of a
 person who is (#207). Not a mode of the *system*: a manual train is still
 dispatched, still holds its block and still may be granted, and *manual* names
 only who turns the throttle (CONTEXT.md)."""
+
+
+DRIVINGS = (MANUAL, AUTOMATIC)
+"""The closed set of ``driving`` on ``tc49/layout/state/driving`` and on the
+``tc49/layout/driving_wanted`` gesture: the railroad's one **driving mode**
+(ADR-0079). The same two words as ``mode`` above, said of the whole railroad
+rather than of a train: in `manual` people drive every train, and in
+`automatic` the driver drives every train no throttle holds. The dispatcher
+routes the same in both.
+
+`manual` first, because it is where the railroad comes up and what an
+unreadable state payload reads as: ``tc49.lib.payload.driving``. A gesture
+naming anything else is dropped (``tc49.lib.payload.wanted_driving``), and
+one is accepted at any power."""
 
 
 ON = "on"
