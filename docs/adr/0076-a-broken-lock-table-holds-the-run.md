@@ -1,5 +1,7 @@
 # A broken lock table holds the run
 
+*Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): a broken rule drains the railroad in place of holding the run, and power on is the GO.*
+
 Resolves the question [#761](https://github.com/rails49/control/issues/761)
 raised: what the dispatcher does when its own lock table stops agreeing with
 itself.

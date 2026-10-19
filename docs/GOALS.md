@@ -147,13 +147,21 @@ also the most that is ever asked for: a third block ahead shows the same aspect
 as the second, so it buys nothing and holds track another train may be waiting
 for ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)).
 
-A train's **priority** orders the queue, lowest number highest. It is meant to
-be strict among requests that could launch at once: where two both could, the
-higher wins whatever their age, and where the higher cannot launch, the lower
-still goes. Starvation then stays bounded within a priority level by the
-queue's aging, and is unbounded across levels, which is why freight runs at
-night
-([ADR-0045](adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+The waiting requests are a **list** a person can see, and the dispatcher
+serves them in its order: an earlier request gets the first claim, and a later
+one still starts when an earlier one cannot. A new request goes in after every
+request of the same or a higher **priority**, lowest number highest, and a
+person may cancel or reorder any request that has not started. A train's later
+request starts where its earlier one ends, so two drags send a train to a
+block by way of another
+([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+
+The dispatcher routes only while the railroad's **power** is `on`. Power is
+one switch a person sets, `on`, `draining` or `off`, and the railroad comes up
+`off`. A drain stops every moving train in the next block, keeping its route,
+and then cuts the supply; an emergency stop cuts it at once. Turning power on
+again resumes what was granted
+([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 
 ### Driving
 
@@ -162,6 +170,13 @@ or automatically. A driver decides one thing â€” how fast, or whether to stop â€
 by reading the signal it faces. It does not decide where the train goes: the
 turnouts are already set when the signal clears, so the train follows the rails
 it is given.
+
+Who drives is the railroad's **driving mode**, and the railroad comes up
+`manual`: people drive every train from throttles. In `automatic` the app
+drives every train no throttle holds. At most one throttle holds a train, and
+it drives only within a move the dispatcher granted, so the dispatcher routes
+the same either way
+([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 
 A person driving looks out of the window. An automated driver has to be told
 which aspect applies to its train, since track detectors are anonymous and
@@ -230,7 +245,7 @@ running train.
 **The operator is assumed to leave the railroad to the app**, and that is a
 decision of the same kind. The app is correct about the railroad it is told
 about, and a person can change the steel without saying so. Some of that it
-sees: a detector reading no granted move accounts for holds the run and names
+sees: a detector reading no granted move accounts for drains the railroad and names
 what it contradicts for a person to walk
 ([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). Most of it it
 cannot. Nothing detects a train driven from a throttle the app does not know

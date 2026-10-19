@@ -1,5 +1,7 @@
 # The run is held or running, and held blocks commitment
 
+*Superseded by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): the run and GO/HOLD go; power `on`, `draining` or `off` decides whether the dispatcher routes.*
+
 A run has a state of its own, `tc49/dispatch/state/run`, retained and written
 by the dispatcher — one writing role, like every other topic
 ([ADR-0035](0035-a-topic-has-one-writing-role.md)). Two values today, `held`
