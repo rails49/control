@@ -26,17 +26,20 @@ from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     DEVICE_LINK,
     DEVICE_TRACK,
-    MODE,
+    DRIVING,
     POWER,
     POWER_WANTED,
     RAILROAD,
+    TAKEN,
     WANTED_TRACK,
     WANTED_TRACTION,
+    align,
     build,
     commanded,
     energised,
     faces,
     heard,
+    move,
     railroad,
     runs,
     speeds,
@@ -105,13 +108,16 @@ def topics(written: list[tuple[str, Payload]]) -> list[str]:
 
 
 def hand_driven(bus: InProcessBus) -> None:
-    """A person holding `single` in a throttle with the lever off zero.
+    """A person holding `single` in a throttle with the lever off zero, the
+    train under way on a grant (ADR-0079).
 
-    The row nothing else zeroes: the arrival zero is written for a train this
-    app is driving, and a train in a person's hand arrives nowhere (#435)."""
+    The row nothing else zeroes until the train arrives, and an `off` comes
+    before any arrival (#435)."""
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
     takes(bus, "single")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
     turns(bus, "single", 0.5)
     bus.drain()
 
@@ -120,9 +126,8 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     """Nothing moves and no turnout throws until a person turns it on
     (ADR-0051). The four values are the first things the app says, and the
     order is the honest one: which railroad this is (#371), then the supply
-    commanded off, then what the app believes about it, and then that nobody
-    has taken a train — the map of who drives is empty and the topic says so
-    (#297)."""
+    commanded off, then what the app believes about it, and then who drives:
+    people, with no train in a throttle (ADR-0079)."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = heard(bus, "tc49/#")
@@ -133,7 +138,8 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
         (RAILROAD, {"at": 0.0, "name": "bench"}),
         (WANTED_TRACK, {"at": 0.0, "power": "off"}),
         (POWER, {"at": 0.0, "power": "off"}),
-        (MODE, {"at": 0.0, "modes": {}}),
+        (DRIVING, {"at": 0.0, "driving": "manual"}),
+        (TAKEN, {"at": 0.0, "taken": {}}),
     ]
 
 

@@ -15,6 +15,7 @@ movement and not an error.
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
+from tc49.lib.inventory import AUTOMATIC
 from tests.layout.railroad import (
     DEVICE_SENSOR,
     FACING,
@@ -33,6 +34,7 @@ from tests.layout.railroad import (
     speeds,
     stand,
     stock,
+    switches,
     wired,
 )
 
@@ -281,6 +283,7 @@ def test_the_facing_left_on_the_topic_is_there_at_startup() -> None:
 
     app = LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
+    switches(bus, AUTOMATIC)
     energised(bus)
     stand(bus, "single", "up_w")
     align(bus, "crossover", "to_dn")
@@ -299,6 +302,7 @@ def test_an_older_facing_delivered_late_does_not_turn_a_train_round() -> None:
     bus = Unstamped(clock)
     app = LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
+    switches(bus, AUTOMATIC)
     energised(bus)
     stand(bus, "single", "up_w")
     align(bus, "crossover", "to_dn")

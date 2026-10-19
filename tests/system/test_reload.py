@@ -455,7 +455,8 @@ def test_the_layout_interface_answers_the_gesture_and_rebuilds(
         assert STALE_TRACTION not in held, "the desired speed survived the reload"
         assert held[RAILROAD]["name"] == NOW
         assert held["tc49/layout/state/wanted/track"]["power"] == OFF
-        assert held["tc49/layout/state/mode"]["modes"] == {}
+        assert held["tc49/layout/state/driving"]["driving"] == "manual"
+        assert held["tc49/layout/state/taken"]["taken"] == {}
         no_trace_of_the_old_railroad(held)
         writing.close()
     finally:
@@ -814,7 +815,6 @@ def test_the_railroad_built_again_is_the_one_the_store_now_holds(
 
 ALLOCATION = "tc49/dispatch/state/allocation"
 FACING = "tc49/schedule/state/facing"
-MODE = "tc49/layout/state/mode"
 
 
 class Placed:
@@ -860,14 +860,6 @@ class Placed:
 
             assert until(again, UP_S), f"the {name} never rebuilt:\n{running.said()}"
 
-    def handed_over(self) -> dict[str, Any]:
-        """Every train the layout interface holds a position for: a hand-over
-        of the whole railroad names each one manual (`_modes`), which is the
-        one place that position reaches the bus."""
-        self.hand.publish("tc49/layout/mode_wanted", {"train": None, "mode": "manual"})
-        settle(self.hand, 1.0)
-        return dict(picture(self.broker)[MODE]["modes"])
-
     def stop(self) -> None:
         self.hand.close()
         for running in self.apps.values():
@@ -886,14 +878,14 @@ def placed(broker: Broker, store: Store, tmp_path: Path) -> Iterator[Placed]:
 def test_a_rebuild_under_the_same_name_keeps_the_placement(placed: Placed) -> None:
     """With track power off a restore or a saved edit changes the drawing
     and not the track, so every train stands where it stood (ADR-0071): the
-    dispatcher keeps it placed and comes up held, the scheduler keeps the way
-    it faces, and the layout interface keeps where it is."""
+    dispatcher keeps it placed and comes up held, and the scheduler keeps the
+    way it faces. Where the layout interface keeps it reaches no row, so
+    `tests/layout/test_main.py` reads it off the object."""
     placed.rebuilt(WAS)
 
     assert placed.placed() == {WAS_TRAIN: "yard_w"}
     assert picture(placed.broker)["tc49/dispatch/state/run"]["run"] == "held"
     assert placed.facing() == placed.facing_before
-    assert placed.handed_over() == {WAS_TRAIN: "manual"}
 
 
 def test_loading_another_railroad_places_nothing(placed: Placed) -> None:
@@ -903,7 +895,6 @@ def test_loading_another_railroad_places_nothing(placed: Placed) -> None:
 
     assert placed.placed() == {}
     assert placed.facing() == {}
-    assert placed.handed_over() == {}
 
 
 UNFIT = "tc49/dispatch/state/unfit"
