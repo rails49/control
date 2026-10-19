@@ -358,6 +358,25 @@ def kept_run(payload: object) -> Run | None:
     return Run(held, moving)
 
 
+def moving(payload: object) -> bool:
+    """Whether a retained `tc49/dispatch/state/moving` value states that a
+    train is moving: true while any train is **active** or **crossing**
+    (CONTEXT.md, **Moving**).
+
+    A boolean rather than a value, as `link_up` is, because what reads it asks
+    one question: whether `layout` may end a drain by switching the supply off
+    (ADR-0078). It falls the other way from `link_up` and for the same reason
+    of safety: a row that cannot be read — no object, no `moving`, or one that
+    is not a boolean — reads as `true`, because cutting the supply under a
+    train strands it (ADR-0062), and a drain left running a moment longer
+    strands nothing.
+    """
+    if not isinstance(payload, dict):
+        return True
+    stated = cast(dict[str, object], payload).get("moving")
+    return stated if isinstance(stated, bool) else True
+
+
 def supply(payload: object) -> str:
     """What the hardware states about the supply on ``device/track``, for a
     payload that can be read as one; `off` for a payload that cannot.
