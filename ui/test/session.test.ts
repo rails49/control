@@ -19,9 +19,9 @@
  * neither — which is what keeps the app from redrawing on every frame.
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HELD, Session, type Client } from "../src/model/session.js";
+import { ALIVE_MS, HELD, Session, type Client } from "../src/model/session.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
 
 const URL = "ws://localhost:5173/mqtt";
@@ -287,7 +287,8 @@ describe("the broker not answering", () => {
     stood.session.press("running");
     stood.session.pressPower("off");
     stood.session.pressRailroad("toy");
-    stood.session.pressMode("goods", "manual");
+    stood.session.pressTake("goods");
+    stood.session.pressRelease("goods");
     stood.session.pressThrottle("goods", 40);
     stood.session.pressReversal("goods");
 
@@ -449,5 +450,131 @@ describe("what it answers", () => {
 
     expect(stood.session.status).not.toBe(status);
     expect(stood.session.cabs).toBe(cabs);
+  });
+});
+
+/**
+ * The throttle's id and what rides on it
+ * ([ADR-0079](../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)):
+ * the page mints one when it opens, takes and releases with `take_wanted`,
+ * names itself on every speed, and says `throttle_alive` once a second while
+ * `state/taken` names it for a train.
+ */
+describe("the throttle", () => {
+  const TAKE_WANTED = "tc49/layout/take_wanted";
+  const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
+  const ALIVE = "tc49/layout/throttle_alive";
+  const TAKEN = "tc49/layout/state/taken";
+  const PICTURE = { trains: { goods: "a" }, locks: { a: "goods" }, requests: [] };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A joined session with `goods` on the layout. */
+  function placing(): Stood {
+    const stood = powered();
+    stood.broker.says(ALLOCATION, PICTURE);
+    return stood;
+  }
+
+  /** How many `throttle_alive` frames have gone out, each checked to name
+   *  this page's throttle. */
+  function beats(stood: Stood): number {
+    const alive = written(stood).filter(
+      (frame) => (frame as { topic: string }).topic === ALIVE,
+    );
+    for (const frame of alive) {
+      expect(frame).toEqual({ topic: ALIVE, payload: { throttle: stood.session.throttle } });
+    }
+    return alive.length;
+  }
+
+  it("mints a different non-empty id for each page", () => {
+    const one = standing().session.throttle;
+    const other = standing().session.throttle;
+    expect(one).not.toBe("");
+    expect(one).not.toBe(other);
+  });
+
+  it("takes a train under its own id", () => {
+    const stood = placing();
+    stood.session.pressTake("goods");
+    expect(written(stood)).toEqual([
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: stood.session.throttle } },
+    ]);
+  });
+
+  /** A release and a force release are the same frame: `null` frees the
+   *  train whoever holds it (BUS.md). */
+  it("releases with null", () => {
+    const stood = placing();
+    stood.session.pressRelease("goods");
+    expect(written(stood)).toEqual([
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: null } },
+    ]);
+  });
+
+  it("names itself on every speed", () => {
+    const stood = placing();
+    stood.session.pressThrottle("goods", 0.4);
+    expect(written(stood)).toEqual([
+      {
+        topic: THROTTLE_WANTED,
+        payload: { train: "goods", speed: 0.4, throttle: stood.session.throttle },
+      },
+    ]);
+  });
+
+  it("says it is alive once a second while state/taken names it", () => {
+    vi.useFakeTimers();
+    const stood = placing();
+    stood.session.pressTake("goods");
+    vi.advanceTimersByTime(3 * ALIVE_MS);
+    // Not on the press: `layout` has not handed it the train yet.
+    expect(beats(stood)).toBe(0);
+
+    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    vi.advanceTimersByTime(ALIVE_MS - 1);
+    expect(beats(stood)).toBe(0);
+    vi.advanceTimersByTime(1);
+    expect(beats(stood)).toBe(1);
+    vi.advanceTimersByTime(2 * ALIVE_MS);
+    expect(beats(stood)).toBe(3);
+
+    // A second row naming it again does not start a second beat.
+    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    vi.advanceTimersByTime(ALIVE_MS);
+    expect(beats(stood)).toBe(4);
+  });
+
+  it("stops once it holds nothing", () => {
+    vi.useFakeTimers();
+    const stood = placing();
+    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    vi.advanceTimersByTime(ALIVE_MS);
+    expect(beats(stood)).toBe(1);
+
+    stood.broker.says(TAKEN, { taken: {} });
+    vi.advanceTimersByTime(5 * ALIVE_MS);
+    expect(beats(stood)).toBe(1);
+  });
+
+  /** A train held by another throttle is that throttle's to keep alive. */
+  it("says nothing for a train another throttle holds", () => {
+    vi.useFakeTimers();
+    const stood = placing();
+    stood.broker.says(TAKEN, { taken: { goods: "elsewhere" } });
+    vi.advanceTimersByTime(5 * ALIVE_MS);
+    expect(beats(stood)).toBe(0);
+  });
+
+  it("stops when the broker goes", () => {
+    vi.useFakeTimers();
+    const stood = placing();
+    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    stood.broker.closes();
+    vi.advanceTimersByTime(5 * ALIVE_MS);
+    expect(beats(stood)).toBe(0);
   });
 });

@@ -5,11 +5,13 @@
  * train, take it, drive it, give it back, and the two gestures that ride the
  * bus while you do.
  *
- * A DOM suite because none of it is a model's. What each train is, who drives
+ * A DOM suite because none of it is a model's. What each train is, who holds
  * it and what it is reading are `cabs`'s answer, tested with no DOM in
  * `cabs.test.ts`; what only mounting the app can see is whether this view
- * asked — that taking a train writes one frame and not two, that the view
- * waits for `state/mode` before it says a train is taken, that the number on
+ * asked — that taking a train writes one `take_wanted` under this page's
+ * throttle id, that the view waits for `state/taken` before it says a train is
+ * taken, that a train another throttle holds cannot be taken and can be
+ * force released, that the lever is live only with a move granted, that the number on
  * screen is the number that went out, and that nothing at all leaves the view
  * while the rails have no power.
  *
@@ -28,7 +30,7 @@ import {
   joined,
   said,
   unbrokered,
-  written,
+  written as everything,
 } from "./support/session.js";
 
 beforeEach(brokering);
@@ -37,11 +39,20 @@ afterEach(unbrokered);
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 const POWER = "tc49/layout/state/power";
-const MODE = "tc49/layout/state/mode";
+const TAKEN = "tc49/layout/state/taken";
+const MOVE = "tc49/layout/move";
 const FACING = "tc49/schedule/state/facing";
 const ASPECTS = "tc49/dispatch/state/aspects";
 
-const MODE_WANTED = "tc49/layout/mode_wanted";
+const TAKE_WANTED = "tc49/layout/take_wanted";
+const ALIVE = "tc49/layout/throttle_alive";
+
+/** What the view's presses published. The session's `throttle_alive` beat
+ *  runs on a real clock here and is left out; its timing is
+ *  `session.test.ts`'s, on a fake one. */
+function written(): unknown[] {
+  return everything().filter((one) => (one as { topic: string }).topic !== ALIVE);
+}
 const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
 
@@ -98,12 +109,26 @@ async function moved(shell: TcApp, to: number): Promise<void> {
   await settled(shell);
 }
 
-/** `goods`, taken: the gesture, and `layout`'s answer on the state topic. */
+/** The throttle id this page named itself by, read off the first frame that
+ *  carried it. */
+function mine(): string {
+  const frame = written().find(
+    (one) => typeof (one as { payload: { throttle?: unknown } }).payload.throttle === "string",
+  ) as { payload: { throttle: string } } | undefined;
+  return frame!.payload.throttle;
+}
+
+/** The move the dispatcher grants `goods`, on its way to `layout`. */
+const GRANT = { train: "goods", connection: "j", transit: "over", into: "b", speed: 0.6 };
+
+/** `goods`, taken and granted a move: the gesture, `layout`'s answer on the
+ *  state topic, and the move the lever is live within. */
 async function taken(shell: TcApp): Promise<void> {
   await pick(shell, "goods");
   take(shell).click();
   await settled(shell);
-  await said(shell, MODE, { modes: { goods: "manual" } });
+  await said(shell, TAKEN, { taken: { goods: mine() } });
+  await said(shell, MOVE, GRANT);
 }
 
 describe("picking a train", () => {
@@ -133,22 +158,26 @@ describe("picking a train", () => {
 });
 
 describe("taking a train", () => {
-  it("publishes exactly one mode_wanted naming that train and manual", async () => {
+  it("publishes exactly one take_wanted naming that train and this throttle", async () => {
     const shell = await driving();
     await pick(shell, "goods");
 
     take(shell).click();
     await settled(shell);
 
-    expect(written()).toEqual([
-      { topic: MODE_WANTED, payload: { train: "goods", mode: "manual" } },
-    ]);
+    const frames = written();
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).toEqual({
+      topic: TAKE_WANTED,
+      payload: { train: "goods", throttle: mine() },
+    });
+    expect(mine()).not.toBe("");
   });
 
-  /** The state topic is the truth about who is driving: a view that marked a
-   *  train taken on its own press would show a person holding a train
+  /** The state topic is the truth about who holds a train: a view that marked
+   *  a train taken on its own press would show a person holding a train
    *  `layout` never handed them (ADR-0035). */
-  it("shows the train as taken only when state/mode says so", async () => {
+  it("shows the train as taken only when state/taken says so", async () => {
     const shell = await driving();
     await pick(shell, "goods");
 
@@ -157,17 +186,74 @@ describe("taking a train", () => {
     expect(take(shell).textContent!.trim()).toBe("Take");
     expect(lever(shell)).toBeNull();
 
-    await said(shell, MODE, { modes: { goods: "manual" } });
+    await said(shell, TAKEN, { taken: { goods: mine() } });
     expect(take(shell).textContent!.trim()).toBe("Release");
     expect(lever(shell)).not.toBeNull();
+    expect(part(shell, "button.train .taken")!.textContent!.trim()).toBe("yours");
+  });
+});
+
+describe("a train another throttle holds", () => {
+  /** `layout` drops a take of a train another throttle holds, so the view
+   *  does not offer one, and says the train is taken (ADR-0079). */
+  it("shows as taken and cannot be taken", async () => {
+    const shell = await driving();
+    await said(shell, TAKEN, { taken: { goods: "another-page" } });
+    await pick(shell, "goods");
+
+    expect(part(shell, "button.train .taken")!.textContent!.trim()).toBe("taken");
+    expect(take(shell).disabled).toBe(true);
+    take(shell).click();
+    await settled(shell);
+    expect(written()).toEqual([]);
+    expect(lever(shell)).toBeNull();
   });
 
-  /** A train another tab has taken reads as taken here too: *manual* is
-   *  `layout`'s word about the train, not about this page. */
-  it("marks a train the mode topic says is manual, whoever took it", async () => {
+  /** The force release is the release: `null` frees the train whoever holds
+   *  it (BUS.md, `take_wanted`). */
+  it("is force released with take_wanted null", async () => {
     const shell = await driving();
-    await said(shell, MODE, { modes: { goods: "manual" } });
-    expect(part(shell, "button.train .taken")!.textContent!.trim()).toBe("manual");
+    await said(shell, TAKEN, { taken: { goods: "another-page" } });
+    await pick(shell, "goods");
+
+    await pressed(shell, "button.force");
+
+    expect(written()).toEqual([
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: null } },
+    ]);
+  });
+});
+
+describe("the lever and the move", () => {
+  /** `layout` applies a throttle's speed only within a granted move, so the
+   *  lever is live only then (ADR-0079). */
+  it("is dead until the train has a move outstanding", async () => {
+    const shell = await driving();
+    await pick(shell, "goods");
+    take(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: { goods: mine() } });
+    const before = written().length;
+
+    expect(lever(shell)!.disabled).toBe(true);
+    await moved(shell, 0.5);
+    expect(written().length).toBe(before);
+
+    await said(shell, MOVE, GRANT);
+    expect(lever(shell)!.disabled).toBe(false);
+  });
+
+  /** The move ends at its sensor and `layout` writes `0.0` there, so the
+   *  lever goes back to rest and dead with it. */
+  it("goes to rest when the move ends at its sensor", async () => {
+    const shell = await driving();
+    await taken(shell);
+    await moved(shell, 0.5);
+
+    await said(shell, "tc49/layout/block_occupied", { block: "b" });
+
+    expect(lever(shell)!.value).toBe("0");
+    expect(lever(shell)!.disabled).toBe(true);
   });
 });
 
@@ -180,7 +266,7 @@ describe("driving it", () => {
 
     expect(written().at(-1)).toEqual({
       topic: THROTTLE_WANTED,
-      payload: { train: "goods", speed: 0.6 },
+      payload: { train: "goods", speed: 0.6, throttle: mine() },
     });
     expect(part(shell, ".reading")!.textContent!.trim()).toBe("0.60");
   });
@@ -196,7 +282,7 @@ describe("driving it", () => {
 
     expect(written().at(-1)).toEqual({
       topic: THROTTLE_WANTED,
-      payload: { train: "goods", speed: -0.4 },
+      payload: { train: "goods", speed: -0.4, throttle: mine() },
     });
   });
 
@@ -212,7 +298,7 @@ describe("driving it", () => {
 
     expect(written().at(-1)).toEqual({
       topic: THROTTLE_WANTED,
-      payload: { train: "goods", speed: 0 },
+      payload: { train: "goods", speed: 0, throttle: mine() },
     });
     expect(lever(shell)!.value).toBe("0");
   });
@@ -265,25 +351,25 @@ describe("turning it round", () => {
 });
 
 describe("giving it back", () => {
-  it("publishes automatic and stops offering the speed control", async () => {
+  it("publishes take_wanted null and stops offering the speed control", async () => {
     const shell = await driving();
     await taken(shell);
     await moved(shell, 0.5);
 
     take(shell).click();
     await settled(shell);
-    await said(shell, MODE, { modes: {} });
+    await said(shell, TAKEN, { taken: {} });
 
     expect(written().at(-1)).toEqual({
-      topic: MODE_WANTED,
-      payload: { train: "goods", mode: "automatic" },
+      topic: TAKE_WANTED,
+      payload: { train: "goods", throttle: null },
     });
     expect(lever(shell)).toBeNull();
     expect(take(shell).textContent!.trim()).toBe("Take");
   });
 
-  /** One gesture per press. `layout` writes the speed the train's current
-   *  grant implies on the way back to automatic, so a zero of this view's own
+  /** One gesture per press. `layout` writes the speed a release implies, so
+   *  a zero of this view's own
    *  would be a second party deciding how fast the railroad drives it
    *  (SYSTEM.md, `layout`). */
   it("sends no speed of its own with the release", async () => {
@@ -298,16 +384,16 @@ describe("giving it back", () => {
     expect(written().length).toBe(before + 1);
   });
 
-  /** Given back by another tab, or by `layout` itself: the lever is not a
-   *  person's any more, and must not go on showing a speed nobody is asking
+  /** Force released by another tab, or by `layout` itself: the lever is not
+   *  a person's any more, and must not go on showing a speed nobody is asking
    *  for. */
   it("puts the lever back at rest when the train is released elsewhere", async () => {
     const shell = await driving();
     await taken(shell);
     await moved(shell, 0.5);
 
-    await said(shell, MODE, { modes: {} });
-    await said(shell, MODE, { modes: { goods: "manual" } });
+    await said(shell, TAKEN, { taken: {} });
+    await said(shell, TAKEN, { taken: { goods: mine() } });
 
     expect(lever(shell)!.value).toBe("0");
   });

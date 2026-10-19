@@ -1,5 +1,6 @@
 /**
- * What the throttle is handed: who drives each train, which way it points,
+ * What the throttle is handed: which throttle holds each train, whether it
+ * has a move outstanding, which way it points,
  * what it is reading and what is in front of it (ui/THROTTLE.md, #207).
  *
  * No DOM. The three readings the panel model grew for this view are driven
@@ -53,12 +54,18 @@ function standing(model: Panel): void {
   );
 }
 
-/** What the model answers, put together the way the run view does. */
+/** This page's throttle id, and another page's. */
+const HERE = "th-here";
+const ELSEWHERE = "th-elsewhere";
+
+/** What the model answers, put together the way the session does. */
 function drive(model: Panel, stock = {}) {
   const placed = model.placed();
   return cabs({
     placed,
-    modes: model.modes(),
+    taken: model.taken(),
+    throttle: HERE,
+    granted: model.granted(),
     noses: model.noses(),
     aspects: model.aspects(),
     ahead: model.ahead(),
@@ -69,51 +76,84 @@ function drive(model: Panel, stock = {}) {
   });
 }
 
-describe("who drives a train", () => {
-  /** `automatic` is the resting value, so a train the map does not name is
-   *  automatic rather than unknown (CONTEXT.md). */
-  it("reads every train as automatic before anything has said", () => {
+describe("who holds a train", () => {
+  /** A train the map does not name, no throttle holds (BUS.md). */
+  it("reads every train as held by nobody before anything has said", () => {
     const model = panel();
     standing(model);
-    expect(drive(model)[0]).toMatchObject({ train: "t1", mode: "automatic" });
+    expect(drive(model)[0]).toMatchObject({ train: "t1", taken: null });
   });
 
-  it("takes the mode topic's word for who is driving", () => {
+  it("says a train this throttle holds is held here", () => {
     const model = panel();
     standing(model);
-    feed(model, { event: "mode", modes: { t1: "manual" } });
-    expect(model.modes().get("t1")).toBe("manual");
+    feed(model, { event: "taken", taken: { t1: HERE } });
+    expect(drive(model)[0]).toMatchObject({ taken: "here" });
   });
 
-  /** Last value wins, so a train the map stops naming is back to the resting
-   *  value: releasing is a map without it in. */
-  it("puts a train the map stops naming back to automatic", () => {
+  /** Another tab's id is a train this page cannot take. */
+  it("says a train another throttle holds is held elsewhere", () => {
     const model = panel();
     standing(model);
-    feed(model, { event: "mode", modes: { t1: "manual" } }, { event: "mode", modes: {} });
-    expect(drive(model)[0]).toMatchObject({ mode: "automatic" });
+    feed(model, { event: "taken", taken: { t1: ELSEWHERE } });
+    expect(model.taken().get("t1")).toBe(ELSEWHERE);
+    expect(drive(model)[0]).toMatchObject({ taken: "elsewhere" });
   });
 
-  /** Falling to `manual` would hand a train to a person who is not there,
-   *  and falling to `automatic` would take one out of the hands of a person
-   *  who is (SYSTEM.md, `layout`). */
-  it("drops an entry it cannot read and leaves that train where it was", () => {
+  /** Last value wins, so a train the map stops naming is released. */
+  it("releases a train the map stops naming", () => {
     const model = panel();
     standing(model);
-    feed(
-      model,
-      { event: "mode", modes: { t1: "manual" } },
-      { event: "mode", modes: { t1: "sideways" } },
-    );
-    expect(drive(model)[0]).toMatchObject({ mode: "manual" });
+    feed(model, { event: "taken", taken: { t1: HERE } }, { event: "taken", taken: {} });
+    expect(drive(model)[0]).toMatchObject({ taken: null });
   });
 
-  it("forgets who was driving when the page starts over", () => {
+  /** Read an entry at a time: an unreadable entry leaves its train held by
+   *  nobody, and an unreadable payload holds nothing (BUS.md). */
+  it("holds nothing for an entry or a payload it cannot read", () => {
     const model = panel();
     standing(model);
-    feed(model, { event: "mode", modes: { t1: "manual" } });
+    feed(model, { event: "taken", taken: { t1: HERE } }, { event: "taken", taken: { t1: 7 } });
+    expect(drive(model)[0]).toMatchObject({ taken: null });
+    feed(model, { event: "taken", taken: { t1: HERE } }, { event: "taken", taken: "t1" });
+    expect(model.taken().size).toBe(0);
+  });
+
+  it("forgets who held what when the page starts over", () => {
+    const model = panel();
+    standing(model);
+    feed(model, { event: "taken", taken: { t1: HERE } });
     model.reset();
-    expect(model.modes().size).toBe(0);
+    expect(model.taken().size).toBe(0);
+  });
+});
+
+describe("a move outstanding", () => {
+  const MOVE = { event: "move", train: "t1", connection: "j", transit: "over", into: "b", speed: 0.6 };
+
+  it("has none before a move is granted", () => {
+    const model = panel();
+    standing(model);
+    expect(drive(model)[0]).toMatchObject({ granted: false });
+  });
+
+  /** From the move the dispatcher sends `layout` to the sensor it ends at:
+   *  the span `layout` applies a throttle's speed in (BUS.md). */
+  it("has one from the move until the block it enters is occupied", () => {
+    const model = panel();
+    standing(model);
+    feed(model, { event: "lock_granted", train: "t1", resources: ["j", "b"] }, MOVE);
+    expect(drive(model)[0]).toMatchObject({ granted: true });
+
+    feed(model, { event: "block_occupied", block: "b" });
+    expect(drive(model)[0]).toMatchObject({ granted: false });
+  });
+
+  it("forgets the move of a train taken off the layout", () => {
+    const model = panel();
+    standing(model);
+    feed(model, MOVE, { event: "allocation", trains: {}, locks: {}, requests: [] });
+    expect(model.granted().size).toBe(0);
   });
 });
 

@@ -73,7 +73,7 @@ export const throttleStyles = css`
     text-overflow: ellipsis;
   }
 
-  /* A train a person is holding, whoever they are: another tab counts. */
+  /* A train a throttle is holding: this one, or another tab's. */
   .taken {
     font-size: 0.65rem;
     letter-spacing: 0.06em;
@@ -119,8 +119,8 @@ export const throttleStyles = css`
     color: var(--ink);
   }
 
-  header button.take {
-    margin-left: auto;
+  header button.take,
+  header button.force {
     padding: 0.25rem 0.9rem;
     border: 1px solid var(--rule);
     border-radius: 4px;
@@ -130,7 +130,12 @@ export const throttleStyles = css`
     cursor: pointer;
   }
 
-  header button.take.release {
+  header button.take {
+    margin-left: auto;
+  }
+
+  header button.take.release,
+  header button.force {
     border-color: var(--chosen);
     color: var(--chosen);
   }

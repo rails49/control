@@ -29,7 +29,6 @@ import { transitEnds, type Explained, type Layout } from "./store.js";
 import {
   Ordering,
   type Gesture,
-  type Mode,
   type PointWanted,
   type Power,
   type Run,
@@ -356,11 +355,15 @@ export class Panel {
    *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
    *  [#602](https://github.com/rails49/control/issues/602)). */
   private faultWord: string | null = null;
-  /** train → who turns its throttle, as `layout` last said. Only the trains
-   *  the map named: `automatic` is the resting value, so a train that is not
-   *  in it is automatic and there is nothing to record for it (CONTEXT.md,
-   *  **Automatic / manual**). */
-  private driven = new Map<string, Mode>();
+  /** train → the id of the throttle holding it, as `layout` last said on
+   *  `state/taken`. A train the map does not name, no throttle holds
+   *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)). */
+  private holders = new Map<string, string>();
+  /** train → the block its outstanding move enters, from the `move` the
+   *  dispatcher sent `layout`. The move ends at that block's sensor, and
+   *  `layout` drops a throttle's speeds from then until the next grant
+   *  (BUS.md, `throttle_wanted`). */
+  private moves = new Map<string, string>();
   private requests = new Map<string, Request>();
   /** Whether the opening picture has arrived: a lock on a block before it is
    *  the run's opening placement, there being no occupancy event for a
@@ -411,7 +414,8 @@ export class Panel {
     this.movingWord = null;
     this.powerWord = null;
     this.faultWord = null;
-    this.driven.clear();
+    this.holders.clear();
+    this.moves.clear();
     this.requests.clear();
     this.started = false;
     this.ordering.reset();
@@ -463,6 +467,11 @@ export class Panel {
       }
       case "block_occupied": {
         const { block } = event as unknown as { block: string };
+        // The sensor a move ends at: `layout` writes `0.0` there and takes no
+        // throttle's speed until the next grant.
+        for (const [train, into] of this.moves) {
+          if (into === block) this.moves.delete(train);
+        }
         const holder = this.locks.get(block);
         if (holder === undefined) return;
         this.standing.set(block, holder);
@@ -543,6 +552,11 @@ export class Panel {
             },
           ]),
         ]);
+        // A train the picture no longer has was taken off the layout, and
+        // `layout` forgets its move in flight with it.
+        for (const train of this.moves.keys()) {
+          if (!(train in trains)) this.moves.delete(train);
+        }
         this.started = true;
         return;
       }
@@ -596,28 +610,34 @@ export class Panel {
         this.faultWord = typeof reason === "string" && reason !== "" ? reason : null;
         return;
       }
-      case "mode": {
-        // Who drives each train, whole from the topic: `layout` holds it and
-        // publishes it, and the throttle view reads it rather than its own
-        // gesture — a train is taken when the map says so and not when the
-        // person pressed (ui/THROTTLE.md).
+      case "taken": {
+        // Which throttle holds each train, whole from the topic: `layout`
+        // holds it and publishes it, and the throttle view reads it rather
+        // than its own gesture — a train is taken when the map says so and
+        // not when the person pressed (ui/THROTTLE.md).
         //
-        // An entry whose value is neither word is **dropped** and that train
-        // keeps the mode it had: falling to `manual` would hand a train to a
-        // person who is not there, and falling to `automatic` would take one
-        // out of the hands of a person who is (SYSTEM.md, `layout`).
-        const { modes } = event as unknown as {
-          modes: Record<string, string>;
-        };
-        // Last value wins, so a train the map stops naming is automatic
-        // again — which is the resting value and not an absence of one.
-        const read = new Map<string, Mode>();
-        for (const [train, mode] of Object.entries(modes ?? {})) {
-          const held = this.driven.get(train);
-          if (mode === "automatic" || mode === "manual") read.set(train, mode);
-          else if (held !== undefined) read.set(train, held);
+        // Read an entry at a time (BUS.md): an entry that is not a non-empty
+        // string leaves its train held by nobody, and a payload whose `taken`
+        // is not a map holds nothing. Last value wins, so a train the map
+        // stops naming is released.
+        const { taken } = event as unknown as { taken?: unknown };
+        const read = new Map<string, string>();
+        if (typeof taken === "object" && taken !== null && !Array.isArray(taken)) {
+          for (const [train, throttle] of Object.entries(taken)) {
+            if (typeof throttle === "string" && throttle !== "") read.set(train, throttle);
+          }
         }
-        this.driven = read;
+        this.holders = read;
+        return;
+      }
+      case "move": {
+        // A move the dispatcher granted, on its way to `layout`: the train
+        // has a move outstanding until the sensor of the block it enters
+        // fires, and a throttle's lever does something only then (ADR-0079).
+        const { train, into } = event as unknown as { train?: unknown; into?: unknown };
+        if (typeof train === "string" && typeof into === "string") {
+          this.moves.set(train, into);
+        }
         return;
       }
       case "disputed": {
@@ -942,18 +962,30 @@ export class Panel {
   }
 
   /**
-   * Who turns each train's throttle, as `layout` last said
-   * (CONTEXT.md, **Automatic / manual**). A train the map does not name is
-   * `automatic`, which is the resting value, so the reader below answers
-   * that for a train nothing has said anything about.
+   * Which throttle holds each train, by the id its page minted, as `layout`
+   * last said on `state/taken`. A train the map does not name, no throttle
+   * holds.
    *
    * Read and never derived, and never written from a gesture: the topic is
    * the truth about who is driving, and a view that marked a train taken on
    * its own press would show a person holding a train `layout` never handed
    * them (ADR-0035, ui/THROTTLE.md).
    */
-  modes(): ReadonlyMap<string, Mode> {
-    return this.driven;
+  taken(): ReadonlyMap<string, string> {
+    return this.holders;
+  }
+
+  /**
+   * The trains with a move outstanding: granted, sent to `layout` on
+   * `tc49/layout/move`, and not yet arrived at the sensor of the block it
+   * enters. `layout` applies a throttle's speed only then (BUS.md,
+   * `throttle_wanted`), so it is what makes the throttle's lever live.
+   *
+   * A command and not a retained row, so a page opened mid-move has not seen
+   * it and calls the train's move not outstanding until the next grant.
+   */
+  granted(): ReadonlySet<string> {
+    return new Set(this.moves.keys());
   }
 
   /**

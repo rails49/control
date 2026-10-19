@@ -83,7 +83,7 @@ import type { TcBackup } from "./tc-backup.js";
 import type { TcEditor } from "./tc-editor.js";
 import type { TcPanel } from "./tc-panel.js";
 import type { TcStock } from "./tc-stock.js";
-import type { ModeWanted, ThrottleWanted } from "./tc-throttle.js";
+import type { ThrottleWanted } from "./tc-throttle.js";
 import { editable } from "./tc-properties.js";
 
 /** One press of the zoom-out button, and the reciprocal for zoom in. A quarter
@@ -312,8 +312,9 @@ export class TcApp extends LitElement {
         .cabs=${this.cabs}
         .power=${this.status.power}
         .linked=${this.status.linked}
-        @mode-wanted=${(event: CustomEvent<ModeWanted>) =>
-          this.session?.pressMode(event.detail.train, event.detail.mode)}
+        @take-wanted=${(event: CustomEvent<string>) => this.session?.pressTake(event.detail)}
+        @release-wanted=${(event: CustomEvent<string>) =>
+          this.session?.pressRelease(event.detail)}
         @throttle-wanted=${(event: CustomEvent<ThrottleWanted>) =>
           this.session?.pressThrottle(event.detail.train, event.detail.speed)}
         @reversal-wanted=${(event: CustomEvent<string>) =>
