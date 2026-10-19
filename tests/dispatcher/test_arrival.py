@@ -5,8 +5,9 @@ Each test drives a dispatcher on a bus of its own over `crossover-yard/meet`,
 answering every `move_granted` with `block_occupied` of the block it moves
 into and then `block_vacated` of the one it leaves, unless the case says
 otherwise — and the lock table breaks no rule after any delivery (ADR-0076).
-The three paths here are ones the physical railroad produces: a detector
-stuck occupied with GO pressed over it, a train's own residue on its way back,
+The four paths here are ones the physical railroad produces: a detector
+stuck occupied with GO pressed over it, a detector dropping out under a
+standing train with GO pressed over it, a train's own residue on its way back,
 and a vacate behind before the occupy ahead, which a train shorter than the
 gap between two blocks' detectors gives in normal running.
 """
@@ -190,7 +191,7 @@ def test_a_clear_reading_from_before_the_grant_does_not_end_the_move(
         "train": "freight_1",
         "resources": ["yard_w", "west_ladder.to_dn"],
     } in railroad.leaf("lock_released")
-    assert state.crossing.get("freight_1") != "west_ladder.to_dn"
+    assert state.crossing["freight_1"] == "crossover.dn_straight"
 
 
 def test_a_clear_reading_taken_back_does_not_end_the_move() -> None:

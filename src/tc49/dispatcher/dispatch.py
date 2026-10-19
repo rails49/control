@@ -1535,11 +1535,10 @@ class Dispatcher:
 
     def _arrived(self, block: str) -> None:
         """`block_occupied` records where the train arrived, and ends the move
-        if its origin already reads clear (ADR-0077), on a clear reading heard
-        while the move was outstanding (#806). Otherwise the move is not over:
-        the tail is still in the origin block, the train is between blocks,
-        and it takes no further grant until the vacate ends the move
-        (ADR-0047)."""
+        if its origin has read clear since the grant and still does (ADR-0077,
+        #806). Otherwise the move is not over: the tail is still in the origin
+        block, the train is between blocks, and it takes no further grant
+        until the vacate ends the move (ADR-0047)."""
         found = self._explained(block)
         if found is None or found[2].into != block:
             self._unexplained()
@@ -1559,9 +1558,9 @@ class Dispatcher:
         release, no grant, and no hold. The layout publishes a vacate when the
         origin's own detectors go clear, and a train shorter than the gap to
         the next block's entry detector reads clear behind before it reads
-        occupied ahead, which is normal running. The train may be standing on the
-        connection's points, so the origin and the transit stay locked, and
-        the arrival ends the move.
+        occupied ahead, which is normal running. The train may be standing on
+        the connection's points, so the origin and the transit stay locked,
+        and the arrival ends the move.
 
         A clear reading on a block nobody holds is explained too: a stray or
         a stuck detector clearing, which gives back a block a train may be
