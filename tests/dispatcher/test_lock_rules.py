@@ -36,7 +36,7 @@ def a_state() -> State:
     `idle` standing in `up_e`: every rule kept."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    request = Request("t-1", "t", "yard_w.B", ("yard_e.A",), 0, 0)
+    request = Request("t-1", "t", "yard_w.B", ("yard_e.A",), 0)
     move = Move("yard_w", route.transits[0], "dn_w", [], [])
     return State(
         layout,
@@ -157,8 +157,8 @@ def test_no_two_trains_lock_conflicting_transits() -> None:
     state.locks["dn_e"] = "idle2"
     state.block_of["idle2"] = "dn_e"
     # Both active, so neither is an idle train holding a transit.
-    for seq, train in enumerate(("idle", "idle2"), start=1):
-        request = Request(f"{train}-1", train, "yard_w.B", (), seq, 0)
+    for train in ("idle", "idle2"):
+        request = Request(f"{train}-1", train, "yard_w.B", (), 0)
         state.active[train] = Active(request, a_route(state.layout), 0, None)
     assert state.layout.conflicts("crossover.up_to_dn", "crossover.dn_straight")
     line = "crossover.dn_straight locked to idle2 conflicts with crossover.up_to_dn"
@@ -180,7 +180,7 @@ def test_a_strategy_writes_nothing(strategy: type[Incremental | FullRoute]) -> N
     nothing itself (#761)."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    request = Request("t-1", "t", "yard_w.B", ("yard_e.A",), 0, 0)
+    request = Request("t-1", "t", "yard_w.B", ("yard_e.A",), 0)
     state = State(layout, {"t": 500}, {"yard_w": "t"}, {"t": "yard_w"}, {})
     before = dict(state.locks)
 

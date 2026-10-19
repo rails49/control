@@ -29,8 +29,8 @@ EXAMPLES = settings(deadline=None, max_examples=200)
 
 
 def first_requests(pending: tuple[Request, ...]) -> list[Request]:
-    """The oldest still-pending request of each train — the only ones the
-    dispatcher can act on, since a train's chained requests run in order."""
+    """The first waiting request of each train in list order — the only ones
+    the dispatcher can act on, since a train's requests run in list order."""
     seen: set[str] = set()
     oldest: list[Request] = []
     for req in pending:
@@ -114,6 +114,8 @@ def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
         assert events(
             assembly.trace, "grant_refused", rid=req.id
         ), f"{req.id} is pending but was never refused"
+        # A train's first waiting request follows none still in the list.
+        assert req.depart is not None, f"{req.id} is first and waits on another"
         origin = state.block_of[req.train]
         depart = effective_departure(origin, req.depart, state.departure.get(req.train))
         assert depart is not None, f"{req.id} is pending though its end is stale"

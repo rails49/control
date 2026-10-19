@@ -164,8 +164,9 @@ def test_incremental_drains_reversing_loops_saturation_faster() -> None:
     assert incremental.max_latency < baseline.max_latency
 
 
-def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
-    """The `|dest| = 6, k = 2` criterion of #33 and #34, met in two steps.
+def test_saturation_widened_to_six_arrival_ends_leaves_one_working_to_order() -> None:
+    """The `|dest| = 6, k = 2` criterion of #33 and #34, met in two steps and
+    given back by ADR-0080.
 
     Before congestion-aware costing (#33) the widened workload stalled
     outright — every train tried `station_c_1` then `station_c_2`, both occupied,
@@ -179,9 +180,13 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     The committed scenario stays at `|dest| = 2`, the column the sweep
     reads every other against.
 
-    That account is `reversing-loops-v0`'s history and its counts are v0's. What is
-    asserted is the criterion itself, on the railroad on the bench: widened to
-    every line-facing end, the workload still drains at the default `k`.
+    That account is `reversing-loops-v0`'s history and its counts are v0's.
+    ADR-0080 retired the aging rule: the waiting requests are a list a person
+    orders, and the person is the bound refusal counts were. A batch run has
+    nobody to order it, so on the railroad on the bench the widened workload
+    completes seventeen of its eighteen workings under both strategies, and
+    `t1-3` is left waiting on `C3b`, where a later train parked for good. A
+    stall and not a deadlock: no train is part-way along its route.
 
     Two of the eighteen workings are the track-3 shunt, `C3b` to `C3a`, which
     the rotation cannot avoid — station-C has four station tracks and station-A three,
@@ -222,8 +227,9 @@ def test_saturation_widened_to_six_arrival_ends_drains_at_default_k() -> None:
     for strategy in STRATEGIES.values():
         trace = run_scenario(layout, _roster, widened, strategy, DEFAULT_K)
         m = metrics(trace)
-        assert m.status == "ok"
-        assert len(m.completed) == 18
+        assert m.status == "stalled"
+        assert len(m.completed) == 17
+        assert [(stall.id, stall.resource) for stall in m.stalls] == [("t1-3", "C3b")]
 
 
 def test_the_obstacle_scenario_stalls_and_names_the_obstacle() -> None:
