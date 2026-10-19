@@ -99,6 +99,8 @@ export const POINT_WANTED = "tc49/dispatch/point_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 export const DRIVING_WANTED = "tc49/layout/driving_wanted";
+export const TAKE_WANTED = "tc49/layout/take_wanted";
+export const THROTTLE_ALIVE = "tc49/layout/throttle_alive";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  it commits everything while it is `running`, and while it is `draining` it
@@ -293,9 +295,38 @@ export function drivingWanted(driving: DrivingMode): Frame {
  *  train points, so one lever drives a top-and-tail set and `layout` composes
  *  the sign each car's decoder is given out of the train's facing and the way
  *  round that car is coupled (CONTEXT.md, **Throttle**; ADR-0045). Which
- *  address it reaches is `layout`'s and no view's. */
-export function throttleWanted(train: string, speed: number): Frame {
-  return { topic: THROTTLE_WANTED, payload: { train, speed } };
+ *  address it reaches is `layout`'s and no view's.
+ *
+ *  `throttle` is the id of the throttle turning the lever, and `layout`
+ *  applies the speed only where that throttle holds the train
+ *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+ *  Left out, the frame carries no `throttle` field. */
+export function throttleWanted(train: string, speed: number, throttle?: string): Frame {
+  return {
+    topic: THROTTLE_WANTED,
+    payload: throttle === undefined ? { train, speed } : { train, speed, throttle },
+  };
+}
+
+/** A `take_wanted` frame: this throttle is to hold the train, or, with
+ *  `null`, the train is released whoever holds it — the force release a panel
+ *  makes is the same frame. A take of a train another throttle holds is
+ *  dropped, so the view reads who holds it off `state/taken`, which `layout`
+ *  writes and this never assumes (ADR-0035,
+ *  [ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+ *
+ *  A throttle is named by the id its page mints when it opens, a random
+ *  string: it names the throttle holding a train, not who sent a frame. */
+export function takeWanted(train: string, throttle: string | null): Frame {
+  return { topic: TAKE_WANTED, payload: { train, throttle } };
+}
+
+/** A `throttle_alive` frame: this throttle is still here. A throttle says it
+ *  once a second while it holds a train, and `layout` releases every train
+ *  of one it has not heard for 5 s, so a phone gone to sleep does not leave
+ *  a train running at its last speed (ADR-0079). */
+export function throttleAlive(throttle: string): Frame {
+  return { topic: THROTTLE_ALIVE, payload: { throttle } };
 }
 
 /** A `request_submitted` payload: what the scheduler composes out of a
@@ -326,6 +357,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "power",
   "mode",
   "driving",
+  "taken",
   "exhausted",
   "facing",
   "run",

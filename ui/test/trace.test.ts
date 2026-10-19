@@ -25,6 +25,10 @@ import {
   RUN_WANTED,
   runWanted,
   STATE_NAMES,
+  TAKE_WANTED,
+  takeWanted,
+  THROTTLE_ALIVE,
+  throttleAlive,
   THROTTLE_WANTED,
   throttleWanted,
   trackLive,
@@ -204,6 +208,41 @@ describe("throttleWanted", () => {
       speed: 0,
     });
   });
+
+  it("names the throttle turning the lever where it is given one", () => {
+    expect(throttleWanted("t1", 0.4, "k3x9").payload).toEqual({
+      train: "t1",
+      speed: 0.4,
+      throttle: "k3x9",
+    });
+    expect(throttleWanted("t1", 0.4).payload).not.toHaveProperty("throttle");
+  });
+});
+
+/** One throttle holds a train (ADR-0079): a take names the throttle by the
+ *  id its page minted, and `null` releases the train whoever holds it. */
+describe("takeWanted", () => {
+  it("names the train and the throttle that is to hold it", () => {
+    expect(takeWanted("t1", "k3x9")).toEqual({
+      topic: "tc49/layout/take_wanted",
+      payload: { train: "t1", throttle: "k3x9" },
+    });
+    expect(TAKE_WANTED).toBe("tc49/layout/take_wanted");
+  });
+
+  it("releases on an explicit null", () => {
+    expect(takeWanted("t1", null).payload).toEqual({ train: "t1", throttle: null });
+  });
+});
+
+describe("throttleAlive", () => {
+  it("names the throttle and nothing else", () => {
+    expect(throttleAlive("k3x9")).toEqual({
+      topic: "tc49/layout/throttle_alive",
+      payload: { throttle: "k3x9" },
+    });
+    expect(THROTTLE_ALIVE).toBe("tc49/layout/throttle_alive");
+  });
 });
 
 /** Commanding track power (ADR-0051): the same three values the layout
@@ -334,6 +373,7 @@ describe("Ordering", () => {
       "power",
       "railroad",
       "run",
+      "taken",
       "unfit",
     ]);
   });
