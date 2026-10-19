@@ -24,6 +24,7 @@ from tests.harness import drains, events, live, minted, power, press, ticks
 
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
+POWER_WANTED = "tc49/layout/power_wanted"
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
 
@@ -66,16 +67,18 @@ def arrived() -> Assembly:
 
 def standing() -> Assembly:
     """`crossover-yard/meet` with the power on, freight_1 standing in `yard_w`
-    where the scenario put it, its detector pressed occupied and the drain
-    that first reading asks for (ADR-0048) left unanswered: a train at rest
-    with a detector under it that the simulator never read, so nothing lifts
-    it until the test does."""
+    where the scenario put it, and its detector pressed occupied: a train at
+    rest with a detector under it that the simulator never read, so nothing
+    lifts it until the test does. The drain that first reading asks for
+    (ADR-0048) ends at once, nothing moving, and a person turning the power
+    on again acknowledges it (ADR-0078)."""
     assembly = live("crossover-yard/meet")
     reading(assembly, OCCUPIED, "yard_w")
     state = assembly.dispatcher.state
     assert state.block_of["freight_1"] == "yard_w"
     assert state.reported["yard_w"] is True
     assert drains(assembly) == [DRAINING]
+    press(assembly, POWER_WANTED, {"power": ON})
     return assembly
 
 
@@ -253,6 +256,7 @@ def test_a_clear_reading_under_a_standing_train_still_drains() -> None:
     remove(assembly, "freight_1")
     reading(assembly, OCCUPIED, "up_e")
     assert drains(assembly) == [DRAINING, DRAINING]
+    press(assembly, POWER_WANTED, {"power": ON})
 
     reading(assembly, VACATED, "up_e")
 

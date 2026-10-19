@@ -4,12 +4,12 @@ The simulator answers the band's power presses as the layout interface does
 (ADR-0070). It comes up `off`, stated from its constructor so a joining
 client is served a value rather than reading one out of an absence
 (ADR-0032), and publishes on `state/power` the word each answered
-`power_wanted` commanded, since it has no hardware to report one. A plain
-`off` is applied only while the run is held and nothing moves (ADR-0062),
-the check being `lib.power`'s and the same one the layout makes.
+`power_wanted` commanded, since it has no hardware to report one. `off` is
+applied at once and `draining` holds until `state/moving` reads false
+(ADR-0078), the rule being `lib.power`'s and the same one the layout keeps.
 
 While the power is not `on` no move starts and none advances: a `move` is
-dropped, and a transit under way at a STOP waits and goes on at ON with the
+dropped, and a transit under way at an `off` waits and goes on at ON with the
 time it had left.
 """
 
@@ -87,19 +87,20 @@ def move(bus: InProcessBus) -> None:
 
 def test_each_answered_press_is_the_word_on_state_power() -> None:
     """No hardware reports the supply here, so the word commanded is the
-    word stated: `on`, `stopped` and `off` each appear as pressed."""
+    word stated: `on`, `off` and `draining` each appear as pressed, and the
+    drain ends `off` once nothing moves."""
     bus, _clock, _sim = simulator()
     seen = heard(bus)
     bus.drain()
-    for word in ("on", "stopped", "on", "off"):
+    for word in ("on", "off", "on", "draining"):
         press(bus, {"power": word})
-    assert seen == ["off", "on", "stopped", "on", "off"]
+    bus.publish("tc49/dispatch/state/moving", {"moving": False})
+    bus.drain()
+    assert seen == ["off", "on", "off", "on", "draining", "off"]
 
 
-def test_a_transit_under_way_at_a_stop_goes_on_at_on_with_the_time_it_had_left() -> (
-    None
-):
-    """Started at 0 with ten seconds to run, stopped at 4 and powered again
+def test_a_transit_under_way_at_a_cut_goes_on_at_on_with_the_time_it_had_left() -> None:
+    """Started at 0 with ten seconds to run, cut at 4 and powered again
     at 20: the head is six seconds out still, so it lands at 26 and the tail
     clears a clearing delay after (ADR-0070, decision 4). Driven live with
     the wait injected; each press lands in the wait that ends at its time."""
@@ -108,7 +109,7 @@ def test_a_transit_under_way_at_a_stop_goes_on_at_on_with_the_time_it_had_left()
     seen = stamped(bus, clock)
     move(bus)
 
-    presses = {4.0: "stopped", 20.0: "on"}
+    presses = {4.0: "off", 20.0: "on"}
 
     def sleep(seconds: float) -> None:
         word = presses.pop(clock.now + seconds, None)
@@ -124,13 +125,13 @@ def test_a_transit_under_way_at_a_stop_goes_on_at_on_with_the_time_it_had_left()
 
 
 def test_a_batch_run_ends_where_every_queued_event_is_waiting() -> None:
-    """A batch run never sends STOP, so this is only for safety: a queue that
+    """A batch run never cuts the power, so this is only for safety: a queue that
     cannot fire is not a queue to wait on."""
     bus, clock, sim = simulator()
     press(bus, {"power": "on"})
     seen = stamped(bus, clock)
     move(bus)
-    press(bus, {"power": "stopped"})
+    press(bus, {"power": "off"})
     sim.run()
     assert seen == []
     assert clock.now == 0.0

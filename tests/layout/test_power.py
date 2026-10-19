@@ -1,21 +1,20 @@
-"""Track power at the layout interface: commanded on arrival, observed from
-below, and off until a person says otherwise (#287, ADR-0051).
+"""Track power at the layout interface: one switch, `on`, `draining` or
+`off`, answered on arrival and observed from below, and off until a person
+says otherwise (#287, ADR-0051, ADR-0078).
 
-The two halves meet on one word and nowhere else: what the app writes on
-`wanted/track` is the word it was told to write, and what it says on
-`state/power` is folded from what the hardware reports. Commanding power is
-not observing it — bar the emergency stop, which no hardware can report and
-this app therefore holds from the command it wrote until a person asks for
-the power back (ADR-0063, #470).
+The two halves meet on one word: what the app writes on `wanted/track` is the
+supply it was asked for, and what it says on `state/power` is folded from what
+the hardware reports — bar a drain, which no hardware can report and this app
+therefore holds from the press until it ends, and a cut, held as `off` until
+the next `on` (ADR-0063).
 
-One command is not written through as it came. A plain `off` is applied only
-where nothing is moving, because a topic names the app that answers it and
-never the process that sent the frame, so the drain-first check is made here
-rather than trusted to the sender (ADR-0062, #407); that guard is
-`lib.power`'s, held to both bindings in `tests/system/test_layout_bindings.py`.
-And an `off` that is applied leaves the railroad **at rest**: the traction rows
-go to zero ahead of the cut, so the supply coming back does not come back over
-a standing speed (#435).
+`off` is the emergency stop, applied at once whatever is moving. `draining`
+keeps the supply on until `tc49/dispatch/state/moving` reads false, and then
+cuts it as `off` does; the rule is `lib.power`'s, held to both bindings in
+`tests/system/test_layout_bindings.py`. A cut leaves the railroad **at
+rest**: the traction rows go to zero ahead of it, so the supply coming back
+does not come back over a standing speed (#435). And `on` gives each train a
+cut left between blocks the speed its grant implies, so it finishes its move.
 """
 
 from collections.abc import Callable
@@ -40,13 +39,16 @@ from tests.layout.railroad import (
     faces,
     heard,
     move,
+    moves,
     railroad,
-    runs,
+    reads,
+    settle,
     speeds,
     stand,
     stock,
     takes,
     turns,
+    wired,
 )
 
 WANTED = "tc49/layout/state/wanted/#"
@@ -195,110 +197,168 @@ def test_the_supply_cannot_report_an_emergency_stop() -> None:
     assert said[-1] == (POWER, {"at": 0.0, "power": "off"})
 
 
-# -- the emergency stop this app holds ---------------------------------------
+# -- the drain this app holds ------------------------------------------------
 
 
-def test_an_emergency_stop_reads_as_itself_from_the_command_that_asked_for_it() -> None:
-    """The one value on this row that is not folded from hardware, because no
-    hardware can hold it: a stop leaves the rails live, so the supply reads
-    `on` under one and a second after the press the fold would call the
-    railroad good again (ADR-0063). `layout` wrote `stopped`, so `layout`
-    holds it — and the person who pressed it has the row saying the railroad
-    is waiting for them (ADR-0041)."""
+def test_a_drain_reads_as_itself_from_the_press_that_asked_for_it() -> None:
+    """The supply stays on through a drain and the hardware goes on saying
+    so, so the fold would read `on` and the dispatcher would route into it
+    (ADR-0063). `layout` answered the drain, so `layout` holds it."""
     bus, _app = build()
     energised(bus)
     said = heard(bus, POWER)
     bus.drain()
 
-    commands(bus, "stopped")()
-
-    assert said[-1] == (POWER, {"at": 0.0, "power": "stopped"})
-
-
-def test_the_hardware_saying_the_rails_are_live_does_not_clear_it() -> None:
-    """Which is the whole reason it is held. The supply is live under an
-    emergency stop and goes on saying so, and a row that took the hardware's
-    word here would clear the stop nobody has cleared."""
-    bus, _app = build()
-    energised(bus)
-    commands(bus, "stopped")()
-    said = heard(bus, POWER)
-    bus.drain()
-
+    commands(bus, "draining")()
     bus.publish(DEVICE_TRACK, {"power": "on"})
     bus.drain()
 
-    assert said == [(POWER, {"at": 0.0, "power": "stopped"})]
+    assert said == [
+        (POWER, {"at": 0.0, "power": "on"}),
+        (POWER, {"at": 0.0, "power": "draining"}),
+    ]
 
 
-def test_the_power_command_a_person_reaches_for_to_resume_clears_it() -> None:
-    """`power_wanted: on` — the railroad's own power control, and no second
-    topic, no fourth value and no new button. It is what a person presses to
-    drive again, and the stop is cleared by the same press that asks for the
-    railroad back (ADR-0063)."""
+def test_a_drain_cuts_only_once_nothing_is_moving() -> None:
+    """The supply goes the first moment `state/moving` reads false, and not
+    while a train is still running to its sensor (ADR-0078, decision 4)."""
     bus, _app = build()
-    energised(bus)
-    commands(bus, "stopped")()
+    moves(bus, True)
+    track = live(bus)
     said = heard(bus, POWER)
     bus.drain()
 
-    commands(bus, "on")()
+    commands(bus, "draining")()
+    moves(bus, True)
+    assert powers(track) == ["on"]
+    assert said[-1] == (POWER, {"at": 0.0, "power": "draining"})
 
-    assert said[-1] == (POWER, {"at": 0.0, "power": "on"})
-
-
-def test_the_fold_answers_again_once_the_stop_is_cleared() -> None:
-    """The held value outranks the fold while it is held and not after: what
-    the hardware said in the meantime is what the row reads on the clearing
-    press, rather than an `on` this app has taken its own word for."""
-    bus, _app = build()
-    energised(bus)
-    commands(bus, "stopped")()
-    bus.publish(DEVICE_TRACK, {"power": "off"})
-    bus.drain()
-    said = heard(bus, POWER)
-    bus.drain()
-
-    commands(bus, "on")()
-
+    moves(bus, False)
+    assert powers(track) == ["on", "off"]
     assert said[-1] == (POWER, {"at": 0.0, "power": "off"})
 
 
-def test_an_off_does_not_clear_it_and_the_row_does_not_flicker_on() -> None:
-    """`on` alone clears it. A cut is commanded and not observed, so clearing
-    on the press would publish the fold's answer — `on`, the hardware still
-    reporting the supply it has not yet lost — in the moment this app is
-    asking for the supply to go. The stop stands over a dark railroad
-    instead, both words holding the run either way (ADR-0041)."""
+def test_a_drain_over_a_railroad_standing_still_cuts_at_once() -> None:
+    bus, _app = build()
+    moves(bus, False)
+    track = live(bus)
+
+    commands(bus, "draining")()
+
+    assert powers(track) == ["on", "off"]
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
+
+
+def test_no_moving_row_is_a_train_moving() -> None:
+    """No dispatcher has said anything, and an absence is not evidence that
+    nothing moves: the drain waits, and a person has `off`."""
+    bus, _app = build()
+    track = live(bus)
+
+    commands(bus, "draining")()
+
+    assert powers(track) == ["on"]
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "draining"}
+
+
+def test_on_during_a_drain_ends_it() -> None:
+    """A person asking for `on` during a drain ends it (ADR-0078), and the
+    railroad is the fold's again: the trains that were stopping carry on,
+    and nothing moving reading false afterwards cuts nothing."""
+    bus, _app = build()
+    moves(bus, True)
+    track = live(bus)
+    commands(bus, "draining")()
+
+    commands(bus, "on")()
+    moves(bus, False)
+
+    assert powers(track) == ["on", "on"]
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "on"}
+
+
+def test_a_drain_from_off_is_dropped() -> None:
+    """From `on` only: there is nothing running to drain, and a drain over a
+    dark railroad would be one that read the supply back on."""
+    bus, _app = build()
+    moves(bus, False)
+    track = live(bus)
+    commands(bus, "off")()
+    said = heard(bus, POWER)
+    bus.drain()
+
+    commands(bus, "draining")()
+
+    assert powers(track) == ["on", "off"]
+    assert said == [(POWER, {"at": 0.0, "power": "off"})]
+
+
+def test_a_press_that_cannot_be_read_commands_nothing() -> None:
+    """`stopped` among them: the emergency stop with the track live is the
+    word ADR-0078 retires."""
     bus, _app = build()
     energised(bus)
-    commands(bus, "stopped")()
-    runs(bus, "held", moving=False)
+    said = heard(bus, POWER)
+    written = heard(bus, WANTED_TRACK)
+    bus.drain()
+
+    bus.publish(POWER_WANTED, {"power": "sideways"})
+    bus.publish(POWER_WANTED, {"power": "stopped"})
+    bus.publish(POWER_WANTED, {})
+    bus.drain()
+
+    # The values the subscriptions were owed, and nothing after them.
+    assert said == [(POWER, {"at": 0.0, "power": "on"})]
+    assert powers(written) == ["off"]
+
+
+# -- the emergency stop -------------------------------------------------------
+
+
+def test_off_cuts_while_a_train_is_moving() -> None:
+    """The emergency stop: at once, with no guard (ADR-0078, decision 5)."""
+    bus, _app = build()
+    moves(bus, True)
+    track = live(bus)
+
+    commands(bus, "off")()
+
+    assert powers(track) == ["on", "off"]
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
+
+
+def test_a_cut_reads_off_before_the_hardware_says_so() -> None:
+    """The supply reports live until it has gone, and a row read as `on` in
+    that moment is a railroad the dispatcher routes."""
+    bus, _app = build()
+    live(bus)
     said = heard(bus, POWER)
     bus.drain()
 
     commands(bus, "off")()
+    energised(bus)
+
+    assert said == [
+        (POWER, {"at": 0.0, "power": "on"}),
+        (POWER, {"at": 0.0, "power": "off"}),
+    ]
+
+
+def test_the_fold_answers_again_on_on() -> None:
+    """The held `off` stands until `on` and not after: what the hardware
+    said meanwhile is what the row reads on the press, rather than an `on`
+    this app has taken its own word for."""
+    bus, _app = build()
+    live(bus)
+    commands(bus, "off")()
     bus.publish(DEVICE_TRACK, {"power": "off"})
     bus.drain()
 
-    assert said == [(POWER, {"at": 0.0, "power": "stopped"})]
+    commands(bus, "on")()
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "off"}
 
-
-def test_a_stop_this_app_never_commanded_is_not_held() -> None:
-    """A gesture that was refused or could not be read commanded nothing, and
-    a row that moved on it would report an emergency stop the railroad was
-    never asked for."""
-    bus, _app = build()
     energised(bus)
-    said = heard(bus, POWER)
-    bus.drain()
-
-    bus.publish(POWER_WANTED, {"power": "sideways"})
-    bus.publish(POWER_WANTED, {})
-    bus.drain()
-
-    # The value the subscription was owed, and nothing after it.
-    assert said == [(POWER, {"at": 0.0, "power": "on"})]
+    assert bus.last_values[POWER] == {"at": 0.0, "power": "on"}
 
 
 def test_a_link_going_down_takes_the_power_off_on() -> None:
@@ -402,7 +462,6 @@ def test_an_applied_off_writes_zero_over_a_standing_traction_row() -> None:
     live(bus)
     written = commanded(bus)
     hand_driven(bus)
-    runs(bus, "held", moving=False)
 
     commands(bus, "off")()
 
@@ -416,7 +475,6 @@ def test_the_zero_goes_out_before_the_supply_is_cut() -> None:
     bus, _app = build()
     live(bus)
     hand_driven(bus)
-    runs(bus, "held", moving=False)
     written = desired(bus)
 
     commands(bus, "off")()
@@ -424,47 +482,101 @@ def test_the_zero_goes_out_before_the_supply_is_cut() -> None:
     assert topics(written) == [f"{WANTED_TRACTION}/3", WANTED_TRACK]
 
 
-def test_an_emergency_stop_leaves_the_rows_where_they_stand() -> None:
-    """Not on `stopped`. STOP asks the rails for less and the run is meant to
-    resume from it, so zeroing the rows there would turn an emergency stop
-    into a re-drive (ADR-0041)."""
+def test_a_drain_ending_writes_zero_over_a_standing_traction_row() -> None:
+    """The end of a drain is a cut like any other, and leaves the railroad at
+    rest the same way, zeros first."""
+    bus, _app = build()
+    moves(bus, True)
+    live(bus)
+    hand_driven(bus)
+    commands(bus, "draining")()
+    written = desired(bus)
+
+    moves(bus, False)
+
+    assert topics(written) == [f"{WANTED_TRACTION}/3", WANTED_TRACK]
+    assert written[0][1]["speed"] == 0.0
+
+
+def test_a_drain_leaves_the_rows_where_they_stand() -> None:
+    """Not on `draining`. The supply stays on and each moving train runs to
+    the end of its move, so zeroing a row there would strand it between two
+    blocks."""
+    bus, _app = build()
+    moves(bus, True)
+    live(bus)
+    written = commanded(bus)
+    hand_driven(bus)
+
+    commands(bus, "draining")()
+
+    assert speeds(written) == [("3", 0.5)]
+
+
+# -- `on` resumes ---------------------------------------------------------------
+
+
+def crossing(bus: InProcessBus) -> None:
+    """`single` under way on a grant the driver drives, in `automatic`."""
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+
+
+def test_on_after_off_restores_a_crossing_trains_speed() -> None:
+    """A train a cut left between blocks finishes its move (ADR-0078,
+    decision 6): the press gives it the speed its grant implies, on the
+    press and not when the hardware reports the supply back."""
+    bus, _app = build()
+    live(bus)
+    written = commanded(bus)
+    crossing(bus)
+    commands(bus, "off")()
+    bus.publish(DEVICE_TRACK, {"power": "off"})
+    bus.drain()
+
+    commands(bus, "on")()
+
+    assert speeds(written) == [("3", 0.6), ("3", 0.0), ("3", 0.6)]
+
+
+def test_on_restores_nothing_for_a_train_that_has_arrived() -> None:
+    bus, app, clock = wired()
+    live(bus)
+    written = commanded(bus)
+    crossing(bus)
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    commands(bus, "off")()
+
+    commands(bus, "on")()
+
+    assert speeds(written) == [("3", 0.6), ("3", 0.0), ("3", 0.0)]
+
+
+def test_on_leaves_a_train_a_throttle_holds_to_the_person() -> None:
+    """Its speed is the person's (#825), and the cut left it at zero."""
     bus, _app = build()
     live(bus)
     written = commanded(bus)
     hand_driven(bus)
-    runs(bus, "held", moving=False)
-
-    commands(bus, "stopped")()
-
-    assert speeds(written) == [("3", 0.5)]
-
-
-def test_an_off_refused_for_a_moving_train_leaves_the_rows_alone() -> None:
-    """A refused gesture changes nothing (ADR-0062): nothing was cut, so
-    nothing is at rest, and a train running to its sensor is the last one to
-    take a zero."""
-    bus, _app = build()
-    track = live(bus)
-    written = commanded(bus)
-    hand_driven(bus)
-    runs(bus, "held", moving=True)
-
     commands(bus, "off")()
 
-    assert speeds(written) == [("3", 0.5)]
-    assert powers(track) == ["on"]
+    commands(bus, "on")()
+
+    assert speeds(written) == [("3", 0.5), ("3", 0.0)]
 
 
-def test_an_off_refused_for_a_running_run_leaves_the_rows_alone() -> None:
-    """The other refusal, and the same answer: the zeros ride with the cut
-    and there was no cut."""
-    bus, _app = build()
-    track = live(bus)
+def test_on_in_manual_writes_nothing() -> None:
+    """In `manual` a train no throttle holds stands at its signal, and the
+    ones that carry on are those a throttle holds (#825)."""
+    bus, _app = build(driving="manual")
+    live(bus)
     written = commanded(bus)
-    hand_driven(bus)
-    runs(bus, "running", moving=False)
-
+    crossing(bus)
     commands(bus, "off")()
 
-    assert speeds(written) == [("3", 0.5)]
-    assert powers(track) == ["on"]
+    commands(bus, "on")()
+
+    assert speeds(written) == []
