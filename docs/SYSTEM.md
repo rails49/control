@@ -491,14 +491,14 @@ in [BUS.md](BUS.md#device-vocabulary).
 10. Before an applied `off` goes out, a press or the end of a drain, `layout`
     writes `0.0` to every retained `wanted/traction` row
     ([#435](https://github.com/rails49/control/issues/435)).
-11. While `state/power` is not `on`, `layout` acts on no `move` (ADR-0062,
-    [#438](https://github.com/rails49/control/issues/438)).
+11. `layout` acts on a `move` while `state/power` reads `on` or `draining`,
+    and keeps one that arrives while it reads `off` until power reads `on`
+    again. It then acts on it under the same checks (ADR-0062,
+    [#438](https://github.com/rails49/control/issues/438), ADR-0078
+    decisions 4 and 6, [#862](https://github.com/rails49/control/issues/862)).
 12. Rule 11 reads `state/power` as `layout` states it, so a `move` arriving
-    after a cut is dropped while the station still reports the supply live.
-    A move the dispatcher granted before it read the cut is dropped the same
-    way, and the train is left holding locks for a move no sensor will end.
-    Taking the train off or placing it again frees it (ADR-0062, #438,
-    [ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+    after a cut is kept while the station still reports the supply live
+    (ADR-0062, #438).
 13. At start-up `layout` writes `wanted/track: off` and `state/power: off`,
     then `0.0` to every retained `wanted/traction` row. `wanted/point` keeps
     its retained value and replays it. Until the first press `state/power` is
