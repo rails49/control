@@ -20,6 +20,7 @@ from tc49.lib.inventory import (
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 RUN_WANTED = "tc49/dispatch/run_wanted"
+MOVING = "tc49/dispatch/state/moving"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 POINT_WANTED = "tc49/dispatch/point_wanted"
@@ -160,6 +161,15 @@ def test_the_driving_mode_is_a_gesture_and_layouts_state() -> None:
     assert TOPICS[DRIVING_WANTED].fields == ("driving",)
     assert TOPICS[DRIVING].fields == (AT, "driving")
     assert DRIVING not in INBOUND
+
+
+def test_whether_anything_is_moving_is_the_dispatchers_state() -> None:
+    """`layout` ends a drain once nothing is moving, and the dispatcher, which
+    knows what is active and crossing, states it on a row of its own that no
+    page writes (ADR-0078)."""
+    assert TOPICS[MOVING].fields == (AT, "moving")
+    assert is_state_topic(MOVING)
+    assert MOVING not in INBOUND
 
 
 def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
