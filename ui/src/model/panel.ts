@@ -1035,6 +1035,18 @@ export class Panel {
     return false;
   }
 
+  /** The id a Cancel request on this train names: its first request in
+   *  flight, in the order the dispatcher serves them, or `null` where it has
+   *  none. Cancelling that one ends the requests chained after it as well
+   *  ([ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),
+   *  so the gesture still ends whatever the train has. */
+  firstRequest(train: string): string | null {
+    for (const request of this.requests.values()) {
+      if (request.train === train && request.phase !== "rejected") return request.id;
+    }
+    return null;
+  }
+
   /** The endpoints worth marking: pending requests as endpoints only — never
    *  a predicted path — and rejections with their reason in words. */
   markers(): Marker[] {
