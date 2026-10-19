@@ -706,8 +706,8 @@ answers: the frame a fit and an export are drawn in, an arrow's pose, and
 which symbol an address is worn by. The session is `model/session.ts`, held by
 the app ([#756](https://github.com/rails49/control/issues/756)): the page's one
 connection, the railroad the row names, the rows held until the documents
-land, the panel model it feeds, HOLD/GO and the release notice, track power
-and the OFF drain, and every frame the page sends. `tc-panel` reads the model
+land, the panel model it feeds, power and the driving mode, and every frame
+the page sends. `tc-panel` reads the model
 off it, hands the canvas an overlay, hands `tc-roster` the railroad's roster
 marked with where the run has each train, and gives the session the gestures
 it composes. Where a drag from the pane landed is asked of the canvas, which is
@@ -721,10 +721,11 @@ this view and drives the right-click, and `run.test.ts` walks the session: a
 menu offered over a train's block and nowhere else, the browser's own menu
 suppressed either way, one `reversal_wanted` and no second frame, a refusal
 shown in the band rather than swallowed, and a menu coming down when the train
-leaves the block or the session goes. The session's own rules — the drain,
-HOLD and GO, the rows held for the documents, and that a frame changing nothing
-the app shows leaves `status` and `cabs` the same objects — are driven against
-the broker double with no DOM in `session.test.ts`. The last of the menu's is
+leaves the block or the session goes. The session's own rules — the power and
+driving presses, the rows held for the documents, and that a frame changing
+nothing the app shows leaves `status` and `cabs` the same objects — are driven
+against the broker double with no DOM in `session.test.ts`. The last of the
+menu's is
 the shape both bugs
 [#124](https://github.com/rails49/control/issues/124) found in Chrome took,
 and catching that shape is what the suite is for
@@ -755,7 +756,7 @@ got, and a store that is not being backed up
 ([EDITOR.md](EDITOR.md#the-band)) — and track power, a power toggle whose
 colour says where the supply stands and a stop sign beside it. The **rail** is
 the views, and then this view's document's: zoom out, zoom in and fit as icon
-buttons, and **HOLD/GO** at its far end.
+buttons, and the **driving control** at its far end.
 
 **Nothing that is going right reads in the band**
 ([#517](https://github.com/rails49/control/issues/517)). It carried six entries
@@ -765,22 +766,21 @@ rather than a word repeating it; the frozen drawing reads in the editing
 view alone, power on being the ordinary state of a railroad being run; and the
 link has no word at all.
 
-**HOLD and GO are one press and no confirmation.** The button says HOLD while
-the run is running and GO while it is held, which is what the press will do,
-and a clearly labelled button is the explicit GO
-([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
-It draws `tc49/dispatch/state/run` off the picture rather than the last press,
-so a gesture that did not land leaves the value where it was, and it is dead
-with no session joined and until the dispatcher has said where the run stands.
-The gesture is `tc49/dispatch/run_wanted`, which names where the run should stand
-rather than asking for a change: two presses of the same value are not a race.
+**The driving control is one press and no confirmation**, where GO and HOLD
+were
+([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+It shows the railroad's driving mode, *MANUAL* or *AUTOMATIC*, and a press
+publishes `tc49/layout/driving_wanted` naming the other one. It draws
+`tc49/layout/state/driving` off the picture rather than the last press, so a
+gesture that did not land leaves the word where it was, and it is dead with no
+session joined and until `layout` has said the mode. `layout` accepts the
+gesture at any power, so power does not grey it. `model/commands.ts`
+`driving()` decides what it shows.
 
-**The band says whether the rails have power**, reading
-`tc49/layout/state/power` beside the broker and the session clock, and it tells
-the two ways of standing still apart: the power toggle is red for `stopped` and
-dimmed for `off`, and its tooltip says which. The person recovering clears the
-one and switches the other back on, which are different actions
-([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+**The band says where power stands**, reading `tc49/layout/state/power`: the
+power toggle is green for `on`, pulses green for `draining` and is dimmed for
+`off`, and its tooltip says which
+([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 Until the station has said where power stands the control is dead and says
 *Waiting for the station*.
 
@@ -803,119 +803,58 @@ ordered like every other state row — the row is named `device/track` the way
 the `wanted/track` that `layout` writes on a press (`model/trace.ts`,
 [ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 
-**The power toggle and the stop sign command the supply**, on
+**The power toggle and the stop sign command power**, on
 `tc49/layout/power_wanted`
-([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md),
+([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md),
 [ADR-0073](../adr/0073-the-chrome-comes-from-look.md)). The toggle asks for
-`off` when the supply is on and for `on` otherwise, so stopped to off takes two
-presses; the stop sign asks for `stopped`. They stand in the band beside the
-reading they act on, because track power is the whole railroad's and no
-document's. They are dead with *Waiting for the station* before the station has
-said where power stands and while the broker is not answering, a press it
+`draining` from `on`, and for `on` from `off` or `draining`: one press turns
+the railroad on, one starts the drain, and one during a drain ends it. The
+stop sign asks for `off`, the emergency stop: power straight off, without a
+drain. look's control says what was pressed in its own words — the toggle
+`off` from `on` and `on` otherwise, the stop sign `stopped` — and `asked()`
+in `model/commands.ts` turns those into the railroad's. They stand in the band
+beside the reading they act on, because power is the whole railroad's and no
+document's. They are dead with *Waiting for the station* before the station
+has said where power stands and while the broker is not answering, a press it
 would swallow being a press that did nothing. `supply()` in
 `model/commands.ts` decides what the control shows. The stop sign is not
-greyed when the supply already reads `stopped`: like `run_wanted`, the gesture
-names where the supply should stand rather than asking for a change, so a
-press that agrees with where it stands is not a race. The topic is `layout`'s
-because `layout` is what answers it, and `layout` answers by writing the desired power
-of the device vocabulary — a page never reaches a translator.
+greyed when power already reads `off`: the gesture names where power should
+stand rather than asking for a change, so a press that agrees with where it
+stands is not a race. The topic is `layout`'s because `layout` is what
+answers it, and `layout` answers by writing the desired power of the device
+vocabulary — a page never reaches a translator.
 
-**The stop sign is one click with no confirmation**, for the reason HOLD is:
-an emergency stop that asks "are you sure?" is not one, and `stopped` is cheap
-to recover from with the points still where you left them. **Asking for `on`**
-writes nothing on `run_wanted`: returning to `on` releases nothing on its own
-(ADR-0041), so an explicit GO still follows. **Power on waits for the save**
+**The stop sign is one click with no confirmation**: an emergency stop that
+asks "are you sure?" is not one, and a train it leaves between blocks carries
+on with its move when power is back `on`. **Power on waits for the save**
 while the loaded railroad has unsaved edits and power is off, since this view
 draws the open drawing; the control is then dead and says *Save the railroad
-first*. With power on or stopped it never waits
+first*. With power on or draining it never waits
 ([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing), ADR-0071).
 
-**The toggle asking for `off` is the drain trigger, never an immediate
-cut.** The press publishes
-`tc49/dispatch/run_wanted: draining` — always, a run already reading `held`
-included — and starts a wait; both topics are ones the session already writes.
-**The wait ends on two conditions together**: `tc49/dispatch/state/run` reads
-`run: held` *and* `moving: false`, and the session then publishes `power_wanted:
-off` once
-([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-The word alone will not do: a held run can be moving, a move already granted
-running to its sensor, so a HOLD from another panel writes `held` with trains
-still rolling. Where the run is already held with nothing moving there is
-nothing left to drain, and the supply goes at once — the dispatcher answering
-`held` with `held` publishes no frame for the wait to see. **A row that says
-nothing about `moving` never ends the wait**: an older dispatcher publishes
-the word alone, and this button treats that silence as a railroad that may
-still be moving. `layout`'s guard falls the other way, applying such an `off`
-because a guard refuses on evidence and an absence is none
-([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md));
-the two differ because what the wait risks is a train stranded where no sensor
-will ever say it stopped, and all its caution costs is a toggle that goes on
-showing `draining` against a dispatcher too old to answer it.
-
-**Three things drop the wait, and none of them cuts.** A `state/run` row whose
-run word has *changed* to `running` while it stands is a drain somebody
-abandoned — a GO on this panel or on another — and the wait goes with it,
-rather than standing until a HOLD hours later cuts the power out of a press the
-person had moved on from. **The change and not the value**: the dispatcher
-republishes the row whenever `moving` moves under a standing run word, so a
-running run whose last train arrives says `running` again with `moving` false,
-and that is the drain still outstanding rather than one released
-([#441](https://github.com/rails49/control/issues/441)). It is news about the
-run word that decides this wait, and never news about `moving` — which is what
-the other half of the same rule already says, `moving` being read only
-alongside `held`.
-Asking for `on` and the stop sign drop it as they write their own frame, and
-a session that goes away takes it with it. **Pressing the toggle again is the
-way out of a wait**: while it drains it asks for `on`, a supply going away out
-of a press the person has moved on from being the surprise this control exists
-to avoid.
-
-While the wait is outstanding the toggle shows `draining` and pulses green,
-and the stop sign stays live. A run that never settles leaves the railroad
-powered and the toggle still saying so — the case an abrupt cut would have
-hidden. **The wait is the person's view
-of the drain and not the only guard**: `layout` refuses an `off` it should not
-apply (ADR-0062), which is why the sentence that this view's sequencing is
-what makes OFF safe, and that `layout` never subscribes to the dispatcher, no
-longer holds. The panel still does not send `off` blindly. The
-`draining` value itself, and the dispatcher's launch gate, are the
-dispatcher's half of the same decision
-([#294](https://github.com/rails49/control/issues/294)): it launches nothing
-more, lets what is crossing finish, and writes the `held` this button is
-waiting for.
-
-**GO is greyed while the power is not `on`.** The dispatcher drops such a
-release, so a live button would be one that does nothing. It carries no
-explanation of its own: the band beside it says which, the way the greyed
-*Turn around* says *this train is busy* by being greyed at all. HOLD is
-untouched — it asks for less, and there is no state of the rails in which a
-person may not ask for it. A session that has said where the run stands and
-nothing about power still offers GO: the dispatcher takes `on` until the
-layout says otherwise, and the button says what it would do rather than
-guessing at silence.
-
-**A release says what is still disputed.** Pressing GO with the disputed set
-non-empty is allowed and nothing is blocked — the person decides, not the
-check — and the view writes what was outstanding beside the press, in the same
-words the marks under the blocks use. It has to be words: `state/disputed` is
-empty while the run is running, so the amber marks go with the hold and the
-sentence is what is left of them. It stands as long as the run it was a
-decision about is running, and a fresh hold is a fresh decision
-([#153](https://github.com/rails49/control/issues/153)).
+**The drain is `layout`'s, and the page waits for nothing.** The toggle
+publishes `power_wanted: draining` and stops there: `layout` switches the
+supply off once `tc49/dispatch/state/moving` says no train is moving, and what
+the toggle then shows is `state/power` reading `off`
+([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+While power reads `draining` the toggle pulses green and the stop sign stays
+live. A drain that never lands leaves the railroad powered and the toggle
+still saying so. The page reads `state/moving` into the panel model
+(`Panel.moving`) and decides nothing on it.
 
 **This view has no control of its own.** The session select it used to carry
 is gone: the broker says which railroad is on screen and the app loads it
 ([#371](https://github.com/rails49/control/issues/371)), and the one control
 that asks for another is the band's, both views being of one railroad
-(ADR-0038, ADR-0060). What its header still draws is the release notice and
-the trains a rebuild took off, and only while there is one or the other.
+(ADR-0038, ADR-0060). What its header still draws is the trains a rebuild
+took off, and only while there are any.
 
 **A rebuild that took trains off says which, one line each.** A rebuild under
 the same name places a train again only where its block is still in the
 drawing and still holds it
 ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)),
 and the dispatcher lists the rest on `tc49/dispatch/state/unfit`. The view
-draws a line per train under the release notice — *`<train>: block <block> is
+draws a line per train in its header — *`<train>: block <block> is
 gone`* or *`<train>: block <block> is shorter than the train — place it
 again`* — and nothing while the list is empty. The dispatcher drops a train
 from the list once it is placed, so the lines go as a person puts the trains

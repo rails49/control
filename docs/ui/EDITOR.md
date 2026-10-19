@@ -241,8 +241,8 @@ written in look's `Mod+S` form and shown for the platform.
     File   Save ⌘S  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
-The run view's rail is the views, the three `View` commands and HOLD/GO, which
-sits in a group labelled Run at the rail's far end ([PANEL.md](PANEL.md)). Its
+The run view's rail is the views, the three `View` commands and the driving
+control, which sits in a group labelled Driving at the rail's far end ([PANEL.md](PANEL.md)). Its
 document is a railroad somebody else is running, so
 it has no `File` and no `Edit`; the throttle and the stock screen draw no
 document with a viewport and have no commands at all, so the views are the whole
