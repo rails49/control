@@ -130,6 +130,10 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/train_placed": Topic(("train", "block")),
     "tc49/dispatch/train_removed": Topic(("train",)),
     "tc49/dispatch/state/run": Topic((AT, "run", "moving")),
+    # True while any train is active or crossing, and what `layout` reads to
+    # end a drain; it replaces `state/run`, which goes with `run_wanted` once
+    # nothing reads either (ADR-0078, #834).
+    "tc49/dispatch/state/moving": Topic((AT, "moving")),
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
     "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
     "tc49/dispatch/state/unfit": Topic((AT, "trains")),
@@ -297,7 +301,11 @@ now would strand it (CONTEXT.md, **Moving**; ADR-0062). It is orthogonal to
 the three — a `held` run can be moving, because a move already granted runs
 to its sensor, and a `running` run with nothing granted is not — and it is
 what says the drain's completion apart from a person's HOLD, which writes the
-same word with trains still rolling (#406)."""
+same word with trains still rolling (#406).
+
+All of it goes with power's three values (ADR-0078): ``moving`` stays, on
+``tc49/dispatch/state/moving`` alone, and the run's words and their two
+topics leave the contract once nothing reads them (#834)."""
 
 
 AUTOMATIC = "automatic"

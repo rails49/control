@@ -374,6 +374,7 @@ describe("Ordering", () => {
       "exhausted",
       "facing",
       "mode",
+      "moving",
       "power",
       "railroad",
       "run",

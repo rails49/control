@@ -371,7 +371,12 @@ export interface Submission {
  *  device topic is named by its row and the address under it rather than by a
  *  leaf, so the one a view reads is named as `Live` names it
  *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md),
- *  [#602](https://github.com/rails49/control/issues/602)). */
+ *  [#602](https://github.com/rails49/control/issues/602)).
+ *
+ *  `moving` is the dispatcher's `state/moving`: a boolean, true while any
+ *  train is active or crossing, which replaces `state/run` once nothing reads
+ *  it, and a payload that cannot be read says `true`
+ *  ([ADR-0078](../../../docs/adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). */
 export const STATE_NAMES: ReadonlySet<string> = new Set([
   "railroad",
   "power",
@@ -381,6 +386,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "exhausted",
   "facing",
   "run",
+  "moving",
   "aspects",
   "disputed",
   "unfit",
