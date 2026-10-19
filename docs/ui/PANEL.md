@@ -380,8 +380,8 @@ for the train to enter the block it was granted, and until then the route
 stays lit, because the train still holds it. A second press in that window
 does nothing. There is no confirmation.
 
-The two gestures a **throttle** rides on,
-`tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`, are drawn — in a
+The gestures a **throttle** rides on, `tc49/layout/take_wanted`,
+`tc49/layout/throttle_wanted` and `tc49/layout/throttle_alive`, are drawn — in a
 view of their own, [THROTTLE.md](THROTTLE.md)
 ([#207](https://github.com/rails49/control/issues/207),
 [#291](https://github.com/rails49/control/issues/291)). Taking a train in a

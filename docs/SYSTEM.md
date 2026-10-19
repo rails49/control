@@ -1134,8 +1134,7 @@ traction write on the grant.
 
 The UI's throttle view publishes the gestures
 ([ui/THROTTLE.md](ui/THROTTLE.md),
-[#291](https://github.com/rails49/control/issues/291); it moves onto
-`take_wanted` and `throttle_alive` in
+[#291](https://github.com/rails49/control/issues/291),
 [#830](https://github.com/rails49/control/issues/830)) and the core app
 `layout` acts on them
 ([#297](https://github.com/rails49/control/issues/297)), reaching a locomotive
