@@ -23,6 +23,8 @@ RUN_WANTED = "tc49/dispatch/run_wanted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 POINT_WANTED = "tc49/dispatch/point_wanted"
+REORDER_WANTED = "tc49/dispatch/reorder_wanted"
+ALLOCATION = "tc49/dispatch/state/allocation"
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
 SENSOR = "tc49/layout/state/device/sensor"
@@ -172,6 +174,17 @@ def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
     assert RAILROAD not in INBOUND
 
 
+def test_a_person_cancels_and_reorders_one_request_by_id() -> None:
+    """The waiting requests are a list a person orders (ADR-0080): a page
+    cancels one request by its id, and moves one in front of another, or to
+    the end with `null`. The list itself is the dispatcher's state and no
+    page writes it."""
+    assert {CANCEL_WANTED, REORDER_WANTED} <= INBOUND
+    assert TOPICS[CANCEL_WANTED].fields == ("id",)
+    assert TOPICS[REORDER_WANTED].fields == ("id", "before")
+    assert ALLOCATION not in INBOUND
+
+
 def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
     """What a broker's ACL would grant a page is the inventory's
     browser-writable rows (#263): the set is read off the rows' marks rather
@@ -192,6 +205,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         RUN_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
+        REORDER_WANTED,
         POINT_WANTED,
         MODE_WANTED,
         THROTTLE_WANTED,

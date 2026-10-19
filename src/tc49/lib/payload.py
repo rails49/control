@@ -903,6 +903,45 @@ def wanted_point(payload: object) -> Point | None:
     return Point(addr, cast(str, position))
 
 
+@dataclass(frozen=True)
+class Reorder:
+    """A request moved in the list the dispatcher serves: `before` is the id
+    of the request it goes in front of, or `None` for the end of the list
+    (ADR-0080).
+
+    The `None` here is the gesture's own and is not the `None`
+    `wanted_reorder` answers with, which says the payload could not be read
+    at all — the pair `Take` carries on its throttle.
+    """
+
+    id: str
+    before: str | None
+
+
+def wanted_reorder(payload: object) -> Reorder | None:
+    """The move a `tc49/dispatch/reorder_wanted` asks for, or None where it
+    asks for none.
+
+    Both ids are non-empty strings, `before` may be an explicit `null`, and a
+    **missing** `before` fails the read, the rule `wanted_take` keeps on its
+    `throttle`. Whether either request is known, or has started, and whether
+    the move would put a train's chained request before the one it follows,
+    is the dispatcher's question, against the list.
+    """
+    rid = readable_id(payload)
+    if rid is None:
+        return None
+    fields = cast(dict[str, object], payload)
+    if "before" not in fields:
+        return None
+    before = fields["before"]
+    if before is None:
+        return Reorder(rid, None)
+    if not isinstance(before, str) or not before:
+        return None
+    return Reorder(rid, before)
+
+
 def shown_aspects(payload: object) -> dict[str, str] | None:
     """The aspects a `tc49/dispatch/state/aspects` value shows, block end to
     the aspect standing at it, or None where it shows none.

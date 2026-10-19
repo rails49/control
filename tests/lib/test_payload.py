@@ -21,6 +21,7 @@ from tc49.lib.payload import (
     Mode,
     Ordering,
     Placement,
+    Reorder,
     Run,
     Take,
     Throttle,
@@ -54,6 +55,7 @@ from tc49.lib.payload import (
     taken,
     wanted_driving,
     wanted_mode,
+    wanted_reorder,
     wanted_take,
     wanted_throttle,
 )
@@ -1147,3 +1149,32 @@ def test_an_event_topic_is_not_ordered_at_all() -> None:
     # Even one carrying something that would read as a stamp.
     assert ordering.accepts(OCCUPIED, {"at": 9.0, "block": "up_w"})
     assert ordering.accepts(OCCUPIED, {"at": 1.0, "block": "up_w"})
+
+
+# --- reorder_wanted ----------------------------------------------------------
+
+
+def test_a_reorder_names_the_request_it_goes_in_front_of() -> None:
+    """A person moves one request in front of another (ADR-0080)."""
+    assert wanted_reorder({"id": "r2", "before": "r1"}) == Reorder("r2", "r1")
+
+
+def test_a_reorder_to_null_goes_to_the_end_of_the_list() -> None:
+    assert wanted_reorder({"id": "r1", "before": None}) == Reorder("r1", None)
+
+
+def test_a_reorder_that_cannot_be_read_is_dropped() -> None:
+    """A missing `before` fails the read and an explicit `null` succeeds: the
+    end of the list is a place a person chose, too much to read into a frame
+    that lost a field on the way."""
+    for payload in (
+        {"id": "r1"},
+        {"before": "r2"},
+        {"id": "", "before": "r2"},
+        {"id": "r1", "before": ""},
+        {"id": 7, "before": "r2"},
+        {"id": "r1", "before": 7},
+        ["r1", "r2"],
+        None,
+    ):
+        assert wanted_reorder(payload) is None, payload
