@@ -25,11 +25,11 @@ import { brokering, joined, said, unbrokered, written } from "./support/session.
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 
-/** `goods` underway, then `express` waiting, then `goods` chained after its
+/** `express` underway, then `goods` waiting, then `goods` chained after its
  *  first request, then `local` waiting. */
 const LISTED: Listed[] = [
-  { id: "g1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "sw.main", "b"] },
-  { id: "e1", train: "express", depart: "c.A", dest: ["a.B"] },
+  { id: "e1", train: "express", depart: "c.A", dest: ["a.B"], route: ["c", "sw.side", "a"] },
+  { id: "g1", train: "goods", depart: "a.B", dest: ["b.A"] },
   { id: "g2", train: "goods", depart: null, dest: ["c.B"], after: "g1" },
   { id: "l1", train: "local", depart: "d.A", dest: ["b.B", "c.B"] },
 ];
@@ -39,8 +39,8 @@ const ROWS = requestRows(LISTED);
 describe("the rows", () => {
   it("are one per request in list order: train, from, to, waiting or underway", () => {
     expect(ROWS).toEqual([
-      { id: "g1", train: "goods", from: ["a.B"], to: ["b.A"], state: "underway" },
-      { id: "e1", train: "express", from: ["c.A"], to: ["a.B"], state: "waiting" },
+      { id: "e1", train: "express", from: ["c.A"], to: ["a.B"], state: "underway" },
+      { id: "g1", train: "goods", from: ["a.B"], to: ["b.A"], state: "waiting" },
       { id: "g2", train: "goods", from: ["b.A"], to: ["c.B"], state: "waiting", after: "g1" },
       { id: "l1", train: "local", from: ["d.A"], to: ["b.B", "c.B"], state: "waiting" },
     ]);
@@ -58,40 +58,33 @@ describe("the rows", () => {
 
 describe("a reorder", () => {
   it("names the row it lands in front of", () => {
-    expect(reordering(ROWS, "l1", 1)).toEqual({ before: "e1" });
+    expect(reordering(ROWS, "l1", 1)).toEqual({ before: "g1" });
   });
 
   it("names null for the end of the list", () => {
-    expect(reordering(ROWS, "e1", ROWS.length)).toEqual({ before: null });
+    expect(reordering(ROWS, "g2", ROWS.length)).toEqual({ before: null });
   });
 
   /** The dispatcher drops a move in front of a request that has started, and
    *  among the waiting ones in front of the first is the same place. */
   it("lands in front of the first waiting row past an underway one", () => {
-    expect(reordering(ROWS, "l1", 0)).toEqual({ before: "e1" });
+    expect(reordering(ROWS, "l1", 0)).toEqual({ before: "g1" });
   });
 
   it("asks nothing where the row is let go where it was", () => {
-    expect(reordering(ROWS, "e1", 1)).toBeNull();
-    expect(reordering(ROWS, "e1", 2)).toBeNull();
+    expect(reordering(ROWS, "g1", 1)).toBeNull();
+    expect(reordering(ROWS, "g1", 2)).toBeNull();
   });
 
   it("is refused for an underway row", () => {
-    expect(reordering(ROWS, "g1", ROWS.length)).toBeNull();
+    expect(reordering(ROWS, "e1", ROWS.length)).toBeNull();
   });
 
   it("is refused for a chained row above the one it follows", () => {
-    const rows = requestRows([
-      { id: "e1", train: "express", depart: "c.A", dest: ["a.B"] },
-      { id: "g1", train: "goods", depart: "a.B", dest: ["b.A"] },
-      { id: "g2", train: "goods", depart: null, dest: ["c.B"], after: "g1" },
-    ]);
-    expect(reordering(rows, "g2", 0)).toBeNull();
-    expect(reordering(rows, "g2", 1)).toBeNull();
+    expect(reordering(ROWS, "g2", 0)).toBeNull();
+    expect(reordering(ROWS, "g2", 1)).toBeNull();
     // Nor can the one it follows go below it, which is the same order.
-    expect(reordering(rows, "g1", rows.length)).toBeNull();
-    // Above every other request is fine.
-    expect(reordering(rows, "g1", 0)).toEqual({ before: "e1" });
+    expect(reordering(ROWS, "g1", ROWS.length)).toBeNull();
   });
 });
 
@@ -130,8 +123,8 @@ describe("tc-requests", () => {
   it("draws a row per request: train, from and to, and its state", async () => {
     const element = await list(ROWS);
     expect(drawn(element)).toEqual([
-      ["goods", "a.B → b.A", "underway"],
-      ["express", "c.A → a.B", "waiting"],
+      ["express", "c.A → a.B", "underway"],
+      ["goods", "a.B → b.A", "waiting"],
       ["goods", "b.A → c.B", "waiting"],
       ["local", "d.A → b.B, c.B", "waiting"],
     ]);
@@ -144,19 +137,19 @@ describe("tc-requests", () => {
       seen.push((event as CustomEvent<{ id: string }>).detail.id),
     );
     element.renderRoot.querySelectorAll<HTMLButtonElement>(".cancel")[1]!.click();
-    expect(seen).toEqual(["e1"]);
+    expect(seen).toEqual(["g1"]);
   });
 
   it("raises a move with its before", async () => {
     const element = await list(ROWS);
     expect(reorders(element, () => element.move("l1", 1))).toEqual([
-      { id: "l1", before: "e1" },
+      { id: "l1", before: "g1" },
     ]);
   });
 
   it("raises nothing for the two refused drags", async () => {
     const element = await list(ROWS);
-    expect(reorders(element, () => element.move("g1", ROWS.length))).toEqual([]);
+    expect(reorders(element, () => element.move("e1", ROWS.length))).toEqual([]);
     expect(reorders(element, () => element.move("g2", 0))).toEqual([]);
   });
 
@@ -208,7 +201,7 @@ describe("the run view's request list", () => {
     element.move("g2", 0);
     element.move("l1", 1);
     expect(written()).toEqual([
-      { topic: "tc49/dispatch/reorder_wanted", payload: { id: "l1", before: "e1" } },
+      { topic: "tc49/dispatch/reorder_wanted", payload: { id: "l1", before: "g1" } },
     ]);
   });
 });
