@@ -225,8 +225,13 @@ Below `|dest|`, `k` now measures the budget rather than the bias. Costing
 alone left the widened saturation workload at 11 of 15 workings; the residue
 was queue order rather than route choice (the oldest-first scan let older
 trains park on the last free arrival tracks for good), and the aging rule
-(#34) removed it — the widened workload now drains fully at `k = 2` under
-both strategies. The committed scenario stays at `|dest| = 2`, the continuity
+(#34) removed it — the widened workload drained fully at `k = 2` under
+both strategies.
+[ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)
+retired aging: the waiting requests are a list a person orders, and a batch
+run has nobody to order it, so the widened workload now completes 17 of its
+18 workings on `reversing-loops` and leaves one waiting behind a train parked
+for good (#823). The committed scenario stays at `|dest| = 2`, the continuity
 column the sweep reads every other against.
 
 `k ≥ 7` reaches only 6-transit detours that consume all three line sections

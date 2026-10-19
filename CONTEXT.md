@@ -345,8 +345,8 @@ completed, and idle otherwise, whether or not a request for it is pending
 _Avoid_: running/stopped, busy/free
 
 **Sweep**:
-The dispatcher's grant pass over the active trains and the whole pending
-queue, run where the lock table or the waiting set changes
+The dispatcher's grant pass over the active trains and the whole request
+list, in its order, run where the lock table or the waiting set changes
 ([DISPATCH.md](docs/dispatcher/DISPATCH.md#time-model)).
 _Avoid_: grant phase (said of a beat), boundary, tick (formerly)
 

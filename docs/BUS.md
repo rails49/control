@@ -666,9 +666,11 @@ payload is read defensively, and one that fails the read is dropped.
   the request it follows ends by rejection or cancellation, it is cancelled
   `revoked`
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  The scheduler composes `after` from
-  [#827](https://github.com/rails49/control/issues/827) and the dispatcher
-  reads it from [#823](https://github.com/rails49/control/issues/823).
+  An `after` that names no request of the same train the dispatcher has
+  admitted or answered, or that comes with a `depart`, is rejected
+  `malformed`; one naming a request that has already ended is settled at
+  admission as above. The scheduler composes `after` from
+  [#827](https://github.com/rails49/control/issues/827).
 - `tc49/dispatch/run_wanted` — browser-writable — `run`: enum `held`,
   `running` or `draining`; any other value is dropped.
 - `tc49/dispatch/placement_wanted` — browser-writable — `train`; `block`:
@@ -694,8 +696,6 @@ payload is read defensively, and one that fails the read is dropped.
   each with its own `request_cancelled`, reason `revoked`. An id the
   dispatcher does not hold is dropped like any other gesture it cannot act on
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  The dispatcher reads `train` in place of `id` until
-  [#823](https://github.com/rails49/control/issues/823).
 - `tc49/dispatch/reorder_wanted` — browser-writable — `id`: the request to
   move; `before`: the id of the request it is to go in front of, or `null`
   for the end of the list. The key's presence is load-bearing: a payload
@@ -704,8 +704,7 @@ payload is read defensively, and one that fails the read is dropped.
   unknown, or where it would put a train's chained request before the one it
   follows
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  `tc49.lib.payload.wanted_reorder` is the reader; the dispatcher answers it
-  from [#823](https://github.com/rails49/control/issues/823).
+  `tc49.lib.payload.wanted_reorder` is the reader.
 - `tc49/dispatch/point_wanted` — browser-writable — `addr`: the point's
   address, a non-empty string; `position`: enum `closed` or `thrown`, the
   position wanted. The dispatcher drops it with no reply when `addr` is not
@@ -786,9 +785,8 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),
   `after` *optional* — present where the request follows an earlier one,
   as on `request_submitted`; `route` *optional* — present once the route is
-  committed, which is when the request has started. Until
-  [#823](https://github.com/rails49/control/issues/823) the dispatcher
-  publishes them in admission order. Kept through a rebuild under the
+  committed, which is when the request has started; `depart` is `null` on a
+  request with `after` until the one it follows has arrived. Kept through a rebuild under the
   same railroad name, then republished by the new build: each train is placed
   again where its block still exists and still holds it, and the run comes up
   held. Cleared when another railroad is loaded

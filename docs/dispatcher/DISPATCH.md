@@ -174,6 +174,18 @@ A request may be pending for a train that is already active on an earlier
 one; chaining makes this routine. It needs no mechanism — an active train is
 not idle, so its next simply cannot launch yet.
 
+**A request with `after` starts where the train's earlier one ends**
+([ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+It states no departure end, so admission settles nothing about its route: it
+is admitted and listed behind the request it follows, and waits. When that
+one arrives the request departs by the end of the arrival block opposite the
+end the train came in through, so the train carries on the way it was going;
+where that end leads nowhere, as at a terminal block, it is rejected
+`unreachable`. Where the request it follows arrived without moving, the
+request departs by the end that one would have. Where it is rejected or
+cancelled instead, the request is cancelled `revoked`, and so is whatever
+follows it in turn.
+
 ### Route selection
 
 The route chooser is a **pluggable strategy**. It began as a pure
@@ -225,31 +237,42 @@ resource set.
 
 ### Queue discipline
 
-Greedy, with aging. At **every** grant phase the dispatcher scans pending
-requests and launches each whose conditions hold, skipping the rest that
-round. Unconditionally: the first launch of a run follows an admission, not a
-release, so a scan gated on released resources would never start the batch
-workload. Skipping a scan when nothing was released *and* nothing was
-admitted since the previous phase is a valid optimization, not a semantic
-rule.
+The waiting requests are **a list, in the order the dispatcher serves them**
+([ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+`state/allocation` publishes it, started requests in their place, so what the
+panel shows is what the dispatcher does next.
 
-The scan order is the train's priority first, lowest number highest and a
-train with none after every train that has one
+**A new request goes in after every request whose train has the same or a
+higher priority**, lowest number highest and a train with none after every
+train that has one
 ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
-Within a priority it is most-refused first, admission order among equals
-(#34; [ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md)
-records why plain arrival order starved through-traffic). Where a higher and
-a lower request could both launch, the higher goes; where the higher cannot,
-the lower still goes, since a refused request is skipped. Aging bounds
-starvation within a priority and not across priorities, and gives a starved
-request first claim on whatever just freed. Priority and the refusal count
-are dispatcher state, never wall-clock, so the order stays deterministic; a
-train's chained requests keep their order for free, since they share a
-priority and an untried later one has no refusals and a later seq. The ordering key remains an explicit policy point:
-it only chooses which *safe* launch is tried first, and could change again
-without touching the safety core.
+Priority does nothing else.
 
-Starvation is thereby bounded in practice, not prevented in principle: max
+**At every grant phase** the dispatcher walks the list and offers each
+waiting request the first claim in turn, launching each whose conditions
+hold and passing over the rest that round. An earlier request gets the
+first claim on whatever is free, and a later one still starts where an
+earlier one cannot. Unconditionally: the first launch of a run follows an
+admission, not a release, so a scan gated on released resources would never
+start the batch workload. Skipping a scan when nothing was released *and*
+nothing was admitted since the previous phase is a valid optimization, not a
+semantic rule.
+
+A train's own requests run in list order: once one of them is waiting or
+active, the rest of that train's wait, since a later one overtaking it would
+run from the wrong origin.
+
+**A person orders the list.** `reorder_wanted` moves a request that has not
+started in front of another that has not, or to the end; it is dropped where
+it would put a train's chained request before the one it follows.
+`cancel_wanted` ends one request by its id. Refusals no longer reorder the
+list, so a request can wait for as long as later requests keep taking the
+track it needs: the person ordering the list is the bound the refusal count
+was ([ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md),
+superseded). The order only chooses which *safe* launch is tried first, and
+could change again without touching the safety core.
+
+Starvation is thereby bounded by a person, not prevented in principle: max
 per-request latency remains the detector. Starvation is not deadlock; see
 [SAFETY.md](SAFETY.md).
 
@@ -313,18 +336,15 @@ safe, never an unsafe one.
 
 **The sweep is the grant phase**, run where the lock table or the waiting
 set changes: a request admitted, a vacate releasing what a move held, the
-run released. A sweep covers the active trains and the whole pending queue,
-so a refused train is reconsidered exactly when the resource it waited on
-frees, and every pending request accrues a refusal in the same sweep — no
-backstop timer, and the aging order unchanged
-([ADR-0012](../adr/0012-the-pending-scan-ages-by-refusal-count.md)).
+run released, a request cancelled or moved in the list. A sweep covers the
+active trains and the whole list, so a refused train is reconsidered exactly
+when the resource it waited on frees — no backstop timer.
 
 **A held run commits nothing.** While `tc49/dispatch/state/run` is `held` a
 sensor still applies where it lands: an outstanding move completes and
 releases its locks, and no route is chosen, no move granted and no lock
-taken until a person releases it. Admission is untouched, so the queue
-accumulates and — nobody having accrued a refusal meanwhile — drains in the
-order it accumulated. Releasing runs a sweep, so the press itself grants
+taken until a person releases it. Admission is untouched, so the list
+grows and is served in its order on the release. Releasing runs a sweep, so the press itself grants
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 The layout holds it too: `tc49/layout/state/power` arriving as anything but
 `on` sets `run` to `held` by the same path, and a release is dropped until
@@ -344,9 +364,9 @@ reversible, launching is the commitment:
 | `held` | yes | no | no |
 
 So the sweep's grant pass still covers the active trains, each running to the
-end of the route it is on, and the pending queue is passed over untouched —
-accruing no refusals, exactly as under a hold, so a drain turned back releases
-into the order the queue accumulated. Every end a granted train is leaving by
+end of the route it is on, and the waiting requests are passed over
+untouched, exactly as under a hold, so a drain turned back releases into the
+list as it stands. Every end a granted train is leaving by
 still shows its aspect: the answer to "may this train leave" is yes, and a
 signal at stop over a train that has just been told to go would be the hold's
 lie the other way about.
@@ -432,7 +452,7 @@ and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
 **Grant order** — within a sweep, active trains first (by request arrival
-order, tie-break train id), then pending launches in the order of the queue
+order, tie-break train id), then waiting requests in list order, the queue
 discipline above.
 Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
