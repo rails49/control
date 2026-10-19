@@ -126,7 +126,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/lock_released": Topic(("train", "resources")),
     "tc49/dispatch/train_placed": Topic(("train", "block")),
     "tc49/dispatch/train_removed": Topic(("train",)),
-    # True while any train is active or crossing, and what `layout` reads to
+    # True while any train is crossing, and what `layout` reads to
     # end a drain (ADR-0078).
     "tc49/dispatch/state/moving": Topic((AT, "moving")),
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),

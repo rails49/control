@@ -19,9 +19,14 @@ cut left between blocks the speed its grant implies, so it finishes its move.
 
 from collections.abc import Callable
 
+from tc49.bench.runner import DEFAULT_K, NONCE, facing, placement
+from tc49.dispatcher import Dispatcher, Incremental
+from tc49.driver import Driver
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.scheduler import Scheduler
+from tests.harness import load
 from tests.layout.railroad import (
     DEVICE_LINK,
     DEVICE_TRACK,
@@ -259,6 +264,44 @@ def test_no_moving_row_is_a_train_moving() -> None:
 
     assert powers(track) == ["on"]
     assert bus.last_values[POWER] == {"at": 0.0, "power": "draining"}
+
+
+def test_a_drain_under_a_train_partway_along_its_route_cuts() -> None:
+    """The drain the band's off press makes, under a train with a route of
+    three moves: the move granted runs to its sensor, the train stands in the
+    block it entered with its route and its locks, and nothing stands to be
+    stranded, so the supply goes off (#844, ADR-0078 decision 4).
+
+    The dispatcher, scheduler and driver are the real ones on this app's bus,
+    because what is under test is the meeting of the two: when the
+    dispatcher's `state/moving` says a train standing on its route is not
+    moving, and that this app ends the drain on it."""
+    layout, roster, scenario = load("crossover-yard/meet")
+    clock = Clock()
+    bus = InProcessBus(clock)
+    stood = placement(scenario.trains)
+    app = LayoutInterface(bus, layout, roster, clock, position=stood)
+    Scheduler(bus, layout, facing(layout, scenario.trains), nonce=NONCE)
+    dispatcher = Dispatcher(bus, layout, roster, stood, Incremental(layout, DEFAULT_K))
+    Driver(bus)
+    track = live(bus)
+    bus.publish(
+        "tc49/schedule/request_wanted", {"train": "freight_1", "dest": ["yard_e.A"]}
+    )
+    bus.drain()
+
+    commands(bus, "draining")()
+    assert powers(track) == ["on"]
+    assert bus.last_values[POWER]["power"] == "draining"
+
+    reads(bus, "dn_w.A", "occupied")
+    reads(bus, "dn_w.B", "occupied")
+    settle(bus, app, clock)
+
+    assert powers(track) == ["on", "off"]
+    assert bus.last_values[POWER]["power"] == "off"
+    assert dispatcher.state.block_of["freight_1"] == "dn_w"
+    assert "freight_1" in dispatcher.state.active
 
 
 def test_on_during_a_drain_ends_it() -> None:

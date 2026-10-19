@@ -2021,13 +2021,16 @@ class Dispatcher:
         )
 
     def _moving(self) -> bool:
-        """Whether a power cut now would strand something: any train active,
-        or any train crossing (CONTEXT.md, **Moving**). A **crossing** train
-        counts with no request behind it: a restored hint is a train the
-        dispatcher believes is between two blocks, and a drain that ended
-        over one would have `layout` cut the supply under it.
+        """Whether a power cut now would strand something: any train crossing
+        (CONTEXT.md, **Moving**, #844). A train standing in a block loses
+        nothing when the supply goes, whether or not it is active: one a drain
+        stopped at a signal partway along its route keeps that route and its
+        locks, and carries on once power reads `on` again (ADR-0078). A
+        **crossing** train counts with no request behind it: a restored hint
+        is a train the dispatcher believes is between two blocks, and a drain
+        that ended over one would have `layout` cut the supply under it.
         """
-        return bool(self._state.active or self._state.crossing)
+        return bool(self._state.crossing)
 
     def _publish_moving(self) -> None:
         """Whether anything is moving, on `state/moving`: what `layout` reads
