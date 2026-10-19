@@ -204,7 +204,7 @@ def test_transits_are_never_held_across_a_wait() -> None:
 
 def a_state(layout: Layout, route: Route, locks: dict[str, str]) -> State:
     """One active train, `t`, standing at the head of `route`."""
-    request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0, 0)
+    request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0)
     return State(
         layout,
         {"t": 500, "other": 500},

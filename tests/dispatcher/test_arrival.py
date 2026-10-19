@@ -105,7 +105,7 @@ def test_a_cancelled_request_does_not_enter_it_either(
 ) -> None:
     railroad = stuck_yard_e(strategy)
     railroad.request("r-1", "yard_w.B", "yard_e.A")
-    railroad.deliver(CANCEL_WANTED, {"train": "freight_1"})
+    railroad.deliver(CANCEL_WANTED, {"id": "r-1"})
 
     assert "yard_e" not in [p["into"] for p in railroad.granted()]
     assert railroad.leaf("request_cancelled")
@@ -242,7 +242,7 @@ def test_a_vacate_before_the_arrival_on_the_last_move() -> None:
 def test_a_cancelled_request_retires_on_the_arrival() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "dn_w.A", answer=False)
-    railroad.deliver(CANCEL_WANTED, {"train": "freight_1"}, answer=False)
+    railroad.deliver(CANCEL_WANTED, {"id": "r-1"}, answer=False)
 
     railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
     assert not railroad.leaf("request_cancelled")

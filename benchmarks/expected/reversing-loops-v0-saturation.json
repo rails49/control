@@ -16,14 +16,14 @@
     },
     "Incremental": {
       "status": "ok",
-      "makespan": 1200.0,
-      "seconds": 1200.0,
+      "makespan": 1320.0,
+      "seconds": 1320.0,
       "completed": 15,
       "rejected": 0,
-      "mean_latency": 708.0,
-      "max_latency": 1200.0,
-      "mean_utilization": 0.356,
-      "moves_per_minute": 1.5,
+      "mean_latency": 740.0,
+      "max_latency": 1320.0,
+      "mean_utilization": 0.3527,
+      "moves_per_minute": 1.3636,
       "stalls": []
     }
   }

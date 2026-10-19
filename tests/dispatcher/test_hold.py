@@ -91,8 +91,8 @@ def test_admissions_keep_their_order_while_held() -> None:
 
 
 def test_a_released_queue_drains_in_the_order_it_accumulated() -> None:
-    """Nobody accrues refusals while held, so the aging key is admission
-    order and the queue leaves as it arrived (#34)."""
+    """Nothing reorders the list while held, so it leaves in the order it
+    was admitted (ADR-0080)."""
     assembly = held_with_three_requests()
     press(assembly, RUN_WANTED, {"run": "running"})
     ticks(assembly, 40)

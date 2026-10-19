@@ -324,7 +324,7 @@ def test_metrics_over_a_run_that_cancelled_read_it_as_a_cancellation() -> None:
     was never wedged."""
     assembly = live("crossover-yard/meet")
     press(assembly, "tc49/schedule/request_wanted", REVOKED)
-    press(assembly, "tc49/dispatch/cancel_wanted", {"train": "freight_1"})
+    press(assembly, "tc49/dispatch/cancel_wanted", {"id": f"freight_1-{NONCE}-1"})
     ticks(assembly, 6)
 
     m = metrics(assembly.trace)

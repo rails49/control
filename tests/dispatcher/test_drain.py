@@ -150,14 +150,14 @@ def test_a_dropped_request_no_longer_holds_the_drain_open() -> None:
     ticks(assembly, 1)
     assert runs(assembly) == ["running", "draining"]
 
-    press(assembly, CANCEL_WANTED, {"train": "freight_1"})
+    press(assembly, CANCEL_WANTED, {"id": minted(assembly, "freight_1")})
     ticks(assembly, 4)
 
     assert runs(assembly) == ["running", "draining", "held"]
-    # The gesture names a train and ends everything that train has, and the
-    # active one waits for the move it was already making (ADR-0049): the
-    # drain ends where that request does and not at the press.
-    assert set(ids(assembly, "request_cancelled")) == {"freight_1-1", "freight_1-2"}
+    # The gesture names the active request, which waits for the move it was
+    # already making (ADR-0049): the drain ends where that request does and
+    # not at the press. The train's later request waits in the list.
+    assert ids(assembly, "request_cancelled") == ["freight_1-1"]
 
 
 def test_a_removed_train_no_longer_holds_a_drain_open() -> None:

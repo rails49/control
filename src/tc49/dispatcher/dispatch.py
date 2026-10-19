@@ -24,8 +24,8 @@ second scheduler submitting alongside the first needs no change here
 (BUS.md, rule 4).
 
 The whole of what arrives is read that way (#260). Two filters: the requests
-this app answers — `request_submitted`, `run_wanted`, `placement_wanted` and
-`cancel_wanted`, from the ui, the scheduler, or a second scheduler introduced
+this app answers — `request_submitted`, `run_wanted`, `placement_wanted`,
+`cancel_wanted`, `reorder_wanted` and `point_wanted`, from the ui, the scheduler, or a second scheduler introduced
 later — and what
 the layout interface observes, on a filter that also carries the `align` and
 `move` commands, which name the layout and are passed by unread. Every leaf
@@ -43,18 +43,24 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
 from tc49.lib.inventory import DRAINING, HELD, ON, RUNNING, Aspect, Refusal
-from tc49.lib.layout import Layout, block_of, departure_end, transit_ends
+from tc49.lib.layout import (
+    Layout,
+    block_of,
+    departure_end,
+    opposite_end,
+    transit_ends,
+)
 from tc49.lib.payload import (
     Ordering,
     gesture,
     kept_allocation,
-    named_train,
     occupancy,
     placement,
     power,
     readable_id,
     run_state,
     wanted_point,
+    wanted_reorder,
 )
 from tc49.lib.rejection import Reason
 from tc49.lib.roster import Roster
@@ -78,19 +84,23 @@ SHORT = "short"
 class Request:
     id: str
     train: str
-    depart: str  # end, or bare letter for a chained request
+    # The end the train departs through, or a bare letter for a request the
+    # scheduler chained by naming only the end. None while a request chained
+    # by `after` waits for the one it follows to arrive (ADR-0080).
+    depart: str | None
     arrivals: tuple[str, ...]  # surviving arrival ends
-    seq: int  # admission order; the pending queue's tie-break key
     phase: int  # sweeps run when admitted; the arrival-order key
-    refusals: int = 0  # launch refusals so far; the aging key (#34)
     # Whether the request has been cancelled while a move of its own was
     # outstanding: nothing further is granted for it, and it retires as
     # `request_cancelled` when that move's sensors finish (ADR-0049).
     cancelled: bool = False
-    # The train's `priority_key` from the roster, taken at admission; the
-    # pending scan's first key (ADR-0045). The default is the key of a train
-    # with no priority.
+    # The train's `priority_key` from the roster, taken at admission: where
+    # the request goes in the list, and nothing else (ADR-0080). The default
+    # is the key of a train with no priority.
     priority: tuple[int, int] = (1, 0)
+    # The id of the train's request this one follows, which it starts where
+    # that one ends (ADR-0080).
+    after: str | None = None
 
 
 def resolve_departure(depart: str, origin: str) -> str:
@@ -98,24 +108,17 @@ def resolve_departure(depart: str, origin: str) -> str:
     return depart if "." in depart else f"{origin}.{depart}"
 
 
-def departs_elsewhere(depart: str, expected: str | None) -> bool:
+def departs_elsewhere(depart: str | None, expected: str | None) -> bool:
     """Whether a stated departure block disagrees with the block the train
     departs from. A bare end letter states no block and so cannot disagree,
-    and neither can anything while an earlier pending request leaves that
+    nor can a request chained by `after`, which states no end at all, and
+    neither can anything while an earlier pending request leaves that
     block a future dispatcher choice (`expected` is None). Admission and the
     launch stage both ask it, of the origin each by then has, so one rule
     serves both (#146)."""
-    if "." not in depart or expected is None:
+    if depart is None or "." not in depart or expected is None:
         return False
     return block_of(depart) != expected
-
-
-def aging_order(req: Request) -> tuple[tuple[int, int], int, int]:
-    """The pending scan's key: highest priority first, then most-refused
-    first, then admission order (ADR-0045, ADR-0012). Refusal count is
-    dispatcher state, never wall-clock, so the order stays a deterministic
-    function of the run."""
-    return (req.priority, -req.refusals, req.seq)
 
 
 @dataclass
@@ -335,7 +338,7 @@ def aspects(state: State) -> dict[str, str]:
     return shown
 
 
-def allocation(state: State, pending: Sequence[Request]) -> Payload:
+def allocation(state: State, requests: Sequence[Request]) -> Payload:
     """The run's picture: where every train stands and which of them are
     crossing a transit, the lock table with its holders, and every request
     still alive — carrying the route a committed one is running.
@@ -346,18 +349,15 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
     is no suspect flag — and it is what a restarted session restores as a
     placement hint, with no route and no request behind it (#123).
 
-    A projection of the lock table and the queue, published beside its source
-    exactly as `aspects` is (ADR-0032). Everything a joining client draws is
-    here, because the events that built it were published before it connected
-    and an event topic is never replayed. Ordered by admission, and the maps
+    A projection of the lock table and the request list, published beside
+    its source exactly as `aspects` is (ADR-0032). Everything a joining client
+    draws is here, because the events that built it were published before it
+    connected and an event topic is never replayed. The requests are in list
+    order, the order the dispatcher serves them (ADR-0080), and the maps
     sorted, so the picture is a function of the state and not of a dict's
     insertion history.
     """
     routes = {active.request.id: active.route for active in state.active.values()}
-    live = sorted(
-        [*pending, *(active.request for active in state.active.values())],
-        key=lambda request: request.seq,
-    )
     return {
         "trains": dict(sorted(state.block_of.items())),
         "crossing": dict(sorted(state.crossing.items())),
@@ -368,13 +368,14 @@ def allocation(state: State, pending: Sequence[Request]) -> Payload:
                 "train": request.train,
                 "depart": request.depart,
                 "dest": list(request.arrivals),
+                **({} if request.after is None else {"after": request.after}),
                 **(
                     {"route": routes[request.id].interleaved()}
                     if request.id in routes
                     else {}
                 ),
             }
-            for request in live
+            for request in requests
         ],
     }
 
@@ -626,8 +627,9 @@ class Submission:
 
     id: str
     train: str
-    depart: str
+    depart: str | None
     dest: tuple[str, ...]
+    after: str | None = None
 
 
 def submission(payload: Payload, rid: str) -> Submission | None:
@@ -636,10 +638,20 @@ def submission(payload: Payload, rid: str) -> Submission | None:
 
     A request is a gesture with an id and a departure end (ADR-0036), so the
     gesture is read where the scheduler reads one and the departure end,
-    which only a request carries, is read here."""
+    which only a request carries, is read here. A request with `after` states
+    no end: its `depart` is `null`, the end being the dispatcher's once the
+    request it follows has arrived (ADR-0080). An `after` that is not a
+    non-empty id, or that comes with a stated end, states no request."""
     wanted = gesture(payload)
+    if wanted is None:
+        return None
     depart = payload.get("depart")
-    if wanted is None or not isinstance(depart, str):
+    after = payload.get("after")
+    if after is not None:
+        if not isinstance(after, str) or not after or depart is not None:
+            return None
+        return Submission(rid, wanted.train, None, wanted.arrivals, after)
+    if not isinstance(depart, str):
         return None
     return Submission(rid, wanted.train, depart, wanted.arrivals)
 
@@ -732,9 +744,14 @@ class Dispatcher:
             bus.publish(
                 "tc49/dispatch/lock_granted", {"train": train, "resources": [at]}
             )
-        self._pending: list[Request] = []
+        # Every request still alive, waiting or started, in the order the
+        # dispatcher serves them (ADR-0080). A restart loses it.
+        self._requests: list[Request] = []
         self._seen_ids: set[str] = set()
-        self._next_seq = 0
+        # id -> (train, the end it leaves its follower departing by): each
+        # request that has ended, so one chained after it is settled however
+        # late it arrives. The end is None where it ended without arriving.
+        self._finished: dict[str, tuple[str, str | None]] = {}
         self._phases = 0  # sweeps run; stamps admissions for grant order
         self._aspects: dict[str, str] = {}  # last published, so only changes go
         self._allocation: Payload = {}  # likewise: the picture, when it moves
@@ -780,7 +797,20 @@ class Dispatcher:
 
     @property
     def pending(self) -> tuple[Request, ...]:
-        return tuple(self._pending)
+        """The requests waiting, those not yet started, in list order."""
+        return tuple(req for req in self._requests if not self._started(req))
+
+    @property
+    def requests(self) -> tuple[Request, ...]:
+        """Every request alive, waiting or started, in list order."""
+        return tuple(self._requests)
+
+    def _started(self, req: Request) -> bool:
+        active = self._state.active.get(req.train)
+        return active is not None and active.request is req
+
+    def _listed(self, rid: str) -> Request | None:
+        return next((req for req in self._requests if req.id == rid), None)
 
     # -- admission ---------------------------------------------------------
 
@@ -801,8 +831,11 @@ class Dispatcher:
         if request.train not in self._state.roster:
             self._reject(rid, Reason.UNKNOWN_TRAIN)
             return
+        if request.after is not None and not self._follows_own(request):
+            self._reject(rid, Reason.MALFORMED)
+            return
         if self._names_no_such_block(request):
-            self._reject(rid, Reason.UNKNOWN_BLOCK)
+            self._reject(rid, Reason.UNKNOWN_BLOCK, request.train)
             return
         if request.train not in self._state.block_of:
             # Known but off the layout (ADR-0039): a train nothing placed,
@@ -811,13 +844,13 @@ class Dispatcher:
             # each launch lookup, because this is the only way in — the one
             # thing that unplaces a train, `_remove`, refuses a train with a
             # request in flight, so a request that gets past this line names a
-            # train with a block and `_pending` holds none that stopped
+            # train with a block and the list holds none that stopped
             # having one.
-            self._reject(rid, Reason.NO_ORIGIN)
+            self._reject(rid, Reason.NO_ORIGIN, request.train)
             return
         expected = self._expected_block(request.train)
         if departs_elsewhere(request.depart, expected):
-            self._reject(rid, Reason.WRONG_ORIGIN)
+            self._reject(rid, Reason.WRONG_ORIGIN, request.train)
             return
 
         surviving: list[str] = []
@@ -843,6 +876,7 @@ class Dispatcher:
                     if any(p["reason"] == Reason.NO_FIT for p in pruned)
                     else Reason.NO_ENTRY
                 ),
+                request.train,
             )
             return
 
@@ -861,30 +895,88 @@ class Dispatcher:
                     pruned.append({"end": end, "reason": Reason.UNREACHABLE})
             surviving = reachable
             if not surviving:
-                self._reject(rid, Reason.UNREACHABLE)
+                self._reject(rid, Reason.UNREACHABLE, request.train)
                 return
 
-        self._pending.append(
-            Request(
-                rid,
-                request.train,
-                request.depart,
-                tuple(surviving),
-                self._next_seq,
-                self._phases,
-                priority=self._priority[request.train],
-            )
+        admitted = Request(
+            rid,
+            request.train,
+            request.depart,
+            tuple(surviving),
+            self._phases,
+            priority=self._priority[request.train],
+            after=request.after,
         )
-        self._next_seq += 1
+        self._list(admitted)
         self._bus.publish(
             "tc49/dispatch/request_admitted",
             {"id": rid, "dest": surviving, "pruned": pruned},
         )
+        if request.after is not None and request.after in self._finished:
+            # The request it follows ended before this one arrived, which a
+            # scheduler racing the end of a short request can see.
+            self._follow(admitted, self._finished[request.after][1])
         # The waiting set grew: the request is considered now, not at a beat.
         self._sweep()
 
-    def _reject(self, rid: str, reason: Reason) -> None:
+    def _reject(self, rid: str, reason: Reason, train: str | None = None) -> None:
+        """A request refused. Where its train is known the end is kept, so a
+        request chained after it is cancelled rather than left waiting."""
+        if train is not None:
+            self._finished[rid] = (train, None)
         self._publish("request_rejected", {"id": rid, "reason": reason})
+
+    def _list(self, req: Request) -> None:
+        """A new request into the list: after every request whose train has
+        the same priority or a higher one (ADR-0080). Priority does nothing
+        else."""
+        at = 0
+        for index, listed in enumerate(self._requests):
+            if listed.priority <= req.priority:
+                at = index + 1
+        self._requests.insert(at, req)
+
+    def _follows_own(self, request: Submission) -> bool:
+        """Whether `after` names a request of the same train, still in the
+        list or already ended. Anything else names no request it could
+        follow, and the payload states none."""
+        assert request.after is not None
+        listed = self._listed(request.after)
+        if listed is not None:
+            return listed.train == request.train
+        ended = self._finished.get(request.after)
+        return ended is not None and ended[0] == request.train
+
+    def _ending(self, req: Request, onward: str | None) -> None:
+        """A request ended: `onward` is the end its train now leaves by,
+        where it arrived, and None where it was rejected or cancelled. The
+        requests chained after it are settled by it (`_follow`)."""
+        self._finished[req.id] = (req.train, onward)
+        for follower in [each for each in self._requests if each.after == req.id]:
+            self._follow(follower, onward)
+
+    def _follow(self, follower: Request, onward: str | None) -> None:
+        """A chained request whose predecessor has ended. Where that one
+        arrived the follower departs by `onward`, the end of the arrival block
+        opposite the one the train came in through, so it carries on the way
+        it was going; where that end leads nowhere it is rejected
+        `unreachable`. Where the predecessor ended any other way it is
+        cancelled `revoked`, and so is whatever follows it in turn
+        (ADR-0080)."""
+        if onward is not None and onward in self._state.layout.end_connection:
+            follower.depart = onward
+            return
+        self._requests.remove(follower)
+        if onward is None:
+            self._publish(
+                "request_cancelled",
+                {"id": follower.id, "reason": Cancellation.REVOKED},
+            )
+        else:
+            self._publish(
+                "request_rejected", {"id": follower.id, "reason": Reason.UNREACHABLE}
+            )
+        self._ending(follower, None)
 
     def _names_no_such_block(self, request: Submission) -> bool:
         """Whether the request names track the layout does not have — its
@@ -893,15 +985,15 @@ class Dispatcher:
         it is not `wrong_origin`: the train is not standing there, but
         neither is anything else."""
         blocks = [block_of(end) for end in request.dest]
-        if "." in request.depart:
+        if request.depart is not None and "." in request.depart:
             blocks.append(block_of(request.depart))
         return any(block not in self._state.layout.blocks for block in blocks)
 
     def _has_pending(self, train: str) -> bool:
-        """Whether a request of the train's own is still queued, which is
+        """Whether a request of the train's own is still waiting, which is
         what makes both where it will stand and where it will depart from a
         future dispatcher choice."""
-        return any(req.train == train for req in self._pending)
+        return any(req.train == train for req in self.pending)
 
     def _expected_block(self, train: str) -> str | None:
         """Where the train stands (#99) — None while a request of its own is
@@ -917,7 +1009,8 @@ class Dispatcher:
     def _launch_to_come(self, request: Submission) -> tuple[str, str] | None:
         """The origin and departure end the request will launch from, or None
         where an earlier request of its own train leaves them a future
-        dispatcher choice.
+        dispatcher choice. A request chained by `after` is left to its launch
+        too: its end is settled when the one it follows arrives.
 
         Behind an **active** route both are already settled: a route is fixed
         once chosen (ADR-0002), so the block it arrives at is known and the
@@ -925,7 +1018,7 @@ class Dispatcher:
         one nothing is, which is the only case DISPATCH.md's deferral to the
         launch stage was ever about (#135).
         """
-        if self._has_pending(request.train):
+        if request.depart is None or self._has_pending(request.train):
             return None
         active = self._state.active.get(request.train)
         origin = (
@@ -961,9 +1054,9 @@ class Dispatcher:
     # -- what is addressed to the dispatcher --------------------------------
 
     def _on_dispatch(self, topic: str, payload: Payload) -> None:
-        """The five topics the dispatcher responds to, on one filter.
+        """The six topics the dispatcher responds to, on one filter.
 
-        A request, and the four gestures a person makes on a page: all five
+        A request, and the five gestures a person makes on a page: all six
         name the dispatcher because the dispatcher is what answers them, and
         none of them says who sent it. The scheduler submits requests today
         and a second one could submit them tomorrow with nothing here to
@@ -984,6 +1077,8 @@ class Dispatcher:
             self._place(payload)
         elif leaf == "cancel_wanted":
             self._revoke(payload)
+        elif leaf == "reorder_wanted":
+            self._reorder(payload)
         elif leaf == "point_wanted":
             self._throw(payload)
         self._check()
@@ -1294,14 +1389,17 @@ class Dispatcher:
         return released
 
     def _revoke(self, payload: Payload) -> None:
-        """A person ending a train's request without it arriving (ADR-0049).
+        """A person ending one request without it arriving (ADR-0049,
+        ADR-0080), named by its id.
 
-        The gesture names a **train** and no request: a page shows a train
-        and the work under it, and the id is the dispatcher's own. So it ends
-        whatever that train has — the active request and every one still
-        queued behind it — and a train with nothing in flight is dropped in
-        silence and to the trace, as an unknown train is: the gesture carries
-        no id, and there is nothing to address an answer to (ADR-0034).
+        A request waiting is cancelled at once. One underway gives up what it
+        holds but the block its train stands in, unless a move of its own is
+        outstanding: nothing on the bus retracts a `move` already sent, so
+        the request is marked instead, granted nothing further, and retires
+        when that move's sensors end it (`_ended`). The requests chained after
+        it are cancelled `revoked` as it ends (`_follow`). An id the
+        dispatcher does not hold is dropped in silence and to the trace, as
+        every gesture it cannot act on is (ADR-0034).
 
         It does **not** require a held run. Cancelling is how a person ends
         work the railroad cannot finish — a train that broke down, a route
@@ -1310,80 +1408,110 @@ class Dispatcher:
         let one go. The hold is a brake on new commitment; this retires one
         request, and what it frees the next sweep hands to somebody else.
         """
-        train = named_train(payload)
-        if train is None or train not in self._state.roster:
+        rid = readable_id(payload)
+        req = None if rid is None else self._listed(rid)
+        if req is None:
             return
-        if self._cancel(train, Cancellation.REVOKED, defer=True):
-            # Something was actually given up, so the waiting set is
-            # reconsidered here: what a cancelled route was holding is
-            # exactly what somebody else has been refused for (ADR-0047). A
-            # gesture that freed nothing sweeps nothing — a sweep publishes a
-            # `grant_refused` for every waiting request and ages the queue
-            # with it, and neither belongs to a gesture that did nothing.
-            self._sweep()
+        active = self._state.active.get(req.train)
+        if active is not None and active.request is req:
+            if req.cancelled:
+                return
+            if active.outstanding is not None:
+                # Deferred: it frees nothing yet and dequeues nothing, so
+                # there is nothing for a sweep to hand anybody.
+                req.cancelled = True
+                return
+            self._retire(req.train, active, Cancellation.REVOKED)
+        else:
+            self._requests.remove(req)
+            self._publish(
+                "request_cancelled", {"id": req.id, "reason": Cancellation.REVOKED}
+            )
+            self._ending(req, None)
+        # What a cancelled route was holding is exactly what somebody else
+        # has been refused for, and a request that waited can have been
+        # what kept its train's next one from starting (ADR-0047).
+        self._sweep()
+
+    def _reorder(self, payload: Payload) -> None:
+        """A person moving one request in the list, in front of `before` or
+        to the end (ADR-0080).
+
+        Dropped in silence and to the trace where either request is unknown
+        or has started, and where the move would put a train's chained
+        request before the one it follows. Otherwise the list is served in
+        its new order from this sweep on: an earlier request gets the first
+        claim, and the train whose request moved ahead of its own others may
+        now start that one first.
+        """
+        wanted = wanted_reorder(payload)
+        if wanted is None:
+            return
+        moved = self._listed(wanted.id)
+        if moved is None or self._started(moved):
+            return
+        order = [req for req in self._requests if req is not moved]
+        if wanted.before is None:
+            order.append(moved)
+        else:
+            target = self._listed(wanted.before)
+            if target is None or target is moved or self._started(target):
+                return
+            order.insert(order.index(target), moved)
+        at = {req.id: index for index, req in enumerate(order)}
+        if any(req.after in at and at[req.after] > at[req.id] for req in order):
+            return
+        if order == self._requests:
+            return
+        self._requests = order
+        self._sweep()
 
     def _cancel(
         self,
         train: str,
         reason: Cancellation,
-        defer: bool = False,
         keep: Collection[str] | None = None,
-    ) -> bool:
-        """Every request the train has, retired without the train arriving.
-        Answers whether the lock table or the waiting set moved.
+    ) -> None:
+        """Every request the train has, retired without the train arriving,
+        for a placement that ends them (ADR-0049).
 
-        The active one first and its queue behind it, so a reader of the
-        trace sees the request that was running end before the ones that were
-        waiting on it. Each gets its own `request_cancelled`: an id is what
-        ties a request's events together, and a single event naming a train
-        would leave a reader to work out which ids it had just been told
-        about.
+        The active one first and the waiting ones behind it in list order, so
+        a reader of the trace sees the request that was running end before the
+        ones that were waiting on it. Each gets its own `request_cancelled`
+        with the placement's reason, the chained ones included: an id is what
+        ties a request's events together.
 
-        A queued request has taken nothing and needs no release. The active
+        A waiting request has taken nothing and needs no release. The active
         one is holding a route — every transit and every block beyond the
         origin under `FullRoute` — and gives up **all of it but the block the
         train stands in**: that block is the train's standing lock, which
         every parked train holds (CONTEXT.md), and releasing it would leave a
         locomotive in a block the dispatcher believes free.
 
-        `defer` is for the one case where the release cannot happen yet: a
-        move is outstanding, the train is between two blocks, and nothing on
-        the bus retracts a `move` already sent (ADR-0037). The request is
-        marked instead — no further move is granted for it — and it retires
-        in `_cleared`, when the sensors say the move it was already making is
-        over. A placement does not defer: the person is saying where the train
-        actually *is*, and the placement is what answers the move — a move
-        whose sensors may never come is the case they are standing in front
-        of. So the request retires at the gesture, and an occupied reading
-        that does arrive for it afterwards explains nothing and holds the run
-        (ADR-0048), which is the right answer to a detector firing under a
-        train somebody has just moved by hand. A clear reading on track the
-        gesture gave up is a block nobody holds reading clear, and holds
-        nothing (ADR-0077).
+        A placement does not defer, as a `cancel_wanted` does: the person is
+        saying where the train actually *is*, and the placement is what
+        answers the move — a move whose sensors may never come is the case
+        they are standing in front of. So the request retires at the gesture,
+        and an occupied reading that does arrive for it afterwards explains
+        nothing and holds the run (ADR-0048), which is the right answer to a
+        detector firing under a train somebody has just moved by hand. A clear
+        reading on track the gesture gave up is a block nobody holds reading
+        clear, and holds nothing (ADR-0077).
 
         `keep` overrides the standing lock as what the active request leaves
         held, for a removal, which keeps what still reads occupied instead.
-
-        The answer is what a caller sweeps on: a deferred cancellation frees
-        nothing and dequeues nothing, so there is nothing for a sweep to hand
-        anybody, and a train with nothing in flight moves nothing at all.
         """
-        state = self._state
-        moved = False
-        active = state.active.get(train)
+        waiting = [req for req in self.pending if req.train == train]
+        for req in waiting:  # out first, so none is cancelled `revoked`
+            self._requests.remove(req)
+        active = self._state.active.get(train)
         if active is not None:
-            if defer and active.outstanding is not None:
-                active.request.cancelled = True
-            else:
-                self._retire(train, active, reason, keep)
-                moved = True
-        for req in [req for req in self._pending if req.train == train]:
-            self._pending.remove(req)
+            self._retire(train, active, reason, keep)
+        for req in waiting:
             self._publish("request_cancelled", {"id": req.id, "reason": reason})
-            moved = True
-        if moved:
+            self._ending(req, None)
+        if active is not None or waiting:
             self._settled()
-        return moved
 
     def _retire(
         self,
@@ -1408,7 +1536,9 @@ class Dispatcher:
         del state.active[train]
         state.crossing.pop(train, None)
         state.departure.pop(train, None)
+        self._requests.remove(active.request)
         self._publish("request_cancelled", {"id": active.request.id, "reason": reason})
+        self._ending(active.request, None)
 
     def _settled(self) -> None:
         """What a placement changes besides the lock table: the picture a
@@ -1609,7 +1739,9 @@ class Dispatcher:
             )
             if active.cur_index == len(active.route.blocks) - 1:
                 del state.active[train]
+                self._requests.remove(active.request)
                 self._publish("request_completed", {"id": active.request.id})
+                self._ending(active.request, opposite_end(self._entered(active.route)))
         self._sweep()
 
     def _lifted(self, block: str) -> bool:
@@ -1668,10 +1800,10 @@ class Dispatcher:
 
     def _sweep(self) -> None:
         """One grant pass, run where the lock table or the waiting set
-        changed: a request admitted, a vacated block releasing what a move
-        held, the run released. A sweep covers the whole waiting set, so
-        every pending request accrues a refusal in the same sweep and the
-        aging keeps its order (ADR-0012, ADR-0047).
+        changed: a request admitted, cancelled or moved in the list, a vacated
+        block releasing what a move held, the run released. A sweep covers
+        the whole list, so a refused request is reconsidered exactly when the
+        resource it waited on frees (ADR-0047).
 
         While the run is held nothing commits (ADR-0037): the hold is a brake
         and not an emergency stop — nothing on the bus retracts a `move`
@@ -1718,22 +1850,25 @@ class Dispatcher:
         if state.run != RUNNING:
             # Draining: the trains already moving have just been granted and
             # nothing new is launched, which is the whole of the gate (#294).
-            # The queue is untouched and accrues no refusals — no launch was
-            # attempted, exactly as under a hold — so a drain a person turns
-            # back releases into the order the queue accumulated (ADR-0012).
+            # The list is untouched, so a drain a person turns back releases
+            # into the order the list holds.
             return
-        # A train's chained requests run in order: once one of them is left
-        # pending — refused, or launched and now active — the rest of that
-        # train's queue waits. Letting a later request overtake a refused one
-        # would run a train's chain out of order and from the wrong origin.
-        # Across trains the scan takes priority first (ADR-0045), then ages
-        # (#34): within a priority a request refused N times is tried before
-        # fresher ones, so a starved request gets first claim on whatever just
-        # freed. A train's own chain order is preserved for
-        # free — an untried later request has no refusals and a later seq.
+        # The list in its order (ADR-0080): each waiting request is offered
+        # the first claim in turn, and one that cannot start is skipped, so a
+        # later one still starts where an earlier one cannot. A train's own
+        # requests run in list order: once one of them is left waiting —
+        # refused, or launched and now active — the rest of that train's wait.
+        # Letting a later request overtake a refused one would run a train's
+        # work out of order and from the wrong origin.
         waiting: set[str] = set(state.active)
-        for req in sorted(self._pending, key=aging_order):
-            if req.train in waiting:
+        for req in self.pending:
+            if req.train in waiting or req not in self._requests:
+                # The second: a request chained after one this sweep has just
+                # rejected, and cancelled with it.
+                continue
+            if req.depart is None:
+                # Chained, and the request it follows has not arrived.
+                waiting.add(req.train)
                 continue
             origin = state.block_of[req.train]
             depart = effective_departure(
@@ -1749,25 +1884,29 @@ class Dispatcher:
                 # Asked ahead of the degenerate arrival below, as admission
                 # asks it ahead of pruning: a stale request is refused, not
                 # completed because the train happens to be there already.
-                self._pending.remove(req)
+                self._requests.remove(req)
                 self._reject(req.id, Reason.WRONG_ORIGIN)
+                self._ending(req, None)
                 continue
             if any(block_of(end) == origin for end in req.arrivals):
                 # Degenerate: already standing in an arrival block, whichever
                 # end that arrival names. Empty route, complete in this phase.
-                self._pending.remove(req)
+                # The train did not move, so the request chained after it
+                # leaves the way this one would have.
+                self._requests.remove(req)
                 self._publish(
                     "route_chosen", {"id": req.id, "route": [origin], "k_tried": 0}
                 )
                 self._publish("request_completed", {"id": req.id})
+                self._ending(req, depart)
                 continue
             result = self._strategy.launch(req, origin, depart, state)
             if result is None:
-                self._pending.remove(req)
+                self._requests.remove(req)
                 self._reject(req.id, Reason.UNREACHABLE)
+                self._ending(req, None)
             elif isinstance(result, Refused):
                 waiting.add(req.train)
-                req.refusals += 1
                 self._publish(
                     "grant_refused",
                     {
@@ -1781,7 +1920,7 @@ class Dispatcher:
                 self._launch(req, result)
 
     def _launch(self, req: Request, launched: Launched) -> None:
-        self._pending.remove(req)
+        # The request stays where it is in the list, started (ADR-0080).
         # The strategy says what to lock and the dispatcher locks it (#761),
         # before the grant below, which reads the launch's locks to tell what
         # it newly locks.
@@ -1804,17 +1943,18 @@ class Dispatcher:
         # lets a request dragged in mid-route be answered while it is asked.
         # Which end the route comes in through is read here: `lib` states the
         # rule and takes the end, knowing nothing of routes (#155).
-        ends = transit_ends(
-            self._state.layout,
-            launched.route.arrival_block,
-            launched.route.transits[-1],
+        self._state.departure[req.train] = departure_end(
+            self._state.layout, self._entered(launched.route)
         )
-        assert ends is not None  # a route's transits reach its blocks
-        entered = ends[0]
-        self._state.departure[req.train] = departure_end(self._state.layout, entered)
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
         self._apply_move(self._state.active[req.train], move)
+
+    def _entered(self, route: Route) -> str:
+        """The end of its arrival block a route comes in through."""
+        ends = transit_ends(self._state.layout, route.arrival_block, route.transits[-1])
+        assert ends is not None  # a route's transits reach its blocks
+        return ends[0]
 
     def _apply_move(self, active: Active, result: Move | Refused) -> None:
         if isinstance(result, Refused):
@@ -1989,7 +2129,7 @@ class Dispatcher:
         """The run's picture, on a last-value topic, when any of what it
         carries has moved. Published from the two places that move it: a
         request joining the queue, and the grant phase that runs it."""
-        picture = allocation(self._state, self._pending)
+        picture = allocation(self._state, self._requests)
         if picture != self._allocation:
             self._allocation = picture
             self._bus.publish(ALLOCATION, picture)

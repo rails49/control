@@ -42,7 +42,7 @@ def a_route(layout: Layout) -> Route:
 def a_state(layout: Layout, route: Route, ahead: int) -> State:
     """`t` standing at the head of `route` with `ahead` blocks locked past it."""
     locks = {route.blocks[i]: "t" for i in range(ahead + 1)}
-    request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0, 0)
+    request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0)
     return State(
         layout,
         {"t": 500},
