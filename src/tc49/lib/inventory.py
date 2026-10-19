@@ -85,8 +85,16 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/align": Topic(("connection", "transit", "points")),
     "tc49/layout/move": Topic(("train", "connection", "transit", "into", "speed")),
     "tc49/layout/mode_wanted": Topic(("train", "mode"), browser=True),
-    "tc49/layout/throttle_wanted": Topic(("train", "speed"), browser=True),
+    "tc49/layout/throttle_wanted": Topic(("train", "speed", "throttle"), browser=True),
     "tc49/layout/state/mode": Topic((AT, "modes")),
+    # At most one throttle holds a train (ADR-0079). A throttle is named by
+    # the id its page mints when it opens; `null` releases a train whoever
+    # holds it. `throttle_alive` is said once a second while a throttle holds
+    # a train, and `layout` releases the trains of one it has not heard for
+    # 5 s. `taken` maps train to throttle id, empty when `layout` starts.
+    "tc49/layout/take_wanted": Topic(("train", "throttle"), browser=True),
+    "tc49/layout/throttle_alive": Topic(("throttle",), browser=True),
+    "tc49/layout/state/taken": Topic((AT, "taken")),
     # The railroad's one driving mode, asked for at any power and stated by
     # `layout`, which comes up `manual` (ADR-0079).
     "tc49/layout/driving_wanted": Topic(("driving",), browser=True),

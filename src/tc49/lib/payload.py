@@ -76,7 +76,11 @@ The throttle's **two gestures** are read here for the first reason of them all
 `layout` acts on them with nothing to answer back to. They are the pair that
 takes a train in a throttle and turns it, and `layout` is where the two meet
 the roster and become a speed on a decoder — which is why neither reader knows
-anything of a train beyond its name.
+anything of a train beyond its name. Each now names the throttle by the id its
+page minted, beside the `throttle_alive` that keeps its trains held and the
+`state/taken` that says who holds which (ADR-0079): `wanted_take`,
+`alive_throttle` and `taken`. `wanted_mode` reads the gesture `wanted_take`
+replaces, until nothing uses it (#834).
 
 The **desired half of the device vocabulary** is read here from the other
 side of the same seam (#289): `layout` writes those rows and a translator
@@ -516,6 +520,10 @@ class Throttle:
 
     train: str
     speed: float
+    throttle: str | None = None
+    """The id of the throttle turning the lever, minted by its page, or None
+    where the frame names none (ADR-0079). Whether `layout` acts on a frame
+    naming none is its own question (#825), not this reader's."""
 
 
 def wanted_throttle(payload: object) -> Throttle | None:
@@ -534,7 +542,83 @@ def wanted_throttle(payload: object) -> Throttle | None:
     train, speed = fields.get("train"), _fraction(fields, "speed")
     if not isinstance(train, str) or speed is None:
         return None
-    return Throttle(train, speed)
+    return Throttle(train, speed, _throttle_id(fields.get("throttle")))
+
+
+@dataclass(frozen=True)
+class Take:
+    """A throttle taking a train, or the train being released: `throttle` is
+    the id of the throttle that is to hold it, or `None` to release it
+    whoever holds it (ADR-0079).
+
+    The `None` here is the gesture's own and is not the `None` `wanted_take`
+    answers with, which says the payload could not be read at all — the pair
+    `Mode` carries on its train.
+    """
+
+    train: str
+    throttle: str | None
+
+
+def wanted_take(payload: object) -> Take | None:
+    """The take a gesture asks for, or None where it asks for none.
+
+    A **missing** `throttle` fails the read and an explicit `null` succeeds,
+    the rule `wanted_mode` keeps on its `train`: a release takes a train out
+    of a person's hands, too much to read into a frame that lost a field on
+    the way. An id is a non-empty string, so an empty one fails too. Whether
+    the take is applied — no other throttle holds the train — is `layout`'s.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    train = fields.get("train")
+    if not isinstance(train, str) or "throttle" not in fields:
+        return None
+    stated = fields["throttle"]
+    throttle = _throttle_id(stated)
+    if stated is not None and throttle is None:
+        return None
+    return Take(train, throttle)
+
+
+def alive_throttle(payload: object) -> str | None:
+    """The throttle a `throttle_alive` names, or None where it names none.
+
+    Dropped where it cannot be read, which costs the throttle nothing: it says
+    it again a second later, well inside the 5 s after which `layout`
+    releases its trains (ADR-0079).
+    """
+    if not isinstance(payload, dict):
+        return None
+    return _throttle_id(cast(dict[str, object], payload).get("throttle"))
+
+
+def taken(payload: object) -> dict[str, str]:
+    """Which throttle holds each train, as `tc49/layout/state/taken` states
+    it: a train the map does not name, no throttle holds.
+
+    Read an entry at a time, so an unreadable entry costs its own train and
+    nobody else's, and a payload that cannot be read at all holds nothing —
+    which is what `layout` starts with, and a take of a train somebody does
+    hold is refused where it is answered, not here.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    stated = cast(dict[str, object], payload).get("taken")
+    if not isinstance(stated, dict):
+        return {}
+    return {
+        train: throttle
+        for train, throttle in _named(cast(dict[object, object], stated)).items()
+        if throttle
+    }
+
+
+def _throttle_id(stated: object) -> str | None:
+    """A throttle id: the random string a page mints when it opens, so any
+    non-empty string, and nothing else."""
+    return stated if isinstance(stated, str) and stated else None
 
 
 def occupancy(payload: object) -> str | None:

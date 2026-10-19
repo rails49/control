@@ -33,6 +33,9 @@ REFUSED = "tc49/layout/state/device/refused"
 MODE_WANTED = "tc49/layout/mode_wanted"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 MODE = "tc49/layout/state/mode"
+TAKE_WANTED = "tc49/layout/take_wanted"
+THROTTLE_ALIVE = "tc49/layout/throttle_alive"
+TAKEN = "tc49/layout/state/taken"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 DRIVING = "tc49/layout/state/driving"
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -118,8 +121,20 @@ def test_the_two_manual_driving_gestures_are_a_pages_to_write() -> None:
     assert {MODE_WANTED, THROTTLE_WANTED} <= INBOUND
     assert MODE not in INBOUND
     assert TOPICS[MODE_WANTED].fields == ("train", "mode")
-    assert TOPICS[THROTTLE_WANTED].fields == ("train", "speed")
+    assert TOPICS[THROTTLE_WANTED].fields == ("train", "speed", "throttle")
     assert TOPICS[MODE].fields == (AT, "modes")
+
+
+def test_one_throttle_holds_a_train_and_layout_states_which() -> None:
+    """A throttle takes a train, says it is still there, and turns it, each
+    naming itself by the id its page minted (ADR-0079): gestures any page
+    may write. Which throttle holds which train is `layout`'s state and no
+    page writes it."""
+    assert {TAKE_WANTED, THROTTLE_ALIVE} <= INBOUND
+    assert TOPICS[TAKE_WANTED].fields == ("train", "throttle")
+    assert TOPICS[THROTTLE_ALIVE].fields == ("throttle",)
+    assert TOPICS[TAKEN].fields == (AT, "taken")
+    assert TAKEN not in INBOUND
 
 
 def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
@@ -183,6 +198,8 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         POWER_WANTED,
         RAILROAD_WANTED,
         DRIVING_WANTED,
+        TAKE_WANTED,
+        THROTTLE_ALIVE,
     }
     assert not any(is_state_topic(topic) for topic in INBOUND)
 
