@@ -500,14 +500,15 @@ in [BUS.md](BUS.md#device-vocabulary).
     its retained value and replays it. After that `layout` writes `off` only
     when asked (ADR-0074,
     [ADR-0054](adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
-14. The dispatcher holds the run on any value but `on`, as a person's HOLD
-    does, and every signalled end shows `stop`. `stopped` and `off` are the
-    same to it. Power returning to `on` releases nothing. While power is not
-    `on`, a `run_wanted` of `running` or `draining` is dropped. A hold is
-    always applied (ADR-0041,
-    [ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
-15. A `state/power` payload that cannot be read counts as not `on` and holds
-    the run (ADR-0041, #181).
+14. The dispatcher routes, grants and locks only while power reads `on`. On
+    any other value nothing new is granted, a train under way stops in the
+    block its granted move takes it into, and every signalled end shows
+    `stop`. A move already granted runs to its sensor whatever the power.
+    Power reading `on` again runs a sweep, so the press itself routes
+    ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md),
+    [#822](https://github.com/rails49/control/issues/822)).
+15. A `state/power` payload that cannot be read counts as `off`
+    (ADR-0041, #181).
 16. The panel's off press drains first. It publishes `run_wanted: draining`,
     on a held run too, waits for `state/run` to read `held` with `moving`
     false, and then publishes `power_wanted: off` once. The wait ends with no
@@ -696,11 +697,10 @@ admission fit check, and the whole of what makes a train **known**
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 
 A run is built from a railroad, and nothing in a railroad places its trains
-(#171), so a run comes up **held** with an **empty layout** and each train
-arrives on a person's `placement_wanted`. A run comes up held unless its own
-document stood its trains on the rails: a restored session comes up held too,
-and what opens running is the harness's batch loop, built from a scenario
-file. The roster cannot come off the bus.
+(#171), so a run an operator drives comes up with an **empty layout** and each
+train arrives on a person's `placement_wanted`; the harness's batch loop,
+built from a scenario file, stands its trains from the document instead. The
+roster cannot come off the bus.
 Sensors are anonymous, so the lock table the dispatcher recovers identity from
 has to be seeded before the first sensor event, and `request_submitted`
 carries no length.
@@ -716,9 +716,7 @@ moment a retained one is read, and a value that states no picture at all
 leaves the dispatcher starting as a cold start does — every train on its
 document placement — rather than refusing to start. It is read a train at a
 time, so a picture naming one train unreadably loses that train and keeps the
-rest, exactly as a picture the document overrules does. A value that is there
-and cannot be read still **holds** the run: what decides that is a value
-being on the topic, never how much of it could be taken.
+rest, exactly as a picture the document overrules does.
 
 Placement is decided **one train at a time**. A train the picture does not
 name starts where the document says. Where that is a block the picture already
@@ -730,77 +728,44 @@ block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 *Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the three
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
-unread. *Publishes* the eleven `tc49/dispatch/*` events, plus `state/run`,
+unread. *Publishes* the eleven `tc49/dispatch/*` events, plus `state/moving`,
 `state/aspects`, `state/disputed`, `state/unfit` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
 
-**The run is held, running or draining**, on `state/run`. The dispatcher
-publishes it from its constructor, so a client that joins is served a value
-rather than left to read one out of an absence. A session starting fresh
-publishes `held`, since its layout is empty and placing a train needs a held
-run. One that came up on a restored picture publishes `held` too, because that
-picture says where the last session believed the railroad was rather than where
-it stands now. Only a session whose document stood its trains publishes
-`running`: the harness's batch loop.
+**It routes only while power reads `on`**
+([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+`layout` owns the switch and states it on `tc49/layout/state/power`, and the
+dispatcher reads it there and nowhere else. It reads the value the bus already
+holds when it starts, and with none it takes the railroad for `off`, which is
+where the railroad comes up. While power reads `draining` or `off` the
+dispatcher **commits nothing**: a sensor still applies where it lands, and the
+sweep's grant pass is what stops, so no route is chosen, no move granted and
+no lock taken, while admission goes on accepting and queuing. A move already
+granted still runs to its sensors and releases its locks, since nothing on the
+bus retracts a `move` already sent, and a train under way takes no next move:
+a drain stops it in the block it is entering, with its route and its locks.
+Every signalled end shows `stop` while power is not `on`. Power reading `on`
+again runs a sweep, so the press itself routes, and every train carries on
+with what it was granted (ADR-0047).
 
-A person moves it with `tc49/dispatch/run_wanted`. The three values differ by
-what the dispatcher will commit, and all three **admit**:
-
-| value | admits | launches | grants to a train already moving |
-| --- | --- | --- | --- |
-| `running` | yes | yes | yes |
-| `draining` | yes | no | yes |
-| `held` | yes | no | no |
-
-While it is `held` the dispatcher **commits nothing**: a sensor still applies
-where it lands, and the sweep's grant pass is what stops, so no route is
-chosen, no move granted and no lock taken, while admission goes on accepting
-and queuing. A move already granted still completes and releases its locks. A
-hold stops new commitments and does not stop a train that is already moving,
-and nothing on the bus retracts a `move` already sent. Every signalled end shows `stop` for as long as the hold
-lasts. Releasing runs a sweep, so the press itself grants
-([ADR-0037](adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md),
-ADR-0047).
-
-**`draining` is the ordinary shutdown**, and the gate it closes is on
-launching rather than on admission: the trains already moving go on being
-granted until each finishes its request, and nothing is launched behind them.
-Every end one of them is leaving by goes on **showing its aspect**, where a
-hold puts them all to `stop`: the answer to "may this train leave" is yes for
-a train the drain is still granting, and a signal at stop over one that has
-just been told to go would be the hold's lie the other way about.
-The dispatcher writes `held` **itself** at the first moment no train is active
-and none is crossing, and that transition is the drain's completion.
-A drain over a railroad with nothing under way therefore reaches `held` in the
-press that asked for it. `held` published while a drain is in progress
-**abandons** it, at once and without waiting for a train to finish, and
-`running` resumes launching; a drain that a train holds open forever is
-escaped that way, by holding and then removing the train, which drops its
-request ([#294](https://github.com/rails49/control/issues/294)).
-
-**`moving` says whether anything would be stranded**, beside the run word and
-orthogonal to it: true while any train is active or crossing, which is the
-test the drain's completion already makes. `held` alone does not say it — the
-dispatcher writes that word when a drain completes and a person's HOLD writes
-the same word with trains still rolling — so the row carries both, and a
-reader that wants to know the railroad is still reads `held` with `moving`
-false. The row is published whenever either moves: a running run whose last
-train arrives publishes `running` with `moving` false, and a value that
-changes nothing publishes nothing. `layout` and the panel read it before
-track power is cut
+**`state/moving` says whether anything would be stranded**: true while any
+train is active or crossing, so cutting the supply now would strand it. It is
+a boolean beside power rather than a value of it — a drain is moving while a
+granted move runs to its sensor, and `on` with nothing granted is not.
+`layout` reads it to end a drain by switching the supply off
 ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-
-Track power that is not `on` holds the run, and while it is not `on` a release
-or a drain is dropped ([Track power](#track-power)).
+The dispatcher publishes it from its constructor, so a client that joins is
+served a value, and again whenever it changes; a value that changes nothing
+publishes nothing.
 
 **It alone reads `tc49/dispatch/placement_wanted`**, a person saying where a train
 actually is. Only the dispatcher knows whether a block is free, so a second
 reader would have to agree with it on every precondition. The train has to be
-known either way, and naming a block needs the run **held**; taking a train off
-is accepted in any run state
-([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+known either way, and either direction is accepted **at any power**
+([#821](https://github.com/rails49/control/issues/821),
+[ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
 A gesture that fails a precondition is dropped without an answer, and is in
 the trace. A request in flight was a third and is not one any more: the
 placement **cancels** it first
@@ -812,13 +777,15 @@ the gesture pointed — `displaced` into a block, `removed` off the layout.
 A placement **does not defer** where a move is outstanding, as a
 `cancel_wanted` does: the person is answering the move the sensors may never
 answer, so the request retires at the gesture. A sensor that arrives for it
-afterwards explains nothing and holds the run
+afterwards explains nothing and drains the railroad
 ([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)), which is what
 a detector firing under a train somebody has moved by hand should do.
 
 Naming a **block** puts the train there. The block has to exist, fit the
 train, and be free of every claim: no lock on it, and not on a committed
-route, which under `Incremental` are not the same set. Where the train stands
+route, which under `Incremental` are not the same set. That is what makes a
+placement safe while the dispatcher routes: no grant is about to send a train
+into a free block. Where the train stands
 now is not a precondition at all. A train adopted with no placement is exactly
 the one a person has to say something about, and it has no standing lock to
 move, only one to take. Having accepted, the dispatcher moves the train's
@@ -834,15 +801,15 @@ lifting it off are the same act with a different destination. The train leaves
 `lock_released`, except each block a detector last read occupied: that stays
 held by the train until it reads clear, and the transit it was crossing stays
 until both its blocks have opened. That clear reading is explained, releases
-the block and does not hold the run. The removed train may be put back into a
+the block and does not drain the railroad. The removed train may be put back into a
 block it still holds; any other train is refused there. The scheduler drops its facing on it and the layout
 interface forgets it.
 
 This is not deletion: the train stays on the roster and can be placed again. A
 train with a request in flight **is** lifted off, its request cancelled
 `removed` on the way, so a derailment partway through a route ends with the
-locomotive in a person's hand rather than with the hold released and the train
-run on to a destination it is no longer heading for. The key is read for
+locomotive in a person's hand rather than with the power turned on and the
+train run on to a destination it is no longer heading for. The key is read for
 **presence**: an explicit `null` says nowhere, and a frame that has lost the
 field is refused rather than read as a `null`.
 
@@ -854,9 +821,9 @@ serves
 ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
 Both name a request by its id. A cancel ends that request and the train's
 requests chained after it, and an id the dispatcher does not hold is dropped
-like any other gesture it cannot act on. It needs **no held run**:
-cancelling ends one request, and holding the whole railroad to do it would
-stop every other train to let one go.
+like any other gesture it cannot act on. It is accepted **at any power**:
+cancelling ends one request, and turning the whole railroad off to do it
+would stop every other train to let one go.
 
 What a cancelled request held is released, **all of it but the block the train
 stands in** — under `FullRoute` that is the whole route, every transit and
@@ -868,7 +835,8 @@ marked, granted nothing further, and retires as `request_cancelled` when
 stays used for the session; no id ever resumes
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
 
-**While held it publishes what the detectors dispute**, on `state/disputed`:
+**While power reads `off` it publishes what the detectors dispute**, on
+`state/disputed`:
 the trains its own placement stands in a block the layout reports clear, and
 the blocks the layout reports occupied with nothing claiming them. At power-up
 every detector reports at once and anonymously, which is the moment a restored
@@ -880,11 +848,11 @@ person ends each entry with a `placement_wanted`, and the set empties as they
 do. Only blocks the layout has actually reported on take part. **Silence is
 not a clear reading**, so a binding that reports no occupancy at all disputes
 nothing rather than disputing the whole railroad. A train the picture says is
-crossing takes no part either, standing in no block. Releasing the hold with
-entries outstanding is allowed, the person deciding rather than the check, and
-it empties the set; a block disputed for reading occupied is not entered until
-it reads clear
-([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)): once the run is running, the dispatcher's placement is
+crossing takes no part either, standing in no block. Turning the power on
+with entries outstanding is allowed, the person deciding rather than the
+check, and any value but `off` empties the set; a block disputed for reading
+occupied is not entered until it reads clear
+([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)): once the dispatcher routes, its placement is
 what its sensors have just told it
 ([#153](https://github.com/rails49/control/issues/153)).
 
@@ -904,7 +872,7 @@ The rule covers what the **layout** publishes too, for a second reason. No
 page writes those topics, but the binding is another process on the broker,
 and a bug in it must not take the dispatcher down.
 The two observations fail in opposite directions. A `state/power` payload that
-cannot be read holds the run ([Track power](#track-power)). An occupancy frame that cannot be read is dropped: it is a reading
+cannot be read counts as `off` ([Track power](#track-power)). An occupancy frame that cannot be read is dropped: it is a reading
 nobody made, so the block stays one the layout has said nothing about, and
 silence is not a clear reading
 ([#181](https://github.com/rails49/control/issues/181)).
@@ -928,13 +896,13 @@ re-asserts the level the dispatcher already holds is an at-least-once repeat
 and a no-op. A change either explains a granted move — `block_occupied`
 records where the train arrived, `block_vacated` releases the origin block
 and the transit, ends the move and completes the request — or explains
-nothing, which **holds the run** (ADR-0048) and is the dispute check's
+nothing, which **drains the railroad** (ADR-0048) and is the dispute check's
 subject either way. A move ends on both readings in either order: a vacate
 before the arrival releases nothing and holds nothing, and the arrival then
 ends the move; and a clear reading on a block nobody holds is explained and
 sweeps ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)). The grant pass is a **sweep** over the
 whole waiting set, run where the lock table or the waiting set changes: a
-request admitted, a vacate, the run released. Every grant is `safe()`-checked
+request admitted, a vacate, the power reading `on` again. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
 reaches an unsafe state; under MQTT a sensor that arrives late delays a grant
 rather than producing a wrong one.
@@ -1178,33 +1146,35 @@ a binding does with it is its own business. The simulator stands in for a
 train that would simply be where a hand left it, so it is told where the hand
 put it. It is not a command, and nothing moves on it.
 
-A reading no granted move accounts for **holds the run**
-([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). The dispatcher
+A reading no granted move accounts for **drains the railroad**
+([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md),
+[ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). The dispatcher
 recovers train identity from its lock table, so a `block_occupied` with
 nothing claiming the block, or a `block_vacated` of a block it believes a
 train stands in — a hand putting a locomotive down, a train pushed while the
 power was off, a detector asserting on dirt — says the table has stopped
-describing the steel, and the dispatcher stops committing over it, by the path
-track power takes
-([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+describing the steel. While power reads `on` the dispatcher publishes
+`tc49/layout/power_wanted` `{power: draining}`, as a person's press would, and
+stops committing over the table once `layout` answers.
 It guesses nothing: occupancy is anonymous, so there is no train to place. It
 does not raise either, a payload never being a reason to leave the bus
 (rule 4).
 
-A lock table that has stopped agreeing with itself **holds the run** the same
-way ([ADR-0076](adr/0076-a-broken-lock-table-holds-the-run.md)). After every
+A lock table that has stopped agreeing with itself **drains the railroad** the
+same way ([ADR-0076](adr/0076-a-broken-lock-table-holds-the-run.md)). After every
 event and before every grant pass the dispatcher checks the rules its maps
 keep between them, such as a placed train holding the lock on its block; a
-rule broken now and not at the last check holds the run and is written to the
-dispatcher's stderr as `dispatcher: lock table: …`, with nothing new on the
-bus. A rule still broken does not hold again, so GO is honoured as it is over
-a dispute.
+rule broken now and not at the last check asks for the drain, grants nothing
+in the sweep that found it, and is written to the dispatcher's stderr as
+`dispatcher: lock table: …`. A rule still broken does not drain again, so a
+person turning the power on is honoured as it is over a dispute
+([#811](https://github.com/rails49/control/issues/811)).
 
-The **dispute check** is what the hold turns on, and it is this comparison
+The **dispute check** is what power `off` turns on, and it is this comparison
 exactly: the block reading occupied with nothing claiming it, or the train
 whose block reads clear, is named on `state/disputed` for a person to walk.
-They place what they find and press GO; a block reading clear again releases
-nothing, exactly as power returning releases nothing.
+They place what they find and turn the power on; a block reading clear again
+turns nothing on.
 
 The simulator publishes no sensors for a placement, so nothing behind the
 simulator produces such a reading. The rule is written for the

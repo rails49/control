@@ -325,7 +325,7 @@ releases the origin block and the transit, ends the move and completes the
 request. Usually that is the `block_vacated`, the tail clearing after the
 head arrives; a train shorter than the gap between one block's exit detector
 and the next block's entry detector reads clear behind first, and that
-vacate releases nothing, grants nothing and does not hold the run. Between
+vacate releases nothing, grants nothing and does not drain the railroad. Between
 the two the train is between blocks and takes no further grant. A clear
 reading on a block nobody holds is explained and sweeps, so a train waiting
 on that block is reconsidered.
@@ -336,70 +336,56 @@ safe, never an unsafe one.
 
 **The sweep is the grant phase**, run where the lock table or the waiting
 set changes: a request admitted, a vacate releasing what a move held, the
-run released, a request cancelled or moved in the list. A sweep covers the
+power reading `on` again, a request cancelled or moved in the list. A sweep covers the
 active trains and the whole list, so a refused train is reconsidered exactly
 when the resource it waited on frees — no backstop timer.
 
-**A held run commits nothing.** While `tc49/dispatch/state/run` is `held` a
-sensor still applies where it lands: an outstanding move completes and
-releases its locks, and no route is chosen, no move granted and no lock
-taken until a person releases it. Admission is untouched, so the list
-grows and is served in its order on the release. Releasing runs a sweep, so the press itself grants
-([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
-The layout holds it too: `tc49/layout/state/power` arriving as anything but
-`on` sets `run` to `held` by the same path, and a release is dropped until
-it is back
-([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
+**It routes only while power reads `on`**
+([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+Power is one switch a person turns, `on`, `draining` or `off`, which `layout`
+owns and states on `tc49/layout/state/power`. While it reads anything but `on`
+a sensor still applies where it lands — an outstanding move completes and
+releases its locks, since nothing on the bus retracts a `move` already sent —
+and no route is chosen, no move granted and no lock taken. That includes the
+next move of a train under way: a **drain** stops each moving train in the
+block it is entering, keeping its route and its locks. Admission is
+untouched, so the list grows and is served in its order once power reads `on`
+again, which runs a sweep, so the press itself routes and every train carries
+on with what it was granted. Every signalled end shows `stop` while power is
+not `on`. With no value on the bus the dispatcher takes the railroad for
+`off`, where it comes up, and a value that cannot be read is `off` too.
 
-**A draining run launches nothing.** `draining` is the third value of the
-same topic and the ordinary way to turn a railroad off, an abrupt cut
-leaving no point position trustworthy and stranding whatever was mid-transit.
-The gate is on **launching** and not on admission — admission is cheap and
-reversible, launching is the commitment:
-
-| value | admits | launches | grants to a train already moving |
-| --- | --- | --- | --- |
-| `running` | yes | yes | yes |
-| `draining` | yes | no | yes |
-| `held` | yes | no | no |
-
-So the sweep's grant pass still covers the active trains, each running to the
-end of the route it is on, and the waiting requests are passed over
-untouched, exactly as under a hold, so a drain turned back releases into the
-list as it stands. Every end a granted train is leaving by
-still shows its aspect: the answer to "may this train leave" is yes, and a
-signal at stop over a train that has just been told to go would be the hold's
-lie the other way about.
-
-**The drain completes when no train is active.** The dispatcher writes `held`
-itself at the first moment no train is active and none is crossing, and that
-transition is the drain's completion — what the panel watches for before it
-cuts track power
-([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
-It is read at the end of every sweep, a sweep being what runs wherever a
-train can have stopped being active, so a drain over a railroad with nothing
-under way ends in the press that asked for it. Manual trains count by the
+**`state/moving` is what ends a drain.** The dispatcher publishes
+`tc49/dispatch/state/moving`, true while any train is active or crossing, so
+cutting the supply now would strand it, and `layout` switches a drain off
+once it reads false
+([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
+A crossing train counts with no request behind it: a restored hint is a train
+the dispatcher believes is between two blocks. Manual trains count by the
 same rule and need no rule of their own: a train this app has granted moves on
 a route it allocated whoever turns the throttle
 ([#207](https://github.com/rails49/control/issues/207)). A train taken in a
-throttle with no request behind it is another matter — it is not active, holds
-no drain open and does not read as **moving**, and the layout writes its
-wheels without asking for a grant. A cut under that train is not refused, and
-that is a user error the app does not guard (CONTEXT.md, **Moving**).
-
-`held` published while a drain is in progress **abandons** it, at once and
-without waiting for a train to finish, and `stopped` power is always honoured
-and is not a drain. `running` resumes launching. A drain a wedged train would
-hold open forever is escaped the same way anything that train holds is: hold
-the run, take the train off the layout, and the request it was running goes
-with it
+throttle with no request behind it is another matter — it is not active and
+does not read as **moving**, and the layout writes its wheels without asking
+for a grant. A cut under that train is not refused, and that is a user error
+the app does not guard (CONTEXT.md, **Moving**). A drain a wedged train would
+hold open forever is escaped by taking the train off the layout, and the
+request it was running goes with it
 ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
 [#294](https://github.com/rails49/control/issues/294)).
 
+**A placement is accepted at any power**, into a block that is **free** — no
+lock on it and on no active train's route, which under `Incremental` are not
+the same set — and that the train fits
+([#821](https://github.com/rails49/control/issues/821)). A free block is one no
+grant can be about to send a train into, so placing there while the
+dispatcher routes races with nothing it is deciding; a block on another
+train's route is refused.
+
 That value is the one state topic the dispatcher consumes, so it is the one
 place a **stamp** is compared here: a supply that went off and came back on,
-delivered backwards, would otherwise leave the dispatcher holding the run
-over live track — or worse, running over dead track. The later `at` wins and
+delivered backwards, would otherwise leave the dispatcher routing nothing
+over live track — or worse, routing over dead track. The later `at` wins and
 the earlier value is ignored, quietly and with the frame on the trace like
 any other (BUS.md, the bus;
 [#240](https://github.com/rails49/control/issues/240)). The sensor leaves
@@ -412,13 +398,16 @@ A request is keyed by a unique id and a duplicate is dropped, which is the
 same independence bought a different way
 ([ADR-0033](../adr/0033-a-request-id-is-unique-not-meaningful.md)).
 
-**A reading no grant explains holds it too**
-([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)). The
+**A reading no grant explains drains the railroad**
+([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md),
+ADR-0078). The
 dispatcher recovers train identity from its lock table, so a `block_occupied`
 with nothing claiming the block, or a `block_vacated` of a block it believes a
 train stands in, says the table has stopped describing the steel — a hand
 putting a locomotive down, a train pushed while the supply was off, a detector
-asserting on dirt. The run holds by the path power takes, and nothing is
+asserting on dirt. While power reads `on` the dispatcher publishes
+`tc49/layout/power_wanted` `{power: draining}`, the press a person makes for an
+ordinary shutdown, and stops routing once `layout` answers. Nothing is
 guessed: occupancy is anonymous, so there is no train to place. It does not
 raise, a payload never being a reason to leave the bus (BUS.md, rule 4).
 
@@ -429,20 +418,22 @@ placed train holds the lock on its block, every lock is a placed train's or
 residue, an idle train holds its block and its residue and nothing more, an
 active train holds and is crossing what its outstanding move took, and no two
 trains' locked transits conflict — and the dispatcher checks them after every
-event and before every grant pass. A rule newly broken holds the run by the
-same path and is written to stderr; nothing new goes on the bus. A rule still
-broken from the last check does not hold again, so a person's GO is honoured,
-and one that clears and breaks later holds again.
+event and before every grant pass. A rule newly broken asks for a drain by the
+same path, grants nothing in the sweep that found it, and is written to
+stderr. A rule still broken from the last check does not drain again, so a
+person turning the power on is honoured
+([#811](https://github.com/rails49/control/issues/811)), and one that clears
+and breaks later drains again.
 
-**A held run also asks the detectors.** The sensor readings the layout has
+**Power `off` also asks the detectors.** The sensor readings the layout has
 reported are compared against the placement, and the two contradictions — a
 train standing in a block that reads clear, a block reading occupied with
 nothing claiming it — go out on `tc49/dispatch/state/disputed` for a person to
 walk. Comparing commits nothing, and a reading that explains no granted move
-is the check's whole subject: it is also what held the run, so the reading
-that stopped the railroad is the entry the person is sent to. They place what
-they find and press GO — a block reading clear again releases nothing, exactly
-as power returning releases nothing. Blocks nothing has reported on take no
+is the check's whole subject: it is also what drained the railroad, so the
+reading that stopped it is the entry the person is sent to. They place what
+they find and turn the power on — a block reading clear again turns nothing
+on. Any value but `off` empties the set. Blocks nothing has reported on take no
 part, so a layout binding that publishes no occupancy disputes nothing
 ([#153](https://github.com/rails49/control/issues/153)).
 
