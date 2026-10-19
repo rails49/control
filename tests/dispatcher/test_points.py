@@ -15,7 +15,7 @@ from typing import Any, cast
 
 from tc49.bench.runner import Assembly
 from tc49.lib.bus import Payload
-from tests.harness import RUN_WANTED, events, live, press, ticks
+from tests.harness import events, live, press, ticks
 
 POINT_WANTED = "tc49/dispatch/point_wanted"
 POWER = "tc49/layout/state/power"
@@ -128,17 +128,6 @@ def test_the_same_throw_goes_out_once_the_route_has_ended() -> None:
     assert [line["points"] for line in by_hand(assembly)] == [
         [{"addr": "110", "position": "closed"}]
     ]
-
-
-def test_a_held_run_passes_the_throw_on() -> None:
-    """The hold is a brake on commitment, and a throw on an unlit road
-    commits nothing."""
-    assembly = railroad()
-    press(assembly, RUN_WANTED, {"run": "held"})
-
-    throw(assembly, "113")
-
-    assert by_hand(assembly) == [thrown("113")]
 
 
 def test_dead_track_passes_the_throw_on() -> None:

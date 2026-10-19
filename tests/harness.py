@@ -32,23 +32,25 @@ from tc49.store import AssetStore
 
 __all__ = [
     "ASSETS",
+    "POWER",
+    "POWER_WANTED",
     "ROOT",
-    "RUN_WANTED",
     "Assembly",
     "StrategyFactory",
     "a_railroad",
     "build",
     "catalogued",
+    "drains",
     "events",
     "leaves",
     "live",
     "load",
+    "movings",
+    "power",
     "press",
     "railroads",
     "retaining",
     "run",
-    "run_wanted",
-    "runs",
     "stock",
     "ticks",
     "timetabled",
@@ -196,9 +198,12 @@ def ticks(
     assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
 
 
-RUN_WANTED = "tc49/dispatch/run_wanted"
-"""The leaf a person's press of the run's one button lands on. Every
-dispatcher suite that drives the run names it, so it is named here once."""
+POWER = "tc49/layout/state/power"
+"""Where the layout states the one switch a person turns (ADR-0078). Every
+dispatcher suite that drives the power names it, so it is named here once."""
+
+POWER_WANTED = "tc49/layout/power_wanted"
+"""Where a press on that switch lands, and where a fault asks for a drain."""
 
 
 @pytest.fixture
@@ -208,9 +213,12 @@ def timetabled() -> Assembly:
     return build(*load("crossover-yard/meet"))
 
 
-def run_wanted(state: str) -> tuple[str, Payload]:
-    """A press of the run's one button, as `ticks` plans one."""
-    return (RUN_WANTED, {"run": state})
+def power(state: str) -> tuple[str, Payload]:
+    """The layout stating the power, as `ticks` plans an event. Stated on
+    `state/power` rather than pressed on `power_wanted`, so what the
+    dispatcher does with each value is driven without the binding's own rules
+    about which press it answers."""
+    return (POWER, {"power": state})
 
 
 def leaves(assembly: Assembly, leaf: str) -> list[Payload]:
@@ -235,26 +243,19 @@ def minted(assembly: Assembly, train: str, nth: int = 1) -> str:
     return ids[nth - 1]
 
 
-def runs(assembly: Assembly) -> list[str]:
-    """Every value `tc49/dispatch/state/run` took, in the order it took them.
-
-    Consecutive repeats collapse, because the row carries `moving` beside the
-    run word and is republished when that moves on its own — a running run
-    whose last train arrives says `running` again with `moving` false, and
-    that is not the run taking a value (#406). The dispatcher compares the
-    whole row before publishing, so a repeat is never an identical one;
-    `run_rows` is what reads the rows as they went out.
-    """
-    said = [word for word, _ in run_rows(assembly)]
-    return [word for i, word in enumerate(said) if i == 0 or word != said[i - 1]]
+def drains(assembly: Assembly) -> list[str]:
+    """Every power pressed on `power_wanted` after the harness's own opening
+    `on` (`bench.runner.powered`): on a railroad no test presses the switch
+    on, the drains the dispatcher has asked `layout` for (ADR-0078)."""
+    pressed = [str(line["power"]) for line in leaves(assembly, "power_wanted")]
+    return pressed[1:]
 
 
-def run_rows(assembly: Assembly) -> list[tuple[str, bool]]:
-    """Every `tc49/dispatch/state/run` row as it was published: the run word
-    and whether anything was moving (ADR-0062)."""
-    return [
-        (str(line["run"]), bool(line.get("moving"))) for line in leaves(assembly, "run")
-    ]
+def movings(assembly: Assembly) -> list[bool]:
+    """Every value `tc49/dispatch/state/moving` took, in the order it took
+    them. The dispatcher publishes it only when it moves, so no two in a row
+    are equal (ADR-0078)."""
+    return [bool(line["moving"]) for line in leaves(assembly, "moving")]
 
 
 class Recording(InProcessBus):

@@ -49,7 +49,7 @@ from tc49.lib.payload import (
     granted_aspect,
     kept_allocation,
     kept_facing,
-    kept_run,
+    moving,
     occupancy,
     placement,
     power,
@@ -141,7 +141,11 @@ TABLE: tuple[Rule, ...] = (
         )
         for leaf in ("request_admitted", "request_rejected", "request_completed")
     ),
-    Rule("tc49/dispatch/state/run", "kept_run", lambda f: kept_run(f) is not None),
+    Rule(
+        "tc49/dispatch/state/moving",
+        "moving",
+        lambda f: moving(f) == f.get("moving"),
+    ),
     Rule(
         "tc49/dispatch/state/aspects",
         "shown_aspects",

@@ -4,7 +4,7 @@ On power-up the detectors assert straight away, anonymously but at once, and
 that is exactly the moment the restored placement is least trustworthy: the
 steel has stood unwatched since the last session, long enough for a stalled
 train to have been lifted out of a tunnel by hand (CONTEXT.md, recovery). So
-while the run is held the dispatcher compares the two and names the
+while power reads `off` the dispatcher compares the two and names the
 contradictions — a train standing in a block that reads clear, and a block
 that reads occupied with nothing claiming it.
 
@@ -24,10 +24,10 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import InProcessBus, Payload
-from tc49.lib.inventory import AT
+from tc49.lib.inventory import AT, OFF, ON
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import RUN_WANTED, load, retaining
+from tests.harness import load, power, retaining
 
 DISPUTED = "tc49/dispatch/state/disputed"
 OCCUPIED = "tc49/layout/block_occupied"
@@ -47,8 +47,9 @@ def restored(
     picture: dict[str, Any] | None = None,
     added: dict[str, str] | None = None,
 ) -> tuple[InProcessBus, Dispatcher]:
-    """A dispatcher on a bus already holding that picture, which is the run
-    that comes up held (#154) and so the one the check runs in.
+    """A dispatcher on a bus already holding that picture, and told nothing
+    about the power yet: it comes up `off` (ADR-0078), which is the moment
+    the check is for (#154).
 
     `added` is stock the scenario has gained since the picture was taken,
     train to starting block: the trains a collision is made of (#164).
@@ -166,7 +167,7 @@ def test_placing_the_train_resolves_both_entries() -> None:
 
 
 def test_the_opening_statement_carries_the_set() -> None:
-    """Stated from the constructor as `state/run` and `state/allocation` are:
+    """Stated from the constructor as `state/moving` and `state/allocation` are:
     a joining client is served the set rather than left to read one out of an
     absence, and a value the last session left is cleared rather than
     standing over this one's railroad (ADR-0032)."""
@@ -181,28 +182,29 @@ def test_the_opening_statement_carries_the_set() -> None:
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_releasing_the_hold_is_allowed_and_empties_the_set() -> None:
-    """The person decides, not the check: a dispute never blocks the release.
-    What it does end is the comparison — a running dispatcher's placement
-    follows the sensors move by move, and the picture the check was made
-    against is one the operator has accepted."""
+def test_power_on_is_allowed_and_empties_the_set() -> None:
+    """The person decides, not the check: a dispute never keeps the power
+    off. What it does end is the comparison — a routing dispatcher's
+    placement follows the sensors move by move, and the picture the check
+    was made against is one the operator has accepted."""
     bus, dispatcher = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
-    press(bus, RUN_WANTED, {"run": "running"})
+    press(bus, *power(ON))
 
-    assert dispatcher.state.run == "running"
+    assert dispatcher.state.power == ON
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_holding_the_run_again_asks_the_detectors_again() -> None:
-    """The check belongs to a held run rather than to a restart: a person who
-    holds the railroad mid-evening is looking at it for the same reason."""
+def test_power_off_again_asks_the_detectors_again() -> None:
+    """The check belongs to power `off` rather than to a restart: a person
+    who turns the railroad off mid-evening is looking at it for the same
+    reason."""
     bus, _ = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
-    press(bus, RUN_WANTED, {"run": "running"})
+    press(bus, *power(ON))
 
-    press(bus, RUN_WANTED, {"run": "held"})
+    press(bus, *power(OFF))
 
     assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
 

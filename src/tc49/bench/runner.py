@@ -170,9 +170,9 @@ def powered(bus: InProcessBus, simulator: Simulator) -> Simulator:
     drained here, ahead of the scheduler and the dispatcher, so they come up
     on a railroad that already has power — as apps started on a box where a
     person has pressed ON do (ADR-0059, decision 5). Pressed after them
-    instead, the `off` would reach the dispatcher first and hold the run, and
-    power returning releases nothing (ADR-0041): the harness would have to
-    press GO as well, after grants the startup cascade had already made.
+    instead, the timetable would be admitted while the dispatcher reads `off`
+    and routed only once `on` arrived, which is a different startup cascade
+    from the one the batch loop measures (ADR-0078).
     """
     bus.publish("tc49/layout/power_wanted", {"power": ON})
     bus.drain()

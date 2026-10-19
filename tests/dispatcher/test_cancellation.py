@@ -20,8 +20,9 @@ from typing import Any, cast
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import FullRoute
 from tc49.lib.bus import Payload
+from tc49.lib.inventory import OFF, ON
 from tc49.lib.scenario import TrainSpec
-from tests.harness import RUN_WANTED, events, leaves, load, press, runs, stock, ticks
+from tests.harness import events, leaves, load, power, press, stock, ticks
 
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
@@ -72,10 +73,10 @@ def locks(assembly: Assembly) -> dict[str, str]:
 
 def test_a_request_still_queued_is_revoked_and_never_launches() -> None:
     """A pending request has taken nothing, so cancelling it is the one
-    event: it leaves the queue, and the release that would have launched it
+    event: it leaves the queue, and the power on that would have launched it
     finds nothing to launch."""
     assembly = whole_route()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     request = drag(assembly, "freight_1", "yard_e.A")
     assert events(assembly.trace, "request_admitted")
 
@@ -91,7 +92,7 @@ def test_a_request_still_queued_is_revoked_and_never_launches() -> None:
     ]
     assert leaves(assembly, "lock_released") == []
 
-    press(assembly, RUN_WANTED, {"run": "running"})
+    press(assembly, *power(ON))
     ticks(assembly, 6)
     assert leaves(assembly, "route_chosen") == []
     assert leaves(assembly, "request_completed") == []
@@ -103,7 +104,7 @@ def test_the_gesture_ends_the_one_request_it_names() -> None:
     (#827), so the second is one a page submits with its own departure end
     (BUS.md, rule 1)."""
     assembly = whole_route()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     first = drag(assembly, "freight_1", "yard_e.A")
     second = "freight_1-page-1"
     press(
@@ -121,13 +122,13 @@ def test_the_gesture_ends_the_one_request_it_names() -> None:
 def test_a_cancelled_request_at_rest_gives_up_all_but_the_block_it_stands_in() -> None:
     """The release path whole: what a route took is given back as one
     `lock_released`, and what stays is the standing lock every parked train
-    holds (CONTEXT.md). Held first, so the train is active with no move
+    holds (CONTEXT.md). Power off first, so the train is active with no move
     outstanding — the sweep that would have granted the next one is the one
-    the hold stops."""
+    power `off` stops."""
     assembly = whole_route()
     request = drag(assembly, "freight_1", "yard_e.A")
     assert last(assembly, "route_chosen")["id"] == request
-    ticks(assembly, 2, at={0: (RUN_WANTED, {"run": "held"})})
+    ticks(assembly, 2, at={0: power(OFF)})
     assert locks(assembly)["dn_w"] == "freight_1"
 
     cancel(assembly, request)
@@ -162,7 +163,7 @@ def test_a_train_cancelled_mid_route_holds_no_route_blocks_afterwards() -> None:
     train waiting on that track waits for a session restart without this."""
     assembly = whole_route()
     request = drag(assembly, "freight_1", "yard_e.A")
-    ticks(assembly, 2, at={0: (RUN_WANTED, {"run": "held"})})
+    ticks(assembly, 2, at={0: power(OFF)})
     held = locks(assembly)
     assert len([r for r, by in held.items() if by == "freight_1"]) > 1
 
@@ -238,9 +239,9 @@ def test_a_cancellation_mid_move_retires_when_the_move_ends_and_not_before() -> 
     assert [r for r, by in locks(assembly).items() if by == "freight_1"] == ["dn_w"]
 
 
-def test_a_cancellation_needs_no_held_run() -> None:
-    """Cancelling is how one train's work ends, and holding the run to do it
-    would stop every other train to let one go. The run above is running
+def test_a_cancellation_needs_no_power_off() -> None:
+    """Cancelling is how one train's work ends, and turning the power off to
+    do it would stop every other train to let one go. The power above is on
     throughout; this pins that it was never a precondition."""
     assembly = whole_route()
     request = drag(assembly, "freight_1", "yard_e.A")
@@ -248,7 +249,7 @@ def test_a_cancellation_needs_no_held_run() -> None:
     cancel(assembly, request)
     ticks(assembly, 4)
 
-    assert runs(assembly) == ["running"]
+    assert assembly.dispatcher.state.power == ON
     assert [line["reason"] for line in cancellations(assembly)] == ["revoked"]
 
 

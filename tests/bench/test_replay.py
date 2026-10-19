@@ -106,14 +106,13 @@ def test_a_bare_block_becomes_both_of_its_ends() -> None:
 
 def test_the_replay_places_every_train_through_the_gesture() -> None:
     """Through `placement_wanted`, and not through a constructor: the run
-    opens with an empty layout and held, and each train arrives as a gesture
-    the dispatcher answers with `train_placed`."""
+    opens with an empty layout, and each train arrives as a gesture the
+    dispatcher answers with `train_placed`."""
     layout, roster, scenario = load(SCENARIO)
     assembly = assemble_live(layout, roster)
     assembly.bus.drain()
     opening = events(assembly.trace, "allocation")[-1]
     assert opening["trains"] == {} and opening["locks"] == {}
-    assert events(assembly.trace, "run")[-1]["run"] == "held"
 
     Replay(assembly.bus, layout, scenario)
 
@@ -123,9 +122,6 @@ def test_the_replay_places_every_train_through_the_gesture() -> None:
         line["train"]: line["block"] for line in events(assembly.trace, "train_placed")
     }
     assert placed == {train: spec.at for train, spec in scenario.trains.items()}
-    # And the operator this stands in for presses GO once the railroad is laid
-    # out, which is the last of the four leaves a person writes.
-    assert events(assembly.trace, "run")[-1]["run"] == "running"
 
 
 def test_the_replay_faces_each_train_the_way_the_document_does() -> None:

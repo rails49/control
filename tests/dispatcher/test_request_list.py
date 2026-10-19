@@ -16,9 +16,10 @@ from typing import Any
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bus import Payload
+from tc49.lib.inventory import OFF, ON
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import RUN_WANTED, events, leaves, load, press, stock, ticks
+from tests.harness import events, leaves, load, power, press, stock, ticks
 
 REQUESTS = "tc49/dispatch/request_submitted"
 REORDER_WANTED = "tc49/dispatch/reorder_wanted"
@@ -94,7 +95,7 @@ def test_a_new_request_goes_in_after_every_request_of_the_same_or_higher_priorit
             "express": TrainSpec("up_w", "B-to-A"),
         },
     )
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
 
     submit(assembly, "none-1", "none", "dn_e.A", "dn_w.B")
     submit(assembly, "low-1", "low", "yard_w.B", "dn_w.A")
@@ -122,12 +123,12 @@ def test_refusals_do_not_reorder_the_list() -> None:
     """The refusal count that aged the queue is gone (ADR-0080): a request
     refused many times keeps its place, and so does the one behind it."""
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "up_e.A")
     submit(assembly, "express_2-1", "express_2", "up_e.A", "yard_w.B")
     for _ in range(3):
-        press(assembly, RUN_WANTED, {"run": "running"})
-        press(assembly, RUN_WANTED, {"run": "held"})
+        press(assembly, *power(ON))
+        press(assembly, *power(OFF))
 
     assert listed(assembly) == ["freight_1-1", "express_2-1"]
 
@@ -137,7 +138,7 @@ def test_refusals_do_not_reorder_the_list() -> None:
 
 def test_a_request_moves_in_front_of_another_or_to_the_end() -> None:
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
     submit(assembly, "express_2-1", "express_2", "up_e.B", "yard_e.A")
     submit(assembly, "freight_1-2", "freight_1", None, "yard_e.A", after="freight_1-1")
@@ -153,12 +154,12 @@ def test_the_list_is_served_in_its_new_order() -> None:
     """freight_1 and express_2 both want `dn_w`, from either end, so only
     the first in the list starts; the reorder decides which."""
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
     submit(assembly, "express_2-1", "express_2", "up_e.A", "dn_w.B")
 
     reorder(assembly, "express_2-1", "freight_1-1")
-    press(assembly, RUN_WANTED, {"run": "running"})
+    press(assembly, *power(ON))
 
     decided = [
         (line["event"], line["id"])
@@ -174,7 +175,7 @@ def test_the_list_is_served_in_its_new_order() -> None:
 def test_a_reorder_naming_a_started_request_is_dropped() -> None:
     assembly = meet()
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "express_2-1", "express_2", "up_e.A", "yard_w.B")
     assert ids(assembly, "route_chosen") == ["freight_1-1"]
     before = listed(assembly)
@@ -187,7 +188,7 @@ def test_a_reorder_naming_a_started_request_is_dropped() -> None:
 
 def test_a_reorder_naming_an_unknown_request_is_dropped() -> None:
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
     submit(assembly, "express_2-1", "express_2", "up_e.B", "yard_e.A")
     trace = assembly.trace
@@ -205,7 +206,7 @@ def test_a_reorder_putting_a_chained_request_before_the_one_it_follows_is_droppe
     None
 ):
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
     submit(assembly, "freight_1-2", "freight_1", None, "yard_e.A", after="freight_1-1")
 
@@ -220,7 +221,7 @@ def test_a_reorder_putting_a_chained_request_before_the_one_it_follows_is_droppe
 
 def test_cancelling_a_waiting_request_cancels_the_one_chained_after_it() -> None:
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
     submit(assembly, "freight_1-2", "freight_1", None, "yard_e.A", after="freight_1-1")
 
@@ -268,7 +269,7 @@ def test_cancelling_a_chained_request_leaves_the_one_it_follows() -> None:
 
 def test_a_chained_request_waits_listed_with_no_departure_end() -> None:
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "freight_1-1", "freight_1", "yard_w.B", "dn_w.A")
     submit(assembly, "freight_1-2", "freight_1", None, "yard_e.A", after="freight_1-1")
 
@@ -354,7 +355,7 @@ def test_a_request_after_one_already_arrived_departs_where_that_one_left_it() ->
 
 def test_after_naming_no_request_of_the_train_is_malformed() -> None:
     assembly = meet()
-    press(assembly, RUN_WANTED, {"run": "held"})
+    press(assembly, *power(OFF))
     submit(assembly, "express_2-1", "express_2", "up_e.B", "yard_e.A")
 
     submit(assembly, "freight_1-1", "freight_1", None, "dn_w.A", after="express_2-1")
