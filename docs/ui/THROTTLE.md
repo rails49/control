@@ -63,6 +63,20 @@ different repository, and this one is not that.
 
 ## What it does
 
+**The throttle mints its id.** When the page opens, the throttle picks a
+random string and names itself by it on every frame that concerns a train it
+holds: `tc49/layout/take_wanted` `{train, throttle}` to take a train, with
+`null` to release it, `throttle` on `tc49/layout/throttle_wanted`, and
+`tc49/layout/throttle_alive` `{throttle}` once a second while it holds a
+train. The id names the throttle holding a train, not who sent a frame. At most
+one throttle holds a train, `layout` says which on `tc49/layout/state/taken`,
+and it releases the trains of a throttle it has not heard for 5 s, so a phone
+gone to sleep does not leave a train running
+([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+BUS.md). The view moves onto these rows in
+[#830](https://github.com/rails49/control/issues/830); until then it takes and
+releases with `mode_wanted`, as below.
+
 **Taking a train** publishes one `tc49/layout/mode_wanted`, `{train, mode}`,
 with `manual`; releasing publishes the same topic with `automatic`. The
 gesture names where the mode should stand rather than asking for a change, as
