@@ -449,6 +449,25 @@ def commanded_power(payload: object) -> str | None:
     return wanted
 
 
+def wanted_power(payload: object) -> str | None:
+    """The word a press on `tc49/layout/power_wanted` asks for — `on`,
+    `draining` or `off` — or None where it asks for none (ADR-0078).
+
+    The person's switch, and not the row `layout` writes for the hardware:
+    that is `wanted/track`, which `commanded_power` reads. The two differ by
+    `draining`, which a person asks for and no translator is told — the
+    supply stays on through a drain. A press that cannot be read is dropped
+    for `commanded_power`'s reason, and `stopped` with it: the emergency stop
+    is `off` now, and the word with the track live is retired.
+    """
+    if not isinstance(payload, dict):
+        return None
+    wanted = cast(dict[str, object], payload).get("power")
+    if not isinstance(wanted, str) or wanted not in (ON, DRAINING, OFF):
+        return None
+    return wanted
+
+
 def driving(payload: object) -> str:
     """The driving mode the layout states, for a payload that can be read as
     one; `manual` for a payload that cannot.
