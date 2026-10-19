@@ -142,6 +142,7 @@ from tc49.lib.inventory import (
     OCCUPIED,
     OFF,
     ON,
+    POWERS,
     RUNNING,
     STOPPED,
     SUPPLY,
@@ -388,9 +389,10 @@ def power(payload: object) -> str:
     and there is no `None` for a caller to have to think about.
 
     Which not-`on` value it is, is not a behavioural choice: the dispatcher
-    branches on "not `on`" alone (ADR-0041), and `stopped` and `off` differ
-    only for the person recovering — who has an unreadable payload to recover
-    from, not an emergency stop.
+    routes only on `on` (ADR-0078), and the others differ only for the person
+    recovering — who has an unreadable payload to recover from, not a drain
+    or an emergency stop. `draining` is read as itself, the supply still on
+    while the moving trains stop, and `stopped` stays readable until #834.
 
     This is `tc49/layout/state/power` alone. The observed row that folds into
     it is `supply`'s, and reads two values where this reads three.
@@ -398,7 +400,7 @@ def power(payload: object) -> str:
     if not isinstance(payload, dict):
         return OFF
     stated = cast(dict[str, object], payload).get("power")
-    if not isinstance(stated, str) or stated not in (ON, STOPPED, OFF):
+    if not isinstance(stated, str) or stated not in POWERS:
         return OFF
     return stated
 

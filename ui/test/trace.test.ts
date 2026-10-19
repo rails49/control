@@ -227,11 +227,13 @@ describe("powerWanted", () => {
   });
 });
 
-/** The one reading of "the track has power": on, or stopped, which is every
+/** The one reading of "the track has power": on; draining, which keeps the
+ *  supply on until nothing is moving (ADR-0078); or stopped, which is every
  *  locomotive told to stand with the track still live (ADR-0041). */
 describe("trackLive", () => {
   it.each([
     ["on", true],
+    ["draining", true],
     ["stopped", true],
     ["off", false],
     [null, false],

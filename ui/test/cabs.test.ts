@@ -269,7 +269,7 @@ describe("what a person can switch", () => {
 /** Why nothing can be driven: a session that is not answering first, then
  *  the track as the layout last said it (ui/THROTTLE.md, ADR-0041). */
 describe("why a train cannot be driven", () => {
-  it.each(["on", "stopped", "off", null] as const)(
+  it.each(["on", "draining", "stopped", "off", null] as const)(
     "is refused with no broker answering, power %s",
     (power) => {
       expect(driveRefusal(false, power)).toBe("no broker answering — is the bus running?");
@@ -278,6 +278,7 @@ describe("why a train cannot be driven", () => {
 
   it.each([
     ["on", null],
+    ["draining", "the railroad is draining — switch it on to drive"],
     ["stopped", "emergency stop — clear it before driving"],
     ["off", "the track has no power — switch it on to drive"],
     [null, "the layout has not said whether the track is live"],

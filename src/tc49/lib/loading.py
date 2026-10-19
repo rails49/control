@@ -39,7 +39,7 @@ from collections.abc import Callable, Sequence
 
 from tc49.lib.bus import Bus, Payload, matches
 from tc49.lib.documents import Documents
-from tc49.lib.inventory import AT, OFF, ON, STOPPED
+from tc49.lib.inventory import AT, OFF, POWERS
 from tc49.lib.layout import Layout
 
 RAILROAD = "tc49/layout/state/railroad"
@@ -273,7 +273,7 @@ class Answering(Loaded):
         branches on "not `on`" and must hold when the frame cannot be read.
         Nothing here is held by a value that never arrived."""
         power = payload.get("power")
-        if isinstance(power, str) and power in (ON, STOPPED, OFF):
+        if isinstance(power, str) and power in POWERS:
             self._power = power
 
     def _wanted(self, topic: str, payload: Payload) -> None:
