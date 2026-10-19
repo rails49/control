@@ -113,13 +113,17 @@ speed a release implies — `0.0` in `manual`, the grant's speed in `automatic`
 how fast the railroad drives it.
 
 **The lever is live only while the train has a move outstanding**: from the
-`tc49/layout/move` the dispatcher sends for it to the `block_occupied` of the
-block that move enters, which is the span `layout` applies a throttle's speed
-in. The lever is read off the move the bus carries and not worked out from the
-locks. Outside a move it is dead and at rest, which is the speed `layout` wrote
-when the move ended, and the view says the lever waits for the next grant. A
-move is a command and not a retained row, so a page opened mid-move sees the
-lever dead until the next one.
+grant to the `block_occupied` of the block that move enters, which is the span
+`layout` applies a throttle's speed in. The span is read off the retained
+`state/allocation` picture and not worked out from the locks: the train is in
+its `crossing` — the dispatcher's own outstanding set, written at the grant
+and dropped at the arrival sensor — and one of its requests carries a `route`,
+the move behind it. The crossing the dispatcher restores after a restart has no
+request behind it and no move `layout` is known to hold, so it leaves the lever
+dead. Because the picture is retained, a page opened or reloaded mid-move sees
+the lever as `layout` does. Outside a move it is dead and at rest, which is the
+speed `layout` wrote when the move ended, and the view says the lever waits for
+the next grant.
 
 **The lever is one signed number for the train.** `tc49/layout/throttle_wanted`
 carries `{train, speed}`, −1.0 through 0 to 1.0 as a fraction of that train's
@@ -197,7 +201,7 @@ holds each, whether it has a move outstanding, the end each points at, the
 aspect there, the road ahead and the functions arrive as `Cab`s from
 `ui/src/model/throttle.ts`, which is a pure function over the apps' answers
 and this page's throttle id, and holds no state of its own. The panel model
-reads `state/taken` and `tc49/layout/move` (`ui/src/model/panel.ts`).
+reads `state/taken` and `state/allocation` (`ui/src/model/panel.ts`).
 
 **The session is the app's.** There is one socket per page, and the session
 that holds it is the one that joined the railroad the app has loaded
@@ -230,8 +234,9 @@ the roster screen's and the translator's, never a view's.
 
 Split the way the app's suites are split. `ui/test/cabs.test.ts` drives the
 model with no DOM — which throttle holds a train, here or elsewhere, an
-unreadable entry leaving it held by nobody, the move outstanding from the
-`move` to its sensor, the end it points at, the aspect there, the blocks ahead
+unreadable entry leaving it held by nobody, the move outstanding read off the
+picture from the grant to its sensor and none for a restored crossing with no
+request behind it, the end it points at, the aspect there, the blocks ahead
 and their claims, and which trains are offered at all.
 `ui/test/session.test.ts` checks the frames the session writes — the take and
 release under its id, the speed naming it — and the timing of
