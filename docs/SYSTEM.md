@@ -961,10 +961,12 @@ publishes `align`
 all the driver needs in order to act.
 
 The grant carries the aspect, and turning it into the speed the command
-states is the whole of the driver's judgement: `clear` is full speed, `caution`
-a fraction of it, and the mapping is two numbers injected at construction
-rather than a document or a schema
-([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+states is the whole of the driver's judgement: `clear` is 0.6 of a
+locomotive's maximum and `caution` 0.3, and the mapping is two numbers
+injected at construction rather than a document or a schema
+([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)),
+overridden per deployment by `TC49_DRIVER_CLEAR` and `TC49_DRIVER_CAUTION`
+on the driver's service (DEPLOY.md).
 `stop` is not in it — a grant showing it is no permission to move — so a grant
 whose aspect the driver cannot price is dropped like any other it cannot act
 on, there being no speed to fall back on that the dispatcher authorised. What
