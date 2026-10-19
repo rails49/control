@@ -262,13 +262,15 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the ten gesture rows. The throttle a person
-drives with ([#207](https://github.com/rails49/control/issues/207)), the
+Today the mark sits on exactly the thirteen gesture rows. The throttle a person
+drives with ([#207](https://github.com/rails49/control/issues/207),
+[ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)),
+the railroad's driving mode, the
 track power a person commands
 ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
 and the railroad a person loads
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
-are four of them, under `layout`, which is the component that responds to
+are seven of them, under `layout`, which is the component that responds to
 them. Whether a row carries the mark is an ACL decision, made when the row
 lands.
 
@@ -292,6 +294,9 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/state/mode` | state | layout | who drives each train |
 | `tc49/layout/driving_wanted` | event | any (browser) | switch the railroad's driving mode ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/state/driving` | state | layout | manual or automatic: who drives the trains ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
+| `tc49/layout/take_wanted` | event | any (browser) | a throttle takes a train, or the train is released ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
+| `tc49/layout/throttle_alive` | event | any (browser) | a throttle holding a train is still there ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
+| `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -581,12 +586,21 @@ what a drop would cost:
 - `tc49/layout/throttle_wanted` — browser-writable — `train`; `speed`: a
   number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
   stop, signed for which way the train runs along its own length — positive
-  nose-first. Which locomotive the speed reaches, and which way round it
-  stands, is `layout`'s, which reads the roster.
+  nose-first; `throttle`: the id of the throttle turning the lever. Applied
+  only where that throttle holds the train and the train has a move
+  outstanding; otherwise dropped
+  ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+  Which locomotive the speed reaches, and which way round it stands, is
+  `layout`'s, which reads the roster. `tc49.lib.payload.wanted_throttle` reads
+  `throttle` as a field that may be absent; `layout` dropping a frame without
+  one is [#825](https://github.com/rails49/control/issues/825).
 - `tc49/layout/state/mode` — `modes`: map of train to enum `automatic` or
   `manual`. `automatic` is the resting value, so a train the map does not
   name is `automatic` and an unreadable entry leaves that train without a
   mode rather than being read as one.
+  `mode_wanted` and `state/mode` are removed in
+  [#834](https://github.com/rails49/control/issues/834), once nothing uses
+  them.
 - `tc49/layout/driving_wanted` — browser-writable — `driving`: enum `manual`
   or `automatic`, the same closed set `state/driving` below carries; any
   other value is dropped. Accepted at any power
@@ -595,11 +609,31 @@ what a drop would cost:
 - `tc49/layout/state/driving` — `driving`: enum `manual` or `automatic`, the
   railroad's driving mode. `layout` publishes `manual` when it starts. An
   unreadable payload reads as `manual`.
+- `tc49/layout/take_wanted` — browser-writable — `train`; `throttle`: a
+  non-empty string, the id the throttle's page minted when it opened, or
+  `null` to release the train. A take of a train no throttle holds is
+  applied; a take of a train another throttle holds is dropped. `null`
+  releases the train whoever holds it, which is also the force release a
+  panel makes. A missing `throttle` is not a release: the frame is dropped.
+  Released in `manual`, the train's traction is written `0.0`; in
+  `automatic`, the speed the train's outstanding grant implies, or `0.0`
+  with none
+  ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+  The id names the throttle that holds a train, not who sent a frame: any
+  client may send any of these rows.
+- `tc49/layout/throttle_alive` — browser-writable — `throttle`: the id. A
+  throttle publishes it once a second while it holds a train. `layout`
+  releases every train of a throttle it has not heard for 5 s, as
+  `take_wanted` with `null` would.
+- `tc49/layout/state/taken` — `taken`: map of train to throttle id. A train
+  the map does not name, no throttle holds. Empty when `layout` starts. Read
+  an entry at a time: an unreadable entry leaves its train held by nobody,
+  and an unreadable payload holds nothing.
 
 #### `schedule`
 
-The eleven browser-writable rows — the two here, the four under `dispatch`
-and the five under `layout` above — are where rule 4 bites hardest: each
+The thirteen browser-writable rows — the two here, the four under `dispatch`
+and the seven under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
