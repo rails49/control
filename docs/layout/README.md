@@ -34,7 +34,7 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`,
 `tc49/layout/throttle_wanted`, `tc49/dispatch/train_placed`,
 `tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects`,
-`tc49/dispatch/state/run`, `tc49/schedule/state/facing` and
+`tc49/dispatch/state/moving`, `tc49/schedule/state/facing` and
 `tc49/layout/state/device/#`.
 
 *Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
@@ -48,11 +48,10 @@ The facing is the one topic here that is nobody's hardware and nobody's
 command: it is the scheduler's state, and this app reads it because the sign of
 a speed cannot be composed without it and there is nowhere else it lives
 ([ADR-0052](../adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)).
-The run is the second of that kind, and read for one thing only — the guard
-on a plain `off` below
-([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
-Nothing else here branches on the run: a `move` is acted on because it was
-granted, and a held run grants none.
+Whether a train is moving is the second of that kind, the dispatcher's, and
+read for one thing only — when a drain may cut the supply, below
+([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
+Nothing else here branches on it: a `move` is acted on because it was granted.
 
 ## The command line
 
@@ -197,11 +196,11 @@ That is what makes a restart safe, and it has teeth on every one of them now
 that the app comes up with the railroad off. A command that arrives dead is
 dropped rather than queued: one honoured minutes after the power came back is a
 train moving long after anybody asked for it, and the run is held when power
-returns anyway. The value read is the **observed** one, folded from what the
-hardware reports below, so a `move` arriving while a cut is in flight is still
-acted on until the station says the supply went
-([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-as amended).
+returns anyway. The value read is `state/power` as this app states it: folded
+from what the hardware reports below, with a drain and a cut held over the
+fold, so a `move` arriving while a cut is in flight is dropped although the
+station still reports the supply live
+([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 
 A held command meets all three at the moment it is acted on and not at the
 moment it arrived, since the railroad can move under it while it waits.
@@ -494,43 +493,55 @@ removal as the recourse
 ## Power
 
 The rule is [SYSTEM.md](../SYSTEM.md#track-power). This is how `layout`
-carries it out, in `src/tc49/layout/interface.py`. Whether a command is
-applied, and whether a stop is held, is `TrackPower` in
+carries it out, in `src/tc49/layout/interface.py`. Which press is applied,
+when a drain ends, and which word is held over the supply is `TrackPower` in
 `src/tc49/lib/power.py`, which the simulator uses too.
 
-At start-up the constructor (`__init__`, :305) does this, in this order:
+At start-up the constructor (`__init__`, :320) does this, in this order:
 
-1. Subscribes to the event topics, `power_wanted` among them (:404), so no
+1. Subscribes to the event topics, `power_wanted` among them (:419), so no
    press is lost while it starts.
-2. Writes `wanted/track: off`, then `state/power: off` (:424-425).
-3. Writes `0.0` on every retained `wanted/traction` row (:439,
-   `_traction_rest` at :737).
-4. Subscribes to the state rows, `tc49/dispatch/state/run` (:448) and the
-   device rows (:450) among them. A supply row kept by a bus that outlived
+2. Writes `wanted/track: off`, then `state/power: off` (:441-442).
+3. Writes `0.0` on every retained `wanted/traction` row (:456,
+   `_traction_rest` at :757).
+4. Subscribes to the state rows, `tc49/dispatch/state/moving` (:465) and the
+   device rows (:467) among them. A supply row kept by a bus that outlived
    the app then replaces the start-up `off` rather than being overwritten
    by it.
 
-That start-up `off` is not a command, and `TrackPower` never sees it.
+That start-up `off` is not a command, and `TrackPower` never sees it: until
+the first press `state/power` is the fold's.
 
-`_on_run` (:1059) hands each `tc49/dispatch/state/run` frame to
-`TrackPower.run`, which keeps the latest by its stamp and ignores a frame it
-cannot read.
+`_on_power_wanted` (:1121) asks `TrackPower.answer` for the word to apply
+over the fold, and returns where it is `None`: a press that cannot be read,
+`stopped` among them, and a `draining` while `state/power` is not `on`.
+`_on_moving` (:1100) hands each `tc49/dispatch/state/moving` frame to
+`TrackPower.moving`, which keeps the latest by its stamp, reads one it cannot
+read as a train moving, and answers `off` where it ends a drain. A drain
+pressed while nothing moves is answered `off` at once.
 
-`_on_power_wanted` (:1083) asks `TrackPower.answer` for the value to apply,
-and returns where it is `None`. For an applied `off` it calls
-`_traction_rest` first, so the zeros reach a translator before the word
-does. It then writes `wanted/track` and calls `_publish_power`. It never
-writes `state/power` from the command, except for the held `stopped` that
-`TrackPower.stated` supplies.
+`_apply` (:1139) carries out the word:
 
-`_on_device` (:1169) keeps the latest `device/track` value and the latest
+- `off`, a person's emergency stop or the end of a drain: `_traction_rest`
+  first, so the zeros reach a translator before the word does, then
+  `wanted/track: off`.
+- `draining`: nothing written to the hardware. The supply stays on.
+- `on`: `wanted/track: on`, then `_resume` (:1168), which in `automatic`
+  writes each train with a move outstanding and no throttle the speed its
+  grant implies, so a train a cut left between blocks carries on. In
+  `manual` it writes nothing; a throttle's train is the person's (#825).
+
+Each calls `_publish_power`.
+
+`_on_device` (:1193) keeps the latest `device/track` value and the latest
 `device/link/<id>` value per id, each by its stamp, and calls
-`_publish_power`. `_folded` (:1360) answers `off` unless every link it has
-heard reads `up`, and the supply's value otherwise. `_publish_power` (:1396)
-puts a held stop over that value and publishes `state/power` only when it
-changes.
+`_publish_power`. `_folded` (:1390) answers `off` unless every link it has
+heard reads `up`, and the supply's value otherwise. `_publish_power` (:1424)
+puts `TrackPower.stated` over that value — `draining` through a drain, and
+`off` from a cut until the next `on` — and publishes `state/power` only when
+it changes.
 
-`_cross` (:548) acts on no `move` while `state/power` is not `on` (:598).
+`_cross` (:571) acts on no `move` while `state/power` is not `on` (:618).
 
 ## What is not here yet
 
