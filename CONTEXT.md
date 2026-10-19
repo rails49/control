@@ -161,6 +161,11 @@ own address where it has a decoder. A locomotive is a car whose model's kind
 says so ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: vehicle, item, wagon, rolling stock (the mass noun is stock)
 
+**Camera car**:
+A car that carries a camera. A throttle holding a train the camera car is in
+shows the camera's live picture.
+_Avoid_: camera train, video car
+
 **Catalogue**:
 The models an installation knows, one set for every railroad in the store
 ([LAYOUT.md](docs/store/LAYOUT.md#catalogue-schema)).
@@ -240,6 +245,12 @@ one throttle holds a train. Released, the train stops in manual driving mode
 and is driven on in automatic ([THROTTLE.md](docs/ui/THROTTLE.md)).
 _Avoid_: cab, controller, regulator, traction (what a decoder does with a
 speed), driver (an app)
+
+**Reverser**:
+A throttle's forward/reverse switch. Forward drives the train nose-first,
+reverse tail-first. It turns neither the train's facing nor any car's
+orientation.
+_Avoid_: direction, direction switch
 
 ### Dispatch
 
