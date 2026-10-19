@@ -1764,8 +1764,8 @@ class Dispatcher:
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
-        # And `moving`: a sweep grants the moves that start one and covers
-        # every place a train stops being active, so it is where the boolean
+        # And `moving`: a grant puts a train in `crossing`, and a sweep
+        # follows each place that takes one out, so it is where the boolean
         # moves (ADR-0062).
         self._publish_moving()
 

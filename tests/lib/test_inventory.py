@@ -169,7 +169,7 @@ def test_the_driving_mode_is_a_gesture_and_layouts_state() -> None:
 
 def test_whether_anything_is_moving_is_the_dispatchers_state() -> None:
     """`layout` ends a drain once nothing is moving, and the dispatcher, which
-    knows what is active and crossing, states it on a row of its own that no
+    knows what is crossing, states it on a row of its own that no
     page writes (ADR-0078)."""
     assert TOPICS[MOVING].fields == (AT, "moving")
     assert is_state_topic(MOVING)

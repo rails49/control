@@ -370,9 +370,9 @@ the dispatcher believes is between two blocks. Manual trains count by the
 same rule and need no rule of their own: a train this app has granted moves on
 a route it allocated whoever turns the throttle
 ([#207](https://github.com/rails49/control/issues/207)). A train taken in a
-throttle with no request behind it is another matter — it is not active and
-does not read as **moving**, and the layout writes its wheels without asking
-for a grant. A cut under that train is not refused, and that is a user error
+throttle with no request behind it is another matter — only a grant puts a
+train in `crossing`, so it is never crossing and does not read as **moving**,
+and the layout writes its wheels without asking for a grant. A cut under that train is not refused, and that is a user error
 the app does not guard (CONTEXT.md, **Moving**). A drain a wedged train would
 hold open forever is escaped by taking the train off the layout, and the
 request it was running goes with it

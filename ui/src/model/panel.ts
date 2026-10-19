@@ -311,8 +311,8 @@ export class Panel {
    *  as the dispatcher last said (#709). Read and never derived: which
    *  trains the last build had standing is the dispatcher's alone. */
   private unfitRows: Unfit[] = [];
-  /** What `state/moving` last said about any train being active or
-   *  crossing (ADR-0078), `null` where it said nothing — before the
+  /** What `state/moving` last said about any train crossing
+   *  (ADR-0078), `null` where it said nothing — before the
    *  dispatcher has spoken, and for a row whose `moving` is not a boolean.
    *  The three are kept apart rather than collapsed here, because what a
    *  silence means is the reader's to decide (#408). */
