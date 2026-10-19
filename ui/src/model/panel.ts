@@ -24,6 +24,7 @@ import type { Aspect } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
+import { requestRows, type RequestRow } from "./requests.js";
 import { transitEnds, type Explained, type Layout } from "./store.js";
 import {
   Ordering,
@@ -1050,6 +1051,19 @@ export class Panel {
       if (request.train === train && request.phase !== "rejected") return request.id;
     }
     return null;
+  }
+
+  /** The request list, one row per request the dispatcher holds, in the
+   *  order it serves them (`state/allocation`'s `requests`,
+   *  [ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+   *  A request only submitted is not listed yet, and a rejected one never is:
+   *  the dispatcher holds neither. */
+  requestList(): RequestRow[] {
+    return requestRows(
+      [...this.requests.values()].filter(
+        (request) => request.phase === "admitted" || request.phase === "committed",
+      ),
+    );
   }
 
   /** The endpoints worth marking: pending requests as endpoints only — never
