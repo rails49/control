@@ -29,11 +29,12 @@ from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     BLOCK_OCCUPIED,
     DEVICE_SENSOR,
-    MODE,
+    DRIVING,
     PLACED,
     POWER,
     POWER_WANTED,
     RAILROAD,
+    TAKEN,
     WANTED_TRACK,
     WANTED_TRACTION,
     LayoutInterface,
@@ -202,11 +203,12 @@ def test_a_cold_start_publishes_the_apps_own_rows(
     witness, heard = watching(broker)
     app.start()
 
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it published nothing"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it published nothing"
     assert rows(heard, RAILROAD)[-1]["name"] == NAME
     assert rows(heard, WANTED_TRACK)[-1]["power"] == "off"
     assert rows(heard, POWER)[-1]["power"] == "off"
-    assert rows(heard, MODE)[-1]["modes"] == {}
+    assert rows(heard, DRIVING)[-1]["driving"] == "manual"
+    assert rows(heard, TAKEN)[-1]["taken"] == {}
     assert app.running, "the app stopped on its own"
     witness.close()
 
@@ -224,7 +226,7 @@ def test_it_comes_up_against_a_store_that_is_not_there_yet(
 
     store.start()
 
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
     witness.close()
 
 
@@ -247,7 +249,7 @@ def test_a_traction_row_a_previous_process_left_is_zeroed(
     witness, heard = watching(broker)
     app.start()
 
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
     written = [payload["speed"] for payload in rows(heard, TRACTION)]
     assert written == [0.7, 0.0], "the speed the last process left was not zeroed"
     witness.close()
@@ -262,7 +264,7 @@ def test_it_acts_on_a_command_it_finds_on_the_broker(
     store.start()
     witness, heard = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
 
     # A person's press, as the panel sends one. It does not say who published
     # it, and nothing here asks (rule 4).
@@ -292,7 +294,7 @@ def test_a_level_settles_on_seconds_passing(
     store.start()
     witness, heard = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
 
     detector = MqttBus(port=broker.port)
     assert detector.wait_connected()
@@ -327,7 +329,7 @@ def test_a_layout_built_on_a_railroad_says_once_a_second_that_it_is_up(
     store.start()
     witness, heard = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
 
     began = len(rows(heard, ALIVE_CONFIRMED))
     listening(witness, 3.5)
@@ -370,7 +372,7 @@ def test_it_starts_on_the_railroad_the_store_records(
     witness, heard = watching(broker)
     try:
         app.start()
-        assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+        assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
         assert rows(heard, RAILROAD)[-1]["name"] == NAME
         assert app.running, "the app stopped on its own"
     finally:
@@ -388,7 +390,7 @@ def test_it_records_each_railroad_it_is_built_on(
     store.start()
     witness, heard = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, MODE) != []), "it never came up"
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
     assert AssetStore(root).loaded() == NAME, "the railroad it came up on"
 
     # A person's gesture, with the rails dead as the app comes up (ADR-0060).
@@ -420,7 +422,7 @@ def test_a_recorded_railroad_the_store_no_longer_has_leaves_it_standing(
         assert until(lambda: any("standing" in line for line in said)), "never stood"
         assert drained(witness, lambda: rows(heard, RAILROAD) != []), "no row"
         assert rows(heard, RAILROAD)[-1]["name"] == NO_RAILROAD
-        assert rows(heard, MODE) == [], "it was built on a railroad it has not got"
+        assert rows(heard, TAKEN) == [], "it was built on a railroad it has not got"
         assert AssetStore(root).loaded() == GONE, "the record was cleared"
         assert app.running, "the app stopped on its own"
     finally:
@@ -455,7 +457,7 @@ def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
     store.start()
     witness, _ = watching(broker)
     app.start()
-    # Not the mode row: the interface writes it as it is constructed, before
+    # Not the taken row: the interface writes it as it is constructed, before
     # `built` holds it.
     assert drained(witness, lambda: built != []), "it never came up"
     hand = MqttBus(port=broker.port)

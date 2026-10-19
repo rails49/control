@@ -88,11 +88,13 @@ writing role and no payload says who published (BUS.md, rule 4)."""
 OWNED = (
     "tc49/layout/state/railroad",
     "tc49/layout/state/power",
-    "tc49/layout/state/mode",
+    "tc49/layout/state/driving",
+    "tc49/layout/state/taken",
     "tc49/layout/state/wanted/#",
 )
 """The retained rows this app writes: which railroad is loaded, the supply as
-it observes it, who drives, and every desired row under `wanted/` — one per
+it observes it, the driving mode and which throttle holds which train, and
+every desired row under `wanted/` — one per
 address a railroad's wiring decides. The observed rows under `device/` are
 **not** here: they belong to whatever answers for that address, which is
 hardware and not this app (ADR-0043, ADR-0058), and a reload leaves them to

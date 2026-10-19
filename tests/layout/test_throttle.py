@@ -1,11 +1,11 @@
 """A person's throttle, and the road it takes to a locomotive (#297).
 
-`tc49/layout/throttle_wanted` carries a train and a speed in −1.0 … 1.0, and it
-reaches a decoder by the same road a `move` does: one signed speed per
-addressed car, composed out of the way the train points and the way round each
-of its cars is coupled (#296). So a person pushes the lever forward and the
-train moves nose-first, whichever way round the locomotives are wired and
-however many of them there are.
+`tc49/layout/throttle_wanted` carries a train, a speed in −1.0 … 1.0 and the
+id of the throttle turning the lever, and it reaches a decoder by the same
+road a `move` does: one signed speed per addressed car, composed out of the
+way the train points and the way round each of its cars is coupled (#296). So
+a person pushes the lever forward and the train moves nose-first, whichever
+way round the locomotives are wired and however many of them there are.
 
 The lever is signed for the **train**, positive nose-first, which is the whole
 difference from a `move`: a move states a magnitude and the block it is going
@@ -13,9 +13,16 @@ into, and this states the direction outright. So facing is not in the number
 here, only in the refusal beside it — this app will not drive a train the rest
 of the system is not holding the geometry of, and which block that facing
 names is not asked, a facing lagging the train it is about.
+
+A throttle drives only the train it holds, and only within a granted move
+(ADR-0079): the move ending at its sensor writes `0.0`, and the lever is dead
+until the next grant.
 """
 
+from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
+from tc49.lib.inventory import MANUAL
 from tests.layout.railroad import (
     THROTTLE_WANTED,
     align,
@@ -25,22 +32,42 @@ from tests.layout.railroad import (
     faces,
     gives,
     move,
+    reads,
+    settle,
     speeds,
     stand,
     takes,
     turns,
+    wired,
 )
 
 
-def held(train: str, facing: str) -> tuple[InProcessBus, list[tuple[str, Payload]]]:
-    """A live railroad with `train` standing in `up_w` facing as stated and a
-    person holding its throttle, and every traction write from there on."""
-    bus, _app = build()
+def granted(bus: InProcessBus, train: str) -> None:
+    """The dispatcher's grant: `train` from `up_w` across the crossover into
+    `dn_e`, which is what a throttle's lever drives within."""
+    align(bus, "crossover", "to_dn")
+    move(bus, train, "crossover", "to_dn", "dn_e", 0.6)
+
+
+def underway(
+    train: str, facing: str, driving: str | None = None
+) -> tuple[InProcessBus, LayoutInterface, Clock, list[tuple[str, Payload]]]:
+    """A live railroad with `train` standing in `up_w` facing as stated, a
+    throttle holding it and a move granted, and every traction write from
+    there on."""
+    bus, app, clock = wired() if driving is None else wired(driving=driving)
     energised(bus)
     stand(bus, train, "up_w")
     faces(bus, **{train: facing})
     takes(bus, train)
-    return bus, commanded(bus)
+    granted(bus, train)
+    return bus, app, clock, commanded(bus)
+
+
+def held(train: str, facing: str) -> tuple[InProcessBus, list[tuple[str, Payload]]]:
+    """The same, for a test with no business with the arrival."""
+    bus, _app, _clock, written = underway(train, facing)
+    return bus, written
 
 
 def test_a_lever_pushed_forward_runs_the_locomotive_forward() -> None:
@@ -100,58 +127,110 @@ def test_a_car_with_no_address_is_not_commanded() -> None:
     assert speeds(written) == [("3", 0.5)]
 
 
-def test_a_throttle_for_an_automatic_train_writes_nothing() -> None:
-    """The grant is what moves an automatic train, and a lever nobody is
+def test_a_throttle_drives_in_manual_as_in_automatic() -> None:
+    """The driving mode decides who drives a train no throttle holds; a train
+    a throttle holds is that throttle's either way (ADR-0079)."""
+    bus, _app, _clock, written = underway("single", "up_w.A-to-B", MANUAL)
+    turns(bus, "single", 0.6)
+
+    assert speeds(written) == [("3", 0.6)]
+
+
+def test_a_lever_with_no_move_outstanding_writes_nothing() -> None:
+    """A throttle drives only within a granted move: a train with no grant is
+    held at speed 0, so a person cannot drive it out of its block past the
+    dispatcher's locks (ADR-0079, decision 7)."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    written = commanded(bus)
+    turns(bus, "single", 0.6)
+
+    assert speeds(written) == []
+
+
+def test_the_moves_end_zeroes_the_lever_and_the_lever_goes_dead() -> None:
+    """The move ending at its sensor writes `0.0` for the throttle's train as
+    for one this app drives, and from there until the next grant a lever is
+    dropped."""
+    bus, app, clock, written = underway("single", "up_w.A-to-B")
+    turns(bus, "single", 0.4)
+
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0)]
+
+
+def test_the_next_grant_brings_the_lever_back() -> None:
+    """A train that has arrived and been granted the next move is the
+    throttle's to drive again."""
+    bus, app, clock, written = underway("single", "up_w.A-to-B")
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    stand(bus, "single", "up_w")
+    granted(bus, "single")
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", 0.0), ("3", 0.4)]
+
+
+def test_a_lever_naming_no_throttle_writes_nothing() -> None:
+    """The id is what says whose the lever is, so a frame without one is
+    nobody's and is dropped (ADR-0079)."""
+    bus, written = held("single", "up_w.A-to-B")
+    bus.publish(THROTTLE_WANTED, {"train": "single", "speed": 0.6})
+    bus.drain()
+
+    assert speeds(written) == []
+
+
+def test_a_lever_on_a_throttle_that_does_not_hold_the_train_writes_nothing() -> None:
+    """At most one throttle holds a train, and only that one drives it."""
+    bus, written = held("single", "up_w.A-to-B")
+    turns(bus, "single", 0.6, throttle="t-2")
+
+    assert speeds(written) == []
+
+
+def test_a_throttle_for_a_train_no_throttle_holds_writes_nothing() -> None:
+    """The grant is what moves a train in `automatic`, and a lever nobody is
     holding does not get to overtake it."""
     bus, _app = build()
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
     written = commanded(bus)
-    turns(bus, "single", 0.6)
+    granted(bus, "single")
+    turns(bus, "single", 0.9)
 
-    assert speeds(written) == []
+    assert speeds(written) == [("3", 0.6)]
 
 
 def test_a_throttle_for_a_train_given_back_writes_nothing() -> None:
-    """The gesture is refused from the moment the train stops being a
-    person's, and the `0.0` the hand-back wrote is all that is on the row."""
+    """The gesture is refused from the moment the throttle lets go, and what
+    the release wrote is all that is on the row."""
     bus, written = held("single", "up_w.A-to-B")
-    turns(bus, "single", 0.6)
+    turns(bus, "single", 0.4)
     gives(bus, "single")
     turns(bus, "single", 0.9)
 
-    assert speeds(written) == [("3", 0.6), ("3", 0.0)]
+    assert speeds(written) == [("3", 0.4), ("3", 0.6)]
 
 
 def test_nothing_is_written_while_the_rails_are_dead() -> None:
     """Dead rails refuse a person's hand as they refuse a grant (ADR-0041).
     Nothing is written rather than a zero: the row holds whatever it last
     held, and a gesture that could not be acted on has said nothing."""
-    bus, _app = build()
-    stand(bus, "single", "up_w")
-    faces(bus, single="up_w.A-to-B")
-    takes(bus, "single")
-    written = commanded(bus)
+    bus, written = held("single", "up_w.A-to-B")
+    bus.publish("tc49/layout/state/device/track", {"power": "off"})
+    bus.drain()
     turns(bus, "single", 0.6)
 
     assert speeds(written) == []
-
-
-def test_a_throttle_drives_a_train_the_app_holds_no_position_for() -> None:
-    """Where a manual train stands is the person's to know, not this app's
-    (#579). After a restart this app holds no position until a train is
-    dispatched or dragged, and a lever that went dead for that long is a
-    person pushing it and nothing moving. The facing is still asked: it is
-    how the lever's sign reaches each car."""
-    bus, _app = build()
-    energised(bus)
-    faces(bus, single="up_w.A-to-B")
-    takes(bus, "single")
-    written = commanded(bus)
-    turns(bus, "single", 0.6)
-
-    assert speeds(written) == [("3", 0.6)]
 
 
 def test_a_throttle_for_a_train_with_no_facing_writes_nothing() -> None:
@@ -161,6 +240,7 @@ def test_a_throttle_for_a_train_with_no_facing_writes_nothing() -> None:
     energised(bus)
     stand(bus, "single", "up_w")
     takes(bus, "single")
+    granted(bus, "single")
     written = commanded(bus)
     turns(bus, "single", 0.6)
 
@@ -191,7 +271,13 @@ def test_an_unreadable_gesture_writes_nothing() -> None:
     """A frame that cannot be read is dropped, silently and to the trace: this
     app answers nothing, so a refusal would have nowhere to go (ADR-0034)."""
     bus, written = held("single", "up_w.A-to-B")
-    for payload in ({}, {"train": "single"}, {"speed": 0.5}, {"train": 1}):
+    for payload in (
+        {},
+        {"train": "single", "throttle": "t-1"},
+        {"speed": 0.5, "throttle": "t-1"},
+        {"train": 1, "speed": 0.5, "throttle": "t-1"},
+        {"train": "single", "speed": 0.5, "throttle": ""},
+    ):
         bus.publish(THROTTLE_WANTED, payload)
         bus.drain()
 
@@ -203,8 +289,6 @@ def test_a_person_drives_their_train_across_a_transit_the_grant_set() -> None:
     move, the points threw and the transit is armed, and the train crosses on
     a person's lever with nothing this app wrote of its own."""
     bus, written = held("single", "up_w.A-to-B")
-    align(bus, "crossover", "to_dn")
-    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
     turns(bus, "single", 0.4)
 
     assert speeds(written) == [("3", 0.4)]

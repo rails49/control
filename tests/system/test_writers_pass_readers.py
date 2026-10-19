@@ -44,6 +44,7 @@ from tc49.lib.payload import (
     desired_aspect,
     desired_position,
     desired_speed,
+    driving,
     grant,
     granted_aspect,
     kept_allocation,
@@ -54,15 +55,18 @@ from tc49.lib.payload import (
     power,
     readable_id,
     shown_aspects,
+    taken,
 )
 from tests.harness import ASSETS, load
 from tests.layout.railroad import (
     ALIGN,
     ASPECTS,
     DEVICE_TRACK,
+    DRIVING_WANTED,
     FACING,
     MOVE,
     PLACED,
+    TAKE_WANTED,
     align,
     energised,
     faces,
@@ -70,6 +74,8 @@ from tests.layout.railroad import (
     railroad,
     stand,
     stock,
+    switches,
+    takes,
 )
 
 Frame = dict[str, Any]
@@ -148,6 +154,12 @@ TABLE: tuple[Rule, ...] = (
         lambda f: _keeps(f, "facing", kept_facing(f)),
     ),
     Rule("tc49/layout/state/power", "power", lambda f: power(f) == f.get("power")),
+    Rule(
+        "tc49/layout/state/driving",
+        "driving",
+        lambda f: driving(f) == f.get("driving"),
+    ),
+    Rule("tc49/layout/state/taken", "taken", lambda f: _keeps(f, "taken", taken(f))),
     *(
         Rule(f"tc49/layout/{leaf}", "occupancy", lambda f: occupancy(f) is not None)
         for leaf in ("block_occupied", "block_vacated")
@@ -228,15 +240,18 @@ def replayed_run(scenario_id: str) -> Recorded:
 
 
 def layout_run() -> Recorded:
-    """`layout` on the bench railroad: the rails live, `single` standing in
-    `up_w` facing the crossover, an aspect at the signalled end it departs
-    through, the way set and the train moved over it. Every topic the test
-    writes is left out, so what is left is `layout`'s."""
+    """`layout` on the bench railroad: switched to `automatic`, `topped` in a
+    throttle, the rails live, `single` standing in `up_w` facing the
+    crossover, an aspect at the signalled end it departs through, the way set
+    and the train moved over it. Every topic the test writes is left out, so
+    what is left is `layout`'s."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = recording(bus)
     LayoutInterface(bus, railroad(), stock(), clock)
     bus.drain()
+    switches(bus, "automatic")
+    takes(bus, "topped")
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
@@ -244,7 +259,16 @@ def layout_run() -> Recorded:
     bus.drain()
     align(bus, "crossover", "to_dn")
     move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
-    ours = {DEVICE_TRACK, PLACED, FACING, ASPECTS, ALIGN, MOVE}
+    ours = {
+        DRIVING_WANTED,
+        TAKE_WANTED,
+        DEVICE_TRACK,
+        PLACED,
+        FACING,
+        ASPECTS,
+        ALIGN,
+        MOVE,
+    }
     return [(topic, payload) for topic, payload in seen if topic not in ours]
 
 

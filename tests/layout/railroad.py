@@ -14,13 +14,16 @@ from tc49.layout import LayoutInterface
 from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.inventory import AUTOMATIC
 from tc49.lib.layout import Layout
 from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Roster, Train
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 POWER_WANTED = "tc49/layout/power_wanted"
-MODE_WANTED = "tc49/layout/mode_wanted"
+DRIVING_WANTED = "tc49/layout/driving_wanted"
+TAKE_WANTED = "tc49/layout/take_wanted"
+THROTTLE_ALIVE = "tc49/layout/throttle_alive"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
@@ -32,7 +35,8 @@ BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
 RAILROAD = "tc49/layout/state/railroad"
 POWER = "tc49/layout/state/power"
-MODE = "tc49/layout/state/mode"
+DRIVING = "tc49/layout/state/driving"
+TAKEN = "tc49/layout/state/taken"
 DEVICE_SENSOR = "tc49/layout/state/device/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -123,11 +127,16 @@ class Unstamped(InProcessBus):
 
 
 def wired(
-    settling_s: float = SETTLING_S,
+    settling_s: float = SETTLING_S, driving: str = AUTOMATIC
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
     from the hardware.
+
+    Switched to `automatic` unless `driving` says otherwise. The app comes up
+    `manual` (ADR-0079), where it writes no traction for a train no throttle
+    holds, and what most of these suites drive is the grant this app turns
+    into a speed.
 
     The clock comes back because the settling time is measured against it and
     the suite drives it directly — nothing here sleeps (#288)."""
@@ -135,12 +144,14 @@ def wired(
     bus = InProcessBus(clock)
     app = LayoutInterface(bus, railroad(), stock(), clock, settling_s)
     bus.drain()
+    if driving == AUTOMATIC:
+        switches(bus, AUTOMATIC)
     return bus, app, clock
 
 
-def build() -> tuple[InProcessBus, LayoutInterface]:
+def build(driving: str = AUTOMATIC) -> tuple[InProcessBus, LayoutInterface]:
     """The same, for a suite with no business with time."""
-    bus, app, _clock = wired()
+    bus, app, _clock = wired(driving=driving)
     return bus, app
 
 
@@ -207,26 +218,41 @@ def faces(bus: InProcessBus, **facing: str) -> None:
     bus.drain()
 
 
-def takes(bus: InProcessBus, train: str | None) -> None:
-    """A person taking a train in a throttle. The gesture names where the mode
-    is to stand rather than asking for a change, and `None` is every train at
-    once — what a person does to a railroad rather than to the train they have
-    picked (#284)."""
-    bus.publish(MODE_WANTED, {"train": train, "mode": "manual"})
+THROTTLE = "t-1"
+"""The id the suite's throttle minted when its page opened."""
+
+
+def switches(bus: InProcessBus, driving: str) -> None:
+    """A person switching the railroad's driving mode (ADR-0079)."""
+    bus.publish(DRIVING_WANTED, {"driving": driving})
     bus.drain()
 
 
-def gives(bus: InProcessBus, train: str | None) -> None:
-    """The same gesture the other way: the train goes back to being driven on
-    its grants."""
-    bus.publish(MODE_WANTED, {"train": train, "mode": "automatic"})
+def takes(bus: InProcessBus, train: str, throttle: str = THROTTLE) -> None:
+    """A throttle taking a train (ADR-0079)."""
+    bus.publish(TAKE_WANTED, {"train": train, "throttle": throttle})
     bus.drain()
 
 
-def turns(bus: InProcessBus, train: str, speed: float) -> None:
+def gives(bus: InProcessBus, train: str) -> None:
+    """The train released, whoever holds it: the gesture a throttle makes
+    letting go and a panel makes forcing it."""
+    bus.publish(TAKE_WANTED, {"train": train, "throttle": None})
+    bus.drain()
+
+
+def alive(bus: InProcessBus, throttle: str = THROTTLE) -> None:
+    """A throttle saying it is still there."""
+    bus.publish(THROTTLE_ALIVE, {"throttle": throttle})
+    bus.drain()
+
+
+def turns(
+    bus: InProcessBus, train: str, speed: float, throttle: str = THROTTLE
+) -> None:
     """A person's lever, signed for the train — positive is the way the train
     points, whichever way round its locomotives are wired."""
-    bus.publish(THROTTLE_WANTED, {"train": train, "speed": speed})
+    bus.publish(THROTTLE_WANTED, {"train": train, "speed": speed, "throttle": throttle})
     bus.drain()
 
 

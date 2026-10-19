@@ -1,6 +1,6 @@
 """Every payload is read and never trusted (#287, BUS.md rule 4).
 
-Nine topics from six publishers reach this app, and it answers none of them:
+Eleven topics from six publishers reach this app, and it answers none of them:
 it reports observations, so a refusal would have nowhere to go (ADR-0034). A
 frame that cannot be read is dropped, silently and to the trace, and none of
 them raises — a binding that raised on a payload would be taken down by
@@ -12,6 +12,7 @@ from typing import Any, cast
 import pytest
 
 from tc49.lib.bus import Payload
+from tc49.lib.inventory import MANUAL
 from tests.layout.railroad import (
     ALIGN,
     ASPECTS,
@@ -19,14 +20,17 @@ from tests.layout.railroad import (
     DEVICE_LINK,
     DEVICE_SENSOR,
     DEVICE_TRACK,
-    MODE,
-    MODE_WANTED,
+    DRIVING,
+    DRIVING_WANTED,
     MOVE,
     PLACED,
     POWER,
     POWER_WANTED,
     RAILROAD,
     REMOVED,
+    TAKE_WANTED,
+    TAKEN,
+    THROTTLE_ALIVE,
     THROTTLE_WANTED,
     WANTED_TRACK,
     align,
@@ -45,14 +49,16 @@ COMMANDED = (
     ALIGN,
     MOVE,
     POWER_WANTED,
-    MODE_WANTED,
+    DRIVING_WANTED,
+    TAKE_WANTED,
+    THROTTLE_ALIVE,
     THROTTLE_WANTED,
     PLACED,
     REMOVED,
     ASPECTS,
 )
 """Everything above the layout interface that reaches this app: two commands,
-a person's press, the throttle's two gestures, the two placement facts and the
+a person's press, the driving mode, the throttle's three gestures, the two placement facts and the
 dispatcher's picture. A frame on one of these that cannot be read leaves the
 app exactly as it was."""
 
@@ -205,11 +211,11 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
 
-def test_a_fresh_app_has_said_four_things_and_no_more() -> None:
+def test_a_fresh_app_has_said_five_things_and_no_more() -> None:
     """It subscribes the observed half of the device vocabulary and writes
     the desired half, so nothing it publishes reaches its own handlers and
     there is no cascade to come up out of: a fresh railroad is which railroad
     it is (#371), the supply commanded off, the app saying it believes it is,
-    and nobody driving anything."""
-    bus, _app = build()
-    assert set(bus.last_values) == {RAILROAD, WANTED_TRACK, POWER, MODE}
+    the railroad `manual` and no train in a throttle."""
+    bus, _app = build(driving=MANUAL)
+    assert set(bus.last_values) == {RAILROAD, WANTED_TRACK, POWER, DRIVING, TAKEN}

@@ -179,7 +179,8 @@ APPS = (
         rows=(
             "tc49/layout/state/railroad",
             "tc49/layout/state/power",
-            "tc49/layout/state/mode",
+            "tc49/layout/state/driving",
+            "tc49/layout/state/taken",
             "tc49/layout/state/wanted/track",
         ),
     ),
