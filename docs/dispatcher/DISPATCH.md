@@ -361,9 +361,9 @@ not `on`. With no value on the bus the dispatcher takes the railroad for
 `off`, where it comes up, and a value that cannot be read is `off` too.
 
 **`state/moving` is what ends a drain.** The dispatcher publishes
-`tc49/dispatch/state/moving`, true while any train is active or crossing, so
-cutting the supply now would strand it, and `layout` switches a drain off
-once it reads false
+`tc49/dispatch/state/moving`, true while any train is crossing, so cutting
+the supply now would strand it, and `layout` switches a drain off once it
+reads false
 ([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 A crossing train counts with no request behind it: a restored hint is a train
 the dispatcher believes is between two blocks. Manual trains count by the

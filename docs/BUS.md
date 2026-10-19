@@ -315,7 +315,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/lock_released` | event | dispatcher | resources released |
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/moving` | state | dispatcher | whether any train is active or crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
+| `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
@@ -743,7 +743,13 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/train_placed` — `train`; `block`.
 - `tc49/dispatch/train_removed` — `train`.
 - `tc49/dispatch/state/moving` — `moving`: boolean, true while any train is
-  active or crossing and false otherwise; republished when it changes. A
+  crossing and false otherwise: from the grant of a move until the sensor says
+  the train arrived in the move's `into` block, and while a restored crossing
+  hint names it ([#123](https://github.com/rails49/control/issues/123)). A
+  train standing in a block, at a signal partway along its route or anywhere
+  else, is not moving, so on a route of several moves it goes true and false
+  once per move ([#844](https://github.com/rails49/control/issues/844)).
+  Republished when it changes. A
   reader takes an unreadable value as `true`
   ([Payload schemas](#payload-schemas)). `layout` reads it to end a drain
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).

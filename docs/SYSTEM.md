@@ -758,9 +758,11 @@ again runs a sweep, so the press itself routes, and every train carries on
 with what it was granted (ADR-0047).
 
 **`state/moving` says whether anything would be stranded**: true while any
-train is active or crossing, so cutting the supply now would strand it. It is
-a boolean beside power rather than a value of it — a drain is moving while a
-granted move runs to its sensor, and `on` with nothing granted is not.
+train is crossing, so cutting the supply now would strand it. It is a boolean
+beside power rather than a value of it — a drain is moving while a granted
+move runs to its sensor, and not once the train stands in the block it
+entered, though it keeps its route and its locks
+([#844](https://github.com/rails49/control/issues/844)).
 `layout` reads it to end a drain by switching the supply off
 ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 The dispatcher publishes it from its constructor, so a client that joins is
