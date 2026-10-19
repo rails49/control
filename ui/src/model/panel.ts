@@ -1045,6 +1045,34 @@ export class Panel {
     return found;
   }
 
+  /**
+   * Whether `train` may be put in `block` by hand: no train stands there, no
+   * other train holds its lock, and it is on no other train's remaining
+   * route — the dispatcher's `DispatchState.free()`, read off
+   * `state/allocation` (BUS.md, `placement_wanted`). Power is not asked: a
+   * placement is accepted at any power (ADR-0080).
+   *
+   * The train's own claims are left out, because the dispatcher cancels its
+   * request before it asks, and a lock it holds where it does not stand is
+   * either that request's or residue of its own removal, free to it
+   * (ADR-0069). The dispatcher stays the authority: this only keeps a drop
+   * it would drop from being sent.
+   */
+  free(block: string, train: string): boolean {
+    if (this.standing.has(block)) return false;
+    const holder = this.locks.get(block);
+    if (holder !== undefined && holder !== train) return false;
+    const where = new Map<string, string | null>();
+    for (const one of this.placed()) where.set(one.train, one.block);
+    return ![...this.requests.values()].some((request) => {
+      if (request.phase !== "committed" || request.train === train) return false;
+      const route = request.route ?? [];
+      const standing = where.get(request.train) ?? null;
+      const at = standing === null ? 0 : Math.max(route.indexOf(standing), 0);
+      return route.slice(at).includes(block);
+    });
+  }
+
   /** Whether that train still stands in that block. The right-click menu is
    *  about one train in one block, and a menu left open outlives both: a
    *  train that has moved on is turned around somewhere else entirely
