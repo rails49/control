@@ -199,8 +199,16 @@ class Scheduler:
         refuses such a placement at load, and a drag on one is rejected
         `unreachable`, exactly as it was before the value was rewritten.
 
-        It judges nothing else: a train that is not idle is composed and
-        submitted like any other, and answered `wrong_origin` or queued.
+        Where the train has a request **in flight** the drag **chains**: it
+        is submitted `after` the latest of them, with `depart` `null`, and the
+        dispatcher departs it from where that one arrives (ADR-0080). The
+        facing says where the train stands now, not where it will stand once
+        the requests ahead of it have arrived, so it has no departure end to
+        offer. In flight is what `_train_of` holds — every request the
+        dispatcher has announced for the train, whoever wrote it (#439) —
+        and latest is the order they were announced in, which is the order
+        `_train_of` keeps; a person reorders the list on the dispatcher, not
+        here. A train with nothing in flight composes off its facing (#827).
         """
         wanted = gesture(payload)
         if wanted is None:
@@ -208,16 +216,23 @@ class Scheduler:
         facing = self._facing.get(wanted.train)
         if facing is None:  # a train this session does not hold
             return
-        _, depart = facing_ends(facing)
         self._counters[wanted.train] += 1
-        self._submit(
-            {
-                "id": f"{wanted.train}-{self._nonce}-{self._counters[wanted.train]}",
-                "train": wanted.train,
-                "depart": depart,
-                "dest": list(wanted.arrivals),
-            }
-        )
+        event: Payload = {
+            "id": f"{wanted.train}-{self._nonce}-{self._counters[wanted.train]}",
+            "train": wanted.train,
+        }
+        latest = self._latest_in_flight(wanted.train)
+        event["depart"] = facing_ends(facing)[1] if latest is None else None
+        event["dest"] = list(wanted.arrivals)
+        if latest is not None:
+            event["after"] = latest
+        self._submit(event)
+
+    def _latest_in_flight(self, train: str) -> str | None:
+        """The id of the train's request in flight announced last, or `None`
+        where it has none: what a drag chains after (ADR-0080)."""
+        ids = [request for request, mover in self._train_of.items() if mover == train]
+        return ids[-1] if ids else None
 
     def _reverse(self, payload: Payload) -> None:
         """Turning a train around at rest: the little arrow in the block it
