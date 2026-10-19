@@ -103,7 +103,13 @@ TOPICS: dict[str, Topic] = {
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
     "tc49/schedule/state/facing": Topic((AT, "facing")),
-    "tc49/dispatch/request_submitted": Topic(("id", "train", "depart", "dest")),
+    # A train's later request starts where its earlier one ends (#820):
+    # `after` is the id of the train's request this one follows, and is left
+    # out where it follows none. With it `depart` is `null`, the departure end
+    # being the dispatcher's once the earlier request has arrived (ADR-0080).
+    "tc49/dispatch/request_submitted": Topic(
+        ("id", "train", "depart", "dest", "after")
+    ),
     "tc49/dispatch/run_wanted": Topic(("run",), browser=True),
     "tc49/dispatch/placement_wanted": Topic(("train", "block"), browser=True),
     # The waiting requests are a list a person orders (ADR-0080): one

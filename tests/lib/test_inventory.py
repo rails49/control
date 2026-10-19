@@ -25,6 +25,7 @@ CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 POINT_WANTED = "tc49/dispatch/point_wanted"
 REORDER_WANTED = "tc49/dispatch/reorder_wanted"
 ALLOCATION = "tc49/dispatch/state/allocation"
+REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
 SENSOR = "tc49/layout/state/device/sensor"
@@ -183,6 +184,21 @@ def test_a_person_cancels_and_reorders_one_request_by_id() -> None:
     assert TOPICS[CANCEL_WANTED].fields == ("id",)
     assert TOPICS[REORDER_WANTED].fields == ("id", "before")
     assert ALLOCATION not in INBOUND
+
+
+def test_a_request_may_follow_an_earlier_one_of_its_train() -> None:
+    """A train's later request starts where its earlier one ends (#820):
+    `after` names the request it follows, and the request then carries no
+    departure end of its own. The scheduler composes it, so no page writes
+    it."""
+    assert TOPICS[REQUEST_SUBMITTED].fields == (
+        "id",
+        "train",
+        "depart",
+        "dest",
+        "after",
+    )
+    assert REQUEST_SUBMITTED not in INBOUND
 
 
 def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
