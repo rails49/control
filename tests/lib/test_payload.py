@@ -43,6 +43,7 @@ from tc49.lib.payload import (
     kept_facing,
     kept_run,
     link_up,
+    moving,
     named_train,
     occupancy,
     placement,
@@ -262,6 +263,28 @@ def test_a_run_row_that_cannot_be_read_reads_as_none() -> None:
     ]
     for payload in refused:
         assert kept_run(payload) is None, payload
+
+
+def test_a_moving_row_reads_as_the_boolean_it_states() -> None:
+    """`state/moving` is true while any train is active or crossing, and
+    `layout` reads it to end a drain (ADR-0078)."""
+    assert moving({"at": 1.0, "moving": True})
+    assert not moving({"at": 1.0, "moving": False})
+    assert not moving({"moving": False})
+
+
+def test_a_moving_row_that_cannot_be_read_reads_as_moving() -> None:
+    """A drain ends on nothing moving, so a row nobody can read must not end
+    one: cutting the supply under a train strands it (ADR-0062, ADR-0078)."""
+    unreadable: list[object] = [
+        False,  # not an object at all
+        {},  # no moving
+        {"moving": None},
+        {"moving": 0},  # the int a boolean is not
+        {"moving": "false"},
+    ]
+    for payload in unreadable:
+        assert moving(payload), payload
 
 
 def test_a_power_payload_reads_as_the_value_the_layout_states() -> None:
