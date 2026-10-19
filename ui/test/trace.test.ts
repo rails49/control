@@ -327,6 +327,7 @@ describe("Ordering", () => {
       "aspects",
       "device/track",
       "disputed",
+      "driving",
       "exhausted",
       "facing",
       "mode",
