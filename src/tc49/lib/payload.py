@@ -137,6 +137,7 @@ from tc49.lib.inventory import (
     CLEAR,
     CLOSED,
     DRAINING,
+    DRIVINGS,
     HELD,
     MANUAL,
     OCCUPIED,
@@ -421,6 +422,39 @@ def commanded_power(payload: object) -> str | None:
         return None
     wanted = cast(dict[str, object], payload).get("power")
     if not isinstance(wanted, str) or wanted not in (ON, STOPPED, OFF):
+        return None
+    return wanted
+
+
+def driving(payload: object) -> str:
+    """The driving mode the layout states, for a payload that can be read as
+    one; `manual` for a payload that cannot.
+
+    `manual` because it is where the railroad comes up (ADR-0079), and
+    because it is the one of the two that sets nothing moving: a train no
+    throttle holds stands at its signal. Reading `automatic` into a frame that
+    could not be read would have the driver drive trains nobody handed it.
+    """
+    if not isinstance(payload, dict):
+        return MANUAL
+    stated = cast(dict[str, object], payload).get("driving")
+    if not isinstance(stated, str) or stated not in DRIVINGS:
+        return MANUAL
+    return stated
+
+
+def wanted_driving(payload: object) -> str | None:
+    """The driving mode a gesture asks for, or None where it asks for none.
+
+    `driving`'s opposite number in the command direction, dropped where it
+    cannot be read like every other gesture: `layout` changes the railroad's
+    mode only on a word a page wrote. A gesture carries no id, so there is
+    nothing to address a refusal to either (ADR-0034).
+    """
+    if not isinstance(payload, dict):
+        return None
+    wanted = cast(dict[str, object], payload).get("driving")
+    if not isinstance(wanted, str) or wanted not in DRIVINGS:
         return None
     return wanted
 

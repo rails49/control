@@ -98,6 +98,7 @@ export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
 export const POINT_WANTED = "tc49/dispatch/point_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
+export const DRIVING_WANTED = "tc49/layout/driving_wanted";
 
 /** How a run stands: the dispatcher will commit nothing while it is `held`,
  *  it commits everything while it is `running`, and while it is `draining` it
@@ -266,6 +267,25 @@ export function modeWanted(train: string, mode: Mode): Frame {
   return { topic: MODE_WANTED, payload: { train, mode } };
 }
 
+/** Who drives the trains, said once for the whole railroad: `manual`, where
+ *  people drive every train from throttles, or `automatic`, where the driver
+ *  drives every train no throttle holds. The dispatcher routes the same in
+ *  both
+ *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+ *  The value of `driving` on `tc49/layout/state/driving` and on the
+ *  `driving_wanted` gesture; the railroad comes up `manual`, and an
+ *  unreadable `state/driving` reads as `manual`. */
+export type DrivingMode = "manual" | "automatic";
+
+/** A `driving_wanted` frame: switch the railroad's driving mode. It names
+ *  where the mode should stand rather than asking for a change, as
+ *  `power_wanted` does, and is accepted at any power. The view goes on reading
+ *  the mode off `state/driving`, which `layout` writes and this never assumes
+ *  (ADR-0035). */
+export function drivingWanted(driving: DrivingMode): Frame {
+  return { topic: DRIVING_WANTED, payload: { driving } };
+}
+
 /** A `throttle_wanted` frame: how fast a person is driving a train, `-1.0`
  *  … `1.0` as a fraction of that train's maximum, `0.0` being stop.
  *
@@ -305,6 +325,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "railroad",
   "power",
   "mode",
+  "driving",
   "exhausted",
   "facing",
   "run",

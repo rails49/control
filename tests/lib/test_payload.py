@@ -32,6 +32,7 @@ from tc49.lib.payload import (
     desired_position,
     desired_speed,
     detected,
+    driving,
     gesture,
     grant,
     granted_aspect,
@@ -48,6 +49,7 @@ from tc49.lib.payload import (
     shown_aspects,
     stamp,
     supply,
+    wanted_driving,
     wanted_mode,
     wanted_throttle,
 )
@@ -320,6 +322,52 @@ def test_a_supply_payload_that_cannot_be_read_reads_as_off() -> None:
     ]
     for payload in unreadable:
         assert supply(payload) == OFF, payload
+
+
+def test_a_driving_mode_reads_as_the_value_the_layout_states() -> None:
+    """The railroad's one driving mode, each value read as itself
+    (ADR-0079)."""
+    assert driving({"driving": "manual"}) == MANUAL
+    assert driving({"driving": "automatic"}) == AUTOMATIC
+
+
+def test_a_driving_mode_that_cannot_be_read_reads_as_manual() -> None:
+    """The mode the railroad comes up in (ADR-0079). Reading `automatic`
+    into a frame that could not be read would have the driver drive trains
+    nobody said it could; under `manual` a train no throttle holds stands."""
+    unreadable: list[object] = [
+        "automatic",  # not an object at all
+        ["automatic"],  # nor a list of its fields
+        {},  # no driving
+        {"driving": None},
+        {"driving": 1},  # not a string
+        {"driving": "AUTOMATIC"},  # a value outside the closed set
+    ]
+    for payload in unreadable:
+        assert driving(payload) == MANUAL, payload
+
+
+def test_a_driving_gesture_reads_as_the_mode_it_asks_for() -> None:
+    """The same closed set in the command direction, accepted at any
+    power."""
+    assert wanted_driving({"driving": "manual"}) == MANUAL
+    assert wanted_driving({"driving": "automatic"}) == AUTOMATIC
+
+
+def test_a_driving_gesture_that_cannot_be_read_is_dropped() -> None:
+    """A gesture, so dropped like every other one: `layout` changes the
+    mode only on a word a page actually wrote."""
+    refused: list[object] = [
+        "manual",  # not an object at all
+        ["manual"],  # nor a list of its fields
+        {},  # no driving
+        {"driving": None},
+        {"driving": 1},  # not a string
+        {"driving": "Manual"},  # a value outside the closed set
+        {"mode": "manual"},  # the per-train field, not this one
+    ]
+    for payload in refused:
+        assert wanted_driving(payload) is None, payload
 
 
 def test_a_power_gesture_reads_as_the_value_it_asks_for() -> None:

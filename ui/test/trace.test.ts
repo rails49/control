@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   DRAINING,
+  DRIVING_WANTED,
+  drivingWanted,
   gesture,
   Live,
   MODE_WANTED,
@@ -207,6 +209,17 @@ describe("throttleWanted", () => {
 /** Commanding track power (ADR-0051): the same three values the layout
  *  reports, in the command direction. One topic and one axis, so no consumer
  *  has to decide what powered-off-and-emergency-stopped means. */
+describe("drivingWanted", () => {
+  it("names the railroad's driving mode and nothing else", () => {
+    expect(drivingWanted("automatic")).toEqual({
+      topic: "tc49/layout/driving_wanted",
+      payload: { driving: "automatic" },
+    });
+    expect(drivingWanted("manual").payload).toEqual({ driving: "manual" });
+    expect(DRIVING_WANTED).toBe("tc49/layout/driving_wanted");
+  });
+});
+
 describe("powerWanted", () => {
   it("names where the supply should stand and nothing else", () => {
     expect(powerWanted("stopped")).toEqual({

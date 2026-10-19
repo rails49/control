@@ -33,6 +33,8 @@ REFUSED = "tc49/layout/state/device/refused"
 MODE_WANTED = "tc49/layout/mode_wanted"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 MODE = "tc49/layout/state/mode"
+DRIVING_WANTED = "tc49/layout/driving_wanted"
+DRIVING = "tc49/layout/state/driving"
 POWER_WANTED = "tc49/layout/power_wanted"
 POWER = "tc49/layout/state/power"
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
@@ -132,6 +134,16 @@ def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
     assert POWER not in INBOUND
 
 
+def test_the_driving_mode_is_a_gesture_and_layouts_state() -> None:
+    """The railroad's one driving mode (ADR-0079): a page asks for it on an
+    event row carrying the one field `driving`, and `layout`, which answers,
+    states it on a row no page writes."""
+    assert DRIVING_WANTED in INBOUND
+    assert TOPICS[DRIVING_WANTED].fields == ("driving",)
+    assert TOPICS[DRIVING].fields == (AT, "driving")
+    assert DRIVING not in INBOUND
+
+
 def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
     """Which railroad the apps run is chosen while they run (ADR-0060): an
     event row a page may write, carrying the one field `railroad`. It is
@@ -170,6 +182,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         THROTTLE_WANTED,
         POWER_WANTED,
         RAILROAD_WANTED,
+        DRIVING_WANTED,
     }
     assert not any(is_state_topic(topic) for topic in INBOUND)
 
