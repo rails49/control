@@ -10,9 +10,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  asked,
   backupWords,
   COMMANDS,
-  holding,
+  driving,
   frozen,
   isLoaded,
   NOTHING,
@@ -48,8 +49,9 @@ describe("the rail", () => {
   });
 
   /** The run view's document is a railroad somebody else is running, so it
-   *  has no File and no Edit; what it presses instead is HOLD and GO, which
-   *  is a gesture on the bus rather than a verb of this app's. */
+   *  has no File and no Edit; what it presses instead is the driving
+   *  control, which is a gesture on the bus rather than a verb of this
+   *  app's. */
   it("gives the run view a View group and nothing else", () => {
     expect(RAIL.run.map((group) => [group.name, group.items])).toEqual([
       ["View", ["zoom-out", "zoom-in", "fit"]],
@@ -353,16 +355,19 @@ describe("what backup says without being opened", () => {
 });
 
 /**
- * What the band's track-power control shows: the state, and why it is dead
- * (look#12). The toggle asking for `off` is the drain request (ADR-0062), so
- * while the drain is outstanding it reads `draining`.
+ * What the band's power control shows: the state, and why it is dead
+ * (look#12). Power is `layout`'s, `draining` included, so the control draws
+ * it as `layout` says it (ADR-0078).
  */
 describe("what the power control shows", () => {
-  const LINKED = { linked: true, draining: false };
+  const LINKED = { linked: true };
 
-  it("shows where the supply stands", () => {
-    for (const power of ["on", "off", "stopped"] as const) {
-      expect(supply(standing({ power }), LINKED)).toEqual({ state: power, reason: "" });
+  it("shows where power stands, each of the three", () => {
+    for (const power of ["on", "draining", "off"] as const) {
+      expect(supply(standing({ power }), LINKED)).toEqual({
+        state: power,
+        reason: "",
+      });
     }
   });
 
@@ -381,14 +386,6 @@ describe("what the power control shows", () => {
     });
   });
 
-  /** Pressing it then asks for `on`, which is the way out of the wait. */
-  it("reads draining while the drain is outstanding", () => {
-    expect(supply(standing({ power: "on" }), { ...LINKED, draining: true })).toEqual({
-      state: "draining",
-      reason: "",
-    });
-  });
-
   /** Power on would run trains under track no app built (ADR-0071). */
   it("waits for a save while the loaded railroad is unbuilt and off", () => {
     const edited = { opened: "toy", loaded: "toy", saved: false };
@@ -403,28 +400,50 @@ describe("what the power control shows", () => {
   });
 });
 
-/** HOLD while the run is running and GO otherwise (ADR-0037). */
-describe("the run's press", () => {
-  it("offers HOLD on a running run and GO on any other", () => {
-    expect(holding("running", "on").word).toBe("HOLD");
-    expect(holding("held", "on").word).toBe("GO");
-    expect(holding("draining", "on").word).toBe("GO");
+/**
+ * What a press on the power control asks `layout` for (ADR-0078). look's
+ * toggle asks `off` from `on` and `on` from anything else, and its stop sign
+ * asks `stopped`; the railroad's words for those are the drain, `on`, and the
+ * emergency stop.
+ */
+describe("what a press on the power control asks for", () => {
+  it("asks for the drain from on", () => {
+    expect(asked("off")).toBe("draining");
   });
 
-  /** No run to hold before the dispatcher has said where it stands. */
-  it("is dead until the run has said", () => {
-    expect(holding(null, "on").dead).toBe(true);
+  /** From `draining` it ends the drain, and from `off` it is the one press
+   *  that turns the railroad on. */
+  it("asks for on from off and from draining", () => {
+    expect(asked("on")).toBe("on");
   });
 
-  /** The dispatcher drops a release while the rails are dead (ADR-0041). */
-  it("greys GO while power is off or stopped, and not before the layout has said", () => {
-    expect(holding("held", "off").dead).toBe(true);
-    expect(holding("held", "stopped").dead).toBe(true);
-    expect(holding("held", "on").dead).toBe(false);
-    expect(holding("held", null).dead).toBe(false);
+  /** The emergency stop: `off` at once, without a drain. */
+  it("asks for off from the stop sign", () => {
+    expect(asked("stopped")).toBe("off");
+  });
+});
+
+/** The driving control: the railroad's mode as `layout` says it, and the
+ *  other one a press asks for (ADR-0079). */
+describe("the driving control", () => {
+  it("shows manual and asks for automatic", () => {
+    expect(driving("manual")).toMatchObject({
+      word: "MANUAL",
+      next: "automatic",
+      dead: false,
+    });
   });
 
-  it("leaves HOLD live whatever the power", () => {
-    expect(holding("running", "off").dead).toBe(false);
+  it("shows automatic and asks for manual", () => {
+    expect(driving("automatic")).toMatchObject({
+      word: "AUTOMATIC",
+      next: "manual",
+      dead: false,
+    });
+  });
+
+  /** A press against a mode not heard could ask for the one standing. */
+  it("is dead until layout has said", () => {
+    expect(driving(null).dead).toBe(true);
   });
 });

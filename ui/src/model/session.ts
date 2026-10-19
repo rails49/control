@@ -1,7 +1,7 @@
 /**
  * The page's one connection to the broker, and everything that follows from
  * it (#756): the railroad the broker's row names, the run's picture the bus
- * feeds, track power, HOLD/GO and the release notice, and the OFF drain.
+ * feeds, power and the driving mode.
  *
  * **A session is the page joined to the railroad the broker names**
  * (ui/PANEL.md). One broker runs one railroad and the layout interface
@@ -29,22 +29,21 @@
 import mqtt from "mqtt";
 
 import type { Drawing } from "./drawing.js";
-import { outstanding, Panel, type Placed } from "./panel.js";
+import { Panel, type Placed } from "./panel.js";
 import { RETRY_MS, type Review, type TrainDoc } from "./store.js";
 import { cabs, type Cab } from "./throttle.js";
 import {
-  DRAINING,
+  drivingWanted,
   Live,
   powerWanted,
   railroadWanted,
   reversal,
-  runWanted,
   takeWanted,
   throttleAlive,
   throttleWanted,
+  type DrivingMode,
   type Frame,
   type Power,
-  type Run,
   type TraceEvent,
 } from "./trace.js";
 
@@ -62,19 +61,13 @@ export interface RunStatus {
    *  (`model/commands.ts`, ADR-0071). */
   railroad: string | null;
   linked: boolean;
-  /** How the run stands, `null` while no session is joined or before the
-   *  dispatcher has said (ADR-0037). It is what the rail's HOLD/GO reads. */
-  run: Run | null;
-  /** Whether a train may move at all, `null` while no session is joined or
-   *  before the layout has said (ADR-0041). The band says which it is, and
-   *  the rail's GO is greyed while it is anything but `on`. */
+  /** Power, `on`, `draining` or `off`, `null` while no session is joined or
+   *  before the layout has said (ADR-0078). The band's power control draws
+   *  it. */
   power: Power | null;
-  /** Whether the band's OFF is waiting on the drain: it has asked for
-   *  `draining` and publishes `power_wanted: off` when the run reads `held`
-   *  with nothing moving, and not before (ADR-0062, ADR-0074). The band says
-   *  so on the button, a drain that never lands leaving the railroad
-   *  powered. */
-  draining: boolean;
+  /** The railroad's driving mode, `null` while no session is joined or before
+   *  the layout has said (ADR-0079). The rail's driving control draws it. */
+  driving: DrivingMode | null;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
@@ -95,9 +88,8 @@ export const QUIET: RunStatus = {
   joined: false,
   railroad: null,
   linked: false,
-  run: null,
   power: null,
-  draining: false,
+  driving: null,
   trouble: null,
   fault: null,
   placed: [],
@@ -229,10 +221,6 @@ export class Session {
    *  (`model/throttle.ts`): the same array until what it says moves. */
   cabs: readonly Cab[] = [];
 
-  /** What was still disputed at the moment the hold was released, in words,
-   *  `null` while there is nothing to say. */
-  released: string | null = null;
-
   /** This page's throttle id, minted when the session is made and kept for
    *  the life of the page: every take, speed and alive frame names it. */
   readonly throttle = minted();
@@ -248,17 +236,6 @@ export class Session {
   private owed: string | null = null;
   private connected = false;
   private trouble: string | null = null;
-  /** Whether the run was running when the last frame was applied, which is
-   *  what says a fresh hold has begun — and, read the other way round, what
-   *  says a run has been released. */
-  private wasRunning = false;
-  /** Whether an OFF is waiting on the drain (ADR-0062, ADR-0074). The press
-   *  asks the run to drain and stops there; the supply is removed when
-   *  `state/run` reads `held` with nothing moving, and the wait is dropped
-   *  when the run word *changes* to `running`, that being a drain somebody
-   *  abandoned. A row repeating the word the press was made against is the
-   *  drain still outstanding, whatever `moving` now says (#441). */
-  private draining = false;
   /** The railroad the model was built for, so it is rebuilt when the app loads
    *  another and kept when anything else changes. */
   private built: string | null = null;
@@ -333,12 +310,10 @@ export class Session {
         this.built = null;
       }
     } else if (name !== this.built) {
-      this.released = null;
       this.panel = new Panel(layout, explain, drawing!.wires);
       this.built = name;
       for (const event of this.held ?? []) this.panel.apply(event);
       this.held = null;
-      this.wasRunning = this.panel.run === "running";
     }
     this.settle();
   }
@@ -462,103 +437,34 @@ export class Session {
       return;
     }
     this.panel.apply(event);
-    // A fresh hold is a fresh decision, so what the last release was told
-    // about goes with it. The transition and not the value: the run is still
-    // `held` between the press and the dispatcher's answer, and clearing on
-    // the value would take the notice down before it was read.
-    const was = this.wasRunning;
-    const running = this.panel.run === "running";
-    if (was && !running) this.released = null;
-    this.wasRunning = running;
-    // The wait the OFF press started is decided by the run's own row and by
-    // nothing else: the value standing between the press and the
-    // dispatcher's answer is the one the press was made against, so a frame
-    // about anything else leaves the wait alone.
-    if (this.draining && event.event === "run") {
-      if (running && !was) {
-        // A drain somebody abandoned — this page's GO or another's — and the
-        // wait goes with it. Left standing, a HOLD hours later would cut the
-        // power out of a press the person had moved on from (ADR-0062).
-        //
-        // The word changing and not the word: the dispatcher republishes the
-        // row whenever `moving` moves under a standing run word, so a running
-        // run whose last train arrives says `running` again (#406) — the drain
-        // still outstanding, not one released. Reading the value there dropped
-        // the wait, the later `held` did nothing, and the supply stayed on with
-        // the button back to *OFF* (#441).
-        this.draining = false;
-      } else if (this.drained) {
-        // The drain has landed, so the supply goes now and not before:
-        // nothing is crossing, nothing is committed, and every grant
-        // re-aligns, so the point positions the cut costs cost nothing
-        // (ADR-0062). A run that never drains leaves the railroad powered
-        // and the button saying it is still waiting.
-        this.cut();
-      }
-    }
     this.changed();
   }
 
   // --- the presses ----------------------------------------------------------
 
   /**
-   * Hold the run, or release it: one `run_wanted` naming where it should
-   * stand (ADR-0037). The app presses it on the rail, and the dispatcher's
-   * answer comes back on `state/run` and redraws the button.
+   * Power asked for on the band: `on`, `draining` or `off`, one
+   * `power_wanted` naming where power should stand (ADR-0078). What a press
+   * on the control asks for is `asked` in `model/commands.ts`.
    *
-   * Releasing with disputes outstanding is allowed — the person decides, not
-   * the check — and the session says what is still disputed at the moment of
-   * release ([#153](https://github.com/rails49/control/issues/153)). It is a
-   * notice beside the press and not a question: nothing is blocked, and the
-   * amber marks the panel was carrying go with the hold, so this is the same
-   * answer in words for as long as the run they were released into is
-   * running.
+   * **The drain is `layout`'s.** The page asks for `draining` and waits for
+   * nothing: `layout` switches the supply off once nothing is moving, and
+   * what the band then shows is `state/power` coming back (ADR-0035). The
+   * emergency stop is `off` at once, which `layout` applies whatever is
+   * moving.
    */
-  press(run: Run): void {
-    // `connected` and not merely a client: MQTT.js queues a publish made
-    // while it is reconnecting, and the notice below would then stand for a
-    // release the dispatcher never heard.
-    if (!this.connected || this.panel === null) return;
-    this.released = run === "running" ? outstanding(this.panel.disputes()) : null;
-    this.send(runWanted(run));
-    this.changed();
+  pressPower(power: Power): void {
+    this.send(powerWanted(power));
   }
 
   /**
-   * ON, STOP or OFF, pressed on the band: what the whole railroad's supply
-   * should be doing (ADR-0074).
-   *
-   * **OFF is the drain trigger and never an immediate cut.** It asks the run
-   * to drain — always, a held run included, because a held run can still be
-   * moving — and waits for `state/run` to read `held` with nothing moving; an
-   * abrupt `off` would leave no point position trustworthy and strand
-   * whatever was mid-transit. `layout` refuses an `off` it should not apply
-   * ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)),
-   * so this wait is the person's view of the drain rather than the only
-   * guard; the page still does not send `off` blindly.
-   *
-   * ON and STOP go out at once, and each abandons a wait the drain left
-   * standing: the person has said what they want the supply to do, and a cut
-   * arriving later out of a press they have moved on from is exactly the
-   * surprise this button exists to avoid. Neither writes `run_wanted` —
-   * returning to `on` releases nothing on its own (ADR-0041), and an
-   * emergency stop asks the rails for less rather than the run for more.
+   * The railroad's driving mode asked for on the rail: one `driving_wanted`
+   * naming it
+   * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+   * `layout` answers on `state/driving`, which is what the control draws.
    */
-  pressPower(power: Power): void {
-    if (!this.connected || this.panel === null) return;
-    if (power === "off") {
-      this.draining = true;
-      this.send(runWanted(DRAINING));
-      // A run already held with nothing moving has nothing left to drain —
-      // which is the whole of what the wait waits for — and the dispatcher
-      // answering `held` with `held` publishes no frame for `heard` to see,
-      // so the wait would never end.
-      if (this.drained) this.cut();
-    } else {
-      this.draining = false;
-      this.send(powerWanted(power));
-    }
-    this.changed();
+  pressDriving(driving: DrivingMode): void {
+    this.send(drivingWanted(driving));
   }
 
   /**
@@ -656,40 +562,12 @@ export class Session {
     return this.panel?.placed() ?? [];
   }
 
-  /** Whether the drain has landed: the run reads `held` and the row says
-   *  nothing is moving. Both conditions and not the word alone — a held run
-   *  can be moving, a move already granted running to its sensor, and a
-   *  person's HOLD writes `held` with trains still rolling (ADR-0062).
-   *
-   *  `moving === false` and not merely a falsy one: a row without the field
-   *  is an older dispatcher saying nothing about what is under way, and it
-   *  never lets this button cut. `layout`'s guard applies such an `off`
-   *  because a guard refuses on evidence and an absence is none; the wait is
-   *  the other way round, because what it risks is a train stranded where no
-   *  sensor will ever say it stopped, and all it costs is a button that goes
-   *  on saying *DRAINING…* against a dispatcher too old to answer it. */
-  private get drained(): boolean {
-    return this.panel !== null && this.panel.run === "held" && this.panel.moving === false;
-  }
-
-  /** The supply removed, once the drain has landed. */
-  private cut(): void {
-    this.draining = false;
-    this.send(powerWanted("off"));
-  }
-
   /** The session goes: the broker has stopped answering, or it has named
    *  another railroad. What the model holds is kept — a page getting back in
    *  must not flash — and everything the last session put on screen of its own
    *  goes. */
   private leave(): void {
-    this.released = null;
-    this.wasRunning = false;
     this.held = null;
-    // A session going away takes the wait with it: the run whose drain was
-    // being watched is no longer being reported on, and a cut fired at the
-    // next session's first `held` would be this one's press arriving late.
-    this.draining = false;
     this.session = null;
     this.nameless = false;
   }
@@ -712,9 +590,8 @@ export class Session {
       joined,
       railroad: this.nameless ? "" : this.session,
       linked: this.connected,
-      run: model?.run ?? null,
       power: model?.power ?? null,
-      draining: this.draining,
+      driving: model?.driving ?? null,
       trouble: this.trouble,
       // Nothing, with no session joined: it is the hardware's report on the
       // railroad this page is watching, as the supply's own reading is, and a
@@ -798,9 +675,8 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.joined === now.joined &&
     was.railroad === now.railroad &&
     was.linked === now.linked &&
-    was.run === now.run &&
     was.power === now.power &&
-    was.draining === now.draining &&
+    was.driving === now.driving &&
     was.trouble === now.trouble &&
     was.fault === now.fault &&
     same(was.placed, now.placed)

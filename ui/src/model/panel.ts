@@ -28,10 +28,10 @@ import { requestRows, type RequestRow } from "./requests.js";
 import { transitEnds, type Explained, type Layout } from "./store.js";
 import {
   Ordering,
+  type DrivingMode,
   type Gesture,
   type PointWanted,
   type Power,
-  type Run,
   type Submission,
   type TraceEvent,
 } from "./trace.js";
@@ -242,23 +242,6 @@ function spell(table: Partial<Record<Reason, string>>, reason: string): string {
   return wordings[reason] ?? reason;
 }
 
-/**
- * What is still disputed, in the words the marks on the blocks use, or `null`
- * where the detectors and the placement agree.
- *
- * Each entry says which of the two contradictions it is rather than only that
- * something is wrong, which is what the mark under the block says too — so the
- * sentence a release leaves behind reads as what was on screen a moment
- * before (#153).
- */
-export function outstanding(disputes: { trains: string[]; blocks: string[] }): string | null {
-  const said = [
-    ...disputes.trains.map((train) => `${train} in a block that reads clear`),
-    ...disputes.blocks.map((block) => `${block} reads occupied`),
-  ];
-  return said.length === 0 ? null : `released with ${said.join(", ")}`;
-}
-
 /** A train the last rebuild under the same name took off the layout: the
  *  block it stood in and why it no longer stands there, `gone` from the
  *  drawing or `short` of the train (#709). */
@@ -328,17 +311,16 @@ export class Panel {
    *  as the dispatcher last said (#709). Read and never derived: which
    *  trains the last build had standing is the dispatcher's alone. */
   private unfitRows: Unfit[] = [];
-  /** How the run stands, as the dispatcher last said, `null` before it has
-   *  said anything (ADR-0037). Read and never derived: a held run is a
-   *  decision the dispatcher publishes, not something a picture shows. */
-  private runWord: Run | null = null;
-  /** What the run's row last said about anything the dispatcher granted
-   *  being under way (ADR-0062), `null` where it said nothing — before the
-   *  dispatcher has spoken, and for a row an older one wrote without the
-   *  field. The three are kept apart rather than collapsed here, because
-   *  what a silence means is the reader's to decide and the two readers
-   *  differ (#408). */
+  /** What `state/moving` last said about any train being active or
+   *  crossing (ADR-0078), `null` where it said nothing — before the
+   *  dispatcher has spoken, and for a row whose `moving` is not a boolean.
+   *  The three are kept apart rather than collapsed here, because what a
+   *  silence means is the reader's to decide (#408). */
   private movingWord: boolean | null = null;
+  /** The railroad's driving mode, as `layout` last said on `state/driving`,
+   *  `null` before it has said anything
+   *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)). */
+  private drivingWord: DrivingMode | null = null;
   /** Whether the layout says a train may move at all, `null` before it has
    *  said anything (ADR-0041). The layout states it from its constructor, so
    *  a session that has joined has been told; silence is a page that has not
@@ -410,8 +392,8 @@ export class Panel {
     this.heading.clear();
     this.disputed = { trains: new Set(), blocks: new Set() };
     this.unfitRows = [];
-    this.runWord = null;
     this.movingWord = null;
+    this.drivingWord = null;
     this.powerWord = null;
     this.faultWord = null;
     this.holders.clear();
@@ -560,31 +542,28 @@ export class Panel {
         this.started = true;
         return;
       }
-      case "run": {
-        // Held, running or draining, whole from the topic. The button that
-        // moves it reads this, so what it offers is the run's own answer
-        // rather than the last press's — and a drain reads back here like
-        // any other value of the run, the OFF sequence waiting on the `held`
-        // that ends it (#294).
-        const { run, moving } = event as unknown as {
-          run: Run;
-          moving?: boolean;
-        };
-        this.runWord = run;
-        // `moving` rides beside the word and is not a fourth value of it: a
-        // held run can be moving, because a move already granted runs to its
-        // sensor, and a running run with nothing granted is not (ADR-0062).
-        // A row without it says nothing rather than saying false — an older
-        // dispatcher publishes the word alone, and what a reader makes of
-        // that silence is the reader's (#408).
+      case "moving": {
+        // Whether any train is active or crossing, whole from the
+        // dispatcher's own topic (ADR-0078). A row whose `moving` is not a
+        // boolean says nothing rather than saying false, and what a reader
+        // makes of that silence is the reader's (#408).
+        const { moving } = event as unknown as { moving?: unknown };
         this.movingWord = typeof moving === "boolean" ? moving : null;
         return;
       }
+      case "driving": {
+        // The railroad's driving mode, whole from the topic: `layout` holds
+        // it, and the rail's driving control draws it rather than its own
+        // press (ADR-0035). An unreadable row reads as `manual`, the mode the
+        // railroad comes up in (BUS.md).
+        const { driving } = event as unknown as { driving?: unknown };
+        this.drivingWord = driving === "automatic" ? "automatic" : "manual";
+        return;
+      }
       case "power": {
-        // What the layout says about the supply, whole from the topic. The
-        // dispatcher reads the same value and holds the run on anything but
-        // `on`; the panel says which of the two it is, the person recovering
-        // clearing an emergency stop or switching a supply back on.
+        // Power as `layout` says it, whole from the topic: `on`, `draining`
+        // or `off` (ADR-0078). The dispatcher reads the same value and routes
+        // only while it is `on`.
         const { power } = event as unknown as { power: Power };
         this.powerWord = power;
         return;
@@ -743,27 +722,24 @@ export class Panel {
     }
   }
 
-  /** How the run stands, `null` before the dispatcher has said (ADR-0037). */
-  get run(): Run | null {
-    return this.runWord;
-  }
-
   /** Whether any train is active or crossing, so a power cut now would
-   *  strand it (CONTEXT.md, **Moving**), `null` where the run's row said
-   *  nothing about it: an older dispatcher publishes the word alone, and a
-   *  page that has heard no row at all has been told nothing either. Read
-   *  beside `run` and never derived: the picture a page draws says where
-   *  trains stand, not what the dispatcher has granted. What OFF waits to
-   *  read `false` before cutting power (ADR-0062), a silence leaving the
-   *  wait standing. */
+   *  strand it (CONTEXT.md, **Moving**), as `state/moving` last said, `null`
+   *  where it has said nothing readable. Read and never derived: the picture
+   *  a page draws says where trains stand, not what the dispatcher has
+   *  granted. */
   get moving(): boolean | null {
     return this.movingWord;
   }
 
+  /** The railroad's driving mode, as `layout` last said, `null` before it has
+   *  said anything (ADR-0079). What the rail's driving control draws. */
+  get driving(): DrivingMode | null {
+    return this.drivingWord;
+  }
+
   /** Whether a train may move at all, as the layout last said, `null` before
-   *  it has said anything (ADR-0041). What GO reads: releasing into dead
-   *  rails is refused by the dispatcher, so the button that would ask for it
-   *  is greyed. */
+   *  it has said anything (ADR-0078). What the band's power control
+   *  draws. */
   get power(): Power | null {
     return this.powerWord;
   }

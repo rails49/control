@@ -342,10 +342,8 @@ export class TcPanel extends LitElement {
   override render() {
     const drawing = this.drawing;
     const live = this.overlay;
-    const released = this.session?.released ?? null;
     // The trains a rebuild took off, one line each, for as long as the
-    // dispatcher lists them (#709). Beside the release notice and drawn the
-    // same way: only while there is something to say.
+    // dispatcher lists them (#709): only while there is something to say.
     const off = this.inSession ? takenOff(this.panel?.unfit() ?? []) : [];
     return html`
       <aside>
@@ -362,10 +360,9 @@ export class TcPanel extends LitElement {
         ></tc-requests>
       </aside>
 
-      ${released === null && off.length === 0
+      ${off.length === 0
         ? nothing
         : html`<header>
-            ${released === null ? nothing : html`<span class="released">${released}</span>`}
             ${off.map((line) => html`<span class="unfit">${line}</span>`)}
           </header>`}
       <main>

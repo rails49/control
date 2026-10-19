@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { outstanding, Panel, roster } from "../src/model/panel.js";
+import { Panel, roster } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import type { Position } from "../src/symbols.generated.js";
@@ -1279,36 +1279,6 @@ describe("the detectors' dispute", () => {
   });
 });
 
-/**
- * What a release leaves behind in words (#153). Releasing the hold with
- * disputes outstanding is allowed — the person decides, not the check — and
- * the amber marks go with the hold, `state/disputed` being empty while the run
- * is running. The sentence is what is left to say what was accepted.
- */
-describe("what is still disputed, in words", () => {
-  it("says nothing where the detectors and the placement agree", () => {
-    expect(outstanding({ trains: [], blocks: [] })).toBeNull();
-  });
-
-  /** The same two words the marks under the blocks use, so the sentence reads
-   *  as what was on screen a moment before. */
-  it("says which of the two contradictions each one is", () => {
-    expect(outstanding({ trains: ["t1"], blocks: [] })).toBe(
-      "released with t1 in a block that reads clear",
-    );
-    expect(outstanding({ trains: [], blocks: ["b"] })).toBe(
-      "released with b reads occupied",
-    );
-  });
-
-  it("names every one of them", () => {
-    expect(outstanding({ trains: ["t1", "t2"], blocks: ["b"] })).toBe(
-      "released with t1 in a block that reads clear, " +
-        "t2 in a block that reads clear, b reads occupied",
-    );
-  });
-});
-
 /** Whether a train may move at all (ADR-0041): the layout's own value, read
  *  and never derived. The layout states it from its constructor, so a joined
  *  session has been told, and silence is a page that has joined none. */
@@ -1402,68 +1372,73 @@ describe("what the hardware says about the supply", () => {
   });
 });
 
-/** How the run stands (ADR-0037): the dispatcher's own value, read and never
- *  derived. The button that moves it draws what this says, so a press that
- *  did not land leaves the value where it was. */
-describe("whether the run is held", () => {
-  it("says nothing before the dispatcher has", () => {
-    expect(panel().run).toBeNull();
-  });
-
-  it("takes the value the topic carries", () => {
-    const model = panel();
-    feed(model, { event: "run", run: "held" });
-    expect(model.run).toBe("held");
-    feed(model, { event: "run", run: "running" });
-    expect(model.run).toBe("running");
-  });
-
-  it("is forgotten when the model starts over", () => {
-    const model = panel();
-    feed(model, { event: "run", run: "running" });
-    model.reset();
-    expect(model.run).toBeNull();
-  });
-});
-
-/** Whether anything the dispatcher granted is under way, beside the run word
- *  and orthogonal to it (ADR-0062, #406). `held` alone does not say the
- *  railroad is still: the dispatcher writes that word when a drain completes,
- *  and a person's HOLD writes the same word with trains still rolling. What
- *  waits on it before cutting power is the OFF button (#408); here it is
- *  parsed, a row that carries no such field saying nothing rather than
- *  saying false. */
+/** Whether any train is active or crossing (ADR-0078): the dispatcher's own
+ *  value on `state/moving`, read and never derived. A row that carries no
+ *  boolean says nothing rather than saying false (#408). */
 describe("whether anything is moving", () => {
   it("says nothing at all before the dispatcher has said", () => {
     expect(panel().moving).toBe(null);
   });
 
-  it("takes the boolean the row carries, beside the word", () => {
+  it("takes the boolean the row carries", () => {
     const model = panel();
-    feed(model, { event: "run", run: "held", moving: true });
-    expect(model.run).toBe("held");
+    feed(model, { event: "moving", moving: true });
     expect(model.moving).toBe(true);
-    feed(model, { event: "run", run: "held", moving: false });
-    expect(model.run).toBe("held");
+    feed(model, { event: "moving", moving: false });
     expect(model.moving).toBe(false);
   });
 
-  it("reads a row without the field as nothing said", () => {
-    // An older dispatcher publishes the word alone. The three answers are
-    // kept apart rather than collapsed here: what a silence means is the
-    // reader's, and the panel's OFF and `layout`'s guard differ on it (#408).
+  it("reads a row without a boolean as nothing said", () => {
     const model = panel();
-    feed(model, { event: "run", run: "running", moving: true });
-    feed(model, { event: "run", run: "held" });
-    expect(model.run).toBe("held");
+    feed(model, { event: "moving", moving: true });
+    feed(model, { event: "moving" });
+    expect(model.moving).toBe(null);
+  });
+
+  /** `state/run` carries `moving` until #834 retires it, and it is no longer
+   *  what this reads. */
+  it("reads nothing off state/run", () => {
+    const model = panel();
+    feed(model, { event: "run", run: "held", moving: false });
     expect(model.moving).toBe(null);
   });
 
   it("is forgotten when the model starts over", () => {
     const model = panel();
-    feed(model, { event: "run", run: "running", moving: true });
+    feed(model, { event: "moving", moving: true });
     model.reset();
     expect(model.moving).toBe(null);
+  });
+});
+
+/** The railroad's driving mode (ADR-0079): `layout`'s own value on
+ *  `state/driving`, read and never derived, an unreadable row reading as
+ *  `manual` (BUS.md). */
+describe("the driving mode", () => {
+  it("says nothing before layout has said", () => {
+    expect(panel().driving).toBe(null);
+  });
+
+  it("takes the mode the row carries", () => {
+    const model = panel();
+    feed(model, { event: "driving", driving: "automatic" });
+    expect(model.driving).toBe("automatic");
+    feed(model, { event: "driving", driving: "manual" });
+    expect(model.driving).toBe("manual");
+  });
+
+  it("reads an unreadable row as manual", () => {
+    const model = panel();
+    feed(model, { event: "driving", driving: "automatic" });
+    feed(model, { event: "driving", driving: "auto" });
+    expect(model.driving).toBe("manual");
+  });
+
+  it("is forgotten when the model starts over", () => {
+    const model = panel();
+    feed(model, { event: "driving", driving: "automatic" });
+    model.reset();
+    expect(model.driving).toBe(null);
   });
 });
 
@@ -1510,9 +1485,9 @@ describe("a state value that arrives out of order", () => {
     feed(
       model,
       { event: "power", at: 20, power: "off" },
-      { event: "run", at: 1, run: "held" },
+      { event: "driving", at: 1, driving: "automatic" },
     );
-    expect(model.run).toBe("held");
+    expect(model.driving).toBe("automatic");
   });
 
   it("orders no event, however late", () => {
