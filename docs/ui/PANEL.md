@@ -341,9 +341,11 @@ cancels the same request — `displaced` where `removed` was.
 
 The gesture that ends a request **without** moving the train is **Cancel
 request** on the block's right-click menu, which publishes
-`tc49/dispatch/cancel_wanted` (`{train}`) and ends whatever that train has,
-pending and active
-([#660](https://github.com/rails49/control/issues/660), ADR-0049). The
+`tc49/dispatch/cancel_wanted` (`{id}`) naming the train's first request in
+flight, and so ends whatever that train has, pending and active: the requests
+chained after it go with it
+([#660](https://github.com/rails49/control/issues/660), ADR-0049,
+[ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)). The
 dispatcher republishes its picture when it cancels, and the lit route and
 markers go out with the request it no longer holds; `request_cancelled` is
 not read. A cancellation that lands while the train is between blocks waits

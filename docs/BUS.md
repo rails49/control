@@ -262,7 +262,7 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the thirteen gesture rows. The throttle a person
+Today the mark sits on exactly the fourteen gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207),
 [ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)),
 the railroad's driving mode, the
@@ -304,7 +304,8 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/run_wanted` | event | any (browser) | hold the run, release it, or drain it |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
-| `tc49/dispatch/cancel_wanted` | event | any (browser) | end a train's request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)) |
+| `tc49/dispatch/cancel_wanted` | event | any (browser) | end one request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md), [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
+| `tc49/dispatch/reorder_wanted` | event | any (browser) | move one request in the list the dispatcher serves ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
 | `tc49/dispatch/point_wanted` | event | any (browser) | a person asks for a point's position ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
 | `tc49/dispatch/request_rejected` | event | dispatcher | admission refused it, and why |
@@ -632,7 +633,7 @@ what a drop would cost:
 
 #### `schedule`
 
-The thirteen browser-writable rows — the two here, the four under `dispatch`
+The fourteen browser-writable rows — the two here, the five under `dispatch`
 and the seven under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
@@ -665,11 +666,27 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A block is
   accepted only while the run is held; `null` in any run state
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
-- `tc49/dispatch/cancel_wanted` — browser-writable — `train`. The gesture
-  names no request: it ends whatever that train has, pending or active, and
-  a train with nothing in flight is dropped like any other gesture the
-  dispatcher cannot act on
+- `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
+  end. A request waiting is cancelled at once. One underway is cancelled when
+  the move it has outstanding ends at its sensor, and no further move is
+  granted
   ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+  The requests of the same train chained after it are cancelled with it,
+  each with its own `request_cancelled`, reason `revoked`. An id the
+  dispatcher does not hold is dropped like any other gesture it cannot act on
+  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+  The dispatcher reads `train` in place of `id` until
+  [#823](https://github.com/rails49/control/issues/823).
+- `tc49/dispatch/reorder_wanted` — browser-writable — `id`: the request to
+  move; `before`: the id of the request it is to go in front of, or `null`
+  for the end of the list. The key's presence is load-bearing: a payload
+  without `before` fails the read, while an explicit `null` is a positive
+  statement. Dropped where either request has started, where either is
+  unknown, or where it would put a train's chained request before the one it
+  follows
+  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+  `tc49.lib.payload.wanted_reorder` is the reader; the dispatcher answers it
+  from [#823](https://github.com/rails49/control/issues/823).
 - `tc49/dispatch/point_wanted` — browser-writable — `addr`: the point's
   address, a non-empty string; `position`: enum `closed` or `thrown`, the
   position wanted. The dispatcher drops it with no reply when `addr` is not
@@ -741,8 +758,13 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/state/allocation` — `trains`: map of train to standing
   block; `crossing`: map of crossing train to its transit; `locks`: map of
   resource to holding train; `requests`: list of
-  `{id, train, depart, dest, route}` in admission order, `route` *optional*
-  — present once the route is committed. Kept through a rebuild under the
+  `{id, train, depart, dest, route}` in **list order**, the order the
+  dispatcher serves them
+  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),
+  `route` *optional* — present once the route is committed, which is when
+  the request has started. Until
+  [#823](https://github.com/rails49/control/issues/823) the dispatcher
+  publishes them in admission order. Kept through a rebuild under the
   same railroad name, then republished by the new build: each train is placed
   again where its block still exists and still holds it, and the run comes up
   held. Cleared when another railroad is loaded
