@@ -5,7 +5,7 @@ canned request list — and this is the harness running one as a test run. It
 does that from **outside**: one
 `tc49/dispatch/placement_wanted` per train, a
 `tc49/schedule/reversal_wanted` where the document faces a train the other
-way, `tc49/dispatch/run_wanted` to release the hold, and then the requests in
+way, `tc49/layout/power_wanted` to turn the power on, and then the requests in
 the file's order, all over the topics a browser writes.
 
 So no app is given a scenario and every app keeps one placement path; the
@@ -38,7 +38,7 @@ cannot be stood up is a broken fixture rather than a run to report on.
 from collections import deque
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.inventory import RUNNING
+from tc49.lib.inventory import ON
 from tc49.lib.layout import Layout, connected_facing
 from tc49.lib.payload import named_train, readable_id
 from tc49.lib.scenario import RequestSpec, Scenario
@@ -46,7 +46,7 @@ from tc49.lib.scenario import RequestSpec, Scenario
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
-RUN_WANTED = "tc49/dispatch/run_wanted"
+POWER_WANTED = "tc49/layout/power_wanted"
 
 
 def arrival_ends(arrivals: tuple[str, ...]) -> list[str]:
@@ -65,7 +65,7 @@ def arrival_ends(arrivals: tuple[str, ...]) -> list[str]:
 
 
 class Replay:
-    """Lays the railroad out from `scenario`, releases the run, and feeds the
+    """Lays the railroad out from `scenario`, turns the power on, and feeds the
     timetable in the file's order. Built onto an assembly that is already up.
     """
 
@@ -97,9 +97,10 @@ class Replay:
             if placed != connected_facing(layout, f"{spec.at}.{spec.facing}"):
                 self._send(REVERSAL_WANTED, {"train": train})
         # The railroad is laid out, so the operator this stands in for presses
-        # GO. Every placement had to land before it: a placement is honoured
-        # while held and dropped while running (ADR-0037).
-        self._send(RUN_WANTED, {"run": RUNNING})
+        # ON. The dispatcher routes only while the power reads `on`, and a
+        # placement is taken at any power, so this is the press that starts
+        # the run whether or not the assembly already had the power on.
+        self._send(POWER_WANTED, {"power": ON})
         # One drain per drag, as a person's sequential drags land: each
         # request's cascade settles — grants, facing — before the next is
         # composed against it. A train with a request in flight has its next
