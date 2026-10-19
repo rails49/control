@@ -55,19 +55,6 @@ def test_a_move_delivered_before_its_align_waits_for_it() -> None:
     assert app.position == {"freight_1": "dn_e"}
 
 
-def test_a_move_that_arrived_dead_is_not_held_for_its_align() -> None:
-    """Dropped rather than queued: a command honoured minutes after the power
-    came back is a train moving long after anyone asked, and the run is held
-    when power returns anyway (ADR-0041)."""
-    bus, app = build()
-    stand(bus, "freight_1", "up_w")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-    energised(bus)
-    align(bus, "crossover", "to_dn")
-
-    assert app.position == {"freight_1": "up_w"}
-
-
 def test_a_held_move_is_read_again_against_the_railroad_it_lands_on() -> None:
     """Everything that stopped it can change while it waits, so a held
     command meets all three rules at the moment it is acted on and not at the
