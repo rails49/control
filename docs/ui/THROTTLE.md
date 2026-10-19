@@ -6,15 +6,17 @@ it back ([#207](https://github.com/rails49/control/issues/207),
 views of the loaded railroad, the [run view](PANEL.md) and the
 [editor](EDITOR.md) being the others
 ([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)), and
-its commands ride the bus like everything else — the two gestures
-`tc49/layout/mode_wanted` and `tc49/layout/throttle_wanted`, which are rows of
-the inventory marked browser-writable and are answered by `layout`
+its commands ride the bus like everything else — the gestures
+`tc49/layout/take_wanted`, `tc49/layout/throttle_wanted` and
+`tc49/layout/throttle_alive`, which are rows of the inventory marked
+browser-writable and are answered by `layout`
 ([ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), BUS.md). They are
 gestures because there are any number of throttles, two tabs being two of
 them, while the device row a throttle's speed ends at has one writer,
 `layout` ([#263](https://github.com/rails49/control/issues/263)).
 Terminology follows [CONTEXT.md](../../CONTEXT.md), **Throttle** and
-**Automatic / manual**.
+**Throttle** and **Driving mode**
+([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 
 ## What it shows
 
@@ -28,10 +30,10 @@ is the run view's pane. Nothing else about the layout appears here — no
 drawing, no route, no block colours; this view is about one train.
 
 A row says where the train stands, or *crossing a transit* where it stands in
-no block, and carries **manual** where `tc49/layout/state/mode` says a person
-has it. Whoever that person is: a train another tab is driving is marked here
-too, because *manual* is `layout`'s word about the train and not about this
-page.
+no block, and carries **yours** where `tc49/layout/state/taken` says this
+throttle holds it and **taken** where it names another. A train another tab
+holds is marked too, because who holds a train is `layout`'s word about the
+train and not about this page.
 
 **What the picked train is.** Its name, the way it points, the aspect it is
 reading and the blocks in front of it.
@@ -63,21 +65,18 @@ different repository, and this one is not that.
 
 ## What it does
 
-**The throttle mints its id.** When the page opens, the throttle picks a
-random string and names itself by it on every frame that concerns a train it
-holds: `tc49/layout/take_wanted` `{train, throttle}` to take a train, with
-`null` to release it, `throttle` on `tc49/layout/throttle_wanted`, and
+**The throttle mints its id.** When the page opens, the session picks a
+random string and names the throttle by it on every frame that concerns a
+train it holds: `tc49/layout/take_wanted` `{train, throttle}` to take a train,
+with `null` to release it, `throttle` on `tc49/layout/throttle_wanted`, and
 `tc49/layout/throttle_alive` `{throttle}` once a second while it holds a
 train. The id names the throttle holding a train, not who sent a frame. At most
 one throttle holds a train, `layout` says which on `tc49/layout/state/taken`,
 and it releases the trains of a throttle it has not heard for 5 s, so a phone
 gone to sleep does not leave a train running
 ([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
-BUS.md). The view moves onto these rows in
-[#830](https://github.com/rails49/control/issues/830). Until then it takes and
-releases with `mode_wanted`, as below, which `layout` no longer answers
-([#825](https://github.com/rails49/control/issues/825)): `state/mode` is not
-published, so the view never shows a train taken.
+BUS.md). Reloading the page mints a new id, and the trains the old one held
+are released once its 5 s run out.
 
 **What `layout` does with them** (docs/layout/README.md, *Who drives*). The
 railroad is in one driving mode, `manual` or `automatic`, stated on
@@ -89,22 +88,38 @@ no throttle holds stands at its signal in `manual` and is driven on its grant
 in `automatic`, so a release writes `0.0` in `manual` and the grant's speed in
 `automatic`.
 
-**Taking a train** publishes one `tc49/layout/mode_wanted`, `{train, mode}`,
-with `manual`; releasing publishes the same topic with `automatic`. The
-gesture names where the mode should stand rather than asking for a change, as
-`run_wanted` and `power_wanted` do, so a second `manual` on a train already
-taken is not a race.
+**Taking a train** publishes one `take_wanted` naming the train and this
+throttle's id. The gesture names who should hold the train rather than asking
+for a change, so a second take by the throttle already holding it is not a
+race, and `layout` counts it as hearing from that throttle.
 
 **The train reads as taken when the state topic says so**, never on the
-gesture. `layout` holds the mode and publishes `tc49/layout/state/mode`, and a
+gesture. `layout` holds who holds each train and publishes `state/taken`, and a
 view that marked a train taken on its own press would show a person holding a
 train `layout` never handed them (ADR-0035). The speed control is offered
-while the train is taken and at no other time, so releasing takes it away.
+while `state/taken` names this throttle for the train and at no other time, so
+releasing takes it away. `throttle_alive` follows the same row: it starts when
+`state/taken` names this throttle for a train on the layout and stops when it
+names it for none, or the broker goes.
 
-The release writes **one frame and no speed of its own**. On the transition
-back to automatic `layout` writes the speed the train's current grant implies,
-which is `0.0` where there is none (SYSTEM.md, *Who drives*); a zero from
-here would be a second party deciding how fast the railroad drives it.
+**A train another throttle holds** reads as taken and cannot be taken: the Take
+is dead, because `layout` would drop it. Beside it stands **Force release**,
+which publishes `take_wanted` with `null` — the same frame as a release, which
+frees the train whoever holds it.
+
+The release writes **one frame and no speed of its own**. `layout` writes the
+speed a release implies — `0.0` in `manual`, the grant's speed in `automatic`
+(SYSTEM.md, *Who drives*); a zero from here would be a second party deciding
+how fast the railroad drives it.
+
+**The lever is live only while the train has a move outstanding**: from the
+`tc49/layout/move` the dispatcher sends for it to the `block_occupied` of the
+block that move enters, which is the span `layout` applies a throttle's speed
+in. The lever is read off the move the bus carries and not worked out from the
+locks. Outside a move it is dead and at rest, which is the speed `layout` wrote
+when the move ended, and the view says the lever waits for the next grant. A
+move is a command and not a retained row, so a page opened mid-move sees the
+lever dead until the next one.
 
 **The lever is one signed number for the train.** `tc49/layout/throttle_wanted`
 carries `{train, speed}`, −1.0 through 0 to 1.0 as a fraction of that train's
@@ -120,7 +135,7 @@ What is on screen is what went on the bus: the lever publishes the value it is
 now showing, and the number beside it is that value.
 
 **Centre is stop and is one gesture.** A STOP beside the lever centres it and
-publishes `0`, because it is the control a person reaches for when something
+publishes `0`, live whether or not a move is outstanding, because it is the control a person reaches for when something
 is wrong and sliding back through every speed between is not that.
 
 **Turn it round.** A control publishing `tc49/schedule/reversal_wanted`,
@@ -145,8 +160,8 @@ which is most of the stock a railroad owns.
 They are **drawn and not yet live**. A function reaches a decoder through the
 device vocabulary, `tc49/layout/state/wanted/function/<addr>/<number>`, whose
 one writer is `layout` (BUS.md, *Device vocabulary*), and no gesture
-carrying a function press is declared — the two rows a throttle rides on are
-the mode and the speed
+carrying a function press is declared — the rows a throttle rides on are
+the take and the speed
 ([#296](https://github.com/rails49/control/issues/296),
 [#297](https://github.com/rails49/control/issues/297)). Drawing them is what
 says a train has them; the day the gesture is declared, this is the view it is
@@ -164,13 +179,12 @@ gesturing.
 
 ## What it is not
 
-**Not a mode of the system.** A manual train is dispatched like any other: it
+**Not a mode of the system.** A train a throttle holds is dispatched like any other: it
 holds its block, it is granted moves, and it moves only on a route the
 dispatcher allocated, with a person trusted to read the signal this view
-shows them. Neither the dispatcher nor the driver ever reads the mode
-(CONTEXT.md, **Automatic / manual**).
+shows them. The dispatcher never reads who holds a train (ADR-0079).
 
-**Not a hand-held throttle.** What such a thing needs is exactly the two
+**Not a hand-held throttle.** What such a thing needs is exactly the three
 gesture topics, which are contract and not this view's
 ([DEPLOY.md](../DEPLOY.md)). Consisting, decoder programming and a train that
 is not on the layout are all somewhere else.
@@ -179,9 +193,13 @@ is not on the layout are all somewhere else.
 
 `ui/src/ui/tc-throttle.ts`, a Lit component in the shape the other views take,
 with its styles beside it. It works nothing out: every train it offers, who
-drives each, the end each points at, the aspect there, the road ahead and the
-functions arrive as `Cab`s from `ui/src/model/throttle.ts`, which is a pure
-function over five apps' answers and holds no state of its own.
+holds each, whether it has a move outstanding, the end each points at, the
+aspect there, the road ahead and the functions arrive as `Cab`s from
+`ui/src/model/throttle.ts`, which is a pure function over the apps' answers
+and this page's throttle id, and holds no state of its own. The panel model
+reads `state/taken` and `tc49/layout/move` (`ui/src/model/panel.ts`); nothing
+outside `ui/src/model/trace.ts` names `mode_wanted` or `state/mode`, whose
+rows go in [#834](https://github.com/rails49/control/issues/834).
 
 **The session is the app's.** There is one socket per page, and the session
 that holds it is the one that joined the railroad the app has loaded
@@ -191,13 +209,16 @@ that holds it is the one that joined the railroad the app has loaded
 out where the model and the roster already are and handed down by the app, and
 this view's gestures go the same path the band's track-power presses take
 (ADR-0074): the view asks, the app carries, the session writes. Two sockets on
-one page would be two clients of one run, every frame applied twice.
+one page would be two clients of one run, every frame applied twice. The
+throttle id is the session's for the same reason, and so is the
+`throttle_alive` timer, which runs off `state/taken` whichever view is on
+screen.
 
 What is this view's own is what belongs to the person at it: the train they
 picked and where they have put the lever. Neither is on the bus — nothing
 publishes a throttle's position back — so the lever is what this view shows
 and what it last sent. It returns to rest when the train is picked afresh,
-when the train is given back by anybody, and when the run takes the train off
+when the train is given back by anybody, when its move ends, and when the run takes the train off
 the layout, which also lets go of the train entirely: there is nothing left
 for a lever to move.
 
@@ -210,13 +231,22 @@ the roster screen's and the translator's, never a view's.
 ## Tests
 
 Split the way the app's suites are split. `ui/test/cabs.test.ts` drives the
-model with no DOM — who drives a train, an unreadable mode leaving it where it
-was, the end it points at, the aspect there, the blocks ahead and their claims,
-and which trains are offered at all. `ui/test/throttle.test.ts` mounts the app
-in this view and drives the controls, which is the only place the questions
-this page is about can be asked: that taking a train writes one frame and not
-two, that the view waits for `state/mode` before it says a train is taken,
-that the number on screen is the number that went out, that centring publishes
-zero, that releasing writes `automatic` and takes the lever away, and that
-with the rails dead every press leaves nothing on the socket at all — checked
-by pressing them, not by trusting a disabled attribute.
+model with no DOM — which throttle holds a train, here or elsewhere, an
+unreadable entry leaving it held by nobody, the move outstanding from the
+`move` to its sensor, the end it points at, the aspect there, the blocks ahead
+and their claims, and which trains are offered at all.
+`ui/test/session.test.ts` checks the frames the session writes — the take and
+release under its id, the speed naming it — and the timing of
+`throttle_alive` on a fake clock: once a second from the `state/taken` row
+naming this throttle, never on the press, never for a train another throttle
+holds, and stopping when it holds nothing or the broker goes.
+`ui/test/throttle.test.ts` mounts the app in this view and drives the
+controls, which is the only place the questions this page is about can be
+asked: that taking a train writes one `take_wanted` and not two, that the view
+waits for `state/taken` before it says a train is taken, that a train another
+throttle holds cannot be taken and is force released with `null`, that the
+lever is dead until a move is granted and goes to rest when it ends, that the
+number on screen is the number that went out, that centring publishes zero,
+that releasing writes `null` and takes the lever away, and that with the rails
+dead every press leaves nothing on the socket at all — checked by pressing
+them, not by trusting a disabled attribute.
