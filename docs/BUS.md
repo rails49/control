@@ -652,9 +652,15 @@ payload is read defensively, and one that fails the read is dropped.
   then the end of the arrival block opposite the end the train came in
   through, so the train carries on the way it was going; where that end
   leads nowhere, the request is rejected `unreachable` at that time. Where
-  the request it follows ends by rejection or cancellation, it is cancelled
-  `revoked`
-  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+  the request it follows is cancelled underway and this one was chained
+  after it once the cancel was asked, it departs the same way from the block
+  the train stops in, or by the end the cancelled request departed by where
+  the train never left its origin. Where the request it follows ends any
+  other way, by rejection, by cancellation while it waited or underway
+  before this one was chained, or by a placement or a removal, it is
+  cancelled `revoked`
+  ([#836](https://github.com/rails49/control/issues/836),
+  [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
   An `after` that names no request of the same train the dispatcher has
   admitted or answered, or that comes with a `depart`, is rejected
   `malformed`; one naming a request that has already ended is settled at
@@ -678,8 +684,11 @@ payload is read defensively, and one that fails the read is dropped.
   the move it has outstanding ends at its sensor, and no further move is
   granted
   ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
-  The requests of the same train chained after it are cancelled with it,
-  each with its own `request_cancelled`, reason `revoked`. An id the
+  The requests of the same train chained after it before the cancel was
+  asked are cancelled with it, each with its own `request_cancelled`, reason
+  `revoked`. One chained after it once the cancel was asked departs from the
+  block the train stops in, as after an arrival
+  ([#836](https://github.com/rails49/control/issues/836)). An id the
   dispatcher does not hold is dropped like any other gesture it cannot act on
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
 - `tc49/dispatch/reorder_wanted` — browser-writable — `id`: the request to

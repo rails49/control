@@ -182,9 +182,14 @@ one arrives the request departs by the end of the arrival block opposite the
 end the train came in through, so the train carries on the way it was going;
 where that end leads nowhere, as at a terminal block, it is rejected
 `unreachable`. Where the request it follows arrived without moving, the
-request departs by the end that one would have. Where it is rejected or
-cancelled instead, the request is cancelled `revoked`, and so is whatever
-follows it in turn.
+request departs by the end that one would have. Where it is cancelled
+underway and the request was chained after it once the cancel was asked, the
+request departs the same way from the block the train stops in, or, where the
+train never left its origin, by the end the cancelled request departed by
+([#836](https://github.com/rails49/control/issues/836)). Where it ends any
+other way (rejected, cancelled while it waited or before the request was
+chained, or ended by a placement or a removal), the request is cancelled
+`revoked`, and so is whatever follows it in turn.
 
 ### Route selection
 
