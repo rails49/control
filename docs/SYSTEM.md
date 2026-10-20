@@ -1087,7 +1087,8 @@ writer is `layout` (rule 1), while a throttle is any number of writers, two
 tabs being two of them. `layout` comes up `manual` with no train taken, and
 publishes `state/driving` and `state/taken`, which is where a view reads who
 is driving what. A second take of a held train is dropped, and a throttle not
-heard for 5 s has its trains released.
+heard for 5 s by default, set per installation
+([DEPLOY.md](DEPLOY.md#a-silent-throttle)), has its trains released.
 
 Within a granted move, a train no throttle holds is driven on its grant's
 speed in `automatic`, and it stands at its signal in `manual`. A train a

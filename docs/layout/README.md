@@ -79,6 +79,12 @@ railroad is loaded or created in the settings dialog, and a recorded railroad
 the store no longer has is refused as any starting point is, the record left
 for the next load to overwrite.
 
+**How long a throttle may go silent is not a flag.** A container is configured
+by its environment, so it is `TC49_LAYOUT_THROTTLE_SILENCE` on the layout's
+service, read once at start: unset or empty is 5 s, a number of seconds
+greater than 1 is that, and anything else stops the app before it looks for a
+broker, the log naming the variable ([DEPLOY.md](../DEPLOY.md#a-silent-throttle)).
+
 The broker before the documents, because a railroad the store has not got is
 one this app **stands** on: up, naming no railroad (`""`) on
 `tc49/layout/state/railroad` and publishing nothing else, until a person picks
@@ -334,8 +340,10 @@ the train whoever holds it, which is also a panel's force release; a frame with
 no `throttle` at all is dropped. This app states who holds which on
 `tc49/layout/state/taken`, empty at startup. A throttle publishes
 `tc49/layout/throttle_alive` once a second while it holds a train, and this app
-releases every train of a throttle it has not heard for 5 s
-(`THROTTLE_SILENCE_S`), checked each time the loop calls `settle()`.
+releases every train of a throttle it has not heard for 5 s by default
+(`THROTTLE_SILENCE_S`), set per installation
+([DEPLOY.md](../DEPLOY.md#a-silent-throttle)) and passed to `LayoutInterface`
+as `throttle_silence_s`, checked each time the loop calls `settle()`.
 
 **Taking a train writes nothing.** It keeps whatever speed it had and the
 person's first movement of the lever is what changes it. Writing zero on
