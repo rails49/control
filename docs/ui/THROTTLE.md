@@ -81,12 +81,15 @@ are released once its 5 s run out.
 **What `layout` does with them** (docs/layout/README.md, *Who drives*). The
 railroad is in one driving mode, `manual` or `automatic`, stated on
 `tc49/layout/state/driving`. A take of a train another throttle holds is
-dropped. The lever is applied only from the throttle holding the train and
-only while the train has a granted move outstanding: the move ending at its
-sensor writes `0.0`, and the lever does nothing until the next grant. A train
-no throttle holds stands at its signal in `manual` and is driven on its grant
-in `automatic`, so a release writes `0.0` in `manual` and the grant's speed in
-`automatic`.
+dropped. The lever is applied from the throttle holding the train at any time,
+granted move or not, while the rails are live: the move ending at its sensor
+writes `0.0`, and the next lever frame drives the train on. A frame reversing a
+running train writes `0.0` until the throttle sends `0` (ADR-0084). A train no
+throttle holds stands at its signal in `manual` and is driven on its grant in
+`automatic`. So a release writes `0.0` in `manual`; in `automatic` mid-move it
+writes nothing and the train keeps the person's speed until the move ends, or
+the grant's speed where the train stands (ADR-0081, ADR-0083); in `automatic`
+with no move outstanding, `0.0`.
 
 **Taking a train** publishes one `take_wanted` naming the train and this
 throttle's id. The gesture names who should hold the train rather than asking
@@ -107,10 +110,11 @@ is dead, because `layout` would drop it. Beside it stands **Force release**,
 which publishes `take_wanted` with `null` — the same frame as a release, which
 frees the train whoever holds it.
 
-The release writes **one frame and no speed of its own**. `layout` writes the
-speed a release implies — `0.0` in `manual`, the grant's speed in `automatic`
-(SYSTEM.md, *Who drives*); a zero from here would be a second party deciding
-how fast the railroad drives it.
+The release writes **one frame and no speed of its own**. `layout` decides what
+a release is worth on the rails — `0.0` in `manual`; in `automatic` mid-move,
+the speed the person left, or the grant's where the train stands (SYSTEM.md,
+*Who drives*); a zero from here would be a second party deciding how fast the
+railroad drives it.
 
 **The lever is live only while the train has a move outstanding**: from the
 grant to the `block_occupied` of the block that move enters, which is the span

@@ -308,12 +308,13 @@ throttle holds a train
 ([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 Neither changes the route: every train is dispatched the same, holds its block,
 is granted moves and gets its points thrown and its near end checked. What they
-decide is who writes the wheels within a granted move:
+decide is who writes the wheels
+([ADR-0081](../adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)):
 
 | | no throttle holds the train | a throttle holds it |
 | --- | --- | --- |
-| `automatic` | this app, at the grant's speed | the throttle |
-| `manual` | nobody: the train stands at its signal | the throttle |
+| `automatic` | this app, at the grant's speed, within a granted move | the throttle, at any time |
+| `manual` | nobody: the train stands at its signal | the throttle, at any time |
 
 **The mode.** `tc49/layout/driving_wanted` switches it, at any power, and this
 app states it on `tc49/layout/state/driving`. It comes up `manual`, and a value
@@ -341,18 +342,29 @@ person's first movement of the lever is what changes it. Writing zero on
 take-over would stop a running train the instant somebody selected it.
 
 **Releasing it writes what the mode makes of it.** In `manual`, `0.0`. In
-`automatic`, the speed its outstanding grant implies, and `0.0` where there is
-none: no move outstanding, one this app could not sign, or dead rails, over
-which a grant cannot be acted on and a running speed left on a row would start
-the train when the power came back. A train no throttle held writes nothing.
+`automatic` with a move outstanding and the rails live (`on` or `draining`),
+nothing: the train keeps the speed the person left until its move ends at the
+sensor, so a train run slowly does not lurch. The crossing becomes this app's,
+so the arrival writes `0.0`, a switch to `manual` lets the train finish its
+move, and an `on` after a cut gives it its grant's speed. A train whose last
+speed written is `0.0` on every car, or that has none written, is given its
+grant's speed instead
+([ADR-0083](../adr/0083-a-train-released-standing-mid-move-is-given-its-grants-speed.md)):
+it would otherwise stand with its route held and never reach its sensor. The
+zeros written at startup and at a cut count. In `automatic` with no move
+outstanding, or over dead rails, `0.0`, so no speed waits on a row for the
+power to come back. A train no throttle held writes nothing.
 
-**A throttle drives only within a granted move.** A move this app is not
+**A throttle drives at any time, granted move or not.** A person backs a train
+up a few centimetres at a platform with no request made. A move this app is not
 driving still throws its points, meets the near-end check and is recorded as
 crossing, and nothing goes out on the grant. The facing refusal has nothing to
 refuse there, since no sign is composed. When the move ends at its sensor this
 app writes `0.0` whether it or a throttle was driving, and a train nobody drove
-is told nothing. From there until the next grant the lever is dropped, so a
-person cannot drive a train out of its block past the dispatcher's locks.
+is told nothing; the next lever frame drives the train on. Leaving the block is
+the person's responsibility: nothing stops a held train at its block's ends,
+and one that leaves is a reading no move explains, which drains the railroad
+(ADR-0048).
 
 **The lever** is `tc49/layout/throttle_wanted`, a speed in −1.0 … 1.0 signed
 for the train — positive nose-first — and the `throttle` turning it. It reaches
@@ -366,15 +378,26 @@ many of them there are.
 These drop a lever, and none of them is answered:
 
 - **No `throttle`, or one that does not hold the train.**
-- **No move outstanding**: before the first grant, or after the arrival.
-- **Dead rails**, which refuse a person's hand as they refuse a grant
-  (ADR-0041). Nothing is written rather than a zero: the row holds whatever it
-  last held.
+- **Dead rails**, `state/power` reading `off`, which refuse a person's hand as
+  they refuse a grant (ADR-0041). Nothing is written rather than a zero: the
+  row holds whatever it last held. A lever is applied while `on` and while
+  `draining`.
+- **A train that stands nowhere**: never placed, or taken off by
+  `train_removed`.
 - **A train it has no facing for** — none published, or one it cannot spell.
   Which **block** that facing names is not asked, where a `move` asks it: the
   sign here is the lever's own, a facing lags the train it is about, and a
   lever that went dead for as long as the lag lasted would be a person pulling
   back to stop and not being heard.
+
+**A flip at speed writes `0.0`**
+([ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)). A
+frame whose sign is opposite to the last nonzero speed written for the train —
+the lever's or a grant's, signed for the train before it is composed onto the
+cars — writes `0.0` to each addressed car instead, and so does every later
+frame of that sign until the throttle sends `0`. How hard a decoder reverses
+depends on settings the roster does not record, and behind a long train cars
+can leave the rails.
 
 ## Alignment
 

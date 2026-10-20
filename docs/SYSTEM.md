@@ -1089,13 +1089,21 @@ publishes `state/driving` and `state/taken`, which is where a view reads who
 is driving what. A second take of a held train is dropped, and a throttle not
 heard for 5 s has its trains released.
 
-Within a granted move, a train a throttle holds is that throttle's to drive in
-either mode, a train no throttle holds is driven on its grant's speed in
-`automatic`, and it stands at its signal in `manual`. A lever is applied only
-from the throttle holding the train and only while the train has a move
-outstanding: the move ending at its sensor writes `0.0`, and the lever is
-dropped until the next grant. Released, a train is given its grant's speed in
-`automatic` and `0.0` in `manual`. Switching to `manual`, a train `layout` is
+Within a granted move, a train no throttle holds is driven on its grant's
+speed in `automatic`, and it stands at its signal in `manual`. A train a
+throttle holds is that throttle's to drive in either mode and at any time,
+granted move or not
+([ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)):
+a lever is applied from the throttle holding the train while `state/power`
+reads `on` or `draining`, the move ending at its sensor writes `0.0`, and the
+next lever frame drives the train on. A lever reversing a running train writes
+`0.0` until the throttle sends `0`
+([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)). Released
+in `manual`, a train is written `0.0`. Released in `automatic` mid-move, it
+keeps the speed the person left until its move ends, or is given its grant's
+speed if it stands
+([ADR-0083](adr/0083-a-train-released-standing-mid-move-is-given-its-grants-speed.md));
+with no move outstanding, or over dead rails, it is written `0.0`. Switching to `manual`, a train `layout` is
 driving finishes its move and then stands; switching to `automatic`, each
 train with a move outstanding and no throttle is given its grant's speed.
 

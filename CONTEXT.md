@@ -241,8 +241,10 @@ _Avoid_: hand control, taken over, mode (alone), auto
 **Throttle**:
 The control a person drives a train with: a view of the UI whose commands ride
 the bus as two gestures, one taking a train and one turning its speed. At most
-one throttle holds a train. Released, the train stops in manual driving mode
-and is driven on in automatic ([THROTTLE.md](docs/ui/THROTTLE.md)).
+one throttle holds a train, and drives it at any time, granted move or not.
+Released, the train stops in manual driving mode; in automatic it keeps its
+speed until its move ends, and is driven on if it stands
+([THROTTLE.md](docs/ui/THROTTLE.md)).
 _Avoid_: cab, controller, regulator, traction (what a decoder does with a
 speed), driver (an app)
 
