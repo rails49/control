@@ -197,6 +197,13 @@ def energised(bus: InProcessBus) -> None:
     bus.drain()
 
 
+def drains(bus: InProcessBus) -> None:
+    """A person asking for a drain: the supply stays on while each moving
+    train stops (ADR-0078)."""
+    bus.publish(POWER_WANTED, {"power": "draining"})
+    bus.drain()
+
+
 def moves(bus: InProcessBus, moving: bool) -> None:
     """The dispatcher stating whether any train is moving — the row a drain
     ends on (ADR-0078)."""
