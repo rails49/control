@@ -32,6 +32,7 @@ import {
   unbrokered,
   written as everything,
 } from "./support/session.js";
+import { FakeLock } from "./support/wake.js";
 
 beforeEach(brokering);
 
@@ -494,5 +495,82 @@ describe("with the rails dead", () => {
     expect(throttling(shell).renderRoot.textContent).toContain(
       "no broker answering — is the bus running?",
     );
+  });
+});
+
+describe("the screen kept awake", () => {
+  /** A `navigator.wakeLock` for the app to find, which happy-dom has not:
+   *  set before the app mounts, since it reads it then. */
+  let lock: FakeLock;
+
+  function woken(): void {
+    lock = new FakeLock();
+    Object.defineProperty(navigator, "wakeLock", { value: lock, configurable: true });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "wakeLock");
+  });
+
+  it("is asked for when state/taken names this throttle", async () => {
+    woken();
+    const shell = await driving();
+    await taken(shell);
+    expect(lock.requests).toBe(1);
+    expect(lock.held).toBe(1);
+  });
+
+  /** A Force release from another throttle hands the train to it. */
+  it("is let go when state/taken names another throttle for the train", async () => {
+    woken();
+    const shell = await driving();
+    await taken(shell);
+    expect(lock.held).toBe(1);
+
+    await said(shell, TAKEN, { taken: { goods: "another-page" } });
+
+    expect(lock.releases).toBe(1);
+    expect(lock.held).toBe(0);
+  });
+
+  /** The session has no cabs with no broker, so nothing is held. */
+  it("is let go when the broker closes", async () => {
+    woken();
+    const shell = await driving();
+    await taken(shell);
+    expect(lock.held).toBe(1);
+
+    Broker.last!.closes();
+    await settled(shell);
+
+    expect(lock.held).toBe(0);
+  });
+
+  /** Take, drive, give back: what went out on the bus. */
+  async function drove(): Promise<unknown[]> {
+    const shell = await driving();
+    await taken(shell);
+    await moved(shell, 0.5);
+    take(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: {} });
+    return written().map((one) => {
+      const frame = one as { topic: string; payload: Record<string, unknown> };
+      return "throttle" in frame.payload
+        ? { ...frame, payload: { ...frame.payload, throttle: frame.payload.throttle && "mine" } }
+        : frame;
+    });
+  }
+
+  /** A browser with no wake lock changes nothing on the bus. */
+  it("is not needed to drive", async () => {
+    woken();
+    const awake = await drove();
+    unbrokered();
+    brokering();
+    Reflect.deleteProperty(navigator, "wakeLock");
+
+    expect(await drove()).toEqual(awake);
+    expect(awake.length).toBeGreaterThan(0);
   });
 });

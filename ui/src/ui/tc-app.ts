@@ -71,6 +71,7 @@ import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
 import { Railroad } from "../model/railroad.js";
 import { brokerAt, connecting, QUIET, Session, type RunStatus } from "../model/session.js";
+import { Wake } from "./wake.js";
 import type { Cab } from "../model/throttle.js";
 import type { DrivingMode } from "../model/trace.js";
 import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
@@ -180,6 +181,10 @@ export class TcApp extends LitElement {
   private sessionStart = 0;
   private sessionTimer: ReturnType<typeof setInterval> | undefined;
 
+  /** The screen kept awake while this page's throttle holds a train, on the
+   *  condition the session's `throttle_alive` runs on (`ui/wake.ts`, #854). */
+  private wake: Wake | null = null;
+
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("keydown", this.key);
@@ -189,6 +194,7 @@ export class TcApp extends LitElement {
       notify: () => this.told(),
       named: (railroad) => this.loaded(railroad),
     });
+    this.wake = new Wake(navigator.wakeLock as WakeLock | undefined, document);
     void this.filing.load();
     // Asked for the band's note and the File menu's mark rather than for the
     // dialog: a copy that has been failing for a day, and a railroad that has
@@ -208,6 +214,8 @@ export class TcApp extends LitElement {
     this.sessionTimer = undefined;
     this.session?.end();
     this.session = null;
+    this.wake?.end();
+    this.wake = null;
     super.disconnectedCallback();
   }
 
@@ -266,6 +274,7 @@ export class TcApp extends LitElement {
       this.sessionTimer = undefined;
       this.sessionS = null;
     }
+    this.wake?.hold(this.cabs.some((cab) => cab.taken === "here"));
   }
 
   override render() {
