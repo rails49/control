@@ -442,8 +442,14 @@ describe("the driving control", () => {
     });
   });
 
-  /** A press against a mode not heard could ask for the one standing. */
+  /** A press against a mode not heard could ask for the one standing. It
+   *  shows the person meanwhile, as the word showed MANUAL (#873). */
   it("is dead until layout has said", () => {
-    expect(driving(null).dead).toBe(true);
+    expect(driving(null)).toEqual({
+      icon: "person-fill",
+      label: "Driving mode manual: press for automatic",
+      next: "automatic",
+      dead: true,
+    });
   });
 });
