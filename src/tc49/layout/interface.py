@@ -143,10 +143,11 @@ app in `automatic` for a train no throttle holds; and nobody for a train no
 throttle holds in `manual`, which stands at its signal. The move ending at its
 sensor writes `0.0` whoever drives, and a lever reversing a running train
 writes `0.0` until its throttle sends `0` (ADR-0084). A throttle this app has
-not heard for `THROTTLE_SILENCE_S` lets go of its trains. A train let go of
-stops in `manual`; in `automatic` mid-move it keeps the speed the person left
-until its move ends, or is given its grant's speed if it stands (ADR-0083),
-and with no move outstanding it is written `0.0`.
+not heard for `THROTTLE_SILENCE_S` by default, an installation setting its
+own (docs/DEPLOY.md), lets go of its trains. A train let go of stops in
+`manual`; in `automatic` mid-move it keeps the speed the person left until its
+move ends, or is given its grant's speed if it stands (ADR-0083), and with no
+move outstanding it is written `0.0`.
 
 What is **not** here yet: the function topic beside the traction write, which
 is nobody's until a gesture carries a function press. The simulator is
@@ -244,7 +245,9 @@ a railroad has, which is why it is injected and not a constant anyone reads
 
 THROTTLE_SILENCE_S = 5.0
 """How long a throttle holding a train may go unheard before this app lets go
-of its trains, in seconds of the run clock. A throttle says `throttle_alive`
+of its trains, in seconds of the run clock, by default: an installation sets
+its own (`TC49_LAYOUT_THROTTLE_SILENCE`, docs/DEPLOY.md), and the default of
+the constructor argument that carries it. A throttle says `throttle_alive`
 once a second, so this is five of them missed: a phone gone to sleep, a page
 closed, a network gone (ADR-0079)."""
 
@@ -336,6 +339,7 @@ class LayoutInterface:
         roster: Roster,
         clock: Clock,
         settling_s: float = SETTLING_S,
+        throttle_silence_s: float = THROTTLE_SILENCE_S,
         position: dict[str, str] | None = None,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
@@ -360,6 +364,12 @@ class LayoutInterface:
         about the detectors a railroad has (ADR-0030), and so that a test can
         drive it rather than sleep through it.
 
+        `throttle_silence_s`: how long a throttle holding a train may go
+        unheard before this app lets go of its trains, `THROTTLE_SILENCE_S`
+        by default. Injected because how soon a phone sleeps is a fact about
+        an installation and not about this app, which `__main__` reads off
+        the environment (docs/DEPLOY.md).
+
         `position`: where each train stands as this app comes up, train to
         block. None from a process starting, which knows of no train until
         the dispatcher places one; the last build's, less any train whose
@@ -371,6 +381,7 @@ class LayoutInterface:
         self._roster = roster
         self._clock = clock
         self._settling_s = settling_s
+        self._throttle_silence_s = throttle_silence_s
         # Where each train stands, which is the whole of the near-end check,
         # and which way each one points, which is half of the traction write's
         # sign. The one is this app's own record and the other is read off the
@@ -518,7 +529,7 @@ class LayoutInterface:
         nobody was told about.
 
         The same turn lets go of the trains of every throttle silent for
-        `THROTTLE_SILENCE_S`, which is the other thing here measured against
+        `throttle_silence_s`, which is the other thing here measured against
         the clock and for the same reason: a throttle that has gone says
         nothing more to be noticed on (ADR-0079).
         """
@@ -912,7 +923,7 @@ class LayoutInterface:
 
     def _on_throttle_alive(self, topic: str, payload: Payload) -> None:
         """A throttle saying it is still there, once a second while it holds a
-        train. What it buys is `THROTTLE_SILENCE_S` more before this app lets
+        train. What it buys is `throttle_silence_s` more before this app lets
         go of its trains."""
         throttle = alive_throttle(payload)
         if throttle is None or throttle not in self._taken.values():
@@ -921,7 +932,7 @@ class LayoutInterface:
 
     def _let_go_of_silent(self) -> None:
         """Release every train of each throttle not heard for
-        `THROTTLE_SILENCE_S`, as `take_wanted` with `null` would: a phone gone
+        `throttle_silence_s`, as `take_wanted` with `null` would: a phone gone
         to sleep does not leave its train running at its last speed
         (ADR-0079)."""
         holding = set(self._taken.values())
@@ -931,7 +942,7 @@ class LayoutInterface:
         silent = {
             throttle
             for throttle, at in self._heard.items()
-            if self._clock.now - at >= THROTTLE_SILENCE_S
+            if self._clock.now - at >= self._throttle_silence_s
         }
         for train, throttle in list(self._taken.items()):
             if throttle in silent:
