@@ -213,6 +213,19 @@ class Train:
         return tuple(by_name.values())
 
     @property
+    def locomotive(self) -> str | None:
+        """The model of the train's first locomotive, head first, else `None`
+        — which a train of wagons only, or one stating its length and naming
+        no cars, is. A car's kind is its own where it states one, so it is
+        `Car.kind` that is read, not the model's. What the throttle draws the
+        train as (ui/THROTTLE.md); a model name is not a decoder detail.
+        """
+        for coupled in self.cars:
+            if coupled.car.kind == LOCOMOTIVE:
+                return coupled.car.model
+        return None
+
+    @property
     def camera(self) -> str | None:
         """Where the train's camera answers: the first car, head first, that
         carries one, else `None` — which a train stating its length, naming

@@ -353,6 +353,35 @@ def test_a_trains_kind_ignores_the_locomotives() -> None:
     assert stock.trains["light_1"].kind == "light engine"
 
 
+def test_a_trains_locomotive_is_its_first_locomotives_model_head_first() -> None:
+    """What the throttle draws a train as (#852). A car's kind is its own
+    where it states one, so a car saying `locomotive` on a model of another
+    kind leads the train it is in."""
+    stock = roster(
+        {
+            "re460_1": {"model": "sbb-re460"},
+            "ic_1": {"model": "sbb-ic2000"},
+            "ic_2": {"model": "sbb-ic2000"},
+            "hbis_1": {"model": "hbis"},
+            "railcar_1": {"model": "hbis", "kind": "locomotive"},
+        },
+        {
+            "ic_721": {
+                "cars": [{"car": "ic_1"}, {"car": "re460_1"}, {"car": "railcar_1"}]
+            },
+            "push_1": {
+                "cars": [{"car": "ic_2"}, {"car": "railcar_1"}, {"car": "re460_1"}]
+            },
+            "wagons_1": {"cars": [{"car": "ic_1"}, {"car": "hbis_1"}]},
+            "freight_1": {"length": 1100},
+        },
+    )
+    assert stock.trains["ic_721"].locomotive == "sbb-re460"
+    assert stock.trains["push_1"].locomotive == "hbis"
+    assert stock.trains["wagons_1"].locomotive is None
+    assert stock.trains["freight_1"].locomotive is None
+
+
 def test_a_trains_functions_are_its_cars_by_name_and_each_name_once() -> None:
     """What a person driving the train can switch, in the train's frame: a set
     with a locomotive at each end has one headlight to press, and which car it
