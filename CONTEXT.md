@@ -163,7 +163,8 @@ _Avoid_: vehicle, item, wagon, rolling stock (the mass noun is stock)
 
 **Camera car**:
 A car that carries a camera. A throttle holding a train the camera car is in
-shows the camera's live picture.
+shows the camera's live picture. The roster says where the camera answers
+([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: camera train, video car
 
 **Catalogue**:

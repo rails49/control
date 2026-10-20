@@ -228,6 +228,7 @@ cars:
   re460_2: { model: sbb-re460, addr: "461" }
   ic_1:    { model: sbb-ic2000 }
   ic_2:    { model: sbb-ic2000, length: 285 }   # an override
+  cam_1:   { model: sbb-ic2000, camera: "192.168.178.58" }
 
 trains:
   ic_721:
@@ -260,6 +261,18 @@ trains:
   Two cars on one railroad sharing one are refused: both answer the same
   packet and no run can tell them apart. Written as a string, so `460` and
   `"460"` cannot be one address spelled two ways.
+- **`camera` is where the camera a car carries answers on the LAN**: its host
+  name or IPv4 address, with no scheme, port, path or login, and absent where
+  the car carries none — what makes it a **camera car**
+  ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+  A string, not coerced, as `addr` is; valid means letters, digits, dots and
+  hyphens only, starting and ending with a letter or digit, and anything else
+  is refused with the car named. Two cars naming one camera are refused,
+  naming both, as two cars on one address are. It is the item's, never the
+  product's: `camera` on a model or on a train's entry is an unknown key and
+  is ignored, so an entry naming a model carries no camera. A train's camera
+  is its first camera car's, head first, and `GET /rosters/<name>/trains`
+  says only whether it has one — never where it answers.
 - **`cars:` holds identified stock**, and a train's entry names **either a car
   or a model** ([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
   An item earns a name where there is something to say about it — an address,
