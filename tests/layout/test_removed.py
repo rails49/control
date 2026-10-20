@@ -13,7 +13,6 @@ detectors see, which is no longer this train.
 from tc49.lib.bus import InProcessBus, Payload
 from tests.layout.railroad import (
     DEVICE_TRACK,
-    REMOVED,
     align,
     build,
     commanded,
@@ -21,6 +20,7 @@ from tests.layout.railroad import (
     faces,
     move,
     reads,
+    removed,
     settle,
     speeds,
     stand,
@@ -38,12 +38,6 @@ def told(bus: InProcessBus) -> list[tuple[str, Payload]]:
     bus.drain()
     written.clear()
     return written
-
-
-def removed(bus: InProcessBus, train: str) -> None:
-    """A hand lifted the train off and the dispatcher accepted it."""
-    bus.publish(REMOVED, {"train": train})
-    bus.drain()
 
 
 def test_a_standing_train_with_a_speed_written_is_told_to_stand() -> None:
