@@ -13,6 +13,10 @@ settling time is one of them — nothing outside this process has an opinion
 about how often it takes what the broker's network thread left waiting, and
 what a settling time is worth is a fact about the detectors a railroad has,
 which is `LayoutInterface`'s argument and the suite's to drive (ADR-0030).
+How long a throttle may go silent before its trains are let go of is not a
+flag either: a container is configured by its environment, so it is
+`TC49_LAYOUT_THROTTLE_SILENCE` on the layout's service (docs/DEPLOY.md), read
+once here, and a bad one stops the app before it looks for a broker.
 
 The startup order is `lib/startup.py`'s, with the subscription to
 `tc49/layout/railroad_wanted` in it. **The record first**: the store says which
@@ -57,13 +61,20 @@ wall time in the binding (ADR-0059, decision 1).
 """
 
 import contextlib
+import math
+import os
 import signal
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
-from tc49.layout.interface import ALIVE_CONFIRMED, WANTED_TRACTION, LayoutInterface
+from tc49.layout.interface import (
+    ALIVE_CONFIRMED,
+    THROTTLE_SILENCE_S,
+    WANTED_TRACTION,
+    LayoutInterface,
+)
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
@@ -117,6 +128,43 @@ the app is built on it. A filter and not a topic: a row exists for each
 address a previous process wrote to, and this app holds no list of which."""
 
 
+SILENCE_ENV = "TC49_LAYOUT_THROTTLE_SILENCE"
+"""The environment variable on the layout's service that overrides how long a
+throttle holding a train may go unheard, in seconds (docs/DEPLOY.md)."""
+
+SILENCE_FLOOR_S = 1.0
+"""What a silence must be longer than. A throttle says `throttle_alive` once a
+second, so a silence of a second or less lets go of a train between two of
+them from a throttle that is still there."""
+
+
+def silence(environ: Mapping[str, str]) -> float:
+    """`THROTTLE_SILENCE_S`, or whatever the deployment's environment says.
+
+    Unset, or empty or blank, is no value at all and leaves the default, so
+    that compose passing an unset variable through as `""` means the same
+    thing as not passing it. A number greater than `SILENCE_FLOOR_S` is that
+    many seconds. Anything else raises `ValueError` naming the variable: the
+    app stops at start rather than letting go of trains on a silence nobody
+    configured, and the person reading why knows which line of the env file
+    to fix.
+    """
+    said = environ.get(SILENCE_ENV, "").strip()
+    if not said:
+        return THROTTLE_SILENCE_S
+    try:
+        seconds = float(said)
+    except ValueError:
+        seconds = math.nan
+    # Written so that `nan`, which compares false with everything, fails.
+    if not seconds > SILENCE_FLOOR_S:
+        raise ValueError(
+            f"{SILENCE_ENV} is {said!r}, not a number of seconds"
+            f" greater than {SILENCE_FLOOR_S}"
+        )
+    return seconds
+
+
 def to_stderr(line: str) -> None:
     """The log: what is being waited for, and what came up. `lib` says its own
     piece under its own prefix (`documents:`, `mqtt:`)."""
@@ -130,6 +178,7 @@ def serve(
     stop: threading.Event,
     period_s: float = PERIOD_S,
     log: Callable[[str], None] = to_stderr,
+    throttle_silence_s: float = THROTTLE_SILENCE_S,
 ) -> None:
     """The app: its documents, its rows, and its loop.
 
@@ -185,7 +234,14 @@ def serve(
         _retained(bus, stop)
         documents.put_loaded(loaded.name)
         clock = Clock()
-        app = LayoutInterface(bus, layout, roster, clock, position=position)
+        app = LayoutInterface(
+            bus,
+            layout,
+            roster,
+            clock,
+            throttle_silence_s=throttle_silence_s,
+            position=position,
+        )
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         started = time.monotonic()
@@ -257,15 +313,26 @@ def main() -> None:
         host, port = address(args.broker)
     except ValueError as refused:
         parser.error(str(refused))
+    try:
+        quiet_s = silence(os.environ)
+    except ValueError as refused:
+        parser.error(str(refused))
     # A signal is what ends this app, and SIGTERM is the one a container is
     # stopped with: given SIGINT's own handler it raises where the process
     # stands, so a wait for a store that never comes up ends on it too.
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     to_stderr(f"broker {host}:{port}, store {args.store}")
+    to_stderr(f"a throttle silent for {quiet_s}s lets go of its trains")
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, Documents(args.store), NO_RAILROAD, threading.Event())
+            serve(
+                bus,
+                Documents(args.store),
+                NO_RAILROAD,
+                threading.Event(),
+                throttle_silence_s=quiet_s,
+            )
     finally:
         bus.close()
 

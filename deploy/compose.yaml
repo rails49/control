@@ -280,10 +280,16 @@ services:
   # what the hardware is asked to do. Only the box wired to steel runs it, so
   # it is alone in the `steel` profile rather than among the software every
   # box runs.
+  #
+  # How long a throttle may go silent before its trains are let go of comes
+  # from the env file, passed through by name; left unset it arrives empty,
+  # which `layout` reads as its default (5 s).
   layout:
     build: *app
     profiles: [steel]
     restart: unless-stopped
+    environment:
+      TC49_LAYOUT_THROTTLE_SILENCE: "${TC49_LAYOUT_THROTTLE_SILENCE:-}"
     command:
       ["python", "-m", "tc49.layout",
        "--broker", "broker:1883",

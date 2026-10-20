@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from tc49.layout.__main__ import serve
+from tc49.layout.__main__ import SILENCE_ENV, main, serve, silence
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     BLOCK_OCCUPIED,
@@ -477,3 +477,34 @@ def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
     assert built[1].position == {"freight_1": "yard_w"}
     hand.close()
     witness.close()
+
+
+@pytest.mark.parametrize("environ", [{}, {SILENCE_ENV: ""}, {SILENCE_ENV: "  "}])
+def test_no_silence_set_is_five_seconds(environ: dict[str, str]) -> None:
+    """Compose passes an unset variable through as `""`, which means the same
+    as not passing it."""
+    assert silence(environ) == 5.0
+
+
+def test_a_silence_set_is_that_many_seconds() -> None:
+    assert silence({SILENCE_ENV: "8"}) == 8.0
+
+
+@pytest.mark.parametrize("said", ["soon", "1", "-3", "nan"])
+def test_a_bad_silence_stops_the_app_at_start_naming_the_variable(
+    said: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A silence the deployment got wrong is said once, at start, and the app
+    exits rather than looking for a broker: a second or less would release a
+    train between two of its throttle's `throttle_alive`, and a container in a
+    restart loop whose log names the variable is a line of the env file to
+    fix."""
+    monkeypatch.setenv(SILENCE_ENV, said)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["tc49.layout", "--broker", "localhost:1", "--store", "http://localhost:1"],
+    )
+    with pytest.raises(SystemExit) as stopped:
+        main()
+    assert stopped.value.code != 0
+    assert SILENCE_ENV in capsys.readouterr().err
