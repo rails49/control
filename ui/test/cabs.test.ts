@@ -197,6 +197,15 @@ describe("what the train faces", () => {
     expect(drive(model)[0]).toMatchObject({ aspect: "caution" });
   });
 
+  /** Run tail first, the train leaves by the block's other end, and reads
+   *  the signal there: the view shows whichever the reverser points at. */
+  it("carries the aspect at the block's other end as well", () => {
+    const model = panel();
+    standing(model);
+    feed(model, { event: "aspects", aspects: { "a.B": "caution", "a.A": "clear" } });
+    expect(drive(model)[0]).toMatchObject({ aspect: "caution", tailAspect: "clear" });
+  });
+
   /** An end that leads nowhere carries no signal and the dispatcher names
    *  none, so there is nothing to read rather than a dark lamp. */
   it("shows no aspect where none has been named", () => {
@@ -212,7 +221,7 @@ describe("what the train faces", () => {
       { event: "lock_granted", train: "t1", resources: ["a"] },
       { event: "allocation", trains: { t1: "a" }, locks: { a: "t1" }, requests: [] },
     );
-    expect(drive(model)[0]).toMatchObject({ nose: null, aspect: null });
+    expect(drive(model)[0]).toMatchObject({ nose: null, aspect: null, tailAspect: null });
   });
 });
 
@@ -327,6 +336,27 @@ describe("what a person can switch", () => {
     standing(model);
     expect(drive(model, { t1: { length: 400 } })[0]!.functions).toEqual([]);
     expect(drive(model)[0]!.functions).toEqual([]);
+  });
+});
+
+/** What the throttle draws the train as: the model of its first locomotive,
+ *  from the roster route (#866). */
+describe("the train's picture", () => {
+  it("is the trains route's locomotive", () => {
+    const model = panel();
+    standing(model);
+    const stock = { t1: { length: 400, locomotive: "BR 218" } };
+    expect(drive(model, stock)[0]!.locomotive).toBe("BR 218");
+  });
+
+  /** An older store leaves the field out, and a train the picture has and
+   *  the roster does not has no roster entry at all. */
+  it("is null where the field is absent or null, or the roster lacks the train", () => {
+    const model = panel();
+    standing(model);
+    expect(drive(model, { t1: { length: 400 } })[0]!.locomotive).toBeNull();
+    expect(drive(model, { t1: { length: 400, locomotive: null } })[0]!.locomotive).toBeNull();
+    expect(drive(model)[0]!.locomotive).toBeNull();
   });
 });
 

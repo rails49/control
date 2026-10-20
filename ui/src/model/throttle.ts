@@ -15,7 +15,7 @@
  */
 
 import type { Aspect } from "../render/artwork.js";
-import type { Ahead, EndRef, Placed } from "./panel.js";
+import { blockOf, endOf, type Ahead, type EndRef, type Placed } from "./panel.js";
 import type { Fn, TrainDoc } from "./store.js";
 import type { Power } from "./trace.js";
 
@@ -37,16 +37,23 @@ export interface Cab {
   block: string | null;
   taken: Holder;
   /** Whether it has a move outstanding: granted and not yet at the sensor it
-   *  ends at. `layout` applies a throttle's speed only then, so the lever is
-   *  live only then (BUS.md, `throttle_wanted`). */
+   *  ends at. The slider drives the train with or without one (ADR-0081), and
+   *  goes to rest when one ends, which is where `layout` writes `0.0`. */
   granted: boolean;
   /** The end of its block it points at, `<block>.<end>`, `null` where the
-   *  scheduler has said no facing for it. It is the way `+` runs, which is
-   *  why the view draws it before anything moves. */
+   *  scheduler has said no facing for it. It is the end a train run nose
+   *  first leaves by, the reverser at Forward. */
   nose: EndRef | null;
   /** The aspect at that end, `null` where no signal there has been named —
    *  an end that leads nowhere carries none (ADR-0025). */
   aspect: Aspect | null;
+  /** The aspect at the block's other end, which a train run tail first
+   *  leaves by, the reverser at Reverse; `null` as `aspect` is. */
+  tailAspect: Aspect | null;
+  /** The model of its first locomotive, which the view draws the train as
+   *  (`photoUrl`), `null` where it has none, the roster does not have the
+   *  train, or the store's answer leaves the field out. */
+  locomotive: string | null;
   /** The blocks on the road in front of it, nearest first. */
   ahead: readonly Ahead[];
   /** Whether it has a request in flight, which is what greys turning it
@@ -111,11 +118,19 @@ export function cabs(driving: Driving): Cab[] {
         granted: granted.has(train),
         nose,
         aspect: (nose === null ? undefined : aspects.get(nose)) ?? null,
+        tailAspect: (nose === null ? undefined : aspects.get(tail(nose))) ?? null,
         ahead: ahead.get(train) ?? [],
         inFlight: inFlight.has(train),
         functions: stock[train]?.functions ?? [],
+        locomotive: stock[train]?.locomotive ?? null,
       };
     });
+}
+
+/** The other end of the block a nose is at: `a.A` for `a.B`. A block has
+ *  the two ends a facing runs between (CONTEXT.md, **Facing**). */
+function tail(nose: EndRef): EndRef {
+  return `${blockOf(nose)}.${endOf(nose) === "A" ? "B" : "A"}`;
 }
 
 /** What a person is told when a gesture would go nowhere, by what the track
