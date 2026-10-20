@@ -232,11 +232,12 @@ when the train is given back by anybody, when its move ends, and when the run ta
 the layout, which also lets go of the train entirely: there is nothing left
 for a lever to move.
 
-The **roster route** carries what a person can switch beside the length
-(`GET /rosters/<railroad>/trains`, `store/server.py`). Both are derived from the cars
-the train is made of and neither is authored, so they arrive together; the
-cars themselves, their addresses and which function number each name sits on are
-the roster screen's and the translator's, never a view's.
+The **roster route** carries what a person can switch beside the length, and
+whether the train carries a camera (`GET /rosters/<railroad>/trains`,
+`store/server.py`). All three are derived from the cars the train is made of
+and none is authored, so they arrive together; the cars themselves, their
+addresses, where a camera answers and which function number each name sits on
+are the roster screen's and the translator's, never a view's.
 
 ## Tests
 

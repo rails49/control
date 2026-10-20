@@ -127,7 +127,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /layouts/<name>        the layout that drawing derives to
     GET  /rosters/<name>        one railroad's roster, whole
     PUT  /rosters/<name>        create or replace it
-    GET  /rosters/<name>/trains its trains, each with its length and functions
+    GET  /rosters/<name>/trains its trains, each with its length, functions
+                                and whether it carries a camera
     GET  /catalogue             the models the installation knows, by name
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
