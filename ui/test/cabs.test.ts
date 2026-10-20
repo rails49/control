@@ -65,6 +65,7 @@ function drive(model: Panel, stock = {}, last: string | null = null) {
     placed,
     taken: model.taken(),
     throttle: HERE,
+    functions: model.functions(),
     granted: model.granted(),
     noses: model.noses(),
     aspects: model.aspects(),
@@ -368,7 +369,10 @@ describe("what a person can switch", () => {
         functions: [{ name: "headlights" }, { name: "vacuum" }],
       },
     };
-    expect(drive(model, stock)[0]!.functions).toEqual(stock.t1.functions);
+    expect(drive(model, stock)[0]!.functions).toEqual([
+      { name: "headlights", on: false },
+      { name: "vacuum", on: false },
+    ]);
   });
 
   /** Most of the stock a railroad owns declares none, and a train the
@@ -378,6 +382,64 @@ describe("what a person can switch", () => {
     standing(model);
     expect(drive(model, { t1: { length: 400 } })[0]!.functions).toEqual([]);
     expect(drive(model)[0]!.functions).toEqual([]);
+  });
+});
+
+describe("which functions are on", () => {
+  const STOCK = {
+    t1: { length: 400, functions: [{ name: "headlights" }, { name: "vacuum" }] },
+  };
+
+  function on(model: Panel): Record<string, boolean> {
+    return Object.fromEntries(drive(model, STOCK)[0]!.functions.map(({ name, on }) => [name, on]));
+  }
+
+  /** `layout` says which are on (#849), and the cab reads it: a name the row
+   *  gives as on reads on, one it gives as off or does not name reads off. */
+  it("reads on what state/functions gives as on for the train", () => {
+    const model = panel();
+    standing(model);
+    feed(model, { event: "functions", functions: { t1: { headlights: true } } });
+    expect(on(model)).toEqual({ headlights: true, vacuum: false });
+    feed(model, { event: "functions", functions: { t1: { headlights: false, vacuum: true } } });
+    expect(on(model)).toEqual({ headlights: false, vacuum: true });
+  });
+
+  it("reads off a function the row does not name, and one named for another train", () => {
+    const model = panel();
+    standing(model);
+    feed(model, { event: "functions", functions: { t2: { headlights: true } } });
+    expect(on(model)).toEqual({ headlights: false, vacuum: false });
+  });
+
+  it("reads everything off before the row is heard", () => {
+    const model = panel();
+    standing(model);
+    expect(on(model)).toEqual({ headlights: false, vacuum: false });
+  });
+
+  /** Read an entry at a time, as `state/taken` is: what cannot be read is
+   *  off, and the row replaces what the last one said. */
+  it("reads off where the payload cannot be read", () => {
+    const model = panel();
+    standing(model);
+    const on1 = { event: "functions", functions: { t1: { headlights: true, vacuum: true } } };
+    for (const functions of ["t1", ["t1"], null, { t1: "headlights" }, { t1: [true] }]) {
+      feed(model, on1, { event: "functions", functions });
+      expect(on(model)).toEqual({ headlights: false, vacuum: false });
+    }
+    feed(model, on1, { event: "functions" });
+    expect(on(model)).toEqual({ headlights: false, vacuum: false });
+    feed(model, on1, { event: "functions", functions: { t1: { headlights: "on", vacuum: 1 } } });
+    expect(on(model)).toEqual({ headlights: false, vacuum: false });
+  });
+
+  it("is forgotten on a reset", () => {
+    const model = panel();
+    standing(model);
+    feed(model, { event: "functions", functions: { t1: { headlights: true } } });
+    model.reset();
+    expect(model.functions().size).toBe(0);
   });
 });
 

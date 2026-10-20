@@ -7,7 +7,8 @@
  * `layout`'s answer on `tc49/layout/state/taken`, whether its lever does
  * anything is the move the dispatcher granted it, which way a train points is
  * the scheduler's **facing**, the aspect it is reading is the dispatcher's,
- * and what a person can switch on it is the railroad's roster. This puts them
+ * what a person can switch on it is the railroad's roster, and which of those
+ * are on is `layout`'s answer on `tc49/layout/state/functions`. This puts them
  * beside each other train by train, and decides none of them.
  *
  * It holds no slider position: that is the person's, and it lives in the
@@ -24,6 +25,14 @@ import type { Power } from "./trace.js";
 /** Who holds a train, as this page sees it: this throttle, another one, or
  *  none (`null`). */
 export type Holder = "here" | "elsewhere" | null;
+
+/** One thing a person can switch on a train: its catalogue name, and whether
+ *  `state/functions` says it is on. Never what the person last pressed — a
+ *  button changes when `layout` says it switched it (ui/THROTTLE.md). */
+export interface CabFunction {
+  name: string;
+  on: boolean;
+}
 
 /**
  * One train, as a throttle shows it.
@@ -66,9 +75,10 @@ export interface Cab {
    *  reading. */
   inFlight: boolean;
   /** What a person driving it can switch, by the names the catalogue gives
-   *  them (ADR-0045). Empty where its cars declare none, which is most of the
-   *  stock a railroad owns. */
-  functions: readonly Fn[];
+   *  them (ADR-0045), in the roster's order, each on or off as
+   *  `state/functions` has it. Empty where its cars declare none, which is
+   *  most of the stock a railroad owns. */
+  functions: readonly CabFunction[];
   /** Whether it is the train this throttle last held, standing free on the
    *  layout: the one the picker offers first, as Take back (ui/THROTTLE.md). */
   last: boolean;
@@ -85,6 +95,9 @@ export interface Driving {
   taken: ReadonlyMap<string, string>;
   /** This page's throttle id, which says which of those is this one. */
   throttle: string;
+  /** train → function name → on (`state/functions`); a name it does not
+   *  give is off. */
+  functions: ReadonlyMap<string, ReadonlyMap<string, boolean>>;
   /** The trains with a move outstanding. */
   granted: ReadonlySet<string>;
   noses: ReadonlyMap<string, EndRef>;
@@ -117,8 +130,19 @@ export interface Driving {
  * back. Held by anybody, it takes its place by name like the others.
  */
 export function cabs(driving: Driving): Cab[] {
-  const { placed, taken, throttle, granted, noses, aspects, ahead, inFlight, stock, last } =
-    driving;
+  const {
+    placed,
+    taken,
+    throttle,
+    functions,
+    granted,
+    noses,
+    aspects,
+    ahead,
+    inFlight,
+    stock,
+    last,
+  } = driving;
   const all: Cab[] = [...placed]
     .sort((one, other) => one.train.localeCompare(other.train))
     .map(({ train, block }) => {
@@ -134,12 +158,21 @@ export function cabs(driving: Driving): Cab[] {
         tailAspect: (nose === null ? undefined : aspects.get(tail(nose))) ?? null,
         ahead: ahead.get(train) ?? [],
         inFlight: inFlight.has(train),
-        functions: stock[train]?.functions ?? [],
+        functions: switches(stock[train]?.functions ?? [], functions.get(train)),
         locomotive: stock[train]?.locomotive ?? null,
         last: train === last && holder === undefined,
       };
     });
   return [...all.filter((cab) => cab.last), ...all.filter((cab) => !cab.last)];
+}
+
+/** A train's functions by name, each on where `state/functions` says so for
+ *  it and off everywhere else. */
+function switches(
+  declared: readonly Fn[],
+  on: ReadonlyMap<string, boolean> | undefined,
+): CabFunction[] {
+  return declared.map(({ name }) => ({ name, on: on?.get(name) === true }));
 }
 
 /** The other end of the block a nose is at: `a.A` for `a.B`. A block has

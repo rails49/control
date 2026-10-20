@@ -237,6 +237,11 @@ const PRUNED: Partial<Record<Reason, string>> = {
  *  dispatcher answering is newer than the page reading it. Neither table is
  *  indexed directly: what arrives on the bus is a string, and only the
  *  generated set says which strings are reasons. */
+/** Whether a payload value is a map of names: an object, and not a list. */
+function mapping(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function spell(table: Partial<Record<Reason, string>>, reason: string): string {
   const wordings: Record<string, string | undefined> = table;
   return wordings[reason] ?? reason;
@@ -341,6 +346,10 @@ export class Panel {
    *  `state/taken`. A train the map does not name, no throttle holds
    *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)). */
   private holders = new Map<string, string>();
+  /** train → function name → whether it is on, as `layout` last said on
+   *  `state/functions` ([#849](https://github.com/rails49/control/issues/849)).
+   *  A name the map does not give for a train is off. */
+  private switched = new Map<string, ReadonlyMap<string, boolean>>();
   private requests = new Map<string, Request>();
   /** Whether the opening picture has arrived: a lock on a block before it is
    *  the run's opening placement, there being no occupancy event for a
@@ -392,6 +401,7 @@ export class Panel {
     this.powerWord = null;
     this.faultWord = null;
     this.holders.clear();
+    this.switched.clear();
     this.requests.clear();
     this.started = false;
     this.ordering.reset();
@@ -592,6 +602,30 @@ export class Panel {
           }
         }
         this.holders = read;
+        return;
+      }
+      case "functions": {
+        // Which of each train's functions are on, whole from the topic as
+        // `state/taken` is: `layout` writes the device rows and says what it
+        // wrote, and the throttle's buttons read this rather than their own
+        // press (ui/THROTTLE.md).
+        //
+        // Read an entry at a time: a value that is not a boolean leaves its
+        // function off, a train whose entry is not a map has every function
+        // off, and a payload whose `functions` is not a map has them all off.
+        const { functions } = event as unknown as { functions?: unknown };
+        const read = new Map<string, ReadonlyMap<string, boolean>>();
+        if (mapping(functions)) {
+          for (const [train, names] of Object.entries(functions)) {
+            if (!mapping(names)) continue;
+            const on = new Map<string, boolean>();
+            for (const [name, value] of Object.entries(names)) {
+              if (typeof value === "boolean") on.set(name, value);
+            }
+            read.set(train, on);
+          }
+        }
+        this.switched = read;
         return;
       }
       case "disputed": {
@@ -924,6 +958,18 @@ export class Panel {
    */
   taken(): ReadonlyMap<string, string> {
     return this.holders;
+  }
+
+  /**
+   * Which of each train's functions are on, by name, as `layout` last said
+   * on `state/functions`: train → name → on. A train or a name the map does
+   * not give is off, and so is every function before the row is heard.
+   *
+   * Read and never written from a press, for the reason `taken()` is: the
+   * button says what `layout` wrote, not what a person asked for.
+   */
+  functions(): ReadonlyMap<string, ReadonlyMap<string, boolean>> {
+    return this.switched;
   }
 
   /**
