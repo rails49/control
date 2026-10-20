@@ -210,6 +210,12 @@ def stand(bus: InProcessBus, train: str, block: str) -> None:
     bus.drain()
 
 
+def removed(bus: InProcessBus, train: str) -> None:
+    """A hand lifted the train off and the dispatcher accepted it."""
+    bus.publish(REMOVED, {"train": train})
+    bus.drain()
+
+
 def faces(bus: InProcessBus, **facing: str) -> None:
     """The scheduler saying which way each train points, as it holds it: the
     run each would make across its block (ADR-0019). The whole map, since that
