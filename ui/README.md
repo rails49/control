@@ -113,8 +113,10 @@ src/
                    is loaded, New and Copy loaded as…, and the way into backup
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
                    the drag, the right-click menu and the roster pane
-    tc-throttle.ts the throttle view: pick a train, take it, drive it, give
-                   it back — the session stays the app's
+    tc-throttle.ts the throttle view: the picker, or the held train's cab —
+                   drive it, give it back; the session stays the app's
+    tc-train-picker.ts  the throttle's train picker: a card per train, Take,
+                   Force release and Take back
     tc-stock.ts    the stock view: cars and models on the left, the trains
                    composed from them on the right
     dismissal.ts   the overlay a menu drops over the page, worn by all three
