@@ -71,9 +71,9 @@ and the `moving` row that ends a drain, answering the band's presses as
 always aligned, which is why `align` had no reader at all until there was an
 app that throws something.
 
-The throttle's **two gestures** are read here for the first reason of them all
-(#297): a person's page writes both, any number of pages may write either, and
-`layout` acts on them with nothing to answer back to. They are the pair that
+The throttle's **gestures** are read here for the first reason of them all
+(#297): a person's page writes them, any number of pages may write each, and
+`layout` acts on them with nothing to answer back to. The first two are the pair that
 takes a train in a throttle and turns it, and `layout` is where the two meet
 the roster and become a speed on a decoder — which is why neither reader knows
 anything of a train beyond its name. Each now names the throttle by the id its

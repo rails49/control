@@ -22,6 +22,7 @@ from tests.layout.railroad import (
     DEVICE_TRACK,
     DRIVING,
     DRIVING_WANTED,
+    FUNCTION_WANTED,
     FUNCTIONS,
     MOVE,
     PLACED,
@@ -54,12 +55,13 @@ COMMANDED = (
     TAKE_WANTED,
     THROTTLE_ALIVE,
     THROTTLE_WANTED,
+    FUNCTION_WANTED,
     PLACED,
     REMOVED,
     ASPECTS,
 )
 """Everything above the layout interface that reaches this app: two commands,
-a person's press, the driving mode, the throttle's three gestures, the two placement facts and the
+a person's press, the driving mode, the throttle's four gestures, the two placement facts and the
 dispatcher's picture. A frame on one of these that cannot be read leaves the
 app exactly as it was."""
 
