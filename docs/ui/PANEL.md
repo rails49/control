@@ -753,8 +753,8 @@ The **band** is the whole system's: the railroad the app has loaded and
 whether it is *unsaved*, the health area — the store or the broker not
 answering, a fault the hardware reports on the supply, how far the run has
 got, and a store that is not being backed up
-([EDITOR.md](EDITOR.md#the-band)) — then the **driving control**, the last of
-its items, and track power, a power toggle whose colour says where the supply
+([EDITOR.md](EDITOR.md#the-band)) — and the session clock, then the
+**driving control**, the last of its items, and track power, a power toggle whose colour says where the supply
 stands and a stop sign beside it; then the gear and Help
 ([org ADR-0020](https://github.com/rails49/.github/blob/main/docs/adr/0020-the-bands-right-ends-with-the-gear-and-help.md)).
 The **rail** is the views, and then this view's document's: zoom out, zoom in
