@@ -1,6 +1,6 @@
 # Throttle view
 
-The view a person drives a train from: take a train, drive it, give it back,
+The view a person drives trains from: take a train, drive it, give it back,
 take it back ([#207](https://github.com/rails49/control/issues/207),
 [#208](https://github.com/rails49/control/issues/208)). It is one of the app's
 views of the loaded railroad, the [run view](PANEL.md) and the
@@ -21,12 +21,36 @@ Terminology follows [CONTEXT.md](../../CONTEXT.md), **Throttle** and
 ## What it shows
 
 The view is **the train picker while this page's throttle holds no train**,
-and **the driving controls of the train it holds** while it holds one
-([#853](https://github.com/rails49/control/issues/853)). A train is not picked
-without being taken: the controls show the train `tc49/layout/state/taken`
-names this throttle for, and where it names it for more than one, the first by
-name ([#855](https://github.com/rails49/control/issues/855) puts them side by
-side).
+and **a column of driving controls for each train it holds** while it holds
+any ([#853](https://github.com/rails49/control/issues/853),
+[#855](https://github.com/rails49/control/issues/855)). A train is not picked
+without being taken: the columns are the trains `tc49/layout/state/taken`
+names this throttle for. All of them are held under the page's one throttle
+id; there is no id per column.
+
+**The columns**, side by side where the view is wide enough. The width is the
+view's own, read with a `ResizeObserver`, not the window's. A train's column is
+at least 360 px wide, the take column 260 px, and the gap 14 px, so
+`columns(width)` (`ui/src/model/throttle.ts`) is `floor((width − 260) / 374)`,
+at least 0 — 0 at 390 px, 1 at 820, 2 at 1180, 4 at 1920.
+
+- **No train held**: the picker fills the view at any width.
+- **`columns(width)` is 0**, a phone: no take column. Each held train's
+  controls stand one below the other, and the first carries the clock.
+- **`columns(width)` is 1 or more**: that many trains' columns side by side,
+  then the take column. Held trains beyond them go on a further row, and the
+  view scrolls.
+- **Nothing is released or hidden because the view narrowed.**
+- **The order** is the one in which `state/taken` first named this throttle for
+  each train, kept by the view for the life of the page. A new train's column
+  goes after the others; a released train's column goes and the others keep
+  their order.
+
+**The take column**, on the right: the page's one clock at the top, then
+*Take another train* and the picker drawn `compact` — the same cards by the
+same rules, as rows of thumbnail, name and where. While this page holds
+`columns(width)` trains or more, the list is replaced by *no room for another
+train — release one*.
 
 **The picker** is headed *Take a train*, with one card for each train the
 railroad has placed (`tc49/dispatch/state/allocation`) that this throttle does
@@ -54,16 +78,16 @@ at least 44 px high.
   and no throttle holds it, comes first and apart from the grid, says *You held
   this one* above its name, and has **Take back**.
 
-**The held train's cab**, laid out as arrangement A at every width
-([#852](https://github.com/rails49/control/issues/852)):
+**Each held train's column**, laid out as arrangement A at every width
+([#852](https://github.com/rails49/control/issues/852)), for that train only:
 
 - **At the top, the train's picture**: the same photo as its card, or its
   name — the thumbnail — and, where the train carries a camera, the camera
   car's live picture over it (below). Over that: the train's name, the
   aspect, the block it stands in or *crossing a transit*, the blocks ahead,
   and Release.
-- **Below, on the left**: the reverser, the train's functions, Turn around and
-  the clock.
+- **Below, on the left**: the reverser, the train's functions, Turn around and,
+  on a phone's first column only, the clock.
 - **Below, on the right**: the speed, the slider and STOP, where a right thumb
   holding a phone is.
 
@@ -84,8 +108,9 @@ under it *at rest*, *nose first* or *tail first*.
 
 **The clock**, `tc-clock`: the browser's local wall time as a station clock —
 a white face, twelve black bars, black hour and minute hands and a red second
-hand, redrawn once a second. It shows wherever the cab shows, and stays wall
-time until the railroad has a fast clock.
+hand, redrawn once a second. The page has one: at the top of the take column,
+or on a phone in the first held train's column. It stays wall time until the
+railroad has a fast clock.
 
 **Nothing about hardware.** No address, no decoder step, no command station,
 no function number. The UI reaches the bus and the store and there is no other
@@ -267,8 +292,16 @@ ADR-0078). Take, Take back and Force release publish nothing then, like every
 control on the cab. Reading what each train is and what it faces goes on
 working: reading is not gesturing.
 
-**Every width.** The picker and the cab are each full width, from a phone to a
-desktop; there is no side pane. A window too short for the cab scrolls it.
+**Every width.** The picker is full width, from a phone to a desktop, and the
+columns fill the view as *The columns* above lay them out; there is no side
+pane. A view too short for them scrolls.
+
+**Each column acts on its own train.** STOP publishes `throttle_wanted`
+`{train, speed: 0, throttle}` for that column's train only, Release
+`take_wanted` `{train, throttle: null}` for it only, and the slider, the
+reverser and Turn around act on it only. The column goes when `state/taken` no
+longer names this throttle for the train. There is no STOP for every held train
+at once: the band's power is the railroad's stop.
 
 ## What it is not
 
@@ -285,8 +318,10 @@ is not on the layout are all somewhere else.
 ## Implementation
 
 `ui/src/ui/tc-throttle.ts`, a Lit component in the shape the other views take,
-with its styles beside it, the picker in `ui/src/ui/tc-train-picker.ts` and
-the clock in `ui/src/ui/tc-clock.ts`. The picker sends `take-wanted` and
+with its styles beside it, which lays out the picker in
+`ui/src/ui/tc-train-picker.ts`, one `ui/src/ui/tc-driving.ts` per held train —
+each owning its own train's slider and reverser — and the clock in
+`ui/src/ui/tc-clock.ts`. The picker sends `take-wanted` and
 `release-wanted`, the train their detail, which the app carries to the
 session's `pressTake` and `pressRelease`; a function button sends
 `function-wanted` `{train, function, on}`, carried to `pressFunction`. Neither works anything out: every
@@ -330,11 +365,11 @@ shown while holding, or when holding next starts. A browser with no wake lock,
 or one that refuses, changes nothing else: no message, no retry loop.
 
 What is this view's own is what belongs to the person at it: where they have
-put the slider and the reverser. Neither is on the bus —
-nothing publishes a throttle's position back — so the slider is what this view
-shows and, signed, what it last sent. When the run takes the train off the
-layout the view goes back to the picker: there is nothing left for a slider
-to move.
+put each train's slider and reverser, and the order of the columns. None is on
+the bus — nothing publishes a throttle's position back — so each slider is what
+its column shows and, signed, what it last sent. When the run takes a train off
+the layout its column goes, and with none left the view goes back to the
+picker: there is nothing left for a slider to move.
 
 **The camera car's picture** is an `<img class="picture">` on the `camera`
 app's `GET /picture/<railroad>/<train>`, the loaded railroad's name and the
@@ -379,7 +414,8 @@ off where the row does not name it, has not been heard or cannot be read.
 release under its id, the speed and a function press naming it — and the timing of
 `throttle_alive` on a fake clock: once a second from the `state/taken` row
 naming this throttle, never on the press, never for a train another throttle
-holds, and stopping when it holds nothing or the broker goes; and the last
+holds, once a second and not once per train while it holds two, and stopping
+when it holds nothing or the broker goes; and the last
 train held, written to `sessionStorage` under `tc49.throttle.last.<railroad>`
 when `state/taken` names this throttle, unchanged by a release, read back on
 joining, and kept in memory where storage throws.
@@ -415,6 +451,18 @@ opposite of what the button shows while the button waits for
 power off or with no broker writes nothing, and that
 with the rails dead every press leaves nothing on the socket at all — checked
 by pressing them, not by trusting a disabled attribute.
+With `ResizeObserver` stood in for to report the view's width, it checks that
+at 1180 px two trains held stand in two columns in the order `state/taken`
+first named this page for each, with one clock in the view; that STOP and the
+slider in one column publish only that column's train, the other's reading
+unchanged; that Release in one column writes one `null` `take_wanted` and the
+column stays until `state/taken` drops the train, which the take column then
+lists; that the take column lists the other placed trains where there is room
+and says there is none, with no Take, once the columns are full, at 1180 px
+holding two and at 820 px holding one; that at 390 px there is no take column;
+that narrowing from 1180 px to 390 px publishes nothing and stacks both; and
+that every frame naming a throttle names the same id.
+`ui/test/columns.test.ts` checks `columns(width)` at 390, 820, 1180 and 1920 px.
 `ui/test/clock.test.ts` puts the clock's hands at a fake time.
 It also gives the app a fake `navigator.wakeLock`: `state/taken` naming this
 throttle asks for the lock, naming another throttle or the broker closing lets
