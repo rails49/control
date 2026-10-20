@@ -281,10 +281,11 @@ up the keyboard is the dialog's.
 taken from the browser, so Chrome's own `⌘S` never offers to save the page over
 the app.
 
-**Below a short window the rail lies down** along the top of the work, as the
-occupancy UI's does: a column of twelve buttons does not fit a phone held
-sideways, and the throttle is used that way. The strip and the height it
-turns at are look's.
+**Below a short or narrow window the rail lies down** along the top of the
+work, as the occupancy UI's does: a column of twelve buttons does not fit a
+phone held either way, and the throttle is used on one. The strip and the
+height and width it turns at are look's
+([rails49/look ADR-0002](https://github.com/rails49/look/blob/main/docs/adr/0002-narrow-window-rail-becomes-a-strip.md)).
 
 What is dead and what is alive is not the rail's to decide. Save is dead with
 nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
