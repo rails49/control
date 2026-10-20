@@ -224,6 +224,22 @@ throttle id is the session's for the same reason, and so is the
 `throttle_alive` timer, which runs off `state/taken` whichever view is on
 screen.
 
+**The screen stays awake while the page holds a train**
+([#854](https://github.com/rails49/control/issues/854)), so a phone left lying
+does not sleep, fall silent and have `layout` release the train (ADR-0079). The
+page holds a train on the condition `throttle_alive` runs on — `state/taken`
+names this page's throttle for a train on the layout — and while it does it
+holds one screen wake lock (`navigator.wakeLock.request("screen")`) for any
+number of trains: `ui/src/ui/wake.ts`, told by the app on every render and let
+go of as the app leaves the page. Holding ending, however it ends — released
+here or by Force release elsewhere, released by `layout` once its silence runs
+out, the train taken off the layout, another railroad loaded, or the broker
+gone — releases the lock, and a lock that arrives after holding ended is
+released as it arrives. The browser drops the lock while the page is hidden,
+and may drop it while it is shown; it is asked for again when the page is next
+shown while holding, or when holding next starts. A browser with no wake lock,
+or one that refuses, changes nothing else: no message, no retry loop.
+
 What is this view's own is what belongs to the person at it: the train they
 picked and where they have put the lever. Neither is on the bus — nothing
 publishes a throttle's position back — so the lever is what this view shows
@@ -262,3 +278,11 @@ number on screen is the number that went out, that centring publishes zero,
 that releasing writes `null` and takes the lever away, and that with the rails
 dead every press leaves nothing on the socket at all — checked by pressing
 them, not by trusting a disabled attribute.
+It also gives the app a fake `navigator.wakeLock`: `state/taken` naming this
+throttle asks for the lock, naming another throttle or the broker closing lets
+it go, and with no wake lock at all taking, driving and releasing write the
+same frames. `ui/test/wake.test.ts` drives `ui/src/ui/wake.ts` with a lock and
+a page as doubles: one request for any number of trains, the lock let go when
+holding ends, including one that arrives late, asked for again when the page
+is shown, not when the browser drops it while shown, and nothing thrown by a
+browser with no lock or one that refuses.
