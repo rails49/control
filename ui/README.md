@@ -67,6 +67,8 @@ pnpm build
 
 ```
 src/
+  main.ts        the page's entry: the app, `look.css` and its two themes,
+                 and Shoelace's assets from the app's own origin
   symbols.generated.ts   pins, transits, the palette — written by `tc49 generate`
   rejection.generated.ts why a request was rejected — likewise generated
   model/
@@ -95,9 +97,27 @@ src/
                  Save
     scene.ts     what the drawing alone answers: the frame a fit and an export
                  are drawn in, an arrow's pose, which symbol wears an address
+    under.ts     what is under a point on the canvas, read from a grid
+                 position back to the thing a click there means
+    inspect.ts   a `/review` read back: what the netlist pane says and what
+                 the canvas lights
+    filing.ts    the editor's dealings with the store: what is open, whether
+                 it is saved, what the store last said, what went wrong
+    export.ts    the drawing as a standalone SVG file, cloned from the canvas
+    commands.ts  every command a view offers: its name, its key, its menu, and
+                 when it is dead
+    settings.ts  when the settings dialog's railroad part is refused, and why
+    backup.ts    backing the store up: where it stands, what git last said,
+                 and what could not be asked at all
+    box.ts       the box this page is served from, as the installation
+                 answers for it
+    requests.ts  the request list: the requests the dispatcher holds, in
+                 serving order, and what a drag of one asks
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
+    units.ts     units and colours: every dimension a fraction of the grid
+                 square G, and the palette
   ui/
     tc-app.ts      the app: the loaded railroad, the views, the keys, and the
                    band and the rail, drawn from @rails49/look
@@ -111,14 +131,23 @@ src/
     tc-menu.ts     the right-click menu
     tc-settings.ts the settings dialog behind the band's gear: which railroad
                    is loaded, New and Copy loaded as…, and the way into backup
+    tc-backup.ts   the backup dialog: whether the store is kept anywhere,
+                   the press that keeps it now, and the backups to come back to
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
                    the drag, the right-click menu and the roster pane
+    tc-roster.ts   the roster pane: every train the railroad owns, on the
+                   layout or off it, a row to drag out of and back to
+    tc-requests.ts the request list under the roster: a cancel on each, a
+                   drag to reorder the waiting ones
     tc-throttle.ts the throttle view: the picker, or a column per held train
                    side by side as its width fits, with a take column; the
                    session stays the app's
     tc-driving.ts  one held train's driving controls: drive it, give it back
     tc-train-picker.ts  the throttle's train picker: a card per train, Take,
                    Force release and Take back
+    tc-clock.ts    the station clock on the throttle's cab, in wall time
+    wake.ts        the screen kept awake while this page's throttle holds a
+                   train
     tc-stock.ts    the stock view: cars and models on the left, the trains
                    composed from them on the right
     dismissal.ts   the overlay a menu drops over the page, worn by all three
