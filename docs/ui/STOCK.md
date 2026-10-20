@@ -41,11 +41,13 @@ together.
 **Adding a model entry** to a train gives an **anonymous item**: the entry
 names the model, and there is nothing else to say about it.
 
-**Filling in an address promotes it to a car** in the list above, named from
-the model with a suffix you can edit — `arnold-ce68-1` until you call it
-`krokodil-a`. Nothing asks you to classify an item before you add it: an
-address is the physical identity, and having one is exactly what puts an item
-on `cars` (ADR-0061). Two locomotives of one product get two cars and two
+**Filling in an address or a camera promotes it to a car** in the list above,
+named from the model with a suffix you can edit — `arnold-ce68-1` until you
+call it `krokodil-a`. Nothing asks you to classify an item before you add it:
+an address is the physical identity, and having one is exactly what puts an
+item on `cars` (ADR-0061). A camera riding in the item is as much its own, so
+it promotes the entry the same way, and the new car has the camera and no
+address. Two locomotives of one product get two cars and two
 addresses, written once, and neither is restated the next time a rake is made
 up.
 
@@ -75,6 +77,20 @@ not hold ([#445](https://github.com/rails49/control/issues/445)).
 **Kind never implies an address.** A powered van is a real thing
 (`layout/interface.py`), so the address field is offered on every entry and
 never assumed from what the model is.
+
+**A car's camera sits beside its address**, on each car row and each entry
+row: where the camera riding in that car answers on the LAN, a host name or an
+IPv4 address with no scheme, port, path or login — how the camera is spoken to
+is the `camera` app's
+([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+On an entry naming a car it sets that car's camera. Emptying the field takes
+the camera off and keeps the car. Anything else is refused with *'cam:8080' is
+not a camera address — write the camera's host name or IP address*, and a
+camera another car carries with *car 'van-1' already carries camera 'cam-1'*:
+one camera in two cars would put one picture on two trains, which the store
+refuses as well (`lib/stock.py`). It reaches the store on Save, in the whole
+`PUT /rosters/<railroad>`, and the length guard does not hold it: it moves
+nothing the dispatcher fits.
 
 **A product that does not exist yet is created in the same dialog** — name,
 length over buffers, kind, functions. The catalogue is a real document with
