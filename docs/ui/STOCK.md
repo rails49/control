@@ -208,10 +208,10 @@ large, or *no photo*, and a **Take photo** press — **Retake photo** where the
 model has one. A car's thumbnail opens the model's dialog, titled for the
 model, so a person pressing a car sees whose picture they are looking at.
 
-**Take photo fetches `GET /camera/snapshot`.** That route is a **camera app's
+**Take photo fetches `GET /camera/snapshot`.** That route is a **photo camera's
 and the store never answers it**: the responder is not code of this repository,
 and on a box its own stack claims `/camera`, while in development vite proxies
-the prefix to the port a camera listens on
+the prefix to the port a photo camera listens on
 ([SYSTEM.md](../SYSTEM.md), [DEPLOY.md](../DEPLOY.md),
 [#629](https://github.com/rails49/control/issues/629)). While the camera is
 being waited on the frame reads *taking a picture…* and the press is dead,
@@ -460,7 +460,7 @@ picture and anything else is none. A picture waiting to be saved is held as a
 `data:` URL rather than an object URL — an object URL is a handle that has to
 be given back, and a dialog where three pictures are taken and one is kept
 would leak the other two. In development `ui/vite.config.ts` proxies `/camera`
-the way it proxies the store's prefixes, so the page fetches both on its own
+to a photo camera the way it proxies the store's prefixes, so the page fetches both on its own
 origin.
 
 The view is not in the shell's left-pane slot. `--pane` is the width of the
@@ -519,8 +519,8 @@ Retake and Cancel live beside it and a second press sending nothing, Save live
 again where that write was refused and sending on the press after, and the same
 in the New model dialog, where the write that lands is the one that puts the
 dialog away (#655). What the camera answers is the shell's
-(`ui/test/support/shell.ts`, `camera`), that route being no app of this
-repository's, and a write held in flight is the shell's too (`held`).
+(`ui/test/support/shell.ts`, `camera`), that route being a photo camera's and
+no app of this repository's, and a write held in flight is the shell's too (`held`).
 
 The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
 the drawing's: it is the app's question about the app's railroad, and what the

@@ -538,7 +538,14 @@ physical railroad is the normative one, and the simulator conforms to it
 _Avoid_: backend, mode, target
 
 **Camera app**:
-What answers `GET /camera/snapshot` with one picture. No app of this
-repository answers that route ([SYSTEM.md](docs/SYSTEM.md#asset-store)).
-_Avoid_: snapshot service, photo app, camera server, camera (the device a
+The app `camera`: it reads a camera car's picture and serves it on control's
+origin
+([ADR-0082](docs/adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+_Avoid_: camera relay, camera server, picture service
+
+**Photo camera**:
+What answers `GET /camera/snapshot` with one picture, for a model's photo. No
+app of this repository answers that route
+([SYSTEM.md](docs/SYSTEM.md#asset-store)).
+_Avoid_: camera app, snapshot service, photo app, camera (the device a
 detector is built on)

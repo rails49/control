@@ -11,8 +11,8 @@ not repeated here. Each app's internals are its own page: the dispatcher's are
 ## Apps
 
 An **app** is a unit that will run as its own container
-([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are six in
-Python — store, scheduler, dispatcher, driver, simulator, layout — and
+([ADR-0013](adr/0013-apps-are-deployment-units.md)). Today there are seven in
+Python — store, scheduler, dispatcher, driver, simulator, layout, camera — and
 one in the browser: `ui/`, which is **one** app, one page holding
 one loaded railroad and a list of views of it
 ([ADR-0038](adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
@@ -181,6 +181,17 @@ src/tc49/
                               left, then a loop that advances the clock,
                               settles and drains until a signal (ADR-0059)
 
+  camera/       stream.py     Cameras — one connection per camera car's
+                              camera, its MJPEG read a part at a time and the
+                              newest frame handed to every reader, closed
+                              10 s after the last one leaves (ADR-0082)
+                face.py       Face — `GET /picture/<railroad>/<train>`, the
+                              train's camera off the store's roster on every
+                              request, relayed as MJPEG
+                __main__.py   `python -m tc49.camera --store … [--host …]
+                              [--port …]`, the command line a container runs:
+                              no broker, this app being on no bus; ends on a
+                              signal
   bench/        runner.py   assemble the apps on one bus and run a scenario
                             to quiescence — the one wiring, shared by the
                             CLI and the tests
@@ -313,6 +324,7 @@ tests/
   layout/      test_align  test_move  test_aspects  test_power  test_reading
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
+  camera/      test_face  test_stream  test_main
   system/      test_skeleton  test_properties  test_safety_conditions
                test_app_boundaries  test_cold_start  test_reload
                test_compose

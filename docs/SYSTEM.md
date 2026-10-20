@@ -158,11 +158,14 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
 `/loaded` is not routed to the page: only the layout binding uses it, inside
 the compose network, so traefik and the vite dev server leave it out.
 
-**One more route sits beside those and is not the store's.** A camera app
-answers it, and no app of this repository does
+**Two more routes sit beside those and are not the store's.** The camera app
+answers the first ([#851](https://github.com/rails49/control/issues/851)); a
+photo camera answers the second, and no app of this repository does
 ([#629](https://github.com/rails49/control/issues/629)):
 
-    GET  /camera/snapshot       take one picture now
+    GET  /picture/<railroad>/<train>   the picture of the train's camera car,
+                                       as it streams
+    GET  /camera/snapshot              take one picture now
 
 **And two the installation answers**, only on a box it runs on
 ([#745](https://github.com/rails49/control/issues/745),
@@ -350,19 +353,42 @@ LAN is still the trust boundary and a browser is not on it
   field is answered as the document it is. The photo of a model named `photo`
   is `/catalogue/photo/photo`
   ([#635](https://github.com/rails49/control/issues/635)).
-- **The picture route is a camera app's, and the store never answers it** —
+- **The camera car's picture is the camera app's, and the store never
+  answers it** — `GET /picture/<railroad>/<train>`, `<railroad>` and
+  `<train>` one percent-encoded level each, is the picture of the camera the
+  train carries, relayed from the camera's MJPEG stream on the LAN, which a
+  page on the app's TLS origin cannot reach itself
+  ([ADR-0082](adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+  The app reads the railroad's roster from the store on every request and
+  takes the train's `camera` (`lib/roster.py`), so the next request after an
+  edit reads the new one. **404** with no body where the store has no such
+  railroad, the roster no such train or the train no camera, and for any
+  other path or method; **502** with no body where the camera sends no first
+  frame within 5 s — unreachable, refusing, answering anything but 200, a 401
+  included, or silent. A **200** is sent once the first frame is in hand:
+  `multipart/x-mixed-replace; boundary=frame` with `Cache-Control: no-store`,
+  each part `image/jpeg` with its `Content-Length` and one JPEG as the camera
+  sent it. It ends when the camera's stream ends or the camera goes 5 s
+  without a frame, and nothing reconnects: a page asks again, with a query
+  string if it must, which is ignored. One connection per camera however many
+  requests read it, each request handed the newest frame and a slow one
+  skipping frames rather than holding anything up, and the connection closed
+  10 s after its last reader leaves. No `Access-Control-*` header: on a box
+  the `camera` container claims `/picture` on `control.$BOX_DOMAIN`, and in
+  development vite proxies it to `http://127.0.0.1:8767` ([DEPLOY.md](DEPLOY.md)).
+- **The photo route is a photo camera's, and the store never answers it** —
   `GET /camera/snapshot` takes one picture now. The responder is not code of
-  this repository, and none exists yet: a camera app is an image of its own,
+  this repository, and none exists yet: a photo camera is an image of its own,
   and a different camera is a different image answering the same route. A **200**
   carries `image/jpeg`, the picture as the camera took it, and any other
   status means no picture — there is nothing else for a caller to read out of
   it. No body and no parameters: a camera's own settings are its environment
   rather than the route's. No `Access-Control-*` header either, because the
   browser reaches it on its own origin, as it reaches the store's routes — on
-  a box the camera's stack claims `/camera` on `control.$BOX_DOMAIN` with a
+  a box the photo camera's stack claims `/camera` on `control.$BOX_DOMAIN` with a
   door label of its own, the way the store's container claims its paths, and
   in development vite proxies `/camera` to `http://127.0.0.1:8766`, the port a
-  camera app listens on ([DEPLOY.md](DEPLOY.md)). What fetches it is the stock
+  photo camera listens on ([DEPLOY.md](DEPLOY.md)). What fetches it is the stock
   view, which puts the picture on a model
   ([#631](https://github.com/rails49/control/issues/631)).
 - **The box routes are the installation's, and the store never answers
