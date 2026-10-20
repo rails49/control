@@ -57,9 +57,11 @@ at least 44 px high.
 **The held train's cab**, laid out as arrangement A at every width
 ([#852](https://github.com/rails49/control/issues/852)):
 
-- **At the top, the train's picture**: the same photo as its card, or its name.
-  Over it: the train's name, the aspect, the block it stands in or *crossing a
-  transit*, the blocks ahead, and Release.
+- **At the top, the train's picture**: the same photo as its card, or its
+  name — the thumbnail — and, where the train carries a camera, the camera
+  car's live picture over it (below). Over that: the train's name, the
+  aspect, the block it stands in or *crossing a transit*, the blocks ahead,
+  and Release.
 - **Below, on the left**: the reverser, the train's functions, Turn around and
   the clock.
 - **Below, on the right**: the speed, the slider and STOP, where a right thumb
@@ -334,6 +336,23 @@ shows and, signed, what it last sent. When the run takes the train off the
 layout the view goes back to the picker: there is nothing left for a slider
 to move.
 
+**The camera car's picture** is an `<img class="picture">` on the `camera`
+app's `GET /picture/<railroad>/<train>`, the loaded railroad's name and the
+train's each URL-encoded, with a *LIVE* mark on it
+([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md),
+[#857](https://github.com/rails49/control/issues/857)). It is drawn over the
+thumbnail while all three hold: this view is the one on screen, `state/taken`
+names this throttle for the train, and the trains route says the train carries
+a camera. Track power does not matter. Otherwise it is not in the page at all,
+so the page holds no connection to the route: a release by anybody, taking
+another train, the train leaving the layout and switching to another view each
+remove it. A stream that fails — an `error` on the element — removes it too,
+and the thumbnail shows; while the three still hold it is put back after
+`RETRY_MS` (`ui/src/model/store.ts`) under `?try=<n>`, so the browser makes a
+new request, and again after each failure until a stream plays or one of the
+three stops holding. A picture that stops changing while its connection stays
+open is not noticed.
+
 The **roster route** carries what a person can switch beside the length,
 whether the train carries a camera, and the model of its first locomotive,
 head first, or `null` where it has none (`GET /rosters/<railroad>/trains`,
@@ -351,7 +370,8 @@ unreadable entry leaving it held by nobody, the move outstanding read off the
 picture from the grant to its sensor and none for a restored crossing with no
 request behind it, the end it points at, the aspect there and at the block's
 other end, the blocks ahead and their claims, the first locomotive's model or
-`null` where the field is absent, which trains are offered at all, the
+`null` where the field is absent, a camera only where the route says `true`,
+which trains are offered at all, the
 last train held first, marked, only while it is placed and nobody holds it,
 and a function on where `state/functions` gives it as on for the train and
 off where the row does not name it, has not been heard or cannot be read.
@@ -379,7 +399,13 @@ on every take, that the slider goes to rest when a granted move ends and when
 power reads off and stays put on a frame that ends no move, that the speed
 reads as a percentage and which end leads, that STOP publishes zero and leaves
 the reverser, that the aspect shown follows the reverser, that the picture is
-the first locomotive's photo with the name standing in, that releasing writes
+the first locomotive's photo with the name standing in, that a train held
+here with a camera shows the camera car's picture over it, and none for a
+train with no camera, held elsewhere or held by nobody, that an `error` takes
+the picture away until `RETRY_MS` on a fake clock puts it back under a new
+`try`, but not once the train is released, that a release, taking another
+train, the train leaving the layout and the run view each leave no picture,
+that releasing writes
 `null` and goes back to the picker with Take back, that a train with no
 functions shows no button and no `>>`, one or two show with no `>>` and three
 show two and `>>`, which opens the third, that a press on a held train, with
