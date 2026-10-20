@@ -9,17 +9,31 @@ import { css } from "lit";
  * roster occupy, so switching view does not move the pane under the pointer
  * ([#169](https://github.com/rails49/control/issues/169)).
  *
- * The cab is one column: what the train is and the control that takes it, the
- * lever, the road in front, and the functions. The lever is the widest thing
- * on the page on purpose — it is what a hand reaches for, and STOP sits at the
- * end of it because centring is the press that matters
- * ([#207](https://github.com/rails49/control/issues/207)).
+ * The cab is arrangement A
+ * ([#852](https://github.com/rails49/control/issues/852)): the train's
+ * picture across the top with what it is reading over it, and below it two
+ * columns — the reverser, the functions, Turn around and the clock on the
+ * left, and the speed, the slider and STOP on the right, where a right thumb
+ * holding a phone is. The slider stands upright, 0 at the bottom, and takes
+ * the drag for itself rather than scrolling the page.
+ *
+ * At a window `NARROW_WIDTH_PX` wide or less the host is `[narrow]` and shows
+ * one pane, full width: the list, or the cab. A window too short for the cab
+ * scrolls it.
  */
 export const throttleStyles = css`
   :host {
     display: grid;
     grid-template-columns: var(--pane) 1fr;
     overflow: hidden;
+  }
+
+  :host([narrow]) {
+    grid-template-columns: 1fr;
+  }
+
+  :host([narrow]) nav.trains {
+    border-right: none;
   }
 
   nav.trains {
@@ -93,6 +107,7 @@ export const throttleStyles = css`
     gap: 0.8rem;
     padding: 0.8rem 1rem;
     overflow-y: auto;
+    min-height: 0;
   }
 
   main h2 {
@@ -103,24 +118,61 @@ export const throttleStyles = css`
     color: var(--ink);
   }
 
-  header {
-    display: flex;
-    gap: 0.6rem;
-    align-items: baseline;
+  /* Back to the list, on a narrow window: the train put down, not given
+     back. */
+  button.back {
+    align-self: flex-start;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--body);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
   }
 
-  /* Which way the train points, which is what the lever's + means. */
-  .facing {
+  /* The train's picture, with what it is reading laid over its top. */
+  .top {
+    position: relative;
+    min-height: 6rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .picture {
+    display: block;
+    width: 100%;
+    max-height: 40vh;
+    object-fit: contain;
+  }
+
+  /* No photo: the name stands in the picture's place. */
+  .picture.name {
+    display: grid;
+    place-items: center;
+    min-height: 6rem;
+    font-size: 1.4rem;
     color: var(--hint);
-    font-variant-numeric: tabular-nums;
   }
 
-  .facing .arrow {
-    color: var(--ink);
+  .over {
+    position: absolute;
+    inset: 0 0 auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.6rem;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    background: color-mix(in srgb, var(--body) 80%, transparent);
   }
 
-  header button.take,
-  header button.force {
+  .stands {
+    color: var(--hint);
+  }
+
+  .over button.take,
+  .over button.force {
     padding: 0.25rem 0.9rem;
     border: 1px solid var(--rule);
     border-radius: 4px;
@@ -130,14 +182,34 @@ export const throttleStyles = css`
     cursor: pointer;
   }
 
-  header button.take {
+  .over button.take {
     margin-left: auto;
   }
 
-  header button.take.release,
-  header button.force {
+  .over button.take.release,
+  .over button.force {
     border-color: var(--chosen);
     color: var(--chosen);
+  }
+
+  .below {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+  }
+
+  .below .left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+  }
+
+  .below .right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   button:disabled {
@@ -153,24 +225,48 @@ export const throttleStyles = css`
     background: var(--wrong-body);
   }
 
-  .lever {
+  .reverser {
     display: flex;
-    gap: 0.6rem;
-    align-items: center;
   }
 
-  input.speed {
-    flex: 1;
-    min-width: 0;
+  .reverser button {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--rule);
+    background: var(--body);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .reverser button + button {
+    border-left: none;
+  }
+
+  .reverser button[aria-pressed="true"] {
+    background: var(--rule);
+    color: var(--ink);
   }
 
   .reading {
-    width: 3rem;
-    text-align: right;
+    font-size: 1.6rem;
     font-variant-numeric: tabular-nums;
   }
 
-  /* The press that centres the lever, weighted like the thing a hand goes
+  .motion {
+    font-size: 0.7rem;
+    color: var(--hint);
+  }
+
+  /* Upright, 0 at the bottom, and the drag is the slider's, not the page's. */
+  input.speed {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 3rem;
+    height: 14rem;
+    touch-action: none;
+  }
+
+  /* The press that puts the slider to 0, weighted like the thing a hand goes
      for without looking. */
   button.stop {
     padding: 0.3rem 1rem;
@@ -191,14 +287,6 @@ export const throttleStyles = css`
     color: inherit;
     font: inherit;
     cursor: pointer;
-  }
-
-  /* What the train is reading, and the road in front of it. */
-  .road {
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    flex-wrap: wrap;
   }
 
   .aspect {

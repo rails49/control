@@ -39,6 +39,8 @@ export const STOCK = {
       { name: "headlights", values: ["off", "on"] },
       { name: "vacuum", values: ["off", "low", "high"] },
     ],
+    // The model of its first locomotive, which the throttle draws it as.
+    locomotive: "BR 218",
   },
   // Nothing to switch, which is most of the stock a railroad owns.
   shunter: { length: 200 },
