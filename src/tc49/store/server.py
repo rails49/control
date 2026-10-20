@@ -11,8 +11,9 @@ rather than to an app of its own — a `ui` package could not import
     GET  /layouts/<name>        the layout that drawing derives to
     GET  /rosters/<name>        one railroad's roster, as the document it is
     PUT  /rosters/<name>        save it, keeping what the file says
-    GET  /rosters/<name>/trains its trains, each with its length and the
-                                functions its cars declare
+    GET  /rosters/<name>/trains its trains, each with its length, the
+                                functions its cars declare and whether
+                                one carries a camera
     GET  /catalogue             every model the installation knows, by name
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
@@ -486,15 +487,18 @@ def _put(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
 
 
 def _trains(roster: Roster) -> dict[str, Any]:
-    """What the run views read a roster for: each train's length and what a
-    person driving it can switch.
+    """What the run views read a roster for: each train's length, what a
+    person driving it can switch, and whether it carries a camera.
 
     Derived rather than written down, which is why it is a path of its own
     below the document: `/rosters/<name>` is the roster as the file has it and
     `GET` and `PUT` there are inverses, and one answer cannot be both that and
     this. The cars a train is made of, their addresses and which function
     number each name sits on are the stock screen's and the translator's, not
-    a view's (ui/THROTTLE.md, ADR-0045). Written out rather than `asdict`,
+    a view's (ui/THROTTLE.md, ADR-0045) — and so is where a camera answers:
+    the route says a train carries one and still carries no address of any
+    kind, the picture reaching a view through the `camera` app (ADR-0082).
+    Written out rather than `asdict`,
     which would put every field of the document on this face the day one is
     added — and would drop both of these, which a train derives.
     """
@@ -504,6 +508,7 @@ def _trains(roster: Roster) -> dict[str, Any]:
             name: {
                 "length": train.length,
                 "functions": [{"name": function.name} for function in train.functions],
+                "camera": train.camera is not None,
             }
             for name, train in sorted(roster.trains.items())
         },

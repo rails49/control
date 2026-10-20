@@ -121,6 +121,7 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
             "ore": {
                 "length": 722,
                 "functions": [{"name": "lights"}],
+                "camera": False,
             }
         },
     }
@@ -195,6 +196,73 @@ def test_two_cars_sharing_a_decoder_address_are_refused(
     assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
 
 
+def test_a_roster_with_a_camera_car_is_written_and_read_back(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The document keeps where the camera answers; the run views' answer
+    says only that the train carries one, and no address of any kind
+    (ADR-0082)."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    doc = {
+        "roster": "oval",
+        "cars": {
+            "krokodil_a": {"model": "arnold-ce68", "addr": "3"},
+            "cam_1": {"model": "bench-600", "camera": "192.168.178.58"},
+        },
+        "trains": {
+            "ore": {"cars": [{"car": "krokodil_a"}, {"car": "cam_1"}]},
+            "light_1": {"cars": [{"car": "krokodil_a"}]},
+        },
+    }
+    assert handle(store, backup, "PUT", "/rosters/oval", doc) == (
+        200,
+        {"saved": "oval"},
+    )
+    assert handle(store, backup, "GET", "/rosters/oval", None) == (200, doc)
+    trains = handle(store, backup, "GET", "/rosters/oval/trains", None)[1]["trains"]
+    assert trains["ore"] == {
+        "length": 722,
+        "functions": [{"name": "lights"}],
+        "camera": True,
+    }
+    assert trains["light_1"]["camera"] is False
+
+
+@pytest.mark.parametrize(
+    ("cars", "named"),
+    [
+        ({"cam_1": {"model": "bench-600", "camera": "http://cam"}}, "car 'cam_1'"),
+        (
+            {
+                "cam_1": {"model": "bench-600", "camera": "cam.local"},
+                "cam_2": {"model": "bench-600", "camera": "cam.local"},
+            },
+            "cars 'cam_1' and 'cam_2'",
+        ),
+    ],
+)
+def test_a_roster_with_a_bad_or_shared_camera_is_refused(
+    tmp_path: Path, backup: Backup, cars: dict[str, Any], named: str
+) -> None:
+    """400 naming the car, and the roster on disk as it was."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    before: dict[str, Any] = {"roster": "oval", "cars": {}, "trains": {}}
+    assert handle(store, backup, "PUT", "/rosters/oval", before)[0] == 200
+    on_disk = (tmp_path / "layouts" / "oval.roster.yaml").read_text()
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/rosters/oval",
+        {"roster": "oval", "cars": cars, "trains": {}},
+    )
+    assert status == 400
+    assert named in body["error"]
+    assert (tmp_path / "layouts" / "oval.roster.yaml").read_text() == on_disk
+
+
 def test_a_roster_cannot_be_saved_under_another_railroads_name(
     tmp_path: Path, backup: Backup
 ) -> None:
@@ -223,7 +291,7 @@ def test_the_run_views_answer_is_the_trains_below_the_document(
     )
     assert status == 200
     assert body["roster"] == "reversing-loops-v0"
-    assert body["trains"]["south"] == {"length": 900, "functions": []}
+    assert body["trains"]["south"] == {"length": 900, "functions": [], "camera": False}
     assert body["trains"] == dict(sorted(body["trains"].items()))
 
 
@@ -252,6 +320,7 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
     assert body["trains"]["light_1"] == {
         "length": 220,
         "functions": [{"name": "headlights"}, {"name": "vacuum"}],
+        "camera": False,
     }
 
 

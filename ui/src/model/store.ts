@@ -219,8 +219,8 @@ export interface TrainsDoc {
 }
 
 /** One train on the roster: how long it is, and what a person driving it can
- *  switch. Both are **derived from the cars it is made of** and neither is
- *  authored, so the pair arrives together
+ *  switch, and whether it carries a camera. All three are **derived from the
+ *  cars it is made of** and none is authored, so they arrive together
  *  ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
  *  The cars themselves, their addresses and which DCC number each function
  *  sits on are not here: a decoder detail is no view's (ui/THROTTLE.md). */
@@ -229,6 +229,10 @@ export interface TrainDoc {
   /** Absent from an older store's answer, which is a train with nothing to
    *  switch rather than a document to refuse. */
   functions?: Fn[];
+  /** Whether a car in the train carries a camera — never where it answers,
+   *  which is the `camera` app's (ADR-0082). Absent from an older store's
+   *  answer, read as `false`. */
+  camera?: boolean;
 }
 
 /** One thing a person can switch on a train, by the name the catalogue gives
@@ -281,6 +285,10 @@ export interface CarDoc {
   kind?: string;
   length?: number;
   functions?: Record<string, ModelFn>;
+  /** Where the camera this car carries answers on the LAN: a host name or an
+   *  IPv4 address, with no scheme, port, path or login. Absent where it
+   *  carries none, and no two cars may name the same one (ADR-0082). */
+  camera?: string;
 }
 
 /** A train the railroad has made up: an ordered list, head first. Its length
