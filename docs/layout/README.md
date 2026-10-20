@@ -32,17 +32,19 @@ this app throws what it is told and holds no table of its own.
 *Subscribes* `tc49/layout/align`, `tc49/layout/move`,
 `tc49/layout/power_wanted`, `tc49/layout/driving_wanted`,
 `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`,
-`tc49/layout/throttle_wanted`, `tc49/dispatch/train_placed`,
-`tc49/dispatch/train_removed`, `tc49/dispatch/state/aspects`,
-`tc49/dispatch/state/moving`, `tc49/schedule/state/facing` and
-`tc49/layout/state/device/#`.
+`tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`,
+`tc49/dispatch/train_placed`, `tc49/dispatch/train_removed`,
+`tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
+`tc49/schedule/state/facing`, `tc49/layout/state/device/#` and
+`tc49/layout/state/wanted/function/#`, the function rows it writes, read back.
 
 *Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
 `tc49/layout/state/wanted/traction/<addr>`,
+`tc49/layout/state/wanted/function/<addr>/<number>`,
 `tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track`,
-`tc49/layout/state/power`, `tc49/layout/state/driving` and
-`tc49/layout/state/taken`.
+`tc49/layout/state/power`, `tc49/layout/state/driving`,
+`tc49/layout/state/taken` and `tc49/layout/state/functions`.
 
 The facing is the one topic here that is nobody's hardware and nobody's
 command: it is the scheduler's state, and this app reads it because the sign of
@@ -407,6 +409,31 @@ frame of that sign until the throttle sends `0`. How hard a decoder reverses
 depends on settings the roster does not record, and behind a long train cars
 can leave the rails.
 
+## A train's functions
+
+A throttle switches one of its train's functions by the name the catalogue
+gives it: `tc49/layout/function_wanted` `{train, throttle, function, on}`
+([#849](https://github.com/rails49/control/issues/849)). A frame that cannot be
+read, or whose `throttle` does not hold the train, is dropped. Otherwise this
+app writes `tc49/layout/state/wanted/function/<addr>/<number>` with
+`{addr, function: <number>, value: <on>}` for the first car in the train's
+order that has an address and declares a function of that name, on that car's
+first number for it. Which way the train runs is not asked. A train the roster
+does not name, or a name no addressed car declares, is dropped with a log
+line. A press is accepted at any power and in either driving mode: a light is
+not a wheel, and the row waits for the supply.
+
+Nothing else writes a function row. A release, a silent throttle,
+`train_removed`, a cut and a restart leave them as they are, so the lights a
+person left on stay on.
+
+`tc49/layout/state/functions` says which of each train's functions are on, by
+name: the `value` of the row a press of that name writes, absent where there is
+no such row. This app reads the rows back, its own writes and the retained ones
+a bus that outlived it hands over at start, so a light a decoder still has on
+shows on after a restart. A row that cannot be read, or that no press would
+write, is left out.
+
 ## Alignment
 
 An `align` carries the points its transit needs as address-and-position pairs,
@@ -585,8 +612,5 @@ move back through `_cross`, under the same checks.
 
 ## What is not here yet
 
-- **The function row**, `tc49/layout/state/wanted/function/<addr>/<number>`.
-  It is the one desired row with no writer: a function press has no gesture to
-  arrive on, so it is nobody's until a throttle asks (ADR-0045).
 - **Any hardware protocol.** This app speaks the device vocabulary and nothing
   else; what a translator does with an address is its own business.
