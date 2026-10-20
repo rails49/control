@@ -108,6 +108,13 @@ class Car:
     every field" stays true of a car, but they are **inherited and never
     overridden**: who made a product and what scale it is are facts about the
     product, so a car saying otherwise would be describing a different one.
+
+    `camera` is where the camera this car carries answers on the LAN — a host
+    name or an IPv4 address, bare — and absent where it carries none. It is
+    the item's and never the model's: two cars of one product, one with a
+    camera fitted, are still one product
+    ([ADR-0082](../../../docs/adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+    Last, so the positional constructions in `lib.stock` still hold.
     """
 
     model: str
@@ -118,6 +125,7 @@ class Car:
     manufacturer: str | None = None
     scale: str | None = None
     description: str | None = None
+    camera: str | None = None
 
 
 @dataclass(frozen=True)
@@ -203,6 +211,18 @@ class Train:
             for function in coupled.car.functions.values():
                 by_name.setdefault(function.name, function)
         return tuple(by_name.values())
+
+    @property
+    def camera(self) -> str | None:
+        """Where the train's camera answers: the first car, head first, that
+        carries one, else `None` — which a train stating its length, naming
+        no cars, always is. The `camera` app reads it to relay the picture
+        (ADR-0082); no view does, since it is an address.
+        """
+        for coupled in self.cars:
+            if coupled.car.camera is not None:
+                return coupled.car.camera
+        return None
 
     @property
     def priority_key(self) -> tuple[int, int]:

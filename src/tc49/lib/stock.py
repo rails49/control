@@ -33,6 +33,7 @@ where it is used. Either way the entry is loaded into a `Car`, so nothing
 downstream of the roster reads which shape it was written in.
 """
 
+import re
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -86,6 +87,7 @@ def validate_roster(doc: Any, catalogue: Mapping[str, Model]) -> Roster:
 
     cars: dict[str, Car] = {}
     owner: dict[str, str] = {}  # decoder address -> the car wearing it
+    carrier: dict[str, str] = {}  # camera -> the car carrying it
     for name, car_spec in as_mapping(spec.get("cars") or {}, f"{where}: cars").items():
         car = _car(car_spec, catalogue, f"{where}: car '{name}'")
         # One railroad, one decoder per address: two cars on one address both
@@ -97,6 +99,15 @@ def validate_roster(doc: Any, catalogue: Mapping[str, Model]) -> Roster:
                     f" address '{car.addr}'"
                 )
             owner[car.addr] = name
+        # One camera rides in one car: two naming it would put one picture
+        # on two trains.
+        if car.camera is not None:
+            if car.camera in carrier:
+                raise ValueError(
+                    f"{where}: cars '{carrier[car.camera]}' and '{name}' share"
+                    f" camera '{car.camera}'"
+                )
+            carrier[car.camera] = name
         cars[name] = car
 
     trains = {
@@ -134,6 +145,7 @@ def _car(doc: Any, catalogue: Mapping[str, Model], where: str) -> Car:
         model.manufacturer,
         model.scale,
         model.description,
+        _camera(spec.get("camera"), where),
     )
 
 
@@ -290,6 +302,27 @@ def _addr(addr: Any, where: str) -> str | None:
             f' `addr: "460"` — got {addr!r}'
         )
     return addr
+
+
+_HOST = re.compile(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?")
+
+
+def _camera(camera: Any, where: str) -> str | None:
+    """Where a car's camera answers on the LAN, absent where it carries none.
+
+    A host name or an IPv4 address and nothing else — letters, digits, dots
+    and hyphens, starting and ending with a letter or digit — so no scheme,
+    port, path or login: how the camera is spoken to is the `camera` app's
+    (ADR-0082). A string, not coerced, for `_addr`'s reason.
+    """
+    if camera is None:
+        return None
+    if not isinstance(camera, str) or not _HOST.fullmatch(camera):
+        raise ValueError(
+            f"{where}: camera must be a bare host name or IPv4 address, as"
+            f' `camera: "192.168.178.58"` — got {camera!r}'
+        )
+    return camera
 
 
 def _functions(spec: Any, where: str) -> dict[str, Function]:
