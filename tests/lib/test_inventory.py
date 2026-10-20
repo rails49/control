@@ -41,6 +41,8 @@ MODE = "tc49/layout/state/mode"
 TAKE_WANTED = "tc49/layout/take_wanted"
 THROTTLE_ALIVE = "tc49/layout/throttle_alive"
 TAKEN = "tc49/layout/state/taken"
+FUNCTION_WANTED = "tc49/layout/function_wanted"
+FUNCTIONS = "tc49/layout/state/functions"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 DRIVING = "tc49/layout/state/driving"
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -145,6 +147,18 @@ def test_one_throttle_holds_a_train_and_layout_states_which() -> None:
     assert TAKEN not in INBOUND
 
 
+def test_a_throttle_switches_a_function_and_layout_states_which_are_on() -> None:
+    """A throttle switches one of its train's functions by the name the
+    catalogue gives it (#849): a gesture any page may write. Which of each
+    train's functions are on is `layout`'s state and no page writes it."""
+    assert FUNCTION_WANTED in INBOUND
+    assert TOPICS[FUNCTION_WANTED].fields == ("train", "throttle", "function", "on")
+    assert is_state_topic(FUNCTIONS)
+    assert FUNCTIONS.startswith("tc49/layout/")
+    assert TOPICS[FUNCTIONS].fields == (AT, "functions")
+    assert FUNCTIONS not in INBOUND
+
+
 def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
     """The command direction of the one axis (#293, ADR-0051): an event row
     a page may write, carrying the one field `power` and the same closed set
@@ -242,6 +256,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         DRIVING_WANTED,
         TAKE_WANTED,
         THROTTLE_ALIVE,
+        FUNCTION_WANTED,
     }
     assert not any(is_state_topic(topic) for topic in INBOUND)
 

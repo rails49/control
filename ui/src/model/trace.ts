@@ -100,6 +100,7 @@ export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 export const DRIVING_WANTED = "tc49/layout/driving_wanted";
 export const TAKE_WANTED = "tc49/layout/take_wanted";
 export const THROTTLE_ALIVE = "tc49/layout/throttle_alive";
+export const FUNCTION_WANTED = "tc49/layout/function_wanted";
 
 /** What the layout says about whether a train may move at all: `on`;
  *  `draining`, the supply kept on while each moving train stops and nothing
@@ -268,6 +269,24 @@ export function takeWanted(train: string, throttle: string | null): Frame {
   return { topic: TAKE_WANTED, payload: { train, throttle } };
 }
 
+/** A `function_wanted` frame: the throttle holding the train switches one
+ *  of its functions, named as the catalogue names it, on or off. Which car
+ *  and which function number the name reaches is `layout`'s, and a press from
+ *  a throttle not holding the train is dropped, so the view reads which
+ *  functions are on off `state/functions`, which `layout` writes and this
+ *  never assumes ([#849](https://github.com/rails49/control/issues/849)). */
+export function functionWanted(
+  train: string,
+  throttle: string,
+  fn: string,
+  on: boolean,
+): Frame {
+  return {
+    topic: FUNCTION_WANTED,
+    payload: { train, throttle, function: fn, on },
+  };
+}
+
 /** A `throttle_alive` frame: this throttle is still here. A throttle says it
  *  once a second while it holds a train, and `layout` releases every train
  *  of one it has not heard for 5 s, so a phone gone to sleep does not leave
@@ -315,6 +334,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "power",
   "driving",
   "taken",
+  "functions",
   "exhausted",
   "facing",
   "moving",

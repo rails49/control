@@ -11,6 +11,8 @@ import {
   cancellation,
   DRIVING_WANTED,
   drivingWanted,
+  FUNCTION_WANTED,
+  functionWanted,
   gesture,
   Live,
   Ordering,
@@ -193,6 +195,23 @@ describe("takeWanted", () => {
   });
 });
 
+/** A throttle switches one of its train's functions by the name the
+ *  catalogue gives it (#849). */
+describe("functionWanted", () => {
+  it("names the train, the throttle holding it, the function and the bit", () => {
+    expect(functionWanted("t1", "k3x9", "headlights", true)).toEqual({
+      topic: "tc49/layout/function_wanted",
+      payload: {
+        train: "t1",
+        throttle: "k3x9",
+        function: "headlights",
+        on: true,
+      },
+    });
+    expect(FUNCTION_WANTED).toBe("tc49/layout/function_wanted");
+  });
+});
+
 describe("throttleAlive", () => {
   it("names the throttle and nothing else", () => {
     expect(throttleAlive("k3x9")).toEqual({
@@ -324,6 +343,7 @@ describe("Ordering", () => {
       "driving",
       "exhausted",
       "facing",
+      "functions",
       "moving",
       "power",
       "railroad",

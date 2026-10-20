@@ -18,6 +18,7 @@ from tc49.lib.payload import (
     Ordering,
     Placement,
     Reorder,
+    Switch,
     Take,
     Throttle,
     alignment,
@@ -48,6 +49,7 @@ from tc49.lib.payload import (
     supply,
     taken,
     wanted_driving,
+    wanted_function,
     wanted_power,
     wanted_reorder,
     wanted_take,
@@ -467,6 +469,50 @@ def test_a_take_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert wanted_take(payload) is None, payload
+
+
+def test_a_function_press_reads_as_the_train_throttle_name_and_bit() -> None:
+    """A throttle switches one of its train's functions by the name the
+    catalogue gives it (#849)."""
+    assert wanted_function(
+        {"train": "freight_1", "throttle": "k3x9", "function": "headlights", "on": True}
+    ) == Switch("freight_1", "k3x9", "headlights", True)
+    assert wanted_function(
+        {"train": "freight_1", "throttle": "k3x9", "function": "horn", "on": False}
+    ) == Switch("freight_1", "k3x9", "horn", False)
+
+
+def test_a_function_press_that_cannot_be_read_is_dropped() -> None:
+    """Every field is required: a press names the throttle holding the
+    train, the function by a name, and the bit as a boolean."""
+    whole: dict[str, object] = {
+        "train": "freight_1",
+        "throttle": "k3x9",
+        "function": "headlights",
+        "on": True,
+    }
+
+    def without(field: str) -> dict[str, object]:
+        return {key: value for key, value in whole.items() if key != field}
+
+    refused: list[object] = [
+        None,
+        "freight_1",  # not an object
+        without("train"),
+        {**whole, "train": 1},
+        without("throttle"),
+        {**whole, "throttle": None},
+        {**whole, "throttle": ""},
+        without("function"),
+        {**whole, "function": ""},
+        {**whole, "function": 0},  # a name, not a number
+        without("on"),
+        {**whole, "on": "on"},
+        {**whole, "on": 1},
+        {**whole, "on": None},
+    ]
+    for payload in refused:
+        assert wanted_function(payload) is None, payload
 
 
 def test_a_throttle_alive_reads_as_the_throttle_it_names() -> None:
