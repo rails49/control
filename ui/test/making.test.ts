@@ -455,6 +455,55 @@ describe("making up a train", () => {
   });
 });
 
+/** A camera is the item's own as an address is, and Save carries it in the
+ *  whole roster like any other edit (ADR-0082, ui/STOCK.md). */
+describe("a car's camera", () => {
+  it("promotes a model entry to a car with the camera and no address", async () => {
+    const shell = await opened();
+    await product(shell, "van", "freight", "90");
+    await train(shell, "ore");
+    await add(shell, "product", 0);
+    await typed(shell, parts(shell, "li.entry input.camera")[0]!, "192.168.178.58");
+    await pressed(shell, "sl-button.save");
+
+    expect(written()!.cars).toEqual({ "van-1": { model: "van", camera: "192.168.178.58" } });
+    expect(written()!.trains.ore!.cars).toEqual([{ car: "van-1" }]);
+    expect((parts(shell, "li.car input.camera")[0] as HTMLInputElement).value).toBe(
+      "192.168.178.58",
+    );
+  });
+
+  it("is taken off a car cleared on its row, and the car stays", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await typed(shell, parts(shell, "li.car input.camera")[0]!, "cam-1");
+    await pressed(shell, "sl-button.save");
+    expect(written()!.cars).toEqual({
+      "arnold-ce68-1": { model: "arnold-ce68", addr: "3", camera: "cam-1" },
+    });
+
+    await typed(shell, parts(shell, "li.car input.camera")[0]!, "");
+    await pressed(shell, "sl-button.save");
+    expect(written()!.cars).toEqual({ "arnold-ce68-1": { model: "arnold-ce68", addr: "3" } });
+  });
+
+  it("puts a malformed camera back to the roster's, says why, and saves none", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const field = () => parts(shell, "li.car input.camera")[0] as HTMLInputElement;
+    await typed(shell, field(), "cam-1");
+
+    await typed(shell, field(), "http://cam-1:8080/");
+
+    expect(trouble(shell)).toBe(
+      "'http://cam-1:8080/' is not a camera address — write the camera's host name or IP address",
+    );
+    expect(field().value).toBe("cam-1");
+    await pressed(shell, "sl-button.save");
+    expect(written()!.cars!["arnold-ce68-1"]!.camera).toBe("cam-1");
+  });
+});
+
 const POWER = "tc49/layout/state/power";
 const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 const HELD = "track power is on — turn it off to correct a length";

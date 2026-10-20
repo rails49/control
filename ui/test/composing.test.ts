@@ -341,6 +341,98 @@ describe("filling in an address", () => {
   });
 });
 
+describe("filling in a camera", () => {
+  it("sets a car's camera, trimmed", () => {
+    const screen = stock();
+    expect(screen.carCamera("krokodil-a", " cam-1.local ")).toBeNull();
+    expect(screen.roster.cars!["krokodil-a"]).toEqual({
+      model: "arnold-ce68",
+      addr: "3",
+      camera: "cam-1.local",
+    });
+    expect(screen.edits).toBe(true);
+  });
+
+  it("clears a camera without taking the car off the roster", () => {
+    const screen = stock({
+      ...OVAL,
+      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "192.168.178.58" } },
+    });
+    expect(screen.carCamera("krokodil-a", "  ")).toBeNull();
+    expect(screen.roster.cars!["krokodil-a"]).toEqual({ model: "arnold-ce68", addr: "3" });
+  });
+
+  /** How the camera is spoken to is the `camera` app's (ADR-0082): the
+   *  roster holds where it answers and nothing else, as `lib/stock.py` has. */
+  it.each(["http://cam", "cam:8080", "cam/stream", "admin@cam", "-cam", "cam.", "two words"])(
+    "refuses %j, which is not a camera address",
+    (typed) => {
+      const screen = stock();
+      expect(screen.carCamera("krokodil-a", typed)).toBe(
+        `'${typed}' is not a camera address — write the camera's host name or IP address`,
+      );
+      expect(screen.roster.cars!["krokodil-a"]).toEqual({ model: "arnold-ce68", addr: "3" });
+      expect(screen.edits).toBe(false);
+    },
+  );
+
+  /** One camera rides in one car: two naming it would put one picture on two
+   *  trains. The store refuses it; this says which car has it. */
+  it("refuses a camera another car already carries, and names it", () => {
+    const screen = stock({
+      ...OVAL,
+      cars: {
+        "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "cam-1" },
+        "van-1": { model: "van" },
+      },
+    });
+    expect(screen.carCamera("van-1", "cam-1")).toBe(
+      "car 'krokodil-a' already carries camera 'cam-1'",
+    );
+    expect(screen.roster.cars!["van-1"]).toEqual({ model: "van" });
+    expect(screen.carCamera("krokodil-a", "cam-1")).toBeNull();
+  });
+
+  it("promotes an anonymous entry to a car with the camera and no address", () => {
+    const screen = stock();
+    screen.turn("ore", 1);
+    expect(screen.camera("ore", 1, "10.0.0.7")).toBeNull();
+    expect(screen.roster.cars!["hopper-1"]).toEqual({ model: "hopper", camera: "10.0.0.7" });
+    expect(screen.roster.trains.ore!.cars![1]).toEqual({
+      car: "hopper-1",
+      orientation: "reverse",
+    });
+  });
+
+  it("sets the camera of the car an entry already names", () => {
+    const screen = stock();
+    expect(screen.camera("ore", 0, "cam-1")).toBeNull();
+    expect(screen.roster.cars!["krokodil-a"]).toEqual({
+      model: "arnold-ce68",
+      addr: "3",
+      camera: "cam-1",
+    });
+    expect(screen.trains()[0]!.entries[0]).toMatchObject({ car: "krokodil-a", camera: "cam-1" });
+    expect(screen.cars()[0]).toMatchObject({ name: "krokodil-a", camera: "cam-1" });
+  });
+
+  it("refuses a malformed or taken camera on an anonymous entry, promoting nothing", () => {
+    const screen = stock({
+      ...OVAL,
+      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "cam-1" } },
+    });
+    expect(screen.camera("ore", 1, "cam-1")).toBe(
+      "car 'krokodil-a' already carries camera 'cam-1'",
+    );
+    expect(screen.camera("ore", 1, "cam:1")).toBe(
+      "'cam:1' is not a camera address — write the camera's host name or IP address",
+    );
+    expect(screen.camera("ore", 1, "")).toBeNull();
+    expect(Object.keys(screen.roster.cars!)).toEqual(["krokodil-a"]);
+    expect(screen.edits).toBe(false);
+  });
+});
+
 describe("a car of one's own", () => {
   it("can stand in no train at all", () => {
     const screen = stock(EMPTY);

@@ -339,6 +339,17 @@ export class TcStock extends LitElement {
             )}
         />
         <input
+          class="camera"
+          .value=${this.putting(`car:${car.name}:camera`, car.camera ?? "")}
+          placeholder="camera"
+          aria-label="camera"
+          @change=${(event: Event) =>
+            this.did(
+              this.stock?.carCamera(car.name, value(event)),
+              `car:${car.name}:camera`,
+            )}
+        />
+        <input
           class="length"
           .value=${this.putting(
             `car:${car.name}:length`,
@@ -419,6 +430,7 @@ export class TcStock extends LitElement {
               : ` — ${model.holders.join(", ")}`}
           </span>
         </span>
+        <span></span>
         <span></span>
         <input
           class="length"
@@ -797,8 +809,8 @@ export class TcStock extends LitElement {
 
   /** One place in a train. The address is offered whatever the item's kind —
    *  a powered van is a real thing, so kind never implies an address
-   *  (ADR-0061) — and typing one is what promotes an anonymous item to a car
-   *  in the list above. */
+   *  (ADR-0061) — and so is the camera; typing either is what promotes an
+   *  anonymous item to a car in the list above. */
   private entry(train: string, entry: EntryRow, at: number) {
     return html`
       <li class="entry">
@@ -817,6 +829,17 @@ export class TcStock extends LitElement {
             this.did(
               this.stock?.address(train, at, value(event)),
               `entry:${train}:${at}:addr`,
+            )}
+        />
+        <input
+          class="camera"
+          .value=${this.putting(`entry:${train}:${at}:camera`, entry.camera ?? "")}
+          placeholder="camera"
+          aria-label="camera"
+          @change=${(event: Event) =>
+            this.did(
+              this.stock?.camera(train, at, value(event)),
+              `entry:${train}:${at}:camera`,
             )}
         />
         <button
