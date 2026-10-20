@@ -16,10 +16,11 @@ becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
 **Everything the bus hands it is read and never trusted** (BUS.md, rule 4).
-Twelve topics from six publishers — the detectors joining them with the fold
-(#288), the throttle's three gestures and the driving mode coming from where
-a person's press already does (#297, ADR-0079), and the moving row a drain
-ends on (ADR-0078) — none of which this app answers — it reports
+Thirteen topics from six publishers — the detectors joining them with the fold
+(#288), the throttle's four gestures and the driving mode coming from where
+a person's press already does (#297, ADR-0079, #849), and the moving row a
+drain ends on (ADR-0078) — and the function rows it writes, read back
+(below), none of which this app answers — it reports
 observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
 one would take the app running the railroad down at the whim of whoever
@@ -149,10 +150,19 @@ own (docs/DEPLOY.md), lets go of its trains. A train let go of stops in
 move ends, or is given its grant's speed if it stands (ADR-0083), and with no
 move outstanding it is written `0.0`.
 
-What is **not** here yet: the function topic beside the traction write, which
-is nobody's until a gesture carries a function press. The simulator is
-untouched and remains the second binding of the same interface
-(ADR-0030).
+**A train's functions.** A throttle switches one by the name the catalogue
+gives it, on `function_wanted`, and the press is the holding throttle's
+alone, at any power and in either driving mode. It reaches the first car in
+the train's order that has an address and declares the name, on that car's
+first number for it, whichever way the train runs: one `wanted/function` row,
+and nothing else ever writes one — a release, a silent throttle,
+`train_removed`, a cut and a restart leave them standing. `state/functions`
+says which of each train's functions are on, read off those rows: this app's
+own writes and the ones a bus that outlived it hands back, so a light a
+decoder still has on shows on after a restart (#849).
+
+The simulator is untouched and remains the second binding of the same
+interface (ADR-0030).
 """
 
 import logging
@@ -186,6 +196,7 @@ from tc49.lib.payload import (
     alignment,
     alive_throttle,
     command,
+    desired_function,
     detected,
     kept_facing,
     link_up,
@@ -195,6 +206,7 @@ from tc49.lib.payload import (
     shown_aspects,
     supply,
     wanted_driving,
+    wanted_function,
     wanted_take,
     wanted_throttle,
 )
@@ -210,6 +222,7 @@ DRIVING_WANTED = "tc49/layout/driving_wanted"
 TAKE_WANTED = "tc49/layout/take_wanted"
 THROTTLE_ALIVE = "tc49/layout/throttle_alive"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
+FUNCTION_WANTED = "tc49/layout/function_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
@@ -224,7 +237,9 @@ BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
 DRIVING = "tc49/layout/state/driving"
 TAKEN = "tc49/layout/state/taken"
+FUNCTIONS = "tc49/layout/state/functions"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
+WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
@@ -401,6 +416,10 @@ class LayoutInterface:
         # held against until its throttle sends `0` (ADR-0084).
         self._wrote: dict[str, float] = {}
         self._heading: dict[str, float] = {}
+        # The bit on each `wanted/function` row this app knows of, by address
+        # and function number: its own writes and the rows a bus that
+        # outlived it hands back, which is what `state/functions` is made of.
+        self._lit: dict[tuple[str, str], bool] = {}
         # The crossings an `align` has authorised, one entry per transit and
         # each spent by the move that takes it, and the moves waiting on one.
         self._aligned: set[str] = set()
@@ -454,6 +473,7 @@ class LayoutInterface:
         bus.subscribe(TAKE_WANTED, self._on_take_wanted)
         bus.subscribe(THROTTLE_ALIVE, self._on_throttle_alive)
         bus.subscribe(THROTTLE_WANTED, self._on_throttle_wanted)
+        bus.subscribe(FUNCTION_WANTED, self._on_function_wanted)
         bus.subscribe(PLACED, self._on_placed)
         bus.subscribe(REMOVED, self._on_removed)
         # Which railroad this is, said before anything is said about it. One
@@ -494,10 +514,16 @@ class LayoutInterface:
         # hand, and a restart is not a hand (ADR-0079).
         bus.publish(DRIVING, {"driving": MANUAL})
         bus.publish(TAKEN, {"taken": {}})
+        # No function is known to be on until a row says so. The rows are
+        # read back rather than zeroed, unlike traction: a light left on is
+        # no train rolling, and a row handed back is what the decoder was
+        # last told, so it is what `state/functions` says (#849).
+        bus.publish(FUNCTIONS, {"functions": {}})
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
         bus.subscribe(DEVICE, self._on_device)
+        bus.subscribe(WANTED_FUNCTION + "/#", self._on_function_row)
 
     # -- live state, for the tests ------------------------------------------
 
@@ -1109,6 +1135,96 @@ class LayoutInterface:
         self._headed(train, turned.speed)
         for addr, speed in _composed(addressed, turned.speed >= 0.0, abs(turned.speed)):
             self._traction_write(addr, speed)
+
+    # -- a train's functions ------------------------------------------------
+
+    def _on_function_wanted(self, topic: str, payload: Payload) -> None:
+        """A person switched one of the train's functions, by the name the
+        catalogue gives it (#849).
+
+        The press is the holding throttle's and nobody else's, as the lever
+        is (ADR-0079): a frame from another throttle, or naming none, is
+        dropped. It is accepted at any power and in either driving mode — a
+        light is not a wheel, and the row waits for the supply as any desired
+        row does (ADR-0054).
+
+        **The first addressed car declaring the name** is the one written,
+        on that car's first number for it: `Train.functions` lists a name
+        once, first car first, and a press reaches one decoder. Which way the
+        train runs is not asked. A train the roster does not name, or a name
+        no addressed car of it declares, is dropped with a log line: the
+        throttle showed a button the roster cannot back.
+
+        Nothing else writes a function row: a release, a silent throttle,
+        `train_removed`, a cut and a restart leave them as they are.
+        """
+        switched = wanted_function(payload)
+        if switched is None or self._taken.get(switched.train) != switched.throttle:
+            return
+        reached = self._reaches(switched.train, switched.function)
+        if reached is None:
+            _log.info(
+                "%s of %s dropped, no addressed car declares it",
+                switched.function,
+                switched.train,
+            )
+            return
+        addr, number = reached
+        self._bus.publish(
+            device_topic(WANTED_FUNCTION, addr, number),
+            {"addr": addr, "function": number, "value": switched.on},
+        )
+        self._function_known(addr, number, switched.on)
+
+    def _on_function_row(self, topic: str, payload: Payload) -> None:
+        """A `wanted/function` row: this app's own write coming back, or one
+        a bus that outlived it hands over at start. Read rather than trusted
+        — a row that cannot be read is skipped — and stamp-guarded as every
+        state row this app reads is (#240), so a light a decoder still has on
+        shows on after a restart."""
+        split = split_device(topic)
+        if split is None or split[0] != WANTED_FUNCTION:
+            return
+        levels = split[1].split("/")
+        value = desired_function(payload)
+        if len(levels) != 2 or value is None:
+            return
+        if not self._ordering.accepts(topic, payload):
+            return
+        self._function_known(levels[0], levels[1], value)
+
+    def _function_known(self, addr: str, number: str, value: bool) -> None:
+        """A row's bit held, and `state/functions` said again where it moved."""
+        if self._lit.get((addr, number)) == value:
+            return
+        self._lit[(addr, number)] = value
+        self._bus.publish(FUNCTIONS, {"functions": self._functions()})
+
+    def _reaches(self, train: str, name: str) -> tuple[str, str] | None:
+        """The address and function number a press of `name` on `train`
+        writes: the first car in the train's order that has an address and
+        declares the name, on the first number it declares it on. None for a
+        train the roster does not name and a name no addressed car declares."""
+        made_up = self._roster.trains.get(train)
+        for coupled in made_up.cars if made_up is not None else ():
+            if coupled.car.addr is None:
+                continue
+            for number, function in coupled.car.functions.items():
+                if function.name == name:
+                    return coupled.car.addr, number
+        return None
+
+    def _functions(self) -> dict[str, dict[str, bool]]:
+        """Which of each train's functions are on, by name: the bit on the
+        row a press of that name writes. A train or name with no row known is
+        absent, which reads off."""
+        stated: dict[str, dict[str, bool]] = {}
+        for train, made_up in self._roster.trains.items():
+            for function in made_up.functions:
+                reached = self._reaches(train, function.name)
+                if reached is not None and reached in self._lit:
+                    stated.setdefault(train, {})[function.name] = self._lit[reached]
+        return stated
 
     # -- where the trains stand ---------------------------------------------
 
