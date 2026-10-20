@@ -1421,6 +1421,57 @@ describe("side by side", () => {
     expect(within(shell, "goods", "tc-clock")).not.toBeNull();
   });
 
+  /** Where one train's controls stand: its slider and its reverser. */
+  function positions(shell: TcApp, train: string): { slider: string; reverse: boolean } {
+    return {
+      slider: within<HTMLInputElement>(shell, train, "input.speed").value,
+      reverse: within(shell, train, "button.reverse").getAttribute("aria-pressed") === "true",
+    };
+  }
+
+  /** Reverse pressed, then the slider moved: a train running tail first. */
+  async function running(shell: TcApp, train: string, speed: number, reverse: boolean) {
+    if (reverse) within<HTMLButtonElement>(shell, train, "button.reverse").click();
+    await settled(shell);
+    const lever = within<HTMLInputElement>(shell, train, "input.speed");
+    lever.value = String(speed);
+    lever.dispatchEvent(new Event("input", { bubbles: true }));
+    await settled(shell);
+  }
+
+  /** A rotated phone keeps the train's controls where they were: recreated,
+   *  they would show Forward under a train running tail first (#876). */
+  it("keeps a train's controls, slider and reverser through a width change", async () => {
+    const shell = await holding(390, "goods");
+    await running(shell, "goods", 0.5, true);
+    const before = written().length;
+    const same = column(shell, "goods");
+
+    await wide(shell, 844);
+    expect(take(shell)).not.toBeNull();
+    expect(column(shell, "goods")).toBe(same);
+    expect(positions(shell, "goods")).toEqual({ slider: "0.5", reverse: true });
+
+    await wide(shell, 390);
+    expect(take(shell)).toBeNull();
+    expect(column(shell, "goods")).toBe(same);
+    expect(positions(shell, "goods")).toEqual({ slider: "0.5", reverse: true });
+    expect(written().length).toBe(before);
+  });
+
+  it("keeps each train's positions on its own column through a phone and back", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    await running(shell, "goods", 0.3, true);
+    await running(shell, "coal", 0.6, false);
+
+    await wide(shell, 390);
+    await wide(shell, 1180);
+
+    expect(driven(shell)).toEqual(["goods", "coal"]);
+    expect(positions(shell, "goods")).toEqual({ slider: "0.3", reverse: true });
+    expect(positions(shell, "coal")).toEqual({ slider: "0.6", reverse: false });
+  });
+
   it("puts trains beyond the columns that fit on a further row", async () => {
     const shell = await holding(820, "goods", "coal");
     expect(driven(shell)).toEqual(["goods", "coal"]);
