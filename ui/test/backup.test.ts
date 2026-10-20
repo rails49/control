@@ -697,7 +697,7 @@ describe("the note in the band", () => {
   });
 
   function note(shell: TcApp): LookBandPress | null {
-    return band(shell).querySelector("look-band-press");
+    return band(shell).querySelector("look-band-press[data-backup]");
   }
 
   it("says a store with no repository has no backup set up", async () => {

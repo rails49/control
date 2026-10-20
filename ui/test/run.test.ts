@@ -2,7 +2,7 @@
 
 /**
  * The run view joined to the railroad the broker runs, end to end through the
- * app: the picture the bus feeds, and the rail's driving control, which draws
+ * app: the picture the bus feeds, and the band's driving control, which draws
  * the mode `layout` published and publishes the press on the topic that names
  * it (ADR-0079, #828).
  *
@@ -13,7 +13,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LookCommand } from "@rails49/look";
+import type { LookBandPress, LookCommand } from "@rails49/look";
 import { press } from "@rails49/look/testing";
 
 import "../src/ui/tc-app.js";
@@ -24,6 +24,7 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import { brokerAt, gone } from "../src/model/session.js";
 import { VIEWS } from "../src/model/views.js";
 import {
+  band,
   chips,
   CLEAN,
   mounted,
@@ -56,9 +57,9 @@ const GONE = gone(brokerAt(location));
 
 afterEach(unbrokered);
 
-/** The driving control on the rail. */
-function steering(shell: TcApp): LookCommand {
-  return rail(shell).querySelector<LookCommand>("look-command[data-driving]")!;
+/** The driving control on the band. */
+function steering(shell: TcApp): LookBandPress {
+  return band(shell).querySelector<LookBandPress>("look-band-press[data-driving]")!;
 }
 
 /** The fault the band is showing, `null` while it shows none. */
@@ -130,7 +131,7 @@ describe("joining the railroad the broker runs", () => {
     broker.opens();
     await settled(shell);
 
-    expect(steering(shell).word).toBe("AUTOMATIC");
+    expect(steering(shell).icon).toBe("robot");
     expect(
       running(shell)
         .renderRoot.querySelector("tc-canvas")!
@@ -165,7 +166,7 @@ describe("joining the railroad the broker runs", () => {
 
     expect(Broker.opened).toHaveLength(1);
     expect(health(shell)).toBeNull();
-    expect(steering(shell).word).toBe("AUTOMATIC");
+    expect(steering(shell).icon).toBe("robot");
   });
 
   /** The connection is the page's and not a view's (ADR-0059, decision 4):
@@ -506,9 +507,10 @@ describe("the viewport the run view gained", () => {
 });
 
 /**
- * The driving control on the rail, where GO and HOLD were (ADR-0079): it shows
- * `state/driving` and publishes `driving_wanted` naming the other mode. What
- * it draws is `layout`'s answer and not the press, and it is live at any
+ * The driving control on the band, next to track power, in every view: the
+ * mode is the whole railroad's (ADR-0079, #871). It shows `state/driving` by
+ * its glyph and tooltip and publishes `driving_wanted` naming the other mode.
+ * What it draws is `layout`'s answer and not the press, and it is live at any
  * power, `layout` accepting the gesture whatever power reads.
  */
 describe("the driving control", () => {
@@ -517,15 +519,18 @@ describe("the driving control", () => {
     expect(steering(shell).disabled).toBe(true);
   });
 
-  it("shows the mode layout says", async () => {
+  it("shows the mode layout says by its glyph and tooltip", async () => {
     const shell = await joined();
 
     await said(shell, "tc49/layout/state/driving", { driving: "manual" });
-    expect(steering(shell).word).toBe("MANUAL");
+    expect(steering(shell).icon).toBe("person-fill");
+    expect(steering(shell).label).toBe("Driving mode manual: press for automatic");
+    expect(steering(shell).word).toBe("");
     expect(steering(shell).disabled).toBe(false);
 
     await said(shell, "tc49/layout/state/driving", { driving: "automatic" });
-    expect(steering(shell).word).toBe("AUTOMATIC");
+    expect(steering(shell).icon).toBe("robot");
+    expect(steering(shell).label).toBe("Driving mode automatic: press for manual");
   });
 
   /** One press, no confirmation, and the press alone changes nothing on
@@ -543,7 +548,7 @@ describe("the driving control", () => {
         payload: { driving: "automatic" },
       },
     ]);
-    expect(steering(shell).word).toBe("MANUAL");
+    expect(steering(shell).icon).toBe("person-fill");
   });
 
   it("asks for manual from automatic", async () => {
@@ -568,11 +573,27 @@ describe("the driving control", () => {
     },
   );
 
-  /** GO and HOLD are gone, and nothing on the page writes `run_wanted`. */
-  it("is the only press at the rail's far end", async () => {
+  /** The last of the band's items, just before track power, whichever view
+   *  is up. */
+  it.each(VIEWS.map((view) => view.id))(
+    "sits on the band just before track power in the %s view",
+    async (view) => {
+      const shell = await joined();
+      await shows(shell, view);
+
+      const pressed = steering(shell);
+      expect(pressed).not.toBeNull();
+      expect(pressed.nextElementSibling?.localName).toBe("look-power");
+    },
+  );
+
+  /** GO and HOLD are gone, nothing on the page writes `run_wanted`, and the
+   *  rail no longer carries the mode. */
+  it("is not on the rail", async () => {
     const shell = await joined();
     expect(rail(shell).querySelector("look-command[data-run]")).toBeNull();
-    expect(steering(shell).closest("look-group")!.end).toBe(true);
+    expect(rail(shell).querySelector("[data-driving]")).toBeNull();
+    expect(rail(shell).querySelector("look-group[end]")).toBeNull();
   });
 });
 

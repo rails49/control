@@ -172,7 +172,7 @@ describe("switching view", () => {
 
     await shows(shell, "run");
 
-    expect(groups(shell)).toEqual(["View", "Driving"]);
+    expect(groups(shell)).toEqual(["View"]);
   });
 
   /** The views are the rail's top group and are every view's, so switching
