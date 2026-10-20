@@ -249,7 +249,7 @@ speed), driver (an app)
 **Reverser**:
 A throttle's forward/reverse switch. Forward drives the train nose-first,
 reverse tail-first. It turns neither the train's facing nor any car's
-orientation.
+orientation. It moves only with the lever at 0 (ADR-0084).
 _Avoid_: direction, direction switch
 
 ### Dispatch
