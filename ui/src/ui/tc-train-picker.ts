@@ -12,6 +12,11 @@
  * back naming this throttle (ADR-0035), so a take `layout` drops changes
  * nothing on screen.
  *
+ * `compact`, it is the throttle view's take column beside the trains already
+ * held ([#855](https://github.com/rails49/control/issues/855)): the same
+ * cards by the same rules, drawn as rows of thumbnail, name and where, under
+ * the column's own heading.
+ *
  * It works nothing out, as `tc-throttle` does not: the cabs say who holds
  * each train and which was last held (`model/throttle.ts`), and the presses
  * go to the app as `take-wanted` and `release-wanted`, the train their
@@ -41,6 +46,10 @@ export class TcTrainPicker extends LitElement {
   /** Whether a session is joined and answering. */
   @property({ type: Boolean }) linked = false;
 
+  /** Whether it is drawn as the take column's list rather than filling the
+   *  view: rows, and no heading of its own. */
+  @property({ type: Boolean, reflect: true }) compact = false;
+
   /** The models whose photo did not load, drawn by the train's name. */
   @state() private unseen: ReadonlySet<string> = new Set();
 
@@ -50,7 +59,7 @@ export class TcTrainPicker extends LitElement {
     const back = offered.find((cab) => cab.last);
     const rest = offered.filter((cab) => !cab.last);
     return html`
-      <h2>Take a train</h2>
+      ${this.compact ? nothing : html`<h2>Take a train</h2>`}
       ${this.cabs.length === 0
         ? html`<p class="hint">
             ${this.linked ? "no train is on the layout — place one in the run view" : still}
