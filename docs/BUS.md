@@ -621,7 +621,8 @@ what a drop would cost:
   client may send any of these rows.
 - `tc49/layout/throttle_alive` — browser-writable — `throttle`: the id. A
   throttle publishes it once a second while it holds a train. `layout`
-  releases every train of a throttle it has not heard for 5 s, as
+  releases every train of a throttle it has not heard for 5 s by default,
+  set per installation ([DEPLOY.md](DEPLOY.md#a-silent-throttle)), as
   `take_wanted` with `null` would.
 - `tc49/layout/state/taken` — `taken`: map of train to throttle id. A train
   the map does not name, no throttle holds. Empty when `layout` starts. Read

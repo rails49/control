@@ -72,11 +72,12 @@ with `null` to release it, `throttle` on `tc49/layout/throttle_wanted`, and
 `tc49/layout/throttle_alive` `{throttle}` once a second while it holds a
 train. The id names the throttle holding a train, not who sent a frame. At most
 one throttle holds a train, `layout` says which on `tc49/layout/state/taken`,
-and it releases the trains of a throttle it has not heard for 5 s, so a phone
+and it releases the trains of a throttle it has not heard for 5 s by default,
+set per installation ([DEPLOY.md](../DEPLOY.md#a-silent-throttle)), so a phone
 gone to sleep does not leave a train running
 ([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
 BUS.md). Reloading the page mints a new id, and the trains the old one held
-are released once its 5 s run out.
+are released once its silence runs out.
 
 **What `layout` does with them** (docs/layout/README.md, *Who drives*). The
 railroad is in one driving mode, `manual` or `automatic`, stated on
