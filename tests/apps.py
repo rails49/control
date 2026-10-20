@@ -181,6 +181,7 @@ APPS = (
             "tc49/layout/state/power",
             "tc49/layout/state/driving",
             "tc49/layout/state/taken",
+            "tc49/layout/state/functions",
             "tc49/layout/state/wanted/track",
         ),
     ),
