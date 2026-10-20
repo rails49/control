@@ -32,7 +32,7 @@
  * them to the session, exactly as the band's power presses do.
  */
 
-import { LitElement, html } from "lit";
+import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 
@@ -111,36 +111,33 @@ export class TcThrottle extends LitElement {
         .linked=${this.linked}
       ></tc-train-picker>`;
     }
+    // One structure at every width, its layout by class alone: crossing
+    // the stacked/side line keeps each train's `tc-driving`, and with it the
+    // slider and reverser under a train that may be running (#876).
     const fit = columns(this.width);
-    if (fit === 0) {
-      return html`<main class="stacked">
+    const stacked = fit === 0;
+    return html`<main class=${stacked ? "stacked" : "side"}>
+      <div class="trains" style=${`--columns: ${Math.max(fit, 1)}`}>
         ${repeat(
           held,
           (cab) => cab.train,
-          (cab, index) => this.column(cab, index === 0),
-        )}
-      </main>`;
-    }
-    return html`<main class="side">
-      <div class="trains" style=${`--columns: ${fit}`}>
-        ${repeat(
-          held,
-          (cab) => cab.train,
-          (cab) => this.column(cab, false),
+          (cab, index) => this.column(cab, stacked && index === 0),
         )}
       </div>
-      <aside class="take">
-        <tc-clock></tc-clock>
-        <h2>Take another train</h2>
-        ${held.length >= fit
-          ? html`<p class="hint">no room for another train — release one</p>`
-          : html`<tc-train-picker
-              compact
-              .cabs=${this.cabs}
-              .power=${this.power}
-              .linked=${this.linked}
-            ></tc-train-picker>`}
-      </aside>
+      ${stacked
+        ? nothing
+        : html`<aside class="take">
+            <tc-clock></tc-clock>
+            <h2>Take another train</h2>
+            ${held.length >= fit
+              ? html`<p class="hint">no room for another train — release one</p>`
+              : html`<tc-train-picker
+                  compact
+                  .cabs=${this.cabs}
+                  .power=${this.power}
+                  .linked=${this.linked}
+                ></tc-train-picker>`}
+          </aside>`}
     </main>`;
   }
 

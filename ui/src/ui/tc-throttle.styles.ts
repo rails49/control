@@ -10,7 +10,9 @@ import { css } from "lit";
  * Side by side, a train's column is at least 360 px, the take column 260 px
  * and the gap 14 px — the numbers `columns` (`model/throttle.ts`) counts
  * with, the count handed in as `--columns`. Stacked, on a phone, the trains'
- * controls stand one below the other. A view too short for them scrolls.
+ * controls stand one below the other in the same `.trains`: the two layouts
+ * differ by class alone, so a width change keeps each train's controls. A
+ * view too short for them scrolls.
  */
 export const throttleStyles = css`
   :host {
@@ -27,6 +29,12 @@ export const throttleStyles = css`
     min-height: 0;
   }
 
+  main.stacked .trains {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
   main.stacked tc-driving + tc-driving {
     padding-top: 0.8rem;
     border-top: 1px solid var(--rule);
@@ -38,7 +46,7 @@ export const throttleStyles = css`
     gap: 14px;
   }
 
-  .trains {
+  main.side .trains {
     flex: 1;
     display: grid;
     grid-template-columns: repeat(var(--columns), minmax(360px, 1fr));
