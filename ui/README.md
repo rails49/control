@@ -3,8 +3,8 @@
 One app, one loaded railroad, and a list of views of it
 ([ADR-0038](../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)):
 the run view, which paints a live session over the drawing
-([PANEL.md](../docs/ui/PANEL.md)), the throttle, which a person drives one
-train from ([THROTTLE.md](../docs/ui/THROTTLE.md)), the stock view, where the
+([PANEL.md](../docs/ui/PANEL.md)), the throttle, which a person drives
+trains from ([THROTTLE.md](../docs/ui/THROTTLE.md)), the stock view, where the
 cars and the trains a railroad owns are made
 ([STOCK.md](../docs/ui/STOCK.md)), and the editor, which draws the railroad
 ([EDITOR.md](../docs/ui/EDITOR.md)). TypeScript, pnpm, Lit and
@@ -113,8 +113,10 @@ src/
                    is loaded, New and Copy loaded as…, and the way into backup
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
                    the drag, the right-click menu and the roster pane
-    tc-throttle.ts the throttle view: the picker, or the held train's cab —
-                   drive it, give it back; the session stays the app's
+    tc-throttle.ts the throttle view: the picker, or a column per held train
+                   side by side as its width fits, with a take column; the
+                   session stays the app's
+    tc-driving.ts  one held train's driving controls: drive it, give it back
     tc-train-picker.ts  the throttle's train picker: a card per train, Take,
                    Force release and Take back
     tc-stock.ts    the stock view: cars and models on the left, the trains

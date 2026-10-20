@@ -243,7 +243,8 @@ _Avoid_: hand control, taken over, mode (alone), auto
 The control a person drives a train with: a view of the UI whose commands ride
 the bus as gestures that take a train, keep it held, turn its speed and switch
 its functions. At most
-one throttle holds a train, and drives it at any time, granted move or not.
+one throttle holds a train, and drives it at any time, granted move or not; a
+throttle may hold several trains, each under its one id.
 Released, the train stops in manual driving mode; in automatic it keeps its
 speed until its move ends, and is driven on if it stands
 ([THROTTLE.md](docs/ui/THROTTLE.md)).
