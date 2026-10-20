@@ -24,12 +24,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcTrainPicker } from "../src/ui/tc-train-picker.js";
-import { settled, shows, throttling } from "./support/shell.js";
+import { serving, settled, shows, throttling } from "./support/shell.js";
 import {
   Broker,
   brokering,
+  DERIVES,
   joined,
   said,
+  STOCK,
+  stored,
   unbrokered,
   written as everything,
 } from "./support/session.js";
@@ -758,19 +761,53 @@ describe("giving it back", () => {
 });
 
 describe("what a person can switch", () => {
+  const FUNCTIONS = "tc49/layout/state/functions";
+  const FUNCTION_WANTED = "tc49/layout/function_wanted";
+
+  /** The toy roster with `goods` declaring these functions, by name. */
+  function declaring(...names: string[]): void {
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => ({
+        ...STOCK,
+        goods: { ...STOCK.goods, functions: names.map((name) => ({ name })) },
+      }),
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+  }
+
+  /** The function buttons on screen, by name, in the order they show. */
+  function buttons(shell: TcApp): string[] {
+    return [...throttling(shell).renderRoot.querySelectorAll("button.function")].map((one) =>
+      one.textContent!.trim(),
+    );
+  }
+
+  function button(shell: TcApp, name: string): HTMLButtonElement {
+    return [
+      ...throttling(shell).renderRoot.querySelectorAll<HTMLButtonElement>("button.function"),
+    ].find((one) => one.textContent!.trim() === name)!;
+  }
+
+  function more(shell: TcApp): HTMLButtonElement | null {
+    return part<HTMLButtonElement>(shell, "button.more");
+  }
+
+  /** The `function_wanted` frames the view's presses wrote. */
+  function switched(): unknown[] {
+    return written().filter((one) => (one as { topic: string }).topic === FUNCTION_WANTED);
+  }
+
   /** By the names the catalogue gives them and by no number: which DCC
    *  function a name sits on is a decoder detail no view shows (ADR-0045). */
   it("draws the held train's functions, by catalogue name", async () => {
     const shell = await driving();
     await held(shell);
-    expect(
-      [...throttling(shell).renderRoot.querySelectorAll("button.function")].map((one) =>
-        one.textContent!.trim(),
-      ),
-    ).toEqual(["headlights", "vacuum"]);
+    expect(buttons(shell)).toEqual(["headlights", "vacuum"]);
   });
 
-  it("draws none for a train whose cars declare none", async () => {
+  it("draws no function and no >> for a train whose cars declare none", async () => {
     const shell = await driving();
     await said(shell, ALLOCATION, {
       trains: { shunter: "b" },
@@ -778,9 +815,147 @@ describe("what a person can switch", () => {
       requests: [],
     });
     await held(shell, "shunter");
-    expect(throttling(shell).renderRoot.querySelectorAll("button.function")).toHaveLength(
-      0,
-    );
+    expect(buttons(shell)).toEqual([]);
+    expect(more(shell)).toBeNull();
+  });
+
+  it("shows one or two with no >>", async () => {
+    declaring("headlights");
+    let shell = await driving();
+    await held(shell);
+    expect(buttons(shell)).toEqual(["headlights"]);
+    expect(more(shell)).toBeNull();
+
+    unbrokered();
+    brokering();
+    declaring("headlights", "horn");
+    shell = await driving();
+    await held(shell);
+    expect(buttons(shell)).toEqual(["headlights", "horn"]);
+    expect(more(shell)).toBeNull();
+  });
+
+  /** The first two always; `>>` opens the rest below, in the roster's
+   *  order, and closes them again. */
+  it("shows two of three and >>, which opens and closes the third", async () => {
+    declaring("headlights", "horn", "bell");
+    const shell = await driving();
+    await held(shell);
+    expect(buttons(shell)).toEqual(["headlights", "horn"]);
+
+    more(shell)!.click();
+    await settled(shell);
+    expect(buttons(shell)).toEqual(["headlights", "horn", "bell"]);
+    expect(part(shell, ".functions.rest")!.textContent).toContain("bell");
+
+    more(shell)!.click();
+    await settled(shell);
+    expect(buttons(shell)).toEqual(["headlights", "horn"]);
+  });
+
+  it("closes >> when a train is taken", async () => {
+    declaring("headlights", "horn", "bell");
+    const shell = await driving();
+    await held(shell);
+    more(shell)!.click();
+    await settled(shell);
+    release(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: {} });
+    await held(shell);
+    expect(buttons(shell)).toEqual(["headlights", "horn"]);
+  });
+
+  /** The press asks; `layout` answers on `state/functions`, and only that
+   *  moves the button (#849). */
+  it("asks for on from an off button, and reads on only once state/functions says so", async () => {
+    const shell = await driving();
+    await held(shell);
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("false");
+
+    button(shell, "headlights").click();
+    await settled(shell);
+
+    expect(switched()).toEqual([
+      {
+        topic: FUNCTION_WANTED,
+        payload: { train: "goods", throttle: mine(), function: "headlights", on: true },
+      },
+    ]);
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("false");
+
+    await said(shell, FUNCTIONS, { functions: { goods: { headlights: true } } });
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("asks for off from an on button", async () => {
+    const shell = await driving();
+    await held(shell);
+    await said(shell, FUNCTIONS, { functions: { goods: { vacuum: true } } });
+
+    button(shell, "vacuum").click();
+    await settled(shell);
+
+    expect(switched()).toEqual([
+      {
+        topic: FUNCTION_WANTED,
+        payload: { train: "goods", throttle: mine(), function: "vacuum", on: false },
+      },
+    ]);
+  });
+
+  /** `held` grants no move: the functions want only the hold. */
+  it("switches a held train with no move granted", async () => {
+    const shell = await driving();
+    await held(shell);
+    button(shell, "headlights").click();
+    await settled(shell);
+    expect(switched()).toHaveLength(1);
+  });
+
+  /** Each pressed, and not read off `disabled`: a press that writes nothing
+   *  is the claim. A button let go of under the pointer — the train gone to
+   *  another throttle or to none — is pressed where the person's finger
+   *  already was. */
+  it("writes nothing for a train held elsewhere or by nobody", async () => {
+    const shell = await driving();
+    await held(shell);
+    const stale = button(shell, "headlights");
+
+    await said(shell, TAKEN, { taken: { goods: "another-page" } });
+    stale.click();
+    await said(shell, TAKEN, { taken: {} });
+    stale.click();
+    await settled(shell);
+
+    expect(switched()).toEqual([]);
+  });
+
+  it("writes nothing with the power off, and shows the state all the same", async () => {
+    const shell = await driving();
+    await held(shell);
+    await said(shell, FUNCTIONS, { functions: { goods: { headlights: true } } });
+    await said(shell, POWER, { power: "off" });
+
+    button(shell, "headlights").click();
+    button(shell, "vacuum").click();
+    await settled(shell);
+
+    expect(switched()).toEqual([]);
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("writes nothing with no broker answering", async () => {
+    const shell = await driving();
+    await held(shell);
+    const stale = button(shell, "headlights");
+
+    Broker.last!.closes();
+    await settled(shell);
+    stale.click();
+    await settled(shell);
+
+    expect(switched()).toEqual([]);
   });
 });
 
