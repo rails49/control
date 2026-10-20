@@ -8,21 +8,28 @@ train whoever holds it. `state/taken` says who holds which.
 The two edges are not symmetric, and that is the design. **Taking** a train
 writes nothing: it keeps whatever speed it had, and a person's first movement
 of the lever changes it. **Releasing** it writes what the driving mode makes
-of it: in `automatic` the speed its outstanding grant implies, `0.0` with
-none; in `manual`, `0.0`. A throttle not heard for 5 s is released the same
-way.
+of it: in `manual`, `0.0`; in `automatic` with a move outstanding, nothing,
+the train keeping the speed the person left until its move ends (ADR-0081),
+unless it stands, when it is given its grant's speed (ADR-0083); in
+`automatic` with no move outstanding, `0.0`. A throttle not heard for 5 s is
+released the same way.
 """
 
+from tc49.layout import LayoutInterface
+from tc49.layout.interface import THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import MANUAL
 from tests.layout.railroad import (
     DEVICE_TRACK,
+    POWER_WANTED,
     TAKE_WANTED,
     TAKEN,
     align,
     alive,
     build,
     commanded,
+    drains,
     elapse,
     energised,
     faces,
@@ -33,6 +40,7 @@ from tests.layout.railroad import (
     settle,
     speeds,
     stand,
+    switches,
     takes,
     turns,
     wired,
@@ -119,8 +127,7 @@ def test_taking_a_running_train_writes_nothing() -> None:
 
 
 def test_a_train_taken_mid_transit_is_still_stopped_on_arrival() -> None:
-    """The move ending writes `0.0` whoever drives it, and from there the
-    throttle's lever waits for the next grant."""
+    """The move ending writes `0.0` whoever drives it."""
     bus, app, clock = wired()
     energised(bus)
     stand(bus, "single", "up_w")
@@ -157,10 +164,10 @@ def test_releasing_a_train_no_throttle_holds_changes_nothing() -> None:
     assert speeds(written) == []
 
 
-def test_a_release_in_automatic_mid_transit_writes_what_its_grant_implies() -> None:
-    """The move was carried out while the train was a person's, so nothing was
-    written for it — and the speed it implied was kept, which is what the
-    train is given the moment the driver has it again (ADR-0079, decision 6)."""
+def test_a_train_released_standing_mid_move_gets_its_grants_speed() -> None:
+    """Taken before its grant and never moved by the lever, the train stands
+    with its route held. A release hands the move back to the driver, which
+    gives it the speed the grant implies (ADR-0083)."""
     bus, _app = build()
     energised(bus)
     stand(bus, "topped", "up_w")
@@ -173,6 +180,91 @@ def test_a_release_in_automatic_mid_transit_writes_what_its_grant_implies() -> N
     gives(bus, "topped")
 
     assert speeds(written) == [("3", 0.6), ("4", -0.6)]
+
+
+def released_running(
+    silent: bool = False,
+) -> tuple[InProcessBus, LayoutInterface, Clock, list[tuple[str, Payload]]]:
+    """In `automatic`, `single` taken, granted, driven at 0.4 mid-move and
+    released — by `take_wanted` with `null`, or by its throttle going silent —
+    and every traction write from the take on."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    written = commanded(bus)
+    granted(bus, "single")
+    turns(bus, "single", 0.4)
+    if silent:
+        settle(bus, app, clock, after=THROTTLE_SILENCE_S)
+    else:
+        gives(bus, "single")
+    return bus, app, clock, written
+
+
+def test_a_train_released_running_in_automatic_keeps_its_speed() -> None:
+    """A train a person was running slowly does not lurch to the driver's
+    speed: nothing is written, and the arrival stops it (ADR-0081, decision
+    6)."""
+    bus, app, clock, written = released_running()
+    assert speeds(written) == [("3", 0.4)]
+
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0)]
+
+
+def test_a_train_released_running_by_silence_keeps_its_speed() -> None:
+    bus, app, clock, written = released_running(silent=True)
+    assert speeds(written) == [("3", 0.4)]
+
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0)]
+
+
+def test_a_cut_after_a_release_resumes_at_the_grants_speed() -> None:
+    """The cut zeroed the wheels and the speed the person left is gone with
+    it, so the `on` gives the train what its grant implies, as it gives any
+    train this app drives (ADR-0078, decision 6)."""
+    bus, _app, _clock, written = released_running()
+    bus.publish(POWER_WANTED, {"power": "off"})
+    bus.drain()
+    bus.publish(POWER_WANTED, {"power": "on"})
+    bus.drain()
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0), ("3", 0.6)]
+
+
+def test_a_switch_to_manual_after_a_release_still_stops_it_on_arrival() -> None:
+    """The crossing became the driver's at the release, so a switch to
+    `manual` lets the train finish its move and the arrival writes `0.0`."""
+    bus, app, clock, written = released_running()
+    switches(bus, MANUAL)
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0)]
+
+
+def test_a_release_in_automatic_while_draining_keeps_its_speed() -> None:
+    """A drain keeps the supply on, so the train runs on to its sensor at the
+    person's speed and the drain ends after it."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    written = commanded(bus)
+    granted(bus, "single")
+    turns(bus, "single", 0.4)
+    drains(bus)
+    gives(bus, "single")
+
+    assert speeds(written) == [("3", 0.4)]
 
 
 def test_a_train_released_in_automatic_is_stopped_on_arrival() -> None:

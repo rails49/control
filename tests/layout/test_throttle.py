@@ -14,9 +14,10 @@ here, only in the refusal beside it — this app will not drive a train the rest
 of the system is not holding the geometry of, and which block that facing
 names is not asked, a facing lagging the train it is about.
 
-A throttle drives only the train it holds, and only within a granted move
-(ADR-0079): the move ending at its sensor writes `0.0`, and the lever is dead
-until the next grant.
+A throttle drives only the train it holds, and drives it at any time, granted
+move or not (ADR-0079, ADR-0081): the move ending at its sensor writes `0.0`,
+and the next lever frame drives the train on. A lever reversing a running train
+stops it instead, until the throttle has sent `0` (ADR-0084).
 """
 
 from tc49.layout import LayoutInterface
@@ -28,11 +29,13 @@ from tests.layout.railroad import (
     align,
     build,
     commanded,
+    drains,
     energised,
     faces,
     gives,
     move,
     reads,
+    removed,
     settle,
     speeds,
     stand,
@@ -136,25 +139,40 @@ def test_a_throttle_drives_in_manual_as_in_automatic() -> None:
     assert speeds(written) == [("3", 0.6)]
 
 
-def test_a_lever_with_no_move_outstanding_writes_nothing() -> None:
-    """A throttle drives only within a granted move: a train with no grant is
-    held at speed 0, so a person cannot drive it out of its block past the
-    dispatcher's locks (ADR-0079, decision 7)."""
-    bus, _app = build()
+def stood(
+    driving: str | None = None,
+) -> tuple[InProcessBus, list[tuple[str, Payload]]]:
+    """A live railroad with `single` standing in `up_w`, a throttle holding it
+    and no move granted, and every traction write from there on."""
+    bus, _app, _clock = wired() if driving is None else wired(driving=driving)
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
     takes(bus, "single")
-    written = commanded(bus)
-    turns(bus, "single", 0.6)
-
-    assert speeds(written) == []
+    return bus, commanded(bus)
 
 
-def test_the_moves_end_zeroes_the_lever_and_the_lever_goes_dead() -> None:
+def test_a_lever_with_no_move_outstanding_writes_its_speed_in_automatic() -> None:
+    """A throttle drives the train it holds at any time, granted move or not:
+    a person at a platform backs a train up a few centimetres (ADR-0081,
+    decision 1)."""
+    bus, written = stood()
+    turns(bus, "single", -0.3)
+
+    assert speeds(written) == [("3", -0.3)]
+
+
+def test_a_lever_with_no_move_outstanding_writes_its_speed_in_manual() -> None:
+    bus, written = stood(MANUAL)
+    turns(bus, "single", 0.3)
+
+    assert speeds(written) == [("3", 0.3)]
+
+
+def test_the_moves_end_zeroes_the_lever_and_the_lever_drives_on() -> None:
     """The move ending at its sensor writes `0.0` for the throttle's train as
-    for one this app drives, and from there until the next grant a lever is
-    dropped."""
+    for one this app drives, and the next lever frame is applied again with no
+    new grant (ADR-0081, decision 3)."""
     bus, app, clock, written = underway("single", "up_w.A-to-B")
     turns(bus, "single", 0.4)
 
@@ -162,7 +180,69 @@ def test_the_moves_end_zeroes_the_lever_and_the_lever_goes_dead() -> None:
     settle(bus, app, clock)
     turns(bus, "single", 0.4)
 
-    assert speeds(written) == [("3", 0.4), ("3", 0.0)]
+    assert speeds(written) == [("3", 0.4), ("3", 0.0), ("3", 0.4)]
+
+
+def test_a_lever_while_draining_writes_its_speed() -> None:
+    """A drain keeps the supply on, so the rails are live and a person's hand
+    is heard: pulling back to stop is what a drain wants."""
+    bus, written = held("single", "up_w.A-to-B")
+    drains(bus)
+    turns(bus, "single", 0.2)
+
+    assert speeds(written) == [("3", 0.2)]
+
+
+def test_a_lever_for_a_train_taken_off_the_layout_writes_nothing() -> None:
+    """A train this app holds no position for stands nowhere, and a lever for
+    it would drive a decoder in a hand."""
+    bus, written = stood()
+    removed(bus, "single")
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", 0.0)]
+
+
+def test_a_flip_at_speed_writes_zero_until_the_lever_is_at_zero() -> None:
+    """A reverser moves only with the lever at 0 (ADR-0084): a frame of the
+    other sign stops the train instead, and so does every later one of that
+    sign until the throttle sends `0`. From there the other way is free."""
+    bus, written = held("single", "up_w.A-to-B")
+    for speed in (0.4, -0.4, -0.4, 0.0, -0.4):
+        turns(bus, "single", speed)
+
+    assert speeds(written) == [
+        ("3", 0.4),
+        ("3", 0.0),
+        ("3", 0.0),
+        ("3", 0.0),
+        ("3", -0.4),
+    ]
+
+
+def test_a_flip_against_the_grants_speed_writes_zero() -> None:
+    """The last speed written for the train is the grant's as much as the
+    lever's: a train taken running nose-first and pulled back stops first."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    written = commanded(bus)
+    granted(bus, "single")
+    takes(bus, "single")
+    turns(bus, "single", -0.4)
+
+    assert speeds(written) == [("3", 0.6), ("3", 0.0)]
+
+
+def test_a_flip_on_a_top_and_tail_set_stops_both_locomotives() -> None:
+    """The sign compared is the train's, before it is composed onto the cars,
+    so the two locomotives running opposite are one direction here."""
+    bus, written = held("topped", "up_w.A-to-B")
+    turns(bus, "topped", 0.5)
+    turns(bus, "topped", -0.5)
+
+    assert speeds(written) == [("3", 0.5), ("4", -0.5), ("3", 0.0), ("4", 0.0)]
 
 
 def test_the_next_grant_brings_the_lever_back() -> None:
@@ -211,14 +291,15 @@ def test_a_throttle_for_a_train_no_throttle_holds_writes_nothing() -> None:
 
 
 def test_a_throttle_for_a_train_given_back_writes_nothing() -> None:
-    """The gesture is refused from the moment the throttle lets go, and what
-    the release wrote is all that is on the row."""
+    """The gesture is refused from the moment the throttle lets go: released
+    running in `automatic`, the train keeps the speed the person left, and
+    that is all that is on the row (ADR-0081, decision 6)."""
     bus, written = held("single", "up_w.A-to-B")
     turns(bus, "single", 0.4)
     gives(bus, "single")
     turns(bus, "single", 0.9)
 
-    assert speeds(written) == [("3", 0.4), ("3", 0.6)]
+    assert speeds(written) == [("3", 0.4)]
 
 
 def test_nothing_is_written_while_the_rails_are_dead() -> None:

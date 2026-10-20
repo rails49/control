@@ -137,14 +137,16 @@ mode and `state/driving` says where it stands, `manual` from the start;
 `take_wanted` and `throttle_alive` move who holds which train, and
 `state/taken` says it. Neither changes the route: a train is granted moves,
 gets its points thrown and its near end checked whoever drives. What they
-decide is who writes the wheels within a granted move: this app in
-`automatic` for a train no throttle holds, the throttle holding a train in
-either mode, and nobody for a train no throttle holds in `manual`, which
-stands at its signal. Outside a move nobody does. A throttle's speed applies
-only while its train has a move outstanding, and the move ending at its
-sensor writes `0.0`. A throttle this app has not heard for
-`THROTTLE_SILENCE_S` lets go of its trains, and a train let go of is written
-what its grant implies in `automatic` and `0.0` in `manual`.
+decide is who writes the wheels: the throttle holding a train, in either mode
+and at any time, granted move or not (ADR-0081); within a granted move, this
+app in `automatic` for a train no throttle holds; and nobody for a train no
+throttle holds in `manual`, which stands at its signal. The move ending at its
+sensor writes `0.0` whoever drives, and a lever reversing a running train
+writes `0.0` until its throttle sends `0` (ADR-0084). A throttle this app has
+not heard for `THROTTLE_SILENCE_S` lets go of its trains. A train let go of
+stops in `manual`; in `automatic` mid-move it keeps the speed the person left
+until its move ends, or is given its grant's speed if it stands (ADR-0083),
+and with no move outstanding it is written `0.0`.
 
 What is **not** here yet: the function topic beside the traction write, which
 is nobody's until a gesture carries a function press. The simulator is
@@ -268,19 +270,22 @@ class _Crossing:
 
     `implied` is what this move is worth on each addressed car — the speed the
     grant implies, which is what a train is given when this app takes up its
-    driving mid-transit: released in `automatic`, or the railroad switched to
-    `automatic` under it.
+    driving mid-transit: released standing in `automatic`, the railroad
+    switched to `automatic` under it, or `on` after a cut. `heading` is the
+    same speed signed for the train, nose-first positive, before it is
+    composed onto the cars: what a lever reversing the train is compared
+    against (ADR-0084).
 
     `outstanding` is whether the move is still going anywhere. It goes false
     on the arrival, which is the first level the entered block settles
     occupied: the train is in the block it was sent to and the tail clearing
     is a fact about the block behind, so nothing here waits for the vacate
-    (#296). From then until the next grant no throttle's speed is applied
-    (ADR-0079).
+    (#296). A throttle's lever is applied either way (ADR-0081).
 
     `driving` is whether the wheels are this app's for the length of this
     crossing: true where it was granted in `automatic` to a train no throttle
-    holds, and moved by a take, a release and a change of driving mode. The
+    holds, and moved by a take, a release in `automatic` and a change of
+    driving mode. The
     `0.0` at the arrival goes out where it is true or a throttle holds the
     train, since a car nothing was sent for is a car nothing may be sent for.
     """
@@ -289,6 +294,7 @@ class _Crossing:
     far: str
     train: str
     implied: tuple[tuple[str, float], ...] = ()
+    heading: float = 0.0
     driving: bool = True
     outstanding: bool = True
 
@@ -377,6 +383,13 @@ class LayoutInterface:
         self._driving = MANUAL
         self._taken: dict[str, str] = {}
         self._heard: dict[str, float] = {}
+        # The last speed written on each address, zeros at startup and at a
+        # cut included, which is what says whether a train released mid-move
+        # is running (ADR-0083); and the last nonzero speed written for each
+        # train, signed for the train, which is what a lever reversing it is
+        # held against until its throttle sends `0` (ADR-0084).
+        self._wrote: dict[str, float] = {}
+        self._heading: dict[str, float] = {}
         # The crossings an `align` has authorised, one entry per transit and
         # each spent by the move that takes it, and the moves waiting on one.
         self._aligned: set[str] = set()
@@ -644,39 +657,42 @@ class LayoutInterface:
             self._held[transit] = commanded
             return
         driving = self._drives(commanded.train)
-        wheels = self._traction(commanded, near)
-        if wheels is None:
+        traction = self._traction(commanded, near)
+        if traction is None:
             if driving:
                 return
             # A move this app is not driving runs its course whatever it could
             # have made of the sign: nothing is being written, so there is no
             # wrong way to drive it and no refusal to make (#297).
-            wheels = ()
+            traction = (0.0, ())
+        heading, wheels = traction
         # The authorisation is spent here, with the act it authorised: an
         # `align` stands for one crossing, so the next move over this transit
         # waits for one of its own (#305).
         self._aligned.discard(transit)
         self._position[commanded.train] = commanded.into
-        self._crossing[commanded.into] = _Crossing(
+        crossing = _Crossing(
             origin=block_of(near),
             far=opposite_end(entered),
             train=commanded.train,
             implied=wheels,
+            heading=heading,
             driving=driving,
         )
-        if not driving:
-            return
-        for addr, speed in wheels:
-            self._traction_write(addr, speed)
+        self._crossing[commanded.into] = crossing
+        if driving:
+            self._give(commanded.into, crossing)
 
     # -- the traction write -------------------------------------------------
 
     def _traction(
         self, commanded: Command, near: str
-    ) -> tuple[tuple[str, float], ...] | None:
+    ) -> tuple[float, tuple[tuple[str, float], ...]] | None:
         """What this move is worth on each of the train's decoders: one signed
         speed per addressed car, `()` where the train has none, and None where
         the move is to be dropped for want of the facts to sign it (#296).
+        Beside it, the same speed signed for the train, nose-first positive,
+        which is the lever's sign and `0.0` where nothing is written.
 
         **How fast** is the move's own speed, a magnitude — the sign is this
         app's to give and never the command's, so the magnitude is taken and
@@ -717,12 +733,15 @@ class LayoutInterface:
         """
         addressed = self._addressed(commanded.train)
         if not addressed:
-            return ()
+            return 0.0, ()
         facing = self._faces(commanded.train, block_of(near))
         if facing is None or commanded.speed is None:
             return None
-        return _composed(
-            addressed, facing_ends(facing)[1] == near, abs(commanded.speed)
+        nose_first = facing_ends(facing)[1] == near
+        magnitude = abs(commanded.speed)
+        return (
+            magnitude if nose_first else -magnitude,
+            _composed(addressed, nose_first, magnitude),
         )
 
     def _addressed(self, train: str) -> tuple[tuple[str, str], ...]:
@@ -770,10 +789,28 @@ class LayoutInterface:
         """One decoder told how fast and which way to run, on the row that
         answers for its address. The address is **bare**, unlike a point's: a
         decoder answers to the number it was programmed with whoever sends the
-        packet (ADR-0043)."""
+        packet (ADR-0043). Held as the last speed written on it."""
+        self._wrote[addr] = speed
         self._bus.publish(
             device_topic(WANTED_TRACTION, addr), {"addr": addr, "speed": speed}
         )
+
+    def _headed(self, train: str, heading: float) -> None:
+        """A speed written for the train, signed for the train: held as the
+        last nonzero one, which a lever of the other sign is refused against
+        (ADR-0084). A zero leaves the one held standing, as a stop by anything
+        but the throttle's own `0` does."""
+        if heading != 0.0:
+            self._heading[train] = heading
+
+    def _give(self, block: str, crossing: _Crossing) -> None:
+        """The train crossing into `block` given the speed its grant implies,
+        with its crossing this app's to drive from here to the arrival."""
+        self._crossing[block] = replace(crossing, driving=True)
+        if crossing.implied:
+            self._headed(crossing.train, crossing.heading)
+        for addr, speed in crossing.implied:
+            self._traction_write(addr, speed)
 
     def _traction_rest(self) -> None:
         """Zero over every retained `wanted/traction` row the bus holds: the
@@ -816,8 +853,8 @@ class LayoutInterface:
         between two blocks would strand it where no sensor says it stopped.
 
         **To `automatic`**, each of them is given the speed its grant implies,
-        as a train released in `automatic` is. Not over dead rails, where a
-        grant implies nothing (`_take_up`).
+        as a train released standing in `automatic` is. Not over dead rails,
+        where a grant implies nothing (`_take_up`).
         """
         wanted = wanted_driving(payload)
         if wanted is None or wanted == self._driving:
@@ -902,25 +939,56 @@ class LayoutInterface:
                 self._let_go(train)
 
     def _let_go(self, train: str) -> None:
-        """A train no throttle holds any longer: stated on `state/taken`
-        before a wheel is written, then driven on in `automatic` and stopped
-        in `manual` (ADR-0079, decision 6). A train no throttle held changes
-        nothing and writes nothing."""
+        """A train no throttle holds any longer, stated on `state/taken`
+        before a wheel is written. A train no throttle held changes nothing
+        and writes nothing.
+
+        **In `manual`** it stops: `0.0` to each addressed car (ADR-0081,
+        decision 5).
+
+        **In `automatic`, mid-move over live rails**, `on` or `draining`, it
+        keeps the speed the person left and nothing is written: a train a
+        person was running slowly does not lurch to the driver's speed
+        (ADR-0081, decision 6). The crossing becomes this app's, so the
+        arrival writes its `0.0`, a switch to `manual` lets it finish, and an
+        `on` after a cut gives it its grant's speed (`_resume`). Bar a train
+        **standing**, whose last speed written is `0.0` on every car or none
+        at all, the zeros at startup and at a cut counting: it would hold its
+        route and never reach its sensor, so it is given its grant's speed
+        (ADR-0083, `_take_up`).
+
+        **In `automatic` otherwise**, with no move outstanding or over dead
+        rails, `_take_up` writes `0.0`.
+        """
         if self._taken.pop(train, None) is None:
             return
         self._publish_taken()
-        if self._driving == AUTOMATIC:
-            self._take_up(train)
+        if self._driving != AUTOMATIC:
+            for addr, _orientation in self._addressed(train):
+                self._traction_write(addr, 0.0)
             return
-        for addr, _orientation in self._addressed(train):
-            self._traction_write(addr, 0.0)
+        flight = self._outstanding(train)
+        if flight is not None and self._power != OFF and self._running(train):
+            block, crossing = flight
+            self._crossing[block] = replace(crossing, driving=True)
+            return
+        self._take_up(train)
+
+    def _running(self, train: str) -> bool:
+        """Whether the last speed written on any of the train's addressed
+        cars is other than `0.0`. A car never written is standing: nothing
+        this app said has moved it."""
+        return any(
+            self._wrote.get(addr, 0.0) != 0.0
+            for addr, _orientation in self._addressed(train)
+        )
 
     def _take_up(self, train: str) -> None:
         """This app taking up the driving of a train no throttle holds, in
         `automatic`: it is given the speed its outstanding grant implies,
-        which is `0.0` where there is none. A train handed over mid-transit
-        does not keep the speed a person left on it, and one standing does not
-        keep it either.
+        which is `0.0` where there is none. Reached by a train released
+        standing (`_let_go`) and by the railroad switched to `automatic`
+        under a train nobody was driving.
 
         There is no grant to imply a speed in three cases and they all write
         `0.0`: no move of this train's is outstanding, one is but this app
@@ -928,16 +996,15 @@ class LayoutInterface:
         command rule arriving here — a grant cannot be acted on over dead
         track at all, so it implies nothing, and a desired speed left standing
         on a row is a train that would start the moment the power came back.
+        A drain is not dead: the supply is on, and the move runs to its
+        sensor before the drain ends.
 
         A train with no addressed car has nothing written either way, which is
         `_addressed` and not a case here.
         """
         flight = self._outstanding(train)
-        if flight is not None and self._power == ON and flight[1].implied:
-            block, crossing = flight
-            self._crossing[block] = replace(crossing, driving=True)
-            for addr, speed in crossing.implied:
-                self._traction_write(addr, speed)
+        if flight is not None and self._power != OFF and flight[1].implied:
+            self._give(*flight)
             return
         for addr, _orientation in self._addressed(train):
             self._traction_write(addr, 0.0)
@@ -974,40 +1041,62 @@ class LayoutInterface:
         forward and the train moves nose-first, whichever way round the
         locomotives are wired and however many of them there are.
 
-        Five things drop a gesture, and none of them is an error to answer:
+        **A throttle drives the train it holds at any time,** granted move or
+        not, in either driving mode (ADR-0081, decision 1). A person backs a
+        train up a few centimetres at a platform with no request made. Leaving
+        the block is the person's to avoid: nothing here stops a held train at
+        its block's ends, and one that leaves is a reading no move explains,
+        which drains the railroad (ADR-0048). The end of a granted move still
+        writes `0.0` (`_settled`), and the next frame drives the train on.
+
+        Four things drop a gesture, and none of them is an error to answer:
 
         A frame that names **no throttle**, or a throttle that does **not
         hold** the train. The lever is that throttle's, in either driving
         mode, and nobody else's (ADR-0079).
 
-        A train with **no move outstanding**. A throttle drives only within a
-        granted move: the arrival wrote `0.0`, and the lever is dead until the
-        next grant, so a person cannot drive a train out of its block without
-        the dispatcher's lock (ADR-0079, decision 7).
-
         **Dead rails refuse a person's hand** as they refuse a grant
         (ADR-0041). Nothing is written rather than a zero: the row already
         holds whatever the last move left, and a gesture that could not be
-        acted on has said nothing about it.
+        acted on has said nothing about it. A drain is not dead: the supply is
+        on, and a person pulling back to stop is heard.
 
         A train with **no facing** is the `move`'s refusal, arriving here for
         the `move`'s reason: without it the lever's sign cannot be composed
         onto each car (#296). Which block the facing names is not asked, and
         `_faces` says why.
+
+        A train that **stands nowhere**, never placed or taken off by
+        `train_removed`: its decoder is in a hand, if anywhere.
+
+        **A lever reversing a running train stops it instead** (ADR-0084). A
+        frame whose sign is opposite to the last nonzero speed written for the
+        train — the lever's or a grant's, signed for the train — writes `0.0`
+        to each car, and so does every later frame of that sign until the
+        throttle sends `0`. How hard a decoder reverses is its make and its
+        momentum, which the roster does not record, and behind a long train
+        cars leave the rails.
         """
         turned = wanted_throttle(payload)
         if turned is None or turned.throttle is None:
             return
-        if self._taken.get(turned.train) != turned.throttle:
+        train = turned.train
+        if self._taken.get(train) != turned.throttle:
             return
-        if self._outstanding(turned.train) is None or self._power != ON:
+        if self._power == OFF or train not in self._position:
             return
-        if self._points(turned.train) is None:
+        if self._points(train) is None:
             return
-        wheels = _composed(
-            self._addressed(turned.train), turned.speed >= 0.0, abs(turned.speed)
-        )
-        for addr, speed in wheels:
+        addressed = self._addressed(train)
+        heading = self._heading.get(train)
+        if turned.speed == 0.0:
+            self._heading.pop(train, None)
+        elif heading is not None and (turned.speed > 0.0) != (heading > 0.0):
+            for addr, _orientation in addressed:
+                self._traction_write(addr, 0.0)
+            return
+        self._headed(train, turned.speed)
+        for addr, speed in _composed(addressed, turned.speed >= 0.0, abs(turned.speed)):
             self._traction_write(addr, speed)
 
     # -- where the trains stand ---------------------------------------------
@@ -1206,10 +1295,7 @@ class LayoutInterface:
             flight = self._outstanding(train)
             if train in self._taken or flight is None or not flight[1].implied:
                 continue
-            block, crossing = flight
-            self._crossing[block] = replace(crossing, driving=True)
-            for addr, speed in crossing.implied:
-                self._traction_write(addr, speed)
+            self._give(*flight)
 
     def _on_device(self, topic: str, payload: Payload) -> None:
         """What the hardware reports about itself. Three of the five rows are
@@ -1353,7 +1439,7 @@ class LayoutInterface:
         if crossing.outstanding:
             # The arrival: the train is in the block it was sent to, so it is
             # told to stand, whoever was driving it — this app or a throttle,
-            # whose lever is dead from here until the next grant (ADR-0079).
+            # whose next lever frame drives the train on (ADR-0081).
             # It does not wait for the vacate — the tail clearing is a fact
             # about the block behind — and it happens on the first end of this
             # block to settle occupied, which is the end the train comes in at
