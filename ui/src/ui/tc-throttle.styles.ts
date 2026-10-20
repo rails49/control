@@ -45,7 +45,7 @@ export const throttleStyles = css`
     overflow: hidden;
   }
 
-  .picture {
+  .thumbnail {
     display: block;
     width: 100%;
     max-height: 40vh;
@@ -53,7 +53,7 @@ export const throttleStyles = css`
   }
 
   /* No photo: the name stands in the picture's place. */
-  .picture.name {
+  .thumbnail.name {
     display: grid;
     place-items: center;
     min-height: 6rem;

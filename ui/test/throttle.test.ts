@@ -584,11 +584,11 @@ describe("the reverser", () => {
   });
 });
 
-describe("the train's picture", () => {
+describe("the train's thumbnail", () => {
   it("is the photo of its first locomotive's model", async () => {
     const shell = await driving();
     await held(shell);
-    expect(part<HTMLImageElement>(shell, "img.picture")!.getAttribute("src")).toBe(
+    expect(part<HTMLImageElement>(shell, "img.thumbnail")!.getAttribute("src")).toBe(
       photoUrl("BR 218"),
     );
   });
@@ -598,11 +598,11 @@ describe("the train's picture", () => {
     const shell = await driving();
     await held(shell);
 
-    part(shell, "img.picture")!.dispatchEvent(new Event("error"));
+    part(shell, "img.thumbnail")!.dispatchEvent(new Event("error"));
     await settled(shell);
 
-    expect(part(shell, "img.picture")).toBeNull();
-    expect(part(shell, ".picture")!.textContent!.trim()).toBe("goods");
+    expect(part(shell, "img.thumbnail")).toBeNull();
+    expect(part(shell, ".thumbnail")!.textContent!.trim()).toBe("goods");
   });
 
   it("is the train's name where it has no locomotive", async () => {
@@ -613,8 +613,8 @@ describe("the train's picture", () => {
       requests: [],
     });
     await held(shell, "shunter");
-    expect(part(shell, "img.picture")).toBeNull();
-    expect(part(shell, ".picture")!.textContent!.trim()).toBe("shunter");
+    expect(part(shell, "img.thumbnail")).toBeNull();
+    expect(part(shell, ".thumbnail")!.textContent!.trim()).toBe("shunter");
   });
 });
 

@@ -178,7 +178,7 @@ export class TcThrottle extends LitElement {
     const still = this.still;
     return html`
       <section class="top">
-        ${this.picture(cab)}
+        ${this.thumbnail(cab)}
         <div class="over">
           <h2>${cab.train}</h2>
           ${this.signal(cab)}
@@ -200,13 +200,13 @@ export class TcThrottle extends LitElement {
   /** The model photo of the train's first locomotive, or its name where it
    *  has none, the roster does not have it, or the photo does not load — a
    *  model with no photo filed answers 404, as the stock screen finds. */
-  private picture(cab: Cab) {
+  private thumbnail(cab: Cab) {
     const model = cab.locomotive;
     if (model === null || this.unseen.has(model)) {
-      return html`<div class="picture name">${cab.train}</div>`;
+      return html`<div class="thumbnail name">${cab.train}</div>`;
     }
     return html`<img
-      class="picture"
+      class="thumbnail"
       src=${photoUrl(model)}
       alt=${cab.train}
       @error=${() => (this.unseen = new Set([...this.unseen, model]))}
