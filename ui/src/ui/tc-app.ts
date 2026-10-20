@@ -322,6 +322,8 @@ export class TcApp extends LitElement {
         .cabs=${this.cabs}
         .power=${this.status.power}
         .linked=${this.status.linked}
+        .current=${this.view === "throttle"}
+        .railroad=${this.status.railroad}
         @take-wanted=${(event: CustomEvent<string>) => this.session?.pressTake(event.detail)}
         @release-wanted=${(event: CustomEvent<string>) =>
           this.session?.pressRelease(event.detail)}

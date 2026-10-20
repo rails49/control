@@ -61,6 +61,31 @@ export const throttleStyles = css`
     color: var(--hint);
   }
 
+  /* The camera car's live picture, laid over the thumbnail, which shows
+     again whenever the stream fails. */
+  .picture {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: var(--body);
+  }
+
+  .live {
+    position: absolute;
+    left: 0.6rem;
+    bottom: 0.4rem;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--wrong);
+    border-radius: 3px;
+    background: var(--body);
+    color: var(--wrong);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
   .over {
     position: absolute;
     inset: 0 0 auto 0;

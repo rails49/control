@@ -464,6 +464,25 @@ describe("the train's picture", () => {
   });
 });
 
+/** Whether the throttle shows the camera car's picture: the trains route's
+ *  `camera`, and only `true` (#857). */
+describe("the camera a train carries", () => {
+  it("is there exactly where the trains route says camera: true", () => {
+    const model = panel();
+    standing(model);
+    expect(drive(model, { t1: { length: 400, camera: true } })[0]!.camera).toBe(true);
+  });
+
+  /** An older store leaves the field out: a train with no camera. */
+  it("is not there where the route says false, leaves the field out, or lacks the train", () => {
+    const model = panel();
+    standing(model);
+    expect(drive(model, { t1: { length: 400, camera: false } })[0]!.camera).toBe(false);
+    expect(drive(model, { t1: { length: 400 } })[0]!.camera).toBe(false);
+    expect(drive(model)[0]!.camera).toBe(false);
+  });
+});
+
 /** Why nothing can be driven: a session that is not answering first, then
  *  the track as the layout last said it (ui/THROTTLE.md, ADR-0078). */
 describe("why a train cannot be driven", () => {

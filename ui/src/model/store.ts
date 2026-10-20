@@ -421,6 +421,21 @@ export function photoUrl(model: string, version = 0): string {
   return version === 0 ? path : `${path}?v=${version}`;
 }
 
+/**
+ * The route the camera car's live picture comes from: the `camera` app's
+ * `GET /picture/<railroad>/<train>` on this page's origin (ADR-0082,
+ * [#851](https://github.com/rails49/control/issues/851)), the loaded
+ * railroad's name and the train's each URL-encoded.
+ *
+ * `attempt` is no part of the route — the app ignores a query string — so
+ * `?try=1` after a stream failed is what makes the browser open a new
+ * connection instead of keeping the failed one. `0` asks for nothing.
+ */
+export function pictureUrl(railroad: string, train: string, attempt = 0): string {
+  const path = `/picture/${encodeURIComponent(railroad)}/${encodeURIComponent(train)}`;
+  return attempt === 0 ? path : `${path}?try=${attempt}`;
+}
+
 /** Create or replace one model's photo: the picture's own bytes under
  *  `image/jpeg`, the one body this app sends that is not a document. The store
  *  refuses a photo for a model it has not got — a file beside a document that

@@ -37,7 +37,7 @@ import {
   written as everything,
 } from "./support/session.js";
 import { FakeLock } from "./support/wake.js";
-import { photoUrl } from "../src/model/store.js";
+import { photoUrl, pictureUrl, RETRY_MS } from "../src/model/store.js";
 
 beforeEach(brokering);
 
@@ -615,6 +615,150 @@ describe("the train's thumbnail", () => {
     await held(shell, "shunter");
     expect(part(shell, "img.thumbnail")).toBeNull();
     expect(part(shell, ".thumbnail")!.textContent!.trim()).toBe("shunter");
+  });
+});
+
+describe("the camera car's picture", () => {
+  /** The toy roster with `goods` carrying a camera, as the trains route
+   *  says (#850): `shunter` carries none. */
+  beforeEach(() => {
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => ({ ...STOCK, goods: { ...STOCK.goods, camera: true } }),
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The camera app's route, which the page holds open while it is drawn. */
+  function live(shell: TcApp): HTMLImageElement | null {
+    return part<HTMLImageElement>(shell, "img.picture");
+  }
+
+  /** The thumbnail, the photo or the name, which is drawn either way. */
+  function thumbnail(shell: TcApp): Element | null {
+    return part(shell, ".thumbnail");
+  }
+
+  /** A train held here with a camera, on the view, and the picture failing
+   *  once: what the retry tests start from. */
+  async function failing(): Promise<TcApp> {
+    const shell = await driving();
+    await held(shell);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    live(shell)!.dispatchEvent(new Event("error"));
+    await settled(shell);
+    return shell;
+  }
+
+  it("is drawn over the thumbnail, from the camera app's route, marked LIVE", async () => {
+    const shell = await driving();
+    await held(shell);
+
+    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods");
+    expect(live(shell)!.getAttribute("alt")).toBe("");
+    expect(thumbnail(shell)).not.toBeNull();
+    expect(part(shell, ".top .live")!.textContent!.trim()).toBe("LIVE");
+  });
+
+  it("names the railroad and the train, each URL-encoded", () => {
+    expect(pictureUrl("my road", "a/b")).toBe("/picture/my%20road/a%2Fb");
+    expect(pictureUrl("toy", "goods", 3)).toBe("/picture/toy/goods?try=3");
+  });
+
+  /** Track power does not matter: the picture is the train's, not a move's. */
+  it("is drawn with the track off", async () => {
+    const shell = await driving();
+    await held(shell);
+    await said(shell, POWER, { power: "off" });
+    expect(live(shell)).not.toBeNull();
+  });
+
+  it("is not drawn for a train held here with no camera", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, BOTH);
+    await held(shell, "shunter");
+    expect(live(shell)).toBeNull();
+    expect(part(shell, ".live")).toBeNull();
+    expect(thumbnail(shell)!.textContent!.trim()).toBe("shunter");
+  });
+
+  /** Held elsewhere or by nobody, the view is the picker, whose thumbnails
+   *  are photos and never the camera's. */
+  it.each([
+    ["held elsewhere", { goods: "another-page" }],
+    ["held by nobody", {}],
+  ])("is not drawn for a train %s", async (_, holders) => {
+    const shell = await driving();
+    await said(shell, TAKEN, { taken: holders });
+    expect(live(shell)).toBeNull();
+    expect(card(shell, "goods")!.querySelector("img.picture")).toBeNull();
+    expect(card(shell, "goods")!.querySelector(".thumbnail")).not.toBeNull();
+  });
+
+  it("goes on error, and is back after RETRY_MS with a new try", async () => {
+    const shell = await failing();
+    expect(live(shell)).toBeNull();
+    expect(thumbnail(shell)).not.toBeNull();
+
+    vi.advanceTimersByTime(RETRY_MS);
+    await settled(shell);
+    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods?try=1");
+
+    live(shell)!.dispatchEvent(new Event("error"));
+    await settled(shell);
+    vi.advanceTimersByTime(RETRY_MS);
+    await settled(shell);
+    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods?try=2");
+  });
+
+  it("does not come back after an error once the train is released", async () => {
+    const shell = await failing();
+    await said(shell, TAKEN, { taken: {} });
+
+    vi.advanceTimersByTime(RETRY_MS);
+    await settled(shell);
+    expect(live(shell)).toBeNull();
+  });
+
+  /** Each of these ends the page's connection to the route: the element
+   *  goes, and nothing puts it back. */
+  it.each([
+    ["state/taken drops the train", (shell: TcApp) => said(shell, TAKEN, { taken: {} })],
+    [
+      "another train is taken",
+      async (shell: TcApp) => {
+        await said(shell, ALLOCATION, BOTH);
+        await said(shell, TAKEN, { taken: { shunter: mine() } });
+      },
+    ],
+    [
+      "the train leaves state/allocation",
+      (shell: TcApp) => said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] }),
+    ],
+    ["the run view is shown", (shell: TcApp) => shows(shell, "run")],
+  ])("is gone once %s", async (_, then) => {
+    const shell = await driving();
+    await held(shell);
+    expect(live(shell)).not.toBeNull();
+
+    await then(shell);
+
+    expect(live(shell)).toBeNull();
+  });
+
+  /** Back on the throttle view the train is still held, and the picture
+   *  is asked for again. */
+  it("is back when the throttle view is shown again", async () => {
+    const shell = await driving();
+    await held(shell);
+    await shows(shell, "run");
+    await shows(shell, "throttle");
+    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods");
   });
 });
 
