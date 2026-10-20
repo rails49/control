@@ -1,5 +1,6 @@
-"""The five apps that come up on a broker take their shared flags from one
-place, and `lib` says how many they are (#430, #456, #528, #587).
+"""The six apps whose command line `lib` builds — the five that come up on a
+broker, and the camera app, which takes none — take their shared flags from
+one place, and `lib` says how many they are (#430, #456, #528, #587, #851).
 
 `lib/startup.py::command_line` writes `--broker` and `--store` once and says
 which of the two an app takes — and no `--railroad`, which no app is told
@@ -43,9 +44,11 @@ ON_THE_BROKER = (
     "driver",
     "simulator",
     "layout",
+    "camera",
 )
-"""The apps a compose service starts with a broker to run on, each a
-`python -m tc49.<app>` whose `__main__` parses that line."""
+"""The apps whose command line `lib` builds, each a `python -m tc49.<app>`
+whose `__main__` parses that line: the five a compose service starts with a
+broker to run on, and the camera app, which takes no broker (ADR-0082)."""
 
 SHARED = ("--broker", "--store")
 """The flags `command_line` writes. An app takes some of them or none, and

@@ -10,12 +10,16 @@ import { defineConfig } from "vitest/config";
 // one page with a view in its hash (ADR-0038).
 const STORE = "http://127.0.0.1:8765";
 
-// The picture route is a camera app's and the store never answers it: the
+// The photo route is a photo camera's and the store never answers it: the
 // responder is not code of this repository, and on a box its own stack claims
 // `/camera` with a door label of its own. Here it is a second port on
 // loopback, so the page fetches `/camera/snapshot` on its own origin either
 // way (docs/SYSTEM.md, docs/DEPLOY.md, #629).
 const CAMERA = "http://127.0.0.1:8766";
+
+// The camera car's picture is the camera app's, `python -m tc49.camera`, on
+// its own port as on a box it is its own container (docs/DEPLOY.md, #851).
+const PICTURE = "http://127.0.0.1:8767";
 
 export default defineConfig({
   // Shoelace's icons and the rest of its assets, served from the app's own
@@ -55,6 +59,7 @@ export default defineConfig({
       // front of a box passes the host header through for this prefix as for
       // the others, so development behaves the way deployment does.
       "/camera": { target: CAMERA, changeOrigin: false },
+      "/picture": { target: PICTURE, changeOrigin: false },
       // The broker's WebSocket listener under a path of the app's own origin,
       // which is what lets the panel build one URL whether TLS is terminated
       // in front of it or not. The door in front of a box strips the same

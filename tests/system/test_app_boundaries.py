@@ -23,6 +23,7 @@ APPS = (
     "driver",
     "simulator",
     "layout",
+    "camera",
 )
 
 

@@ -42,7 +42,7 @@ services:
   # read files. Only a box has a build to serve — a development machine has
   # vite — so it is a profile rather than a service.
   #
-  # The first of the three containers a browser reaches, and so the first to
+  # The first of the four containers a browser reaches, and so the first to
   # carry its own router. Everything under `traefik.` here is read by the
   # door, which is on the box and not in this file (#556, #557).
   #
@@ -210,7 +210,7 @@ services:
       - traefik.http.routers.tc49-store.tls.certresolver=le
     networks: [default, rails49]
 
-  # The five apps, one service each (ADR-0059, decision 5). Every one of them
+  # The five apps on the bus, one service each (ADR-0059, decision 5). Every one of them
   # comes up alone: started against nothing, it connects, publishes the rows
   # it owns and stays up, and one that reads the railroad's documents retries
   # the store until it answers. **No `depends_on` anywhere** — an order here
@@ -316,8 +316,40 @@ services:
   # mount. The deploy's `--remove-orphans` takes the container this file used
   # to start (docs/DEPLOY.md).
 
+  # The camera app: the picture of a camera car's camera, relayed onto the
+  # app's own origin as `/picture`, which a page could not reach on the LAN
+  # over HTTP (ADR-0082). The fourth container a browser reaches, so it
+  # carries its own router, and the one app on no bus: it takes the store and
+  # no broker. Bound to every interface because the door reaches it from
+  # another container.
+  #
+  # The camera's web login comes from the env file, passed through by name;
+  # left unset it arrives empty, which the app reads as `admin` with an empty
+  # password, the camera's own and what every box has today.
+  camera:
+    build: *app
+    profiles: [layout]
+    restart: unless-stopped
+    environment:
+      TC49_CAMERA_USER: "${TC49_CAMERA_USER:-}"
+      TC49_CAMERA_PASSWORD: "${TC49_CAMERA_PASSWORD:-}"
+    command:
+      ["python", "-m", "tc49.camera",
+       "--store", "http://store:8765",
+       "--host", "0.0.0.0"]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rails49
+      - traefik.http.services.tc49-camera.loadbalancer.server.port=8767
+      - traefik.http.routers.tc49-camera.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/picture`)
+      - traefik.http.routers.tc49-camera.priority=2
+      - traefik.http.routers.tc49-camera.entrypoints=websecure
+      - traefik.http.routers.tc49-camera.service=tc49-camera
+      - traefik.http.routers.tc49-camera.tls.certresolver=le
+    networks: [default, rails49]
+
 # The one network every stack on the box shares, created by the installation
-# under a fixed name four repositories hardcode and joined here by the three
+# under a fixed name four repositories hardcode and joined here by the four
 # containers a browser reaches (rails49/installation ADR-0001). External,
 # because a stack that makes it when it is absent is a stack that silently
 # decides its options, and the first one started would decide them for the

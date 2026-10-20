@@ -2,8 +2,8 @@
 
 The door — one reverse proxy per box, in front of everything a browser reaches
 on it — is the installation's now, not this repository's, and it reads its
-routers off container labels. So the three containers a browser reaches — the
-built ui, the store and the broker — carry the rules for their own paths, and
+routers off container labels. So the four containers a browser reaches — the
+built ui, the store, the broker and the camera app — carry the rules for their own paths, and
 a UI's paths change in the same commit as the UI.
 
 What a running proxy does with these labels is not checked here: a wrong label
@@ -41,9 +41,9 @@ NETWORK = "rails49"
 and joined by every container the door reaches (rails49/installation ADR-0001).
 The name is a contract in four repositories."""
 
-REACHED = frozenset({"web", "store", "broker"})
-"""The containers a browser reaches: the built ui, the store's HTTP face and
-the broker's WebSocket listener. Everything else here talks to the bus rather
+REACHED = frozenset({"web", "store", "broker", "camera"})
+"""The containers a browser reaches: the built ui, the store's HTTP face,
+the broker's WebSocket listener and the camera app's picture. Everything else here talks to the bus rather
 than to browsers, and stays off the shared network — the door has no route to
 any of them."""
 
@@ -137,7 +137,7 @@ def test_only_what_the_door_reaches_joins_it() -> None:
 
 
 def test_what_joins_it_keeps_the_stacks_own_network() -> None:
-    """Each of the three sits on two: the apps reach the broker and the store
+    """Each of the four sits on two: the apps reach the broker and the store
     over this stack's own network, and naming a second one would otherwise
     take the first away."""
     for name in sorted(REACHED):
@@ -156,7 +156,7 @@ def test_each_container_on_it_names_it_again() -> None:
 
 def test_the_door_routes_a_container_only_when_it_asks() -> None:
     """The door sees every container on the box and routes none by default,
-    so the three opt in and nothing else may."""
+    so the four opt in and nothing else may."""
     asked = {
         name
         for name, service in services().items()
@@ -190,7 +190,7 @@ def test_router_names_are_keyed_to_the_stack() -> None:
     assert not stray, f"{stray} are not keyed to the stack `{stack()}`"
 
 
-@pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign"])
+@pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign", "camera"])
 def test_the_hostname_comes_from_the_boxs_declaration(name: str) -> None:
     """One name, substituted by compose out of the box's own file. A literal
     here is what made naming a box a fork of this repository."""
@@ -199,7 +199,7 @@ def test_the_hostname_comes_from_the_boxs_declaration(name: str) -> None:
     assert WRITTEN_OUT not in said
 
 
-@pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign"])
+@pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign", "camera"])
 def test_every_router_reaches_the_door_over_tls(name: str) -> None:
     settings = router(name)
     assert settings["entrypoints"] == "websecure"
@@ -239,7 +239,7 @@ def test_the_store_and_the_bus_are_reached_where_they_answer() -> None:
 
 def test_every_router_states_its_priority() -> None:
     """Traefik's default priority is the rule's length. That was readable
-    while every rule sat in one file; the rules now sit on three containers,
+    while every rule sat in one file; the rules now sit on four containers,
     where nothing shows a reader that lengthening one changes what another
     matches. So each says where it stands outright."""
     silent = sorted(
@@ -259,7 +259,7 @@ def test_the_refusal_outranks_the_router_it_stands_in_front_of() -> None:
 def test_a_path_outranks_the_app_it_is_served_under() -> None:
     """The app's rule is the bare host and matches every path under it,
     including the store's and the bus's."""
-    for name in ("store", "mqtt", "mqtt-foreign"):
+    for name in ("store", "mqtt", "mqtt-foreign", "camera"):
         assert priority(name) > priority("app"), f"{name} loses to the app"
 
 
