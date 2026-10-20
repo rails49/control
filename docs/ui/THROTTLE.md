@@ -168,13 +168,16 @@ which is most of the stock a railroad owns.
 
 They are **drawn and not yet live**. A function reaches a decoder through the
 device vocabulary, `tc49/layout/state/wanted/function/<addr>/<number>`, whose
-one writer is `layout` (BUS.md, *Device vocabulary*), and no gesture
-carrying a function press is declared — the rows a throttle rides on are
-the take and the speed
-([#296](https://github.com/rails49/control/issues/296),
-[#297](https://github.com/rails49/control/issues/297)). Drawing them is what
-says a train has them; the day the gesture is declared, this is the view it is
-sent from, and nothing else here changes.
+one writer is `layout` (BUS.md, *Device vocabulary*). The gesture carrying a
+press is declared: `tc49/layout/function_wanted` `{train, throttle, function,
+on}`, from the throttle holding the train, by name. `layout` writes the row of
+the first car in the train's order that has an address and declares the name,
+and states which of each train's functions are on in
+`tc49/layout/state/functions`
+([#849](https://github.com/rails49/control/issues/849)). This view does not
+send it or read that yet
+([#856](https://github.com/rails49/control/issues/856)); when it does, nothing
+else here changes.
 
 **Everything is dead while the rails are not live.** With
 `tc49/layout/state/power` anything but `on`, or with no session answering, no
@@ -193,7 +196,7 @@ holds its block, it is granted moves, and it moves only on a route the
 dispatcher allocated, with a person trusted to read the signal this view
 shows them. The dispatcher never reads who holds a train (ADR-0079).
 
-**Not a hand-held throttle.** What such a thing needs is exactly the three
+**Not a hand-held throttle.** What such a thing needs is exactly the four
 gesture topics, which are contract and not this view's
 ([DEPLOY.md](../DEPLOY.md)). Consisting, decoder programming and a train that
 is not on the layout are all somewhere else.

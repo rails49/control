@@ -1081,12 +1081,13 @@ and at most one throttle holds a train
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 The gestures are this component's — `driving_wanted` switches the mode,
 `take_wanted` takes a train for a throttle or releases it, `throttle_alive`
-keeps a throttle's trains held, and `throttle_wanted` is the throttle being
-turned — because the device row a throttle ends at has one writer and that
+keeps a throttle's trains held, `throttle_wanted` is the throttle being
+turned, and `function_wanted` switches one of the train's functions by name
+([#849](https://github.com/rails49/control/issues/849)) — because the device row a throttle ends at has one writer and that
 writer is `layout` (rule 1), while a throttle is any number of writers, two
 tabs being two of them. `layout` comes up `manual` with no train taken, and
-publishes `state/driving` and `state/taken`, which is where a view reads who
-is driving what. A second take of a held train is dropped, and a throttle not
+publishes `state/driving`, `state/taken` and `state/functions`, which is
+where a view reads who is driving what and which functions are on. A second take of a held train is dropped, and a throttle not
 heard for 5 s by default, set per installation
 ([DEPLOY.md](DEPLOY.md#a-silent-throttle)), has its trains released.
 

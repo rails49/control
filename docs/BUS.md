@@ -262,7 +262,7 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the fourteen gesture rows. The throttle a person
+Today the mark sits on exactly the fifteen gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207),
 [ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)),
 the railroad's driving mode, the
@@ -270,7 +270,7 @@ track power a person commands
 ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
 and the railroad a person loads
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
-are seven of them, under `layout`, which is the component that responds to
+are eight of them, under `layout`, which is the component that responds to
 them. Whether a row carries the mark is an ACL decision, made when the row
 lands.
 
@@ -295,6 +295,8 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/layout/take_wanted` | event | any (browser) | a throttle takes a train, or the train is released ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/throttle_alive` | event | any (browser) | a throttle holding a train is still there ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
+| `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
+| `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -326,7 +328,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/schedule/state/facing` **and** `tc49/layout/state/device/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
 | Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors |
 | Trace tap | `tc49/#` |
 
@@ -628,11 +630,32 @@ what a drop would cost:
   the map does not name, no throttle holds. Empty when `layout` starts. Read
   an entry at a time: an unreadable entry leaves its train held by nobody,
   and an unreadable payload holds nothing.
+- `tc49/layout/function_wanted` — browser-writable — `train`; `throttle`: the
+  id of the throttle holding the train, a non-empty string, where missing,
+  `null` or empty fails the read; `function`: a function's name as the
+  catalogue gives it, a non-empty string; `on`: a boolean, any other value
+  failing the read. A frame whose `throttle` does not hold the train is
+  dropped. Otherwise `layout` writes the `wanted/function` row of the first
+  car in the train's order that has an address and declares a function of
+  that name, on the car's number for it — the first in the car's declared
+  order where it has two — with `value` set to `on`. A train the roster does
+  not name, or a name no addressed car of the train declares, is dropped with
+  a log line. Accepted at any power and in either driving mode. Nothing else
+  writes a function row: a release, a silent throttle, `train_removed`, a cut
+  and a restart leave them as they are
+  ([#849](https://github.com/rails49/control/issues/849)).
+- `tc49/layout/state/functions` — `functions`: map of train to a map of
+  function name to boolean, the `value` of the `wanted/function` row a press
+  of that name writes. A train or name with no such row is absent, which reads
+  off. Empty when `layout` starts, and published again whenever a
+  `wanted/function` row it knows of changes: its own writes, and the retained
+  rows a bus that outlived it hands back at start, so a light a decoder still
+  has on shows on after a restart. An unreadable row is skipped.
 
 #### `schedule`
 
-The fourteen browser-writable rows — the two here, the five under `dispatch`
-and the seven under `layout` above — are where rule 4 bites hardest: each
+The fifteen browser-writable rows — the two here, the five under `dispatch`
+and the eight under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
@@ -843,14 +866,15 @@ address nothing answers to does no harm, as a packet nobody picks up does
 The rows are `tc49.lib.inventory.DEVICE_TOPICS`. What a translator does
 with them, and where it cannot, is in that translator's own repository.
 
-**What `layout` asks of the hardware.** Four of the five are written today —
-`wanted/point` on each `align`, `wanted/signal` on each aspect the dispatcher
-shows, `wanted/track` on each press of the power (#287), and `wanted/traction`
-on each `move` it acts on and again on the arrival, its sign composed from the
-train's facing and the way round each car is coupled
-([#296](https://github.com/rails49/control/issues/296)). `wanted/function` has
-no writer: a function press has no gesture to arrive on and is nobody's until a
-throttle asks. Its `value` is a **boolean** and not a word out of a catalogue:
+**What `layout` asks of the hardware.** `wanted/point` is written on each
+`align`, `wanted/signal` on each aspect the dispatcher shows, `wanted/track` on
+each press of the power (#287), `wanted/traction` on each `move` it acts on
+and again on the arrival, its sign composed from the train's facing and the
+way round each car is coupled
+([#296](https://github.com/rails49/control/issues/296)), and
+`wanted/function` on each `function_wanted` it applies
+([#849](https://github.com/rails49/control/issues/849)). `wanted/function`'s
+`value` is a **boolean** and not a word out of a catalogue:
 a function is one bit on the wire wherever it was checked, and setting a
 volume or a brightness is decoder configuration, a different capability that
 would be a different row
