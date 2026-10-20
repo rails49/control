@@ -65,6 +65,10 @@ export interface Cab {
    *  (`photoUrl`), `null` where it has none, the roster does not have the
    *  train, or the store's answer leaves the field out. */
   locomotive: string | null;
+  /** Whether a car in it carries a camera, as the trains route says; an
+   *  answer that leaves the field out is a train with none. Never where the
+   *  camera answers: the `camera` app relays its picture (ADR-0082). */
+  camera: boolean;
   /** The blocks on the road in front of it, nearest first. */
   ahead: readonly Ahead[];
   /** Whether it has a request in flight, which is what greys turning it
@@ -160,6 +164,7 @@ export function cabs(driving: Driving): Cab[] {
         inFlight: inFlight.has(train),
         functions: switches(stock[train]?.functions ?? [], functions.get(train)),
         locomotive: stock[train]?.locomotive ?? null,
+        camera: stock[train]?.camera === true,
         last: train === last && holder === undefined,
       };
     });
