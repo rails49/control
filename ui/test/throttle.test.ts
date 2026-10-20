@@ -1196,6 +1196,246 @@ describe("with the rails dead", () => {
   });
 });
 
+/**
+ * A tablet drives several trains side by side (#855): one column of driving
+ * controls per train this page holds, as many across as the view's own width
+ * fits (`columns`), and a take column on the right with the page's one clock
+ * and the trains to take. All of it under the page's one throttle id.
+ *
+ * The width is the view's, read with a `ResizeObserver`, so the observer is
+ * stood in for and told the width a test wants.
+ */
+describe("side by side", () => {
+  /** The observers the page has made, each with what it watches. */
+  const watching: { report: ResizeObserverCallback; targets: Element[] }[] = [];
+
+  class Watcher {
+    private readonly entry: { report: ResizeObserverCallback; targets: Element[] };
+    constructor(report: ResizeObserverCallback) {
+      this.entry = { report, targets: [] };
+      watching.push(this.entry);
+    }
+    observe(target: Element): void {
+      this.entry.targets.push(target);
+    }
+    unobserve(target: Element): void {
+      this.entry.targets = this.entry.targets.filter((one) => one !== target);
+    }
+    disconnect(): void {
+      this.entry.targets = [];
+    }
+  }
+
+  /** The throttle view laid out `width` pixels wide. Only the view is told:
+   *  the other views' observers have nothing to do with it. */
+  async function wide(shell: TcApp, width: number): Promise<void> {
+    const view = throttling(shell);
+    for (const { report, targets } of watching) {
+      if (!targets.includes(view)) continue;
+      const entry = { target: view, contentRect: { width } } as unknown as ResizeObserverEntry;
+      report([entry], {} as ResizeObserver);
+    }
+    await settled(shell);
+  }
+
+  beforeEach(() => {
+    watching.length = 0;
+    vi.stubGlobal("ResizeObserver", Watcher);
+  });
+
+  afterEach(() => {
+    // Every frame these tests saw that names a throttle names this page's
+    // one: there is no id per column.
+    const ids = new Set(
+      written()
+        .map((one) => (one as { payload: { throttle?: unknown } }).payload.throttle)
+        .filter((id) => typeof id === "string"),
+    );
+    expect(ids.size).toBeLessThanOrEqual(1);
+    vi.unstubAllGlobals();
+  });
+
+  /** `goods` in `a`, `shunter` in `b` and `coal` in `c`. `coal` is on no
+   *  roster: it is on the layout all the same, so it gets a cab. */
+  const THREE = {
+    trains: { goods: "a", shunter: "b", coal: "c" },
+    locks: { a: "goods", b: "shunter", c: "coal" },
+    requests: [],
+  };
+
+  /** The app at `width`, holding `trains` in the order `state/taken` first
+   *  named this page for each. */
+  async function holding(width: number, ...trains: string[]): Promise<TcApp> {
+    const shell = await driving();
+    await said(shell, ALLOCATION, THREE);
+    await wide(shell, width);
+    await taking(shell, trains[0]!);
+    const taken: Record<string, string> = {};
+    for (const train of trains) {
+      taken[train] = mine();
+      await said(shell, TAKEN, { taken: { ...taken } });
+    }
+    return shell;
+  }
+
+  /** The trains the view has driving controls for, in the order shown. */
+  function driven(shell: TcApp): string[] {
+    return columns(shell).map((one) => one.cab!.train);
+  }
+
+  /** One train's driving controls. */
+  function column(shell: TcApp, train: string): TcDriving {
+    return columns(shell).find((one) => one.cab?.train === train)!;
+  }
+
+  function within<T extends Element>(shell: TcApp, train: string, selector: string): T {
+    return column(shell, train).renderRoot.querySelector<T>(selector)!;
+  }
+
+  /** The take column, `null` where the view has none. */
+  function take(shell: TcApp): HTMLElement | null {
+    return throttling(shell).renderRoot.querySelector<HTMLElement>("aside.take");
+  }
+
+  /** The trains the take column offers, in its order. */
+  function listed(shell: TcApp): string[] {
+    const list = take(shell)?.querySelector<TcTrainPicker>("tc-train-picker");
+    return [...(list?.renderRoot.querySelectorAll(".card > span.name") ?? [])].map(
+      (one) => one.textContent!.trim(),
+    );
+  }
+
+  /** How many clocks the whole view draws. */
+  function clocks(shell: TcApp): number {
+    return parts(shell, "tc-clock").length;
+  }
+
+  const FULL = "no room for another train — release one";
+
+  it("draws a column per train held, in the order taken, and one clock", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    expect(driven(shell)).toEqual(["goods", "coal"]);
+    expect(clocks(shell)).toBe(1);
+    expect(take(shell)!.querySelector("tc-clock")).not.toBeNull();
+    expect(take(shell)!.textContent).toContain("Take another train");
+  });
+
+  /** Not by name: `shunter` comes before `goods` only because it was taken
+   *  first. */
+  it("keeps the order state/taken first named this page for each", async () => {
+    const shell = await holding(1180, "shunter", "goods");
+    expect(driven(shell)).toEqual(["shunter", "goods"]);
+  });
+
+  /** The issue's 1180 px is two columns, which two trains fill: the list is
+   *  read where there is room for it. */
+  it("lists the other placed trains in the take column, as compact rows", async () => {
+    const shell = await holding(1920, "goods", "coal");
+    expect(listed(shell)).toEqual(["shunter"]);
+    expect(take(shell)!.querySelector("tc-train-picker")!.hasAttribute("compact")).toBe(true);
+  });
+
+  it("STOP in one column stops that column's train only", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    const before = written().length;
+
+    within<HTMLButtonElement>(shell, "coal", "button.stop").click();
+    await settled(shell);
+
+    expect(written().slice(before)).toEqual([
+      { topic: THROTTLE_WANTED, payload: { train: "coal", speed: 0, throttle: mine() } },
+    ]);
+  });
+
+  it("moving one column's lever drives its train only", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    const lever = (train: string) => within<HTMLInputElement>(shell, train, "input.speed");
+    lever("goods").value = "0.3";
+    lever("goods").dispatchEvent(new Event("input", { bubbles: true }));
+    await settled(shell);
+    const before = written().length;
+
+    lever("coal").value = "0.6";
+    lever("coal").dispatchEvent(new Event("input", { bubbles: true }));
+    await settled(shell);
+
+    expect(written().slice(before)).toEqual([
+      { topic: THROTTLE_WANTED, payload: { train: "coal", speed: 0.6, throttle: mine() } },
+    ]);
+    expect(within(shell, "goods", ".reading").textContent!.trim()).toBe("30 %");
+    expect(within(shell, "coal", ".reading").textContent!.trim()).toBe("60 %");
+  });
+
+  it("Release in one column gives that train back, and its column goes once taken back", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    const before = written().length;
+
+    within<HTMLButtonElement>(shell, "goods", "button.release").click();
+    await settled(shell);
+
+    expect(written().slice(before)).toEqual([
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: null } },
+    ]);
+    expect(driven(shell)).toEqual(["goods", "coal"]);
+
+    await said(shell, TAKEN, { taken: { coal: mine() } });
+
+    expect(driven(shell)).toEqual(["coal"]);
+    expect(listed(shell)).toContain("goods");
+  });
+
+  it("says there is no room, and offers no Take, once the columns are full", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    expect(take(shell)!.textContent).toContain(FULL);
+    expect(take(shell)!.querySelector("tc-train-picker")).toBeNull();
+    expect(listed(shell)).toEqual([]);
+  });
+
+  it("at 820 px holding one, says there is no room", async () => {
+    const shell = await holding(820, "goods");
+    expect(take(shell)!.textContent).toContain(FULL);
+  });
+
+  /** A phone: no take column, and the train's own controls carry the clock. */
+  it("at 390 px holding one, has no take column", async () => {
+    const shell = await holding(390, "goods");
+    expect(take(shell)).toBeNull();
+    expect(driven(shell)).toEqual(["goods"]);
+    expect(clocks(shell)).toBe(1);
+    expect(within(shell, "goods", "tc-clock")).not.toBeNull();
+  });
+
+  /** Nothing is released or hidden because the view narrowed. */
+  it("narrowing to a phone publishes nothing and shows both, one below the other", async () => {
+    const shell = await holding(1180, "goods", "coal");
+    const before = written().length;
+
+    await wide(shell, 390);
+
+    expect(written().length).toBe(before);
+    expect(driven(shell)).toEqual(["goods", "coal"]);
+    expect(take(shell)).toBeNull();
+    expect(throttling(shell).renderRoot.querySelector("main.stacked")).not.toBeNull();
+    // The first train's controls carry the clock, the others do not.
+    expect(clocks(shell)).toBe(1);
+    expect(within(shell, "goods", "tc-clock")).not.toBeNull();
+  });
+
+  it("puts trains beyond the columns that fit on a further row", async () => {
+    const shell = await holding(820, "goods", "coal");
+    expect(driven(shell)).toEqual(["goods", "coal"]);
+    const trains = throttling(shell).renderRoot.querySelector<HTMLElement>(".trains")!;
+    expect(trains.style.getPropertyValue("--columns")).toBe("1");
+  });
+
+  it("is the picker, full width, while it holds no train", async () => {
+    const shell = await driving();
+    await wide(shell, 1920);
+    expect(take(shell)).toBeNull();
+    expect(picker(shell)!.hasAttribute("compact")).toBe(false);
+  });
+});
+
 describe("the screen kept awake", () => {
   /** A `navigator.wakeLock` for the app to find, which happy-dom has not:
    *  set before the app mounts, since it reads it then. */

@@ -2,9 +2,18 @@
  * The throttle view (ui/THROTTLE.md): take a train, drive it, give it
  * back ([#207](https://github.com/rails49/control/issues/207)). While this
  * page's throttle holds no train it is the train picker (`tc-train-picker`,
- * [#853](https://github.com/rails49/control/issues/853)); while it holds one
- * it is that train's driving controls (`tc-driving`, arrangement A,
- * [#852](https://github.com/rails49/control/issues/852)).
+ * [#853](https://github.com/rails49/control/issues/853)); while it holds
+ * some it is their driving controls (`tc-driving`, arrangement A,
+ * [#852](https://github.com/rails49/control/issues/852)), one column for each
+ * train ([#855](https://github.com/rails49/control/issues/855)).
+ *
+ * Where the view is wide enough (`columns`, by its own width and not the
+ * window's), the columns stand side by side and a take column on the right
+ * carries the page's one clock and the trains to take; held trains beyond
+ * the columns that fit go on a further row. On a phone there is no take
+ * column, and the trains' controls stand one below the other, the first
+ * carrying the clock. Narrowing the view releases nothing and hides nothing.
+ * Every train is held under the page's one throttle id.
  *
  * A view of this app beside the run view and the editor
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)),
@@ -24,10 +33,12 @@
  */
 
 import { LitElement, html } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
+import { repeat } from "lit/directives/repeat.js";
 
-import type { Cab } from "../model/throttle.js";
+import { columns, type Cab } from "../model/throttle.js";
 import type { Power } from "../model/trace.js";
+import "./tc-clock.js";
 import "./tc-driving.js";
 import "./tc-train-picker.js";
 import { throttleStyles } from "./tc-throttle.styles.js";
@@ -58,36 +69,100 @@ export class TcThrottle extends LitElement {
    *  `null` or `""` while none is loaded. */
   @property() railroad: string | null = null;
 
+  /** The view's own width in CSS pixels, as its `ResizeObserver` last
+   *  said; 0 until it has, which lays it out as a phone. */
+  @state() private width = 0;
+
+  /** The trains this throttle holds, in the order `state/taken` first named
+   *  it for each: the order of the columns, kept for the life of the page. A
+   *  train newly held goes after the others, and one given back leaves the
+   *  others where they were. */
+  private order: readonly string[] = [];
+
+  private watch = new ResizeObserver((entries) => {
+    for (const entry of entries) this.width = entry.contentRect.width;
+  });
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.watch.observe(this);
+  }
+
+  override disconnectedCallback(): void {
+    this.watch.disconnect();
+    super.disconnectedCallback();
+  }
+
+  override willUpdate(changed: Map<string, unknown>): void {
+    if (!changed.has("cabs")) return;
+    const here = this.cabs.filter((cab) => cab.taken === "here").map((cab) => cab.train);
+    this.order = [
+      ...this.order.filter((train) => here.includes(train)),
+      ...here.filter((train) => !this.order.includes(train)),
+    ];
+  }
+
   override render() {
-    const cab = this.cab;
-    if (cab === null) {
+    const held = this.held;
+    if (held.length === 0) {
       return html`<tc-train-picker
         .cabs=${this.cabs}
         .power=${this.power}
         .linked=${this.linked}
       ></tc-train-picker>`;
     }
-    return html`<main>
-      <tc-driving
-        .cab=${cab}
-        .power=${this.power}
-        .linked=${this.linked}
-        .current=${this.current}
-        .railroad=${this.railroad}
-        clock
-      ></tc-driving>
+    const fit = columns(this.width);
+    if (fit === 0) {
+      return html`<main class="stacked">
+        ${repeat(
+          held,
+          (cab) => cab.train,
+          (cab, index) => this.column(cab, index === 0),
+        )}
+      </main>`;
+    }
+    return html`<main class="side">
+      <div class="trains" style=${`--columns: ${fit}`}>
+        ${repeat(
+          held,
+          (cab) => cab.train,
+          (cab) => this.column(cab, false),
+        )}
+      </div>
+      <aside class="take">
+        <tc-clock></tc-clock>
+        <h2>Take another train</h2>
+        ${held.length >= fit
+          ? html`<p class="hint">no room for another train — release one</p>`
+          : html`<tc-train-picker
+              compact
+              .cabs=${this.cabs}
+              .power=${this.power}
+              .linked=${this.linked}
+            ></tc-train-picker>`}
+      </aside>
     </main>`;
   }
 
-  /** The cab of the train this throttle holds, `null` where it holds none.
-   *  Where `state/taken` names it for several, the first by name: side by
-   *  side is [#855](https://github.com/rails49/control/issues/855)'s. */
-  private get cab(): Cab | null {
-    return (
-      this.cabs
-        .filter((cab) => cab.taken === "here")
-        .sort((one, other) => one.train.localeCompare(other.train))[0] ?? null
-    );
+  /** One train's driving controls, the clock among them only where the view
+   *  has no take column to carry it. */
+  private column(cab: Cab, clock: boolean) {
+    return html`<tc-driving
+      .cab=${cab}
+      .power=${this.power}
+      .linked=${this.linked}
+      .current=${this.current}
+      .railroad=${this.railroad}
+      ?clock=${clock}
+    ></tc-driving>`;
+  }
+
+  /** The cabs of the trains this throttle holds, in the columns' order. Read
+   *  afresh: the bus moves under a person holding a slider. */
+  private get held(): Cab[] {
+    return this.order
+      .map((train) => this.cabs.find((cab) => cab.train === train))
+      .filter((cab): cab is Cab => cab !== undefined);
   }
 }
 
