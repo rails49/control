@@ -61,7 +61,7 @@ The band starts with look's mark and the UI's name, `control`
 **The railroad the app has loaded is named here**, as
 `tc49/layout/state/railroad` reports it, and the name is not pressed. Loading
 another is the **settings dialog's**, behind the gear between the health area
-and track power
+and the driving control
 ([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 It is not the editor's `File ▸ Open` with the run view guessing separately:
 both views are of one railroad, so one control asks for it. The gear is drawn
@@ -241,8 +241,9 @@ written in look's `Mod+S` form and shown for the platform.
     File   Save ⌘S  ·  Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
-The run view's rail is the views, the three `View` commands and the driving
-control, which sits in a group labelled Driving at the rail's far end ([PANEL.md](PANEL.md)). Its
+The run view's rail is the views and the three `View` commands; the driving
+control is on the band, the railroad's mode being no one view's
+([PANEL.md](PANEL.md)). Its
 document is a railroad somebody else is running, so
 it has no `File` and no `Edit`; the throttle and the stock screen draw no
 document with a viewport and have no commands at all, so the views are the whole
