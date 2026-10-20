@@ -226,20 +226,21 @@ export function asked(press: PowerState): Power {
 }
 
 /**
- * The driving control on the rail: the railroad's driving mode as `layout`
- * says it on `state/driving`, and the mode a press asks for, the other one
- * (ADR-0079). Dead until `layout` has said, a press against a mode not heard
- * being one that could ask for the mode already standing.
+ * The driving control on the band: the railroad's driving mode as `layout`
+ * says it on `state/driving`, shown by its glyph and tooltip — a person for
+ * manual, a robot for automatic — and the mode a press asks for, the other
+ * one (ADR-0079). Dead until `layout` has said, a press against a mode not
+ * heard being one that could ask for the mode already standing.
  */
 export function driving(mode: DrivingMode | null): {
-  word: "MANUAL" | "AUTOMATIC";
+  icon: "person-fill" | "robot";
   label: string;
   next: DrivingMode;
   dead: boolean;
 } {
   const automatic = mode === "automatic";
   return {
-    word: automatic ? "AUTOMATIC" : "MANUAL",
+    icon: automatic ? "robot" : "person-fill",
     label: automatic
       ? "Driving mode automatic: press for manual"
       : "Driving mode manual: press for automatic",
@@ -357,9 +358,8 @@ export interface Group {
  * The rail is the shell's and its groups are the current view's: they act on
  * the document that view has open (ADR-0038, ADR-0064). The editor's document
  * is a drawing, so it has a `File` and an `Edit`; the run view's is a railroad
- * somebody else is running, so it has neither, and what it presses instead —
- * the driving control — is not a command and has no key, being a gesture on
- * the bus rather than a verb of this app's.
+ * somebody else is running, so it has neither. The driving control is not
+ * here: the mode is the whole railroad's, so it is on the band (#871).
  *
  * **`View` comes first wherever there is one.** Zoom and fit are pressed
  * constantly — while drawing, and while following a train across a railroad

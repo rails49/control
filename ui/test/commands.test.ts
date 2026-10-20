@@ -49,9 +49,7 @@ describe("the rail", () => {
   });
 
   /** The run view's document is a railroad somebody else is running, so it
-   *  has no File and no Edit; what it presses instead is the driving
-   *  control, which is a gesture on the bus rather than a verb of this
-   *  app's. */
+   *  has no File and no Edit. The driving control is on the band (#871). */
   it("gives the run view a View group and nothing else", () => {
     expect(RAIL.run.map((group) => [group.name, group.items])).toEqual([
       ["View", ["zoom-out", "zoom-in", "fit"]],
@@ -423,20 +421,22 @@ describe("what a press on the power control asks for", () => {
   });
 });
 
-/** The driving control: the railroad's mode as `layout` says it, and the
- *  other one a press asks for (ADR-0079). */
+/** The driving control: the railroad's mode as `layout` says it, by its
+ *  glyph and tooltip, and the other one a press asks for (ADR-0079, #871). */
 describe("the driving control", () => {
   it("shows manual and asks for automatic", () => {
-    expect(driving("manual")).toMatchObject({
-      word: "MANUAL",
+    expect(driving("manual")).toEqual({
+      icon: "person-fill",
+      label: "Driving mode manual: press for automatic",
       next: "automatic",
       dead: false,
     });
   });
 
   it("shows automatic and asks for manual", () => {
-    expect(driving("automatic")).toMatchObject({
-      word: "AUTOMATIC",
+    expect(driving("automatic")).toEqual({
+      icon: "robot",
+      label: "Driving mode automatic: press for manual",
       next: "manual",
       dead: false,
     });

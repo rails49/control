@@ -307,7 +307,6 @@ export class TcApp extends LitElement {
               </look-group>
             `,
           )}
-          ${this.view === "run" ? this.drivingPress() : nothing}
         </look-rail>
 
       <tc-panel
@@ -388,7 +387,7 @@ export class TcApp extends LitElement {
    * (#517) — what the app could not do, a drawing that does not derive, what
    * the hardware says is wrong with the supply, a frozen drawing in the
    * editing view, and backup that is not running — and the session clock;
-   * then the gear and track power.
+   * then the gear, the driving control and track power.
    *
    * A fault is a chip with the whole sentence as its title, so a long one is
    * read by hovering. The frozen drawing is told only while the editing view
@@ -416,6 +415,7 @@ export class TcApp extends LitElement {
         ${note === null
           ? nothing
           : html`<look-band-press
+              data-backup
               word=${note.says}
               label=${note.why}
               @look-press=${() => this.backingOpen()}
@@ -424,6 +424,7 @@ export class TcApp extends LitElement {
           ? nothing
           : html`<look-reading>session ${clocked(this.sessionS)}</look-reading>`}
         <look-gear @look-press=${() => this.settingsOpen()}></look-gear>
+        ${this.drivingPress()}
         <look-power
           state=${power.state}
           reason=${power.reason}
@@ -450,20 +451,19 @@ export class TcApp extends LitElement {
     `;
   }
 
-  /** The driving control, at the rail's far end. What it says and when it
-   *  is dead is `driving` in `model/commands.ts`. */
+  /** The driving control, on the band in every view next to track power:
+   *  the mode is the whole railroad's (#871). What it shows and when it is
+   *  dead is `driving` in `model/commands.ts`. */
   private drivingPress() {
-    const { word, label, next, dead } = driving(this.status.driving);
+    const { icon, label, next, dead } = driving(this.status.driving);
     return html`
-      <look-group end label="Driving">
-        <look-command
-          data-driving
-          word=${word}
-          label=${label}
-          ?disabled=${dead}
-          @look-press=${() => this.drive(next)}
-        ></look-command>
-      </look-group>
+      <look-band-press
+        data-driving
+        icon=${icon}
+        label=${label}
+        ?disabled=${dead}
+        @look-press=${() => this.drive(next)}
+      ></look-band-press>
     `;
   }
 
