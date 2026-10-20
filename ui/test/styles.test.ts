@@ -36,6 +36,7 @@ import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
 import { appStyles } from "../src/ui/tc-app.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
+import { drivingStyles } from "../src/ui/tc-driving.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
@@ -50,6 +51,7 @@ import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
 const sheets: Record<string, CSSResult> = {
   appStyles,
   canvasStyles,
+  drivingStyles,
   editorStyles,
   exportStyles,
   menuStyles,
@@ -98,6 +100,7 @@ describe("the palette", () => {
     expect(editorStyles.cssText).not.toContain(palette.cssText);
     expect(panelStyles.cssText).not.toContain(palette.cssText);
     expect(throttleStyles.cssText).not.toContain(palette.cssText);
+    expect(drivingStyles.cssText).not.toContain(palette.cssText);
   });
 
   /** An exported file has no host above the svg to inherit from (#86). */
@@ -121,6 +124,7 @@ describe("the left-pane slot", () => {
       expect(sheet.cssText).not.toContain("--pane:");
     }
     expect(throttleStyles.cssText).not.toContain("--pane");
+    expect(drivingStyles.cssText).not.toContain("--pane");
   });
 });
 
@@ -169,7 +173,7 @@ describe("what a pane paints its ground with", () => {
   it("is redeclared for a dark page on the page itself", () => {
     expect(appStyles.cssText).toContain("prefers-color-scheme: dark");
     expect(appStyles.cssText).toContain(`--paper: ${DARK["--paper"]}`);
-    for (const sheet of [editorStyles, panelStyles, throttleStyles]) {
+    for (const sheet of [editorStyles, panelStyles, throttleStyles, drivingStyles]) {
       expect(sheet.cssText).not.toContain("prefers-color-scheme");
     }
   });

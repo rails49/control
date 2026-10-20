@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
+import type { TcDriving } from "../src/ui/tc-driving.js";
 import type { TcTrainPicker } from "../src/ui/tc-train-picker.js";
 import { serving, settled, shows, throttling } from "./support/shell.js";
 import {
@@ -76,9 +77,28 @@ async function driving(): Promise<TcApp> {
   return shell;
 }
 
-/** One part of the view, by selector. */
+/** The driving controls of each train the view shows, in the order it
+ *  shows them. */
+function columns(shell: TcApp): TcDriving[] {
+  return [...throttling(shell).renderRoot.querySelectorAll<TcDriving>("tc-driving")];
+}
+
+/** One part of the view, by selector: the view's own, or else the first
+ *  driving controls'. */
 function part<T extends Element>(shell: TcApp, selector: string): T | null {
-  return throttling(shell).renderRoot.querySelector<T>(selector);
+  return (
+    throttling(shell).renderRoot.querySelector<T>(selector) ??
+    columns(shell)[0]?.renderRoot.querySelector<T>(selector) ??
+    null
+  );
+}
+
+/** Every match for a selector, the view's own and in every driving column. */
+function parts<T extends Element>(shell: TcApp, selector: string): T[] {
+  return [
+    ...throttling(shell).renderRoot.querySelectorAll<T>(selector),
+    ...columns(shell).flatMap((one) => [...one.renderRoot.querySelectorAll<T>(selector)]),
+  ];
 }
 
 /** The picker, `null` while the view shows the driving controls. */
@@ -923,15 +943,13 @@ describe("what a person can switch", () => {
 
   /** The function buttons on screen, by name, in the order they show. */
   function buttons(shell: TcApp): string[] {
-    return [...throttling(shell).renderRoot.querySelectorAll("button.function")].map((one) =>
+    return parts(shell, "button.function").map((one) =>
       one.textContent!.trim(),
     );
   }
 
   function button(shell: TcApp, name: string): HTMLButtonElement {
-    return [
-      ...throttling(shell).renderRoot.querySelectorAll<HTMLButtonElement>("button.function"),
-    ].find((one) => one.textContent!.trim() === name)!;
+    return parts<HTMLButtonElement>(shell, "button.function").find((one) => one.textContent!.trim() === name)!;
   }
 
   function more(shell: TcApp): HTMLButtonElement | null {
