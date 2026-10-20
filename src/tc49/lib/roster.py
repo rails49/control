@@ -23,8 +23,8 @@ beside them, because an app in its own process reads a roster off the store's
 HTTP face and has no store to import (ADR-0013, ADR-0059 decision 5).
 
 Nothing here is live state and nothing commands a function: a model records
-what a function *means*, and what puts one on the bus is the device
-vocabulary's, if anything ever does (ADR-0045).
+what a function *means*, and a press reaches the device vocabulary through
+`layout`, which finds the car and the number a name sits on (ADR-0045, #849).
 """
 
 from dataclasses import dataclass, field
