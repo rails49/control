@@ -34,6 +34,7 @@ import { RETRY_MS, type Review, type TrainDoc } from "./store.js";
 import { cabs, type Cab } from "./throttle.js";
 import {
   drivingWanted,
+  functionWanted,
   Live,
   powerWanted,
   railroadWanted,
@@ -519,6 +520,14 @@ export class Session {
     this.send(takeWanted(train, null));
   }
 
+  /** A function button pressed: one `function_wanted` naming the train, this
+   *  page's id, the function by its catalogue name and whether to switch it
+   *  on. `layout` answers on `state/functions`, which the button reads, and
+   *  drops a press from a throttle not holding the train (#849). */
+  pressFunction(train: string, fn: string, on: boolean): void {
+    this.send(functionWanted(train, this.throttle, fn, on));
+  }
+
   /** The throttle turned: one `throttle_wanted` carrying the number the lever
    *  shows and this page's id. One signed speed for the train — which
    *  locomotive it reaches, and which way round that one stands, is
@@ -688,6 +697,7 @@ export class Session {
       placed,
       taken: model.taken(),
       throttle: this.throttle,
+      functions: model.functions(),
       granted: model.granted(),
       noses: model.noses(),
       aspects: model.aspects(),

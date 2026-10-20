@@ -381,6 +381,24 @@ describe("the throttle", () => {
     ]);
   });
 
+  /** By name and under this page's id: which car and which number the name
+   *  reaches is `layout`'s (#849). */
+  it("switches a function under its own id", () => {
+    const stood = placing();
+    stood.session.pressFunction("goods", "headlights", true);
+    expect(written(stood)).toEqual([
+      {
+        topic: "tc49/layout/function_wanted",
+        payload: {
+          train: "goods",
+          throttle: stood.session.throttle,
+          function: "headlights",
+          on: true,
+        },
+      },
+    ]);
+  });
+
   it("names itself on every speed", () => {
     const stood = placing();
     stood.session.pressThrottle("goods", 0.4);
