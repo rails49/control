@@ -16,13 +16,14 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
 from tc49.lib.layout import Layout
-from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Roster, Train
+from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Function, Roster, Train
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 POWER_WANTED = "tc49/layout/power_wanted"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 TAKE_WANTED = "tc49/layout/take_wanted"
+FUNCTION_WANTED = "tc49/layout/function_wanted"
 THROTTLE_ALIVE = "tc49/layout/throttle_alive"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 PLACED = "tc49/dispatch/train_placed"
@@ -37,8 +38,10 @@ RAILROAD = "tc49/layout/state/railroad"
 POWER = "tc49/layout/state/power"
 DRIVING = "tc49/layout/state/driving"
 TAKEN = "tc49/layout/state/taken"
+FUNCTIONS = "tc49/layout/state/functions"
 DEVICE_SENSOR = "tc49/layout/state/device/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
+WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
@@ -89,6 +92,18 @@ def loco(addr: str | None) -> Car:
     return Car("bench-600", "locomotive", 600, addr=addr)
 
 
+def lit(addr: str | None, functions: dict[str, str]) -> Car:
+    """A car of a model with functions, number to name as a catalogue writes
+    them and in the order it declares them: the bench's lit stock (#849)."""
+    return Car(
+        "bench-lit",
+        "locomotive",
+        600,
+        functions={number: Function(name) for number, name in functions.items()},
+        addr=addr,
+    )
+
+
 def stock() -> Roster:
     """The trains this railroad owns, drawn here as the railroad is: no
     committed roster addresses a car, the addresses being a fact of the
@@ -100,6 +115,11 @@ def stock() -> Roster:
     the traction suite drives: one addressed locomotive, a top-and-tail set
     with a `reverse` locomotive at the tail, and a set whose van has no
     decoder.
+
+    `lit` is what the function suite drives: a coach with no decoder whose
+    model declares headlights ahead of a locomotive that declares them too,
+    with its horn on two numbers, and a `reverse` locomotive at the tail with
+    a bell.
     """
     return Roster(
         "bench",
@@ -108,6 +128,13 @@ def stock() -> Roster:
             "single": Train((Coupled(loco("3")),)),
             "topped": Train((Coupled(loco("3")), Coupled(loco("4"), REVERSE))),
             "van": Train((Coupled(loco("3")), Coupled(loco(None), FORWARD))),
+            "lit": Train(
+                (
+                    Coupled(lit(None, {"0": "headlights"})),
+                    Coupled(lit("5", {"0": "headlights", "3": "horn", "2": "horn"})),
+                    Coupled(lit("6", {"0": "headlights", "1": "bell"}), REVERSE),
+                )
+            ),
         },
     )
 
@@ -255,6 +282,23 @@ def gives(bus: InProcessBus, train: str) -> None:
     """The train released, whoever holds it: the gesture a throttle makes
     letting go and a panel makes forcing it."""
     bus.publish(TAKE_WANTED, {"train": train, "throttle": None})
+    bus.drain()
+
+
+def switches_function(
+    bus: InProcessBus,
+    train: str,
+    function: str,
+    on: bool,
+    throttle: str | None = THROTTLE,
+) -> None:
+    """A person pressing one of the train's functions on their throttle, by
+    the name the catalogue gives it (#849). A `throttle` of None is the frame
+    that names none."""
+    payload: Payload = {"train": train, "function": function, "on": on}
+    if throttle is not None:
+        payload["throttle"] = throttle
+    bus.publish(FUNCTION_WANTED, payload)
     bus.drain()
 
 
