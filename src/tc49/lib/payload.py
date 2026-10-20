@@ -79,7 +79,9 @@ the roster and become a speed on a decoder — which is why neither reader knows
 anything of a train beyond its name. Each now names the throttle by the id its
 page minted, beside the `throttle_alive` that keeps its trains held and the
 `state/taken` that says who holds which (ADR-0079): `wanted_take`,
-`alive_throttle` and `taken`.
+`alive_throttle` and `taken`. A third gesture, `wanted_function`, switches
+one of the train's functions by the name the catalogue gives it, and reaches
+a decoder the same way (#849).
 
 The **desired half of the device vocabulary** is read here from the other
 side of the same seam (#289): `layout` writes those rows and a translator
@@ -510,6 +512,43 @@ def wanted_take(payload: object) -> Take | None:
     if stated is not None and throttle is None:
         return None
     return Take(train, throttle)
+
+
+@dataclass(frozen=True)
+class Switch:
+    """A throttle switching one of its train's functions: which train, the
+    throttle holding it, the function by the name the catalogue gives it, and
+    whether it is to be on (#849).
+
+    A name and never a number: which car and which number a name reaches is
+    `layout`'s, the composition it makes for a speed (`Train.functions`).
+    """
+
+    train: str
+    throttle: str
+    function: str
+    on: bool
+
+
+def wanted_function(payload: object) -> Switch | None:
+    """The function a gesture switches, or None where it switches none.
+
+    Every field is required. The throttle is the one holding the train, and
+    unlike a take's there is no `null` to read: nobody releases a light. The
+    name is a non-empty string and the bit a boolean — `"on"` and `1` are not
+    one, as they are not on the `wanted/function` row it becomes
+    (`desired_function`). Whether the throttle holds the train is `layout`'s.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    train, throttle = fields.get("train"), _throttle_id(fields.get("throttle"))
+    function, on = fields.get("function"), fields.get("on")
+    if not isinstance(train, str) or throttle is None:
+        return None
+    if not isinstance(function, str) or not function or not isinstance(on, bool):
+        return None
+    return Switch(train, throttle, function, on)
 
 
 def alive_throttle(payload: object) -> str | None:

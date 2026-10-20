@@ -93,6 +93,15 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/take_wanted": Topic(("train", "throttle"), browser=True),
     "tc49/layout/throttle_alive": Topic(("throttle",), browser=True),
     "tc49/layout/state/taken": Topic((AT, "taken")),
+    # A throttle switches one of its train's functions by the name the
+    # catalogue gives it, and `layout` writes the `wanted/function` row of the
+    # first addressed car declaring that name (#849). `functions` maps each
+    # train to its functions by name, each to the bit its row carries; a train
+    # or name with no row is absent, which reads off.
+    "tc49/layout/function_wanted": Topic(
+        ("train", "throttle", "function", "on"), browser=True
+    ),
+    "tc49/layout/state/functions": Topic((AT, "functions")),
     # The railroad's one driving mode, asked for at any power and stated by
     # `layout`, which comes up `manual` (ADR-0079).
     "tc49/layout/driving_wanted": Topic(("driving",), browser=True),
@@ -398,7 +407,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the page's write surface, and what a broker's
 ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
 the rows' marks rather than off a prefix — a topic names the component that
-responds to it, so the fourteen gestures sit under `schedule`, `dispatch` and
+responds to it, so the fifteen gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 
