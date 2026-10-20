@@ -33,11 +33,13 @@ what the code does (#432):
 
 An app's `__main__` says only where it differs from this: `driver` and `dccex`
 read no documents, `layout` answers `tc49/layout/railroad_wanted` rather than
-following the row, and `simulator` has no rows of a previous process to adopt.
+following the row, `simulator` has no rows of a previous process to adopt, and
+`camera` is on no bus and so none of the three steps is its: it serves HTTP
+and reads the store on each request (ADR-0082).
 
 Here rather than in an app, for the reason `lib.mqtt.address` is here: an app
 imports `lib` and itself and never another app (ADR-0013), so `lib` is the
-only place a shape five of them share can live. Beside `loading.py` rather
+only place a shape six of them share can live. Beside `loading.py` rather
 than inside it — what an app does when the railroad moves under it is that
 module's whole subject, and the way in is this one's.
 
@@ -143,16 +145,17 @@ def _nothing(topic: str, payload: Payload) -> None:
 
 
 def command_line(
-    prog: str, description: str, store: bool = True
+    prog: str, description: str, store: bool = True, broker: bool = True
 ) -> argparse.ArgumentParser:
     """The flags a compose service passes an app: where the broker is, and
     where the store serves the documents of the railroad it comes up on.
 
-    **All five start here**, and the argument says which of the two an app
+    **All six start here**, and the arguments say which of the two an app
     takes rather than which apps write a parser of their own. Every app is
-    given a broker, having nowhere to publish and nothing to read without one.
-    `store=False` is the driver's, which reads no documents (SYSTEM.md, driver
-    footprint). What an app adds on top of what it is handed here — a
+    given a broker, having nowhere to publish and nothing to read without one,
+    but the camera app, which is on no bus: it serves a picture over HTTP and
+    reads the store, and `broker=False` is its (ADR-0082). `store=False` is
+    the driver's, which reads no documents (SYSTEM.md, driver footprint). What an app adds on top of what it is handed here — a
     station, a startup file, an id — it adds to the parser this returns.
 
     **Which railroad is not a flag.** The store records which railroad is
@@ -177,12 +180,13 @@ def command_line(
     about how often it takes what the broker's network thread left waiting.
     """
     parser = argparse.ArgumentParser(prog=prog, description=description)
-    parser.add_argument(
-        "--broker",
-        required=True,
-        metavar="HOST:PORT",
-        help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
-    )
+    if broker:
+        parser.add_argument(
+            "--broker",
+            required=True,
+            metavar="HOST:PORT",
+            help=f"the broker to run on, e.g. {BROKER_EXAMPLE}",
+        )
     if store:
         parser.add_argument(
             "--store",
