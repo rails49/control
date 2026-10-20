@@ -432,6 +432,22 @@ describe("the throttle", () => {
     expect(beats(stood)).toBe(4);
   });
 
+  /** A tablet holds several trains under the one id, and the beat is the
+   *  throttle's, not each train's (#855). */
+  it("says it is alive once a second, not once per train, while it holds two", () => {
+    vi.useFakeTimers();
+    const stood = powered();
+    stood.broker.says(ALLOCATION, {
+      trains: { goods: "a", shunter: "b" },
+      locks: { a: "goods", b: "shunter" },
+      requests: [],
+    });
+    const mine = stood.session.throttle;
+    stood.broker.says(TAKEN, { taken: { goods: mine, shunter: mine } });
+    vi.advanceTimersByTime(3 * ALIVE_MS);
+    expect(beats(stood)).toBe(3);
+  });
+
   it("stops once it holds nothing", () => {
     vi.useFakeTimers();
     const stood = placing();
