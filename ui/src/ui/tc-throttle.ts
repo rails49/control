@@ -12,8 +12,8 @@
  * A view of this app beside the run view and the editor
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)),
  * and a person's actions on it ride the bus as gestures the inventory marks
- * browser-writable — `tc49/layout/take_wanted` and
- * `tc49/layout/throttle_wanted`, each naming this page's throttle id, which
+ * browser-writable — `tc49/layout/take_wanted`,
+ * `tc49/layout/throttle_wanted` and `tc49/layout/function_wanted`, each naming this page's throttle id, which
  * the session mints and keeps alive on `tc49/layout/throttle_alive`
  * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
  * It reaches no command station, shows no
@@ -53,6 +53,19 @@ export interface ThrottleWanted {
   speed: number;
 }
 
+/** A function button pressed: the train, the function by its catalogue
+ *  name, and `on` the opposite of what the button shows — the one the app
+ *  carries to `Session.pressFunction`. */
+export interface FunctionWanted {
+  train: string;
+  function: string;
+  on: boolean;
+}
+
+/** How many of a train's functions show before `>>`: the rest wait below it
+ *  until a person opens them. */
+const FIRST = 2;
+
 /** How finely the slider divides its travel. Twenty steps is finer than a
  *  thumb on a phone resolves and coarser than the noise of a drag, and the
  *  number a person reads is what goes on the bus. */
@@ -84,6 +97,10 @@ export class TcThrottle extends LitElement {
    *  it is the person's, and it sends nothing when it moves (ADR-0084). */
   @state() private reverse = false;
 
+  /** Whether `>>` has the functions past the first two open. Closed on
+   *  every take. */
+  @state() private more = false;
+
   /** The models whose photo did not load, drawn by the train's name. */
   @state() private unseen: ReadonlySet<string> = new Set();
 
@@ -106,6 +123,7 @@ export class TcThrottle extends LitElement {
       this.driven = train;
       this.slider = 0;
       this.reverse = false;
+      this.more = false;
       return;
     }
     const was = (changed.get("cabs") as readonly Cab[] | undefined)?.find(
@@ -321,27 +339,48 @@ export class TcThrottle extends LitElement {
 
   /**
    * What a person can switch on this train, by the names the catalogue gives
-   * them (ADR-0045). A train whose cars declare none shows none, which is
-   * most of the stock a railroad owns.
+   * them (ADR-0045), in the order the roster lists them. A train whose cars
+   * declare none shows none, which is most of the stock a railroad owns.
    *
-   * The buttons are **drawn and not live**: the gesture carrying a press is
-   * declared and this view does not send it yet
-   * ([#856](https://github.com/rails49/control/issues/856)). Drawing them is
-   * what says a train has them; the day it sends it, this is where it is
-   * sent from.
+   * The first two always show; with three or more, `>>` follows them and
+   * opens the rest below, in the same order. Each latches: a press asks for
+   * the opposite of what the button shows, and the button shows what
+   * `state/functions` says, `aria-pressed` where it is on — it changes when
+   * `layout` says it switched it and not when it was pressed
+   * ([#856](https://github.com/rails49/control/issues/856)). Live whenever
+   * this throttle holds the train over live rails, granted move or not, and
+   * otherwise drawn with their state and dead.
    */
   private functions(cab: Cab) {
     if (cab.functions.length === 0) return nothing;
+    const button = (one: Cab["functions"][number]) => html`
+      <button
+        class="function"
+        aria-pressed=${one.on}
+        ?disabled=${!this.live}
+        @click=${() => this.switching(cab.train, one.name, !one.on)}
+      >
+        ${one.name}
+      </button>
+    `;
+    const rest = cab.functions.slice(FIRST);
     return html`
       <div class="functions">
-        ${cab.functions.map(
-          (one) => html`
-            <button class="function" disabled title="no gesture carries a function yet">
-              ${one.name}
-            </button>
-          `,
-        )}
+        ${cab.functions.slice(0, FIRST).map(button)}
+        ${rest.length === 0
+          ? nothing
+          : html`<button
+              class="more"
+              aria-expanded=${this.more}
+              aria-label="more functions"
+              @click=${() => (this.more = !this.more)}
+            >
+              &gt;&gt;
+            </button>`}
       </div>
+      ${this.more && rest.length > 0
+        ? html`<div class="functions rest">${rest.map(button)}</div>`
+        : nothing}
     `;
   }
 
@@ -372,6 +411,13 @@ export class TcThrottle extends LitElement {
       train,
       speed: this.reverse && speed !== 0 ? -speed : speed,
     });
+  }
+
+  /** A function pressed: one `function_wanted` asking for the opposite of
+   *  what the button shows. The button waits for `state/functions`. */
+  private switching(train: string, name: string, on: boolean): void {
+    if (!this.live || this.cab?.train !== train) return;
+    this.say<FunctionWanted>("function-wanted", { train, function: name, on });
   }
 
   /** Turn the train round where it stands: the same `reversal_wanted` the run

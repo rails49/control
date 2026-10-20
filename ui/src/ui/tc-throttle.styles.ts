@@ -236,12 +236,21 @@ export const throttleStyles = css`
     flex-wrap: wrap;
   }
 
-  button.function {
+  button.function,
+  button.more {
     padding: 0.25rem 0.7rem;
     border: 1px solid var(--rule);
     border-radius: 4px;
     background: var(--body);
     font: inherit;
+  }
+
+  /* A function that state/functions says is on, drawn as the reverser's
+     pressed side is. */
+  button.function[aria-pressed="true"],
+  button.more[aria-expanded="true"] {
+    background: var(--rule);
+    color: var(--ink);
   }
 
   .hint {
