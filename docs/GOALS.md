@@ -174,9 +174,11 @@ it is given.
 Who drives is the railroad's **driving mode**, and the railroad comes up
 `manual`: people drive every train from throttles. In `automatic` the app
 drives every train no throttle holds. At most one throttle holds a train, and
-it drives only within a move the dispatcher granted, so the dispatcher routes
-the same either way
-([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+it drives the train at any time, granted move or not. The end of a granted move
+still stops the train at its sensor, and a train driven out of its block drains
+the railroad
+([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+[ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
 
 A person driving looks out of the window. An automated driver has to be told
 which aspect applies to its train, since track detectors are anonymous and

@@ -578,14 +578,19 @@ what a drop would cost:
   number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
   stop, signed for which way the train runs along its own length — positive
   nose-first; `throttle`: the id of the throttle turning the lever. Applied
-  only where that throttle holds the train and the train has a move
-  outstanding; otherwise dropped
-  ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+  where that throttle holds the train, granted move or not, while
+  `state/power` reads `on` or `draining`; dropped at `off`, for a train
+  `layout` holds no facing or no position for, and from any other throttle
+  ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+  [ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
   Which locomotive the speed reaches, and which way round it stands, is
   `layout`'s, which reads the roster. `tc49.lib.payload.wanted_throttle` reads
   `throttle` as a field that may be absent, and `layout` drops a frame without
-  one. When the move ends at its sensor `layout` writes `0.0` and drops the
-  throttle's speeds until the next grant.
+  one. When a granted move ends at its sensor `layout` writes `0.0`, and the
+  next frame is applied again. A frame whose sign is opposite to the last
+  nonzero speed `layout` wrote for the train writes `0.0` instead, and so does
+  every later frame of that sign until the throttle sends `0`
+  ([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)).
 - `tc49/layout/driving_wanted` — browser-writable — `driving`: enum `manual`
   or `automatic`, the same closed set `state/driving` below carries; any
   other value is dropped. Accepted at any power
@@ -605,10 +610,13 @@ what a drop would cost:
   applied; a take of a train another throttle holds is dropped. `null`
   releases the train whoever holds it, which is also the force release a
   panel makes. A missing `throttle` is not a release: the frame is dropped.
-  Released in `manual`, the train's traction is written `0.0`; in
-  `automatic`, the speed the train's outstanding grant implies, or `0.0`
-  with none
-  ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+  Released in `manual`, the train's traction is written `0.0`. In
+  `automatic` with a move outstanding and `state/power` reading `on` or
+  `draining`, nothing is written and the train keeps its speed until the move
+  ends, or, where the last speed written for it is `0.0` or none, it is given
+  its grant's speed; otherwise `0.0`
+  ([ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md),
+  [ADR-0083](adr/0083-a-train-released-standing-mid-move-is-given-its-grants-speed.md)).
   The id names the throttle that holds a train, not who sent a frame: any
   client may send any of these rows.
 - `tc49/layout/throttle_alive` — browser-writable — `throttle`: the id. A
