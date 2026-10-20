@@ -298,6 +298,8 @@ export interface CarRow {
   name: string;
   model: string;
   addr: string | null;
+  /** Where the camera it carries answers, `null` where it carries none. */
+  camera: string | null;
   /** Merged, so `null` only where the catalogue has no such model. */
   length: number | null;
   kind: string | null;
@@ -326,6 +328,8 @@ export interface EntryRow {
    *  got it. */
   model: string | null;
   addr: string | null;
+  /** The camera of the car it names; an anonymous entry carries none. */
+  camera: string | null;
   length: number | null;
   reverse: boolean;
 }
@@ -477,6 +481,7 @@ export class Stock {
           name,
           model: car.model,
           addr: car.addr ?? null,
+          camera: car.camera ?? null,
           length: whole?.length ?? null,
           kind: whole?.kind ?? null,
           own: car.length !== undefined,
@@ -518,6 +523,7 @@ export class Stock {
       car: entry.car ?? null,
       model: whole?.model ?? entry.model ?? null,
       addr: whole?.addr ?? null,
+      camera: entry.car === undefined ? null : (this.doc.cars?.[entry.car]?.camera ?? null),
       length: whole?.length ?? null,
       reverse: entry.orientation === REVERSE,
     };
@@ -605,11 +611,39 @@ export class Stock {
     if (wanted === "") return null;
     const clash = this.wearing(wanted, null);
     if (clash !== null) return clash;
-    const model = entry.model;
-    if (model === undefined) return null;
+    this.promote(train, index, { addr: wanted });
+    return null;
+  }
+
+  /**
+   * A camera typed against one place in a train: where the camera riding in
+   * that item answers on the LAN (ADR-0082).
+   *
+   * It promotes an anonymous entry to a car exactly as an address does — a
+   * camera is as much the item's own as a decoder is — and the new car has
+   * the camera and no address. An entry that names a car has that car's
+   * camera set instead.
+   */
+  camera(train: string, index: number, camera: string): string | null {
+    const entry = this.doc.trains[train]?.cars?.[index];
+    if (entry === undefined) return null;
+    const wanted = camera.trim();
+    if (entry.car !== undefined) return this.carCamera(entry.car, wanted);
+    if (wanted === "") return null;
+    const trouble = this.cameraTrouble(wanted, null);
+    if (trouble !== null) return trouble;
+    this.promote(train, index, { camera: wanted });
+    return null;
+  }
+
+  /** An anonymous entry made a car of its own, filed under a name minted from
+   *  its model and carrying what was typed against it. */
+  private promote(train: string, index: number, own: Partial<CarDoc>): void {
+    const model = this.doc.trains[train]!.cars![index]!.model;
+    if (model === undefined) return;
     const name = mint(model, Object.keys(this.doc.cars ?? {}));
     this.write({
-      cars: { ...this.doc.cars, [name]: { model, addr: wanted } },
+      cars: { ...this.doc.cars, [name]: { model, ...own } },
       trains: {
         ...this.doc.trains,
         [train]: {
@@ -620,7 +654,6 @@ export class Stock {
         },
       },
     });
-    return null;
   }
 
   // --- cars -----------------------------------------------------------------
@@ -654,6 +687,24 @@ export class Stock {
     const clash = this.wearing(wanted, name);
     if (clash !== null) return clash;
     this.write({ cars: { ...this.doc.cars, [name]: { ...car, addr: wanted } } });
+    return null;
+  }
+
+  /** Where the camera a car carries answers. Empty takes it off and keeps the
+   *  car. Checked here as `lib/stock.py` checks it, so the words name the
+   *  value or the other car rather than arriving on a save. */
+  carCamera(name: string, camera: string): string | null {
+    const car = this.doc.cars?.[name];
+    if (car === undefined) return null;
+    const wanted = camera.trim();
+    if (wanted === "") {
+      const { camera: _was, ...rest } = car;
+      this.write({ cars: { ...this.doc.cars, [name]: rest } });
+      return null;
+    }
+    const trouble = this.cameraTrouble(wanted, name);
+    if (trouble !== null) return trouble;
+    this.write({ cars: { ...this.doc.cars, [name]: { ...car, camera: wanted } } });
     return null;
   }
 
@@ -813,7 +864,28 @@ export class Stock {
     }
     return null;
   }
+
+  /** Why a camera may not be written on a car, said as a refusal, or `null`
+   *  where it may: not a bare host name or IPv4 address, or carried by
+   *  another car already. */
+  private cameraTrouble(camera: string, but: string | null): string | null {
+    if (!HOST.test(camera)) {
+      return `'${camera}' is not a camera address — write the camera's host name or IP address`;
+    }
+    for (const [name, car] of Object.entries(this.doc.cars ?? {})) {
+      if (name !== but && car.camera === camera) {
+        return `car '${name}' already carries camera '${camera}'`;
+      }
+    }
+    return null;
+  }
 }
+
+/** A camera's address as `tc49.lib.stock._camera` takes it: letters, digits,
+ *  dots and hyphens, starting and ending with a letter or digit — so no
+ *  scheme, port, path or login, how the camera is spoken to being the
+ *  `camera` app's (ADR-0082). */
+const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 
 /** The promoted entry: the car it now names, keeping which way round it was
  *  coupled. Written out rather than spread over the old one, so the saved

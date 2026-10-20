@@ -85,13 +85,13 @@ export const stockStyles = css`
   }
 
   /* One car and one model read as the same row: the photo, what it is, then
-     the numbers, then the two presses. The thumbnail is the first column on
+     the address, the camera and the length, then the two presses. The thumbnail is the first column on
      both because a car's photo is its model's, so the two lists read down one
      edge (ADR-0061). */
   li.car,
   li.product {
     display: grid;
-    grid-template-columns: 3.2rem 1fr 5rem 5rem auto auto;
+    grid-template-columns: 3.2rem 1fr 5rem 8rem 5rem auto auto;
     column-gap: 0.4rem;
     align-items: center;
     padding: 0.25rem 0.2rem;
@@ -99,7 +99,7 @@ export const stockStyles = css`
 
   li.entry {
     display: grid;
-    grid-template-columns: 1fr 5rem auto auto;
+    grid-template-columns: 1fr 5rem 8rem auto auto;
     column-gap: 0.4rem;
     align-items: center;
     padding: 0.2rem 0.2rem;
