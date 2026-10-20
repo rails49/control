@@ -511,6 +511,58 @@ describe("the throttle", () => {
       expect(stored.get(`${LAST}toy`)).toBe("goods");
     });
 
+    /** `placing`, with `shunter` standing in `b` beside `goods`. */
+    function both(): Stood {
+      const stood = powered();
+      stood.broker.says(ALLOCATION, {
+        trains: { goods: "a", shunter: "b" },
+        locks: { a: "goods", b: "shunter" },
+        requests: [],
+      });
+      return stood;
+    }
+
+    it("follows the most recent take while another train is still held", () => {
+      const stood = both();
+      const me = stood.session.throttle;
+      stood.broker.says(TAKEN, { taken: { shunter: me } });
+      stood.broker.says(TAKEN, { taken: { shunter: me, goods: me } });
+      stood.broker.says(TAKEN, { taken: { shunter: me } });
+      expect(stood.session.cabs[0]).toMatchObject({ train: "goods", last: true });
+      expect(stored.get("tc49.throttle.last.toy")).toBe("goods");
+    });
+
+    it("is not moved by a release of another held train", () => {
+      const stood = both();
+      const me = stood.session.throttle;
+      stood.broker.says(TAKEN, { taken: { goods: me } });
+      stood.broker.says(TAKEN, { taken: { goods: me, shunter: me } });
+      stood.broker.says(TAKEN, { taken: { shunter: me } });
+      expect(stored.get(`${LAST}toy`)).toBe("shunter");
+      expect(stood.session.cabs.find(({ train }) => train === "goods")).toMatchObject({
+        last: false,
+      });
+    });
+
+    it("is not moved by a reconnect's replay of the trains already held", () => {
+      const stood = both();
+      const me = stood.session.throttle;
+      stood.broker.says(TAKEN, { taken: { goods: me } });
+      stood.broker.says(TAKEN, { taken: { goods: me, shunter: me } });
+      stood.broker.closes();
+      stood.broker.opens();
+      expect(stood.session.status.joined).toBe(true);
+      expect(stood.session.cabs.every(({ taken }) => taken === "here")).toBe(true);
+      expect(stored.get(`${LAST}toy`)).toBe("shunter");
+    });
+
+    it("is the first by name where one row adds several", () => {
+      const stood = both();
+      const me = stood.session.throttle;
+      stood.broker.says(TAKEN, { taken: { shunter: me, goods: me } });
+      expect(stored.get(`${LAST}toy`)).toBe("goods");
+    });
+
     it("is read back when a session joins the railroad", () => {
       stored.set(`${LAST}toy`, "goods");
       const stood = placing();
