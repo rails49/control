@@ -264,6 +264,14 @@ export class Session {
    *  joined railroad, `null` where it has named it for none: the picker's
    *  Take back. Kept whatever ended the hold. */
   private last: string | null = null;
+  /** The trains the last `state/taken` row this session saw named this
+   *  throttle for, and the railroad that row was on: what tells a take from
+   *  a train already held, so a reconnect's replay of the same row moves
+   *  nothing. Empty on joining another railroad. */
+  private mine: { railroad: string | null; trains: ReadonlySet<string> } = {
+    railroad: null,
+    trains: new Set(),
+  };
   /** The last trains as this page has kept them, by railroad: what is read
    *  back where `sessionStorage` throws, for the life of the page. */
   private readonly kept = new Map<string, string>();
@@ -320,7 +328,7 @@ export class Session {
     } else if (name !== this.built) {
       this.panel = new Panel(layout, explain, drawing!.wires);
       this.built = name;
-      for (const event of this.held ?? []) this.panel.apply(event);
+      for (const event of this.held ?? []) this.applied(event);
       this.held = null;
     }
     this.settle();
@@ -426,6 +434,7 @@ export class Session {
     this.leave();
     this.session = railroad;
     this.last = recalled(railroad) ?? this.kept.get(railroad) ?? null;
+    if (this.mine.railroad !== railroad) this.mine = { railroad, trains: new Set() };
     this.held = early ?? [];
     this.settle();
     this.hooks.named(railroad);
@@ -445,8 +454,15 @@ export class Session {
       if (this.held !== null && this.held.length < HELD) this.held.push(event);
       return;
     }
-    this.panel.apply(event);
+    this.applied(event);
     this.changed();
+  }
+
+  /** One event applied to the model, the last train following a
+   *  `state/taken` row. */
+  private applied(event: TraceEvent): void {
+    this.panel!.apply(event);
+    if (event.event === "taken") this.remember();
   }
 
   // --- the presses ----------------------------------------------------------
@@ -617,7 +633,6 @@ export class Session {
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
-    this.remember();
     const driving = this.driving;
     const written = JSON.stringify(driving);
     if (written !== this.saidCabs) {
@@ -640,20 +655,27 @@ export class Session {
     }
   }
 
-  /** The last train moved on, where `state/taken` names this throttle for a
-   *  train that is not it: the first such by name, where it names several.
-   *  A row naming it for none — a Release, the timeout, a force release
-   *  from elsewhere — leaves it where it was. */
+  /** The last train moved on, where a `state/taken` row names this throttle
+   *  for a train the previous row it saw on this railroad did not: the first
+   *  such by name, where it adds several. A row that adds none — a Release,
+   *  the timeout, a force release from elsewhere, a reconnect's replay of the
+   *  trains already held — leaves it where it was. */
   private remember(): void {
     const railroad = this.session;
     const model = this.panel;
     if (railroad === null || model === null) return;
-    const mine = [...model.taken()]
-      .filter(([, throttle]) => throttle === this.throttle)
-      .map(([train]) => train)
+    const trains = new Set(
+      [...model.taken()]
+        .filter(([, throttle]) => throttle === this.throttle)
+        .map(([train]) => train),
+    );
+    const before = this.mine.railroad === railroad ? this.mine.trains : new Set<string>();
+    this.mine = { railroad, trains };
+    const added = [...trains]
+      .filter((train) => !before.has(train))
       .sort((one, other) => one.localeCompare(other));
-    if (mine.length === 0 || (this.last !== null && mine.includes(this.last))) return;
-    this.last = mine[0]!;
+    if (added.length === 0) return;
+    this.last = added[0]!;
     this.kept.set(railroad, this.last);
     try {
       globalThis.sessionStorage.setItem(LAST + railroad, this.last);
