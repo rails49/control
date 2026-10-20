@@ -13,9 +13,9 @@
  * **One session, and it is the app's** (`model/session.ts`, #756). The page's
  * one connection to the broker, and what follows from it — the railroad the
  * row names, the run's picture, power and the driving mode — is held here
- * beside the loaded railroad, and every press goes to it: the band's, the
- * rail's driving control, the settings dialog's railroad and the throttle's
- * gestures (ui/THROTTLE.md). What it answers comes down as properties: the
+ * beside the loaded railroad, and every press goes to it: the band's, its
+ * driving control among them, the settings dialog's railroad and the
+ * throttle's gestures (ui/THROTTLE.md). What it answers comes down as properties: the
  * panel model to the run view, the cabs to the throttle, and to the stock
  * screen which trains are placed and track power, which is what its length
  * guard reads (ui/STOCK.md).
@@ -387,7 +387,8 @@ export class TcApp extends LitElement {
    * (#517) — what the app could not do, a drawing that does not derive, what
    * the hardware says is wrong with the supply, a frozen drawing in the
    * editing view, and backup that is not running — and the session clock;
-   * then the gear, the driving control and track power.
+   * then the driving control, the last of the band's items, and track power;
+   * then the gear, and look's Help after it (org ADR-0020, #873).
    *
    * A fault is a chip with the whole sentence as its title, so a long one is
    * read by hovering. The frozen drawing is told only while the editing view
@@ -423,7 +424,6 @@ export class TcApp extends LitElement {
         ${this.sessionS === null
           ? nothing
           : html`<look-reading>session ${clocked(this.sessionS)}</look-reading>`}
-        <look-gear @look-press=${() => this.settingsOpen()}></look-gear>
         ${this.drivingPress()}
         <look-power
           state=${power.state}
@@ -431,6 +431,7 @@ export class TcApp extends LitElement {
           @look-power=${(event: CustomEvent<{ state: PowerState }>) =>
             this.supplying(event.detail.state)}
         ></look-power>
+        <look-gear @look-press=${() => this.settingsOpen()}></look-gear>
       </look-band>
     `;
   }
@@ -451,8 +452,9 @@ export class TcApp extends LitElement {
     `;
   }
 
-  /** The driving control, on the band in every view next to track power:
-   *  the mode is the whole railroad's (#871). What it shows and when it is
+  /** The driving control, on the band in every view, the last of its items
+   *  and just left of track power: the mode is the whole railroad's (#871,
+   *  #873). What it shows and when it is
    *  dead is `driving` in `model/commands.ts`. */
   private drivingPress() {
     const { icon, label, next, dead } = driving(this.status.driving);
@@ -519,8 +521,8 @@ export class TcApp extends LitElement {
     }
   }
 
-  /** The driving mode asked for on the rail. The broker's client is the
-   *  session's, so the press goes there: the rail draws `state/driving` and
+  /** The driving mode asked for on the band. The broker's client is the
+   *  session's, so the press goes there: the band draws `state/driving` and
    *  this carries the press, and neither decides anything about the mode. */
   private drive(mode: DrivingMode): void {
     this.session?.pressDriving(mode);

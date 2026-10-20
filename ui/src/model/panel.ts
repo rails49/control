@@ -537,7 +537,7 @@ export class Panel {
       }
       case "driving": {
         // The railroad's driving mode, whole from the topic: `layout` holds
-        // it, and the rail's driving control draws it rather than its own
+        // it, and the band's driving control draws it rather than its own
         // press (ADR-0035). An unreadable row reads as `manual`, the mode the
         // railroad comes up in (BUS.md).
         const { driving } = event as unknown as { driving?: unknown };

@@ -66,7 +66,7 @@ export interface RunStatus {
    *  it. */
   power: Power | null;
   /** The railroad's driving mode, `null` while no session is joined or before
-   *  the layout has said (ADR-0079). The rail's driving control draws it. */
+   *  the layout has said (ADR-0079). The band's driving control draws it. */
   driving: DrivingMode | null;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
@@ -458,7 +458,7 @@ export class Session {
   }
 
   /**
-   * The railroad's driving mode asked for on the rail: one `driving_wanted`
+   * The railroad's driving mode asked for on the band: one `driving_wanted`
    * naming it
    * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
    * `layout` answers on `state/driving`, which is what the control draws.

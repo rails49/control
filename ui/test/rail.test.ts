@@ -16,6 +16,7 @@ import { VIEWS } from "../src/model/views.js";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import {
+  band,
   editing,
   mounted,
   pressed,
@@ -106,8 +107,27 @@ describe("what each view's rail carries", () => {
       "fit",
     ]);
     expect(rail(shell).querySelectorAll("look-command")).toHaveLength(3);
+    expect(rail(shell).querySelector("[data-driving]")).toBeNull();
     expect(rail(shell).querySelector("look-group[end]")).toBeNull();
   });
+
+  /** The driving control is on the band in every view instead, the last of
+   *  its items: after every status item, then track power and the gear (org
+   *  ADR-0020, #873). */
+  it.each(VIEWS.map((view) => view.id))(
+    "puts the driving control on the %s view's band, after every status item",
+    async (view) => {
+      brokering();
+      const shell = await joined(view);
+      const children = [...band(shell).children];
+      const presses = band(shell).querySelectorAll("look-band-press[data-driving]");
+      expect(presses).toHaveLength(1);
+
+      const after = children.slice(children.indexOf(presses[0]!) + 1);
+      expect(after.map((one) => one.localName)).toEqual(["look-power", "look-gear"]);
+      expect(rail(shell).querySelector("[data-driving]")).toBeNull();
+    },
+  );
 
   /** Neither draws a document with a viewport, so the views are the whole of
    *  their rail (ui/THROTTLE.md, ui/STOCK.md). */
