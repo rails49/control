@@ -229,18 +229,29 @@ one bit on the wire, so there is no value list to draw a chooser from
 ([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)). A train whose cars declare none shows none,
 which is most of the stock a railroad owns.
 
-They are **drawn and not yet live**. A function reaches a decoder through the
-device vocabulary, `tc49/layout/state/wanted/function/<addr>/<number>`, whose
-one writer is `layout` (BUS.md, *Device vocabulary*). The gesture carrying a
-press is declared: `tc49/layout/function_wanted` `{train, throttle, function,
-on}`, from the throttle holding the train, by name. `layout` writes the row of
-the first car in the train's order that has an address and declares the name,
-and states which of each train's functions are on in
-`tc49/layout/state/functions`
-([#849](https://github.com/rails49/control/issues/849)). This view does not
-send it or read that yet
-([#856](https://github.com/rails49/control/issues/856)); when it does, nothing
-else here changes.
+The first two always show. With three or more, a `>>` follows them; pressing
+it shows the rest below, in the same order, and pressing it again hides them.
+It is closed whenever a train is taken.
+
+**Each button shows what `layout` says**: on or off is read from
+`tc49/layout/state/functions`, which maps train to function name to boolean
+([#849](https://github.com/rails49/control/issues/849)). A name the row does
+not give for the train reads off, and so does every function before the row
+is heard or where its payload cannot be read. A button that is on has
+`aria-pressed="true"`.
+
+**A press asks**: one `tc49/layout/function_wanted` `{train, throttle,
+function, on}` naming this page's throttle id, the function's name, and `on`
+the opposite of what the button shows. The button changes only when
+`state/functions` does. `layout` writes the device row,
+`tc49/layout/state/wanted/function/<addr>/<number>`, of the first car in the
+train's order that has an address and declares the name (BUS.md, *Device
+vocabulary*). Every function latches: one press on, the next off.
+
+The buttons are live while `state/taken` names this throttle for the train
+and nothing below refuses a gesture, whether or not a move is outstanding.
+Otherwise they are drawn with their state and dead, and a press sends
+nothing.
 
 **Everything is dead while the rails are not live.** With
 `tc49/layout/state/power` anything but `on`, or with no session answering, no
@@ -275,7 +286,8 @@ is not on the layout are all somewhere else.
 with its styles beside it, the picker in `ui/src/ui/tc-train-picker.ts` and
 the clock in `ui/src/ui/tc-clock.ts`. The picker sends `take-wanted` and
 `release-wanted`, the train their detail, which the app carries to the
-session's `pressTake` and `pressRelease`. Neither works anything out: every
+session's `pressTake` and `pressRelease`; a function button sends
+`function-wanted` `{train, function, on}`, carried to `pressFunction`. Neither works anything out: every
 train offered, who
 holds each, whether it has a move outstanding, the end each points at, the
 aspects at both ends of its block, the road ahead, the functions, its first
@@ -283,7 +295,8 @@ locomotive's model and whether it is the last train held arrive as `Cab`s from
 `ui/src/model/throttle.ts`, which is a pure function over the apps' answers,
 this page's throttle id and the last train held, and holds no state of its
 own. The panel model
-reads `state/taken` and `state/allocation` (`ui/src/model/panel.ts`).
+reads `state/taken`, `state/functions` and `state/allocation`
+(`ui/src/model/panel.ts`).
 
 **The session is the app's.** There is one socket per page, and the session
 that holds it is the one that joined the railroad the app has loaded
@@ -338,10 +351,12 @@ unreadable entry leaving it held by nobody, the move outstanding read off the
 picture from the grant to its sensor and none for a restored crossing with no
 request behind it, the end it points at, the aspect there and at the block's
 other end, the blocks ahead and their claims, the first locomotive's model or
-`null` where the field is absent, which trains are offered at all, and the
-last train held first, marked, only while it is placed and nobody holds it.
+`null` where the field is absent, which trains are offered at all, the
+last train held first, marked, only while it is placed and nobody holds it,
+and a function on where `state/functions` gives it as on for the train and
+off where the row does not name it, has not been heard or cannot be read.
 `ui/test/session.test.ts` checks the frames the session writes — the take and
-release under its id, the speed naming it — and the timing of
+release under its id, the speed and a function press naming it — and the timing of
 `throttle_alive` on a fake clock: once a second from the `state/taken` row
 naming this throttle, never on the press, never for a train another throttle
 holds, and stopping when it holds nothing or the broker goes; and the last
@@ -365,7 +380,13 @@ power reads off and stays put on a frame that ends no move, that the speed
 reads as a percentage and which end leads, that STOP publishes zero and leaves
 the reverser, that the aspect shown follows the reverser, that the picture is
 the first locomotive's photo with the name standing in, that releasing writes
-`null` and goes back to the picker with Take back, and that
+`null` and goes back to the picker with Take back, that a train with no
+functions shows no button and no `>>`, one or two show with no `>>` and three
+show two and `>>`, which opens the third, that a press on a held train, with
+or without a move granted, writes one `function_wanted` asking for the
+opposite of what the button shows while the button waits for
+`state/functions`, that a press on a train held elsewhere or by nobody, with
+power off or with no broker writes nothing, and that
 with the rails dead every press leaves nothing on the socket at all — checked
 by pressing them, not by trusting a disabled attribute.
 `ui/test/clock.test.ts` puts the clock's hands at a fake time.
