@@ -257,12 +257,13 @@ name, and what the containers below publish is on the LAN beside it.
 | the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` under that name |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the door from a TLS page |
-| a camera app's picture route | 8766, and not this stack's | `/camera` under that name, claimed by the camera's own stack |
+| the camera app, a camera car's picture | 8767, container-only | `/picture` under that name |
+| a photo camera's picture route | 8766, and not this stack's | `/camera` under that name, claimed by the photo camera's own stack |
 
 The command station is mirrored on 2560 at the LAN address, and that port is
 not this file's: it is published by [`rails49/dccex`](https://github.com/rails49/dccex),
 a stack of its own on the same box. `/camera` is the same arrangement: a
-camera app, of which none exists yet, claims the prefix under the box's name
+photo camera, of which none exists yet, claims the prefix under the box's name
 with a door label of its own, and neither its container nor that label is in
 this repository's compose file
 ([#629](https://github.com/rails49/control/issues/629)).
@@ -410,6 +411,22 @@ a second. Left unset, or empty, it keeps the default. Anything else stops
 restarts on the same error until the file is fixed:
 `docker compose … logs layout` shows it.
 
+### The camera's login
+
+The camera app reads each camera car's camera with Basic auth
+([ADR-0082](adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+Two variables on the camera's service say the login, set in
+`/etc/rails49/deploy.env`:
+
+```sh
+TC49_CAMERA_USER=admin
+TC49_CAMERA_PASSWORD=
+```
+
+An unset or empty user is `admin`, and an unset password is empty. That is
+the camera's web login as it ships, and no box gives its camera a password
+today, so nothing sets either. Both are read once, as the app starts.
+
 ### Typing the block readings
 
 No camera publishes `tc49/layout/state/device/sensor` yet, so on a physical
@@ -453,8 +470,8 @@ address*. The record is then set once rather than maintained.
 
 ## What the containers declare
 
-The three containers a browser reaches — the built ui, the store and the
-broker — carry their own routers as labels on themselves
+The four containers a browser reaches — the built ui, the store, the broker
+and the camera app — carry their own routers as labels on themselves
 ([#556](https://github.com/rails49/control/issues/556)). What reads them is
 the door: one reverse proxy per box, the installation's rather than this
 repository's, in front of every stack on the box, taking its routers off
@@ -468,6 +485,7 @@ not build.
 | `store` | `tc49-store` | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads`, on `:8765` |
 | `broker` | `tc49-mqtt` | `/mqtt`, prefix stripped, to the WebSocket listener on `:9001` |
 | `broker` | `tc49-mqtt-foreign` | the same from a page on another origin, answered 403 |
+| `camera` | `tc49-camera` | `/picture`, on `:8767` |
 
 [`rails49/dccex`](https://github.com/rails49/dccex) uses three of these
 names: the service `broker` on `rails49` for native MQTT on 1883, the service
@@ -490,8 +508,9 @@ missing.
 
 **Each router states its priority.** Traefik's default is the rule's length,
 which was legible while every rule sat in one file and is not now that they
-sit on three containers: the app's rule is the bare host and matches every
-path under it, so the store's, the bus's and the refusal's each say outright
+sit on four containers: the app's rule is the bare host and matches every
+path under it, so the store's, the bus's, the camera's and the refusal's each
+say outright
 that they come first. The refusal's precedence over the bus router it stands
 in front of is what this exists to keep, and nothing shows a reader that
 shortening one rule changes what another matches.
@@ -510,11 +529,11 @@ dropped rather than written out twice more: the door listens on 443 and 80,
 and a browser leaves a scheme's default port out of `Origin`, so no page the
 door serves sends one.
 
-**Only what the door reaches joins the shared network.** `web`, `store` and
-`broker` join `rails49`, the network the installation creates and every stack
+**Only what the door reaches joins the shared network.** `web`, `store`,
+`broker` and `camera` join `rails49`, the network the installation creates and every stack
 on the box shares; `scheduler`, `dispatcher`, `driver`, the layout interface
 and the simulator stay on this stack's own network, because they talk to the
-bus and not to browsers. Each of the three is on two networks and names the
+bus and not to browsers. Each of the four is on two networks and names the
 shared one again in a label, or the docker provider picks whichever container
 address it finds first. That is
 [ADR-0001](https://github.com/rails49/installation/blob/main/docs/adr/0001-only-what-the-door-reaches-joins-the-shared-network.md)
@@ -541,11 +560,12 @@ of the page's own on both.
 | --- | --- | --- |
 | `/mqtt` | the broker container's websocket listener on `:9001` | the same, as the `broker` container |
 | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` | vite's own proxy to the store | the store, `:8765` |
-| `/camera` | vite's own proxy to a camera app on `:8766` | the camera's own stack, under the same name |
+| `/picture` | vite's own proxy to the camera app on `:8767` | the `camera` container, `:8767` |
+| `/camera` | vite's own proxy to a photo camera on `:8766` | the photo camera's own stack, under the same name |
 | everything else | vite, `:5173` | `ui/dist` through nginx |
 
-`/camera` is the one row no container of this stack answers: the picture route
-is a camera app's, outside this repository ([SYSTEM.md](SYSTEM.md)), and vite's
+`/camera` is the one row no container of this stack answers: the photo route
+is a photo camera's, outside this repository ([SYSTEM.md](SYSTEM.md)), and vite's
 entry for it lands with the view that fetches it
 ([#631](https://github.com/rails49/control/issues/631)).
 
