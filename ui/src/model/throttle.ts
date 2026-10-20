@@ -10,8 +10,10 @@
  * and what a person can switch on it is the railroad's roster. This puts them
  * beside each other train by train, and decides none of them.
  *
- * It holds no lever position and no chosen train: those are the person's, and
- * they live in the component with the pointer that moves them.
+ * It holds no slider position: that is the person's, and it lives in the
+ * component with the pointer that moves it. Nor is a train chosen without
+ * being taken — the one driven is the one `state/taken` names this throttle
+ * for.
  */
 
 import type { Aspect } from "../render/artwork.js";
@@ -67,6 +69,9 @@ export interface Cab {
    *  them (ADR-0045). Empty where its cars declare none, which is most of the
    *  stock a railroad owns. */
   functions: readonly Fn[];
+  /** Whether it is the train this throttle last held, standing free on the
+   *  layout: the one the picker offers first, as Take back (ui/THROTTLE.md). */
+  last: boolean;
 }
 
 /** What the throttle is worked out from: the run's picture, which throttle
@@ -88,6 +93,10 @@ export interface Driving {
   /** The trains with a request in flight, as the run's picture has it. */
   inFlight: ReadonlySet<string>;
   stock: Record<string, TrainDoc>;
+  /** The train `state/taken` most recently named this throttle for, `null`
+   *  where it has named it for none. The session keeps it; this only puts
+   *  its cab first. */
+  last: string | null;
 }
 
 /**
@@ -102,11 +111,15 @@ export interface Driving {
  * A train the picture has and the roster does not still gets a cab, with
  * nothing to switch: it is on the layout, and a view that hid it would hide
  * the thing the operator can see — the same rule the roster pane keeps.
+ *
+ * One train goes ahead of the order: the last one this throttle held, while
+ * it is placed and no throttle holds it, marked `last` — the picker's Take
+ * back. Held by anybody, it takes its place by name like the others.
  */
 export function cabs(driving: Driving): Cab[] {
-  const { placed, taken, throttle, granted, noses, aspects, ahead, inFlight, stock } =
+  const { placed, taken, throttle, granted, noses, aspects, ahead, inFlight, stock, last } =
     driving;
-  return [...placed]
+  const all: Cab[] = [...placed]
     .sort((one, other) => one.train.localeCompare(other.train))
     .map(({ train, block }) => {
       const nose = noses.get(train) ?? null;
@@ -123,8 +136,10 @@ export function cabs(driving: Driving): Cab[] {
         inFlight: inFlight.has(train),
         functions: stock[train]?.functions ?? [],
         locomotive: stock[train]?.locomotive ?? null,
+        last: train === last && holder === undefined,
       };
     });
+  return [...all.filter((cab) => cab.last), ...all.filter((cab) => !cab.last)];
 }
 
 /** The other end of the block a nose is at: `a.A` for `a.B`. A block has

@@ -1,6 +1,9 @@
 /**
- * The throttle view (ui/THROTTLE.md): pick a train, take it, drive it, give it
- * back ([#207](https://github.com/rails49/control/issues/207)), laid out as
+ * The throttle view (ui/THROTTLE.md): take a train, drive it, give it
+ * back ([#207](https://github.com/rails49/control/issues/207)). While this
+ * page's throttle holds no train it is the train picker (`tc-train-picker`,
+ * [#853](https://github.com/rails49/control/issues/853)); while it holds one
+ * it is that train's driving controls, laid out as
  * arrangement A ([#852](https://github.com/rails49/control/issues/852)): the
  * train's picture at the top with what it is reading over it, the reverser,
  * its functions, Turn around and the clock below on the left, and the speed,
@@ -28,12 +31,8 @@
  * is given from the train's facing and the way round its car is coupled — so
  * one slider drives a top-and-tail set and this view sends one number and
  * never a direction for a locomotive (CONTEXT.md, **Throttle**).
- *
- * At a window `NARROW_WIDTH_PX` wide or less — a phone — the view is the
- * train list or the cab, not both.
  */
 
-import { NARROW_WIDTH_PX } from "@rails49/look";
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
@@ -41,6 +40,7 @@ import { photoUrl } from "../model/store.js";
 import { driveRefusal, type Cab } from "../model/throttle.js";
 import type { Power } from "../model/trace.js";
 import "./tc-clock.js";
+import "./tc-train-picker.js";
 import { throttleStyles } from "./tc-throttle.styles.js";
 
 /** The slider moved: the train it is about, and the speed it now asks for,
@@ -57,9 +57,6 @@ export interface ThrottleWanted {
  *  thumb on a phone resolves and coarser than the noise of a drag, and the
  *  number a person reads is what goes on the bus. */
 const STEP = 0.05;
-
-/** A window this narrow or narrower shows the list or the cab, not both. */
-const NARROW = `(max-width: ${NARROW_WIDTH_PX}px)`;
 
 @customElement("tc-throttle")
 export class TcThrottle extends LitElement {
@@ -78,9 +75,6 @@ export class TcThrottle extends LitElement {
    *  is not there is swallowed, so the controls say so instead. */
   @property({ type: Boolean }) linked = false;
 
-  /** The train this throttle is on, `null` while none is picked. */
-  @state() private picked: string | null = null;
-
   /** Where the slider stands, as the person left it: 0 through 1. It is the
    *  view's own and not the bus's — nothing publishes a throttle's position
    *  back — so it is what this shows and, signed, what it last sent. */
@@ -90,129 +84,61 @@ export class TcThrottle extends LitElement {
    *  it is the person's, and it sends nothing when it moves (ADR-0084). */
   @state() private reverse = false;
 
-  /** Whether the window is narrow enough to show one pane at a time. */
-  @state() private narrow = false;
-
   /** The models whose photo did not load, drawn by the train's name. */
   @state() private unseen: ReadonlySet<string> = new Set();
 
-  private media: MediaQueryList | null = null;
-
-  private readonly follow = (event: MediaQueryListEvent): void => {
-    this.narrow = event.matches;
-  };
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.media = window.matchMedia(NARROW);
-    this.narrow = this.media.matches;
-    this.media.addEventListener("change", this.follow);
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.media?.removeEventListener("change", this.follow);
-    this.media = null;
-  }
+  /** The train the controls were last drawn for, `null` while they were
+   *  not: a train newly under them starts at rest, Forward. */
+  private driven: string | null = null;
 
   override willUpdate(changed: Map<string, unknown>): void {
-    if (changed.has("narrow")) this.toggleAttribute("narrow", this.narrow);
     // The track is off: nothing is moving, so neither is the slider.
     if (changed.has("power") && this.power === "off") this.slider = 0;
     if (!changed.has("cabs")) return;
-    const was = (changed.get("cabs") as readonly Cab[] | undefined)?.find(
-      (cab) => cab.train === this.picked,
-    );
-    // The train went off the layout, or the run let go of the picture. There
-    // is nothing under the slider, so the throttle is on no train rather
-    // than on the name of one that is gone.
-    if (this.picked !== null && this.cab === null) this.letGo();
-    // Given back by anybody — this view, a force release, or `layout`
-    // itself — the slider is not a person's any more and must not go on
-    // showing a speed nobody is asking for. Nor once a granted move has ended
-    // at its sensor: `layout` has written `0.0`, and the slider shows the
-    // train standing. A frame that only leaves a train with no move, where it
-    // had none, ends nothing.
-    else if (
-      this.cab !== null &&
-      (this.cab.taken !== "here" || (was?.granted === true && !this.cab.granted))
-    ) {
+    const cab = this.cab;
+    const train = cab?.train ?? null;
+    // A train newly held, or none: the slider starts at rest and the
+    // reverser at Forward on every take, a position carried over from the
+    // last hold being a speed this one was never driven at. Given back by
+    // anybody — this view, a force release, or `layout` itself — or gone off
+    // the layout, there is no slider to show at all.
+    if (train !== this.driven) {
+      this.driven = train;
       this.slider = 0;
+      this.reverse = false;
+      return;
     }
+    const was = (changed.get("cabs") as readonly Cab[] | undefined)?.find(
+      (one) => one.train === train,
+    );
+    // A granted move ended at its sensor: `layout` has written `0.0`, and
+    // the slider shows the train standing. A frame that only leaves a train
+    // with no move, where it had none, ends nothing.
+    if (cab !== null && was?.granted === true && !cab.granted) this.slider = 0;
   }
 
   override render() {
     const cab = this.cab;
-    const list = html`
-      <nav class="trains">
-        <h2>Trains</h2>
-        ${this.cabs.length === 0
-          ? html`<p class="hint">
-              ${this.linked
-                ? "no train is on the layout — place one in the run view"
-                : driveRefusal(this.linked, this.power)}
-            </p>`
-          : html`<ul>
-              ${this.cabs.map((one) => this.row(one))}
-            </ul>`}
-      </nav>
-    `;
-    if (this.narrow) return cab === null ? list : html`<main>${this.cabinet(cab)}</main>`;
-    return html`${list}
-      <main>${cab === null ? this.nothing() : this.cabinet(cab)}</main>`;
+    if (cab === null) {
+      return html`<tc-train-picker
+        .cabs=${this.cabs}
+        .power=${this.power}
+        .linked=${this.linked}
+      ></tc-train-picker>`;
+    }
+    return html`<main>${this.cabinet(cab)}</main>`;
   }
 
-  // --- picking a train ------------------------------------------------------
-
-  /** The cab of the train that is picked, `null` where none is or where the
-   *  picture no longer has it. Read afresh: the bus moves under a person
-   *  holding a slider. */
+  /** The cab of the train this throttle holds, `null` where it holds none.
+   *  Where `state/taken` names it for several, the first by name: side by
+   *  side is [#855](https://github.com/rails49/control/issues/855)'s. Read
+   *  afresh: the bus moves under a person holding a slider. */
   private get cab(): Cab | null {
-    return this.cabs.find((cab) => cab.train === this.picked) ?? null;
-  }
-
-  /** One train to pick: its name, where it stands, and whether a throttle
-   *  holds it — this one, or another, which is a thing worth seeing before
-   *  you reach for it. */
-  private row(cab: Cab) {
-    return html`
-      <li>
-        <button
-          class=${`train ${cab.train === this.picked ? "picked" : ""}`}
-          data-train=${cab.train}
-          aria-pressed=${cab.train === this.picked}
-          @click=${() => this.pick(cab.train)}
-        >
-          <span class="name">${cab.train}</span>
-          ${cab.taken === null
-            ? nothing
-            : html`<span class=${`taken ${cab.taken}`}>
-                ${cab.taken === "here" ? "yours" : "taken"}
-              </span>`}
-          <span class="where">${cab.block ?? "crossing a transit"}</span>
-        </button>
-      </li>
-    `;
-  }
-
-  /** A train picked up, or the same one again. The slider starts at rest and
-   *  the reverser at Forward on every train: a position carried over from
-   *  the last one would be a speed this train was never driven at. */
-  private pick(train: string): void {
-    this.picked = train;
-    this.slider = 0;
-    this.reverse = false;
-  }
-
-  /** The throttle on no train, and the slider at rest with it. Sends
-   *  nothing: a train put down is still held. */
-  private letGo(): void {
-    this.picked = null;
-    this.slider = 0;
-  }
-
-  private nothing() {
-    return html`<p class="hint">pick a train to drive it</p>`;
+    return (
+      this.cabs
+        .filter((cab) => cab.taken === "here")
+        .sort((one, other) => one.train.localeCompare(other.train))[0] ?? null
+    );
   }
 
   // --- driving one ----------------------------------------------------------
@@ -232,11 +158,7 @@ export class TcThrottle extends LitElement {
 
   private cabinet(cab: Cab) {
     const still = this.still;
-    const held = cab.taken === "here";
     return html`
-      ${this.narrow
-        ? html`<button class="back" @click=${() => this.letGo()}>Trains</button>`
-        : nothing}
       <section class="top">
         ${this.picture(cab)}
         <div class="over">
@@ -249,19 +171,10 @@ export class TcThrottle extends LitElement {
       ${still === null ? nothing : html`<p class="still">${still}</p>`}
       <section class="below">
         <div class="left">
-          ${held ? this.reverser() : nothing} ${this.functions(cab)}
-          ${held ? this.turn(cab) : nothing}
+          ${this.reverser()} ${this.functions(cab)} ${this.turn(cab)}
           <tc-clock></tc-clock>
         </div>
-        <div class="right">
-          ${held
-            ? this.driving(cab)
-            : html`<p class="hint">
-                ${cab.taken === "elsewhere"
-                  ? "another throttle holds this train"
-                  : "take the train to drive it"}
-              </p>`}
-        </div>
+        <div class="right">${this.driving(cab)}</div>
       </section>
     `;
   }
@@ -282,37 +195,16 @@ export class TcThrottle extends LitElement {
     />`;
   }
 
-  /** Take, Release, or — on a train another throttle holds, which cannot be
-   *  taken — Force release, which is the same `null` take as a Release and
-   *  frees the train whoever holds it (BUS.md, `take_wanted`). */
+  /** Release: the train given back, the same `null` take a Force release
+   *  is (BUS.md, `take_wanted`). The view goes back to the picker once
+   *  `state/taken` no longer names this throttle for it. */
   private holding(cab: Cab) {
-    if (cab.taken === "here") {
-      return html`<button
-        class="take release"
-        ?disabled=${!this.live}
-        @click=${() => this.releasing(cab.train)}
-      >
-        Release
-      </button>`;
-    }
-    if (cab.taken === "elsewhere") {
-      return html`<button class="take" disabled title="another throttle holds it">
-          Take
-        </button>
-        <button
-          class="force"
-          ?disabled=${!this.live}
-          @click=${() => this.releasing(cab.train)}
-        >
-          Force release
-        </button>`;
-    }
     return html`<button
-      class="take"
+      class="release"
       ?disabled=${!this.live}
-      @click=${() => this.taking(cab.train)}
+      @click=${() => this.releasing(cab.train)}
     >
-      Take
+      Release
     </button>`;
   }
 
@@ -455,24 +347,12 @@ export class TcThrottle extends LitElement {
 
   // --- what goes on the bus -------------------------------------------------
 
-  /** Take the train in this throttle. The view goes on reading who holds it
-   *  off `state/taken` and marks nothing taken on its own press: `layout`
-   *  holds the answer, and drops a take of a train another throttle holds
-   *  (ADR-0035, ADR-0079). */
-  private taking(train: string): void {
-    if (!this.live) return;
-    this.say<string>("take-wanted", train);
-  }
-
-  /** Give the train back, or force the release of one another throttle
-   *  holds: the same frame. `layout` writes the speed a release implies, so
-   *  this sends no zero of its own — one gesture per press. On a narrow
-   *  window the view goes back to the list. */
+  /** Give the train back. `layout` writes the speed a release implies, so
+   *  this sends no zero of its own — one gesture per press. */
   private releasing(train: string): void {
     if (!this.live) return;
     this.slider = 0;
     this.say<string>("release-wanted", train);
-    if (this.narrow) this.letGo();
   }
 
   /** The reverser switched: nothing on the bus (ADR-0084). */

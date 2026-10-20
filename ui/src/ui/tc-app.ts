@@ -6,8 +6,8 @@
  * It holds the loaded railroad — its name, the document, and what the store
  * says the document means — and hands it to whichever view is current. The
  * views hold what is theirs: the editor its selection and its dialogs, the run
- * view its drag and its menu, the throttle the train a person picked and where
- * they have put the lever. Which railroad they are about is not one of those
+ * view its drag and its menu, the throttle where a person has put the slider
+ * and the reverser. Which railroad they are about is not one of those
  * things, which is why it is here.
  *
  * **One session, and it is the app's** (`model/session.ts`, #756). The page's

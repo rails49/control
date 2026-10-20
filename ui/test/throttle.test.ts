@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
 /**
- * The throttle view, end to end through the app (ui/THROTTLE.md, #207): pick a
- * train, take it, drive it, give it back, and the two gestures that ride the
- * bus while you do.
+ * The throttle view, end to end through the app (ui/THROTTLE.md, #207): take a
+ * train from the picker (#853), drive it, give it back, take it back, and the
+ * gestures that ride the bus while you do.
  *
  * A DOM suite because none of it is a model's. What each train is, who holds
  * it and what it is reading are `cabs`'s answer, tested with no DOM in
@@ -11,7 +11,7 @@
  * asked — that taking a train writes one `take_wanted` under this page's
  * throttle id, that the view waits for `state/taken` before it says a train is
  * taken, that a train another throttle holds cannot be taken and can be
- * force released, that the lever is live only with a move granted, that the number on
+ * force released, that the train last held comes back as Take back, that the number on
  * screen is the number that went out, and that nothing at all leaves the view
  * while the rails have no power.
  *
@@ -19,10 +19,11 @@
  * same one every other suite does (`support/session.ts`).
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
+import type { TcTrainPicker } from "../src/ui/tc-train-picker.js";
 import { settled, shows, throttling } from "./support/shell.js";
 import {
   Broker,
@@ -37,7 +38,10 @@ import { photoUrl } from "../src/model/store.js";
 
 beforeEach(brokering);
 
-afterEach(unbrokered);
+afterEach(() => {
+  unbrokered();
+  sessionStorage.clear();
+});
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 const POWER = "tc49/layout/state/power";
@@ -74,22 +78,42 @@ function part<T extends Element>(shell: TcApp, selector: string): T | null {
   return throttling(shell).renderRoot.querySelector<T>(selector);
 }
 
-/** The trains the view offers, in the order it offers them. */
+/** The picker, `null` while the view shows the driving controls. */
+function picker(shell: TcApp): TcTrainPicker | null {
+  return part<TcTrainPicker>(shell, "tc-train-picker");
+}
+
+/** One part of the picker, by selector. */
+function onPicker<T extends Element>(shell: TcApp, selector: string): T | null {
+  return picker(shell)?.renderRoot.querySelector<T>(selector) ?? null;
+}
+
+/** The trains the picker has a card for, in the order it shows them. */
 function offered(shell: TcApp): string[] {
-  return [...throttling(shell).renderRoot.querySelectorAll("button.train .name")].map(
+  return [...(picker(shell)?.renderRoot.querySelectorAll(".card > span.name") ?? [])].map(
     (one) => one.textContent!.trim(),
   );
 }
 
-/** Pick a train, the way a pointer does. */
-async function pick(shell: TcApp, train: string): Promise<void> {
-  part<HTMLButtonElement>(shell, `button.train[data-train="${train}"]`)!.click();
+/** One train's card. */
+function card(shell: TcApp, train: string): HTMLElement | null {
+  return onPicker<HTMLElement>(shell, `.card[data-train="${train}"]`);
+}
+
+/** The press on one train's card, by its class: `take`, `back` or `force`. */
+function press(shell: TcApp, train: string, kind: string): HTMLButtonElement | null {
+  return card(shell, train)?.querySelector<HTMLButtonElement>(`button.${kind}`) ?? null;
+}
+
+/** Press Take on a train's card, the way a pointer does. */
+async function taking(shell: TcApp, train: string): Promise<void> {
+  press(shell, train, "take")!.click();
   await settled(shell);
 }
 
-/** The one control that takes a train and gives it back. */
-function take(shell: TcApp): HTMLButtonElement {
-  return part<HTMLButtonElement>(shell, "button.take")!;
+/** The driving controls' Release. */
+function release(shell: TcApp): HTMLButtonElement {
+  return part<HTMLButtonElement>(shell, "button.release")!;
 }
 
 async function pressed(shell: TcApp, selector: string): Promise<void> {
@@ -136,12 +160,10 @@ const GRANTED = {
   requests: [{ id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "j.over", "b"] }],
 };
 
-/** `goods`, taken and nothing granted: the gesture and `layout`'s answer. */
-async function held(shell: TcApp): Promise<void> {
-  await pick(shell, "goods");
-  take(shell).click();
-  await settled(shell);
-  await said(shell, TAKEN, { taken: { goods: mine() } });
+/** A train, taken and nothing granted: the gesture and `layout`'s answer. */
+async function held(shell: TcApp, train = "goods"): Promise<void> {
+  await taking(shell, train);
+  await said(shell, TAKEN, { taken: { [train]: mine() } });
 }
 
 /** `goods`, taken and granted a move: the gesture, `layout`'s answer on the
@@ -151,19 +173,62 @@ async function taken(shell: TcApp): Promise<void> {
   await said(shell, ALLOCATION, GRANTED);
 }
 
-describe("picking a train", () => {
+/** `shunter` placed beside `goods`, in `b`: two trains to pick from. */
+const BOTH = {
+  trains: { goods: "a", shunter: "b" },
+  locks: { a: "goods", b: "shunter" },
+  requests: [],
+};
+
+describe("the picker", () => {
   /** The trains the railroad has placed, and nothing else about the layout:
    *  `shunter` is on the roster and off the layout, so there is nothing here
    *  for a throttle to move (ADR-0039). */
-  it("offers the trains the run has placed", async () => {
+  it("has a card for each train the run has placed, and no list", async () => {
     const shell = await driving();
     expect(offered(shell)).toEqual(["goods"]);
+
+    await said(shell, ALLOCATION, BOTH);
+
+    expect(offered(shell)).toEqual(["goods", "shunter"]);
+    expect(part(shell, "nav.trains")).toBeNull();
+    expect(lever(shell)).toBeNull();
+    expect(picker(shell)!.renderRoot.textContent).toContain("Take a train");
   });
 
-  it("says to pick one before anything is picked", async () => {
+  it("says where each train stands", async () => {
     const shell = await driving();
-    expect(part(shell, "button.take")).toBeNull();
-    expect(throttling(shell).renderRoot.textContent).toContain("pick a train");
+    expect(card(shell, "goods")!.querySelector(".where")!.textContent!.trim()).toBe("a");
+  });
+
+  it("shows the photo of each train's first locomotive", async () => {
+    const shell = await driving();
+    expect(card(shell, "goods")!.querySelector("img")!.getAttribute("src")).toBe(
+      "/catalogue/BR%20218/photo",
+    );
+  });
+
+  /** A model with no photo filed answers 404, and the name stands in, as it
+   *  does for a train with no locomotive. */
+  it("shows the train's name where the photo does not load or there is none", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, BOTH);
+
+    card(shell, "goods")!.querySelector("img")!.dispatchEvent(new Event("error"));
+    await settled(shell);
+
+    for (const train of ["goods", "shunter"]) {
+      expect(card(shell, train)!.querySelector("img")).toBeNull();
+      expect(card(shell, train)!.querySelector(".thumbnail")!.textContent!.trim()).toBe(train);
+    }
+  });
+
+  it("says so when no train is on the layout", async () => {
+    const shell = await joined("throttle");
+    await said(shell, POWER, { power: "on" });
+    expect(picker(shell)!.renderRoot.textContent).toContain(
+      "no train is on the layout — place one in the run view",
+    );
   });
 
   /** The throttle is a view of the app like the others, reached from the
@@ -180,10 +245,8 @@ describe("picking a train", () => {
 describe("taking a train", () => {
   it("publishes exactly one take_wanted naming that train and this throttle", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
 
-    take(shell).click();
-    await settled(shell);
+    await taking(shell, "goods");
 
     const frames = written();
     expect(frames).toHaveLength(1);
@@ -194,53 +257,158 @@ describe("taking a train", () => {
     expect(mine()).not.toBe("");
   });
 
-  /** The state topic is the truth about who holds a train: a view that marked
-   *  a train taken on its own press would show a person holding a train
-   *  `layout` never handed them (ADR-0035). */
-  it("shows the train as taken only when state/taken says so", async () => {
+  /** The state topic is the truth about who holds a train: a view that showed
+   *  the controls on its own press would put a person on a train `layout`
+   *  never handed them (ADR-0035). A take `layout` drops changes nothing. */
+  it("stays on the picker until state/taken names this throttle", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
 
-    take(shell).click();
-    await settled(shell);
-    expect(take(shell).textContent!.trim()).toBe("Take");
+    await taking(shell, "goods");
+    expect(offered(shell)).toEqual(["goods"]);
     expect(lever(shell)).toBeNull();
 
     await said(shell, TAKEN, { taken: { goods: mine() } });
-    expect(take(shell).textContent!.trim()).toBe("Release");
+    expect(picker(shell)).toBeNull();
     expect(lever(shell)).not.toBeNull();
-    expect(part(shell, "button.train .taken")!.textContent!.trim()).toBe("yours");
+    expect(release(shell).textContent!.trim()).toBe("Release");
+  });
+
+  /** Several at once are #855's; until then, the first by name. */
+  it("drives the first by name where it holds several", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, BOTH);
+    await taking(shell, "goods");
+    await said(shell, TAKEN, { taken: { shunter: mine(), goods: mine() } });
+    expect(part(shell, ".over h2")!.textContent!.trim()).toBe("goods");
   });
 });
 
 describe("a train another throttle holds", () => {
-  /** `layout` drops a take of a train another throttle holds, so the view
-   *  does not offer one, and says the train is taken (ADR-0079). */
-  it("shows as taken and cannot be taken", async () => {
+  /** `layout` drops a take of a train another throttle holds, so the picker
+   *  does not offer one (ADR-0079). */
+  it("is faded, says so, and has no Take", async () => {
     const shell = await driving();
     await said(shell, TAKEN, { taken: { goods: "another-page" } });
-    await pick(shell, "goods");
 
-    expect(part(shell, "button.train .taken")!.textContent!.trim()).toBe("taken");
-    expect(take(shell).disabled).toBe(true);
-    take(shell).click();
-    await settled(shell);
-    expect(written()).toEqual([]);
-    expect(lever(shell)).toBeNull();
+    expect(card(shell, "goods")!.classList.contains("faded")).toBe(true);
+    expect(card(shell, "goods")!.textContent).toContain("held by another throttle");
+    expect(press(shell, "goods", "take")).toBeNull();
   });
 
   /** The force release is the release: `null` frees the train whoever holds
    *  it (BUS.md, `take_wanted`). */
-  it("is force released with take_wanted null", async () => {
+  it("is force released with take_wanted null, and then has Take", async () => {
     const shell = await driving();
     await said(shell, TAKEN, { taken: { goods: "another-page" } });
-    await pick(shell, "goods");
 
-    await pressed(shell, "button.force");
+    press(shell, "goods", "force")!.click();
+    await settled(shell);
 
     expect(written()).toEqual([
       { topic: TAKE_WANTED, payload: { train: "goods", throttle: null } },
     ]);
+
+    await said(shell, TAKEN, { taken: {} });
+    expect(card(shell, "goods")!.classList.contains("faded")).toBe(false);
+    expect(press(shell, "goods", "take")).not.toBeNull();
+    expect(press(shell, "goods", "force")).toBeNull();
+  });
+});
+
+describe("taking it back", () => {
+  /** The train this throttle held, freed: by its Release here. */
+  async function heldThenFreed(shell: TcApp): Promise<void> {
+    await held(shell);
+    release(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: {} });
+  }
+
+  it("offers the last train first, as Take back, once nobody holds it", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, BOTH);
+    await held(shell, "shunter");
+    release(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: {} });
+    const before = written().length;
+
+    expect(offered(shell)).toEqual(["shunter", "goods"]);
+    expect(card(shell, "shunter")!.textContent).toContain("You held this one");
+    press(shell, "shunter", "back")!.click();
+    await settled(shell);
+
+    expect(written().slice(before)).toEqual([
+      { topic: TAKE_WANTED, payload: { train: "shunter", throttle: mine() } },
+    ]);
+  });
+
+  it("is an ordinary faded card while another throttle holds it", async () => {
+    const shell = await driving();
+    await heldThenFreed(shell);
+
+    await said(shell, TAKEN, { taken: { goods: "another-page" } });
+
+    expect(press(shell, "goods", "back")).toBeNull();
+    expect(card(shell, "goods")!.classList.contains("faded")).toBe(true);
+    expect(card(shell, "goods")!.textContent).not.toContain("You held this one");
+  });
+
+  it("has no card once the train is off the layout", async () => {
+    const shell = await driving();
+    await heldThenFreed(shell);
+
+    await said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] });
+
+    expect(offered(shell)).toEqual([]);
+  });
+
+  /** The same tab, a second app: `sessionStorage` carries the last train,
+   *  and the new page's id is not the old one, so the old hold reads as
+   *  another throttle's until it is freed. */
+  it("is found by a second app in the same tab, once the train is free", async () => {
+    const first = await driving();
+    await held(first);
+    const old = mine();
+    unbrokered();
+    brokering();
+
+    const shell = await driving();
+    await said(shell, TAKEN, { taken: { goods: old } });
+    expect(press(shell, "goods", "back")).toBeNull();
+
+    await said(shell, TAKEN, { taken: {} });
+    expect(press(shell, "goods", "back")).not.toBeNull();
+  });
+
+  it("is not found by a second app with sessionStorage cleared", async () => {
+    const first = await driving();
+    await held(first);
+    unbrokered();
+    brokering();
+    sessionStorage.clear();
+
+    const shell = await driving();
+    expect(press(shell, "goods", "back")).toBeNull();
+    expect(press(shell, "goods", "take")).not.toBeNull();
+  });
+
+  /** Storage that throws leaves Take back to the page's own memory. */
+  it("works for the life of the page where sessionStorage throws", async () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("refused");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("refused");
+    });
+    try {
+      const shell = await driving();
+      await heldThenFreed(shell);
+      expect(press(shell, "goods", "back")).not.toBeNull();
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
   });
 });
 
@@ -370,12 +538,13 @@ describe("the reverser", () => {
     ]);
   });
 
-  it("is Forward on every pick", async () => {
+  it("is Forward on every take", async () => {
     const shell = await driving();
     await held(shell);
     await pressed(shell, "button.reverse");
 
-    await pick(shell, "goods");
+    await said(shell, TAKEN, { taken: {} });
+    await held(shell);
 
     expect(reverser(shell)).toBe("forward");
   });
@@ -415,7 +584,7 @@ describe("the reverser", () => {
 describe("the train's picture", () => {
   it("is the photo of its first locomotive's model", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
+    await held(shell);
     expect(part<HTMLImageElement>(shell, "img.picture")!.getAttribute("src")).toBe(
       photoUrl("BR 218"),
     );
@@ -424,7 +593,7 @@ describe("the train's picture", () => {
   /** A model with no photo filed answers 404, and the name stands in. */
   it("is the train's name where the photo does not load", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
+    await held(shell);
 
     part(shell, "img.picture")!.dispatchEvent(new Event("error"));
     await settled(shell);
@@ -440,7 +609,7 @@ describe("the train's picture", () => {
       locks: { b: "shunter" },
       requests: [],
     });
-    await pick(shell, "shunter");
+    await held(shell, "shunter");
     expect(part(shell, "img.picture")).toBeNull();
     expect(part(shell, ".picture")!.textContent!.trim()).toBe("shunter");
   });
@@ -483,7 +652,7 @@ describe("driving it", () => {
     const shell = await driving();
     await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
     await said(shell, ASPECTS, { aspects: { "a.B": "caution" } });
-    await pick(shell, "goods");
+    await held(shell);
     expect(part(shell, ".aspect")!.textContent!.trim()).toBe("caution");
   });
 });
@@ -522,21 +691,26 @@ describe("turning it round", () => {
 });
 
 describe("giving it back", () => {
-  it("publishes take_wanted null and stops offering the speed control", async () => {
+  /** Back to the picker once `state/taken` no longer names this throttle,
+   *  and not before: the release is `layout`'s to answer. */
+  it("publishes take_wanted null and goes back to the picker, the train first as Take back", async () => {
     const shell = await driving();
     await taken(shell);
     await moved(shell, 0.5);
 
-    take(shell).click();
+    release(shell).click();
     await settled(shell);
-    await said(shell, TAKEN, { taken: {} });
-
     expect(written().at(-1)).toEqual({
       topic: TAKE_WANTED,
       payload: { train: "goods", throttle: null },
     });
+    expect(picker(shell)).toBeNull();
+
+    await said(shell, TAKEN, { taken: {} });
+
     expect(lever(shell)).toBeNull();
-    expect(take(shell).textContent!.trim()).toBe("Take");
+    expect(offered(shell)[0]).toBe("goods");
+    expect(press(shell, "goods", "back")).not.toBeNull();
   });
 
   /** One gesture per press. `layout` writes the speed a release implies, so
@@ -549,7 +723,7 @@ describe("giving it back", () => {
     await moved(shell, 0.5);
     const before = written().length;
 
-    take(shell).click();
+    release(shell).click();
     await settled(shell);
 
     expect(written().length).toBe(before + 1);
@@ -579,16 +753,16 @@ describe("giving it back", () => {
     await said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] });
 
     expect(offered(shell)).toEqual([]);
-    expect(part(shell, "button.take")).toBeNull();
+    expect(lever(shell)).toBeNull();
   });
 });
 
 describe("what a person can switch", () => {
   /** By the names the catalogue gives them and by no number: which DCC
    *  function a name sits on is a decoder detail no view shows (ADR-0045). */
-  it("draws the selected train's functions, by catalogue name", async () => {
+  it("draws the held train's functions, by catalogue name", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
+    await held(shell);
     expect(
       [...throttling(shell).renderRoot.querySelectorAll("button.function")].map((one) =>
         one.textContent!.trim(),
@@ -603,7 +777,7 @@ describe("what a person can switch", () => {
       locks: { b: "shunter" },
       requests: [],
     });
-    await pick(shell, "shunter");
+    await held(shell, "shunter");
     expect(throttling(shell).renderRoot.querySelectorAll("button.function")).toHaveLength(
       0,
     );
@@ -619,7 +793,7 @@ describe("with the rails dead", () => {
     await said(shell, POWER, { power: "draining" });
     const before = written().length;
 
-    take(shell).click();
+    release(shell).click();
     part<HTMLButtonElement>(shell, "button.stop")!.click();
     part<HTMLButtonElement>(shell, "button.turn")!.click();
     part<HTMLButtonElement>(shell, "button.reverse")!.click();
@@ -632,10 +806,41 @@ describe("with the rails dead", () => {
 
   it("says the supply is off where that is what it is", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
+    await held(shell);
     await said(shell, POWER, { power: "off" });
     expect(part(shell, ".still")!.textContent).toContain("no power");
-    expect(take(shell).disabled).toBe(true);
+    expect(release(shell).disabled).toBe(true);
+  });
+
+  /** On the picker: Take, Take back and Force release publish nothing, and
+   *  the reason is on screen. */
+  it("takes nothing from the picker, and says why", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, {
+      trains: { goods: "a", shunter: "b" },
+      locks: { a: "goods", b: "shunter" },
+      requests: [],
+    });
+    await held(shell, "shunter");
+    release(shell).click();
+    await settled(shell);
+    await said(shell, TAKEN, { taken: { goods: "another-page" } });
+    await said(shell, POWER, { power: "off" });
+    const before = written().length;
+
+    for (const [train, kind] of [
+      ["shunter", "back"],
+      ["goods", "force"],
+    ] as const) {
+      expect(press(shell, train, kind)!.disabled).toBe(true);
+      press(shell, train, kind)!.click();
+    }
+    await said(shell, TAKEN, { taken: {} });
+    press(shell, "goods", "take")!.click();
+    await settled(shell);
+
+    expect(written().length).toBe(before);
+    expect(onPicker(shell, ".still")!.textContent).toContain("no power");
   });
 
   /** A gesture into a socket that is not there is swallowed, so the view says
@@ -643,80 +848,14 @@ describe("with the rails dead", () => {
    *  takes the picture with it, exactly as it does in the run view. */
   it("is dead with no broker answering", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
 
     Broker.last!.closes();
     await settled(shell);
 
     expect(offered(shell)).toEqual([]);
-    expect(throttling(shell).renderRoot.textContent).toContain(
+    expect(picker(shell)!.renderRoot.textContent).toContain(
       "no broker answering — is the bus running?",
     );
-  });
-});
-
-/** A phone's window: the list or the cab, never both. */
-describe("a narrow window", () => {
-  function viewport(width: number, height: number): void {
-    (window as unknown as { happyDOM: { setViewport(size: object): void } }).happyDOM.setViewport(
-      { width, height },
-    );
-  }
-
-  function showing(shell: TcApp): { list: boolean; cab: boolean } {
-    return { list: part(shell, "nav.trains") !== null, cab: part(shell, "main") !== null };
-  }
-
-  beforeEach(() => viewport(390, 844));
-
-  afterEach(() => viewport(1024, 768));
-
-  it("shows the list with nothing picked, and the cab once a train is", async () => {
-    const shell = await driving();
-    expect(showing(shell)).toEqual({ list: true, cab: false });
-
-    await pick(shell, "goods");
-
-    expect(showing(shell)).toEqual({ list: false, cab: true });
-  });
-
-  /** Trains puts the train down; it does not give it back. */
-  it("returns to the list from Trains, publishing nothing", async () => {
-    const shell = await driving();
-    await held(shell);
-    const before = written().length;
-
-    await pressed(shell, "button.back");
-
-    expect(showing(shell)).toEqual({ list: true, cab: false });
-    expect(written().length).toBe(before);
-  });
-
-  it("returns to the list on Release, which publishes take_wanted null", async () => {
-    const shell = await driving();
-    await held(shell);
-
-    take(shell).click();
-    await settled(shell);
-
-    expect(written().at(-1)).toEqual({
-      topic: TAKE_WANTED,
-      payload: { train: "goods", throttle: null },
-    });
-    expect(showing(shell)).toEqual({ list: true, cab: false });
-  });
-
-  /** Followed when it changes, as a phone turned on its side changes it. */
-  it("shows both above 600 px, and follows the window", async () => {
-    viewport(1024, 768);
-    const shell = await driving();
-    await pick(shell, "goods");
-    expect(showing(shell)).toEqual({ list: true, cab: true });
-
-    viewport(390, 844);
-    await settled(shell);
-
-    expect(showing(shell)).toEqual({ list: false, cab: true });
   });
 });
 
@@ -773,7 +912,7 @@ describe("the screen kept awake", () => {
     const shell = await driving();
     await taken(shell);
     await moved(shell, 0.5);
-    take(shell).click();
+    release(shell).click();
     await settled(shell);
     await said(shell, TAKEN, { taken: {} });
     return written().map((one) => {

@@ -107,18 +107,20 @@ describe("the palette", () => {
 });
 
 /**
- * The shell has one left-pane slot and each view fills it: the palette in
- * edit, the roster in run, the trains to drive in the throttle (#169, #291).
- * One width, declared where the page is, or the panes drift apart across a
- * switch and the slot stops being one.
+ * The shell has one left-pane slot and the views with a pane fill it: the
+ * palette in edit, the roster in run (#169, #291). One width, declared where
+ * the page is, or the panes drift apart across a switch and the slot stops
+ * being one. The throttle has no pane: its picker and its cab are full width
+ * (#853).
  */
 describe("the left-pane slot", () => {
   it("is declared on the page and read by every view that fills it", () => {
     expect(appStyles.cssText).toContain("--pane:");
-    for (const sheet of [editorStyles, panelStyles, throttleStyles]) {
+    for (const sheet of [editorStyles, panelStyles]) {
       expect(sheet.cssText).toContain("var(--pane)");
       expect(sheet.cssText).not.toContain("--pane:");
     }
+    expect(throttleStyles.cssText).not.toContain("--pane");
   });
 });
 

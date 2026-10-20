@@ -9,7 +9,7 @@ import { css } from "lit";
  * ([#169](https://github.com/rails49/control/issues/169)) — and this view has
  * no surface: it is two columns of documents, and the left one carries three
  * fields per row rather than a tile. So it declares its own width and leaves
- * `--pane` to the three views that share the rectangle.
+ * `--pane` to the two views that share the rectangle.
  *
  * **Cars above, models below.** Cars are yours and are few; models are what
  * anything is made of, and ten identical hoppers are one row rather than ten
