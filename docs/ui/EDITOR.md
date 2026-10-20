@@ -57,16 +57,20 @@ and `tc-app` fills it.
 
 The band starts with look's mark and the UI's name, `control`
 ([org ADR-0019](https://github.com/rails49/.github/blob/main/docs/adr/0019-the-band-starts-with-the-mark-and-the-ui-name.md)).
+Its right is the UI's items: the health area and the session clock, then the
+driving control ([PANEL.md](PANEL.md)), track power and the stop sign. Then
+the gear, and **Help** last of all
+([org ADR-0020](https://github.com/rails49/.github/blob/main/docs/adr/0020-the-bands-right-ends-with-the-gear-and-help.md),
+[#873](https://github.com/rails49/control/issues/873)).
 
 **The railroad the app has loaded is named here**, as
 `tc49/layout/state/railroad` reports it, and the name is not pressed. Loading
-another is the **settings dialog's**, behind the gear between the health area
-and the driving control
+another is the **settings dialog's**, behind the gear right of track power
 ([ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 It is not the editor's `File ▸ Open` with the run view guessing separately:
 both views are of one railroad, so one control asks for it. The gear is drawn
-whether or not a session is joined, so with none it is the last thing on the
-band.
+whether or not a session is joined, and Help after it is the last thing on
+the band.
 
 The dialog lists what the store has, asked again each time it opens, and ticks
 the one that is loaded. The tick is all that entry is — pressing it asks for

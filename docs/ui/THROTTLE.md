@@ -81,7 +81,8 @@ are released once its silence runs out.
 
 **What `layout` does with them** (docs/layout/README.md, *Who drives*). The
 railroad is in one driving mode, `manual` or `automatic`, stated on
-`tc49/layout/state/driving`. A take of a train another throttle holds is
+`tc49/layout/state/driving`; the band's driving control shows it and switches
+it in this view too ([PANEL.md](PANEL.md)). A take of a train another throttle holds is
 dropped. The lever is applied from the throttle holding the train at any time,
 granted move or not, while the rails are live: the move ending at its sensor
 writes `0.0`, and the next lever frame drives the train on. A frame reversing a

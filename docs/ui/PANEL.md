@@ -753,10 +753,12 @@ The **band** is the whole system's: the railroad the app has loaded and
 whether it is *unsaved*, the health area — the store or the broker not
 answering, a fault the hardware reports on the supply, how far the run has
 got, and a store that is not being backed up
-([EDITOR.md](EDITOR.md#the-band)) — then the gear, the **driving control**, and
-track power, a power toggle whose colour says where the supply stands and a
-stop sign beside it. The **rail** is the views, and then this view's
-document's: zoom out, zoom in and fit as icon buttons.
+([EDITOR.md](EDITOR.md#the-band)) — then the **driving control**, the last of
+its items, and track power, a power toggle whose colour says where the supply
+stands and a stop sign beside it; then the gear and Help
+([org ADR-0020](https://github.com/rails49/.github/blob/main/docs/adr/0020-the-bands-right-ends-with-the-gear-and-help.md)).
+The **rail** is the views, and then this view's document's: zoom out, zoom in
+and fit as icon buttons, and nothing after them.
 
 **Nothing that is going right reads in the band**
 ([#517](https://github.com/rails49/control/issues/517)). It carried six entries
@@ -772,14 +774,15 @@ were
 It is a `look-band-press`, the last of the band's items just before track
 power, and it is there in every view: the mode is the whole railroad's, not a
 view's
-([#871](https://github.com/rails49/control/issues/871), org
+([#871](https://github.com/rails49/control/issues/871),
+[#873](https://github.com/rails49/control/issues/873), org
 [ADR-0020](https://github.com/rails49/.github/blob/main/docs/adr/0020-the-bands-right-ends-with-the-gear-and-help.md)).
 It shows the railroad's driving mode by its glyph and tooltip rather than a
 word or a colour — a person (`person-fill`) for manual, a robot (`robot`) for
 automatic — and a press publishes `tc49/layout/driving_wanted` naming the
 other one. It draws `tc49/layout/state/driving` off the picture rather than
 the last press, so a gesture that did not land leaves the glyph where it was,
-and it is dead with no
+and it is dead, showing the person, with no
 session joined and until `layout` has said the mode. `layout` accepts the
 gesture at any power, so power does not grey it. `model/commands.ts`
 `driving()` decides what it shows.
