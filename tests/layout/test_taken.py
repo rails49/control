@@ -368,6 +368,27 @@ def test_a_throttle_silent_for_five_seconds_is_released() -> None:
     assert speeds(written)[-1:] == [("3", 0.0)]
 
 
+def test_the_silence_a_throttle_is_allowed_is_the_apps_to_be_told() -> None:
+    """An installation whose phones sleep sooner, or later, sets how long
+    `layout` waits (docs/DEPLOY.md): the train is held to the last tenth of a
+    second of it and released on it."""
+    bus, app, clock = wired(driving=MANUAL, throttle_silence_s=2.0)
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    granted(bus, "single")
+    turns(bus, "single", 0.5)
+    said = heard(bus, TAKEN)
+
+    settle(bus, app, clock, after=1.9)
+    assert held_by(said) == [{"single": "t-1"}]
+
+    settle(bus, app, clock, after=0.1)
+
+    assert held_by(said) == [{"single": "t-1"}, {}]
+
+
 def test_a_throttle_that_keeps_saying_it_is_there_keeps_its_train() -> None:
     bus, app, clock = wired()
     takes(bus, "single")

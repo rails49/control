@@ -11,7 +11,7 @@ shared between them the way a real crossover shares one.
 from typing import Any
 
 from tc49.layout import LayoutInterface
-from tc49.layout.interface import SETTLING_S
+from tc49.layout.interface import SETTLING_S, THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
@@ -127,7 +127,9 @@ class Unstamped(InProcessBus):
 
 
 def wired(
-    settling_s: float = SETTLING_S, driving: str = AUTOMATIC
+    settling_s: float = SETTLING_S,
+    driving: str = AUTOMATIC,
+    throttle_silence_s: float = THROTTLE_SILENCE_S,
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
@@ -142,7 +144,9 @@ def wired(
     the suite drives it directly — nothing here sleeps (#288)."""
     clock = Clock()
     bus = InProcessBus(clock)
-    app = LayoutInterface(bus, railroad(), stock(), clock, settling_s)
+    app = LayoutInterface(
+        bus, railroad(), stock(), clock, settling_s, throttle_silence_s
+    )
     bus.drain()
     if driving == AUTOMATIC:
         switches(bus, AUTOMATIC)
