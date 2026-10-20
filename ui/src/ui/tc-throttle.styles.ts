@@ -1,13 +1,9 @@
 import { css } from "lit";
 
 /**
- * The throttle view (`tc-throttle`): the trains to drive in the left pane, and
- * the one that is picked beside it (ui/THROTTLE.md).
- *
- * The pane is the shell's left-pane slot, whose width is the shell's
- * (`--pane`) — the same rectangle the editor's palette and the run view's
- * roster occupy, so switching view does not move the pane under the pointer
- * ([#169](https://github.com/rails49/control/issues/169)).
+ * The throttle view (`tc-throttle`): the train picker while this throttle
+ * holds no train, whose styles are its own (`tc-train-picker.styles.ts`), and
+ * the driving controls of the one it holds, full width (ui/THROTTLE.md).
  *
  * The cab is arrangement A
  * ([#852](https://github.com/rails49/control/issues/852)): the train's
@@ -17,88 +13,12 @@ import { css } from "lit";
  * holding a phone is. The slider stands upright, 0 at the bottom, and takes
  * the drag for itself rather than scrolling the page.
  *
- * At a window `NARROW_WIDTH_PX` wide or less the host is `[narrow]` and shows
- * one pane, full width: the list, or the cab. A window too short for the cab
- * scrolls it.
+ * A window too short for the cab scrolls it.
  */
 export const throttleStyles = css`
   :host {
     display: grid;
-    grid-template-columns: var(--pane) 1fr;
     overflow: hidden;
-  }
-
-  :host([narrow]) {
-    grid-template-columns: 1fr;
-  }
-
-  :host([narrow]) nav.trains {
-    border-right: none;
-  }
-
-  nav.trains {
-    padding: 0.4rem;
-    border-right: 1px solid var(--rule);
-    overflow-y: auto;
-  }
-
-  h2 {
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--hint);
-    margin: 0.3rem 0.2rem;
-  }
-
-  ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  li + li {
-    border-top: 1px solid var(--rule);
-  }
-
-  /* One train to pick: the name and the mark on one line, where it stands
-     under them, as the roster pane's rows read. */
-  button.train {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    column-gap: 0.5rem;
-    align-items: baseline;
-    width: 100%;
-    padding: 0.25rem 0.2rem;
-    border: none;
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  button.train.picked {
-    background: var(--rule);
-  }
-
-  .name {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  /* A train a throttle is holding: this one, or another tab's. */
-  .taken {
-    font-size: 0.65rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--chosen);
-  }
-
-  .where {
-    grid-column: 1 / -1;
-    font-size: 0.7rem;
-    color: var(--hint);
   }
 
   main {
@@ -113,22 +33,7 @@ export const throttleStyles = css`
   main h2 {
     margin: 0;
     font-size: 1rem;
-    letter-spacing: 0;
-    text-transform: none;
     color: var(--ink);
-  }
-
-  /* Back to the list, on a narrow window: the train put down, not given
-     back. */
-  button.back {
-    align-self: flex-start;
-    padding: 0.2rem 0.6rem;
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    background: var(--body);
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
   }
 
   /* The train's picture, with what it is reading laid over its top. */
@@ -171,8 +76,7 @@ export const throttleStyles = css`
     color: var(--hint);
   }
 
-  .over button.take,
-  .over button.force {
+  .over button.release {
     padding: 0.25rem 0.9rem;
     border: 1px solid var(--rule);
     border-radius: 4px;
@@ -182,12 +86,8 @@ export const throttleStyles = css`
     cursor: pointer;
   }
 
-  .over button.take {
+  .over button.release {
     margin-left: auto;
-  }
-
-  .over button.take.release,
-  .over button.force {
     border-color: var(--chosen);
     color: var(--chosen);
   }

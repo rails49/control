@@ -15,7 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ALIVE_MS, HELD, Session, type Client } from "../src/model/session.js";
+import { ALIVE_MS, HELD, LAST, Session, type Client } from "../src/model/session.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
 
 const URL = "ws://localhost:5173/mqtt";
@@ -442,5 +442,60 @@ describe("the throttle", () => {
     stood.broker.closes();
     vi.advanceTimersByTime(5 * ALIVE_MS);
     expect(beats(stood)).toBe(0);
+  });
+
+  /** The last train held, kept in the tab's `sessionStorage` for the
+   *  picker's Take back (ui/THROTTLE.md, #853). */
+  describe("the last train held", () => {
+    let stored: Map<string, string>;
+
+    beforeEach(() => {
+      stored = new Map();
+      vi.stubGlobal("sessionStorage", {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => void stored.set(key, value),
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("is written under the railroad's key when state/taken names this throttle", () => {
+      const stood = placing();
+      expect(stored.size).toBe(0);
+      stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+      expect([...stored]).toEqual([[`${LAST}toy`, "goods"]]);
+      expect(`${LAST}toy`).toBe("tc49.throttle.last.toy");
+    });
+
+    it("is not changed by a release, nor by another throttle taking the train", () => {
+      const stood = placing();
+      stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+      stood.broker.says(TAKEN, { taken: {} });
+      stood.broker.says(TAKEN, { taken: { goods: "elsewhere" } });
+      expect(stored.get(`${LAST}toy`)).toBe("goods");
+    });
+
+    it("is read back when a session joins the railroad", () => {
+      stored.set(`${LAST}toy`, "goods");
+      const stood = placing();
+      expect(stood.session.cabs[0]).toMatchObject({ train: "goods", last: true });
+    });
+
+    it("is kept for the life of the page where storage throws", () => {
+      vi.stubGlobal("sessionStorage", {
+        getItem: () => {
+          throw new Error("refused");
+        },
+        setItem: () => {
+          throw new Error("refused");
+        },
+      });
+      const stood = placing();
+      stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+      stood.broker.says(TAKEN, { taken: {} });
+      expect(stood.session.cabs[0]).toMatchObject({ train: "goods", last: true });
+    });
   });
 });

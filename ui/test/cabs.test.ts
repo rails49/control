@@ -59,7 +59,7 @@ const HERE = "th-here";
 const ELSEWHERE = "th-elsewhere";
 
 /** What the model answers, put together the way the session does. */
-function drive(model: Panel, stock = {}) {
+function drive(model: Panel, stock = {}, last: string | null = null) {
   const placed = model.placed();
   return cabs({
     placed,
@@ -73,6 +73,7 @@ function drive(model: Panel, stock = {}) {
       placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
     ),
     stock,
+    last,
   });
 }
 
@@ -313,6 +314,47 @@ describe("the trains there are to drive", () => {
       requests: [],
     });
     expect(drive(model).map((cab) => cab.train)).toEqual(["alpha", "zulu"]);
+  });
+});
+
+/** The train this throttle last held goes first, as the picker's Take back
+ *  (ui/THROTTLE.md, #853). */
+describe("the last train held", () => {
+  function two(model: Panel): void {
+    feed(model, {
+      event: "allocation",
+      trains: { alpha: "a", zulu: "b" },
+      locks: {},
+      requests: [],
+    });
+  }
+
+  it("is first, marked last, while it is placed and nobody holds it", () => {
+    const model = panel();
+    two(model);
+    expect(drive(model, {}, "zulu").map(({ train, last }) => [train, last])).toEqual([
+      ["zulu", true],
+      ["alpha", false],
+    ]);
+  });
+
+  it("takes its place by name while a throttle holds it, this one or another", () => {
+    for (const holder of [HERE, ELSEWHERE]) {
+      const model = panel();
+      two(model);
+      feed(model, { event: "taken", taken: { zulu: holder } });
+      expect(drive(model, {}, "zulu").map(({ train, last }) => [train, last])).toEqual([
+        ["alpha", false],
+        ["zulu", false],
+      ]);
+    }
+  });
+
+  it("has no cab off the layout, and marks nothing with no last train", () => {
+    const model = panel();
+    two(model);
+    expect(drive(model, {}, "gone").map(({ train }) => train)).toEqual(["alpha", "zulu"]);
+    expect(drive(model).some(({ last }) => last)).toBe(false);
   });
 });
 

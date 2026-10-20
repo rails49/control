@@ -259,6 +259,13 @@ export class Session {
   /** The timer saying `throttle_alive`, `null` while this throttle holds no
    *  train. */
   private alive: ReturnType<typeof setInterval> | null = null;
+  /** The train `state/taken` most recently named this throttle for on the
+   *  joined railroad, `null` where it has named it for none: the picker's
+   *  Take back. Kept whatever ended the hold. */
+  private last: string | null = null;
+  /** The last trains as this page has kept them, by railroad: what is read
+   *  back where `sessionStorage` throws, for the life of the page. */
+  private readonly kept = new Map<string, string>();
 
   constructor(
     private readonly url: string,
@@ -417,6 +424,7 @@ export class Session {
     const early = this.panel === null ? this.held : null;
     this.leave();
     this.session = railroad;
+    this.last = recalled(railroad) ?? this.kept.get(railroad) ?? null;
     this.held = early ?? [];
     this.settle();
     this.hooks.named(railroad);
@@ -600,6 +608,7 @@ export class Session {
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
+    this.remember();
     const driving = this.driving;
     const written = JSON.stringify(driving);
     if (written !== this.saidCabs) {
@@ -619,6 +628,28 @@ export class Session {
     } else if (!holding && this.alive !== null) {
       clearInterval(this.alive);
       this.alive = null;
+    }
+  }
+
+  /** The last train moved on, where `state/taken` names this throttle for a
+   *  train that is not it: the first such by name, where it names several.
+   *  A row naming it for none — a Release, the timeout, a force release
+   *  from elsewhere — leaves it where it was. */
+  private remember(): void {
+    const railroad = this.session;
+    const model = this.panel;
+    if (railroad === null || model === null) return;
+    const mine = [...model.taken()]
+      .filter(([, throttle]) => throttle === this.throttle)
+      .map(([train]) => train)
+      .sort((one, other) => one.localeCompare(other));
+    if (mine.length === 0 || (this.last !== null && mine.includes(this.last))) return;
+    this.last = mine[0]!;
+    this.kept.set(railroad, this.last);
+    try {
+      globalThis.sessionStorage.setItem(LAST + railroad, this.last);
+    } catch {
+      // Storage refused, or there is none: the page keeps it in `kept`.
     }
   }
 
@@ -645,9 +676,9 @@ export class Session {
    * Worked out here because everything it is made of is here — the run's
    * picture, which throttle `layout` says holds each train, the moves
    * granted, the scheduler's facing, the dispatcher's aspects and the
-   * railroad's roster. Nothing of the throttle's own is in
-   * it: which train a person picked and where they have put the lever are
-   * theirs, and live in the view with the pointer.
+   * railroad's roster, and the last train this throttle held, which only
+   * this page knows. Where a person has put the slider is theirs, and lives
+   * in the view with the pointer.
    */
   private get driving(): Cab[] {
     const model = this.panel;
@@ -665,7 +696,23 @@ export class Session {
         placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
       ),
       stock: this.owned,
+      last: this.last,
     });
+  }
+}
+
+/** Where the last train a throttle held is kept, per railroad: the tab's
+ *  `sessionStorage`, so a second app in the same tab finds it, and nothing
+ *  outlives the tab (ui/THROTTLE.md). */
+export const LAST = "tc49.throttle.last.";
+
+/** The last train kept for `railroad` in `sessionStorage`, `undefined`
+ *  where storage throws — refused, or a world with none. */
+function recalled(railroad: string): string | null | undefined {
+  try {
+    return globalThis.sessionStorage.getItem(LAST + railroad);
+  } catch {
+    return undefined;
   }
 }
 
