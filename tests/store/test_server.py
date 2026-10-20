@@ -122,6 +122,7 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
                 "length": 722,
                 "functions": [{"name": "lights"}],
                 "camera": False,
+                "locomotive": "arnold-ce68",
             }
         },
     }
@@ -225,6 +226,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
         "length": 722,
         "functions": [{"name": "lights"}],
         "camera": True,
+        "locomotive": "arnold-ce68",
     }
     assert trains["light_1"]["camera"] is False
 
@@ -291,7 +293,12 @@ def test_the_run_views_answer_is_the_trains_below_the_document(
     )
     assert status == 200
     assert body["roster"] == "reversing-loops-v0"
-    assert body["trains"]["south"] == {"length": 900, "functions": [], "camera": False}
+    assert body["trains"]["south"] == {
+        "length": 900,
+        "functions": [],
+        "camera": False,
+        "locomotive": None,
+    }
     assert body["trains"] == dict(sorted(body["trains"].items()))
 
 
@@ -321,7 +328,31 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
         "length": 220,
         "functions": [{"name": "headlights"}, {"name": "vacuum"}],
         "camera": False,
+        "locomotive": "re460",
     }
+
+
+def test_a_trains_first_locomotive_is_served_by_its_model(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """What the throttle draws a train as: the model of its first locomotive,
+    head first, and `null` for a train with none. A model name is not a
+    decoder detail, so the answer still carries no address (ui/THROTTLE.md)."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    doc = {
+        "roster": "oval",
+        "cars": {"krokodil_a": {"model": "arnold-ce68", "addr": "3"}},
+        "trains": {
+            "ore": {"cars": [{"model": "bench-600"}, {"car": "krokodil_a"}]},
+            "wagons": {"cars": [{"model": "bench-600"}]},
+        },
+    }
+    assert handle(store, backup, "PUT", "/rosters/oval", doc)[0] == 200
+    trains = handle(store, backup, "GET", "/rosters/oval/trains", None)[1]["trains"]
+    assert trains["ore"]["locomotive"] == "arnold-ce68"
+    assert trains["wagons"]["locomotive"] is None
+    assert set(trains["ore"]) == {"length", "functions", "camera", "locomotive"}
 
 
 def test_a_railroad_with_no_roster_owns_nothing_yet(

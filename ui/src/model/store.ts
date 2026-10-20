@@ -218,9 +218,10 @@ export interface TrainsDoc {
   trains: Record<string, TrainDoc>;
 }
 
-/** One train on the roster: how long it is, and what a person driving it can
- *  switch, and whether it carries a camera. All three are **derived from the
- *  cars it is made of** and none is authored, so they arrive together
+/** One train on the roster: how long it is, what a person driving it can
+ *  switch, whether it carries a camera, and the model of its first
+ *  locomotive. All four are **derived from the cars it is made of** and none
+ *  is authored, so they arrive together
  *  ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
  *  The cars themselves, their addresses and which DCC number each function
  *  sits on are not here: a decoder detail is no view's (ui/THROTTLE.md). */
@@ -233,6 +234,11 @@ export interface TrainDoc {
    *  which is the `camera` app's (ADR-0082). Absent from an older store's
    *  answer, read as `false`. */
   camera?: boolean;
+  /** The `model` of the train's first locomotive, head first, which the
+   *  throttle draws the train as; `null` where the train has none. A model
+   *  name is not a decoder detail. Absent from an older store's answer, read
+   *  as `null`. */
+  locomotive?: string | null;
 }
 
 /** One thing a person can switch on a train, by the name the catalogue gives
