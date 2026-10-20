@@ -210,3 +210,23 @@ export function driveRefusal(linked: boolean, power: Power | null): string | nul
   if (power === null) return "the layout has not said whether the track is live";
   return STILL[power];
 }
+
+/** The narrowest a train's column of driving controls is drawn, in CSS
+ *  pixels: arrangement A with its slider upright beside it. */
+export const COLUMN_PX = 360;
+
+/** The width of the take column, the clock and the trains to take. */
+export const TAKE_PX = 260;
+
+/** The gap between columns. */
+export const GAP_PX = 14;
+
+/**
+ * How many trains' columns fit side by side beside the take column in a view
+ * `width` pixels wide, never fewer than none (ui/THROTTLE.md,
+ * [#855](https://github.com/rails49/control/issues/855)). None is a phone:
+ * no take column, and each held train's controls one below the other.
+ */
+export function columns(width: number): number {
+  return Math.max(0, Math.floor((width - TAKE_PX) / (COLUMN_PX + GAP_PX)));
+}
