@@ -420,7 +420,7 @@ before you commit, which suits a gesture whose entire effect is one arrow
 rotating, and no motion the drag uses can reach it: a plain click on a train's
 own block is already the drag's cancel. Not "Reverse", which is the throttle's
 word; this moves nothing. The same gesture is offered in the throttle view,
-where the lever it must be at rest for is ([THROTTLE.md](THROTTLE.md)); the
+where the slider it must be at rest for is ([THROTTLE.md](THROTTLE.md)); the
 human driver's controls hang there rather than on this menu.
 
 Over bare paper, over an empty block, or with no session joined no menu opens,

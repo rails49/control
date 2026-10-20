@@ -35,27 +35,41 @@ throttle holds it and **taken** where it names another. A train another tab
 holds is marked too, because who holds a train is `layout`'s word about the
 train and not about this page.
 
-**What the picked train is.** Its name, the way it points, the aspect it is
-reading and the blocks in front of it.
+**The picked train's cab**, laid out as arrangement A at every width
+([#852](https://github.com/rails49/control/issues/852)):
 
-**The facing arrow** is the run view's, moved here as well as kept there: the
-value is `tc49/schedule/state/facing`, the run the train would make across its
-block, and the end that run comes out at is the end drawn beside the lever
-(CONTEXT.md, **Facing**). It is here because it is what says which physical
-direction `+` on the lever is, and a person wants that before they move it,
-not after.
+- **At the top, the train's picture**: the model photo of its first
+  locomotive, from the catalogue, by the model the roster route names
+  (`locomotive`, `GET /rosters/<railroad>/trains`). The train's name stands in
+  its place where the train has no locomotive, the roster does not have it, or
+  the photo does not load. Over the picture: the train's name, the aspect, the
+  block it stands in or *crossing a transit*, the blocks ahead, and Release —
+  or Take on a train no throttle holds, or a dead Take and Force release on one
+  another throttle holds.
+- **Below, on the left**: the reverser, the train's functions, Turn around and
+  the clock.
+- **Below, on the right**: the speed, the slider and STOP, where a right thumb
+  holding a phone is.
 
-**The aspect at the end the train would leave by**, from
-`tc49/dispatch/state/aspects`, and the blocks the train's committed route has
-past the one it stands in. A person driving by hand reads the signal, and this
-is where they read it — the view derives no aspect, exactly as the panel
-derives none
-([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-The blocks ahead wear the two colours a route is lit in on the run view: green
-where the dispatcher holds the lock and the train may move, cyan where the
-route is chosen and the claim has not been made yet. Neither is derived here
-either; both are read off the same ledger the picture is lit from
-([PANEL.md](PANEL.md)).
+**The aspect at the end the reverser points the train to**, from
+`tc49/dispatch/state/aspects`: for Forward the end its facing names
+(`tc49/schedule/state/facing`, CONTEXT.md, **Facing**), for Reverse the
+block's other end. A person driving by hand reads the signal, and this is
+where they read it — the view derives no aspect, exactly as the panel derives
+none ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+The blocks the train's committed route has past the one it stands in wear the
+two colours a route is lit in on the run view: green where the dispatcher
+holds the lock and the train may move, cyan where the route is chosen and the
+claim has not been made yet. Neither is derived here either; both are read off
+the same ledger the picture is lit from ([PANEL.md](PANEL.md)).
+
+**The speed** as a whole percentage of the train's maximum, with no sign, and
+under it *at rest*, *nose first* or *tail first*.
+
+**The clock**, `tc-clock`: the browser's local wall time as a station clock —
+a white face, twelve black bars, black hour and minute hands and a red second
+hand, redrawn once a second. It shows wherever the cab shows, and stays wall
+time until the railroad has a fast clock.
 
 **Nothing about hardware.** No address, no decoder step, no command station,
 no function number. The UI reaches the bus and the store and there is no other
@@ -83,9 +97,9 @@ are released once its silence runs out.
 railroad is in one driving mode, `manual` or `automatic`, stated on
 `tc49/layout/state/driving`; the band's driving control shows it and switches
 it in this view too ([PANEL.md](PANEL.md)). A take of a train another throttle holds is
-dropped. The lever is applied from the throttle holding the train at any time,
+dropped. The speed is applied from the throttle holding the train at any time,
 granted move or not, while the rails are live: the move ending at its sensor
-writes `0.0`, and the next lever frame drives the train on. A frame reversing a
+writes `0.0`, and the next speed frame drives the train on. A frame reversing a
 running train writes `0.0` until the throttle sends `0` (ADR-0084). A train no
 throttle holds stands at its signal in `manual` and is driven on its grant in
 `automatic`. So a release writes `0.0` in `manual`; in `automatic` mid-move it
@@ -101,9 +115,9 @@ race, and `layout` counts it as hearing from that throttle.
 **The train reads as taken when the state topic says so**, never on the
 gesture. `layout` holds who holds each train and publishes `state/taken`, and a
 view that marked a train taken on its own press would show a person holding a
-train `layout` never handed them (ADR-0035). The speed control is offered
-while `state/taken` names this throttle for the train and at no other time, so
-releasing takes it away. `throttle_alive` follows the same row: it starts when
+train `layout` never handed them (ADR-0035). The reverser, the slider, STOP
+and Turn around are offered while `state/taken` names this throttle for the
+train and at no other time, so releasing takes them away. `throttle_alive` follows the same row: it starts when
 `state/taken` names this throttle for a train on the layout and stops when it
 names it for none, or the broker goes.
 
@@ -118,46 +132,66 @@ the speed the person left, or the grant's where the train stands (SYSTEM.md,
 *Who drives*); a zero from here would be a second party deciding how fast the
 railroad drives it.
 
-**The lever is live only while the train has a move outstanding**: from the
-grant to the `block_occupied` of the block that move enters, which is the span
-`layout` applies a throttle's speed in. The span is read off the retained
-`state/allocation` picture and not worked out from the locks: the train is in
-its `crossing` — the dispatcher's own outstanding set, written at the grant
-and dropped at the arrival sensor — and one of its requests carries a `route`,
-the move behind it. The crossing the dispatcher restores after a restart has no
-request behind it and no move `layout` is known to hold, so it leaves the lever
-dead. Because the picture is retained, a page opened or reloaded mid-move sees
-the lever as `layout` does. Outside a move it is dead and at rest, which is the
-speed `layout` wrote when the move ended, and the view says the lever waits for
-the next grant.
+**The slider is live whenever this throttle holds the train** and the rails
+are live, granted move or not
+([ADR-0081](../adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)):
+a person at a platform can back a train up a few centimetres without asking
+for a move. It runs from 0 at the bottom to 1 at the top in steps of 0.05, and
+dragging it does not scroll the page. Leaving the block is the person's
+responsibility; nothing stops a held train at its block's ends.
 
-**The lever is one signed number for the train.** `tc49/layout/throttle_wanted`
-carries `{train, speed}`, −1.0 through 0 to 1.0 as a fraction of that train's
-maximum, and **`+` is the way the train points** — not a locomotive's own
+**The reverser** is two presses, Forward and Reverse, both shown and the
+current one pressed (CONTEXT.md, **Reverser**). Forward drives the train nose
+first, Reverse tail first; it turns neither the facing nor any car. It is live
+under the slider's conditions **and only with the slider at 0**
+([ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)): a flip
+at speed reverses a rolling train, and behind a long one cars can leave the
+rails. Switching it sends nothing; the next slider input carries the new
+sign. It is Forward on every pick.
+
+**The speed is one signed number for the train.** Each slider input publishes
+one `tc49/layout/throttle_wanted` `{train, speed}`: the slider's value, signed
+by the reverser — Forward positive, Reverse negative — as a fraction of that
+train's maximum. `+` is the way the train points, not a locomotive's own
 forward. `layout` composes the sign each car's decoder is given from the
-direction the lever states and the way round that car is coupled
+direction the speed states and the way round that car is coupled
 ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)),
-so a person driving a top-and-tail set pushes one lever and both locomotives
+so a person driving a top-and-tail set moves one slider and both locomotives
 do the right thing. Which locomotive a speed reaches is never this view's
 question ([#292](https://github.com/rails49/control/issues/292)).
 
-What is on screen is what went on the bus: the lever publishes the value it is
-now showing, and the number beside it is that value.
+**The slider goes to 0, sending nothing**, when the train's granted move ends
+(`layout` writes `0.0` at the move's sensor), when the train is released by
+anybody, when a train is picked, when the run takes the train off the layout,
+and when `state/power` reads `off`. The reverser keeps its position through
+all of these except a pick. A train released in `automatic` mid-move keeps the
+person's speed until the move ends, `layout`'s decision and not this view's;
+the slider here is at 0 because this throttle no longer drives it.
 
-**Centre is stop and is one gesture.** A STOP beside the lever centres it and
-publishes `0`, live whether or not a move is outstanding, because it is the control a person reaches for when something
-is wrong and sliding back through every speed between is not that.
+The move is read off the retained `state/allocation` picture and not worked
+out from the locks: the train is in its `crossing` — the dispatcher's own
+outstanding set, written at the grant and dropped at the arrival sensor — and
+one of its requests carries a `route`, the move behind it. A frame that leaves
+a train with no move, where it had none before, ends nothing and leaves the
+slider where it was.
+
+What is on screen is what went on the bus: the slider publishes the value it
+is now showing, and the percentage above it is that value.
+
+**STOP is one gesture.** It puts the slider to 0 and publishes `0`, and leaves
+the reverser where it is, because it is the control a person reaches for when
+something is wrong and sliding back through every speed between is not that.
 
 **Turn it round.** A control publishing `tc49/schedule/reversal_wanted`,
 `{train}` — the same gesture the run view's right-click menu writes — offered
-**only while the lever is at zero**: flipping the facing under a moving train
+**only while the slider is at zero**: flipping the facing under a moving train
 would reverse it on the spot. It is greyed while that train has a request in
 flight, which is the run view's own rule about the same flip and is here for
 the same reason: the request departs the end the facing named when it was
 composed, so a flip under it leaves the train pointing one way and leaving the
 other ([#295](https://github.com/rails49/control/issues/295)). After a flip the
-same lever drives the train the other way physically, which is the point of
-working in the train's frame.
+same reverser drives the train the other way physically, which is the point
+of working in the train's frame.
 
 **The functions** of the train's own cars, by the names the catalogue gives
 them and by no number, from `GET /rosters/<railroad>/trains` — a train's functions
@@ -183,12 +217,21 @@ else here changes.
 **Everything is dead while the rails are not live.** With
 `tc49/layout/state/power` anything but `on`, or with no session answering, no
 gesture can be sent from this view and the reason stands where the controls
-are: *emergency stop — clear it before driving* against *the track has no
-power — switch it on to drive*, because the two ask for different actions by
-the person recovering
-([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
-Picking a train and reading what it faces go on working: reading is not
-gesturing.
+are, as `STILL` in `ui/src/model/throttle.ts` has them: *the railroad is
+draining — switch it on to drive* and *the track has no power — switch it on
+to drive*, or *no broker answering — is the bus running?* with no session
+answering
+([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
+ADR-0078). Picking a train and reading what it faces go on working: reading
+is not gesturing.
+
+**A narrow window.** At a window width of `NARROW_WIDTH_PX` (600 px, from
+`@rails49/look`) or less, read with `matchMedia` and followed when it changes,
+the view shows one pane, full width: the train list with no train picked, and
+the cab with one picked, with a **Trains** press at its top that puts the
+train down — it stays held, and nothing is sent. Release returns to the list.
+Above it the list stays in the left pane beside the cab. A window too short
+for the cab scrolls it.
 
 ## What it is not
 
@@ -205,9 +248,10 @@ is not on the layout are all somewhere else.
 ## Implementation
 
 `ui/src/ui/tc-throttle.ts`, a Lit component in the shape the other views take,
-with its styles beside it. It works nothing out: every train it offers, who
+with its styles beside it, and the clock in `ui/src/ui/tc-clock.ts`. It works nothing out: every train it offers, who
 holds each, whether it has a move outstanding, the end each points at, the
-aspect there, the road ahead and the functions arrive as `Cab`s from
+aspects at both ends of its block, the road ahead, the functions and its first
+locomotive's model arrive as `Cab`s from
 `ui/src/model/throttle.ts`, which is a pure function over the apps' answers
 and this page's throttle id, and holds no state of its own. The panel model
 reads `state/taken` and `state/allocation` (`ui/src/model/panel.ts`).
@@ -242,12 +286,11 @@ shown while holding, or when holding next starts. A browser with no wake lock,
 or one that refuses, changes nothing else: no message, no retry loop.
 
 What is this view's own is what belongs to the person at it: the train they
-picked and where they have put the lever. Neither is on the bus — nothing
-publishes a throttle's position back — so the lever is what this view shows
-and what it last sent. It returns to rest when the train is picked afresh,
-when the train is given back by anybody, when its move ends, and when the run takes the train off
-the layout, which also lets go of the train entirely: there is nothing left
-for a lever to move.
+picked, where they have put the slider and the reverser. None is on the bus —
+nothing publishes a throttle's position back — so the slider is what this view
+shows and, signed, what it last sent. When the run takes the train off the
+layout the view lets go of the train entirely: there is nothing left for a
+slider to move.
 
 The **roster route** carries what a person can switch beside the length,
 whether the train carries a camera, and the model of its first locomotive,
@@ -264,8 +307,9 @@ Split the way the app's suites are split. `ui/test/cabs.test.ts` drives the
 model with no DOM — which throttle holds a train, here or elsewhere, an
 unreadable entry leaving it held by nobody, the move outstanding read off the
 picture from the grant to its sensor and none for a restored crossing with no
-request behind it, the end it points at, the aspect there, the blocks ahead
-and their claims, and which trains are offered at all.
+request behind it, the end it points at, the aspect there and at the block's
+other end, the blocks ahead and their claims, the first locomotive's model or
+`null` where the field is absent, and which trains are offered at all.
 `ui/test/session.test.ts` checks the frames the session writes — the take and
 release under its id, the speed naming it — and the timing of
 `throttle_alive` on a fake clock: once a second from the `state/taken` row
@@ -276,11 +320,18 @@ controls, which is the only place the questions this page is about can be
 asked: that taking a train writes one `take_wanted` and not two, that the view
 waits for `state/taken` before it says a train is taken, that a train another
 throttle holds cannot be taken and is force released with `null`, that the
-lever is dead until a move is granted and goes to rest when it ends, that the
-number on screen is the number that went out, that centring publishes zero,
-that releasing writes `null` and takes the lever away, and that with the rails
-dead every press leaves nothing on the socket at all — checked by pressing
-them, not by trusting a disabled attribute.
+slider drives a held train with no move outstanding and runs from 0, that the
+reverser signs it, is dead off 0, sends nothing when switched and is Forward
+on every pick, that the slider goes to rest when a granted move ends and when
+power reads off and stays put on a frame that ends no move, that the speed
+reads as a percentage and which end leads, that STOP publishes zero and leaves
+the reverser, that the aspect shown follows the reverser, that the picture is
+the first locomotive's photo with the name standing in, that on a 390×844
+viewport the view shows the list or the cab and Trains and Release return to
+the list, that releasing writes `null` and takes the slider away, and that
+with the rails dead every press leaves nothing on the socket at all — checked
+by pressing them, not by trusting a disabled attribute.
+`ui/test/clock.test.ts` puts the clock's hands at a fake time.
 It also gives the app a fake `navigator.wakeLock`: `state/taken` naming this
 throttle asks for the lock, naming another throttle or the broker closing lets
 it go, and with no wake lock at all taking, driving and releasing write the
