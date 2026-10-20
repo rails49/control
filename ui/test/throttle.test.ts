@@ -33,6 +33,7 @@ import {
   written as everything,
 } from "./support/session.js";
 import { FakeLock } from "./support/wake.js";
+import { photoUrl } from "../src/model/store.js";
 
 beforeEach(brokering);
 
@@ -109,6 +110,14 @@ async function moved(shell: TcApp, to: number): Promise<void> {
   await settled(shell);
 }
 
+/** Which way the reverser is pressed: the one press of the two that says so. */
+function reverser(shell: TcApp): "forward" | "reverse" {
+  const forward = part(shell, "button.forward")!.getAttribute("aria-pressed") === "true";
+  const reverse = part(shell, "button.reverse")!.getAttribute("aria-pressed") === "true";
+  expect(forward).not.toBe(reverse);
+  return forward ? "forward" : "reverse";
+}
+
 /** The throttle id this page named itself by, read off the first frame that
  *  carried it. */
 function mine(): string {
@@ -127,13 +136,18 @@ const GRANTED = {
   requests: [{ id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "j.over", "b"] }],
 };
 
-/** `goods`, taken and granted a move: the gesture, `layout`'s answer on the
- *  state topic, and the picture with the move the lever is live within. */
-async function taken(shell: TcApp): Promise<void> {
+/** `goods`, taken and nothing granted: the gesture and `layout`'s answer. */
+async function held(shell: TcApp): Promise<void> {
   await pick(shell, "goods");
   take(shell).click();
   await settled(shell);
   await said(shell, TAKEN, { taken: { goods: mine() } });
+}
+
+/** `goods`, taken and granted a move: the gesture, `layout`'s answer on the
+ *  state topic, and the picture with the move the lever is live within. */
+async function taken(shell: TcApp): Promise<void> {
+  await held(shell);
   await said(shell, ALLOCATION, GRANTED);
 }
 
@@ -230,36 +244,205 @@ describe("a train another throttle holds", () => {
   });
 });
 
-describe("the lever and the move", () => {
-  /** `layout` applies a throttle's speed only within a granted move, so the
-   *  lever is live only then (ADR-0079). */
-  it("is dead until the train has a move outstanding", async () => {
+describe("the slider", () => {
+  /** A throttle drives the train it holds at any time, granted move or not
+   *  (ADR-0081). */
+  it("drives a held train with no move outstanding", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
-    take(shell).click();
-    await settled(shell);
-    await said(shell, TAKEN, { taken: { goods: mine() } });
+    await held(shell);
     const before = written().length;
 
-    expect(lever(shell)!.disabled).toBe(true);
-    await moved(shell, 0.5);
-    expect(written().length).toBe(before);
-
-    await said(shell, ALLOCATION, GRANTED);
     expect(lever(shell)!.disabled).toBe(false);
+    await moved(shell, 0.35);
+
+    expect(written().slice(before)).toEqual([
+      { topic: THROTTLE_WANTED, payload: { train: "goods", speed: 0.35, throttle: mine() } },
+    ]);
+  });
+
+  /** Unsigned: which way is the reverser's. */
+  it("runs from 0 at the bottom to 1 at the top", async () => {
+    const shell = await driving();
+    await held(shell);
+    expect(lever(shell)!.min).toBe("0");
+    expect(lever(shell)!.max).toBe("1");
   });
 
   /** The move ends at its sensor and `layout` writes `0.0` there, so the
-   *  lever goes back to rest and dead with it. */
-  it("goes to rest when the move ends at its sensor", async () => {
+   *  slider goes back to rest, and the reverser stays where the person put
+   *  it. */
+  it("goes to rest when the granted move ends, the reverser unchanged", async () => {
     const shell = await driving();
     await taken(shell);
+    await pressed(shell, "button.reverse");
     await moved(shell, 0.5);
 
-    await said(shell, "tc49/layout/block_occupied", { block: "b" });
+    await said(shell, ALLOCATION, PICTURE);
 
     expect(lever(shell)!.value).toBe("0");
-    expect(lever(shell)!.disabled).toBe(true);
+    expect(lever(shell)!.disabled).toBe(false);
+    expect(reverser(shell)).toBe("reverse");
+  });
+
+  /** Only a move ending puts it to rest: a frame that changes something
+   *  else about a train with no move leaves it where the hand left it. */
+  it("stays where it was on a frame that leaves no move where there was none", async () => {
+    const shell = await driving();
+    await held(shell);
+    await moved(shell, 0.35);
+    expect(written().at(-1)).toMatchObject({ payload: { speed: 0.35 } });
+
+    await said(shell, ALLOCATION, {
+      ...PICTURE,
+      requests: [{ id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"] }],
+    });
+
+    expect(lever(shell)!.value).toBe("0.35");
+  });
+
+  it("goes to rest when the track power reads off", async () => {
+    const shell = await driving();
+    await held(shell);
+    await moved(shell, 0.35);
+
+    await said(shell, POWER, { power: "off" });
+
+    expect(lever(shell)!.value).toBe("0");
+  });
+
+  it("reads as a whole percentage and which end leads", async () => {
+    const shell = await driving();
+    await held(shell);
+    expect(part(shell, ".reading")!.textContent!.trim()).toBe("0 %");
+    expect(part(shell, ".motion")!.textContent!.trim()).toBe("at rest");
+
+    await moved(shell, 0.35);
+    expect(part(shell, ".motion")!.textContent!.trim()).toBe("nose first");
+
+    await pressed(shell, "button.stop");
+    await pressed(shell, "button.reverse");
+    await moved(shell, 0.35);
+    expect(written().at(-1)).toMatchObject({ payload: { speed: -0.35 } });
+    expect(part(shell, ".reading")!.textContent!.trim()).toBe("35 %");
+    expect(part(shell, ".motion")!.textContent!.trim()).toBe("tail first");
+  });
+});
+
+describe("the reverser", () => {
+  it("signs the slider's value: Reverse runs the train tail first", async () => {
+    const shell = await driving();
+    await held(shell);
+
+    await pressed(shell, "button.reverse");
+    await moved(shell, 0.35);
+
+    expect(written().at(-1)).toEqual({
+      topic: THROTTLE_WANTED,
+      payload: { train: "goods", speed: -0.35, throttle: mine() },
+    });
+  });
+
+  /** A flip at speed would reverse a rolling train (ADR-0084). */
+  it("is dead with the slider off 0", async () => {
+    const shell = await driving();
+    await held(shell);
+    await moved(shell, 0.35);
+
+    expect(part<HTMLButtonElement>(shell, "button.forward")!.disabled).toBe(true);
+    expect(part<HTMLButtonElement>(shell, "button.reverse")!.disabled).toBe(true);
+  });
+
+  /** The next slider input carries the new sign, and nothing before it. */
+  it("sends nothing when switched", async () => {
+    const shell = await driving();
+    await held(shell);
+    const before = written().length;
+
+    await pressed(shell, "button.reverse");
+    await pressed(shell, "button.forward");
+    await pressed(shell, "button.reverse");
+
+    expect(written().length).toBe(before);
+    expect(reverser(shell)).toBe("reverse");
+    await moved(shell, 0.35);
+    expect(written().slice(before)).toEqual([
+      { topic: THROTTLE_WANTED, payload: { train: "goods", speed: -0.35, throttle: mine() } },
+    ]);
+  });
+
+  it("is Forward on every pick", async () => {
+    const shell = await driving();
+    await held(shell);
+    await pressed(shell, "button.reverse");
+
+    await pick(shell, "goods");
+
+    expect(reverser(shell)).toBe("forward");
+  });
+
+  /** STOP is the slider's, and leaves the way the train was going. */
+  it("stays where it is through STOP", async () => {
+    const shell = await driving();
+    await held(shell);
+    await pressed(shell, "button.reverse");
+    await moved(shell, 0.8);
+
+    await pressed(shell, "button.stop");
+
+    expect(written().at(-1)).toEqual({
+      topic: THROTTLE_WANTED,
+      payload: { train: "goods", speed: 0, throttle: mine() },
+    });
+    expect(lever(shell)!.value).toBe("0");
+    expect(reverser(shell)).toBe("reverse");
+  });
+
+  /** The signal a person reads is the one at the end the train would leave
+   *  by, which the reverser decides (ADR-0025). */
+  it("picks the aspect shown: the facing end's for Forward, the other's for Reverse", async () => {
+    const shell = await driving();
+    await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
+    await said(shell, ASPECTS, { aspects: { "a.B": "caution", "a.A": "clear" } });
+    await held(shell);
+    expect(part(shell, ".aspect")!.textContent!.trim()).toBe("caution");
+
+    await pressed(shell, "button.reverse");
+
+    expect(part(shell, ".aspect")!.textContent!.trim()).toBe("clear");
+  });
+});
+
+describe("the train's picture", () => {
+  it("is the photo of its first locomotive's model", async () => {
+    const shell = await driving();
+    await pick(shell, "goods");
+    expect(part<HTMLImageElement>(shell, "img.picture")!.getAttribute("src")).toBe(
+      photoUrl("BR 218"),
+    );
+  });
+
+  /** A model with no photo filed answers 404, and the name stands in. */
+  it("is the train's name where the photo does not load", async () => {
+    const shell = await driving();
+    await pick(shell, "goods");
+
+    part(shell, "img.picture")!.dispatchEvent(new Event("error"));
+    await settled(shell);
+
+    expect(part(shell, "img.picture")).toBeNull();
+    expect(part(shell, ".picture")!.textContent!.trim()).toBe("goods");
+  });
+
+  it("is the train's name where it has no locomotive", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, {
+      trains: { shunter: "b" },
+      locks: { b: "shunter" },
+      requests: [],
+    });
+    await pick(shell, "shunter");
+    expect(part(shell, "img.picture")).toBeNull();
+    expect(part(shell, ".picture")!.textContent!.trim()).toBe("shunter");
   });
 });
 
@@ -274,22 +457,7 @@ describe("driving it", () => {
       topic: THROTTLE_WANTED,
       payload: { train: "goods", speed: 0.6, throttle: mine() },
     });
-    expect(part(shell, ".reading")!.textContent!.trim()).toBe("0.60");
-  });
-
-  /** `+` is the way the train points, so the same lever drives it either way
-   *  along the track and the view sends one signed number for the train
-   *  (CONTEXT.md, **Throttle**). */
-  it("sends one signed number and never a direction", async () => {
-    const shell = await driving();
-    await taken(shell);
-
-    await moved(shell, -0.4);
-
-    expect(written().at(-1)).toEqual({
-      topic: THROTTLE_WANTED,
-      payload: { train: "goods", speed: -0.4, throttle: mine() },
-    });
+    expect(part(shell, ".reading")!.textContent!.trim()).toBe("60 %");
   });
 
   /** Centre is stop, and it is the control a person reaches for when
@@ -309,15 +477,6 @@ describe("driving it", () => {
     expect(lever(shell)!.value).toBe("0");
   });
 
-  /** The way the lever's `+` runs, drawn before anything moves: the
-   *  scheduler's facing, which is the end the train would leave by. */
-  it("shows which way the train points", async () => {
-    const shell = await driving();
-    await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
-    await pick(shell, "goods");
-    expect(part(shell, ".facing")!.textContent).toContain("a.B");
-  });
-
   /** A person driving by hand reads the signal, and this is where they read
    *  it (ADR-0025). */
   it("shows the aspect at the end the train would leave by", async () => {
@@ -330,12 +489,9 @@ describe("driving it", () => {
 });
 
 describe("turning it round", () => {
-  it("publishes reversal_wanted while the lever is at rest", async () => {
+  it("publishes reversal_wanted while the slider is at rest", async () => {
     const shell = await driving();
-    await pick(shell, "goods");
-    take(shell).click();
-    await settled(shell);
-    await said(shell, TAKEN, { taken: { goods: mine() } });
+    await held(shell);
 
     await pressed(shell, "button.turn");
 
@@ -466,6 +622,7 @@ describe("with the rails dead", () => {
     take(shell).click();
     part<HTMLButtonElement>(shell, "button.stop")!.click();
     part<HTMLButtonElement>(shell, "button.turn")!.click();
+    part<HTMLButtonElement>(shell, "button.reverse")!.click();
     await moved(shell, 0.7);
     await settled(shell);
 
@@ -495,6 +652,71 @@ describe("with the rails dead", () => {
     expect(throttling(shell).renderRoot.textContent).toContain(
       "no broker answering — is the bus running?",
     );
+  });
+});
+
+/** A phone's window: the list or the cab, never both. */
+describe("a narrow window", () => {
+  function viewport(width: number, height: number): void {
+    (window as unknown as { happyDOM: { setViewport(size: object): void } }).happyDOM.setViewport(
+      { width, height },
+    );
+  }
+
+  function showing(shell: TcApp): { list: boolean; cab: boolean } {
+    return { list: part(shell, "nav.trains") !== null, cab: part(shell, "main") !== null };
+  }
+
+  beforeEach(() => viewport(390, 844));
+
+  afterEach(() => viewport(1024, 768));
+
+  it("shows the list with nothing picked, and the cab once a train is", async () => {
+    const shell = await driving();
+    expect(showing(shell)).toEqual({ list: true, cab: false });
+
+    await pick(shell, "goods");
+
+    expect(showing(shell)).toEqual({ list: false, cab: true });
+  });
+
+  /** Trains puts the train down; it does not give it back. */
+  it("returns to the list from Trains, publishing nothing", async () => {
+    const shell = await driving();
+    await held(shell);
+    const before = written().length;
+
+    await pressed(shell, "button.back");
+
+    expect(showing(shell)).toEqual({ list: true, cab: false });
+    expect(written().length).toBe(before);
+  });
+
+  it("returns to the list on Release, which publishes take_wanted null", async () => {
+    const shell = await driving();
+    await held(shell);
+
+    take(shell).click();
+    await settled(shell);
+
+    expect(written().at(-1)).toEqual({
+      topic: TAKE_WANTED,
+      payload: { train: "goods", throttle: null },
+    });
+    expect(showing(shell)).toEqual({ list: true, cab: false });
+  });
+
+  /** Followed when it changes, as a phone turned on its side changes it. */
+  it("shows both above 600 px, and follows the window", async () => {
+    viewport(1024, 768);
+    const shell = await driving();
+    await pick(shell, "goods");
+    expect(showing(shell)).toEqual({ list: true, cab: true });
+
+    viewport(390, 844);
+    await settled(shell);
+
+    expect(showing(shell)).toEqual({ list: false, cab: true });
   });
 });
 
