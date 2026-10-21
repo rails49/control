@@ -125,6 +125,15 @@ and the two presses are dead and say why once beneath the list
 | a railroad is loaded and the layout has not said whether the track has power | `the layout has not said whether the track has power` |
 | the roster has unsaved edits | `the roster has unsaved edits — save first` |
 
+**An invalid railroad can be picked**
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 4, #900). The list carries no mark for a railroad whose drawing is
+not a valid drawing, and refuses it nothing: a pick asks for it like any
+other, the row names it with `built: false`, and the page opens its drawing
+in the Edit view with the Run view grey and ON refused, as after a restart
+([An invalid railroad opens in the editor](#files)). Refusing it would leave
+the drawing with no way to be opened, and so no way to be fixed.
+
 **Track power off is the precondition, and the press meets it**
 ([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
 decision 5). A pick, New or Copy loaded as… pressed with power `on` asks for
