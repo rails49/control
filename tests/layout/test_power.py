@@ -145,7 +145,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     bus.drain()
 
     assert seen == [
-        (RAILROAD, {"at": 0.0, "name": "bench"}),
+        (RAILROAD, {"at": 0.0, "name": "bench", "built": True}),
         (WANTED_TRACK, {"at": 0.0, "power": "off"}),
         (POWER, {"at": 0.0, "power": "off"}),
         (DRIVING, {"at": 0.0, "driving": "manual"}),

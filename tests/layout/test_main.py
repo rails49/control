@@ -42,7 +42,7 @@ from tc49.layout.interface import (
 )
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
-from tc49.lib.loading import NO_RAILROAD, RAILROAD_WANTED
+from tc49.lib.loading import BUILT, NO_RAILROAD, RAILROAD_WANTED
 from tc49.lib.mqtt import MqttBus
 from tc49.store import AssetStore
 from tc49.store.server import make_server
@@ -480,33 +480,117 @@ def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
     witness.close()
 
 
-def test_a_saved_drawing_that_does_not_derive_leaves_the_railroad_loaded(
+def broken(root: Path, railroad: str) -> None:
+    """`railroad`'s drawing with its last wire gone, which leaves a dangling
+    pin: a drawing that is not a valid drawing, as a track plan being rebuilt
+    is (ADR-0085)."""
+    drawing = root / "layouts" / f"{railroad}.drawing.yaml"
+    document = yaml.safe_load(drawing.read_text())
+    document["wires"] = document["wires"][:-1]
+    drawing.write_text(yaml.safe_dump(document, sort_keys=False))
+
+
+def test_a_saved_drawing_that_does_not_derive_names_the_railroad_not_built(
     broker: Broker, store: Store, root: Path, app: App
 ) -> None:
     """A save names the loaded railroad again (ADR-0071), and the store then
     holds a drawing with a dangling pin under that name. The app stays up on
-    what it was built on and the row still names the railroad, so the page
-    keeps the drawing open for the fix."""
+    what it was built on, and the row names the railroad with `built: false`
+    so the page keeps the drawing open for the fix. The fix saved is the
+    build arriving: `built: true` with a new stamp (ADR-0085, decision 4)."""
     store.start()
     witness, heard = watching(broker)
     app.start()
     # Power, not the railroad row: the constructor says power after the row,
     # and the gesture is dropped until the app has heard power read off.
     assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
-
+    assert rows(heard, RAILROAD)[-1][BUILT] is True
     drawing = root / "layouts" / f"{NAME}.drawing.yaml"
-    document = yaml.safe_load(drawing.read_text())
-    document["wires"] = document["wires"][:-1]
-    drawing.write_text(yaml.safe_dump(document, sort_keys=False))
+    valid = drawing.read_text()
+
+    broken(root, NAME)
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
     hand.publish(RAILROAD_WANTED, {"railroad": NAME})
 
-    assert drained(witness, lambda: len(rows(heard, RAILROAD)) == 2), "not rebuilt"
+    assert drained(witness, lambda: len(rows(heard, RAILROAD)) == 2), "not named"
     assert app.running, "the app stopped"
-    assert rows(heard, RAILROAD)[-1]["name"] == NAME
+    unbuilt = rows(heard, RAILROAD)[-1]
+    assert (unbuilt["name"], unbuilt[BUILT]) == (NAME, False)
+    assert AssetStore(root).loaded() == NAME
+
+    drawing.write_text(valid)
+    hand.publish(RAILROAD_WANTED, {"railroad": NAME})
+
+    assert drained(
+        witness, lambda: rows(heard, RAILROAD)[-1].get(BUILT) is True
+    ), "the fix was never built"
+    rebuilt = rows(heard, RAILROAD)[-1]
+    assert rebuilt["name"] == NAME
+    assert rebuilt["at"] != unbuilt["at"]
     hand.close()
     witness.close()
+
+
+def test_a_pick_whose_drawing_does_not_derive_is_recorded_and_not_built(
+    broker: Broker, store: Store, root: Path, app: App
+) -> None:
+    """A railroad picked under another name whose drawing is not a valid
+    drawing stays named: the store records it, so a restart comes up on it,
+    and the row says nothing was built. The app goes on running the one it
+    was built on (ADR-0085, decision 4)."""
+    drawn(root, OTHER)
+    broken(root, OTHER)
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(RAILROAD_WANTED, {"railroad": OTHER})
+
+    assert drained(
+        witness, lambda: rows(heard, RAILROAD)[-1]["name"] == OTHER
+    ), "the pick was dropped"
+    assert rows(heard, RAILROAD)[-1][BUILT] is False
+    assert AssetStore(root).loaded() == OTHER
+    assert app.running, "the app stopped"
+    hand.close()
+    witness.close()
+
+
+def test_a_restart_on_a_railroad_whose_drawing_does_not_derive_names_it(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """After a restart the record names a railroad whose drawing is not a
+    valid drawing: the app names it on the row with `built: false`, rather
+    than standing on none, so the page can open it for the fix (#885). The
+    record stands, and the power is still answered, a person driving the
+    station by hand to test (rails49/dccex#329)."""
+    broken(root, NAME)
+    recorded(root, NAME)
+    store.start()
+    app = App(broker, store, railroad=NO_RAILROAD)
+    witness, heard = watching(broker)
+    try:
+        app.start()
+        assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
+        named = rows(heard, RAILROAD)[-1]
+        assert (named["name"], named[BUILT]) == (NAME, False)
+        assert AssetStore(root).loaded() == NAME
+        assert app.running, "the app stopped on its own"
+
+        hand = MqttBus(port=broker.port)
+        assert hand.wait_connected()
+        hand.publish(POWER_WANTED, {"power": "on"})
+        assert drained(
+            witness, lambda: rows(heard, WANTED_TRACK)[-1]["power"] == "on"
+        ), "ON was refused"
+        hand.close()
+    finally:
+        app.stop()
+        witness.close()
 
 
 @pytest.mark.parametrize("environ", [{}, {SILENCE_ENV: ""}, {SILENCE_ENV: "  "}])
