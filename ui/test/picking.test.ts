@@ -28,8 +28,9 @@
  */
 
 import type { LookView } from "@rails49/look";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ANSWER_MS } from "../src/model/settings.js";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
@@ -61,6 +62,10 @@ import {
 const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 const POWER = "tc49/layout/state/power";
 const POWER_WANTED = "tc49/layout/power_wanted";
+const ALLOCATION = "tc49/dispatch/state/allocation";
+
+/** The dispatcher's picture of a railroad it has just built: nothing on it. */
+const EMPTY = { trains: {}, locks: {}, requests: [] };
 
 /** The railroads this store has, the toy one among them: a list with one
  *  entry could not tell a choice from a tick. */
@@ -389,7 +394,8 @@ describe("what the dialog lists", () => {
     expect(written()).toEqual([]);
   });
 
-  /** The dialog stays up, so the answer is seen to come back. */
+  /** The dialog stays up until the pick has landed (#902), so the answer is
+   *  seen to come back. */
   it("stays open, and moves the tick when the row names the new railroad", async () => {
     const shell = await dark();
     const dialog = await pick(shell, "otira");
@@ -741,5 +747,167 @@ describe("a railroad whose drawing is invalid", () => {
     expect(session(shell).drawing.drawing).toBe("otira");
     expect(current(shell)).toBe("edit");
     expect(power(shell).toggleReason).toBe("Fix the drawing first");
+  });
+});
+
+/** The view that is current, by the rail's mark. */
+function viewed(shell: TcApp): string {
+  return rail(shell).querySelector<LookView>("look-view[current]")!.name;
+}
+
+/** The railroads whose rows wear the spinner. */
+function busy(dialog: TcSettings): string[] {
+  return [...dialog.renderRoot.querySelectorAll("ul.railroads li button")]
+    .filter((one) => one.querySelector("sl-spinner") !== null)
+    .map((one) => one.querySelector(".label")!.textContent!.trim());
+}
+
+/** What a row says beside its name where the layout did not answer. */
+function unanswered(dialog: TcSettings, name: string): string | null {
+  const row = [
+    ...dialog.renderRoot.querySelectorAll("ul.railroads li button"),
+  ].find((one) => one.querySelector(".label")!.textContent!.trim() === name);
+  return row?.querySelector(".unanswered")?.textContent?.trim() ?? null;
+}
+
+/**
+ * A pick looks busy until it has landed (#902): the row wears a spinner from
+ * the press until the page holds the drawing, the row names it and the
+ * dispatcher has said its picture since; then the dialog goes and the page
+ * shows the Run view, or the Edit view where nothing was built. A pick that
+ * has not landed `ANSWER_MS` after it was asked for stops, and its row says
+ * the layout did not answer.
+ */
+describe("a pick on its way", () => {
+  it("wears the spinner, and its presses are dead, until it lands", async () => {
+    const shell = await dark();
+
+    const dialog = await pick(shell, "otira");
+
+    expect(busy(dialog)).toEqual(["otira"]);
+    const buttons = [
+      ...dialog.renderRoot.querySelectorAll<HTMLButtonElement>(
+        "ul.railroads li button",
+      ),
+    ];
+    expect(buttons.every((one) => one.disabled)).toBe(true);
+  });
+
+  it("is still on its way once the row names it, until the allocation", async () => {
+    const shell = await dark();
+    const dialog = await pick(shell, "otira");
+
+    await loads(shell, "otira");
+
+    expect(dialog.open).toBe(true);
+    expect(busy(dialog)).toEqual(["otira"]);
+  });
+
+  it("closes the dialog on the run view once the dispatcher has said", async () => {
+    const shell = await joined("throttle");
+    await said(shell, POWER, { power: "off" });
+    const dialog = await pick(shell, "otira");
+
+    await loads(shell, "otira");
+    await said(shell, ALLOCATION, EMPTY);
+
+    expect(dialog.open).toBe(false);
+    expect(viewed(shell)).toBe("run");
+  });
+
+  /** The allocation of the railroad being left is not the new one's. */
+  it("does not take an allocation before the row for the new one", async () => {
+    const shell = await dark();
+    const dialog = await pick(shell, "otira");
+
+    await said(shell, ALLOCATION, EMPTY);
+    await loads(shell, "otira");
+
+    expect(dialog.open).toBe(true);
+  });
+
+  it("wears the spinner through the drain", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+
+    const dialog = await pick(shell, "otira");
+
+    expect(busy(dialog)).toEqual(["otira"]);
+    await said(shell, POWER, { power: "off" });
+    await settled(shell);
+    expect(busy(dialog)).toEqual(["otira"]);
+  });
+
+  it("stops where the drain was given up", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+    const dialog = await pick(shell, "otira");
+
+    await said(shell, POWER, { power: "draining" });
+    await said(shell, POWER, { power: "on" });
+
+    expect(busy(dialog)).toEqual([]);
+  });
+
+  it("closes the dialog on the edit view where nothing was built", async () => {
+    serving({
+      drawings: HAS,
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () =>
+        Promise.resolve({ ...CLEAN, refused: "pin 'b1.a' is not wired" }),
+    });
+    const shell = await dark();
+    const dialog = await pick(shell, "otira");
+
+    await said(shell, "tc49/layout/state/railroad", {
+      name: "otira",
+      at: 7,
+      built: false,
+    });
+
+    expect(dialog.open).toBe(false);
+    expect(viewed(shell)).toBe("edit");
+  });
+
+  describe("unanswered", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("says the layout did not answer once ANSWER_MS has passed", async () => {
+      const shell = await dark();
+      const dialog = await pick(shell, "otira");
+
+      await vi.advanceTimersByTimeAsync(ANSWER_MS - 1);
+      await settled(shell);
+      expect(busy(dialog)).toEqual(["otira"]);
+      expect(unanswered(dialog, "otira")).toBeNull();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await settled(shell);
+      expect(busy(dialog)).toEqual([]);
+      expect(unanswered(dialog, "otira")).toBe("the layout did not answer");
+      expect(dialog.open).toBe(true);
+    });
+
+    it("gives the layout ANSWER_MS from the ask, not from a drain", async () => {
+      const shell = await joined();
+      await said(shell, POWER, { power: "on" });
+      const dialog = await pick(shell, "otira");
+
+      await vi.advanceTimersByTimeAsync(ANSWER_MS);
+      await settled(shell);
+      expect(busy(dialog)).toEqual(["otira"]);
+      await said(shell, POWER, { power: "off" });
+      await settled(shell);
+      await vi.advanceTimersByTimeAsync(ANSWER_MS - 1);
+      await settled(shell);
+
+      expect(busy(dialog)).toEqual(["otira"]);
+    });
   });
 });

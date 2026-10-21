@@ -15,7 +15,9 @@ import { css } from "lit";
  * it is dead or what the installation refused it with; asked once more, what
  * turning off costs and the two presses in a row beneath it. A press waiting
  * for the track to go dead reads "stopping trains…" with the stop sign in a
- * row beside it.
+ * row beside it. A pick on its way wears the spinner at the end of its
+ * row, and one the layout did not answer says so there, in the weight a
+ * thing missing reads in.
  */
 export const settingsStyles = css`
   .hint {
@@ -63,6 +65,15 @@ export const settingsStyles = css`
 
   .tick {
     width: 1rem;
+  }
+
+  ul.railroads sl-spinner {
+    font-size: 0.9rem;
+  }
+
+  .unanswered {
+    color: var(--unfinished);
+    white-space: nowrap;
   }
 
   .making {

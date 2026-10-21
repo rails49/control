@@ -401,8 +401,12 @@ export class TcApp extends LitElement {
         .power=${this.status.power}
         .unsaved=${this.railroad.stock?.edits ? "the roster" : null}
         .saving=${this.keeping}
+        .opened=${this.filing.opened}
+        .built=${this.status.built}
+        .allocated=${this.status.allocated}
         .backup=${backupWords(this.backing.standing)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
+        @railroad-arrived=${() => this.arrived()}
         @power-wanted=${(event: CustomEvent<Power>) => this.draining(event.detail)}
         @backup-wanted=${() => this.backingOpen()}
         @settings-closed=${() => {
@@ -617,6 +621,15 @@ export class TcApp extends LitElement {
   private wanting(railroad: string): void {
     this.session?.pressRailroad(railroad);
     void this.filing.load();
+  }
+
+  /** The railroad the settings dialog asked for has landed (#902): the
+   *  dialog goes, and the page shows the Run view — or the Edit view, where
+   *  the row says nothing was built and the drawing is there to be fixed
+   *  (ADR-0085, decision 4). */
+  private arrived(): void {
+    this.settling = false;
+    this.showing(this.status.built ? VIEWS[0]!.id : "edit");
   }
 
   /** What the settings dialog asks before a pick, New or Copy loaded as…:
