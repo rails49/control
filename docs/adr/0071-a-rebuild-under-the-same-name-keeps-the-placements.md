@@ -2,6 +2,8 @@
 
 *Amended by [ADR-0072](0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md) (#733): the editor has no Save As, so decision 5's "Save As names nothing" has nothing to apply to.*
 
+*Amended by [ADR-0085](0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md) (#887): the editor saves when it is left, so decision 6's ON saves first instead of being refused, and decision 5's editor does not open while track power is on or draining.*
+
 The decision is [#707](https://github.com/rails49/control/issues/707). Amends
 [ADR-0060](0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)
 (a load is a cold start with no trains placed),

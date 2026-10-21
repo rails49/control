@@ -1,5 +1,7 @@
 # The railroad is loaded from a settings dialog, and the store records which
 
+*Amended by [ADR-0085](0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md) (#887): decision 3's editor holds the loaded railroad whether or not its drawing is valid, and under decision 4 Load drains the power itself instead of being refused.*
+
 The decision is [#733](https://github.com/rails49/control/issues/733). Amends
 [ADR-0038](0038-the-ui-is-one-app-with-views-of-one-railroad.md) (the band
 carries the means of loading another railroad),
