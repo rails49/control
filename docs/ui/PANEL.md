@@ -74,6 +74,10 @@ off keeps the trains that still fit.
 component of its own, read from `tc49/dispatch/state/allocation`'s `requests`
 ([#829](https://github.com/rails49/control/issues/829),
 [ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+Each list is as tall as its rows, up to half the pane, and scrolls on its own
+past that, so the requests sit directly under the trains and the space left
+over is below them
+([#895](https://github.com/rails49/control/issues/895)).
 One row per request, in list order — the order the dispatcher serves them, so
 what the list shows is what the dispatcher does next. A row is the train,
 where the request starts, where it ends, and *waiting* or *underway*, a
