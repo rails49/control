@@ -194,7 +194,7 @@ decision 5), so the store serves the layout its drawing derives to, as the
 document [LAYOUT.md](store/LAYOUT.md) describes. Read-only: a layout is
 derived and never authored, and what an editor writes is the drawing
 ([ADR-0015](adr/0015-drawing-is-the-source-of-truth.md)). A railroad with no
-drawing is a **404**; a drawing that is there and does not derive yet is a
+drawing is a **404**; a drawing that is there and is invalid is a
 **422** carrying the refusal, which is work in progress rather than a bad
 request — the same fault the editor reads out of `review` and draws, said to
 a caller that has nothing to run on. `src/tc49/lib/documents.py` is the
