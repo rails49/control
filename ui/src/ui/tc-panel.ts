@@ -425,6 +425,7 @@ export class TcPanel extends LitElement {
       blocks: model.blocks(),
       lit,
       aspects: model.aspects(),
+      detected: model.detected(),
       positions: positionsBySymbol(this.drawing, commanded),
       offered: pointsOffered(this.drawing, lit.legs, commanded),
       markers: model.markers(),

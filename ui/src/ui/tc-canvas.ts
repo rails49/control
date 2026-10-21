@@ -58,7 +58,7 @@ import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
-import { artwork, DEFS } from "../render/artwork.js";
+import { artwork, detectors, DEFS } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
@@ -389,6 +389,7 @@ export class TcCanvas extends LitElement {
               this.showing(name),
               this.lying(name, lighting),
             )}
+            ${spec.kind === "block" ? this.detecting(name) : nothing}
             ${target?.block === name ? arriving(target.ends) : nothing}
           </g>
           ${this.label(name, spec, lone.get(name))}
@@ -452,6 +453,22 @@ export class TcCanvas extends LitElement {
         const shown = live.aspects.get(`${name}.${end}`);
         return shown === undefined ? [] : [[end, shown] as const];
       }),
+    );
+  }
+
+  /** What a block's two detectors read, keyed by end letter, drawn as a
+   *  square at each end on a run (#898). An end no row has named is drawn
+   *  `unknown` by the artwork, and edit mode draws none at all. */
+  private detecting(name: string): unknown {
+    const live = this.running;
+    if (live === null) return nothing;
+    return detectors(
+      new Map(
+        (["A", "B"] as const).flatMap((end) => {
+          const read = live.detected.get(`${name}.${end}`);
+          return read === undefined ? [] : [[end, read] as const];
+        }),
+      ),
     );
   }
 

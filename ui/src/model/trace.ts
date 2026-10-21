@@ -320,11 +320,11 @@ export interface Submission {
  *  which is all `Live` keeps of a frame. The list is the state rows of
  *  `tc49.lib.inventory` and cannot drift from them: a Python test reads it
  *  out of this file and asserts the two match. The device rows are here only
- *  where a view reads one, which is `device/track` and nothing else — a
+ *  where a view reads one, which is `device/track` and `device/sensor` — a
  *  device topic is named by its row and the address under it rather than by a
  *  leaf, so the one a view reads is named as `Live` names it
  *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md),
- *  [#602](https://github.com/rails49/control/issues/602)).
+ *  [#602](https://github.com/rails49/control/issues/602), #898).
  *
  *  `moving` is the dispatcher's `state/moving`: a boolean, true while any
  *  train is crossing, and a payload that cannot be read says `true`
@@ -343,6 +343,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "unfit",
   "allocation",
   "device/track",
+  "device/sensor",
 ]);
 
 /**
@@ -372,14 +373,15 @@ export class Ordering {
   /** Whether this event is the one to keep. */
   accepts(event: TraceEvent): boolean {
     if (!STATE_NAMES.has(event.event)) return true;
+    const topic = topicOf(event);
     const at = stamp(event);
     if (at === null) {
-      this.held.delete(event.event);
+      this.held.delete(topic);
       return true;
     }
-    const last = this.held.get(event.event);
+    const last = this.held.get(topic);
     if (last !== undefined && at < last) return false;
-    this.held.set(event.event, at);
+    this.held.set(topic, at);
     return true;
   }
 
@@ -389,6 +391,17 @@ export class Ordering {
   reset(): void {
     this.held.clear();
   }
+}
+
+/** Which topic a state value is a value of: its name, and for a device row
+ *  addressed under that name the address too, which the payload's `addr`
+ *  repeats (BUS.md). Two detectors are two topics, and a retained reading
+ *  at one end must not lose to a later one at another (#898). */
+function topicOf(event: TraceEvent): string {
+  const addr = event["addr"];
+  return event.event.startsWith("device/") && typeof addr === "string"
+    ? `${event.event}/${addr}`
+    : event.event;
 }
 
 /** The instant a state payload states it was published at, or `null` where

@@ -26,11 +26,12 @@ from tests.harness import ROOT
 
 TRACE_TS = Path("ui/src/model/trace.ts")
 
-READ = {"device/track"}
+READ = {"device/track", "device/sensor"}
 """The device rows a view reads, named past ``DEVICE_PREFIX`` the way
 ``lib.trace`` names one: the observed supply, whose free-text ``reason`` is the
 only place a tripped district is said, so the band can show it as a fault
-(#602). Device rows are not leaves — the address is trailing levels — so each
+(#602), and each detector's reading, which the run view draws at its block end
+(#898). Device rows are not leaves — the address is trailing levels — so each
 is here under the name `Live` gives it, and the rest of the vocabulary is
 absent because no view reads it (ADR-0043)."""
 

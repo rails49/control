@@ -32,6 +32,10 @@ export type Aspect = "stop" | "caution" | "clear";
 
 const RESTING: ReadonlyMap<string, Aspect> = new Map();
 
+/** What a detector reads at the block end it watches (CONTEXT.md,
+ *  **Detector**). */
+export type Reading = "occupied" | "clear" | "unknown";
+
 /**
  * Draw a symbol, with the legs a chosen transit takes lit.
  *
@@ -134,9 +138,10 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
  * The signal is part of what a block is rather than anything placed
  * (store/DRAWING.md), and the pair is point symmetric — below the track at A,
  * above at B, on the left of a train leaving through that end, as the SBB
- * places signals — so a rotation or a flip reads naturally. Sensors are not drawn
- * and nothing is written outside the rectangle; the label goes inside it, and
- * the canvas draws that outside the turned group.
+ * places signals — so a rotation or a flip reads naturally. Detectors are not
+ * part of it: a run draws their readings over it (`detectors`). Nothing is
+ * written outside the rectangle; the label goes inside it, and the canvas
+ * draws that outside the turned group.
  *
  * An end named in `dark` draws no signal at all rather than a dim one. A dim
  * signal is an aspect, and there is no signal there to be showing one: nothing
@@ -168,6 +173,32 @@ function block(
       h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
       v${n(2 * arm)}`} />
   `;
+}
+
+/**
+ * What each end's detector reads, as a square inside the block's rectangle at
+ * that end (#898): the class says the reading, `occupied` filled, `clear`
+ * hollow, `unknown` grey. An end with no reading is drawn `unknown`, since
+ * every block end has a detector and silence says nothing about the track.
+ *
+ * A square and in no lamp colour, because the signals at the same ends are
+ * round red and green lamps. Drawn in the block's own frame, so a turned or
+ * flipped block keeps each square at the end it reads. Run mode only: a
+ * drawing has no readings.
+ */
+export function detectors(
+  readings: ReadonlyMap<string, Reading>,
+): SVGTemplateResult {
+  const { x, y, w, h } = BLOCK.body;
+  const { size, inset } = BLOCK.detector;
+  const at = {
+    A: { x: x + inset, y: y + inset },
+    B: { x: x + w - inset - size, y: y + h - inset - size },
+  };
+  return svg`${(["A", "B"] as const).map(
+    (end) => svg`<rect class=${`detector end-${end} ${readings.get(end) ?? "unknown"}`}
+      x=${n(at[end].x)} y=${n(at[end].y)} width=${size} height=${size} />`,
+  )}`;
 }
 
 /**

@@ -20,7 +20,7 @@
  */
 
 import type { Reason } from "../rejection.generated.js";
-import type { Aspect } from "../render/artwork.js";
+import type { Aspect, Reading } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
@@ -80,7 +80,7 @@ export interface LitRoute {
   wires: Map<string, Claim>;
 }
 
-export type { Aspect };
+export type { Aspect, Reading };
 
 
 /**
@@ -172,6 +172,9 @@ export interface Overlay {
   blocks: Map<string, BlockView>;
   lit: LitRoute;
   aspects: ReadonlyMap<EndRef, Aspect>;
+  /** What each block end's detector reads, by the end (#898). An end no
+   *  row has named is absent, and drawn as `unknown`. */
+  detected: ReadonlyMap<EndRef, Reading>;
   positions: ReadonlyMap<string, Position>;
   /** symbol → what a click on that point asks for, the points the panel
    *  offers a throw on (`scene.pointsOffered`, ADR-0068). Like positions, the
@@ -290,6 +293,11 @@ export class Panel {
   private locks = new Map<string, string>();
   /** block end → the aspect its signal shows, last as the dispatcher said. */
   private shown = new Map<EndRef, Aspect>();
+  /** block end → what its detector last read, off its `device/sensor` row
+   *  (#898). The reading under `block_occupied` and `block_vacated`, kept
+   *  for a person debugging the layout and never folded here: that fold is
+   *  `layout`'s. */
+  private readings = new Map<EndRef, Reading>();
   /** address → the position its `wanted/point` row last said. Commanded,
    *  not measured: nothing this reads reports where a point actually lies. */
   private lyingByAddress = new Map<string, Position>();
@@ -395,6 +403,7 @@ export class Panel {
 
   reset(): void {
     this.locks.clear();
+    this.readings.clear();
     this.lyingByAddress.clear();
     this.standing.clear();
     this.crossing.clear();
@@ -594,6 +603,22 @@ export class Panel {
         // a string is a publisher this page cannot read.
         const { reason } = event as unknown as { reason?: unknown };
         this.faultWord = typeof reason === "string" && reason !== "" ? reason : null;
+        return;
+      }
+      case "device/sensor": {
+        // One detector's reading at the block end the row is addressed by,
+        // which the payload's `addr` repeats (BUS.md). A word outside the
+        // three is a detector this page cannot read, which is what `unknown`
+        // says; a row naming no end is about nothing on the drawing.
+        const { addr, occupancy } = event as unknown as {
+          addr?: unknown;
+          occupancy?: unknown;
+        };
+        if (typeof addr !== "string" || addr === "") return;
+        this.readings.set(
+          addr,
+          occupancy === "occupied" || occupancy === "clear" ? occupancy : "unknown",
+        );
         return;
       }
       case "taken": {
@@ -893,6 +918,16 @@ export class Panel {
    */
   aspects(): ReadonlyMap<EndRef, Aspect> {
     return this.shown;
+  }
+
+  /**
+   * What each block end's detector reads, exactly as its `device/sensor` row
+   * said (#898): the readings `layout` folds into `block_occupied` and
+   * `block_vacated`, shown for a person debugging the layout. An end no row
+   * has named is absent.
+   */
+  detected(): ReadonlyMap<EndRef, Reading> {
+    return this.readings;
   }
 
   /**

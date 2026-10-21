@@ -45,7 +45,8 @@ const SPAN = 6; // the block's footprint, and its two pins
 
 /**
  * Block, 6×1: a centred rectangle with a 1G track stub each side, a signal on
- * each stub, and a plus at the rectangle's lower corner on side A.
+ * each stub, and a plus at the rectangle's lower corner on side A. A run adds a
+ * small square at each end inside the rectangle, what its detector reads.
  *
  * The signal is a plaque: no mast, an octagonal outline with its corners
  * chamfered at 45 degrees, and three lamps in a row — green, red, amber,
@@ -75,6 +76,14 @@ export const BLOCK = {
     lamp: 0.055, // radius
     pitch: 0.22, // centre to centre; the outer two sit this far off the middle
   },
+  /**
+   * The square showing a detector's reading on a run (#898), inside the
+   * rectangle at the corner of its own end that the plus does not take: top
+   * at A, bottom at B, point symmetric as the signals are. `inset` is how far
+   * it sits in from the rectangle's edges, so a long label passes between
+   * the two.
+   */
+  detector: { size: 0.14, inset: 0.08 },
   plus: {
     x: (SPAN - BODY.w) / 2 + 0.2,
     y: (1 + BODY.h) / 2 - 0.18,
