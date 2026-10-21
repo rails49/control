@@ -115,7 +115,7 @@ def serve(
             stop.wait(period_s)
         if not loaded.moved:
             return
-        layout = taken(loaded, built, log, documents.layout)
+        layout = taken(loaded, built, layout, log, documents.layout)
         kept = (FACING,) if loaded.name == built else ()
         gone = dropped(bus, OWNED, stop, retained_s, keep=kept)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")

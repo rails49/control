@@ -178,7 +178,7 @@ def serve(
         )
         if not loaded.moved:
             return
-        layout = taken(loaded, built, log, documents.layout)
+        layout = taken(loaded, built, layout, log, documents.layout)
         # The steel stands where it stood under the same name, a train
         # longer than its block included: that is where the steel has it
         # (ADR-0071). Under another name nothing is placed.

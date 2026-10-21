@@ -262,7 +262,11 @@ def serve(
         if not loaded.moved:
             return
         layout, roster = taken(
-            loaded, built, log, lambda name: _documents(documents, name)
+            loaded,
+            built,
+            (layout, roster),
+            log,
+            lambda name: _documents(documents, name),
         )
         position = still_standing(app.position, layout) if loaded.name == built else {}
         gone = dropped(bus, OWNED, stop, RETAINED_S)

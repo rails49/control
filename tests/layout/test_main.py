@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from tc49.layout.__main__ import SILENCE_ENV, main, serve, silence
 from tc49.layout.interface import (
@@ -475,6 +476,33 @@ def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
 
     assert drained(witness, lambda: len(built) == 2), "it was never rebuilt"
     assert built[1].position == {"freight_1": "yard_w"}
+    hand.close()
+    witness.close()
+
+
+def test_a_saved_drawing_that_does_not_derive_leaves_the_railroad_loaded(
+    broker: Broker, store: Store, root: Path, app: App
+) -> None:
+    """A save names the loaded railroad again (ADR-0071), and the store then
+    holds a drawing with a dangling pin under that name. The app stays up on
+    what it was built on and the row still names the railroad, so the page
+    keeps the drawing open for the fix."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, RAILROAD) != []), "no row"
+
+    drawing = root / "layouts" / f"{NAME}.drawing.yaml"
+    document = yaml.safe_load(drawing.read_text())
+    document["wires"] = document["wires"][:-1]
+    drawing.write_text(yaml.safe_dump(document, sort_keys=False))
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(RAILROAD_WANTED, {"railroad": NAME})
+
+    assert drained(witness, lambda: len(rows(heard, RAILROAD)) == 2), "not rebuilt"
+    assert app.running, "the app stopped"
+    assert rows(heard, RAILROAD)[-1]["name"] == NAME
     hand.close()
     witness.close()
 
