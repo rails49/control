@@ -13,7 +13,9 @@ import { css } from "lit";
  * refused a name or a write reads under that row in the weight a thing wrong
  * reads in. The Shutdown tab reads the same way: its press, and beneath it why
  * it is dead or what the installation refused it with; asked once more, what
- * turning off costs and the two presses in a row beneath it.
+ * turning off costs and the two presses in a row beneath it. A press waiting
+ * for the track to go dead reads "stopping trains…" with the stop sign in a
+ * row beside it.
  */
 export const settingsStyles = css`
   .hint {
@@ -104,5 +106,14 @@ export const settingsStyles = css`
   .presses {
     display: flex;
     gap: 0.4rem;
+  }
+
+  /* A press waiting on a dead track: "stopping trains…" with the stop sign
+     beside it (ADR-0085, decision 5). */
+  .stopping {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.3rem 0;
   }
 `;

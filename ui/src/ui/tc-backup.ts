@@ -14,10 +14,15 @@
  * ([ADR-0053](../../../docs/adr/0053-backup-drives-git-and-does-not-own-it.md)).
  * The one rule it wears is the app's, `restoreRefusal` in `model/settings.ts`:
  * a restore waits while the physical layout could disagree with the store —
- * track power on, the loaded railroad absent from the backup, or the layout
- * not yet having said which railroad is loaded (#688, #759). Trains on the
- * layout do not hold it back: the rebuild keeps the ones that still fit and
- * lists the rest as unfit (#710, ADR-0071).
+ * the loaded railroad absent from the backup, or the layout not yet having
+ * said which railroad is loaded or whether the track has power (#688, #759).
+ * Track power on does not refuse it: pressed with power on, Restore asks for
+ * the drain on `power-wanted`, says "stopping trains…" with the stop sign
+ * beside it, and restores once `tc49/layout/state/power` reads `off`;
+ * closing the dialog abandons the wait and leaves power as it is
+ * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 5). Trains on the layout do not hold it back: the rebuild keeps
+ * the ones that still fit and lists the rest as unfit (#710, ADR-0071).
  * git's words are shown as they came: the app knows nothing to add to them,
  * and paraphrasing a rejected push would be inventing an explanation.
  *
@@ -34,11 +39,12 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
+import "@shoelace-style/shoelace/dist/components/icon/icon.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import type { Backing } from "../model/backup.js";
 import type { Backup, BackupDoc, Copy } from "../model/store.js";
-import { restoreRefusal } from "../model/settings.js";
+import { Drain, restoreRefusal, STOPPING } from "../model/settings.js";
 import type { Power } from "../model/trace.js";
 import { backupStyles } from "./tc-backup.styles.js";
 
@@ -62,7 +68,8 @@ export class TcBackup extends LitElement {
 
   /** The supply as the run reads it, `null` with no session joined. A
    *  restore changes the drawing a loaded railroad runs on, so it waits for
-   *  the rails to be dead as picking a railroad does (#688). */
+   *  the rails to be dead as picking a railroad does (#688), draining them
+   *  first (ADR-0085). */
   @property({ attribute: false }) power: Power | null = null;
 
   /** The railroad the apps are running as the layout's row names it: `null`
@@ -93,6 +100,19 @@ export class TcBackup extends LitElement {
 
   /** The address typed so far of the repository to adopt. */
   @state() private address = "";
+
+  /** The restore held for a dead track (`model/settings.ts`). */
+  private readonly drain = new Drain();
+
+  /** Whether `drain` holds the restore, the dialog saying "stopping
+   *  trains…" and Restore dead until it acts or the wait is given up. */
+  @state() private stopping = false;
+
+  override willUpdate(changed: Map<string, unknown>): void {
+    if (changed.has("backing") && this.backing === null) this.drain.abandon();
+    if (changed.has("power")) this.drain.heard(this.power);
+    this.stopping = this.drain.waiting;
+  }
 
   override render() {
     const backing = this.backing;
@@ -142,11 +162,12 @@ export class TcBackup extends LitElement {
           : html`<p class="wrong">${backing.trouble}</p>`}
         ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
         ${refused === null ? this.discard(backing.busy) : nothing}
+        ${this.stopping ? this.stoppingTrains() : nothing}
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
         <sl-button
           slot="footer"
           variant="warning"
-          ?disabled=${this.picked === null || backing.busy || refused !== null}
+          ?disabled=${this.picked === null || backing.busy || refused !== null || this.stopping}
           @click=${() => this.asked()}
         >
           Restore
@@ -391,15 +412,47 @@ export class TcBackup extends LitElement {
       </sl-button>`;
   }
 
-  /** Restore the picked backup, and say so where it worked: what follows —
-   *  the running apps and this page reading what it wrote — is the app's
-   *  (#688). */
-  private async restore(): Promise<void> {
+  /** What the dialog says while the restore waits for the track to go dead,
+   *  and the stop sign beside it: `off` at once, a drain having no time
+   *  limit. */
+  private stoppingTrains() {
+    return html`<div class="stopping">
+      <span class="hint">${STOPPING}</span>
+      <sl-button
+        class="stop"
+        size="small"
+        variant="danger"
+        title="Stop every train"
+        @click=${() => this.powerWanted("off")}
+      >
+        <sl-icon slot="prefix" name="sign-stop-fill"></sl-icon>
+        Stop
+      </sl-button>
+    </div>`;
+  }
+
+  /** Restore the picked backup once the track is dead, draining it first
+   *  where it has power; with no railroad loaded the supply is not asked
+   *  (`restoreRefusal`). */
+  private restore(): void {
     const backing = this.backing;
     if (backing === null || this.picked === null) return;
-    const picked = this.chosen(backing.stands);
-    if (restoreRefusal(this.railroad, this.power, picked) !== null) return;
-    if (!(await backing.restore(this.picked))) return;
+    if (restoreRefusal(this.railroad, this.power, this.chosen(backing.stands)) !== null) return;
+    const commit = this.picked;
+    const asked = this.drain.begin(this.railroad === "" ? null : this.power, () => {
+      void this.restoring(commit);
+    });
+    this.stopping = this.drain.waiting;
+    if (asked !== null) this.powerWanted(asked);
+  }
+
+  /** The track is dead: the backup restored, and said so where it worked:
+   *  what follows — the running apps and this page reading what it wrote —
+   *  is the app's (#688). */
+  private async restoring(commit: string): Promise<void> {
+    const backing = this.backing;
+    if (backing === null) return;
+    if (!(await backing.restore(commit))) return;
     this.dispatchEvent(
       new CustomEvent<void>("restored", { bubbles: true, composed: true }),
     );
@@ -407,7 +460,15 @@ export class TcBackup extends LitElement {
 
   /** Shut it. What was picked goes with it: the next time this opens, the
    *  history may be another one — a restore of its own is in it. */
+  private powerWanted(power: Power): void {
+    this.dispatchEvent(
+      new CustomEvent<Power>("power-wanted", { detail: power, bubbles: true, composed: true }),
+    );
+  }
+
   private close(): void {
+    this.drain.abandon();
+    this.stopping = false;
     this.picked = null;
     this.address = "";
     this.renewing = false;

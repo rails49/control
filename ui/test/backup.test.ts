@@ -480,35 +480,85 @@ describe("the backup dialog", () => {
       const { dialog: surface, store } = await dialog();
       surface.unsaved = "the drawing";
       surface.railroad = "crossover-yard";
-      surface.power = "on";
+      surface.power = null;
       surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
       await surface.updateComplete;
       press(surface, "Restore");
       await surface.updateComplete;
-      expect(reads(surface)).toContain("track power is on");
+      expect(reads(surface)).toContain("the layout has not said whether the track has power");
       expect(reads(surface)).not.toContain("restoring discards them");
       expect(store.asked).not.toContain("restore 9f8e7d6");
     });
   });
 
   /** With a railroad loaded, the rails and the drawing are never changed
-   *  under a moving train (#688). */
-  it("will not restore while a loaded railroad's track has power", async () => {
-    const { dialog: surface, store } = await dialog();
-    surface.railroad = "crossover-yard";
-    surface.power = "on";
-    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
-    await surface.updateComplete;
+   *  under a moving train (#688): Restore takes the power off itself, and
+   *  restores once the track reads off (ADR-0085, decision 5). */
+  describe("with a loaded railroad's track live", () => {
+    /** The dialog on a loaded railroad with track power on, the older backup
+     *  picked and Restore pressed, and what power it asked for. */
+    async function draining(): Promise<{ dialog: TcBackup; store: Fake; asked: string[] }> {
+      const held = await dialog();
+      const asked: string[] = [];
+      held.dialog.addEventListener("power-wanted", (event) =>
+        asked.push((event as CustomEvent<string>).detail),
+      );
+      held.dialog.railroad = "crossover-yard";
+      held.dialog.power = "on";
+      held.dialog.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+      await held.dialog.updateComplete;
+      expect(restoring(held.dialog).disabled).toBe(false);
+      press(held.dialog, "Restore");
+      await new Promise((settle) => setTimeout(settle, 0));
+      await held.dialog.updateComplete;
+      return { ...held, asked };
+    }
 
-    expect(restoring(surface).disabled).toBe(true);
-    expect(reads(surface)).toContain("track power is on — turn it off to restore");
-    press(surface, "Restore");
-    await new Promise((settle) => setTimeout(settle, 0));
-    expect(store.asked).not.toContain("restore 9f8e7d6");
+    it("asks for the drain, says it is stopping trains, and restores nothing yet", async () => {
+      const { dialog: surface, store, asked } = await draining();
 
-    surface.power = "off";
-    await surface.updateComplete;
-    expect(restoring(surface).disabled).toBe(false);
+      expect(asked).toEqual(["draining"]);
+      expect(reads(surface)).toContain("stopping trains…");
+      expect(restoring(surface).disabled).toBe(true);
+      expect(store.asked).not.toContain("restore 9f8e7d6");
+    });
+
+    it("restores once the track reads off", async () => {
+      const { dialog: surface, store } = await draining();
+
+      surface.power = "draining";
+      await surface.updateComplete;
+      expect(store.asked).not.toContain("restore 9f8e7d6");
+      surface.power = "off";
+      await surface.updateComplete;
+      await new Promise((settle) => setTimeout(settle, 0));
+
+      expect(store.asked).toContain("restore 9f8e7d6");
+      expect(reads(surface)).not.toContain("stopping trains…");
+    });
+
+    it("asks for off at once on the stop sign", async () => {
+      const { dialog: surface, asked } = await draining();
+
+      press(surface, "Stop");
+
+      expect(asked).toEqual(["draining", "off"]);
+    });
+
+    /** Closing gives the wait up and leaves power as it is. */
+    it("restores nothing once closed", async () => {
+      const { dialog: surface, store, asked } = await draining();
+
+      press(surface, "Close");
+      surface.backing = null;
+      await surface.updateComplete;
+      surface.power = "off";
+      await surface.updateComplete;
+      await new Promise((settle) => setTimeout(settle, 0));
+
+      expect(asked).toEqual(["draining"]);
+      expect(store.asked).not.toContain("restore 9f8e7d6");
+    });
   });
 
   /** A person pressing Restore on a run that is up is told what follows it
@@ -884,22 +934,37 @@ describe("what follows a restore", () => {
     expect(reads(surface)).toContain("this backup has no toy — load another railroad first");
   });
 
-  /** The track power the app hears is what the dialog wears (#699). */
-  it("will not restore while the loaded railroad's track has power", async () => {
+  /** The track power the app hears is what the dialog drains (#699,
+   *  ADR-0085 decision 5): the drain goes out on `power_wanted`, and the
+   *  restore follows once the row reads off. */
+  it("drains the loaded railroad's track, and restores once it reads off", async () => {
     const shell = await joined("edit");
     await said(shell, "tc49/layout/state/power", { power: "on" });
     serving({ drawings: ["toy"], backup: RESTORED });
+    let reloads = 0;
+    shell.reload = () => {
+      reloads += 1;
+    };
     await chooseBackup(shell);
     const surface = open(shell)!;
     surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
     await surface.updateComplete;
 
-    expect(restoring(surface).disabled).toBe(true);
-    expect(reads(surface)).toContain("track power is on — turn it off to restore");
+    press(surface, "Restore");
+    await settled(shell);
+    expect(written()).toEqual([
+      { topic: "tc49/layout/power_wanted", payload: { power: "draining" } },
+    ]);
+    await new Promise((settle) => setTimeout(settle, 600));
+    expect(reloads).toBe(0);
 
     await said(shell, "tc49/layout/state/power", { power: "off" });
-    await surface.updateComplete;
-    expect(restoring(surface).disabled).toBe(false);
+    await settled(shell);
+    await new Promise((settle) => setTimeout(settle, 600));
+    expect(reloads).toBe(1);
+    expect(wants()).toEqual([
+      { topic: "tc49/layout/railroad_wanted", payload: { railroad: "toy" } },
+    ]);
   });
 
   it("reloads the page with no railroad loaded, naming none", async () => {

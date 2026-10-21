@@ -7,7 +7,8 @@
  * the installation's answers — a yes only on `200` with `can_turn_off: true`,
  * a refusal's words as written — has nothing to do with the dialog. Then the
  * dialog through the app, which draws a **Shutdown** tab only where the
- * installation says yes and sends only while the track is dead (#899).
+ * installation says yes and sends only once the track is dead, draining it
+ * first where it has power (#899, ADR-0085 decision 5).
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -25,9 +26,11 @@ import {
   STOCK,
   stored,
   unbrokered,
+  written,
 } from "./support/session.js";
 
 const POWER = "tc49/layout/state/power";
+const POWER_WANTED = "tc49/layout/power_wanted";
 
 /** A `fetch` that answers every call with `status` and `body`, and the calls
  *  it was given. */
@@ -247,20 +250,71 @@ describe("the dialog's Shutdown tab", () => {
     expect(hint(dialog)).toBeNull();
   });
 
-  it.each(["on", "draining"] as const)(
-    "is dead and says why while the track reads %s",
-    async (power) => {
-      installed(CAN);
-      const shell = await powered(power);
+  it.each(["on", "draining"] as const)("is live while the track reads %s", async (power) => {
+    installed(CAN);
+    const shell = await powered(power);
 
-      const dialog = await settingsOpened(shell);
+    const dialog = await settingsOpened(shell);
 
-      expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(true);
-      expect(hint(dialog)).toBe(
-        "the track has power: switch it off before turning the box off",
-      );
-    },
-  );
+    expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(false);
+    expect(hint(dialog)).toBeNull();
+  });
+
+  /** Turn off with the track live drains it, and the request goes once the
+   *  row reads off (ADR-0085, decision 5). */
+  it("drains the track, and sends no request until it reads off", async () => {
+    installed(CAN);
+    const shell = await powered("on");
+    const dialog = await settingsOpened(shell);
+
+    await pressed(shell, dialog, "turn");
+    await pressed(shell, dialog, "off");
+
+    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
+    expect(asked).toBe(0);
+    expect(hint(dialog)).toBe("stopping trains…");
+    expect(press(dialog, "stop")).not.toBeNull();
+
+    await said(shell, POWER, { power: "draining" });
+    expect(asked).toBe(0);
+    await said(shell, POWER, { power: "off" });
+    await settled(shell);
+
+    expect(asked).toBe(1);
+    expect(hint(dialog)).toBe("The box is turning off. Unplug it once its lights go out.");
+  });
+
+  it("asks for off at once on the stop sign", async () => {
+    installed(CAN);
+    const shell = await powered("on");
+    const dialog = await settingsOpened(shell);
+    await pressed(shell, dialog, "turn");
+    await pressed(shell, dialog, "off");
+
+    await pressed(shell, dialog, "stop");
+
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
+  });
+
+  /** Closing the dialog abandons the wait; power stays as it is. */
+  it("sends nothing once the dialog is closed while it waits", async () => {
+    installed(CAN);
+    const shell = await powered("on");
+    const dialog = await settingsOpened(shell);
+    await pressed(shell, dialog, "turn");
+    await pressed(shell, dialog, "off");
+
+    dialog.dispatchEvent(new CustomEvent("settings-closed", { bubbles: true, composed: true }));
+    await settled(shell);
+    await said(shell, POWER, { power: "off" });
+    await settled(shell);
+
+    expect(asked).toBe(0);
+    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
+  });
 
   it("is dead and says why while the layout has not said", async () => {
     installed(CAN);
@@ -313,7 +367,7 @@ describe("the dialog's Shutdown tab", () => {
     expect(press(dialog, "turn")).toBeNull();
   });
 
-  it("sends nothing where the track got power after the first press", async () => {
+  it("drains first where the track got power after the first press", async () => {
     installed(CAN);
     const shell = await powered("off");
     const dialog = await settingsOpened(shell);
@@ -323,7 +377,7 @@ describe("the dialog's Shutdown tab", () => {
     await pressed(shell, dialog, "off");
 
     expect(asked).toBe(0);
-    expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(true);
+    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
   });
 
   it("shows a refusal's words and gives the press back", async () => {

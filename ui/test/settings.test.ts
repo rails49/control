@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   boxRefusal,
   copyRefusal,
+  Drain,
   refusal,
   restoreRefusal,
 } from "../src/model/settings.js";
@@ -26,14 +27,16 @@ describe("why the railroad part is refused", () => {
     );
   });
 
-  it.each(["on", "draining", null] as const)(
-    "is refused while a railroad is loaded and the track reads %s",
-    (power) => {
-      expect(refusal("otira", power, "the drawing")).toBe(
-        "the track has power: switch it off to load another railroad",
-      );
-    },
-  );
+  it("is refused while a railroad is loaded and the layout has not said the supply", () => {
+    expect(refusal("otira", null, "the roster")).toBe(
+      "the layout has not said whether the track has power",
+    );
+  });
+
+  /** The press drains the track itself (ADR-0085, decision 5). */
+  it.each(["on", "draining"] as const)("is open while the track reads %s", (power) => {
+    expect(refusal("otira", power, null)).toBeNull();
+  });
 
   it("is refused over unsaved edits, naming what holds them", () => {
     expect(refusal("otira", "off", "the drawing")).toBe(
@@ -62,8 +65,8 @@ describe("why Copy loaded as… is refused", () => {
     expect(copyRefusal(null, "off", null)).toBe(
       "the layout has not said which railroad is loaded",
     );
-    expect(copyRefusal("otira", "on", null)).toBe(
-      "the track has power: switch it off to load another railroad",
+    expect(copyRefusal("otira", null, null)).toBe(
+      "the layout has not said whether the track has power",
     );
     expect(copyRefusal("", "off", "the roster")).toBe(
       "the roster has unsaved edits — save first",
@@ -86,14 +89,8 @@ describe("why turning the box off is refused", () => {
     expect(boxRefusal(null)).toBe("the layout has not said whether the track has power");
   });
 
-  it.each(["on", "draining"] as const)("is refused while the track reads %s", (power) => {
-    expect(boxRefusal(power)).toBe(
-      "the track has power: switch it off before turning the box off",
-    );
-  });
-
-  it("is open with the track dead", () => {
-    expect(boxRefusal("off")).toBeNull();
+  it.each(["on", "draining", "off"] as const)("is open while the track reads %s", (power) => {
+    expect(boxRefusal(power)).toBeNull();
   });
 });
 
@@ -116,17 +113,19 @@ describe("why a restore is refused", () => {
     },
   );
 
-  it.each(["on", "draining", null] as const)(
-    "is refused while a railroad is loaded and the track reads %s",
-    (power) => {
-      expect(restoreRefusal("otira", power, holding)).toBe(
-        "track power is on — turn it off to restore",
-      );
-      expect(restoreRefusal("otira", power, without)).toBe(
-        "track power is on — turn it off to restore",
-      );
-    },
-  );
+  it("is refused while a railroad is loaded and the layout has not said the supply", () => {
+    expect(restoreRefusal("otira", null, holding)).toBe(
+      "the layout has not said whether the track has power",
+    );
+    expect(restoreRefusal("otira", null, without)).toBe(
+      "the layout has not said whether the track has power",
+    );
+  });
+
+  /** The press drains the track itself (ADR-0085, decision 5). */
+  it.each(["on", "draining"] as const)("is open while the track reads %s", (power) => {
+    expect(restoreRefusal("otira", power, holding)).toBeNull();
+  });
 
   it("is refused for a backup without the loaded railroad", () => {
     expect(restoreRefusal("otira", "off", without)).toBe(
@@ -149,4 +148,89 @@ describe("why a restore is refused", () => {
       expect(restoreRefusal("", power, undefined)).toBeNull();
     },
   );
+});
+
+/** A press that needs the track dead drains it and acts once it reads `off`
+ *  (ADR-0085, decision 5). */
+describe("a press held for a dead track", () => {
+  function counted(): { drain: Drain; acts: () => number; act: () => void } {
+    let count = 0;
+    return { drain: new Drain(), acts: () => count, act: () => (count += 1) };
+  }
+
+  it("acts at once with the track dead, asking for nothing", () => {
+    const { drain, acts, act } = counted();
+
+    expect(drain.begin("off", act)).toBeNull();
+
+    expect(acts()).toBe(1);
+    expect(drain.waiting).toBe(false);
+  });
+
+  it("acts at once where the press does not wait on the supply", () => {
+    const { drain, acts, act } = counted();
+
+    expect(drain.begin(null, act)).toBeNull();
+
+    expect(acts()).toBe(1);
+  });
+
+  it("asks for the drain from on, and acts once off is heard", () => {
+    const { drain, acts, act } = counted();
+
+    expect(drain.begin("on", act)).toBe("draining");
+    expect(drain.waiting).toBe(true);
+    drain.heard("on");
+    drain.heard("draining");
+    expect(acts()).toBe(0);
+    drain.heard("off");
+
+    expect(acts()).toBe(1);
+    expect(drain.waiting).toBe(false);
+    drain.heard("off");
+    expect(acts()).toBe(1);
+  });
+
+  it("asks for nothing more while the track is already draining", () => {
+    const { drain, acts, act } = counted();
+
+    expect(drain.begin("draining", act)).toBeNull();
+    drain.heard("off");
+
+    expect(acts()).toBe(1);
+  });
+
+  it("acts on nothing once abandoned", () => {
+    const { drain, acts, act } = counted();
+    drain.begin("on", act);
+
+    drain.abandon();
+    drain.heard("off");
+
+    expect(acts()).toBe(0);
+    expect(drain.waiting).toBe(false);
+  });
+
+  /** ON pressed on the band ends the drain: the person changed their mind. */
+  it("gives up where power reads on again after draining", () => {
+    const { drain, acts, act } = counted();
+    drain.begin("on", act);
+    drain.heard("draining");
+
+    drain.heard("on");
+    drain.heard("off");
+
+    expect(acts()).toBe(0);
+    expect(drain.waiting).toBe(false);
+  });
+
+  it("keeps waiting while the supply goes unheard", () => {
+    const { drain, acts, act } = counted();
+    drain.begin("on", act);
+
+    drain.heard(null);
+    drain.heard("off");
+
+    expect(acts()).toBe(1);
+  });
 });

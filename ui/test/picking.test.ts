@@ -10,8 +10,8 @@
  *
  * **It asks and does not load.** The app opens a railroad on one thing and
  * one thing only — `tc49/layout/state/railroad`, the row the answering app
- * publishes (#371) — so a press that is refused, because the rails have
- * power or because the store has no such railroad, leaves the page on the
+ * publishes (#371) — so a press that is refused, because the store has no
+ * such railroad, leaves the page on the
  * railroad that is still running. The dialog is the gesture and the row is
  * the answer, which is the same shape as the band's power presses
  * (ADR-0035).
@@ -56,6 +56,7 @@ import {
 
 const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 const POWER = "tc49/layout/state/power";
+const POWER_WANTED = "tc49/layout/power_wanted";
 
 /** The railroads this store has, the toy one among them: a list with one
  *  entry could not tell a choice from a tick. */
@@ -213,34 +214,105 @@ describe("what the band names as loaded", () => {
   });
 });
 
+/** What the dialog says while a press waits for the track to go dead, `null`
+ *  where nothing waits. */
+function stopping(dialog: TcSettings): string | null {
+  return dialog.renderRoot.querySelector(".stopping .hint")?.textContent?.trim() ?? null;
+}
+
+/**
+ * Track power off is the precondition (ADR-0060), and a pick takes the power
+ * off itself: it drains, and asks for the railroad once the row reads off
+ * (ADR-0085, decision 5). A drain and not a cut, so a train already under a
+ * committed route comes to rest rather than stopping across a turnout.
+ */
 describe("the dialog against the rails", () => {
-  /** Track power off is the precondition, and the band reads the row rather
-   *  than turning anything off: a train already under a committed route keeps
-   *  rolling whatever the software forgets (ADR-0060, ADR-0051). */
-  it("asks for nothing while the track has power", async () => {
+  it("asks for the drain, and for no railroad until the track reads off", async () => {
     const shell = await joined();
     await said(shell, POWER, { power: "on" });
 
     const dialog = await pick(shell, "otira");
 
-    expect(written()).toEqual([]);
-    expect(refused(dialog)).toBe(
-      "the track has power: switch it off to load another railroad",
-    );
+    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
+    expect(refused(dialog)).toBeNull();
+    expect(stopping(dialog)).toBe("stopping trains…");
     expect(loaded(shell)).toBe("toy");
-  });
 
-  it("asks again once the rails read dead", async () => {
-    const shell = await joined();
-    await said(shell, POWER, { power: "on" });
-    await pick(shell, "otira");
-
+    await said(shell, POWER, { power: "draining" });
+    expect(written()).toHaveLength(1);
     await said(shell, POWER, { power: "off" });
-    await pick(shell, "otira");
+    await settled(shell);
 
     expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
       { topic: RAILROAD_WANTED, payload: { railroad: "otira" } },
     ]);
+    expect(stopping(dialog)).toBeNull();
+  });
+
+  it("asks for no second drain while the track is already draining", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "draining" });
+
+    await pick(shell, "otira");
+    await said(shell, POWER, { power: "off" });
+    await settled(shell);
+
+    expect(written()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "otira" } }]);
+  });
+
+  /** A drain has no time limit, so the stop sign is beside the wait. */
+  it("asks for off at once on the stop sign", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+    const dialog = await pick(shell, "otira");
+
+    dialog.renderRoot.querySelector<HTMLElement>(".stopping sl-button.stop")!.click();
+    await settled(shell);
+
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
+  });
+
+  /** Closing the dialog abandons the load; power stays as it is. */
+  it("asks for nothing more once the dialog is closed", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+    const dialog = await pick(shell, "otira");
+
+    dialog.renderRoot.querySelector<HTMLElement>("sl-button[slot=footer]")!.click();
+    await settled(shell);
+    await said(shell, POWER, { power: "off" });
+    await settled(shell);
+
+    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
+  });
+
+  it("drains before New writes anything", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+
+    await made(shell, "new", "b");
+    expect(store.saved).toEqual([]);
+    await said(shell, POWER, { power: "off" });
+    await settled(shell);
+
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/b"]);
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+      { topic: RAILROAD_WANTED, payload: { railroad: "b" } },
+    ]);
+  });
+
+  it("is refused while the layout has not said whether the track has power", async () => {
+    const shell = await joined();
+
+    const dialog = await pick(shell, "otira");
+
+    expect(written()).toEqual([]);
+    expect(refused(dialog)).toBe("the layout has not said whether the track has power");
   });
 });
 
@@ -453,16 +525,13 @@ describe("New railroad", () => {
   /** The same reasons the list is dead for, in the same words beneath it. */
   it("is dead for the list's reason, which reads once beneath the list", async () => {
     const shell = await joined();
-    await said(shell, POWER, { power: "on" });
 
     const dialog = await settingsOpened(shell);
     await named(shell, dialog, "b");
 
     expect(making(dialog, "new").disabled).toBe(true);
     expect(making(dialog, "copy").disabled).toBe(true);
-    expect(refused(dialog)).toBe(
-      "the track has power: switch it off to load another railroad",
-    );
+    expect(refused(dialog)).toBe("the layout has not said whether the track has power");
   });
 
   /** The dialog stays up, so the new railroad is seen to arrive: the list is

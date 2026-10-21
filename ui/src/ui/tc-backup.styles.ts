@@ -135,4 +135,13 @@ export const backupStyles = css`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* A press waiting on a dead track: "stopping trains…" with the stop sign
+     beside it (ADR-0085, decision 5). */
+  .stopping {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.3rem 0;
+  }
 `;
