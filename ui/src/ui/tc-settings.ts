@@ -44,6 +44,10 @@ import { copyRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
 
+/** What the dialog says where the drawing a load would discard could not be
+ *  saved first; the band's trouble chip says why (ADR-0085). */
+const UNSAVED = "the drawing could not be saved, so nothing was loaded";
+
 @customElement("tc-settings")
 export class TcSettings extends LitElement {
   static override styles = [lookTheme, settingsStyles];
@@ -63,8 +67,15 @@ export class TcSettings extends LitElement {
   @property({ attribute: false }) power: Power | null = null;
 
   /** What a load would discard, in `Railroad.unsaved`'s words
-   *  (`model/railroad.ts`), `null` while nothing is unsaved. */
+   *  (`model/railroad.ts`), `null` while nothing is unsaved. The drawing is
+   *  not among it: `saving` saves that before a load (ADR-0085). */
   @property({ attribute: false }) unsaved: string | null = null;
+
+  /** Asked before a pick, New or Copy loaded as…: the drawing saved where a
+   *  save is owed, answering whether nothing is left unsaved. Where something
+   *  is, nothing is loaded and nothing written (ADR-0085, decision 1). */
+  @property({ attribute: false }) saving: () => Promise<boolean> = () =>
+    Promise.resolve(true);
 
   /** What backup has to say without being asked, in the band note's words,
    *  `null` where it says nothing (`model/commands.ts`). */
@@ -151,7 +162,7 @@ export class TcSettings extends LitElement {
                   <button
                     class=${one === this.railroad ? "loaded" : ""}
                     ?disabled=${refused !== null}
-                    @click=${() => this.wanting(one)}
+                    @click=${() => void this.wanting(one)}
                   >
                     <span class="tick">${one === this.railroad ? "✓" : ""}</span>
                     <span class="label">${one}</span>
@@ -259,9 +270,13 @@ export class TcSettings extends LitElement {
 
   /** A railroad was pressed. The dialog says which is wanted and stops there
    *  — the bus is what loads it, and the app is what carries the press. */
-  private wanting(name: string): void {
+  private async wanting(name: string): Promise<void> {
     if (name === this.railroad) return;
     if (refusal(this.railroad, this.power, this.unsaved) !== null) return;
+    if (!(await this.saving())) {
+      this.wrong = UNSAVED;
+      return;
+    }
     this.wanted(name);
   }
 
@@ -290,6 +305,10 @@ export class TcSettings extends LitElement {
     }
     this.writing = true;
     try {
+      if (!(await this.saving())) {
+        this.wrong = UNSAVED;
+        return;
+      }
       await write(name);
     } catch (failure) {
       this.wrong = said(failure);

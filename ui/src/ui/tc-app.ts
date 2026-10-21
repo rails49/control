@@ -58,7 +58,8 @@ import {
   backupWords,
   frozen,
   frozenWhy,
-  isLoaded,
+  owed,
+  stranded,
   asked,
   driving,
   supply,
@@ -161,6 +162,13 @@ export class TcApp extends LitElement {
    *  opens, so a railroad another page made is there to load. */
   @state() private settling = false;
 
+  /** The save `saving` has in flight, `null` while none is. */
+  private writing: Promise<void> | null = null;
+
+  /** How many presses the power control has had, so ON that saved first
+   *  can tell whether another came while it wrote. */
+  private presses = 0;
+
   /** The page's one session with the broker (`model/session.ts`, #756),
    *  opened as the app comes onto the page and let go of as it leaves. */
   private session: Session | null = null;
@@ -189,6 +197,8 @@ export class TcApp extends LitElement {
     super.connectedCallback();
     window.addEventListener("keydown", this.key);
     window.addEventListener("hashchange", this.hashed);
+    window.addEventListener("pagehide", this.hiding);
+    document.addEventListener("visibilitychange", this.hiding);
     this.view = viewOf(location.hash);
     this.session = new Session(brokerAt(location), connecting, {
       notify: () => this.told(),
@@ -210,6 +220,8 @@ export class TcApp extends LitElement {
     this.unwatch = null;
     window.removeEventListener("keydown", this.key);
     window.removeEventListener("hashchange", this.hashed);
+    window.removeEventListener("pagehide", this.hiding);
+    document.removeEventListener("visibilitychange", this.hiding);
     if (this.sessionTimer !== undefined) clearInterval(this.sessionTimer);
     this.sessionTimer = undefined;
     this.session?.end();
@@ -370,7 +382,8 @@ export class TcApp extends LitElement {
         .drawings=${this.filing.drawings}
         .railroad=${this.status.railroad}
         .power=${this.status.power}
-        .unsaved=${this.unsaved}
+        .unsaved=${this.railroad.stock?.edits ? "the roster" : null}
+        .saving=${this.keeping}
         .backup=${backupWords(this.backing.standing)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
         @backup-wanted=${() => this.backingOpen()}
@@ -387,8 +400,8 @@ export class TcApp extends LitElement {
   /**
    * The band: what is true of the whole system. After look's mark, the UI by
    * its name, control (org ADR-0019); then the loaded railroad's name and
-   * whether it holds unsaved edits; then only what a person would act on
-   * (#517) — what the app could not do, a drawing that does not derive, what
+   * whether it holds edits that could not be saved (`stranded`); then only
+   * what a person would act on (#517) — what the app could not do, a drawing that does not derive, what
    * the hardware says is wrong with the supply, a frozen drawing in the
    * editing view, and backup that is not running — and the session clock;
    * then the driving control, the last of the band's items, and track power;
@@ -410,7 +423,7 @@ export class TcApp extends LitElement {
       <look-band ui="control">
         <look-about
           name=${loaded ?? "no railroad loaded"}
-          detail=${this.filing.saved ? "" : "unsaved"}
+          detail=${stranded(this.standing) ? "unsaved" : ""}
         ></look-about>
         ${this.filing.derives ? nothing : chip("does not derive")}
         ${still && this.view === "edit"
@@ -433,7 +446,7 @@ export class TcApp extends LitElement {
           state=${power.state}
           reason=${power.reason}
           @look-power=${(event: CustomEvent<{ state: PowerState }>) =>
-            this.supplying(event.detail.state)}
+            void this.supplying(event.detail.state)}
         ></look-power>
         <look-gear @look-press=${() => this.settingsOpen()}></look-gear>
       </look-band>
@@ -491,11 +504,14 @@ export class TcApp extends LitElement {
     if (this.view !== view) this.viewing(view);
   };
 
-  /** Another view current. **The trains are read again when the run view
-   *  becomes current**: the store is not on the bus, so nothing publishes a
-   *  roster change (ADR-0010), and a person who adds a locomotive on the stock
-   *  screen and switches to the run must see it (ui/STOCK.md). */
+  /** Another view current. **Leaving the Edit view saves the drawing**,
+   *  where a save is owed (`owed`, ADR-0085). **The trains are read again
+   *  when the run view becomes current**: the store is not on the bus, so
+   *  nothing publishes a roster change (ADR-0010), and a person who adds a
+   *  locomotive on the stock screen and switches to the run must see it
+   *  (ui/STOCK.md). */
   private viewing(view: ViewId): void {
+    if (this.view === "edit" && view !== "edit") void this.saving();
     this.view = view;
     if (view === "run") void this.railroad.reread();
   }
@@ -536,9 +552,25 @@ export class TcApp extends LitElement {
    *  railroad's: the toggle's `off` is the drain and the stop sign is `off`
    *  at once (`asked`, ADR-0078). The same path the driving control takes and
    *  for the same reason: the client is the session's, and the band decides
-   *  nothing about the railroad it is naming (ADR-0074). */
-  private supplying(press: PowerState): void {
-    this.session?.pressPower(asked(press));
+   *  nothing about the railroad it is naming (ADR-0074).
+   *
+   *  ON over edits a save is owed for saves them first, and the session
+   *  sends `on` once the apps have built what was saved (ADR-0085, decision
+   *  2). A save that did not land sends nothing: the band says why. Nor
+   *  does one overtaken by another press, a STOP while the write is out
+   *  being a person changing their mind; the railroad is named again all
+   *  the same, as any save of it is. */
+  private async supplying(press: PowerState): Promise<void> {
+    const wanted = asked(press);
+    const pressed = ++this.presses;
+    if (wanted !== "on" || !owed(this.standing)) {
+      this.session?.pressPower(wanted);
+      return;
+    }
+    const railroad = this.filing.opened;
+    if (!(await this.filing.save(this.editor))) return;
+    if (pressed === this.presses) this.session?.pressOnBuilt(railroad);
+    else this.session?.pressRailroad(railroad);
   }
 
   /** A railroad pressed in the settings dialog, or one its New or Copy
@@ -554,6 +586,15 @@ export class TcApp extends LitElement {
     this.session?.pressRailroad(railroad);
     void this.filing.load();
   }
+
+  /** What the settings dialog asks before a pick, New or Copy loaded as…:
+   *  the drawing saved where a save is owed, which the load would otherwise
+   *  discard (ADR-0085, decision 1). It answers whether nothing is left
+   *  unsaved, and the dialog loads nothing where something is. */
+  private keeping = async (): Promise<boolean> => {
+    await this.saving();
+    return this.filing.saved;
+  };
 
   // --- settings and backup -------------------------------------------------
 
@@ -625,6 +666,7 @@ export class TcApp extends LitElement {
     return {
       opened: this.filing.opened,
       saved: this.filing.saved,
+      failed: this.filing.failed,
       selection: this.editor.selection.size,
       editable: spec !== undefined && editable(spec.kind),
       undo: this.editor.canUndo,
@@ -635,21 +677,41 @@ export class TcApp extends LitElement {
   }
 
   /**
-   * The open drawing, given to the store, and then — where it is the loaded
-   * railroad — named again on `railroad_wanted`, so every app builds what was
-   * written and keeps the trains that fit (ADR-0071), as `restored` does. No
-   * reload: the page already holds what it saved, and `loaded` ignores a row
-   * naming the drawing already open. A save that did not land names nothing,
-   * and nor does one that landed after the row named another railroad: what
-   * it wrote is not what is loaded (#798). One that landed with the broker
-   * gone names the railroad once the broker is back, the row names it again
-   * and power reads off (#803).
+   * The open drawing, given to the store where a save is owed — edits in the
+   * loaded railroad and power off (`owed`, ADR-0085) — and then named again
+   * on `railroad_wanted`, so every app builds what was written and keeps the
+   * trains that fit (ADR-0071), as `restored` does. No reload: the page
+   * already holds what it saved, and `loaded` ignores a row naming the
+   * drawing already open. A save that did not land names nothing, and nor
+   * does one that landed after the row named another railroad: what it wrote
+   * is not what is loaded (#798). One that landed with the broker gone names
+   * the railroad once the broker is back, the row names it again and power
+   * reads off (#803). `leaving` is the page being hidden or closed. A save
+   * asked for while one is in flight — the page hidden and then gone — is
+   * that one, and names the railroad once.
    */
-  private async saving(): Promise<void> {
-    const loaded = isLoaded(this.standing);
-    const reached = await this.filing.save(this.editor);
-    if (loaded && reached) this.session?.pressRailroad(this.filing.opened);
+  private saving(leaving = false): Promise<void> {
+    if (this.writing !== null) return this.writing;
+    if (!owed(this.standing)) return Promise.resolve();
+    const railroad = this.filing.opened;
+    this.writing = this.filing
+      .save(this.editor, leaving)
+      .then((reached) => {
+        if (reached) this.session?.pressRailroad(railroad);
+      })
+      .finally(() => {
+        this.writing = null;
+      });
+    return this.writing;
   }
+
+  /** The page hidden or going: what is owed is saved, with a write that
+   *  outlives the page (ADR-0085, decision 1). */
+  private hiding = (event: Event): void => {
+    if (event.type === "pagehide" || document.visibilityState === "hidden") {
+      void this.saving(true);
+    }
+  };
 
   /** The one symbol the netlist pane inspects, where exactly one is selected.
    *  A group selection is a move about to happen, not a question about a
@@ -669,9 +731,6 @@ export class TcApp extends LitElement {
   private invoke(id: CommandId): void {
     if (!COMMANDS[id].enabled(this.standing)) return;
     switch (id) {
-      case "save":
-        void this.saving();
-        return;
       case "export-svg":
         this.exportSvg();
         return;
@@ -748,8 +807,9 @@ export class TcApp extends LitElement {
   }
 
   /** What changing the railroad would discard, `null` while nothing is
-   *  unsaved: what a restore and a load are both refused over (#703, #733).
-   *  The loaded railroad's to say, holding both documents (#758). */
+   *  unsaved: what a restore is refused over (#703, #733). A load is refused
+   *  over the roster's alone, the drawing being saved first (ADR-0085). The
+   *  loaded railroad's to say, holding both documents (#758). */
   private get unsaved(): string | null {
     return this.railroad.unsaved;
   }
@@ -854,11 +914,11 @@ export class TcApp extends LitElement {
       this.invoke(event.shiftKey ? "redo" : "undo");
       return;
     }
-    // ⇧⌘S was Save As, which went with #734; it is still taken from the
-    // browser, so a hand that remembers it saves nothing as a web page either.
+    // ⌘S was Save, which went with ADR-0085, and ⇧⌘S Save As, which went
+    // with #734. Both are still taken from the browser, so a hand that
+    // remembers them saves nothing as a web page either.
     if (meta && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      if (!event.shiftKey) this.invoke("save");
       return;
     }
     // A symbol on its way out of the palette takes the same two keys the

@@ -12,12 +12,14 @@
  * here is the path it travels — `state/power` off the bus, up to the shell as
  * the run's reading, and back down to a view whose verbs are dead, whose
  * canvas means nothing by a press, and whose palette has nothing to give. It
- * crosses every one of those, which is why it is a DOM suite. So do the two
- * rules that come with it: Save of the loaded railroad names it again, and ON
- * waits for that save.
+ * crosses every one of those, which is why it is a DOM suite. So do the
+ * rules that come with it (ADR-0085): leaving the editor with power off saves
+ * the loaded railroad and names it again, and ON saves first and waits for
+ * the build.
  */
 
 import type { LitElement } from "lit";
+import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
@@ -28,11 +30,11 @@ import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import {
   band,
+  chips,
   editing,
   inside,
   mounted,
   power,
-  pressed as pressedOnRail,
   railButton,
   serving,
   session,
@@ -46,6 +48,7 @@ import {
   joined,
   loads,
   PAPER,
+  RAILROAD,
   said,
   STOCK,
   stored,
@@ -56,6 +59,7 @@ import {
 const ALLOCATION = "tc49/dispatch/state/allocation";
 const POWER = "tc49/layout/state/power";
 const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
+const POWER_WANTED = "tc49/layout/power_wanted";
 
 /** The run's picture with one train standing in block `a`. */
 const STANDING = {
@@ -413,7 +417,7 @@ function wants(): unknown[] {
 }
 
 /** The loaded railroad, with an edit in it the store has not been given. */
-async function unsaved(power: "on" | "off"): Promise<TcApp> {
+async function unsaved(power: "on" | "draining" | "off"): Promise<TcApp> {
   const shell = await editor();
   await said(shell, POWER, { power: "off" });
   session(shell).select(["a"]);
@@ -422,18 +426,43 @@ async function unsaved(power: "on" | "off"): Promise<TcApp> {
   return shell;
 }
 
+/** What the page has asked for on `power_wanted`. */
+function powers(): unknown[] {
+  return written().filter((one) => (one as { topic: string }).topic === POWER_WANTED);
+}
+
+/** The band's power control pressed: the toggle, which asks `on` from
+ *  `off`, or the stop sign. */
+async function supplied(shell: TcApp, which: "on" | "stopped"): Promise<void> {
+  press(power(shell), which === "on" ? "toggle" : "stop");
+  await settled(shell);
+}
+
+/** The Edit view left for the run view, as an operator leaves it. */
+async function leaves(shell: TcApp): Promise<void> {
+  await shows(shell, "run");
+}
+
+/** The band's word beside the railroad's name. */
+function marked(shell: TcApp): string {
+  return band(shell).querySelector("look-about")!.detail;
+}
+
 /**
- * Saving the loaded railroad names it again on `railroad_wanted`, so every app
- * builds what was written and keeps the trains that fit (ADR-0071). The layout
- * builds only with power off, so while power is on the save waits.
+ * The editor saves when it is left, and there is no Save of a person's own
+ * ([ADR-0085](../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 1). The save names the loaded railroad again on `railroad_wanted`,
+ * so every app builds what was written and keeps the trains that fit
+ * (ADR-0071); the layout builds only with power off, so with power on or
+ * draining nothing is written and the edits stay on the page, marked unsaved.
  */
-describe("saving the loaded railroad", () => {
-  it("is dead while power is on", async () => {
-    const shell = await unsaved("on");
-    expect(railButton(shell, "save")!.disabled).toBe(true);
+describe("leaving the editor", () => {
+  it("has no Save on the rail", async () => {
+    const shell = await unsaved("off");
+    expect(railButton(shell, "save")).toBeNull();
   });
 
-  it("writes the drawing and then names the railroad again, with power off", async () => {
+  it("writes the drawing once and then names the railroad again, with power off", async () => {
     const store = serving({
       drawings: ["toy"],
       rosterOf: () => STOCK,
@@ -441,11 +470,86 @@ describe("saving the loaded railroad", () => {
       review: () => Promise.resolve(DERIVES),
     });
     const shell = await unsaved("off");
+    expect(marked(shell)).toBe("");
 
-    await pressedOnRail(shell, "save");
+    await leaves(shell);
 
-    expect(store.saved.map(({ path }) => path)).toContain("/drawings/toy");
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+    expect(marked(shell)).toBe("");
+  });
+
+  it("writes nothing without edits", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    const shell = await editor();
+    await said(shell, POWER, { power: "off" });
+
+    await leaves(shell);
+
+    expect(store.saved).toEqual([]);
+    expect(wants()).toEqual([]);
+  });
+
+  for (const power of ["on", "draining"] as const) {
+    it(`writes nothing with power ${power}, and marks the edits unsaved`, async () => {
+      const store = serving({
+        drawings: ["toy"],
+        rosterOf: () => STOCK,
+        read: stored,
+        review: () => Promise.resolve(DERIVES),
+      });
+      const shell = await unsaved(power);
+
+      await leaves(shell);
+
+      expect(store.saved).toEqual([]);
+      expect(wants()).toEqual([]);
+      expect(marked(shell)).toBe("unsaved");
+    });
+  }
+
+  /** Edits held while power was on are saved the next time the Edit view is
+   *  left with power off. */
+  it("saves held edits the next time it is left with power off", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    const shell = await unsaved("on");
+    await leaves(shell);
+    await said(shell, POWER, { power: "off" });
+    await shows(shell, "edit");
+
+    await leaves(shell);
+
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
+    expect(marked(shell)).toBe("");
+  });
+
+  /** A save that failed reads in the band's trouble chip, and the edits stay
+   *  marked unsaved. */
+  it("marks the edits unsaved where the save failed", async () => {
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+      refuses: (path) => (path === "/drawings/toy" ? { status: 507, error: "the disk is full" } : null),
+    });
+    const shell = await unsaved("off");
+
+    await leaves(shell);
+
+    expect(wants()).toEqual([]);
+    expect(marked(shell)).toBe("unsaved");
+    expect(chips(shell).some((one) => one.includes("the disk is full"))).toBe(true);
   });
 
   /** What it wrote is toy's, and otira is what is loaded once the write
@@ -462,7 +566,7 @@ describe("saving the loaded railroad", () => {
     });
     const shell = await unsaved("off");
 
-    await pressedOnRail(shell, "save");
+    await leaves(shell);
     await loads(shell, "otira");
     answer();
     await settled(shell);
@@ -470,10 +574,52 @@ describe("saving the loaded railroad", () => {
     expect(wants()).toEqual([]);
   });
 
-  /** ⇧⌘S was Save As, which went with #734: the editor holds the loaded
-   *  railroad and no other (ADR-0072, decision 3). The key is still taken
-   *  from the browser, and does nothing else. */
-  it("writes nothing and renames nothing on ⇧⌘S", async () => {
+  /** ⌘S was Save and ⇧⌘S Save As; both keys are still taken from the
+   *  browser, and do nothing else. */
+  for (const shiftKey of [false, true]) {
+    it(`writes nothing and renames nothing on ${shiftKey ? "⇧⌘S" : "⌘S"}`, async () => {
+      const store = serving({
+        drawings: ["toy"],
+        rosterOf: () => STOCK,
+        read: stored,
+        review: () => Promise.resolve(DERIVES),
+      });
+      const shell = await unsaved("off");
+
+      const event = new KeyboardEvent("keydown", {
+        key: shiftKey ? "S" : "s",
+        metaKey: true,
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(event);
+      await settled(shell);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(store.saved).toEqual([]);
+      expect(session(shell).drawing.drawing).toBe("toy");
+    });
+  }
+});
+
+/**
+ * The page hidden or going saves too, with a write that outlives the page
+ * (ADR-0085, decision 1).
+ */
+describe("hiding the page", () => {
+  /** Whether each `PUT` went with `keepalive`, wrapped round the store. */
+  function kept(): boolean[] {
+    const through = globalThis.fetch;
+    const seen: boolean[] = [];
+    globalThis.fetch = ((path: string, init?: RequestInit) => {
+      if (init?.method === "PUT") seen.push(init.keepalive === true);
+      return through(path, init);
+    }) as typeof fetch;
+    return seen;
+  }
+
+  it("writes once with keepalive when the page goes", async () => {
     const store = serving({
       drawings: ["toy"],
       rosterOf: () => STOCK,
@@ -481,21 +627,30 @@ describe("saving the loaded railroad", () => {
       review: () => Promise.resolve(DERIVES),
     });
     const shell = await unsaved("off");
+    const seen = kept();
 
-    const event = new KeyboardEvent("keydown", {
-      key: "S",
-      metaKey: true,
-      shiftKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    window.dispatchEvent(event);
+    window.dispatchEvent(new Event("pagehide"));
+    window.dispatchEvent(new Event("pagehide"));
     await settled(shell);
 
-    expect(event.defaultPrevented).toBe(true);
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
+    expect(seen).toEqual([true]);
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+  });
+
+  it("writes nothing with power on", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
+    const shell = await unsaved("on");
+
+    window.dispatchEvent(new Event("pagehide"));
+    await settled(shell);
+
     expect(store.saved).toEqual([]);
-    expect(session(shell).drawing.drawing).toBe("toy");
-    expect(band(shell).querySelector("look-about")!.detail).toBe("unsaved");
   });
 });
 
@@ -527,14 +682,6 @@ describe("losing the broker", () => {
     await settled(shell);
   }
 
-  /** ⌘S with nothing focused, as the shell hears it. */
-  async function saved(shell: TcApp): Promise<void> {
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "s", metaKey: true, bubbles: true, cancelable: true }),
-    );
-    await settled(shell);
-  }
-
   it("keeps the drawing frozen with power on", async () => {
     const shell = await frozen();
     await closes(shell);
@@ -545,10 +692,9 @@ describe("losing the broker", () => {
 
     expect(editing(shell).hasAttribute("frozen")).toBe(true);
     expect(drawn(shell)).toEqual(was);
-    expect(railButton(shell, "save")!.disabled).toBe(true);
   });
 
-  it("writes nothing and names nothing on ⌘S, an edit made with power off", async () => {
+  it("writes nothing and names nothing on leaving, an edit made with power off", async () => {
     const store = serving({
       drawings: ["toy"],
       rosterOf: () => STOCK,
@@ -558,7 +704,7 @@ describe("losing the broker", () => {
     const shell = await unsaved("off");
     await closes(shell);
 
-    await saved(shell);
+    await leaves(shell);
 
     expect(store.saved).toEqual([]);
     expect(wants()).toEqual([]);
@@ -576,7 +722,7 @@ describe("losing the broker", () => {
     await reopens(shell);
 
     expect(editing(shell).hasAttribute("frozen")).toBe(false);
-    await pressedOnRail(shell, "save");
+    await leaves(shell);
 
     expect(store.saved.map(({ path }) => path)).toContain("/drawings/toy");
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
@@ -604,20 +750,102 @@ describe("losing the broker", () => {
 });
 
 /**
- * ON waits for the save (ADR-0071, decision 6). The run view draws the open
- * drawing, so power on with the loaded railroad's edits unsaved would run
- * trains under track no app built. With the supply off, the power control is
- * dead until the save, and says why (look#12).
+ * ON with unsaved edits saves first, and power comes on once the apps have
+ * built what was saved (ADR-0085, decision 2): the row naming the railroad
+ * again is the build arriving, and `on` goes only after it.
  */
 describe("ON with the loaded railroad's edits unsaved", () => {
-  it("is dead and says why", async () => {
+  it("is live", async () => {
     const shell = await unsaved("off");
-    expect(power(shell).reason).toBe("Save the railroad first");
+    expect(power(shell).reason).toBe("");
   });
 
-  it("comes back once the save lands", async () => {
+  it("writes, names the railroad again, and sends on only once the build arrives", async () => {
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+    });
     const shell = await unsaved("off");
-    await pressedOnRail(shell, "save");
-    expect(power(shell).reason).toBe("");
+
+    await supplied(shell, "on");
+
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+    expect(powers()).toEqual([]);
+
+    await said(shell, RAILROAD, { name: "toy", built: true });
+
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
+  });
+
+  it("sends nothing where the build says nothing was built", async () => {
+    const shell = await unsaved("off");
+
+    await supplied(shell, "on");
+    await said(shell, RAILROAD, { name: "toy", built: false });
+
+    expect(powers()).toEqual([]);
+  });
+
+  it("sends nothing where the save failed", async () => {
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+      refuses: (path) => (path === "/drawings/toy" ? { status: 507, error: "the disk is full" } : null),
+    });
+    const shell = await unsaved("off");
+
+    await supplied(shell, "on");
+    await said(shell, RAILROAD, { name: "toy" });
+
+    expect(wants()).toEqual([]);
+    expect(powers()).toEqual([]);
+  });
+
+  /** STOP pressed while the build is coming is a person changing their
+   *  mind: the build arriving after it turns nothing on. */
+  it("sends no on after a STOP pressed while it waits", async () => {
+    const shell = await unsaved("off");
+
+    await supplied(shell, "on");
+    await supplied(shell, "stopped");
+    await said(shell, RAILROAD, { name: "toy" });
+
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+  });
+
+  it("sends no on after a STOP pressed while the write is out", async () => {
+    let answer: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(DERIVES),
+      held: (path) => (path === "/drawings/toy" ? gate : null),
+    });
+    const shell = await unsaved("off");
+
+    press(power(shell), "toggle");
+    press(power(shell), "stop");
+    answer();
+    await settled(shell);
+    await said(shell, RAILROAD, { name: "toy" });
+
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+  });
+
+  it("sends on at once with nothing unsaved", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "off" });
+
+    await supplied(shell, "on");
+
+    expect(wants()).toEqual([]);
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
   });
 });

@@ -278,6 +278,34 @@ describe("saving", () => {
 
     expect(filing.saved).toBe(false);
     expect(filing.trouble).toContain("disk full");
+    expect(filing.failed).toBe(true);
+  });
+
+  /** A failed save is marked until one lands (ADR-0085). */
+  it("clears the failure once a save lands", async () => {
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
+    await filing.edited(editor);
+    store.broken = new Error("disk full");
+    await filing.save(editor);
+    store.broken = null;
+
+    await filing.save(editor);
+
+    expect(filing.failed).toBe(false);
+    expect(filing.saved).toBe(true);
+  });
+
+  /** The page hidden and then gone each asks; the second is the first. */
+  it("writes once for a save asked for while one is in flight", async () => {
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
+    await filing.edited(editor);
+
+    const answers = await Promise.all([filing.save(editor), filing.save(editor)]);
+
+    expect(answers).toEqual([true, true]);
+    expect(store.written).toHaveLength(1);
   });
 });
 

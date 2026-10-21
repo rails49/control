@@ -3,7 +3,7 @@
  *
  * The enablement rules are neither the document nor the DOM, so they are a
  * module in `model/` with a test (EDITOR.md#tests). Every one of them is a
- * thing that would otherwise be read off a component: Save dead with nothing
+ * thing that would otherwise be read off a component: Export dead with nothing
  * open, Rotate dead on an empty selection, Undo dead at the end of the stack.
  */
 
@@ -17,11 +17,12 @@ import {
   frozen,
   isLoaded,
   NOTHING,
+  owed,
   RAIL,
+  stranded,
   supply,
   type CommandId,
   type Standing,
-  unbuilt,
 } from "../src/model/commands.js";
 import { VIEWS } from "../src/model/views.js";
 
@@ -43,7 +44,7 @@ describe("the rail", () => {
   it("carries the editor's groups in the order the rail draws them", () => {
     expect(RAIL.edit.map((group) => [group.name, group.items])).toEqual([
       ["View", ["zoom-out", "zoom-in", "fit", "netlist"]],
-      ["File", ["save", "export-svg"]],
+      ["File", ["export-svg"]],
       ["Edit", ["undo", "redo"]],
     ]);
   });
@@ -100,7 +101,6 @@ describe("the key beside the label", () => {
       Object.entries(COMMANDS).map(([id, command]) => [id, command.key]),
     );
     expect(keys).toEqual({
-      save: "Mod+S",
       "export-svg": undefined,
       undo: "Mod+Z",
       redo: "Shift+Mod+Z",
@@ -124,7 +124,6 @@ describe("the glyph on the button", () => {
       Object.entries(COMMANDS).map(([id, command]) => [id, command.icon]),
     );
     expect(icons).toEqual({
-      save: "floppy",
       "export-svg": "box-arrow-up",
       undo: "arrow-counterclockwise",
       redo: "arrow-clockwise",
@@ -150,13 +149,6 @@ describe("the glyph on the button", () => {
 });
 
 describe("what a drawing has to be open for", () => {
-  it("saves only a drawing that is open and has edits in it", () => {
-    const open = { opened: "reversing-loops", loaded: "reversing-loops" };
-    expect(on("save")).toBe(false);
-    expect(on("save", { ...open, saved: true })).toBe(false);
-    expect(on("save", { ...open, saved: false })).toBe(true);
-  });
-
   /** The export writes the drawing that is open, saved or not: it is a
    *  picture of what is on the sheet, so unsaved edits belong in it. */
   it("exports only a drawing that is open", () => {
@@ -272,39 +264,58 @@ describe("what track power freezes", () => {
     expect(frozen(standing({ opened: "toy", loaded: null, power: "off" }))).toBe(true);
     expect(frozen(standing({ opened: "", loaded: null }))).toBe(false);
     expect(frozen(standing({ opened: "toy", loaded: "toy", power: null }))).toBe(false);
-    expect(on("save", { opened: "toy", loaded: null, saved: false })).toBe(false);
+    expect(owed(standing({ opened: "toy", loaded: null, saved: false, power: "off" }))).toBe(
+      false,
+    );
   });
 });
 
 /**
- * Saving the loaded railroad names it again, so every app builds what was
- * written, and the layout builds only with power off (ADR-0071). Save waits
- * for power off on the loaded railroad and on nothing else; ON waits for the
- * save.
+ * The editor saves when it is left, before ON and before a railroad is
+ * picked, and only with power off: the save names the loaded railroad again,
+ * and the layout builds only with power off (ADR-0071, ADR-0085). There is no
+ * Save of a person's own.
  */
 describe("saving the loaded railroad", () => {
   const edited = { opened: "toy", loaded: "toy", saved: false };
 
-  it("is dead while power is on or draining", () => {
-    expect(on("save", { ...edited, power: "on" })).toBe(false);
-    expect(on("save", { ...edited, power: "draining" })).toBe(false);
-    expect(on("save", { ...edited, power: "off" })).toBe(true);
+  it("is no command", () => {
+    expect(Object.keys(COMMANDS)).not.toContain("save");
   });
 
-  /** The rule reads the two names and not the editor: a drawing that is not
-   *  the loaded railroad is only a file, and its save builds nothing, so
-   *  power does not hold it. The editor opens no such drawing now (ADR-0072,
-   *  decision 3), so the case is the rule's and not a path to it. */
-  it("leaves another drawing's Save alone", () => {
-    expect(on("save", { ...edited, opened: "fork", power: "on" })).toBe(true);
-  });
-
-  it("is what ON waits for", () => {
+  it("is owed for edits with power off, and not while power is on or draining", () => {
     expect(isLoaded(standing(edited))).toBe(true);
-    expect(unbuilt(standing(edited))).toBe(true);
-    expect(unbuilt(standing({ ...edited, saved: true }))).toBe(false);
-    expect(unbuilt(standing({ ...edited, opened: "fork" }))).toBe(false);
-    expect(unbuilt(standing({ ...edited, loaded: null }))).toBe(false);
+    expect(owed(standing({ ...edited, power: "off" }))).toBe(true);
+    expect(owed(standing({ ...edited, power: "on" }))).toBe(false);
+    expect(owed(standing({ ...edited, power: "draining" }))).toBe(false);
+    expect(owed(standing({ ...edited, power: null }))).toBe(false);
+  });
+
+  it("is not owed without edits, or for a drawing that is not the loaded railroad", () => {
+    expect(owed(standing({ ...edited, saved: true, power: "off" }))).toBe(false);
+    expect(owed(standing({ ...edited, opened: "fork", power: "off" }))).toBe(false);
+  });
+});
+
+/**
+ * The band says *unsaved* only where edits could not be saved: power came on
+ * from elsewhere while the page had edits, or the save failed (ADR-0085).
+ */
+describe("what the band marks unsaved", () => {
+  const edited = { opened: "toy", loaded: "toy", saved: false };
+
+  it("is nothing for edits a save is owed for", () => {
+    expect(stranded(standing({ ...edited, power: "off" }))).toBe(false);
+    expect(stranded(standing({ ...edited, saved: true, power: "on" }))).toBe(false);
+  });
+
+  it("is edits held while power is on or draining", () => {
+    expect(stranded(standing({ ...edited, power: "on" }))).toBe(true);
+    expect(stranded(standing({ ...edited, power: "draining" }))).toBe(true);
+  });
+
+  it("is edits whose save failed", () => {
+    expect(stranded(standing({ ...edited, power: "off", failed: true }))).toBe(true);
   });
 });
 
@@ -384,15 +395,12 @@ describe("what the power control shows", () => {
     });
   });
 
-  /** Power on would run trains under track no app built (ADR-0071). */
-  it("waits for a save while the loaded railroad is unbuilt and off", () => {
+  /** ON saves the edits first rather than being dead over them (ADR-0085,
+   *  decision 2). */
+  it("is live over unsaved edits", () => {
     const edited = { opened: "toy", loaded: "toy", saved: false };
     expect(supply(standing({ ...edited, power: "off" }), LINKED)).toEqual({
       state: "off",
-      reason: "Save the railroad first",
-    });
-    expect(supply(standing({ ...edited, power: "on" }), LINKED)).toEqual({
-      state: "on",
       reason: "",
     });
   });

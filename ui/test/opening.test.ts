@@ -140,7 +140,7 @@ describe("the railroad the broker names", () => {
  * nothing, and the stock view beside it holds nothing either.
  */
 describe("the row naming no railroad", () => {
-  it("closes the drawing, and Save is dead", async () => {
+  it("closes the drawing, with nothing unsaved", async () => {
     const shell = await opened();
     await drawn(shell);
 
@@ -150,7 +150,6 @@ describe("the row naming no railroad", () => {
     expect(session(shell).drawing).toEqual(emptyDrawing(""));
     expect(open(shell)).toBe("");
     expect(unsaved(shell)).toBe(false);
-    expect(railButton(shell, "save")!.disabled).toBe(true);
   });
 
   it("leaves the stock view with no railroad", async () => {
