@@ -701,3 +701,51 @@ describe("the throttle", () => {
     });
   });
 });
+
+/** Whether the dispatcher has said its picture since the row named the
+ *  railroad: what the settings dialog waits on before it closes on a pick
+ *  (#902). */
+describe("the allocation since the row", () => {
+  const PICTURE = { trains: {}, locks: {}, requests: [] };
+
+  it("is not there until the dispatcher says it", () => {
+    const stood = joined();
+    expect(stood.session.status.allocated).toBe(false);
+
+    stood.broker.says(ALLOCATION, PICTURE);
+
+    expect(stood.session.status.allocated).toBe(true);
+  });
+
+  it("is kept where it landed before the row, on a fresh connection", () => {
+    const stood = standing();
+    stood.broker.retains(ALLOCATION, PICTURE);
+    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.opens();
+
+    expect(stood.session.status.allocated).toBe(true);
+  });
+
+  it("goes when the row names another railroad, and comes with its picture", () => {
+    const stood = joined();
+    stood.broker.says(ALLOCATION, PICTURE);
+
+    stood.broker.says(RAILROAD, { name: "other" });
+    expect(stood.session.status.allocated).toBe(false);
+
+    stood.broker.says(ALLOCATION, PICTURE);
+    expect(stood.session.status.allocated).toBe(true);
+  });
+
+  it("is there while its panel model is not built", () => {
+    const stood = standing();
+    stood.answering = false;
+    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.opens();
+
+    stood.broker.says(ALLOCATION, PICTURE);
+
+    expect(stood.session.panel).toBeNull();
+    expect(stood.session.status.allocated).toBe(true);
+  });
+});
