@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
-import { hashOf, viewOf, VIEWS } from "../src/model/views.js";
+import { hashOf, shut, viewOf, VIEWS } from "../src/model/views.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import {
   band,
@@ -102,6 +102,26 @@ describe("which view the app opens in", () => {
     expect(showing(await mounted("edit"))).toBe("tc-editor");
     document.body.replaceChildren();
     expect(showing(await mounted("run"))).toBe("tc-panel");
+  });
+});
+
+/** The Edit view does not open while track power is on or draining
+ *  (ADR-0085, decision 3); every other view opens whatever the supply. */
+describe("which view does not open", () => {
+  it("shuts the Edit view with power on or draining", () => {
+    expect(shut("edit", "on")).toBe("track power is on");
+    expect(shut("edit", "draining")).toBe("track power is on");
+  });
+
+  it("opens the Edit view with power off or not yet heard", () => {
+    expect(shut("edit", "off")).toBe("");
+    expect(shut("edit", null)).toBe("");
+  });
+
+  it("opens every other view with power on", () => {
+    for (const view of VIEWS.filter((one) => one.id !== "edit")) {
+      expect(shut(view.id, "on")).toBe("");
+    }
   });
 });
 

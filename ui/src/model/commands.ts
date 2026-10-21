@@ -141,9 +141,11 @@ export const NOTHING: Standing = {
  * no railroad, so there is nothing to drift.
  *
  * The one reading of the rule. `editing` below kills the commands that would
- * change the document, the editing view's gestures ask it before they mean
- * anything, and the band prints its word off it rather than reading power of
- * its own.
+ * change the document, and the editing view's gestures ask it before they
+ * mean anything. With power on the Edit view does not open at all
+ * (`shut`, `model/views.ts`; ADR-0085, decision 3); the freeze is what holds
+ * from the moment power lands until the page has moved to the run view, and
+ * the whole of it on a page that has lost the broker.
  */
 export function frozen(standing: Standing): boolean {
   return trackLive(standing.power) || unheard(standing);
@@ -158,15 +160,6 @@ export function frozen(standing: Standing): boolean {
  *  with power off lifts it. */
 export function unheard({ opened, loaded }: Standing): boolean {
   return opened !== "" && loaded === null;
-}
-
-/** What the band's frozen mark gives as its reason, the freeze being one of
- *  two: track power, or a page that has not heard which railroad is loaded.
- *  Power is named first where both hold. */
-export function frozenWhy(standing: Standing): string {
-  return trackLive(standing.power)
-    ? "track power is on, so the drawing is read-only"
-    : "the layout has not said whether the track has power, so the drawing is read-only";
 }
 
 /** Whether the open drawing is the railroad the run has loaded: the one whose

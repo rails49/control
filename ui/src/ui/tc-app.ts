@@ -57,7 +57,6 @@ import {
   RAIL,
   backupWords,
   frozen,
-  frozenWhy,
   owed,
   stranded,
   asked,
@@ -75,7 +74,7 @@ import { brokerAt, connecting, QUIET, Session, type RunStatus } from "../model/s
 import { Wake } from "./wake.js";
 import type { Cab } from "../model/throttle.js";
 import type { DrivingMode } from "../model/trace.js";
-import { hashOf, viewOf, VIEWS, type ViewId } from "../model/views.js";
+import { hashOf, shut, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
 import "./tc-editor.js";
@@ -262,6 +261,10 @@ export class TcApp extends LitElement {
    *  derives has changed (`model/session.ts`). */
   override willUpdate(): void {
     this.session?.documents(this.editor.drawing, this.filing.reviewed, this.railroad.trains);
+    // Power come on while the Edit view is current moves the page to the run
+    // view (ADR-0085, decision 3). Leaving saves nothing with power on, so
+    // the edits stay on the page, marked unsaved.
+    if (shut(this.view, this.status.power) !== "") this.showing(VIEWS[0]!.id);
     this.drewStatus = this.status;
     this.drewCabs = this.cabs;
   }
@@ -291,27 +294,34 @@ export class TcApp extends LitElement {
 
   override render() {
     const loaded = this.loadedRailroad;
-    // One reading of the rule for the two that wear it: the band says why and
-    // the editing view is what it is about (model/commands.ts). A restore
-    // does not wear it: its rebuild keeps the trains that fit (#710).
+    // The editing view is what the rule is about (model/commands.ts). A
+    // restore does not wear it: its rebuild keeps the trains that fit (#710).
     const still = frozen(this.standing);
     return html`
       <look-shell>
-        ${this.band(loaded, still)}
+        ${this.band(loaded)}
         <look-rail
           @look-view=${(event: CustomEvent<{ name: string }>) =>
             this.showing(viewOf(event.detail.name))}
         >
-          ${VIEWS.map(
-            (view) => html`
+          ${VIEWS.map((view) => {
+            // A view that does not open is marked on its host and refused in
+            // `showing`. look-view draws no disabled state of its own, and
+            // the app may not style look's elements, so it is not greyed
+            // until look gives it one.
+            const why = shut(view.id, this.status.power);
+            return html`
               <look-view
                 name=${view.id}
                 icon=${view.icon}
                 label=${view.label}
+                title=${why || nothing}
+                aria-disabled=${why === "" ? nothing : "true"}
+                ?disabled=${why !== ""}
                 ?current=${view.id === this.view}
               ></look-view>
-            `,
-          )}
+            `;
+          })}
           ${RAIL[this.view].map(
             (group) => html`
               <look-group label=${group.name}>
@@ -401,20 +411,18 @@ export class TcApp extends LitElement {
    * The band: what is true of the whole system. After look's mark, the UI by
    * its name, control (org ADR-0019); then the loaded railroad's name and
    * whether it holds edits that could not be saved (`stranded`); then only
-   * what a person would act on (#517) — what the app could not do, a drawing that does not derive, what
-   * the hardware says is wrong with the supply, a frozen drawing in the
-   * editing view, and backup that is not running — and the session clock;
+   * what a person would act on (#517) — what the app could not do, a drawing
+   * that does not derive, what the hardware says is wrong with the supply,
+   * and backup that is not running — and the session clock;
    * then the driving control, the last of the band's items, and track power;
    * then the gear, and look's Help after it (org ADR-0020, #873).
    *
    * A fault is a chip with the whole sentence as its title, so a long one is
-   * read by hovering. The frozen drawing is told only while the editing view
-   * is current (#517): the mark explains the editor's dead verbs, and power on
-   * is the ordinary state of a railroad being run. Its title says which of
-   * the two freezes it is: power, or a page that has not heard which railroad
-   * is loaded (#792).
+   * read by hovering. A frozen drawing says nothing here: with track power on
+   * the Edit view does not open (ADR-0085, decision 3), and its button on the
+   * rail says why.
    */
-  private band(loaded: string | null, still: boolean) {
+  private band(loaded: string | null) {
     const trouble = this.filing.trouble ?? this.railroad.trouble ?? this.status.trouble;
     const fault = this.status.fault;
     const note = this.backupNote();
@@ -426,9 +434,6 @@ export class TcApp extends LitElement {
           detail=${stranded(this.standing) ? "unsaved" : ""}
         ></look-about>
         ${this.filing.derives ? nothing : chip("does not derive")}
-        ${still && this.view === "edit"
-          ? html`<look-reading title=${frozenWhy(this.standing)}>drawing frozen</look-reading>`
-          : nothing}
         ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
         ${note === null
           ? nothing
@@ -490,18 +495,21 @@ export class TcApp extends LitElement {
 
   /** Switch view, and say so in the hash so a reload and a bookmark keep it.
    *  Nothing about the loaded railroad moves: the two views are of it, and it
-   *  is this that holds it. */
+   *  is this that holds it. A view that does not open (`shut`) is not
+   *  switched to. */
   private showing(view: ViewId): void {
-    if (this.view === view) return;
+    if (this.view === view || shut(view, this.status.power) !== "") return;
     this.viewing(view);
     location.hash = hashOf(view);
   }
 
   /** The hash changed under the app — a bookmark opened, a back button
-   *  pressed — which is the same choice by another route. */
+   *  pressed — which is the same choice by another route. A hash naming a
+   *  view that does not open is put back to the one that is current. */
   private hashed = (): void => {
     const view = viewOf(location.hash);
-    if (this.view !== view) this.viewing(view);
+    if (shut(view, this.status.power) !== "") location.hash = hashOf(this.view);
+    else if (this.view !== view) this.viewing(view);
   };
 
   /** Another view current. **Leaving the Edit view saves the drawing**,
