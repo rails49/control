@@ -898,6 +898,17 @@ no trouble and no review, Export is dead, and the
 [stock view](STOCK.md) beside it holds no railroad either. A read, review or
 save of the drawing that answers after the row names another railroad writes
 nothing, even where the row has since named the first one again (#798).
+
+**An invalid railroad opens in the editor**
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 4, #885). A loaded railroad whose drawing is not a valid drawing
+stays named: after a restart, a save or a pick, the row names it with
+`built: false`, and the editor holds its drawing like any other. The page
+moves to the Edit view when the row first says so, so the drawing can be
+fixed; a person who then goes to another view stays there, and the next
+save that builds clears it. Power on keeps the Edit view shut as always
+([Track power freezes the drawing](#track-power-freezes-the-drawing)).
+
 `File ▸ New…` and
 `Save As…`, which left the editor and the stock view on a drawing nothing
 runs while the band named what did, went with #734; making a railroad is the
