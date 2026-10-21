@@ -764,9 +764,10 @@ and fit as icon buttons, and nothing after them.
 ([#517](https://github.com/rails49/control/issues/517)). It carried six entries
 with five of them saying the ordinary thing, and a status line that is always
 full is one nobody reads. Track power is the colour of the power toggle
-rather than a word repeating it; the frozen drawing reads in the editing
-view alone, power on being the ordinary state of a railroad being run; and the
-link has no word at all.
+rather than a word repeating it; a frozen drawing has no word either, the
+Edit view not opening with power on and its button's title saying why
+([#891](https://github.com/rails49/control/issues/891)); and the link has no
+word at all.
 
 **The driving control is one press and no confirmation**, where GO and HOLD
 were

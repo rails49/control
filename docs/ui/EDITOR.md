@@ -188,17 +188,12 @@ drawing with an overlap or a turnout still lacking an address leaves it clean,
 both being drawings that derive
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
-And beside that, the other thing the band says about the drawing: that it is
-**frozen**, track power being on or draining, or the page not having heard
-which railroad is loaded ([Track power freezes the
-drawing](#track-power-freezes-the-drawing)); its title says which. It reads as the session clock
-does rather than as the refusal above it — a railroad with power on is the
-ordinary state and nothing about it is wrong — and it is what explains a
-rail of dead verbs to whoever looks at one. **In the editing view alone**
-(#517): the dead verbs it explains are the editor's, so anywhere else it is a
-warning about nothing. The band decides that itself no more than it decides
-which view is current — the app hands the mark over while the editing view is
-up, and not otherwise.
+**The band says nothing of a frozen drawing**
+([#891](https://github.com/rails49/control/issues/891)). It carried a
+*drawing frozen* mark in the editing view, explaining its dead verbs; with
+track power on the Edit view no longer opens at all, and the rail's Edit
+button says why in its title ([Track power freezes the
+drawing](#track-power-freezes-the-drawing)).
 
 **The view selector is on the rail**, not here
 ([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)). The views are a
@@ -1073,13 +1068,30 @@ left to the mark on the canvas, being a deliberate act
 
 ## Track power freezes the drawing
 
-With track power on or draining, this view is read-only: look, zoom, inspect
-the netlist, do not draw. The run moves trains over what the dispatcher built,
-and the drawing must not drift from it
-([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
-decision 5). With power off it is editable — trains standing on the layout
-included. Nothing moves with power off, and the save brings the apps up to
-date.
+**With track power on or draining, the Edit view does not open**
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 3, amending
+[ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)
+decision 5, which kept it open read-only). The run moves trains over what the
+dispatcher built, and the drawing must not drift from it; and the layout
+builds only with power off, so an edit made then could not be saved until it
+is off again. The rail's Edit button is marked disabled while `state/power`
+reads `on` or `draining`, its title *track power is on*, and pressing it does
+nothing. It is not drawn grey: `look-view` has no disabled state of its own
+and the app does not style look's elements. A hash naming the view is put
+back to the one that is current. Power coming on while the Edit view is
+open — the band's ON pressed elsewhere — moves the page to the run view.
+Leaving saves nothing with power on, so edits made before stay on the page,
+marked *unsaved*, until the Edit view is next left with power off
+([Files](#files)). `shut` in `model/views.ts` is the one reading of it. With
+power off the view opens and the drawing is editable — trains standing on the
+layout included. Nothing moves with power off, and the save brings the apps up
+to date.
+
+The drawing is still **frozen** (`frozen` in `model/commands.ts`) with power
+on: from the moment power lands until the page has moved, the editor's verbs
+and gestures are dead, and what was in flight goes (below). With power on it
+XX
 
 **A drawing open with no railroad heard is frozen too** (#792). A page that
 has lost the broker still holds the drawing, while the broker, the layout and
@@ -1092,9 +1104,8 @@ over a build no app has. A page loaded without a broker holds no drawing, so
 it has nothing to freeze. The rule keys on the row and not on power, which
 reads nothing too before the layout has said. Power is read off its own row
 whether or not the drawing derives, since it is what says whether the editor
-may save. The band's mark then says *the
-layout has not said whether the track has power, so the drawing is
-read-only*.
+may save. Power then reads nothing, so the Edit view opens, frozen: this is
+the one freeze a person sees, and nothing on the band names it.
 
 This was a freeze on trains placed
 ([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
@@ -1156,7 +1167,7 @@ the machine can abandon.
 
 **Power off thaws it.** The rule is read off `state/power` afresh and nothing
 latches it, so the band's power toggle asking for off — once the run has
-drained — lifts the freeze.
+drained — lifts the freeze and opens the Edit view again.
 Losing the broker does not lift it: the drawing is still open and no railroad
 is heard, which is a freeze of its own. Hearing the row again with power off
 does, and with power on it stays. Nothing rests on the last thing the page
@@ -1164,9 +1175,7 @@ happened to hear, which would be a state no reload could reproduce and nothing
 could clear.
 
 Track power and which railroad is loaded are the run's knowledge, and they
-reach this view through the shell, as everything the two views share does. The band says so in
-one quiet phrase, which is what explains a rail full of dead verbs
-([The band](#the-band)).
+reach this view through the shell, as everything the two views share does.
 
 **Scenario editing** stood here and is gone with it. Placing trains is the run
 view's gesture now, and a train's length belongs to the railroad's roster
