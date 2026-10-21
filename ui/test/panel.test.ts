@@ -862,22 +862,22 @@ describe("a request in flight", () => {
     expect(model.markers().map((marker) => marker.role)).toContain("rejected");
   });
 
-  it("says whether a train still stands where it was clicked", () => {
+  it("says whether a train is still named where it was clicked", () => {
     // A menu opened over a parked train outlives the train: the request it
     // was greyed for completes, and the train is somewhere else by the time
     // the item ungreys.
     const model = panel();
     placed(model);
-    expect(model.standsIn("t1", "a")).toBe(true);
+    expect(model.shows("t1", "a")).toBe(true);
     feed(
       model,
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
       { event: "block_occupied", block: "b" },
       { event: "block_vacated", block: "a" },
     );
-    expect(model.standsIn("t1", "a")).toBe(false);
-    expect(model.standsIn("t1", "b")).toBe(true);
-    expect(model.standsIn("t2", "b")).toBe(false);
+    expect(model.shows("t1", "a")).toBe(false);
+    expect(model.shows("t1", "b")).toBe(true);
+    expect(model.shows("t2", "b")).toBe(false);
   });
 
   it("is asked of one train and answered for that one", () => {
@@ -964,72 +964,107 @@ describe("point positions", () => {
 });
 
 /**
- * A train between two blocks (#154). The picture carries `crossing`, train →
- * the transit taking it out of the block `trains` still names — the block the
- * sensors last confirmed it in. So the panel draws it on that transit's
- * connection rather than in a block, which is what sends a person to look at
- * a train a restarted session cannot place on its own.
+ * Where a train's name is drawn (#897): in every block it holds that reads
+ * occupied, whatever that block's colour, and in the block it last stood in
+ * where none does. The picture's `crossing` says it has left that block for a
+ * transit; the detectors say which blocks it is in on the way.
  */
-describe("a crossing train", () => {
+describe("where a train is named", () => {
+  /** t1 standing in `a`, its route through `sw.main` to `b` committed and
+   *  locked, and the dispatcher marking it crossing at the grant. */
   const CROSSING = {
     event: "allocation",
     trains: { t1: "a" },
     crossing: { t1: "sw.main" },
     locks: { a: "t1", "sw.main": "t1", b: "t1" },
-    requests: [],
+    requests: [
+      { id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"], route: ["a", "sw.main", "b"] },
+    ],
   };
 
-  it("is drawn on the connection, between the two ends its transit joins", () => {
+  /** The run opens with t1 in `a`, and `a` reads occupied under it. */
+  function standing(): Panel {
     const model = panel();
+    placed(model);
+    feed(model, { event: "block_occupied", block: "a" });
+    return model;
+  }
+
+  const named = (model: Panel) =>
+    [...model.blocks()].flatMap(([block, view]) =>
+      view.named === undefined ? [] : [[block, view.named]],
+    );
+
+  it("keeps a train's name in the block its route has lit", () => {
+    const model = standing();
     feed(model, CROSSING);
-    expect(model.crossings()).toEqual([{ train: "t1", between: ["a.B", "b.A"] }]);
+    expect(model.blocks().get("a")).toEqual({
+      state: "locked",
+      train: "t1",
+      named: "t1",
+      crossing: true,
+    });
+    expect(model.shows("t1", "a")).toBe(true);
+    expect(named(model)).toEqual([["a", "t1"]]);
   });
 
-  it("stands in no block while it is crossing", () => {
-    // `trains` goes on naming the block the sensors last confirmed, and the
-    // lock is still held there — but the train is not standing in it, so the
-    // block wears the lock's colour and neither the name nor the arrow.
-    const model = panel();
-    feed(model, facing("a.A-to-B"), CROSSING);
+  it("keeps it in a block a committed route heads through", () => {
+    // A lock the dispatcher has not yet granted on `a`, the block t1 stands
+    // in, leaves it committed: the name is drawn whatever the colour.
+    const model = standing();
+    feed(model, { ...CROSSING, crossing: {}, locks: { "sw.main": "t1", b: "t1" } });
+    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", named: "t1" });
+    feed(model, { event: "block_vacated", block: "a" });
+    expect(model.blocks().get("a")).toMatchObject({ state: "committed", named: "t1" });
+  });
+
+  it("names a crossing train in both blocks while both read occupied", () => {
+    const model = standing();
+    feed(model, CROSSING, { event: "block_occupied", block: "b" });
+    expect(named(model)).toEqual([
+      ["a", "t1"],
+      ["b", "t1"],
+    ]);
+    feed(model, { event: "block_vacated", block: "a" });
+    expect(named(model)).toEqual([["b", "t1"]]);
+  });
+
+  it("names it in the block it left while both read clear", () => {
+    const model = standing();
+    feed(model, CROSSING, { event: "block_vacated", block: "a" });
+    expect(named(model)).toEqual([["a", "t1"]]);
+  });
+
+  it("names a train the run took off nowhere, though its block is held", () => {
+    // ADR-0069: the block it reads occupied in stays held by it until it
+    // reads clear, drawn as locked track with no marker.
+    const model = standing();
+    feed(model, { event: "allocation", trains: {}, locks: { a: "t1" }, requests: [] });
+    expect(named(model)).toEqual([]);
     expect(model.blocks().get("a")).toEqual({ state: "locked", train: "t1" });
-    expect(model.blocks().get("b")).toMatchObject({ state: "locked" });
   });
 
   it("stands in one again as soon as a sensor says it arrived", () => {
     // The same rule the dispatcher clears its own entry on: the mark is
-    // written at the grant and dropped when the sensor answers. Waiting for
-    // the next picture would draw the train on the connection for a frame
-    // after it had plainly got there.
+    // written at the grant and dropped when the sensor answers.
     const model = panel();
     feed(model, CROSSING, { event: "block_occupied", block: "b" });
-    expect(model.crossings()).toEqual([]);
-    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1" });
+    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1", named: "t1" });
+    expect(model.blocks().get("b")?.crossing).toBeUndefined();
+    expect(model.placed()).toEqual([{ train: "t1", block: "b" }]);
   });
 
   it("leaves a picture without one standing every train it names", () => {
     const model = panel();
     feed(model, CROSSING, { ...CROSSING, crossing: {} });
-    expect(model.crossings()).toEqual([]);
-    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t1" });
-  });
-
-  it("is dropped where the drawing on screen has no such transit", () => {
-    // The picture is a railroad's, and a page can be showing another one:
-    // one train the panel cannot place, rather than a panel that cannot draw.
-    // Either half of the resource can be the one this layout does not have.
-    const model = panel();
-    feed(model, { ...CROSSING, crossing: { t1: "elsewhere.main" } });
-    expect(model.crossings()).toEqual([]);
-
-    feed(model, { ...CROSSING, crossing: { t1: "sw.elsewhere" } });
-    expect(model.crossings()).toEqual([]);
+    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t1", named: "t1" });
   });
 
   it("is forgotten when a replay starts over", () => {
-    const model = panel();
+    const model = standing();
     feed(model, CROSSING);
     model.reset();
-    expect(model.crossings()).toEqual([]);
+    expect(named(model)).toEqual([]);
   });
 });
 

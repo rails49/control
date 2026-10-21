@@ -147,7 +147,7 @@ export class TcPanel extends LitElement {
     this.shown = panel;
     this.joined = joined;
     const at = this.menu;
-    if (at !== null && (panel === null || !panel.standsIn(at.train, at.block))) this.menu = null;
+    if (at !== null && (panel === null || !panel.shows(at.train, at.block))) this.menu = null;
   }
 
   /** The panel model the session built for the loaded railroad. */
@@ -184,7 +184,6 @@ export class TcPanel extends LitElement {
       drawing,
       review: this.review ?? UNREVIEWED,
       blocks: model.blocks(),
-      crossings: model.crossings(),
       offered: pointsOffered(drawing, model.lit().legs, model.positionsByAddress()),
     };
   }
@@ -428,7 +427,6 @@ export class TcPanel extends LitElement {
       aspects: model.aspects(),
       positions: positionsBySymbol(this.drawing, commanded),
       offered: pointsOffered(this.drawing, lit.legs, commanded),
-      crossings: model.crossings(),
       markers: model.markers(),
     };
   }
