@@ -16,7 +16,7 @@
  * What is open is the loaded railroad and no other (ADR-0072, decision 3):
  * the row the layout interface publishes names it, the shell opens it here,
  * and a row naming none closes it. Nothing here starts or forks a drawing;
- * making a railroad is the settings dialog's (#737). A read, review or Save
+ * making a railroad is the settings dialog's (#737). A read, review or save
  * that answers after the row names another railroad — the same name named
  * again after another included — writes nothing: each takes the count of
  * closes when it starts and drops its answer where that has moved (#798).
@@ -47,7 +47,7 @@ export type Opened = "opened" | "unanswered" | "refused" | "gone";
 export interface Store {
   listDrawings(): Promise<string[]>;
   readDrawing(name: string): Promise<Drawing>;
-  saveDrawing(drawing: Drawing): Promise<void>;
+  saveDrawing(drawing: Drawing, leaving?: boolean): Promise<void>;
   review(drawing: Drawing): Promise<Review>;
 }
 
@@ -60,8 +60,12 @@ export class Filing {
   private clean = true;
   private wrong: string | null = null;
   private said: Review | null = null;
+  private refused = false;
+  /** The save in flight, so a second asked for before it answers — the page
+   *  hidden and then gone, each saying so — writes nothing more. */
+  private writing: Promise<boolean> | null = null;
   /** How often what was open has been closed. An answer for a read, review
-   *  or Save started before the last close is for a railroad the row no
+   *  or save started before the last close is for a railroad the row no
    *  longer names, and writes nothing (#798). */
   private closes = 0;
 
@@ -92,6 +96,12 @@ export class Filing {
    *  only drawing open now is one the store gave, so the two are one. */
   get edits(): boolean {
     return !this.clean;
+  }
+
+  /** Whether the last save did not land, the store refusing it or not
+   *  answering. The edits stay on the page until one does (ADR-0085). */
+  get failed(): boolean {
+    return this.refused;
   }
 
   /** What the editor could not do — the store not answering, a save that did
@@ -144,6 +154,7 @@ export class Filing {
       if (closes !== this.closes) return "gone";
       editor.reset(drawing);
       this.name = name;
+      this.refused = false;
       // Staging is an edit, so a railroad that arrives without placement
       // opens with something to save, and something to lose, rather than
       // something already saved.
@@ -171,23 +182,36 @@ export class Filing {
     this.clean = true;
     this.wrong = null;
     this.said = null;
+    this.refused = false;
     this.notify();
   }
 
   /** The open drawing, given to the store. Saving needs a drawing to save
    *  into: nothing is open until the row names a railroad. It answers whether
    *  the drawing reached the store with the same railroad still open, which
-   *  is what has the shell name it again (ADR-0071). */
-  async save(editor: Editor): Promise<boolean> {
-    if (this.name === "") return false;
+   *  is what has the shell name it again (ADR-0071). A save asked for while
+   *  one is in flight is that one. `leaving` is a page being hidden or
+   *  closed, whose write must outlive it (ADR-0085). */
+  save(editor: Editor, leaving = false): Promise<boolean> {
+    if (this.name === "") return Promise.resolve(false);
+    if (this.writing === null) {
+      this.writing = this.saving(editor, leaving).finally(() => {
+        this.writing = null;
+      });
+    }
+    return this.writing;
+  }
+
+  private async saving(editor: Editor, leaving: boolean): Promise<boolean> {
     const closes = this.closes;
     let reached = false;
     try {
-      await this.store.saveDrawing(editor.drawing);
+      await this.store.saveDrawing(editor.drawing, leaving);
       if (closes !== this.closes) return false;
       reached = true;
       this.clean = true;
       this.wrong = null;
+      this.refused = false;
       // The list is asked for again when a railroad is wanted, so a name it
       // lacks is one another page made; it learns it here all the same.
       if (!this.list.includes(this.name)) {
@@ -196,6 +220,7 @@ export class Filing {
     } catch (failure) {
       if (closes !== this.closes) return false;
       this.wrong = String(failure);
+      this.refused = true;
     }
     this.notify();
     return reached;

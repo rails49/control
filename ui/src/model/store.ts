@@ -178,8 +178,11 @@ export async function readDrawing(name: string): Promise<Drawing> {
   return await ask<Drawing>("GET", `/drawings/${encodeURIComponent(name)}`);
 }
 
-export async function saveDrawing(drawing: Drawing): Promise<void> {
-  await ask("PUT", `/drawings/${encodeURIComponent(drawing.drawing)}`, drawing);
+/** The drawing written under its name. `leaving` is a page being hidden or
+ *  closed: the write goes with `keepalive`, so it outlives the page (ADR-0085,
+ *  decision 1). */
+export async function saveDrawing(drawing: Drawing, leaving = false): Promise<void> {
+  await ask("PUT", `/drawings/${encodeURIComponent(drawing.drawing)}`, drawing, leaving);
 }
 
 /**
@@ -649,17 +652,18 @@ const NOT_ANSWERING = "the store is not answering — run `tc49 serve`";
  * whose body will not parse came from something other than the store just as
  * a 404 page did.
  */
-async function ask<T>(method: string, path: string, body?: unknown): Promise<T> {
-  return await called<T>(
-    method,
-    path,
-    body === undefined
+async function ask<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  keepalive = false,
+): Promise<T> {
+  return await called<T>(method, path, {
+    ...(body === undefined
       ? {}
-      : {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-  );
+      : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    ...(keepalive ? { keepalive } : {}),
+  });
 }
 
 /** The same call with the body already made up, for the one route whose body
@@ -669,7 +673,7 @@ async function ask<T>(method: string, path: string, body?: unknown): Promise<T> 
 async function called<T>(
   method: string,
   path: string,
-  sent: Pick<RequestInit, "headers" | "body">,
+  sent: Pick<RequestInit, "headers" | "body" | "keepalive">,
 ): Promise<T> {
   let response: Response;
   try {

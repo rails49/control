@@ -85,7 +85,6 @@ describe("what each view's rail carries", () => {
       ["Zoom in", "+"],
       ["Fit", "0"],
       ["Netlist", "N"],
-      ["Save", "Mod+S"],
       ["Export SVG…", ""],
       ["Undo", "Mod+Z"],
       ["Redo", "Shift+Mod+Z"],
@@ -153,13 +152,13 @@ describe("what each view's rail carries", () => {
 });
 
 describe("what a dead command does", () => {
-  /** Nothing open: nothing to save, export, undo or inspect. */
+  /** Nothing open: nothing to export, undo or inspect. */
   it("draws it disabled", async () => {
     const shell = await mounted("edit");
     const dead = commands(shell)
       .filter((one) => one.disabled)
       .map((one) => one.dataset["command"]);
-    expect(dead).toEqual(["netlist", "save", "export-svg", "undo", "redo"]);
+    expect(dead).toEqual(["netlist", "export-svg", "undo", "redo"]);
   });
 
   it("does nothing when it is pressed", async () => {

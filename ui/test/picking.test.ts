@@ -320,20 +320,51 @@ describe("what the dialog lists", () => {
 });
 
 /** Loading a railroad throws away what the page holds of the one it leaves,
- *  so it waits for unsaved edits to be saved, as ON does (ADR-0072,
- *  decision 4). */
+ *  so the drawing's edits are saved first and the load follows (ADR-0085,
+ *  decision 1). A save that does not land loads nothing. */
 describe("the dialog against unsaved edits", () => {
-  it("asks for nothing, and names the drawing", async () => {
+  async function drawnOn(): Promise<TcApp> {
     const shell = await joined("edit");
     await said(shell, POWER, { power: "off" });
     session(shell).place("block", [8, 0]);
     edited(shell);
     await settled(shell);
+    return shell;
+  }
+
+  it("saves the drawing, then asks for the railroad picked", async () => {
+    const shell = await drawnOn();
+
+    const dialog = await pick(shell, "otira");
+
+    expect(refused(dialog)).toBeNull();
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
+    expect(written()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+      { topic: RAILROAD_WANTED, payload: { railroad: "otira" } },
+    ]);
+  });
+
+  it("asks for nothing where the save failed, and says so", async () => {
+    store.refuses = (path) =>
+      path === "/drawings/toy" ? { status: 507, error: "the disk is full" } : null;
+    const shell = await drawnOn();
 
     const dialog = await pick(shell, "otira");
 
     expect(written()).toEqual([]);
-    expect(refused(dialog)).toBe("the drawing has unsaved edits — save first");
+    expect(wrong(dialog)).toBe("the drawing could not be saved, so nothing was loaded");
+  });
+
+  it("saves the drawing before Copy loaded as… copies it", async () => {
+    const shell = await drawnOn();
+
+    await made(shell, "copy", "b");
+
+    expect(store.saved.map(({ path }) => path)).toEqual([
+      "/drawings/toy",
+      "/railroads/toy/copy",
+    ]);
   });
 });
 

@@ -4,8 +4,9 @@
  *
  * Loading another railroad rebuilds the rails a train stands on, so it waits
  * for track power `off`, as it does under ADR-0060; and it throws away what
- * the page holds of the railroad being left, so it waits for unsaved edits to
- * be saved, as ON does under ADR-0071. A page that has not heard which
+ * the page holds of the railroad being left, so it waits for the roster's
+ * unsaved edits to be saved. The drawing's are not waited for: the app saves
+ * them before the load (ADR-0085, decision 1). A page that has not heard which
  * railroad is loaded has no binding on the other end to ask. New and Copy
  * loaded as… end in a load of what they wrote, so they wait on the same
  * (ADR-0072, decision 4), and Copy on a railroad being loaded to copy.
@@ -33,8 +34,9 @@ import type { Power } from "./trace.js";
  * heard, `""` none loaded (#727). With none loaded there are no rails built
  * to change under anything, so power is not asked: a binding with nothing
  * loaded reads no supply, and the first railroad on a new box is loaded from
- * here. `unsaved` is what `Railroad.unsaved` (`model/railroad.ts`) names —
- * `"the drawing"`, `"the roster"` or both — and `null` while nothing is.
+ * here. `unsaved` is what the load would discard that nothing saves first —
+ * `"the roster"`, in `Railroad.unsaved`'s words (`model/railroad.ts`) — and
+ * `null` while nothing is.
  */
 export function refusal(
   loaded: string | null,

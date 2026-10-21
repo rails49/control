@@ -24,7 +24,6 @@ import { trackLive, type DrivingMode, type Power } from "./trace.js";
 import type { ViewId } from "./views.js";
 
 export type CommandId =
-  | "save"
   | "export-svg"
   | "undo"
   | "redo"
@@ -43,6 +42,10 @@ export interface Standing {
   opened: string;
   /** Whether the store has been given every edit. */
   saved: boolean;
+  /** Whether the last save of the open drawing did not land: the store
+   *  refused it or did not answer. The edits stay on the page, marked
+   *  unsaved, until a save lands (`stranded` below). */
+  failed: boolean;
   /** How many symbols are selected. */
   selection: number;
   /** Whether the one selected symbol has anything to set. False wherever the
@@ -62,8 +65,8 @@ export interface Standing {
   power: Power | null;
   /** The railroad the run has loaded, as `tc49/layout/state/railroad` names
    *  it, `null` with no session. Where it is the open drawing, a save is what
-   *  the apps build next, so Save waits for power off and ON waits for the
-   *  save (`isLoaded` below). Null with a drawing open is a page that has
+   *  the apps build next, so the editor saves only with power off and ON
+   *  saves first (`owed` below). Null with a drawing open is a page that has
    *  lost the broker, and that freezes the drawing (`unheard` below). */
   loaded: string | null;
 }
@@ -115,6 +118,7 @@ export function backupWords(standing: BackupStanding): string | null {
 export const NOTHING: Standing = {
   opened: "",
   saved: true,
+  failed: false,
   selection: 0,
   editable: false,
   undo: false,
@@ -172,12 +176,29 @@ export function isLoaded({ opened, loaded }: Standing): boolean {
   return opened !== "" && opened === loaded;
 }
 
-/** Whether ON waits for a save: the loaded railroad's drawing holds edits the
- *  store has not been given, and the run view draws the open drawing, so power
- *  on would run trains under track the dispatcher is not running (ADR-0071,
- *  decision 6). STOP and OFF never wait. */
-export function unbuilt(standing: Standing): boolean {
-  return isLoaded(standing) && !standing.saved;
+/**
+ * Whether the editor saves now: the loaded railroad's drawing holds edits the
+ * store has not been given, and track power reads `off`
+ * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 1). It is asked on leaving the Edit view, when the page is hidden,
+ * before ON and before a railroad is picked; there is no Save of a person's
+ * own. The layout builds only with power off, so with power on or draining
+ * the save would write a drawing no app runs, and the edits wait on the page
+ * (`stranded` below).
+ */
+export function owed(standing: Standing): boolean {
+  return isLoaded(standing) && !standing.saved && standing.power === "off";
+}
+
+/**
+ * Whether the band says *unsaved*: the drawing holds edits that could not be
+ * saved. Power came on from elsewhere while this page had edits — or the page
+ * cannot tell, having lost the broker — or the last save did not land. Edits
+ * a save is still owed for with power off say nothing: leaving the editor
+ * saves them (ADR-0085, decision 1).
+ */
+export function stranded(standing: Standing): boolean {
+  return !standing.saved && (standing.power !== "off" || standing.failed);
 }
 
 /**
@@ -188,9 +209,9 @@ export function unbuilt(standing: Standing): boolean {
  * moving (ADR-0078).
  *
  * Dead before the station has said where the supply stands and while the
- * broker is not answering, which would swallow the press; and dead while the
- * loaded railroad is unbuilt and off, since power on would run trains under
- * track no app built (ADR-0071, decision 6).
+ * broker is not answering, which would swallow the press. Unsaved edits do
+ * not make it dead: ON saves them first, and the power comes on once the
+ * apps have built what was saved (ADR-0085, decision 2).
  */
 export function supply(
   standing: Standing,
@@ -199,9 +220,6 @@ export function supply(
   const { power } = standing;
   if (power === null || !linked) {
     return { state: power ?? "off", reason: "Waiting for the station" };
-  }
-  if (power === "off" && unbuilt(standing)) {
-    return { state: "off", reason: "Save the railroad first" };
   }
   return { state: power, reason: "" };
 }
@@ -260,19 +278,6 @@ export interface Command {
 }
 
 export const COMMANDS: Record<CommandId, Command> = {
-  save: {
-    label: "Save",
-    icon: "floppy",
-    key: "Mod+S",
-    // Saving the loaded railroad names it again, and the layout builds only
-    // with power off, so while it is frozen the save would write a drawing no
-    // app runs (ADR-0071). A drawing open with no row heard is the loaded
-    // railroad's (`unheard`). Any other drawing is only a file.
-    enabled: (standing) =>
-      standing.opened !== "" &&
-      !standing.saved &&
-      !(frozen(standing) && (isLoaded(standing) || unheard(standing))),
-  },
   // The picture is of what is on the sheet, so unsaved edits are in it and
   // only having nothing open makes it dead.
   "export-svg": {
@@ -335,9 +340,7 @@ function hasSelection({ selection }: Standing): boolean {
  *
  * Written as a wrapper so that the category is named once and a command joins
  * it by wearing it: a new verb that draws is frozen by being declared with
- * this, rather than by someone remembering to repeat the condition. Saving is
- * not one of them — it writes the document out rather than changing it — and
- * its own rule is above.
+ * this, rather than by someone remembering to repeat the condition.
  */
 function editing(rule: (standing: Standing) => boolean): Command["enabled"] {
   return (standing) => !frozen(standing) && rule(standing);
@@ -383,18 +386,16 @@ export interface Group {
 export const RAIL: Record<ViewId, Group[]> = {
   edit: [
     { name: "View", items: ["zoom-out", "zoom-in", "fit", "netlist"] },
-    { name: "File", items: ["save", "export-svg"] },
+    { name: "File", items: ["export-svg"] },
     { name: "Edit", items: ["undo", "redo"] },
   ],
   run: [{ name: "View", items: ["zoom-out", "zoom-in", "fit"] }],
-  // The throttle draws no document: there is nothing to zoom, nothing to
-  // save, and the two gestures it writes are controls in the view itself
+  // The throttle draws no document: there is nothing to zoom, and the two gestures it writes are controls in the view itself
   // rather than buttons on the rail (ui/THROTTLE.md).
   throttle: [],
   // Stock draws two documents and neither is a drawing: there is no viewport
   // to move, and what it writes — a model, a roster — are controls in the
   // view itself for the same reason the throttle's gestures are
-  // (ui/STOCK.md). A `Save` here would be a second Save meaning something
-  // else than the one beside it.
+  // (ui/STOCK.md).
   stock: [],
 };

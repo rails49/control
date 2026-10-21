@@ -26,11 +26,11 @@ import {
   band,
   edited,
   mounted,
-  pressed,
   serving,
   session,
   settings,
   settingsOpened,
+  shows,
   settled,
   UNBACKED,
 } from "./support/shell.js";
@@ -660,7 +660,7 @@ describe("what a restore would discard", () => {
 
   /** What a restore would discard is the app's to say, in the words its
    *  own discard question uses, and by the same test: edits, not `saved`
-   *  (#703). */
+   *  (#703). Leaving the Edit view with power off saves them (ADR-0085). */
   it("tells the dialog the drawing has edits until it is saved", async () => {
     brokering();
     serving({
@@ -682,7 +682,8 @@ describe("what a restore would discard", () => {
     await settled(shell);
     expect(open(shell)!.unsaved).toBe("the drawing");
 
-    await pressed(shell, "save");
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await shows(shell, "run");
     expect(open(shell)!.unsaved).toBeNull();
   });
 });
