@@ -757,6 +757,7 @@ export class TcCanvas extends LitElement {
       this.machine.down(point, {
         button: event.button,
         shift: event.shiftKey,
+        touch: event.pointerType === "touch",
         screen: { x: event.clientX, y: event.clientY },
       }),
       point,

@@ -79,6 +79,7 @@ function down(
     {
       button: input.button ?? 0,
       shift: input.shift ?? false,
+      touch: false,
       screen: input.screen ?? { x: 0, y: 0 },
     },
   );

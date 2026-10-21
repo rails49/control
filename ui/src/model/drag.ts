@@ -28,12 +28,19 @@ import type { BlockView, Crossing, EndRef } from "./panel.js";
 import { anchorAt } from "./scene.js";
 import type { Review } from "./store.js";
 import type { PointWanted } from "./trace.js";
-import { under } from "./under.js";
+import { nearest, under } from "./under.js";
 
 /** How far the pointer may travel, in screen pixels, between the press on a
  *  point and the release that throws it: a click, and a shaky hand is still
  *  one. The editor allows the same before a press on a pin is a drag. */
 const SLOP = 4;
+
+/** The same for a finger, which rolls as it lifts (#893). */
+const TOUCH_SLOP = 12;
+
+/** How far from a tap, in squares, the offered point it throws may be: a
+ *  fingertip covers about a square at the zoom a panel is read at (#893). */
+const TOUCH_REACH = 1;
 
 /** What a drop asks for: one block, and the ends the train may enter through
  *  — one for an outer third, both for the middle. */
@@ -197,6 +204,9 @@ export interface Gestures {
  * panel offers is a click on it, if it is released on that point without
  * moving: the point's other position is asked for
  * ([ADR-0068](../../../docs/adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
+ * A tap on a touch screen need not land on the point: it is a click on the
+ * offered point nearest it, within a square, and may move further before it
+ * stops being one (#893).
  * A train is taken hold of first, so dragging one across a point throws
  * nothing. What is offered is read again at the release, the bus having
  * moved under the press.
@@ -209,7 +219,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   const painted = view.painted.bind(view);
   /** The point pressed on and where on screen, while the press may still be
    *  a click on it. */
-  let pressed: { symbol: string; screen: Point } | null = null;
+  let pressed: { symbol: string; screen: Point; touch: boolean } | null = null;
   return {
     down: (point, input) => {
       pressed = null;
@@ -218,21 +228,24 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       if (drag.down(now.drawing, now.review, now.blocks, point, now.crossings)) {
         return "render";
       }
-      const { symbol } = under(now.drawing, now.review, point);
+      const symbol = input.touch
+        ? nearest(now.drawing, now.offered.keys(), point, TOUCH_REACH)
+        : under(now.drawing, now.review, point).symbol;
       if (
         input.button === 0 &&
         !input.shift &&
         symbol !== null &&
         now.offered.has(symbol)
       ) {
-        pressed = { symbol, screen: input.screen };
+        pressed = { symbol, screen: input.screen, touch: input.touch };
       }
       return "quiet";
     },
     moved: (point, screen) => {
       if (
         pressed !== null &&
-        Math.hypot(screen.x - pressed.screen.x, screen.y - pressed.screen.y) > SLOP
+        Math.hypot(screen.x - pressed.screen.x, screen.y - pressed.screen.y) >
+          (pressed.touch ? TOUCH_SLOP : SLOP)
       ) {
         pressed = null;
       }
@@ -247,8 +260,11 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       pressed = null;
       if (now !== null && click !== null) {
         const wanted = now.offered.get(click.symbol);
-        const { symbol } = under(now.drawing, now.review, point);
-        if (wanted !== undefined && symbol === click.symbol) view.throwPoint(wanted);
+        // A tap is held to the slop alone: the release is still the tap, and
+        // asking again which point is nearest could name its neighbour.
+        const on =
+          click.touch || under(now.drawing, now.review, point).symbol === click.symbol;
+        if (wanted !== undefined && on) view.throwPoint(wanted);
         return "quiet";
       }
       if (now === null || drag.train === null) return "quiet";

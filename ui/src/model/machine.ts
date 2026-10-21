@@ -17,11 +17,15 @@ import type { Point } from "./geometry.js";
 export type Outcome = "quiet" | "render" | "picked" | "changed";
 
 /** What a pointer event says beyond where it is in squares: the button, the
- *  shift key, and the screen pixels — the only frame a slop threshold means
- *  anything in, a square being however many pixels the zoom makes it. */
+ *  shift key, whether a finger made it, and the screen pixels — the only frame
+ *  a slop threshold means anything in, a square being however many pixels the
+ *  zoom makes it. */
 export interface Input {
   button: number;
   shift: boolean;
+  /** `pointerType === "touch"`: a fingertip, which covers more than a mouse
+   *  pointer does and is held less still (ui/PANEL.md). */
+  touch: boolean;
   screen: Point;
 }
 

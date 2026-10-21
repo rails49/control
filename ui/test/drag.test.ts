@@ -257,7 +257,7 @@ describe("the run view's machine", () => {
     return { sent, lifted, thrown, it };
   }
 
-  const press = { button: 0, shift: false, screen: { x: 0, y: 0 } };
+  const press = { button: 0, shift: false, touch: false, screen: { x: 0, y: 0 } };
 
   it("is quiet through and through with nothing to gesture at", () => {
     // No railroad on screen, or no session to submit to: every call answers
@@ -403,9 +403,9 @@ describe("the run view's machine", () => {
 
     it("is only a plain left press", () => {
       const { thrown, it } = machine(POINTS);
-      it.down(SW, { button: 2, shift: false, screen: OVER_CANVAS });
+      it.down(SW, { button: 2, shift: false, touch: false, screen: OVER_CANVAS });
       it.up(SW, OVER_CANVAS);
-      it.down(SW, { button: 0, shift: true, screen: OVER_CANVAS });
+      it.down(SW, { button: 0, shift: true, touch: false, screen: OVER_CANVAS });
       it.up(SW, OVER_CANVAS);
       expect(thrown).toEqual([]);
     });
@@ -434,6 +434,94 @@ describe("the run view's machine", () => {
       it.up(on("b", 0.5), { x: 500, y: 600 });
       expect(thrown).toEqual([]);
       expect(sent).toEqual([{ train: "t1", block: "b", dest: ["b.A", "b.B"] }]);
+    });
+
+    /**
+     * A fingertip covers more than a square at most zooms, so a tap is not
+     * asked to land on the point: it throws the offered point nearest it,
+     * within a square of the tap, and may wander further before it stops
+     * being one (#893).
+     */
+    describe("tapped on a touch screen", () => {
+      const tap = (screen: { x: number; y: number }) => ({
+        ...press,
+        touch: true,
+        screen,
+      });
+      /** Half a square below `sw`, on a square with nothing on it. */
+      const BELOW = { x: 7.5, y: 1 };
+
+      it("throws the offered point half a square off the tap", () => {
+        const { thrown, it } = machine(POINTS);
+        it.down(BELOW, tap(OVER_CANVAS));
+        it.up(BELOW, OVER_CANVAS);
+        expect(thrown).toEqual([{ addr: "7", position: "thrown" }]);
+      });
+
+      it("is no click with a mouse at the same place", () => {
+        const { thrown, it } = machine(POINTS);
+        it.down(BELOW, at(OVER_CANVAS));
+        it.up(BELOW, OVER_CANVAS);
+        expect(thrown).toEqual([]);
+      });
+
+      it("throws the nearer of two offered points", () => {
+        // `sw2` at x 8…9 on row 1, diagonally beside `sw`.
+        const TWO: Painted = {
+          ...POINTS,
+          drawing: {
+            ...POINTS.drawing,
+            symbols: {
+              ...POINTS.drawing.symbols,
+              sw2: { kind: "turnout", at: [8, 1], addr: "9" },
+            },
+          },
+          offered: new Map([
+            ["sw", { addr: "7", position: "thrown" }],
+            ["sw2", { addr: "9", position: "closed" }],
+          ]),
+        };
+        // Both taps on a bare square, each within a square of both points.
+        const NEARER_SW2 = { x: 8.2, y: 0.9 };
+        const NEARER_SW = { x: 7.8, y: 1.1 };
+        const { thrown, it } = machine(TWO);
+        it.down(NEARER_SW2, tap(OVER_CANVAS));
+        it.up(NEARER_SW2, OVER_CANVAS);
+        it.down(NEARER_SW, tap(OVER_CANVAS));
+        it.up(NEARER_SW, OVER_CANVAS);
+        expect(thrown).toEqual([
+          { addr: "9", position: "closed" },
+          { addr: "7", position: "thrown" },
+        ]);
+      });
+
+      it("throws nothing more than a square from any offered point", () => {
+        const { thrown, it } = machine(POINTS);
+        it.down({ x: 7.5, y: 1.6 }, tap(OVER_CANVAS));
+        it.up({ x: 7.5, y: 1.6 }, OVER_CANVAS);
+        expect(thrown).toEqual([]);
+      });
+
+      it("allows twelve pixels of wander, and no more", () => {
+        const { thrown, it } = machine(POINTS);
+        const off = (dx: number) => ({ x: OVER_CANVAS.x + dx, y: OVER_CANVAS.y });
+        it.down(SW, tap(OVER_CANVAS));
+        it.moved(SW, off(12));
+        it.up(SW, off(12));
+        it.down(SW, tap(OVER_CANVAS));
+        it.moved(SW, off(13));
+        it.up(SW, off(13));
+        expect(thrown).toEqual([{ addr: "7", position: "thrown" }]);
+      });
+
+      it("still takes hold of a train", () => {
+        const { thrown, sent, it } = machine(POINTS);
+        it.down(on("a", 0.95), tap(OVER_CANVAS));
+        it.moved(on("b", 0.5), { x: 500, y: 600 });
+        it.up(on("b", 0.5), { x: 500, y: 600 });
+        expect(thrown).toEqual([]);
+        expect(sent).toEqual([{ train: "t1", block: "b", dest: ["b.A", "b.B"] }]);
+      });
     });
   });
 
