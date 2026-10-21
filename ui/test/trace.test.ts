@@ -330,14 +330,15 @@ describe("Ordering", () => {
 
   /** The names are the state rows of `tc49.lib.inventory`, and a Python
    *  test reads this list out of the file to keep the two from drifting. The
-   *  one device row a view reads is among them under the name `Live` gives
-   *  it: it is a state row like the rest, so a pair delivered backwards must
-   *  not leave a trip on the band after the hardware has stopped saying so
-   *  (#602). */
+   *  device rows a view reads are among them under the name `Live` gives
+   *  each: a state row like the rest, so a pair delivered backwards must not
+   *  leave a trip on the band after the hardware has stopped saying so
+   *  (#602), nor a detector's older reading at its block end (#898). */
   it("names every state topic a view is shown", () => {
     expect([...STATE_NAMES].sort()).toEqual([
       "allocation",
       "aspects",
+      "device/sensor",
       "device/track",
       "disputed",
       "driving",
@@ -364,6 +365,21 @@ describe("Ordering", () => {
     });
     expect(ordering.accepts(track(20))).toBe(true);
     expect(ordering.accepts(track(10, "district B tripped"))).toBe(false);
+  });
+
+  /** A device row addressed under its name is one topic per address, so a
+   *  reading at one block end is ordered against that end's alone (#898). */
+  it("orders a detector's readings by the end it watches", () => {
+    const ordering = new Ordering();
+    const sensor = (at: number, addr: string) => ({
+      event: "device/sensor",
+      at,
+      addr,
+      occupancy: "clear",
+    });
+    expect(ordering.accepts(sensor(20, "a.A"))).toBe(true);
+    expect(ordering.accepts(sensor(10, "b.B"))).toBe(true);
+    expect(ordering.accepts(sensor(10, "a.A"))).toBe(false);
   });
 });
 

@@ -356,6 +356,30 @@ const running = css`
     opacity: 1;
   }
 
+  /* What each block end's detector reads (#898): filled for occupied, hollow
+     for clear, grey for unknown and for an end nothing has reported on. Ink
+     and grey and never a lamp colour, and square where a lamp is round: the
+     signals at the same ends are red and green lamps. Only run mode draws
+     one. */
+  .detector {
+    stroke: var(--ink);
+    stroke-width: ${0.2 * W};
+    pointer-events: none;
+  }
+
+  .detector.occupied {
+    fill: var(--ink);
+  }
+
+  .detector.clear {
+    fill: none;
+  }
+
+  .detector.unknown {
+    fill: var(--hint);
+    stroke: var(--hint);
+  }
+
   /* A block showing its own name rather than a train's: the name is what is
      left when there is nothing to read, so it stands back. */
   .name.dim {

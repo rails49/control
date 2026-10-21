@@ -650,6 +650,7 @@ describe("what each mode draws", () => {
     ]),
     lit: { legs: new Map(), state: new Map(), wires: new Map() },
     aspects: new Map([["west.B", "clear"]]),
+    detected: new Map(),
     positions: new Map(),
     offered: new Map(),
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
@@ -760,6 +761,54 @@ describe("what each mode draws", () => {
     run.remove();
   });
 
+  /** What each block end's detector reads, as a square inside the body at
+   *  that end (#898): filled for occupied, hollow for clear, grey for unknown
+   *  and for an end no row has named. Every end has one on a run, and none is
+   *  drawn while editing. Square and not round, and in no lamp colour: the
+   *  signals at the same ends are round red and green lamps. */
+  it("draws each block end's detector reading on a run and none while editing", async () => {
+    const run = await running({
+      ...LIVE,
+      detected: new Map([
+        ["west.A", "occupied"],
+        ["west.B", "clear"],
+        ["east.A", "unknown"],
+      ]),
+    });
+    const squares = [...run.renderRoot.querySelectorAll("rect.detector")].map(
+      (rect) => [
+        rect.closest("g[data-symbol]")!.getAttribute("data-symbol"),
+        [...rect.classList].join(" "),
+      ],
+    );
+    expect(squares).toEqual([
+      ["west", "detector end-A occupied"],
+      ["west", "detector end-B clear"],
+      ["east", "detector end-A unknown"],
+      ["east", "detector end-B unknown"],
+    ]);
+    // Each square sits inside the body, at the half of its own end.
+    const { x, y, w, h } = BLOCK.body;
+    for (const rect of run.renderRoot.querySelectorAll("rect.detector")) {
+      const [left, top, width, height] = ["x", "y", "width", "height"].map((key) =>
+        Number(rect.getAttribute(key)),
+      );
+      expect(width).toBe(height);
+      expect(left).toBeGreaterThanOrEqual(x);
+      expect(left + width).toBeLessThanOrEqual(x + w);
+      expect(top).toBeGreaterThanOrEqual(y);
+      expect(top + height).toBeLessThanOrEqual(y + h);
+      const centre = left + width / 2;
+      if (rect.classList.contains("end-A")) expect(centre).toBeLessThan(x + w / 2);
+      else expect(centre).toBeGreaterThan(x + w / 2);
+    }
+    run.remove();
+
+    const editing = await canvasOn(RAILROAD, reviewed([]));
+    expect(editing.renderRoot.querySelectorAll("rect.detector")).toHaveLength(0);
+    editing.remove();
+  });
+
   /** The label is one rule with two answers: a block's own name in the editor,
    *  and the train standing in it on a run, which is the thing worth reading. */
   it("labels a block with its train on a run and with its name while editing", async () => {
@@ -832,6 +881,7 @@ describe("a point on a run", () => {
       wires: new Map(),
     },
     aspects: new Map(),
+    detected: new Map(),
     positions: new Map([
       ["lit", "thrown"],
       ["known", "thrown"],
