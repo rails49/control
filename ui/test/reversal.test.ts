@@ -9,7 +9,7 @@
  * [ui/PANEL.md](../../docs/ui/PANEL.md)).
  *
  * A DOM suite because none of it is a model's. `Drag.trainAt` answers which
- * train was clicked and `Panel.standsIn` and `Panel.inFlight` answer what the
+ * train was clicked and `Panel.shows` and `Panel.inFlight` answer what the
  * item is worth, each tested at its own seam; what only mounting `tc-panel`
  * can see is whether the component asked — that the offer is made over a train
  * and nowhere else, that the browser's own menu is suppressed either way, that

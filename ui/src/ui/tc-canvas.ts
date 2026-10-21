@@ -202,7 +202,7 @@ export class TcCanvas extends LitElement {
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.faces()} ${this.wires(lighting)} ${this.symbols(lighting)}
-        ${this.pins()} ${this.stacked()} ${this.arrows()} ${this.crossings()}
+        ${this.pins()} ${this.stacked()} ${this.arrows()}
         ${this.disputes()} ${this.markers()} ${this.wireline()} ${this.reach()}
         ${this.rubberBand()} ${this.ghost()}
       </svg>
@@ -488,9 +488,12 @@ export class TcCanvas extends LitElement {
    * label is a fault mark rather than a name the symbol wears: it is drawn in
    * red and it goes away when the label pairs.
    *
-   * On a run the name is the train's when one stands there and the block's own
-   * dimly otherwise, a train's name being the thing worth reading. A train's
-   * name is the longer of the two, so this is where the fit usually does work.
+   * On a run the name is the train's where the block carries one and the
+   * block's own dimly otherwise, a train's name being the thing worth reading.
+   * A block carries it whatever its colour — the train's own block lit by its
+   * route still has the train in it — and two blocks carry it while the train
+   * passes from one to the next (`Panel.blocks`, #897). A train's name is the
+   * longer of the two, so this is where the fit usually does work.
    */
   private label(
     name: string,
@@ -500,8 +503,7 @@ export class TcCanvas extends LitElement {
     if (spec.kind === "portal") return this.portalLabel(spec, lone);
     if (spec.kind !== "block") return nothing;
     const live = this.running;
-    const view = live?.blocks.get(name);
-    const train = view?.state === "occupied" ? view.train : undefined;
+    const train = live?.blocks.get(name)?.named;
     const worn =
       train !== undefined ? "name train" : live === null ? "name" : "name dim";
     return this.blockName(train ?? name, worn, spec);
@@ -673,21 +675,6 @@ export class TcCanvas extends LitElement {
       const { x, y, angle } = arrowPose(spec, view.toward);
       return svg`<path class="arrow" d="M0.28 0 L-0.14 0.17 L-0.14 -0.17 Z"
         transform=${`translate(${x} ${y}) rotate(${angle})`} />`;
-    });
-  }
-
-  /** A train the picture says is between two blocks: its name on the
-   *  connection it is crossing, midway between the two block ends that transit
-   *  joins, and in no block (ui/PANEL.md, #154). No arrow — the block it faces
-   *  out of is one it has left. */
-  private crossings(): unknown {
-    return (this.running?.crossings ?? []).map(({ train, between }) => {
-      const from = anchorAt(this.document, between[0]);
-      const to = anchorAt(this.document, between[1]);
-      if (from === null || to === null) return nothing;
-      return svg`<text class="name train crossing"
-        x=${(from.x + to.x) / 2} y=${(from.y + to.y) / 2}
-        font-size=${fitted(train, BLOCK.body.w)}>${train}</text>`;
     });
   }
 

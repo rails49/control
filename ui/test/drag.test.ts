@@ -44,7 +44,7 @@ const REVIEW: Review = {
 };
 
 const BLOCKS = new Map<string, BlockView>([
-  ["a", { state: "occupied", train: "t1", toward: "B" }],
+  ["a", { state: "occupied", train: "t1", named: "t1", toward: "B" }],
   ["b", { state: "free" }],
 ]);
 
@@ -95,15 +95,36 @@ describe("the train under a point", () => {
     expect(asked({ x: 20, y: 20 })).toBeNull();
   });
 
-  /** A block locked ahead of a train is not a train standing:
-   *  the arrow it would turn belongs to a block somewhere else. */
-  it("names none over a block merely locked or committed", () => {
+  /** A block locked ahead of a train does not carry its name: the train is
+   *  somewhere else, and that is where a press finds it. */
+  it("names none over a block merely locked or committed ahead of it", () => {
     const ahead = new Map<string, BlockView>([
       ["a", { state: "locked", train: "t1" }],
       ["b", { state: "committed", train: "t1" }],
     ]);
     expect(trainAt(DRAWING, REVIEW, ahead, on("a", 0.5))).toBeNull();
     expect(trainAt(DRAWING, REVIEW, ahead, on("b", 0.5))).toBeNull();
+  });
+
+  /** A route lights the block the train stands in, and the train is still
+   *  there to be clicked: the name is what a press finds, not the colour
+   *  (#897). */
+  it("names the train in a block its route has locked or committed", () => {
+    const lit = new Map<string, BlockView>([
+      ["a", { state: "locked", train: "t1", named: "t1" }],
+      ["b", { state: "committed", train: "t2", named: "t2" }],
+    ]);
+    expect(trainAt(DRAWING, REVIEW, lit, on("a", 0.5))).toEqual({ train: "t1", block: "a" });
+    expect(trainAt(DRAWING, REVIEW, lit, on("b", 0.5))).toEqual({ train: "t2", block: "b" });
+  });
+
+  it("names a train passing between two blocks in both", () => {
+    const both = new Map<string, BlockView>([
+      ["a", { state: "locked", train: "t1", named: "t1" }],
+      ["b", { state: "occupied", train: "t1", named: "t1" }],
+    ]);
+    expect(trainAt(DRAWING, REVIEW, both, on("a", 0.5))).toEqual({ train: "t1", block: "a" });
+    expect(trainAt(DRAWING, REVIEW, both, on("b", 0.5))).toEqual({ train: "t1", block: "b" });
   });
 });
 
@@ -189,6 +210,7 @@ describe("dropping", () => {
     const busy = new Map(BLOCKS).set("b", {
       state: "occupied",
       train: "t2",
+      named: "t2",
     } as BlockView);
     const drag = new Drag();
     drag.down(DRAWING, REVIEW, busy, on("a", 0.5));
@@ -226,7 +248,6 @@ describe("the run view's machine", () => {
     drawing: DRAWING,
     review: REVIEW,
     blocks: BLOCKS,
-    crossings: [],
     offered: new Map(),
   };
 
@@ -543,9 +564,9 @@ describe("the run view's machine", () => {
   });
 
   /**
-   * A crossing train stands in no block, so its marker is the name drawn on
-   * the connection it is crossing (ADR-0069). It is picked up through the
-   * same machine, and the drop on the roster pane is the only one that does
+   * A crossing train stands in no block, and its marker is its name in the
+   * blocks that carry it (ADR-0069, #897). It is picked up through the same
+   * machine, and the drop on the roster pane is the only one that does
    * anything: there is no block of its own a drop on another could move it
    * from.
    */
@@ -553,19 +574,22 @@ describe("the run view's machine", () => {
     const CROSSING: Painted = {
       ...PAINTED,
       blocks: new Map<string, BlockView>([
-        ["a", { state: "free" }],
-        ["b", { state: "free" }],
+        ["a", { state: "locked", train: "t2", named: "t2", crossing: true }],
+        ["b", { state: "locked", train: "t2" }],
       ]),
-      crossings: [{ train: "t2", between: ["a.B", "b.A"] }],
     };
 
-    /** Where its name is drawn: midway between the two ends its transit joins. */
-    const MARKER = { x: 3, y: 1.5 };
+    const MARKER = on("a", 0.5);
 
-    it("is taken hold of by a press on its marker", () => {
+    it("is taken hold of by a press on its name in a block", () => {
       const { it } = machine(CROSSING);
       expect(it.down(MARKER, press)).toBe("render");
       expect(it.marks).toEqual({ reach: { from: MARKER, to: MARKER } });
+    });
+
+    it("opens its menu there", () => {
+      const { it } = machine(CROSSING);
+      expect(it.menu(MARKER).found).toEqual({ train: "t2", block: "a" });
     });
 
     it("comes off the layout when dropped on the roster pane", () => {
@@ -587,9 +611,26 @@ describe("the run view's machine", () => {
       expect(lifted).toEqual([]);
     });
 
-    it("is not taken hold of away from its marker", () => {
+    it("is not taken hold of in a block its name is not in", () => {
       const { it } = machine(CROSSING);
-      expect(it.down({ x: 3, y: 5 }, press)).toBe("quiet");
+      expect(it.down(on("b", 0.5), press)).toBe("quiet");
     });
+  });
+
+  /** A train named in two blocks, its head in the next while its tail has
+   *  not cleared the last: a drop back on either is the cancel gesture. */
+  it("cancels a drop on either block a train passing between them is named in", () => {
+    const { sent, it } = machine({
+      ...PAINTED,
+      blocks: new Map<string, BlockView>([
+        ["a", { state: "occupied", train: "t1", named: "t1" }],
+        ["b", { state: "occupied", train: "t1", named: "t1" }],
+      ]),
+    });
+    it.down(on("a", 0.5), press);
+    it.moved(on("b", 0.5), OVER_CANVAS);
+    expect(it.marks).toEqual({ reach: { from: on("a", 0.5), to: on("b", 0.5) } });
+    it.up(on("b", 0.5), OVER_CANVAS);
+    expect(sent).toEqual([]);
   });
 });

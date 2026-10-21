@@ -10,7 +10,8 @@
  * The gesture is **filter-free**. It never asks whether a train fits, whether
  * an end is enterable, or whether a route exists — every drop submits and the
  * dispatcher answers. The one refusal here is the train's own block, which is
- * the cancel gesture and not a judgement about feasibility — and, for a train
+ * the cancel gesture and not a judgement about feasibility — or either of the
+ * two its name is in while it passes from one to the next — and, for a train
  * crossing a transit, every block, since it has none of its own to be moved
  * from and only the drop on the roster pane means anything (ADR-0069).
  *
@@ -20,12 +21,10 @@
  * ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
  */
 
-import { BLOCK } from "../render/units.js";
 import type { Drawing } from "./drawing.js";
 import { anchorOf, type Point } from "./geometry.js";
 import type { Machine, Outcome } from "./machine.js";
-import type { BlockView, Crossing, EndRef } from "./panel.js";
-import { anchorAt } from "./scene.js";
+import type { BlockView, EndRef } from "./panel.js";
 import type { Review } from "./store.js";
 import type { PointWanted } from "./trace.js";
 import { nearest, under } from "./under.js";
@@ -52,10 +51,10 @@ export interface Drop {
 
 interface Held {
   train: string;
-  /** The block the train stands in, which is the drop that cancels, or
-   *  `null` for a train crossing a transit: it has no block of its own, so
-   *  no drop on a block means anything for it (ADR-0069). */
-  block: string | null;
+  /** The blocks the train's name is in, a drop on which cancels, or `null`
+   *  for a train crossing a transit: it has no block of its own, so no drop
+   *  on a block means anything for it (ADR-0069). */
+  own: readonly string[] | null;
   from: Point;
   to: Point;
 }
@@ -85,20 +84,21 @@ export class Drag {
     return this.proposal;
   }
 
-  /** A press: it takes hold only where a train stands, or on the marker of
-   *  one crossing a transit. */
+  /** A press: it takes hold only on a block carrying a train's name. */
   down(
     drawing: Drawing,
     review: Review,
     blocks: Map<string, BlockView>,
     point: Point,
-    crossings: readonly Crossing[] = [],
   ): boolean {
-    const standing =
-      trainAt(drawing, review, blocks, point) ??
-      crossingAt(drawing, crossings, point);
+    const standing = trainAt(drawing, review, blocks, point);
     if (standing === null) return false;
-    this.held = { ...standing, from: point, to: point };
+    const { train, block } = standing;
+    const own =
+      blocks.get(block)?.crossing === true
+        ? null
+        : [...blocks].filter(([, view]) => view.named === train).map(([name]) => name);
+    this.held = { train, own, from: point, to: point };
     this.proposal = null;
     return true;
   }
@@ -133,16 +133,16 @@ export class Drag {
   }
 
   /** What a drop at `point` asks for: the block under it in thirds, or
-   *  nothing where the drop is the train's own block, bare paper, or any
+   *  nothing where the drop is one of the train's own blocks, bare paper, or any
    *  block at all for a train that is crossing. */
   private proposed(
     drawing: Drawing,
     review: Review,
     point: Point,
   ): Drop | null {
-    if (this.held === null || this.held.block === null) return null;
+    if (this.held === null || this.held.own === null) return null;
     const block = blockAt(drawing, review, point);
-    if (block === null || block === this.held.block) return null;
+    if (block === null || this.held.own.includes(block)) return null;
     return { train: this.held.train, block, dest: endsOf(drawing, block, point) };
   }
 }
@@ -159,8 +159,6 @@ export interface Painted {
   drawing: Drawing;
   review: Review;
   blocks: Map<string, BlockView>;
-  /** The trains between two blocks, whose markers are on a connection. */
-  crossings: readonly Crossing[];
   /** symbol → what a click on it asks for, the points the panel offers a
    *  throw on (`scene.pointsOffered`). */
   offered: ReadonlyMap<string, PointWanted>;
@@ -232,7 +230,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       pressed = null;
       const now = painted();
       if (now === null) return "quiet";
-      if (drag.down(now.drawing, now.review, now.blocks, point, now.crossings)) {
+      if (drag.down(now.drawing, now.review, now.blocks, point)) {
         return "render";
       }
       const symbol = input.touch
@@ -323,12 +321,15 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
 }
 
 /**
- * The train standing under a point, where one does — and the block it stands
- * in, which for a drag is the drop that cancels.
+ * The train whose name is on the block under a point, where one is — and that
+ * block.
  *
- * The press that takes hold of a train and the right-click that offers to
- * turn one around ask this same question of the same point (ui/PANEL.md), so
- * neither can come to disagree about which train was clicked.
+ * A train's name is in every block it holds that reads occupied, whatever the
+ * block's colour (model/panel.ts), so one passing from one block to the next
+ * answers in both. The press that takes hold of a train and the right-click
+ * that offers to turn one around ask this same question of the same point
+ * (ui/PANEL.md), so neither can come to disagree about which train was
+ * clicked.
  */
 export function trainAt(
   drawing: Drawing,
@@ -337,35 +338,9 @@ export function trainAt(
   point: Point,
 ): { train: string; block: string } | null {
   const block = blockAt(drawing, review, point);
-  const view = block === null ? undefined : blocks.get(block);
-  if (block === null || view?.train === undefined || view.state !== "occupied") {
-    return null;
-  }
-  return { train: view.train, block };
-}
-
-/**
- * The crossing train whose marker is under a point, where one is. The marker
- * is its name, drawn centred midway between the two block ends its transit
- * joins and fitted to a block's width (tc-canvas `crossings`), so that box is
- * what a press lands on.
- */
-export function crossingAt(
-  drawing: Drawing,
-  crossings: readonly Crossing[],
-  point: Point,
-): { train: string; block: null } | null {
-  for (const { train, between } of crossings) {
-    const from = anchorAt(drawing, between[0]);
-    const to = anchorAt(drawing, between[1]);
-    if (from === null || to === null) continue;
-    const dx = point.x - (from.x + to.x) / 2;
-    const dy = point.y - (from.y + to.y) / 2;
-    if (Math.abs(dx) <= BLOCK.body.w / 2 && Math.abs(dy) <= 0.5) {
-      return { train, block: null };
-    }
-  }
-  return null;
+  const train = block === null ? undefined : blocks.get(block)?.named;
+  if (block === null || train === undefined) return null;
+  return { train, block };
 }
 
 /** The block symbol under a point, where the point is on one. The question is

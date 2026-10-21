@@ -645,14 +645,13 @@ describe("what each mode draws", () => {
    *  clear, and a request marked at the end it is going to. */
   const LIVE: Overlay = {
     blocks: new Map([
-      ["west", { state: "occupied", train: "goods", toward: "B" }],
+      ["west", { state: "occupied", train: "goods", named: "goods", toward: "B" }],
       ["east", { state: "locked", train: "goods" }],
     ]),
     lit: { legs: new Map(), state: new Map(), wires: new Map() },
     aspects: new Map([["west.B", "clear"]]),
     positions: new Map(),
     offered: new Map(),
-    crossings: [],
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
   };
 
@@ -708,6 +707,26 @@ describe("what each mode draws", () => {
     expect(editing.renderRoot.querySelectorAll(".marker")).toHaveLength(0);
     expect(editing.renderRoot.querySelectorAll("path.arrow")).toHaveLength(0);
     editing.remove();
+  });
+
+  /** A train's name is drawn in every block that carries it, whatever the
+   *  block's colour, and nowhere else: no label on the connection (#897). */
+  it("labels each block carrying a train, lit or not", async () => {
+    const run = await running({
+      ...LIVE,
+      blocks: new Map([
+        ["west", { state: "locked", train: "goods", named: "goods" }],
+        ["east", { state: "committed", train: "goods", named: "goods" }],
+      ]),
+    });
+    const names = [...run.renderRoot.querySelectorAll("text.name")].map(
+      (text) => [text.textContent!.trim(), [...text.classList].join(" ")],
+    );
+    expect(names).toEqual([
+      ["goods", "name train"],
+      ["goods", "name train"],
+    ]);
+    run.remove();
   });
 
   /** A drop's arrival ends as a shade over the target block's body: the half
@@ -821,7 +840,6 @@ describe("a point on a run", () => {
       ["known", { addr: "8", position: "closed" }],
       ["unknown", { addr: "9", position: "thrown" }],
     ]),
-    crossings: [],
     markers: [],
   };
 
