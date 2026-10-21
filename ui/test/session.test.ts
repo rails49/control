@@ -312,6 +312,44 @@ describe("power with no panel model", () => {
   });
 });
 
+/** A railroad whose drawing is not a valid drawing stays named, the row
+ *  saying nothing was built from it (ADR-0085, decision 4, #885). */
+describe("a railroad named and not built", () => {
+  it("is joined, and says it is not built", () => {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "toy", at: 5, built: false });
+    stood.broker.opens();
+
+    expect(stood.names).toEqual(["toy"]);
+    expect(stood.session.status.railroad).toBe("toy");
+    expect(stood.session.status.built).toBe(false);
+  });
+
+  it("reads a row with no built, or another built, as built", () => {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "toy", at: 5 });
+    stood.broker.opens();
+    expect(stood.session.status.built).toBe(true);
+
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: false });
+    expect(stood.session.status.built).toBe(false);
+
+    stood.broker.says(RAILROAD, { name: "toy", at: 7, built: true });
+    expect(stood.session.status.built).toBe(true);
+  });
+
+  it("reads a row naming none as built: there is nothing to fix", () => {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "toy", built: false });
+    stood.broker.opens();
+
+    stood.broker.says(RAILROAD, { name: "" });
+
+    expect(stood.session.status.railroad).toBe("");
+    expect(stood.session.status.built).toBe(true);
+  });
+});
+
 describe("the rows that arrive before the documents", () => {
   /** The broker replays the retained rows in an order the contract does not
    *  fix (ADR-0032), so the picture may land before the row that names the

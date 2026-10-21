@@ -3,9 +3,11 @@
  * drawing (through the `Filing`), the roster with the catalogue it is read
  * against (the `Stock`), and the trains the store derives from them.
  *
- * Every view holds the loaded railroad and no other (ADR-0072, decision 3).
- * The row the layout interface publishes names it, and `named` is the one way
- * in: the shell hands over what the row says and does nothing else about
+ * Every view holds the loaded railroad and no other (ADR-0072, decision 3),
+ * built or not: a railroad whose drawing is not a valid drawing is named with
+ * `built: false` and its drawing held all the same, to be fixed (ADR-0085,
+ * decision 4, #885). The row the layout interface publishes names it, and
+ * `named` is the one way in: the shell hands over what the row says and does nothing else about
  * documents. When the row names another railroad, nothing of the last one
  * stays — the editor is emptied, the `Stock` and the trains go — before
  * anything of the next is read, so no view paints one railroad's drawing
