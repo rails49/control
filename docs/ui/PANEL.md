@@ -536,7 +536,7 @@ session leaves, the loaded railroad reads no roster, and the band says `no railr
 hold nothing for it either (#734). The band names this row's railroad, which
 is the one the editor holds (ADR-0072, decision 3).
 Which railroad that is, is a person's choice made while the apps run: the
-settings dialog behind the band's gear publishes
+Railroad tab of the settings dialog behind the band's gear publishes
 `tc49/layout/railroad_wanted` and this view carries the
 press, the layout interface answers it and the row moves
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
@@ -558,7 +558,7 @@ that was seconds away. Nothing republishes a retained row for a late reader.
 [`docs/dccex/README.md`](https://github.com/rails49/dccex/blob/main/docs/dccex/README.md) in
 [`rails49/dccex`](https://github.com/rails49/dccex), where the translator
 lives). No app's command line names the railroad: a person loads one from the
-settings dialog while the apps run, the store records which, and the box
+settings dialog's Railroad tab while the apps run, the store records which, and the box
 comes back on that one
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
 [ADR-0072](../adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).

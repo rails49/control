@@ -28,7 +28,7 @@ Once, in a browser, and no terminal
 
 1. Make an **empty, private repository** on github.com — no README, no
    licence, nothing in it.
-2. Open `Settings ▸ Backup…`. The dialog shows the key this store made for
+2. Open `Settings ▸ Backup ▸ Backup…`. The dialog shows the key this store made for
    itself. Copy it and paste it into that repository under *Settings ▸ Deploy
    keys*, with *Allow write access* ticked. It is the public half; pasting it
    somewhere wrong loses nothing.
@@ -190,11 +190,11 @@ remote has not been given and how old the oldest is, which is asked of git
 rather than remembered, so a restart does not forget it. Past `STALE_S` the
 run view says *backup behind* in the band, with git's words from the last push
 as its tooltip — a missing key and a deleted repository read differently —
-and `Settings ▸ Backup…` wears the same words beside it. Without that, a remote
+and `Settings ▸ Backup ▸ Backup…` wears the same words beside it. Without that, a remote
 that moved is invisible until the disk it was protecting against fails.
 
 **What the band says** ([#688](https://github.com/rails49/control/issues/688)).
-The band's note and the words beside `Settings ▸ Backup…` follow one rule, the
+The band's note and the words beside `Settings ▸ Backup ▸ Backup…` follow one rule, the
 first that holds:
 
 | The store | Says |
@@ -206,12 +206,12 @@ first that holds:
 | a repository with automatic backup off | *backup is off* |
 | anything else, a single failed push included | nothing |
 
-Pressing the note opens the backup dialog, as `Settings ▸ Backup…` does. The app asks again every hour, so a
+Pressing the note opens the backup dialog, as `Settings ▸ Backup ▸ Backup…` does. The app asks again every hour, so a
 copy that went behind after the page loaded still shows.
 
 ## Restoring
 
-*Restore*, in the footer of the `Settings ▸ Backup…` dialog, lists the backups
+*Restore*, in the footer of the `Settings ▸ Backup ▸ Backup…` dialog, lists the backups
 there are and puts the store back as the one you pick held it. It is usually not the last one you want: the editing
 session you are trying to get out of was itself backed up.
 
@@ -289,7 +289,7 @@ same one press.
 
 The new box's store is empty. In order:
 
-1. On the new box, open `Settings ▸ Backup…` and copy the key it shows.
+1. On the new box, open `Settings ▸ Backup ▸ Backup…` and copy the key it shows.
 2. On github.com, in the repository's *Settings ▸ Deploy keys*, remove the
    old box's key — a deploy key opens one repository, and the old box should
    no longer push here — and add the new box's, with *Allow write access*.
@@ -326,7 +326,7 @@ old one deleted, or another wanted — with no terminal
    two repositories, then add it to the new one's with write access. An old
    repository already deleted took the key with it; if GitHub still says the
    key is in use, *New key* makes another ([the key](#setting-one-up)).
-3. Open `Settings ▸ Backup…`, unfold *back up to another repository*, enter the new
+3. Open `Settings ▸ Backup ▸ Backup…`, unfold *back up to another repository*, enter the new
    address and press *Back up to it*.
 
 The store asks the address with `git ls-remote` first. Anything listed there is
