@@ -64,7 +64,7 @@ export interface RunStatus {
   linked: boolean;
   /** Power, `on`, `draining` or `off`, `null` while no session is joined or
    *  before the layout has said (ADR-0078), whether or not the drawing
-   *  derives. The band's power control draws it. */
+   *  is valid. The band's power control draws it. */
   power: Power | null;
   /** The railroad's driving mode, `null` while no session is joined or before
    *  the layout has said (ADR-0079). The band's driving control draws it. */
@@ -243,7 +243,7 @@ export class Session {
    *  one or where it carried none. */
   private stamped: number | null = null;
   /** Track power as `state/power` last said it, read whether or not a panel
-   *  model is built: a page whose drawing does not derive builds none, and
+   *  model is built: a page whose drawing is invalid builds none, and
    *  still has to know whether it may save (ADR-0085). */
   private supplied: Power | null = null;
   private connected = false;
@@ -314,8 +314,8 @@ export class Session {
    * The model is built once per railroad and kept across everything else. One
    * built afresh would forget what the bus has shown it, and only the next
    * picture would bring any of it back. So it is rebuilt only when the
-   * drawing's name changes or the review starts or stops deriving. A railroad
-   * that does not derive has no layout to build from, so nothing is painted
+   * drawing's name changes or the drawing turns valid or invalid. A railroad
+   * whose drawing is invalid has no layout to build from, so nothing is painted
    * and the band says why — a fact about the documents and not about the bus:
    * the broker goes on running the railroad it named.
    *

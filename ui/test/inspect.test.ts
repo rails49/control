@@ -369,7 +369,7 @@ describe("the block ends carrying no signal", () => {
     expect(dark(found).get("yard")).toBeUndefined();
   });
 
-  it("darkens nothing when the drawing does not derive", () => {
+  it("darkens nothing when the drawing is invalid", () => {
     // No layout is no answer, and no answer is not evidence of a dead end.
     const found = siding();
     found.layout = null;

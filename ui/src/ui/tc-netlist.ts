@@ -48,7 +48,7 @@ export class TcNetlist extends LitElement {
   override render() {
     const layout = this.review?.layout;
     if (layout === null || layout === undefined) {
-      return html`<p class="hint">No netlist: the drawing does not derive.</p>`;
+      return html`<p class="hint">No netlist: the drawing is invalid.</p>`;
     }
     const connections = Object.keys(layout.connections);
     return html`

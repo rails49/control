@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 
 /**
- * What the band says about the drawing itself: it derives, or it does not
- * (#91, ADR-0024).
+ * What the band says about the drawing itself: it is valid, or it is not
+ * (#91, ADR-0024, #892).
  *
  * The rule is `Filing`'s and `filing.test.ts` drives it — off the store's
- * refusal and nothing else, an overlap and a missing address deriving fine, a
+ * refusal and nothing else, an overlap and a missing address being valid, a
  * store that goes quiet leaving the last answer standing. What is left here is
  * the one thing a DOM test can say that the module's cannot: the mark the
  * operator sees is the fact the module holds, carried across two components.
@@ -18,6 +18,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import type { Review } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import {
+  band,
   chips,
   CLEAN,
   edited,
@@ -55,9 +56,10 @@ const APART: Drawing["symbols"] = {
   b1: { kind: "block", at: [4, 0] },
 };
 
-/** What the band's indicator reads, or `null` while it is clean. */
-function indicator(shell: TcApp): string | null {
-  return chips(shell).find((one) => one === "does not derive") ?? null;
+/** The band's indicator, or `null` while it is clean. */
+function indicator(shell: TcApp): Element | null {
+  const all = [...band(shell).querySelectorAll("look-chip")];
+  return all.find((one) => one.textContent!.trim() === "invalid drawing") ?? null;
 }
 
 /** An edit of the drawing, as the canvas reports one. */
@@ -66,13 +68,14 @@ function edit(shell: TcApp): void {
 }
 
 describe("what the band says about the drawing", () => {
-  it("marks a drawing derivation refused", async () => {
+  it("marks a drawing the store refused as invalid, its title the refusal", async () => {
     const shell = await holding(APART);
 
     store.review = () => Promise.resolve(REFUSED);
     edit(shell);
     await settled(shell);
 
-    expect(indicator(shell)).toBe("does not derive");
+    expect(chips(shell)).toContain("invalid drawing");
+    expect(indicator(shell)?.getAttribute("title")).toBe(REFUSED.refused);
   });
 });

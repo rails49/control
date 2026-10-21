@@ -258,7 +258,7 @@ describe("what track power freezes", () => {
    *  holding no other (ADR-0072, decision 3): the page has lost the broker,
    *  and cannot know whether the track has power. A page with nothing open
    *  holds no railroad to drift from. It keys on the row and not on power,
-   *  which reads null too on a joined page whose drawing does not derive. */
+   *  which reads null too on a joined page whose drawing is invalid. */
   it("freezes an open drawing while the row naming the loaded railroad is not heard", () => {
     expect(frozen(standing({ opened: "toy", loaded: null, power: null }))).toBe(true);
     expect(frozen(standing({ opened: "toy", loaded: null, power: "off" }))).toBe(true);

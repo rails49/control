@@ -16,7 +16,7 @@
  * the first inside the tool whose job is to be believed.
  *
  * What that answer says is wrong is not listed here. The canvas marks each
- * fault where it is and the band says coarsely whether the drawing derives
+ * fault where it is and the band says coarsely whether the drawing is valid
  * (ADR-0024), so the review goes to those two and neither this nor the app
  * keeps any of it.
  */

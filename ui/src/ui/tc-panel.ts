@@ -85,8 +85,8 @@ export class TcPanel extends LitElement {
   /** The loaded railroad, the app's own document. */
   @property({ attribute: false }) drawing: Drawing | null = null;
 
-  /** What the store says that drawing means. A railroad that does not derive
-   *  has no layout to paint on, and the band already says so. */
+  /** What the store says that drawing means. A railroad whose drawing is
+   *  invalid has no layout to paint on, and the band already says so. */
   @property({ attribute: false }) review: Review | null = null;
 
   /** Whether this view is the current one. */
