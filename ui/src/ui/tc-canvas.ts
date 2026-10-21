@@ -372,12 +372,12 @@ export class TcCanvas extends LitElement {
     const unset = new Set(this.editing?.unaddressed() ?? []);
     // Asked once rather than per symbol: the machine works its marks out
     // afresh on every read, and a drop names one block.
-    const target = this.machine.marks?.target?.block;
+    const target = this.machine.marks?.target;
     return Object.entries(this.document.symbols).map(([name, spec]) => {
       const shifted = this.shift(name);
       return svg`
         <g
-          class=${this.worn(name, lighting, target)}
+          class=${this.worn(name, lighting, target?.block)}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
@@ -389,6 +389,7 @@ export class TcCanvas extends LitElement {
               this.showing(name),
               this.lying(name, lighting),
             )}
+            ${target?.block === name ? arriving(target.ends) : nothing}
           </g>
           ${this.label(name, spec, lone.get(name))}
           ${unset.has(name) ? this.unaddressed(spec) : nothing}
@@ -727,20 +728,16 @@ export class TcCanvas extends LitElement {
     `;
   }
 
-  /** The drag in flight: a line from where the train was taken hold of, and a
-   *  ring at each arrival end a drop here would ask for — so the gesture's
-   *  meaning is on screen before the release (ui/PANEL.md). Both are the
-   *  machine's answer, never a guess about feasibility. */
+  /** The drag in flight: a line from where the train was taken hold of. The
+   *  arrival ends a drop here would ask for are a shade on the target block
+   *  itself (`arriving`), so the gesture's meaning is on screen before the
+   *  release (ui/PANEL.md). Both are the machine's answer, never a guess about
+   *  feasibility. */
   private reach(): unknown {
-    const marks = this.machine.marks;
-    if (marks?.reach === undefined) return nothing;
-    const { from, to } = marks.reach;
-    return svg`
-      <line class="reach" x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />
-      ${(marks.target?.ends ?? []).map(
-        (at) => svg`<circle class="marker hover" cx=${at.x} cy=${at.y} r="0.34" />`,
-      )}
-    `;
+    const reach = this.machine.marks?.reach;
+    if (reach === undefined) return nothing;
+    const { from, to } = reach;
+    return svg`<line class="reach" x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
   }
 
   // --- gestures -----------------------------------------------------------
@@ -979,6 +976,20 @@ export class TcCanvas extends LitElement {
   }
 }
 
+/**
+ * The arrival ends a drop would ask for, as a shade over the target block's
+ * body (#896): the A half for `A`, the B half for `B`, the whole body for
+ * both. Drawn in the block's own frame, where A is always on the left, so a
+ * turned or flipped block shades the half its pins say. A ring at the pin sat
+ * outside the block, and among blocks near each other it could read as
+ * another one's.
+ */
+function arriving(ends: readonly ("A" | "B")[]): SVGTemplateResult {
+  const { x, y, w, h } = BLOCK.body;
+  const half = ends.length === 1 ? w / 2 : w;
+  const left = ends.length === 1 && ends[0] === "B" ? x + w / 2 : x;
+  return svg`<rect class="arriving" x=${left} y=${y} width=${half} height=${h} />`;
+}
 
 /** Lit's bookkeeping, out of the exported clone: the markers it leaves between
  *  the parts of a template mean nothing in a file, and each carries a number

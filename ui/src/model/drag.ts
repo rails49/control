@@ -310,16 +310,12 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
     get marks() {
       const { from, to, drop } = drag;
       if (from === null || to === null) return null;
-      const now = drop === null ? null : painted();
-      if (drop === null || now === null) return { reach: { from, to } };
+      if (drop === null || painted() === null) return { reach: { from, to } };
       return {
         reach: { from, to },
         target: {
           block: drop.block,
-          ends: drop.dest.flatMap((end) => {
-            const at = anchorAt(now.drawing, end);
-            return at === null ? [] : [at];
-          }),
+          ends: drop.dest.map((end) => (end.endsWith(".A") ? "A" : "B")),
         },
       };
     },

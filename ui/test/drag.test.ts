@@ -278,11 +278,18 @@ describe("the run view's machine", () => {
     expect(it.marks).toEqual({ reach: { from: on("a", 0.5), to: on("a", 0.5) } });
 
     it.moved(on("b", 0.9), { x: 0, y: 0 });
-    // The outer third asks for one end, and the mark is where that end sits.
+    // The outer third asks for one end, and the mark names it: the canvas
+    // shades that half of the block (#896).
     expect(it.marks).toEqual({
       reach: { from: on("a", 0.5), to: on("b", 0.9) },
-      target: { block: "b", ends: [{ x: 6, y: 2.5 }] },
+      target: { block: "b", ends: ["B"] },
     });
+
+    it.moved(on("b", 0.1), { x: 0, y: 0 });
+    expect(it.marks?.target).toEqual({ block: "b", ends: ["A"] });
+
+    it.moved(on("b", 0.5), { x: 0, y: 0 });
+    expect(it.marks?.target).toEqual({ block: "b", ends: ["A", "B"] });
   });
 
   it("submits the drop, and nothing where the release cancels", () => {
