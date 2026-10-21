@@ -69,6 +69,14 @@ export interface RunStatus {
   /** The railroad's driving mode, `null` while no session is joined or before
    *  the layout has said (ADR-0079). The band's driving control draws it. */
   driving: DrivingMode | null;
+  /** Whether the apps built anything from the railroad the row names:
+   *  `false` where the row says `built: false`, its drawing not being a valid
+   *  drawing, and `true` otherwise — a row with no `built`, a row naming
+   *  none, and no row yet among them (BUS.md). The railroad stays named
+   *  either way, and the app opens its drawing in the Edit view to be fixed
+   *  ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+   *  decision 4). */
+  built: boolean;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
@@ -91,6 +99,7 @@ export const QUIET: RunStatus = {
   linked: false,
   power: null,
   driving: null,
+  built: true,
   trouble: null,
   fault: null,
   placed: [],
@@ -242,6 +251,9 @@ export class Session {
   /** The stamp on the last `tc49/layout/state/railroad` row, `null` before
    *  one or where it carried none. */
   private stamped: number | null = null;
+  /** Whether the last `tc49/layout/state/railroad` row named a railroad and
+   *  said nothing was built from it. */
+  private unbuilt = false;
   /** Track power as `state/power` last said it, read whether or not a panel
    *  model is built: a page whose drawing is invalid builds none, and
    *  still has to know whether it may save (ADR-0085). */
@@ -465,8 +477,15 @@ export class Session {
       const name = event["name"];
       if (typeof name !== "string") return;
       const at = event["at"];
-      this.rebuilt(name, typeof at === "number" ? at : null, event["built"] !== false);
+      const built = event["built"] !== false;
+      this.rebuilt(name, typeof at === "number" ? at : null, built);
+      const unbuilt = name !== "" && !built;
+      const turned = unbuilt !== this.unbuilt;
+      this.unbuilt = unbuilt;
       this.named(name);
+      // The same railroad named again joins nothing, so what the row says
+      // about its build is told here.
+      if (turned) this.changed();
       return;
     }
     if (event.event === "power") {
@@ -686,6 +705,7 @@ export class Session {
       linked: this.connected,
       power,
       driving: model?.driving ?? null,
+      built: !this.unbuilt,
       trouble: this.trouble,
       // Nothing, with no session joined: it is the hardware's report on the
       // railroad this page is watching, as the supply's own reading is, and a
@@ -817,6 +837,7 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.linked === now.linked &&
     was.power === now.power &&
     was.driving === now.driving &&
+    was.built === now.built &&
     was.trouble === now.trouble &&
     was.fault === now.fault &&
     same(was.placed, now.placed)

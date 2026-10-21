@@ -265,6 +265,12 @@ export class TcApp extends LitElement {
     // view (ADR-0085, decision 3). Leaving saves nothing with power on, so
     // the edits stay on the page, marked unsaved.
     if (shut(this.view, this.status.power) !== "") this.showing(VIEWS[0]!.id);
+    // A railroad named and not built has a drawing that is not a valid
+    // drawing, and the editor is where it is fixed: the page opens it there
+    // when the row first says so — after a restart, a save or a pick — and
+    // leaves a person who walks away from it where they went (ADR-0085,
+    // decision 4, #885).
+    if (!this.status.built && this.drewStatus.built) this.showing("edit");
     this.drewStatus = this.status;
     this.drewCabs = this.cabs;
   }
