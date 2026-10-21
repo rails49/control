@@ -419,3 +419,18 @@ describe("the mark on a disputed block", () => {
     }
   });
 });
+
+/**
+ * The run view's left pane (#895): the trains, then the requests directly
+ * under them. Each takes its content's height up to half the pane and scrolls
+ * on its own past that, so what is left over is below the requests rather
+ * than between the two lists.
+ */
+describe("the run view's left pane", () => {
+  it.each(["tc-roster", "tc-requests"])("%s takes its content's height, up to half", (list) => {
+    const block = rule(panelStyles.cssText, list);
+    expect(block).toMatch(/flex:\s*0 1 auto/);
+    expect(block).toMatch(/max-height:\s*50%/);
+    expect(block).toMatch(/overflow-y:\s*auto/);
+  });
+});

@@ -9,11 +9,11 @@ import { css } from "lit";
  * ([#168](https://github.com/rails49/control/issues/168)).
  *
  * The roster fills the shell's left-pane slot, whose width is the shell's
- * (`--pane`), and takes the full height of the work row: it is the same
- * rectangle the editor's palette occupies, so a toggle does not move the pane
- * under the pointer ([#169](https://github.com/rails49/control/issues/169)).
- * The request list sits under the roster in the same pane, each scrolling on
- * its own (#829).
+ * (`--pane`), and the pane takes the full height of the work row: it is the
+ * same rectangle the editor's palette occupies, so a toggle does not move the
+ * pane under the pointer ([#169](https://github.com/rails49/control/issues/169)).
+ * The request list sits directly under the roster in the same pane (#829,
+ * #895).
  */
 export const panelStyles = css`
   :host {
@@ -33,8 +33,12 @@ export const panelStyles = css`
     min-height: 0;
   }
 
+  /* Each list is its content's height, capped at half the pane, so the
+     requests sit directly under the trains and the space left over is below
+     them (#895). */
   tc-roster {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
+    max-height: 50%;
     overflow-y: auto;
   }
 
