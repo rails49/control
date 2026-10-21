@@ -369,7 +369,13 @@ drawing rather than raised by the action, so it reads the same after an undo or
 after opening a file that already had one.
 
 Zoom and pan are the SVG `viewBox`: the wheel zooms about the pointer and the
-middle button pans. Both directions of the wheel were there from the start and
+middle button pans. On a touch screen two fingers do both at once
+([#894](https://github.com/rails49/control/issues/894)): each keeps the square
+it landed on under it, so spreading or closing them zooms about their midpoint
+and moving them together pans. The second finger landing abandons whatever the
+first began — a drag, a band, a press — as a cancel, and nothing the fingers
+do is a gesture again until the last of them lifts; `model/pinch.ts` has the
+arithmetic. Both directions of the wheel were there from the start and
 neither was findable, so the rail carries a minus and a plus beside Fit and the
 keyboard has `+`, `-` and `0`. All of it is both modes': the run view gained
 every bit of it by being drawn here. **Fit** frames `scene.fitBox`, which is

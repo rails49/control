@@ -466,7 +466,10 @@ with a mouse. A tap on a point is looser than a click, because a fingertip
 covers about a square and rolls as it lifts: it need not land on the point,
 but throws the offered point whose centre is nearest it within one grid
 square, and it stays a tap for 12 screen pixels of movement where a click
-allows 4.
+allows 4. Two fingers pinch to zoom about their midpoint and pan by moving
+together, as in the editor ([EDITOR.md#canvas](EDITOR.md#canvas), #894); the
+second finger landing abandons the drag or the throw the first began, as a
+cancel, so nothing is submitted.
 
 **A click on a point throws it**
 ([ADR-0068](../adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)),
