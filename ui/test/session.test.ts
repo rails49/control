@@ -234,6 +234,84 @@ describe("a railroad press made while the broker has gone", () => {
   });
 });
 
+/**
+ * ON over a drawing just saved: the railroad named again, and `on` sent only
+ * once the row comes back from a build after the press (ADR-0085, decision
+ * 2). A row stamped no later than the one held at the press is the build
+ * before it, replayed on a reconnect.
+ */
+describe("ON waiting for the build", () => {
+  const WANTED = { topic: "tc49/layout/railroad_wanted", payload: { railroad: "toy" } };
+  const ON = { topic: POWER_WANTED, payload: { power: "on" } };
+
+  function waiting(): Stood {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "toy", at: 5, built: true });
+    stood.broker.opens();
+    stood.broker.says(STATE_POWER, { power: "off", at: 5 });
+    stood.session.pressOnBuilt("toy");
+    return stood;
+  }
+
+  it("names the railroad, and sends on once a later build names it", () => {
+    const stood = waiting();
+    expect(written(stood)).toEqual([WANTED]);
+
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
+
+    expect(written(stood)).toEqual([WANTED, ON]);
+  });
+
+  it("reads a row with no built as built", () => {
+    const stood = waiting();
+    stood.broker.says(RAILROAD, { name: "toy", at: 6 });
+    expect(written(stood)).toEqual([WANTED, ON]);
+  });
+
+  it("does not take the build before it, replayed, for the build", () => {
+    const stood = waiting();
+    stood.broker.closes();
+    stood.broker.opens();
+    expect(written(stood)).toEqual([WANTED]);
+
+    stood.broker.says(RAILROAD, { name: "toy", at: 6 });
+
+    expect(written(stood)).toEqual([WANTED, ON]);
+  });
+
+  it("sends nothing on a build that built nothing", () => {
+    const stood = waiting();
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: false });
+    stood.broker.says(RAILROAD, { name: "toy", at: 7, built: true });
+    expect(written(stood)).toEqual([WANTED]);
+  });
+
+  it("sends nothing where the row names another railroad first", () => {
+    const stood = waiting();
+    stood.broker.says(RAILROAD, { name: "other", at: 6 });
+    stood.broker.says(RAILROAD, { name: "toy", at: 7 });
+    expect(written(stood)).toEqual([WANTED]);
+  });
+});
+
+/** A drawing that does not derive builds no panel model, and the page still
+ *  reads the supply: it is what says whether the editor may save
+ *  (ADR-0085). */
+describe("power with no panel model", () => {
+  it("is read off the row all the same", () => {
+    const stood = standing();
+    stood.answering = false;
+    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.opens();
+    stood.session.documents(stored("toy"), null, STOCK);
+
+    stood.broker.says(STATE_POWER, { power: "off" });
+
+    expect(stood.session.panel).toBeNull();
+    expect(stood.session.status.power).toBe("off");
+  });
+});
+
 describe("the rows that arrive before the documents", () => {
   /** The broker replays the retained rows in an order the contract does not
    *  fix (ADR-0032), so the picture may land before the row that names the

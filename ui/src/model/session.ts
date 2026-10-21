@@ -57,14 +57,14 @@ import {
 export interface RunStatus {
   joined: boolean;
   /** The railroad the broker says it runs, `null` while it has not said
-   *  (#371) and `""` where it says it runs none (#727). The app reads it to know whether the open drawing is the loaded
-   *  railroad, whose save names it again and whose unsaved edits hold ON
-   *  (`model/commands.ts`, ADR-0071). */
+   *  (#371) and `""` where it says it runs none (#727). The app reads it to
+   *  know whether the open drawing is the loaded railroad, whose save names
+   *  it again and which ON saves first (`model/commands.ts`, ADR-0085). */
   railroad: string | null;
   linked: boolean;
   /** Power, `on`, `draining` or `off`, `null` while no session is joined or
-   *  before the layout has said (ADR-0078). The band's power control draws
-   *  it. */
+   *  before the layout has said (ADR-0078), whether or not the drawing
+   *  derives. The band's power control draws it. */
   power: Power | null;
   /** The railroad's driving mode, `null` while no session is joined or before
    *  the layout has said (ADR-0079). The band's driving control draws it. */
@@ -235,6 +235,17 @@ export class Session {
   /** The railroad a `railroad_wanted` pressed while the broker had gone was
    *  to name, `null` while no press is owed (#803). The last press wins. */
   private owed: string | null = null;
+  /** The railroad ON is waiting to see built, and the stamp of the row last
+   *  heard when it was pressed, `null` while ON waits for nothing
+   *  (ADR-0085, decision 2). */
+  private building: { railroad: string; after: number | null } | null = null;
+  /** The stamp on the last `tc49/layout/state/railroad` row, `null` before
+   *  one or where it carried none. */
+  private stamped: number | null = null;
+  /** Track power as `state/power` last said it, read whether or not a panel
+   *  model is built: a page whose drawing does not derive builds none, and
+   *  still has to know whether it may save (ADR-0085). */
+  private supplied: Power | null = null;
   private connected = false;
   private trouble: string | null = null;
   /** The railroad the model was built for, so it is rebuilt when the app loads
@@ -357,6 +368,7 @@ export class Session {
       // connection left in the model that no retained row will replace goes
       // first — an event is reported once and never comes round again.
       this.panel?.reset();
+      this.supplied = null;
       this.connected = true;
       this.trouble = null;
       // Armed here and not where the railroad is named: the broker replays
@@ -431,6 +443,10 @@ export class Session {
     // case — there rows are applied directly, the buffer is already null, and
     // there is nothing to carry.
     const early = this.panel === null ? this.held : null;
+    // Another railroad named under a joined one starts with nothing said
+    // about power, as its panel does; on a fresh connection the power row may
+    // have landed first, and is kept.
+    if (this.session !== null) this.supplied = null;
     this.leave();
     this.session = railroad;
     this.last = recalled(railroad) ?? this.kept.get(railroad) ?? null;
@@ -447,11 +463,19 @@ export class Session {
     if (event === null) return;
     if (topic === RAILROAD) {
       const name = event["name"];
-      if (typeof name === "string") this.named(name);
+      if (typeof name !== "string") return;
+      const at = event["at"];
+      this.rebuilt(name, typeof at === "number" ? at : null, event["built"] !== false);
+      this.named(name);
       return;
+    }
+    if (event.event === "power") {
+      const { power } = event as unknown as { power?: unknown };
+      this.supplied = power === "on" || power === "draining" ? power : "off";
     }
     if (this.panel === null) {
       if (this.held !== null && this.held.length < HELD) this.held.push(event);
+      if (event.event === "power") this.changed();
       return;
     }
     this.applied(event);
@@ -479,7 +503,43 @@ export class Session {
    * moving.
    */
   pressPower(power: Power): void {
+    this.building = null;
     this.send(powerWanted(power));
+  }
+
+  /**
+   * ON pressed over a drawing just saved: the railroad named again on
+   * `railroad_wanted`, as any save of the loaded railroad names it, and
+   * `power_wanted` `on` sent once the row comes back naming it from a build
+   * after the press
+   * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+   * decision 2). The power comes on over what the apps built from what was
+   * saved, never over the build before it.
+   *
+   * A row saying `built: false` built nothing, so nothing is sent: a drawing
+   * that is not a valid drawing runs no train. Nor is anything sent where a
+   * row names another railroad first, or another power press comes first —
+   * a STOP while waiting is a person changing their mind.
+   */
+  pressOnBuilt(railroad: string): void {
+    this.building = { railroad, after: this.stamped };
+    this.pressRailroad(railroad);
+  }
+
+  /** A row naming `railroad`, stamped `at`, saying whether anything was
+   *  built from it: what ON may be waiting for. A row with a stamp no later
+   *  than the one held at the press is the build before it, replayed. */
+  private rebuilt(railroad: string, at: number | null, built: boolean): void {
+    const waiting = this.building;
+    this.stamped = at;
+    if (waiting === null) return;
+    if (railroad !== waiting.railroad) {
+      this.building = null;
+      return;
+    }
+    if (at !== null && waiting.after !== null && at <= waiting.after) return;
+    this.building = null;
+    if (built) this.pressPower("on");
   }
 
   /**
@@ -618,12 +678,13 @@ export class Session {
   private settle(): void {
     const joined = this.session !== null;
     const model = joined ? this.panel : null;
-    this.repay(model?.power ?? null);
+    const power = joined ? (model?.power ?? this.supplied) : null;
+    this.repay(power);
     const now: RunStatus = {
       joined,
       railroad: this.nameless ? "" : this.session,
       linked: this.connected,
-      power: model?.power ?? null,
+      power,
       driving: model?.driving ?? null,
       trouble: this.trouble,
       // Nothing, with no session joined: it is the hardware's report on the
