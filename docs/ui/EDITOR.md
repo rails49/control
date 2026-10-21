@@ -115,7 +115,16 @@ there; whichever binding of the layout interface is running answers it and
 publishes `tc49/layout/state/railroad`, and that row is the one thing the app
 opens a railroad on
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md),
-ADR-0035). The dialog stays open and the tick moves when the row does. The list
+ADR-0035). The tick moves when the row does. **A pick looks busy until it has
+landed** (#902): the picked row wears a spinner from the press — through the
+drain, the save and the write New or Copy makes — until the page holds the
+new drawing, the row names it and `tc49/dispatch/state/allocation` has arrived
+since (`arrived` in `model/settings.ts`). The dialog then closes on the Run
+view, or on the Edit view where the row says `built: false`, no dispatcher
+being on that railroad to say anything. Where that has not happened 15 s after
+the railroad was asked for (`ANSWER_MS`, counted from the ask and not from the
+press, a drain having no time limit), the spinner stops and the row says
+`the layout did not answer`. The list
 and the two presses are dead and say why once beneath the list
 (`model/settings.ts`), the first that holds:
 
