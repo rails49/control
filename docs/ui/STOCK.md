@@ -332,7 +332,7 @@ broker keeps the roster it was editing, but cannot know whether the track has
 power: its link can drop while the broker, `layout` and the dispatcher go on
 running trains by the lengths they hold. The guard keys on the row naming the
 railroad and not on power reading nothing, which a joined page whose drawing
-does not derive also reads, and whose lengths stay editable. Nothing is
+is invalid also reads, and whose lengths stay editable. Nothing is
 latched: once the row is heard again with power off, lengths are editable
 (#804).
 

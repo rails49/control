@@ -181,11 +181,11 @@ else, and a supply switched off is neither
 ([ADR-0054](../adr/0054-the-railroad-comes-up-at-rest-and-points-replay.md)).
 The stop sign beside the toggle is red whatever the supply is doing.
 
-Beside them, one coarse indicator: a chip reading *does not derive* when the
-drawing does not, and nothing when it does. It
-names no fault and counts nothing, the canvas being where you find out where. A
-drawing with an overlap or a turnout still lacking an address leaves it clean,
-both being drawings that derive
+Beside them, one coarse indicator: a chip reading *invalid drawing* when the
+drawing is not valid, and nothing when it is. Its title is the store's refusal
+from `review`, read by hovering. It counts nothing, the canvas being where you
+find out where. A drawing with an overlap or a turnout still lacking an address
+leaves it clean, both being valid drawings
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
 
 **The band says nothing of a frozen drawing**
@@ -568,7 +568,7 @@ An end goes dark only once its pin is satisfied. An unwired end is in no
 transit either, but it is unfinished rather than blind, and a block whose
 signals vanished the moment it was dropped — the palette tile and the ghost
 having just shown both — would read as a fault in the drawing rather than a
-fact about it. A drawing that does not derive is no answer at all, and every
+fact about it. An invalid drawing is no answer at all, and every
 signal stays.
 
 **Terminal**, 1×1, pin at `(0, 0.5)`. A track stub from the pin to a
@@ -1007,7 +1007,7 @@ how a computer says what it found; a person drawing a railroad finds it by
 looking, and half the old panel restated a mark the canvas already carried: a
 red pin is called that because the canvas draws it red.
 
-| Fault | Mark | Derives? |
+| Fault | Mark | Valid? |
 | --- | --- | --- |
 | A pin short of a wire | the pin, red | no |
 | A portal label worn by other than two | the label, red ground | no |
@@ -1020,7 +1020,8 @@ unfinished. An overlap is cosmetic, and a drawing with no addresses is a valid
 layout nobody can drive yet. Without the split, an unaddressed turnout on a
 busy layout would look as urgent as a broken one. Saving is allowed throughout.
 The band carries the same distinction coarsely, one indicator saying only
-whether the drawing derives ([The band](#the-band)).
+whether the drawing is valid ([The band](#the-band)), and the netlist pane
+reads *No netlist: the drawing is invalid.*
 
 The two quiet marks share a weight and not a shape. An overlap is about the
 squares, so the squares are tinted; a missing address is about the symbol, so
@@ -1103,7 +1104,7 @@ whether its track has power; an edit saved then would be drawn by the run view
 over a build no app has. A page loaded without a broker holds no drawing, so
 it has nothing to freeze. The rule keys on the row and not on power, which
 reads nothing too before the layout has said. Power is read off its own row
-whether or not the drawing derives, since it is what says whether the editor
+whether or not the drawing is valid, since it is what says whether the editor
 may save. Power then reads nothing, so the Edit view opens, frozen: this is
 the one freeze a person sees, and nothing on the band names it.
 
