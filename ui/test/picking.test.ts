@@ -27,6 +27,7 @@
  * The session itself is `support/session.ts`, shared with the other suites.
  */
 
+import type { LookView } from "@rails49/look";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
@@ -36,7 +37,10 @@ import {
   type Answers,
   band,
   edited,
+  CLEAN,
   mounted,
+  power,
+  rail,
   serving,
   session,
   settingsOpened,
@@ -87,22 +91,29 @@ async function dark(): Promise<TcApp> {
 
 /** The dialog's railroads, each as its name and its tick. */
 function listed(dialog: TcSettings): string[][] {
-  return [...dialog.renderRoot.querySelectorAll("ul.railroads li button")].map((one) => [
-    one.querySelector(".label")!.textContent!.trim(),
-    one.querySelector(".tick")!.textContent!.trim(),
-  ]);
+  return [...dialog.renderRoot.querySelectorAll("ul.railroads li button")].map(
+    (one) => [
+      one.querySelector(".label")!.textContent!.trim(),
+      one.querySelector(".tick")!.textContent!.trim(),
+    ],
+  );
 }
 
 /** Why the dialog's railroad part is refused, `null` where it is not. */
 function refused(dialog: TcSettings): string | null {
-  return dialog.renderRoot.querySelector(".hint.refused")?.textContent?.trim() ?? null;
+  return (
+    dialog.renderRoot.querySelector(".hint.refused")?.textContent?.trim() ??
+    null
+  );
 }
 
 /** Choose a railroad the way an operator does: the gear, and a click on the
  *  railroad in the dialog it opens. */
 async function pick(shell: TcApp, name: string): Promise<TcSettings> {
   const dialog = await settingsOpened(shell);
-  const entries = [...dialog.renderRoot.querySelectorAll("ul.railroads li button")];
+  const entries = [
+    ...dialog.renderRoot.querySelectorAll("ul.railroads li button"),
+  ];
   const entry = entries.find(
     (one) => one.querySelector(".label")!.textContent!.trim() === name,
   ) as HTMLElement | undefined;
@@ -117,8 +128,13 @@ function loaded(shell: TcApp): string {
 }
 
 /** Type a name into the dialog's name field, the way a person does. */
-async function named(shell: TcApp, dialog: TcSettings, name: string): Promise<void> {
-  const input = dialog.renderRoot.querySelector<HTMLInputElement>("sl-input.name")!;
+async function named(
+  shell: TcApp,
+  dialog: TcSettings,
+  name: string,
+): Promise<void> {
+  const input =
+    dialog.renderRoot.querySelector<HTMLInputElement>("sl-input.name")!;
   input.value = name;
   input.dispatchEvent(new Event("sl-input", { bubbles: true }));
   await settled(shell);
@@ -126,7 +142,9 @@ async function named(shell: TcApp, dialog: TcSettings, name: string): Promise<vo
 
 /** One of the two presses beside the name field. */
 function making(dialog: TcSettings, which: "new" | "copy"): HTMLButtonElement {
-  return dialog.renderRoot.querySelector<HTMLButtonElement>(`sl-button.${which}`)!;
+  return dialog.renderRoot.querySelector<HTMLButtonElement>(
+    `sl-button.${which}`,
+  )!;
 }
 
 /** Type `name` and press New, or Copy loaded as…, the way a person does. */
@@ -145,7 +163,9 @@ async function made(
 /** What the dialog says a name or a write was refused with, `null` where
  *  nothing was. */
 function wrong(dialog: TcSettings): string | null {
-  return dialog.renderRoot.querySelector(".hint.wrong")?.textContent?.trim() ?? null;
+  return (
+    dialog.renderRoot.querySelector(".hint.wrong")?.textContent?.trim() ?? null
+  );
 }
 
 describe("the dialog asks on the bus", () => {
@@ -217,7 +237,10 @@ describe("what the band names as loaded", () => {
 /** What the dialog says while a press waits for the track to go dead, `null`
  *  where nothing waits. */
 function stopping(dialog: TcSettings): string | null {
-  return dialog.renderRoot.querySelector(".stopping .hint")?.textContent?.trim() ?? null;
+  return (
+    dialog.renderRoot.querySelector(".stopping .hint")?.textContent?.trim() ??
+    null
+  );
 }
 
 /**
@@ -233,7 +256,9 @@ describe("the dialog against the rails", () => {
 
     const dialog = await pick(shell, "otira");
 
-    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+    ]);
     expect(refused(dialog)).toBeNull();
     expect(stopping(dialog)).toBe("stopping trains…");
     expect(loaded(shell)).toBe("toy");
@@ -258,7 +283,9 @@ describe("the dialog against the rails", () => {
     await said(shell, POWER, { power: "off" });
     await settled(shell);
 
-    expect(written()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "otira" } }]);
+    expect(written()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "otira" } },
+    ]);
   });
 
   /** A drain has no time limit, so the stop sign is beside the wait. */
@@ -267,7 +294,9 @@ describe("the dialog against the rails", () => {
     await said(shell, POWER, { power: "on" });
     const dialog = await pick(shell, "otira");
 
-    dialog.renderRoot.querySelector<HTMLElement>(".stopping sl-button.stop")!.click();
+    dialog.renderRoot
+      .querySelector<HTMLElement>(".stopping sl-button.stop")!
+      .click();
     await settled(shell);
 
     expect(written()).toEqual([
@@ -282,12 +311,16 @@ describe("the dialog against the rails", () => {
     await said(shell, POWER, { power: "on" });
     const dialog = await pick(shell, "otira");
 
-    dialog.renderRoot.querySelector<HTMLElement>("sl-button[slot=footer]")!.click();
+    dialog.renderRoot
+      .querySelector<HTMLElement>("sl-button[slot=footer]")!
+      .click();
     await settled(shell);
     await said(shell, POWER, { power: "off" });
     await settled(shell);
 
-    expect(written()).toEqual([{ topic: POWER_WANTED, payload: { power: "draining" } }]);
+    expect(written()).toEqual([
+      { topic: POWER_WANTED, payload: { power: "draining" } },
+    ]);
   });
 
   it("drains before New writes anything", async () => {
@@ -312,7 +345,9 @@ describe("the dialog against the rails", () => {
     const dialog = await pick(shell, "otira");
 
     expect(written()).toEqual([]);
-    expect(refused(dialog)).toBe("the layout has not said whether the track has power");
+    expect(refused(dialog)).toBe(
+      "the layout has not said whether the track has power",
+    );
   });
 });
 
@@ -375,7 +410,9 @@ describe("what the dialog lists", () => {
     const dialog = await settingsOpened(shell);
 
     expect(dialog.renderRoot.querySelector("ul.railroads")).toBeNull();
-    expect(dialog.renderRoot.textContent).toContain("the store lists no railroad");
+    expect(dialog.renderRoot.textContent).toContain(
+      "the store lists no railroad",
+    );
   });
 
   it("shuts when the dialog says it was closed", async () => {
@@ -419,13 +456,17 @@ describe("the dialog against unsaved edits", () => {
 
   it("asks for nothing where the save failed, and says so", async () => {
     store.refuses = (path) =>
-      path === "/drawings/toy" ? { status: 507, error: "the disk is full" } : null;
+      path === "/drawings/toy"
+        ? { status: 507, error: "the disk is full" }
+        : null;
     const shell = await drawnOn();
 
     const dialog = await pick(shell, "otira");
 
     expect(written()).toEqual([]);
-    expect(wrong(dialog)).toBe("the drawing could not be saved, so nothing was loaded");
+    expect(wrong(dialog)).toBe(
+      "the drawing could not be saved, so nothing was loaded",
+    );
   });
 
   it("saves the drawing before Copy loaded as… copies it", async () => {
@@ -448,11 +489,15 @@ describe("the dialog before the layout has said", () => {
 
     const dialog = await settingsOpened(shell);
 
-    expect(refused(dialog)).toBe("the layout has not said which railroad is loaded");
+    expect(refused(dialog)).toBe(
+      "the layout has not said which railroad is loaded",
+    );
     expect(
-      [...dialog.renderRoot.querySelectorAll<HTMLButtonElement>("ul.railroads button")].every(
-        (one) => one.disabled,
-      ),
+      [
+        ...dialog.renderRoot.querySelectorAll<HTMLButtonElement>(
+          "ul.railroads button",
+        ),
+      ].every((one) => one.disabled),
     ).toBe(true);
   });
 });
@@ -505,7 +550,10 @@ describe("New railroad", () => {
 
   it("shows the store's words where the write is refused, and asks for nothing", async () => {
     const shell = await dark();
-    store.refuses = () => ({ status: 400, error: "drawing 'b' has no symbols" });
+    store.refuses = () => ({
+      status: 400,
+      error: "drawing 'b' has no symbols",
+    });
 
     const dialog = await made(shell, "new", "b");
 
@@ -531,7 +579,9 @@ describe("New railroad", () => {
 
     expect(making(dialog, "new").disabled).toBe(true);
     expect(making(dialog, "copy").disabled).toBe(true);
-    expect(refused(dialog)).toBe("the layout has not said whether the track has power");
+    expect(refused(dialog)).toBe(
+      "the layout has not said whether the track has power",
+    );
   });
 
   /** The dialog stays up, so the new railroad is seen to arrive: the list is
@@ -579,7 +629,9 @@ describe("Copy loaded railroad as…", () => {
 
     await made(shell, "copy", "b");
 
-    expect(store.saved).toEqual([{ path: "/railroads/toy/copy", body: { to: "b" } }]);
+    expect(store.saved).toEqual([
+      { path: "/railroads/toy/copy", body: { to: "b" } },
+    ]);
     expect(written()).toEqual([
       { topic: RAILROAD_WANTED, payload: { railroad: "b" } },
     ]);
@@ -616,6 +668,78 @@ describe("Copy loaded railroad as…", () => {
 
     expect(making(dialog, "copy").disabled).toBe(true);
     expect(making(dialog, "new").disabled).toBe(false);
-    expect(dialog.renderRoot.textContent).toContain("no railroad is loaded to copy");
+    expect(dialog.renderRoot.textContent).toContain(
+      "no railroad is loaded to copy",
+    );
+  });
+});
+
+/**
+ * A railroad whose drawing is not a valid drawing is picked like any other
+ * (#900, [ADR-0085](../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 4): the list carries no mark for it and refuses it nothing, and
+ * the layout's row names it with `built: false`, so the page opens its
+ * drawing in the Edit view to be fixed and ON waits, as after a restart.
+ */
+describe("a railroad whose drawing is invalid", () => {
+  beforeEach(() => {
+    serving({
+      drawings: HAS,
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () =>
+        Promise.resolve({ ...CLEAN, refused: "pin 'b1.a' is not wired" }),
+    });
+  });
+
+  /** The view that is current, by the rail's mark. */
+  function current(shell: TcApp): string {
+    return rail(shell).querySelector<LookView>("look-view[current]")!.name;
+  }
+
+  it("is listed unmarked, and its press is live", async () => {
+    const shell = await dark();
+    const dialog = await settingsOpened(shell);
+
+    expect(listed(dialog)).toEqual([
+      ["toy", "✓"],
+      ["otira", ""],
+      ["reversing-loops", ""],
+    ]);
+    const buttons = [
+      ...dialog.renderRoot.querySelectorAll<HTMLButtonElement>(
+        "ul.railroads li button",
+      ),
+    ];
+    expect(buttons.map((one) => one.disabled)).toEqual([false, false, false]);
+    expect(refused(dialog)).toBeNull();
+  });
+
+  it("is asked for on the bus like any other", async () => {
+    const shell = await dark();
+
+    await pick(shell, "otira");
+
+    expect(written()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "otira" } },
+    ]);
+  });
+
+  it("ends with its drawing open in the Edit view, and ON refused", async () => {
+    const shell = await dark();
+    await pick(shell, "otira");
+
+    await said(shell, "tc49/layout/state/railroad", {
+      name: "otira",
+      at: 7,
+      built: false,
+    });
+    // The layout clears its rows on a load and says the supply again.
+    await said(shell, POWER, { power: "off" });
+
+    expect(loaded(shell)).toBe("otira");
+    expect(session(shell).drawing.drawing).toBe("otira");
+    expect(current(shell)).toBe("edit");
+    expect(power(shell).toggleReason).toBe("Fix the drawing first");
   });
 });
