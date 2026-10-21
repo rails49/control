@@ -346,7 +346,7 @@ export class Panel {
   private powerWord: Power | null = null;
   /** What the hardware says is wrong with the supply, in its own words,
    *  `null` where it says nothing (BUS.md, device vocabulary). Read off
-   *  `device/track`, which is the one device row a view reads: `power` there
+   *  `device/track`, which with `device/sensor` is a device row a view reads: `power` there
    *  is folded into `state/power` above and `powerWord` is what the picture
    *  draws, and the free-text `reason` beside it is the only place a tripped
    *  district or a participant that cannot reach the supply can be said — a
