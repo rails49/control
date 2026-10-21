@@ -459,9 +459,14 @@ down when the train leaves the block it was opened over, and when the broker
 goes, rather than turning a train around in a block nobody clicked or
 publishing into a client that is reconnecting.
 
-The panel is mouse-and-keyboard. Touch works where the browser gives it, iOS
-Safari raising `contextmenu` on a long press, but is not designed for; the one
-care taken is cancelling the drag that same press began.
+The panel is mouse-and-keyboard first. Touch works where the browser gives
+it, iOS Safari raising `contextmenu` on a long press, and the drag that same
+press began is cancelled. A press on a train takes hold of it with a finger as
+with a mouse. A tap on a point is looser than a click, because a fingertip
+covers about a square and rolls as it lifts: it need not land on the point,
+but throws the offered point whose centre is nearest it within one grid
+square, and it stays a tap for 12 screen pixels of movement where a click
+allows 4.
 
 **A click on a point throws it**
 ([ADR-0068](../adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)),
