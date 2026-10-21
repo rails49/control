@@ -4,8 +4,8 @@
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  *
  * There is one railroad and two views of it, so there is one canvas. The
- * viewport — zoom, the wheel, the middle-button pan and fit — is the same for
- * both and is this component's, and so are the artwork, the wires and where
+ * viewport — zoom, the wheel, the middle-button pan, the two-finger pinch and
+ * fit — is the same for both and is this component's, and so are the artwork, the wires and where
  * every symbol sits. `mode` decides what only one of them draws: **edit**
  * has the pins, the face marks a wire in flight asks for, the ghost and the
  * rubber band, and **run** has what the run has painted over the drawing,
@@ -54,6 +54,7 @@ import {
 } from "../model/inspect.js";
 import type { Machine, Outcome } from "../model/machine.js";
 import type { Aspect, Marker, Overlay } from "../model/panel.js";
+import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
@@ -127,6 +128,18 @@ export class TcCanvas extends LitElement {
    *  put: the view moves under the pointer, so the same screen position reads
    *  as the anchor again on the next event. */
   private panning: Point | null = null;
+  /** Where each finger on the sheet is, in client pixels, by pointer id. */
+  private fingers = new Map<number, Point>();
+  /** Two fingers holding the view, from the second landing until the last
+   *  one lifts: none of their moves is a gesture (#894). `screen` reads
+   *  client pixels in the squares of `view`, which is the view the pinch
+   *  began in, so a move answers the same however far the view has moved. */
+  private pinch: {
+    ids: readonly [number, number];
+    view: Box;
+    screen: DOMMatrix;
+    from: Pair;
+  } | null = null;
 
   private watch = new ResizeObserver(() => this.square());
 
@@ -744,6 +757,7 @@ export class TcCanvas extends LitElement {
   }
 
   private down(event: PointerEvent): void {
+    if (this.fingered(event)) return;
     const point = this.squareAt(event);
     // On the sheet rather than on whatever node is under the pointer: run mode
     // redraws on every frame off the bus, and a symbol whose markup changed
@@ -765,6 +779,7 @@ export class TcCanvas extends LitElement {
   }
 
   private moved(event: PointerEvent): void {
+    if (this.fingered(event)) return;
     const point = this.squareAt(event);
     if (this.panning !== null) {
       this.view = {
@@ -788,6 +803,7 @@ export class TcCanvas extends LitElement {
   }
 
   private up(event: PointerEvent): void {
+    if (this.lifted(event)) return;
     const point = this.squareAt(event);
     this.panning = null;
     this.apply(
@@ -797,10 +813,72 @@ export class TcCanvas extends LitElement {
   }
 
   /** The pointer left the sheet, or the gesture under it was cancelled. */
-  private left(): void {
+  private left(event: PointerEvent): void {
+    if (this.lifted(event)) return;
     this.pointer = null;
     this.panning = null;
     if (this.machine.left() !== "quiet") this.requestUpdate();
+  }
+
+  /**
+   * A finger pressed or moved: `true` where two fingers have the view, and
+   * the event is theirs rather than the machine's.
+   *
+   * The second finger landing abandons whatever the first began — a drag, a
+   * throw, an edit — as a cancel, and from then until the last finger lifts
+   * the fingers only pinch (EDITOR.md#canvas, ui/PANEL.md). A third finger
+   * changes nothing.
+   */
+  private fingered(event: PointerEvent): boolean {
+    if (event.pointerType !== "touch") return false;
+    const at = { x: event.clientX, y: event.clientY };
+    if (event.type === "pointerdown" || this.fingers.has(event.pointerId)) {
+      this.fingers.set(event.pointerId, at);
+    }
+    if (this.pinch === null && this.fingers.size >= 2) {
+      const screen = this.renderRoot.querySelector("svg")?.getScreenCTM() ?? null;
+      const [a, b] = [...this.fingers.keys()] as [number, number];
+      this.pointer = null;
+      this.panning = null;
+      const outcome = this.machine.abandon();
+      if (outcome !== "quiet") this.requestUpdate();
+      if (screen === null) return true;
+      const inverse = screen.inverse();
+      this.pinch = {
+        ids: [a, b],
+        view: this.view,
+        screen: inverse,
+        from: [this.through(inverse, a), this.through(inverse, b)],
+      };
+      return true;
+    }
+    const pinch = this.pinch;
+    if (pinch === null) return this.fingers.size >= 2;
+    const [a, b] = pinch.ids;
+    if (this.fingers.has(a) && this.fingers.has(b)) {
+      this.view = pinched(pinch.view, pinch.from, [
+        this.through(pinch.screen, a),
+        this.through(pinch.screen, b),
+      ]);
+    }
+    return true;
+  }
+
+  /** A finger lifted or was cancelled: `true` where it was one of a pinch,
+   *  which is over once the last finger is off the sheet. */
+  private lifted(event: PointerEvent): boolean {
+    if (event.pointerType !== "touch") return false;
+    this.fingers.delete(event.pointerId);
+    if (this.pinch === null) return false;
+    if (this.fingers.size === 0) this.pinch = null;
+    return true;
+  }
+
+  /** Where a finger is, in the squares of the view a pinch began in. */
+  private through(screen: DOMMatrix, id: number): Point {
+    const { x, y } = this.fingers.get(id)!;
+    const grid = new DOMPoint(x, y).matrixTransform(screen);
+    return { x: grid.x, y: grid.y };
   }
 
   /**

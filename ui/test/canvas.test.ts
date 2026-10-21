@@ -127,8 +127,8 @@ describe("the label a portal pairing with nothing wears", () => {
 
 /**
  * The viewport, which is the canvas's own and the same in both modes (#168):
- * the middle button pans it, the bar's buttons zoom about its middle, and fit
- * frames the whole drawing. None of it is a gesture machine's — a machine
+ * the middle button pans it, two fingers pinch and pan it, the bar's buttons
+ * zoom about its middle, and fit frames the whole drawing. None of it is a gesture machine's — a machine
  * cannot reach the viewBox, and both views want the same answer.
  */
 describe("the viewport", () => {
@@ -190,6 +190,94 @@ describe("the viewport", () => {
     await canvas.updateComplete;
     expect(looking(canvas)[0]).toBeCloseTo(x! - 1);
     expect(looking(canvas)[1]).toBeCloseTo(y! - 0.5);
+    canvas.remove();
+  });
+
+  /** A finger on the sheet: a touch pointer, told apart from the others by
+   *  its id. */
+  function finger(
+    canvas: TcCanvas,
+    name: string,
+    pointerId: number,
+    clientX: number,
+    clientY: number,
+  ) {
+    press(canvas, name, { pointerType: "touch", pointerId, clientX, clientY });
+  }
+
+  /** What the canvas asked of the machine, call by call. */
+  function recording(canvas: TcCanvas): string[] {
+    const asked: string[] = [];
+    canvas.machine = {
+      down: () => (asked.push("down"), "quiet"),
+      moved: () => (asked.push("moved"), "quiet"),
+      up: () => (asked.push("up"), "quiet"),
+      left: () => (asked.push("left"), "quiet"),
+      abandon: () => (asked.push("abandon"), "render"),
+      menu: () => ({ outcome: "quiet", found: null }),
+      shift: () => ({ x: 0, y: 0 }),
+      marks: null,
+    };
+    return asked;
+  }
+
+  it("zooms about the midpoint of two fingers spreading (#894)", async () => {
+    const canvas = await canvasOf([]);
+    const [x, y, w, h] = looking(canvas);
+    finger(canvas, "pointerdown", 1, 4, 3);
+    finger(canvas, "pointerdown", 2, 6, 3);
+    finger(canvas, "pointermove", 1, 3, 3);
+    finger(canvas, "pointermove", 2, 7, 3);
+    await canvas.updateComplete;
+    const [now, then, wide, high] = looking(canvas);
+    expect(wide).toBeCloseTo(w! / 2);
+    expect(high).toBeCloseTo(h! / 2);
+    // The midpoint (5, 3) is where on the sheet it was.
+    expect((5 - now!) / wide!).toBeCloseTo((5 - x!) / w!);
+    expect((3 - then!) / high!).toBeCloseTo((3 - y!) / h!);
+    canvas.remove();
+  });
+
+  it("pans under two fingers moving together (#894)", async () => {
+    const canvas = await canvasOf([]);
+    const [x, y, w] = looking(canvas);
+    finger(canvas, "pointerdown", 1, 4, 3);
+    finger(canvas, "pointerdown", 2, 6, 3);
+    finger(canvas, "pointermove", 1, 5, 2);
+    finger(canvas, "pointermove", 2, 7, 2);
+    await canvas.updateComplete;
+    const [now, then, wide] = looking(canvas);
+    expect(now).toBeCloseTo(x! - 1);
+    expect(then).toBeCloseTo(y! + 1);
+    expect(wide).toBeCloseTo(w!);
+    canvas.remove();
+  });
+
+  it("abandons what one finger began when a second lands (#894)", async () => {
+    const canvas = await canvasOf([]);
+    const asked = recording(canvas);
+    finger(canvas, "pointerdown", 1, 4, 3);
+    finger(canvas, "pointermove", 1, 5, 3);
+    finger(canvas, "pointerdown", 2, 6, 3);
+    // From the second finger until the last lifts, nothing is a gesture:
+    // neither the moves nor the releases, the last one included.
+    finger(canvas, "pointermove", 1, 3, 3);
+    finger(canvas, "pointerup", 2, 6, 3);
+    finger(canvas, "pointermove", 1, 2, 3);
+    finger(canvas, "pointerup", 1, 2, 3);
+    expect(asked).toEqual(["down", "moved", "abandon"]);
+    // And the next finger alone presses again.
+    finger(canvas, "pointerdown", 3, 4, 3);
+    expect(asked.at(-1)).toBe("down");
+    canvas.remove();
+  });
+
+  it("leaves a mouse's presses to the machine", async () => {
+    const canvas = await canvasOf([]);
+    const asked = recording(canvas);
+    press(canvas, "pointerdown", { pointerType: "mouse", pointerId: 1 });
+    press(canvas, "pointerdown", { pointerType: "mouse", pointerId: 2 });
+    expect(asked).toEqual(["down", "down"]);
     canvas.remove();
   });
 });

@@ -304,6 +304,7 @@ export function editingMachine(
       frozen() ? gesture.abandon() : gesture.moved(editor(), point, screen),
     up: (point) => (frozen() ? gesture.abandon() : gesture.up(editor(), point)),
     left: () => gesture.left(),
+    abandon: () => gesture.abandon(),
     menu: (point) =>
       frozen()
         ? { outcome: gesture.abandon(), found: null }

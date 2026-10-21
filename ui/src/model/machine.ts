@@ -12,8 +12,9 @@ import type { Point } from "./geometry.js";
 
 /** What the caller has to do about a gesture event: nothing, redraw the
  *  gesture visuals, announce that the selection changed, or announce that the
- *  document changed. Nothing about the viewport is here — zoom, the wheel and
- *  the middle-button pan are the same in both views and so the canvas's own. */
+ *  document changed. Nothing about the viewport is here — zoom, the wheel, the
+ *  middle-button pan and the two-finger pinch are the same in both views and
+ *  so the canvas's own. */
 export type Outcome = "quiet" | "render" | "picked" | "changed";
 
 /** What a pointer event says beyond where it is in squares: the button, the
@@ -67,6 +68,9 @@ export interface Machine {
   up(point: Point, screen: Point): Outcome;
   /** The pointer left the sheet, or the gesture under it was cancelled. */
   left(): Outcome;
+  /** Everything in flight dropped, writing nothing: a second finger landed,
+   *  and two fingers move the view rather than mean anything (#894). */
+  abandon(): Outcome;
   /** A right-click, and what it found for the view to build a menu about —
    *  `null` where the press meant something else and no menu opens. The canvas
    *  passes it on with where the pointer was and reads none of it. */

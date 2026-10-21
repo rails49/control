@@ -307,6 +307,16 @@ describe("the run view's machine", () => {
     expect(it.left()).toBe("quiet");
   });
 
+  /** A second finger landed: the drag goes as it does on a cancel (#894). */
+  it("abandons a drag when told to, submitting nothing", () => {
+    const { sent, it } = machine();
+    it.down(on("a", 0.5), { ...press, touch: true });
+    expect(it.abandon()).toBe("render");
+    expect(it.marks).toBeNull();
+    expect(it.up(on("b", 0.5), OVER_CANVAS)).toBe("quiet");
+    expect(sent).toEqual([]);
+  });
+
   /** The right-click asks the same question of the same point the press does,
    *  and takes the gesture over from a drag the press had started. */
   it("finds the train under a right-click, abandoning any drag", () => {
