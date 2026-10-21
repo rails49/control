@@ -21,6 +21,14 @@
  * once more before anything is sent, and then says to unplug the box once its
  * lights go out.
  *
+ * **A press that needs the track dead takes the power off itself**
+ * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 5). A load, New, Copy loaded as… and turning the box off, pressed
+ * with power on, ask for the drain on `power-wanted`, say "stopping trains…"
+ * with the stop sign beside it, and act once `tc49/layout/state/power` reads
+ * `off` (`Drain`). The stop sign asks for `off` at once, a drain having no
+ * time limit. Closing the dialog abandons the wait and leaves power as it is.
+ *
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
@@ -36,6 +44,7 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
+import "@shoelace-style/shoelace/dist/components/icon/icon.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/tab/tab.js";
 import "@shoelace-style/shoelace/dist/components/tab-group/tab-group.js";
@@ -43,7 +52,7 @@ import "@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js";
 
 import { emptyDrawing, nameTrouble } from "../model/drawing.js";
 import { canTurnOff, turnOff } from "../model/box.js";
-import { boxRefusal, copyRefusal, refusal } from "../model/settings.js";
+import { boxRefusal, copyRefusal, Drain, refusal, STOPPING } from "../model/settings.js";
 import { copyRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
@@ -102,14 +111,26 @@ export class TcSettings extends LitElement {
   @state() private canTurnOff = false;
 
   /** Where turning the box off has got to: not pressed, asking once more,
-   *  the request out, or the box going. */
-  @state() private turning: "idle" | "asking" | "sending" | "going" = "idle";
+   *  the track draining, the request out, or the box going. */
+  @state() private turning: "idle" | "asking" | "stopping" | "sending" | "going" = "idle";
+
+  /** The press held for a dead track, at most one (`model/settings.ts`). */
+  private readonly drain = new Drain();
+
+  /** The tab whose press `drain` holds, `null` while it holds none: that tab
+   *  says "stopping trains…" and its presses are dead. */
+  @state() private stopping: "railroad" | "shutdown" | null = null;
 
   /** What the installation refused the last request with, or what kept it
    *  from arriving, `null` where nothing did. */
   @state() private refusedOff: string | null = null;
 
   override willUpdate(changed: Map<string, unknown>): void {
+    if (changed.has("open") && !this.open) this.abandoned();
+    if (changed.has("power")) {
+      this.drain.heard(this.power);
+      this.held();
+    }
     if (changed.has("open") && this.open) {
       this.canTurnOff = false;
       if (this.turning !== "sending") this.turning = "idle";
@@ -164,6 +185,7 @@ export class TcSettings extends LitElement {
     const refused = refusal(this.railroad, this.power, this.unsaved);
     const copyRefused = copyRefusal(this.railroad, this.power, this.unsaved);
     const unnamed = this.name.trim() === "";
+    const stopping = this.stopping === "railroad";
     return html`
       ${this.drawings.length === 0
         ? html`<p class="hint">the store lists no railroad</p>`
@@ -173,7 +195,7 @@ export class TcSettings extends LitElement {
                 <li>
                   <button
                     class=${one === this.railroad ? "loaded" : ""}
-                    ?disabled=${refused !== null}
+                    ?disabled=${refused !== null || stopping}
                     @click=${() => void this.wanting(one)}
                   >
                     <span class="tick">${one === this.railroad ? "✓" : ""}</span>
@@ -184,6 +206,7 @@ export class TcSettings extends LitElement {
             )}
           </ul>`}
       ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
+      ${stopping ? this.stoppingTrains() : nothing}
       <div class="making">
         <sl-input
           class="name"
@@ -198,17 +221,16 @@ export class TcSettings extends LitElement {
         <sl-button
           class="new"
           size="small"
-          ?disabled=${refused !== null || unnamed || this.writing}
-          @click=${() => void this.making(refused, (name) => saveDrawing(emptyDrawing(name)))}
+          ?disabled=${refused !== null || unnamed || this.writing || stopping}
+          @click=${() => this.making(refused, (name) => saveDrawing(emptyDrawing(name)))}
         >
           New
         </sl-button>
         <sl-button
           class="copy"
           size="small"
-          ?disabled=${copyRefused !== null || unnamed || this.writing}
-          @click=${() =>
-            void this.making(copyRefused, (name) => copyRailroad(this.railroad!, name))}
+          ?disabled=${copyRefused !== null || unnamed || this.writing || stopping}
+          @click=${() => this.making(copyRefused, (name) => copyRailroad(this.railroad!, name))}
         >
           Copy loaded as…
         </sl-button>
@@ -220,13 +242,34 @@ export class TcSettings extends LitElement {
     `;
   }
 
+  /** What a tab says while its press waits for the track to go dead, and the
+   *  stop sign beside it: `off` at once, a drain having no time limit. */
+  private stoppingTrains() {
+    return html`<div class="stopping">
+      <span class="hint">${STOPPING}</span>
+      <sl-button
+        class="stop"
+        size="small"
+        variant="danger"
+        title="Stop every train"
+        @click=${() => this.powerWanted("off")}
+      >
+        <sl-icon slot="prefix" name="sign-stop-fill"></sl-icon>
+        Stop
+      </sl-button>
+    </div>`;
+  }
+
   /**
    * The Shutdown tab. **Turn the box off…** is dead while the rule refuses or a
    * request is out, with the rule's reason beneath; pressed, it gives way to
-   * what turning off costs and **Turn off** and **Cancel**. Once the request
-   * is taken the tab says to unplug the box and offers no press.
+   * what turning off costs and **Turn off** and **Cancel**. **Turn off** with
+   * the track live drains it first, and the tab says so with the stop sign
+   * beside it. Once the request is taken the tab says to unplug the box and
+   * offers no press.
    */
   private shutdown() {
+    if (this.turning === "stopping") return this.stoppingTrains();
     if (this.turning === "going") {
       return html`<p class="hint">The box is turning off. Unplug it once its lights go out.</p>`;
     }
@@ -269,11 +312,16 @@ export class TcSettings extends LitElement {
   }
 
   /** **Turn off** was pressed. The rule is read again, as `wanting` reads
-   *  `refusal` again, so power switched on since the first press sends
-   *  nothing. */
-  private async turningOff(): Promise<void> {
+   *  `refusal` again, so a supply gone unheard since the first press sends
+   *  nothing; a live track is drained first. */
+  private turningOff(): void {
     this.turning = "idle";
     if (boxRefusal(this.power) !== null) return;
+    this.draining("shutdown", this.power, () => void this.sendingOff());
+  }
+
+  /** The track is dead: the request goes. */
+  private async sendingOff(): Promise<void> {
     this.turning = "sending";
     const refused = await turnOff();
     this.refusedOff = refused;
@@ -281,10 +329,17 @@ export class TcSettings extends LitElement {
   }
 
   /** A railroad was pressed. The dialog says which is wanted and stops there
-   *  — the bus is what loads it, and the app is what carries the press. */
-  private async wanting(name: string): Promise<void> {
+   *  — the bus is what loads it, and the app is what carries the press. A
+   *  live track is drained first; the drawing is saved once it is dead, a
+   *  save waiting on power `off` (ADR-0085, decision 1). */
+  private wanting(name: string): void {
     if (name === this.railroad) return;
     if (refusal(this.railroad, this.power, this.unsaved) !== null) return;
+    this.draining("railroad", this.supply, () => void this.loading(name));
+  }
+
+  /** The track is dead: the drawing saved, then the railroad asked for. */
+  private async loading(name: string): Promise<void> {
     if (!(await this.saving())) {
       this.wrong = UNSAVED;
       return;
@@ -302,12 +357,10 @@ export class TcSettings extends LitElement {
    * store's to refuse, and its words are shown. Only a write that went
    * through asks for the railroad, so what is loaded is always something that
    * exists. Copy's `from` is the row's railroad, which `copyRefusal` has
-   * seen to be a name by the time the press is live.
+   * seen to be a name by the time the press is live. Each ends in a load, so
+   * a live track is drained before anything is written.
    */
-  private async making(
-    refused: string | null,
-    write: (name: string) => Promise<void>,
-  ): Promise<void> {
+  private making(refused: string | null, write: (name: string) => Promise<void>): void {
     const name = this.name.trim();
     if (refused !== null || name === "" || this.writing) return;
     const trouble = nameTrouble(name, this.drawings);
@@ -315,6 +368,12 @@ export class TcSettings extends LitElement {
       this.wrong = trouble;
       return;
     }
+    this.draining("railroad", this.supply, () => void this.writingAs(name, write));
+  }
+
+  /** The track is dead: the drawing saved, `write` made under `name`, and
+   *  what it wrote asked for. */
+  private async writingAs(name: string, write: (name: string) => Promise<void>): Promise<void> {
     this.writing = true;
     try {
       if (!(await this.saving())) {
@@ -333,6 +392,44 @@ export class TcSettings extends LitElement {
     this.wanted(name);
   }
 
+  /** The supply as a load reads it: `null` with no railroad loaded, a
+   *  binding with nothing loaded reading none and there being no rails to
+   *  change under a train (`refusal`). */
+  private get supply(): Power | null {
+    return this.railroad === "" ? null : this.power;
+  }
+
+  /** `act` once the track is dead, `tab` saying so until then, and the drain
+   *  asked for where the track has power (`Drain`). */
+  private draining(tab: "railroad" | "shutdown", power: Power | null, act: () => void): void {
+    this.abandoned();
+    this.stopping = tab;
+    if (tab === "shutdown") this.turning = "stopping";
+    const asked = this.drain.begin(power, act);
+    this.held();
+    if (asked !== null) this.powerWanted(asked);
+  }
+
+  /** What the dialog draws as waiting, brought in line with `drain`: once it
+   *  acted or gave up, no tab says "stopping trains…". */
+  private held(): void {
+    if (this.drain.waiting) return;
+    if (this.turning === "stopping") this.turning = "idle";
+    this.stopping = null;
+  }
+
+  /** The wait given up, power left as it is. */
+  private abandoned(): void {
+    this.drain.abandon();
+    this.held();
+  }
+
+  private powerWanted(power: Power): void {
+    this.dispatchEvent(
+      new CustomEvent<Power>("power-wanted", { detail: power, bubbles: true, composed: true }),
+    );
+  }
+
   private wanted(name: string): void {
     this.dispatchEvent(
       new CustomEvent<string>("railroad-wanted", {
@@ -344,6 +441,7 @@ export class TcSettings extends LitElement {
   }
 
   private close(): void {
+    this.abandoned();
     this.say("settings-closed");
   }
 

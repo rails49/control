@@ -73,7 +73,7 @@ import { Railroad } from "../model/railroad.js";
 import { brokerAt, connecting, QUIET, Session, type RunStatus } from "../model/session.js";
 import { Wake } from "./wake.js";
 import type { Cab } from "../model/throttle.js";
-import type { DrivingMode } from "../model/trace.js";
+import type { DrivingMode, Power } from "../model/trace.js";
 import { hashOf, shut, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
@@ -391,6 +391,7 @@ export class TcApp extends LitElement {
           this.backingUp = false;
         }}
         @restored=${() => this.restored()}
+        @power-wanted=${(event: CustomEvent<Power>) => this.draining(event.detail)}
       ></tc-backup>
 
       <tc-settings
@@ -402,6 +403,7 @@ export class TcApp extends LitElement {
         .saving=${this.keeping}
         .backup=${backupWords(this.backing.standing)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
+        @power-wanted=${(event: CustomEvent<Power>) => this.draining(event.detail)}
         @backup-wanted=${() => this.backingOpen()}
         @settings-closed=${() => {
           this.settling = false;
@@ -592,6 +594,15 @@ export class TcApp extends LitElement {
     if (!(await this.filing.save(this.editor))) return;
     if (pressed === this.presses) this.session?.pressOnBuilt(railroad);
     else this.session?.pressRailroad(railroad);
+  }
+
+  /** Power asked for by a dialog whose press waits on a dead track — the
+   *  drain, or the stop sign beside "stopping trains…" (ADR-0085, decision
+   *  5). Sent as the band's presses are, and counted as one, so an ON still
+   *  waiting on a build is overtaken. */
+  private draining(power: Power): void {
+    ++this.presses;
+    this.session?.pressPower(power);
   }
 
   /** A railroad pressed in the settings dialog, or one its New or Copy
