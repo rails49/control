@@ -3,8 +3,9 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Three parts. **Railroad** lists what the store holds, the loaded one ticked,
- * and a press on another asks for it: it publishes `railroad_wanted` through
+ * Three tabs, the dialog opening on the first each time (#899). **Railroad**
+ * lists what the store holds, the loaded one ticked, and a press on another
+ * asks for it: it publishes `railroad_wanted` through
  * the app and stops there, and the tick moves when the layout's row names the
  * new railroad, which is the only thing that loads one (ADR-0060). The dialog
  * stays open, so a person sees the answer come back. Beneath the list a name
@@ -14,7 +15,7 @@
  * document of the loaded railroad under it (#729); each then asks for what
  * it wrote, the same way a press on the list does. **Backup** is the one
  * press that opens `tc-backup`, wearing the band note's words where backup
- * has something to say. **Box** turns the box off (#745), and is drawn only
+ * has something to say. **Shutdown** turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
  * once more before anything is sent, and then says to unplug the box once its
@@ -23,7 +24,7 @@
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
- * **It decides nothing.** Why the railroad part or the Box part is refused
+ * **It decides nothing.** Why the Railroad tab or the Shutdown tab is refused
  * is `model/settings.ts`, and what is loaded is the row's; the app hands in
  * the row and the power. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
@@ -36,6 +37,9 @@ import { customElement, property, state } from "lit/decorators.js";
 import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
+import "@shoelace-style/shoelace/dist/components/tab/tab.js";
+import "@shoelace-style/shoelace/dist/components/tab-group/tab-group.js";
+import "@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js";
 
 import { emptyDrawing, nameTrouble } from "../model/drawing.js";
 import { canTurnOff, turnOff } from "../model/box.js";
@@ -118,19 +122,27 @@ export class TcSettings extends LitElement {
 
   override render() {
     if (!this.open) return nothing;
+    // Closed draws nothing, so each opening makes the tabs afresh, Railroad
+    // the one shown.
     return html`
       <look-dialog open label="Settings" @sl-after-hide=${this.close}>
-        <h3>Railroad</h3>
-        ${this.railroads()}
-        <h3>Backup</h3>
-        <div class="backup">
-          <sl-button @click=${() => this.say("backup-wanted")}>Backup…</sl-button>
-          ${this.backup === null ? nothing : html`<span class="note">${this.backup}</span>`}
-        </div>
-        ${this.canTurnOff
-          ? html`<h3>Box</h3>
-              <div class="box">${this.box()}</div>`
-          : nothing}
+        <sl-tab-group>
+          <sl-tab slot="nav" panel="railroad" active>Railroad</sl-tab>
+          <sl-tab slot="nav" panel="backup">Backup</sl-tab>
+          ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
+          <sl-tab-panel name="railroad" active>${this.railroads()}</sl-tab-panel>
+          <sl-tab-panel name="backup">
+            <div class="backup">
+              <sl-button @click=${() => this.say("backup-wanted")}>Backup…</sl-button>
+              ${this.backup === null ? nothing : html`<span class="note">${this.backup}</span>`}
+            </div>
+          </sl-tab-panel>
+          ${this.canTurnOff
+            ? html`<sl-tab-panel name="shutdown">
+                <div class="shutdown">${this.shutdown()}</div>
+              </sl-tab-panel>`
+            : nothing}
+        </sl-tab-group>
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
       </look-dialog>
     `;
@@ -138,7 +150,7 @@ export class TcSettings extends LitElement {
 
   /**
    * One button per railroad, the loaded one ticked, and beneath them the name
-   * field with New and Copy loaded as…. Where the part is refused the list
+   * field with New and Copy loaded as…. Where the tab is refused the list
    * and both presses are dead and say why once beneath the list, because a
    * list that is dead and silent reads as an app that is broken; Copy alone
    * is dead with nothing loaded, and says so under the presses. A press on
@@ -209,12 +221,12 @@ export class TcSettings extends LitElement {
   }
 
   /**
-   * The Box part. **Turn the box off…** is dead while the rule refuses or a
+   * The Shutdown tab. **Turn the box off…** is dead while the rule refuses or a
    * request is out, with the rule's reason beneath; pressed, it gives way to
    * what turning off costs and **Turn off** and **Cancel**. Once the request
-   * is taken the part says to unplug the box and offers no press.
+   * is taken the tab says to unplug the box and offers no press.
    */
-  private box() {
+  private shutdown() {
     if (this.turning === "going") {
       return html`<p class="hint">The box is turning off. Unplug it once its lights go out.</p>`;
     }
