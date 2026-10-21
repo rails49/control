@@ -490,7 +490,9 @@ def test_a_saved_drawing_that_does_not_derive_leaves_the_railroad_loaded(
     store.start()
     witness, heard = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, RAILROAD) != []), "no row"
+    # Power, not the railroad row: the constructor says power after the row,
+    # and the gesture is dropped until the app has heard power read off.
+    assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
 
     drawing = root / "layouts" / f"{NAME}.drawing.yaml"
     document = yaml.safe_load(drawing.read_text())
