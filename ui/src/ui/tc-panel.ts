@@ -24,6 +24,12 @@
  * nothing: occupancy, aspects, markers, the lit route, arrival ends and
  * whether a train is busy all arrive as data.
  *
+ * While the loaded railroad reads `built: false` its saved drawing is
+ * invalid and the apps built nothing from it, so there is no run to paint:
+ * the drawing is drawn grey, with no trains and no gestures
+ * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 4).
+ *
  * Its one source is the bus (ADR-0038). Reading a recorded trace was how this
  * view was built before there was anything live to join; a trace is the
  * harness's now, and the broker is the only thing that feeds a picture.
@@ -114,6 +120,9 @@ export class TcPanel extends LitElement {
    *  here when the row the layout interface writes names another one, and
    *  there is nowhere else the viewport should be looking. */
   private fitting = false;
+  /** Whether this last painted the drawing grey, so turning grey or back
+   *  takes down a drag and a menu, and fits the drawing once. */
+  private grey = false;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -144,8 +153,14 @@ export class TcPanel extends LitElement {
       this.menu = null;
     }
     if (panel !== this.shown && panel !== null) this.fitting = true;
+    if (this.unbuilt !== this.grey) {
+      this.drag.cancel();
+      this.menu = null;
+      this.fitting = true;
+    }
     this.shown = panel;
     this.joined = joined;
+    this.grey = this.unbuilt;
     const at = this.menu;
     if (at !== null && (panel === null || !panel.shows(at.train, at.block))) this.menu = null;
   }
@@ -165,12 +180,19 @@ export class TcPanel extends LitElement {
     return this.session?.status.joined ?? false;
   }
 
+  /** Whether the loaded railroad reads `built: false`: nothing runs on its
+   *  drawing, which is drawn grey with nothing on it. */
+  private get unbuilt(): boolean {
+    return this.session?.status.built === false;
+  }
+
   // --- scheduling by drag ---------------------------------------------------
 
   /** Whether a drag means anything: only a joined session has anywhere to
-   *  gesture at, and only there does a train look like something to pick up. */
+   *  gesture at, and only there does a train look like something to pick up.
+   *  A railroad the apps did not build has nothing to gesture at. */
   private get scheduling(): boolean {
-    return this.linked && this.drawing !== null && this.panel !== null;
+    return this.linked && !this.unbuilt && this.drawing !== null && this.panel !== null;
   }
 
   /** What is on screen for a gesture to be about, `null` where nothing is.
@@ -340,20 +362,21 @@ export class TcPanel extends LitElement {
 
   override render() {
     const drawing = this.drawing;
-    const live = this.overlay;
     // The trains a rebuild took off, one line each, for as long as the
     // dispatcher lists them (#709): only while there is something to say.
-    const off = this.inSession ? takenOff(this.panel?.unfit() ?? []) : [];
+    const live = this.overlay;
+    const grey = this.unbuilt;
+    const off = this.inSession && !grey ? takenOff(this.panel?.unfit() ?? []) : [];
     return html`
       <aside>
         <tc-roster
           .trains=${this.roster}
-          .live=${this.inSession}
+          .live=${this.inSession && !grey}
           @roster-dropped=${this.dropped}
         ></tc-roster>
         <tc-requests
-          .requests=${this.inSession ? (this.panel?.requestList() ?? []) : []}
-          ?live=${this.inSession}
+          .requests=${this.inSession && !grey ? (this.panel?.requestList() ?? []) : []}
+          ?live=${this.inSession && !grey}
           @request-cancelled=${this.cancelled}
           @request-reordered=${this.reordered}
         ></tc-requests>
@@ -365,12 +388,12 @@ export class TcPanel extends LitElement {
             ${off.map((line) => html`<span class="unfit">${line}</span>`)}
           </header>`}
       <main>
-        ${drawing === null || live === null
+        ${drawing === null || (live === null && !grey)
           ? nothing
           : html`
               <tc-canvas
                 mode="run"
-                class=${this.scheduling ? "scheduling" : ""}
+                class=${grey ? "unbuilt" : this.scheduling ? "scheduling" : ""}
                 .drawing=${drawing}
                 .review=${this.review}
                 .live=${live}
@@ -418,7 +441,7 @@ export class TcPanel extends LitElement {
    */
   private get overlay(): Overlay | null {
     const model = this.panel;
-    if (model === null || this.drawing === null) return null;
+    if (model === null || this.drawing === null || this.unbuilt) return null;
     const lit = model.lit();
     const commanded = model.positionsByAddress();
     return {
