@@ -35,8 +35,12 @@ with it (`lib/loading.py`). **The rows it adopts** are the traction rows a
 previous process left, which the constructor zeroes as it runs. A railroad the
 store does not have leaves it **standing** — up, naming no railroad (`""`) on
 `tc49/layout/state/railroad`, built on the first one a person picks that the
-store can give (#564, #727, `lib/loading.py`). Each railroad it is built on is
-**written back to the record** before the build, so the next start finds it.
+store can give (#564, #727, `lib/loading.py`). One whose drawing is not a
+valid drawing **stays named**: recorded, and said on that row with
+`built: false`, the app running what it holds — the last build, or nothing
+under that name after a restart — and still answering the power (ADR-0085,
+decision 4). Each railroad it is built on is **written back to the record**
+before the build, so the next start finds it.
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves
@@ -81,11 +85,12 @@ from tc49.lib.layout import Layout
 from tc49.lib.loading import (
     NO_RAILROAD,
     Answering,
+    answered,
+    drawn,
     dropped,
     named,
     standing,
     still_standing,
-    taken,
 )
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
@@ -215,12 +220,11 @@ def serve(
     if not connected(bus, stop, log):
         return
     loaded = Answering.recorded(documents, railroad, log)
-    read = standing(
-        bus, loaded, stop, log, lambda name: _documents(documents, name), period_s
-    )
+    reading = drawn(lambda name: _documents(documents, name), _nothing, log)
+    read = standing(bus, loaded, stop, log, reading, period_s)
     if read is None:
         return
-    layout, roster = read
+    (layout, roster), derived = read
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
     position: dict[str, str] = {}
     while not stop.is_set():
@@ -242,32 +246,35 @@ def serve(
             clock,
             throttle_silence_s=throttle_silence_s,
             position=position,
+            built=derived,
         )
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         started = time.monotonic()
         alive: float | None = None
-        while not stop.is_set() and not loaded.moved:
-            now = time.monotonic()
-            clock.advance(now - started)
-            # Here and only here: standing, or reloading for another railroad,
-            # says nothing, and loading needs the power off, so a cut then
-            # changes nothing (#716).
-            if alive is None or now - alive >= ALIVE_S:
-                bus.publish(ALIVE_CONFIRMED, {})
-                alive = now
-            app.settle()
-            bus.drain()
-            stop.wait(period_s)
-        if not loaded.moved:
-            return
-        layout, roster = taken(
-            loaded,
-            built,
-            (layout, roster),
-            log,
-            lambda name: _documents(documents, name),
-        )
+        # Until a railroad is picked that builds: one whose drawing is not a
+        # valid drawing is named on the row and this build goes on running,
+        # its rows kept (ADR-0085, decision 4).
+        picked: tuple[tuple[Layout, Roster], bool] | None = None
+        while picked is None:
+            while not stop.is_set() and not loaded.moved:
+                now = time.monotonic()
+                clock.advance(now - started)
+                # Here and only here: standing, or reloading for another
+                # railroad, says nothing, and loading needs the power off, so
+                # a cut then changes nothing (#716).
+                if alive is None or now - alive >= ALIVE_S:
+                    bus.publish(ALIVE_CONFIRMED, {})
+                    alive = now
+                app.settle()
+                bus.drain()
+                stop.wait(period_s)
+            if not loaded.moved:
+                return
+            picked = answered(
+                bus, documents, loaded, built, ((layout, roster), derived), log, reading
+            )
+        (layout, roster), derived = picked
         position = still_standing(app.position, layout) if loaded.name == built else {}
         gone = dropped(bus, OWNED, stop, RETAINED_S)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
@@ -278,6 +285,14 @@ def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
     stock that runs on it. What this app reads, which is the whole of what it
     says when a railroad is loaded under it (`lib.loading.taken`)."""
     return documents.layout(railroad), documents.roster(railroad)
+
+
+def _nothing(railroad: str) -> tuple[Layout, Roster]:
+    """What this app runs on where `railroad`'s drawing is not a valid
+    drawing and there is no build to keep: no block and no train under its
+    name, so the row names it and the power is still answered (ADR-0085,
+    decision 4)."""
+    return Layout(railroad, {}, {}, frozenset(), {}), Roster(railroad, {})
 
 
 def _retained(

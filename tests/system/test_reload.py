@@ -930,3 +930,113 @@ def test_loading_another_railroad_lists_no_train(placed: Placed, root: Path) -> 
     placed.rebuilt(NOW)
 
     assert unfit(placed.broker) == []
+
+
+# --- a railroad named and not built (ADR-0085, decision 4) -----------------
+
+
+def broken(root: Path, railroad: str) -> str:
+    """`railroad`'s drawing with its last wire gone, which leaves a dangling
+    pin: a drawing that is not a valid drawing, as a track plan being rebuilt
+    is. What it was, so the fix can be saved."""
+    path = root / "layouts" / f"{railroad}.drawing.yaml"
+    valid = path.read_text()
+    doc = cast(dict[str, Any], yaml.safe_load(valid))
+    doc["wires"] = doc["wires"][:-1]
+    path.write_text(yaml.safe_dump(doc, sort_keys=False))
+    return valid
+
+
+def unbuilt(bus: MqttBus, railroad: str) -> Payload:
+    """`railroad` picked until the row names it with `built: false`, and that
+    row. Said again for `picks`' reason: the gesture may land before the app
+    has read its own `off`."""
+    bus.subscribe(RAILROAD, lambda topic, payload: None)
+
+    def named() -> bool:
+        row = bus.last_values.get(RAILROAD, {})
+        return row.get("name") == railroad and row.get("built") is False
+
+    def pressed() -> bool:
+        pick(bus, railroad)
+        return until(named, PRESS_S)
+
+    assert until(pressed, UP_S), f"'{railroad}' was never named unbuilt"
+    return bus.last_values[RAILROAD]
+
+
+@pytest.mark.parametrize("app", ["layout", "simulator"])
+def test_a_binding_names_a_railroad_whose_drawing_does_not_derive(
+    app: str, broker: Broker, store: Store, root: Path, tmp_path: Path
+) -> None:
+    """Either binding: a save of the loaded railroad that is not a valid
+    drawing names it with `built: false` and the app stays up on what it was
+    built on; the fix saved is the build arriving, `built: true` with a new
+    stamp (ADR-0085, decision 4)."""
+    running = started(app, broker, store, tmp_path)
+    try:
+        writing = hand(broker)
+        dark(writing)
+        valid = broken(root, WAS)
+
+        named = unbuilt(writing, WAS)
+        assert AssetStore(root).loaded() == WAS
+        assert running.running, f"the {app} stopped:\n{running.said()}"
+
+        (root / "layouts" / f"{WAS}.drawing.yaml").write_text(valid)
+        picks(writing, WAS, running)
+        built = picture(broker)[RAILROAD]
+        assert (built["name"], built["built"]) == (WAS, True)
+        assert built["at"] != named["at"]
+        writing.close()
+    finally:
+        running.stop()
+
+
+def test_a_save_that_does_not_derive_builds_nothing_and_keeps_the_placement(
+    placed: Placed, root: Path
+) -> None:
+    """The scheduler and the dispatcher, on `built: false`, build nothing and
+    clear none of their rows: the train stays placed and facing the way it
+    faced until the build under that name adopts them (ADR-0071), and that
+    build is the fix saved."""
+    valid = broken(root, WAS)
+    before = {
+        name: running.said().count(f"up on '{WAS}'")
+        for name, running in placed.apps.items()
+    }
+
+    unbuilt(placed.hand, WAS)
+    settle(placed.hand, 2.0)
+
+    for name in ("scheduler", "dispatcher"):
+        said = placed.apps[name].said()
+        assert said.count(f"up on '{WAS}'") == before[name], said
+        assert f"loading '{WAS}'" not in said, said
+    assert placed.placed() == {WAS_TRAIN: "yard_w"}
+    assert placed.facing() == placed.facing_before
+
+    (root / "layouts" / f"{WAS}.drawing.yaml").write_text(valid)
+    placed.rebuilt(WAS)
+    assert placed.placed() == {WAS_TRAIN: "yard_w"}
+    assert placed.facing() == placed.facing_before
+
+
+def test_a_pick_that_does_not_derive_builds_nothing_and_keeps_the_placement(
+    placed: Placed, root: Path
+) -> None:
+    """A railroad picked under another name whose drawing is not a valid
+    drawing is recorded and named unbuilt, and the apps stay on the old
+    build with nothing cleared (ADR-0085, Consequences)."""
+    broken(root, NOW)
+
+    unbuilt(placed.hand, NOW)
+    settle(placed.hand, 2.0)
+
+    assert AssetStore(root).loaded() == NOW
+    for name in ("scheduler", "dispatcher"):
+        said = placed.apps[name].said()
+        assert f"loading '{NOW}'" not in said, said
+        assert placed.apps[name].running, said
+    assert placed.placed() == {WAS_TRAIN: "yard_w"}
+    assert placed.facing() == placed.facing_before

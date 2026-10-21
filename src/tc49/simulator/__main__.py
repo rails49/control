@@ -46,7 +46,8 @@ that to the next build, less any train whose block the new drawing lacks
 (ADR-0071). A railroad the store does not have
 leaves it **standing** — up, naming no railroad (`""`) on
 `tc49/layout/state/railroad`, built on the first one a person picks that the
-store can give (#564, #727, `lib/loading.py`).
+store can give (#564, #727, `lib/loading.py`). One whose drawing is not a
+valid drawing stays named, with `built: false`, as in `layout` (ADR-0085).
 
 Then the loop, which is this app's own and older than its command line: the
 discrete-event queue slept on a wall clock (`run_live`). Where every other
@@ -73,14 +74,16 @@ from collections.abc import Callable
 
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.layout import Layout
 from tc49.lib.loading import (
     NO_RAILROAD,
     Answering,
+    answered,
+    drawn,
     dropped,
     named,
     standing,
     still_standing,
-    taken,
 )
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
@@ -144,9 +147,11 @@ def serve(
         return
     # The store's record wins, as it does in `layout` (`Answering.recorded`).
     loaded = Answering.recorded(documents, railroad, log)
-    layout = standing(bus, loaded, stop, log, documents.layout, period_s)
-    if layout is None:
+    reading = drawn(documents.layout, _nothing, log)
+    read = standing(bus, loaded, stop, log, reading, period_s)
+    if read is None:
         return
+    layout, derived = read
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     position: dict[str, str] = {}
     while not stop.is_set():
@@ -164,21 +169,34 @@ def serve(
         documents.put_loaded(loaded.name)
         clock = Clock()
         simulator = Simulator(
-            bus, layout, clock, position, transit_s=transit_s, clear_s=clear_s
+            bus,
+            layout,
+            clock,
+            position,
+            transit_s=transit_s,
+            clear_s=clear_s,
+            built=derived,
         )
         built = loaded.name
         log(f"up on {named(built)}, waiting at most {period_s}s a turn")
         # The loop the app already owns, ended by a signal or by the railroad
         # moving under it — this binding's steel is the drawing it was built
-        # from, so another railroad is another simulator (ADR-0030).
-        simulator.run_live(
-            period_s,
-            sleep=_waiting(stop),
-            stop=lambda: stop.is_set() or loaded.moved,
-        )
-        if not loaded.moved:
-            return
-        layout = taken(loaded, built, layout, log, documents.layout)
+        # from, so another railroad is another simulator (ADR-0030). A
+        # railroad picked whose drawing is not a valid drawing is named on
+        # the row, and this one goes on running (ADR-0085, decision 4).
+        picked: tuple[Layout, bool] | None = None
+        while picked is None:
+            simulator.run_live(
+                period_s,
+                sleep=_waiting(stop),
+                stop=lambda: stop.is_set() or loaded.moved,
+            )
+            if not loaded.moved:
+                return
+            picked = answered(
+                bus, documents, loaded, built, (layout, derived), log, reading
+            )
+        layout, derived = picked
         # The steel stands where it stood under the same name, a train
         # longer than its block included: that is where the steel has it
         # (ADR-0071). Under another name nothing is placed.
@@ -187,6 +205,13 @@ def serve(
         )
         gone = dropped(bus, OWNED, stop, RETAINED_S)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
+
+
+def _nothing(railroad: str) -> Layout:
+    """What this binding stands in for where `railroad`'s drawing is not a
+    valid drawing and there is no build to keep: no track under its name, the
+    layout interface's own answer (ADR-0085, decision 4)."""
+    return Layout(railroad, {}, {}, frozenset(), {})
 
 
 def _waiting(stop: threading.Event) -> Callable[[float], None]:

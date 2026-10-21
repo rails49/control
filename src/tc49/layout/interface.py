@@ -190,6 +190,7 @@ from tc49.lib.layout import (
     opposite_end,
     transit_ends,
 )
+from tc49.lib.loading import BUILT
 from tc49.lib.payload import (
     Command,
     Ordering,
@@ -356,6 +357,7 @@ class LayoutInterface:
         settling_s: float = SETTLING_S,
         throttle_silence_s: float = THROTTLE_SILENCE_S,
         position: dict[str, str] | None = None,
+        built: bool = True,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -390,6 +392,12 @@ class LayoutInterface:
         the dispatcher places one; the last build's, less any train whose
         block this drawing lacks, from a rebuild under the same railroad name
         (ADR-0071).
+
+        `built`: whether `layout` is what the railroad's drawing derives to,
+        said on `tc49/layout/state/railroad`. False where the drawing is not a
+        valid drawing and `layout` is nothing under its name: the railroad
+        stays named, nothing is built from it, and this app still answers the
+        power (ADR-0085, decision 4).
         """
         self._bus = bus
         self._layout = layout
@@ -483,8 +491,9 @@ class LayoutInterface:
         # by ADR-0060). The name is the layout's own, which is the name the
         # store lists it under: a drawing is filed under the name it declares
         # and derives to a layout wearing it, so there is no second place for
-        # this to be told and no way for the two to disagree.
-        bus.publish(RAILROAD, {"name": layout.name})
+        # this to be told and no way for the two to disagree. Whether
+        # anything was built from it rides along (ADR-0085, decision 4).
+        bus.publish(RAILROAD, {"name": layout.name, BUILT: built})
         # The railroad comes up dark, and this is the first thing said about
         # its supply: a person turns it on (ADR-0051). Before the **device**
         # subscription, so that a retained value handed back by a bus that

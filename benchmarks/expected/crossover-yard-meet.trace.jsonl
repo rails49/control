@@ -1,4 +1,4 @@
-{"time":0.0,"event":"railroad","at":0.0,"name":"crossover-yard"}
+{"time":0.0,"event":"railroad","at":0.0,"name":"crossover-yard","built":true}
 {"time":0.0,"event":"power","at":0.0,"power":"off"}
 {"time":0.0,"event":"power_wanted","power":"on"}
 {"time":0.0,"event":"power","at":0.0,"power":"on"}

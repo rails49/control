@@ -77,6 +77,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, transit_ends
+from tc49.lib.loading import BUILT
 from tc49.lib.payload import Command, command, named_train, placement
 from tc49.lib.power import TrackPower
 
@@ -94,6 +95,7 @@ class Simulator:
         position: dict[str, str] | None = None,
         transit_s: float = 30.0,
         clear_s: float = 30.0,
+        built: bool = True,
     ) -> None:
         """`layout`: the track this binding stands in for; what resolves a
         move's transit to the block its train must be standing in.
@@ -110,6 +112,10 @@ class Simulator:
 
         `transit_s` and `clear_s`: the fixed delays — head to the far
         detector, then tail past the near one.
+
+        `built`: whether `layout` is what the railroad's drawing derives to,
+        said on `tc49/layout/state/railroad` as the layout interface says it
+        (ADR-0085, decision 4).
         """
         self._bus = bus
         self._layout = layout
@@ -161,8 +167,9 @@ class Simulator:
         # a view needs to know which, and the binding of the layout interface
         # that is running is the one app bound to one (ADR-0059 decision 2,
         # as amended by ADR-0060). The name is the layout's own, which is the
-        # name the store lists it under.
-        bus.publish("tc49/layout/state/railroad", {"name": layout.name})
+        # name the store lists it under, and whether anything was built from
+        # it rides along (ADR-0085, decision 4).
+        bus.publish("tc49/layout/state/railroad", {"name": layout.name, BUILT: built})
         # Whether a train may move at all, stated from the constructor so a
         # joining client is served a value rather than left to read one out
         # of an absence (ADR-0032, ADR-0041). `off`, as the layout interface
