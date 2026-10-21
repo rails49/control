@@ -26,6 +26,7 @@ from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.inventory import AT
 from tc49.lib.loading import (
+    BUILT,
     NO_RAILROAD,
     POWER,
     RAILROAD,
@@ -143,6 +144,61 @@ def test_a_row_on_the_same_name_with_no_stamp_is_not_a_build() -> None:
     loaded._said(RAILROAD, {"name": WAS})  # pyright: ignore[reportPrivateUsage]
 
     assert loaded.moved is False
+
+
+def test_a_follower_builds_nothing_on_a_railroad_named_and_not_built() -> None:
+    """A row saying nothing was built names a railroad whose drawing is not a
+    valid drawing: there is nothing to build, so the app keeps what it holds
+    (ADR-0085, decision 4)."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": WAS})
+    bus.drain()
+
+    clock.advance(1.0)
+    bus.publish(RAILROAD, {"name": WAS, BUILT: False})
+    bus.drain()
+    assert (loaded.name, loaded.moved) == (WAS, False), "a save that is invalid"
+
+    clock.advance(1.0)
+    bus.publish(RAILROAD, {"name": NOW, BUILT: False})
+    bus.drain()
+    assert (loaded.name, loaded.moved) == (WAS, False), "a pick that is invalid"
+
+
+def test_a_follower_takes_the_build_that_arrives_once_the_drawing_is_valid() -> None:
+    """The same name with a new stamp and `built: true` is the build arriving,
+    as any rebuild is (#688): the drawing has been fixed and saved."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
+    bus.drain()
+    clock.advance(1.0)
+    bus.publish(RAILROAD, {"name": WAS, BUILT: False})
+    bus.drain()
+
+    clock.advance(1.0)
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
+    bus.drain()
+
+    assert (loaded.name, loaded.moved) == (WAS, True)
+
+
+def test_a_standing_follower_keeps_standing_on_a_railroad_not_built() -> None:
+    """After a restart on a railroad whose drawing is invalid, the binding
+    names it and builds nothing, and neither does an app that follows it."""
+    bus = bused()
+    loaded = Loaded(NO_RAILROAD)
+    loaded.follow(bus)
+
+    bus.publish(RAILROAD, {"name": WAS, BUILT: False})
+    bus.drain()
+
+    assert (loaded.name, loaded.moved) == (NO_RAILROAD, False)
 
 
 # -- the answerer ----------------------------------------------------------

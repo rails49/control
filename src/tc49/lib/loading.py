@@ -47,6 +47,13 @@ RAILROAD = "tc49/layout/state/railroad"
 lists it. Published by whichever binding of the layout interface is running
 (BUS.md, the inventory), which is the one app bound to a railroad."""
 
+BUILT = "built"
+"""The row's say on whether anything was built from the railroad it names
+(ADR-0085, decision 4). `false` is a railroad named and recorded as loaded
+whose drawing is not a valid drawing, so nothing was built from it; anything
+else, an absent field included, reads as built, so a row from an older
+writer means what it meant (#889)."""
+
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 """The gesture behind that row: a person choosing which railroad the apps
 run, while they run (ADR-0060). One responder — the binding of the layout
@@ -144,9 +151,17 @@ class Loaded:
         nothing. What is remembered is the row and not the name: a person who
         fixes the drawing and picks it again publishes a value with a later
         stamp, and that one is taken (#240).
+
+        **A row saying nothing was built is dropped** (ADR-0085, decision 4).
+        The railroad it names has a drawing that is not a valid drawing, so
+        there is nothing to build: this app keeps what it holds, and clears
+        none of its rows, so the placements stand on the broker for the build
+        that comes once the drawing is fixed (ADR-0071). That build is a row
+        on the same name with a new stamp, or on another name, and is taken
+        as any other (#889).
         """
         name = payload.get("name")
-        if not isinstance(name, str) or not name:
+        if not isinstance(name, str) or not name or payload.get(BUILT) is False:
             return
         row = (name, payload.get(AT))
         if name == self._name:
@@ -382,6 +397,76 @@ def standing[Read](
     return None
 
 
+def drawn[Read](
+    reading: Callable[[str], Read],
+    nothing: Callable[[str], Read],
+    log: Callable[[str], None],
+) -> Callable[[str], tuple[Read, bool]]:
+    """What a binding of the layout interface reads a railroad with: its
+    documents and `True`, or `nothing` under its name and `False` where its
+    drawing is not a valid drawing (ADR-0085, decision 4).
+
+    A railroad whose drawing does not derive **stays named**. The binding
+    records it and says on the row that nothing was built, so the page opens
+    the drawing for the fix rather than losing it (#885). `nothing` is what
+    the binding runs on where there is nothing else — after a restart, or a
+    pick while it stands — so that it still answers the power, which a person
+    driving the station by hand presses (rails49/dccex#329).
+
+    A railroad the store does not have is raised as before: there is no
+    drawing to open, and the binding stands (`standing`) or stays on the one
+    it runs (`answered`).
+    """
+
+    def read(railroad: str) -> tuple[Read, bool]:
+        try:
+            return reading(railroad), True
+        except (ValueError, TypeError) as refused:
+            log(f"'{railroad}': {refused} — named, and nothing built")
+            return nothing(railroad), False
+
+    return read
+
+
+def answered[Read](
+    bus: Bus,
+    documents: Documents,
+    loaded: Answering,
+    built: str,
+    held: tuple[Read, bool],
+    log: Callable[[str], None],
+    reading: Callable[[str], tuple[Read, bool]],
+) -> tuple[Read, bool] | None:
+    """The documents to build next, or `None` where the binding builds
+    nothing and goes on running what it holds: what `taken` is for a
+    follower, for the binding that answers the pick.
+
+    `reading` is `drawn`'s. A drawing that is not a valid drawing **names
+    the railroad without building it** (ADR-0085, decision 4): the store
+    records it as loaded, so a restart comes up on it, and the row says
+    `built: false` with a new stamp. After a save of the loaded railroad
+    that is the same name; after a pick, another. Either way this app keeps
+    the build it runs — the last one in memory, ON still answered — and
+    clears none of its rows (#889).
+
+    A railroad the store does not have is said and not taken, as `taken`
+    says it: `held`, the documents of the railroad still built and whether
+    anything was built from them, come back to be built again.
+    """
+    try:
+        read = reading(loaded.name)
+    except OSError as refused:
+        log(f"'{loaded.name}': {refused} — staying on '{built}'")
+        loaded.keep(built)
+        return held
+    if read[1]:
+        return read
+    documents.put_loaded(loaded.name)
+    bus.publish(RAILROAD, {"name": loaded.name, BUILT: False})
+    loaded.keep(built)
+    return None
+
+
 def named(railroad: str) -> str:
     """A railroad as an app's log names it: quoted, or said to be absent.
 
@@ -418,18 +503,20 @@ def taken[Read](
     those are the shape a process comes up in, and this is what an app does
     when the railroad **moves under it**, which is this module's whole
     subject. Here rather than in each app because it is one rule about the
-    whole system — written once in each of the four apps that read documents,
-    it could be fixed in one place and left wrong in three (#502).
+    whole system — written once in each app that reads documents, it could
+    be fixed in one place and left wrong in another (#502).
 
-    `reading` is the one thing those four differ in: a railroad's name to
-    what that app reads, which is one document for the scheduler and the
-    simulator and two for the dispatcher and the layout interface. Generic in
-    what it answers — `Read` is that app's documents and never the store's
-    face they came off — so each comes back as the app wrote it rather than
-    through a cast.
+    The followers that read documents call this: the scheduler and the
+    dispatcher. A row saying `built: false` never reaches it, being dropped
+    on arrival (`Loaded._said`); what it still catches is a railroad the
+    store refuses on a row that said it was built. The two bindings call
+    `answered`, which also names a railroad its drawing cannot build.
 
-    `Loaded` and not `Answering`: the wider type covers both, and the name
-    last taken and `keep` are the same on either.
+    `reading` is the one thing those apps differ in: a railroad's name to
+    what that app reads, which is one document for the scheduler and two for
+    the dispatcher. Generic in what it answers — `Read` is that app's
+    documents and never the store's face they came off — so each comes back
+    as the app wrote it rather than through a cast.
     """
     try:
         return reading(loaded.name)
