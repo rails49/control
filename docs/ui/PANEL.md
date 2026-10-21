@@ -100,12 +100,18 @@ the drop. The rows and what a drag asks are worked out in
 `ui/src/model/requests.ts`; the component draws them and reports where a row
 was let go.
 
-**A train between two blocks is drawn on the connection**, midway between the
-two block ends its transit joins, and stands in no block. The picture's
-`crossing` is what says so, train to the transit taking it out of the block
-`trains` still names: the block the sensors last confirmed it in, which keeps
-its lock and its colour and loses the name and the arrow
-([#154](https://github.com/rails49/control/issues/154)).
+**A train's name is drawn in each block it occupies**, whatever the block's
+colour: every block the train holds in the picture's `locks` that reads
+occupied on `block_occupied` and `block_vacated`. A train passing from one
+block to the next is named in the old block, then in both, then in the new
+one. Where none of the blocks it holds reads occupied — a page that joined
+after the readings, or a detector that has dropped out — it is named in the
+block it last stood in, the one `trains` names. The picture's `crossing` says
+a train has left that block for a transit; the block keeps its lock and its
+colour, and loses the arrow
+([#154](https://github.com/rails49/control/issues/154),
+[#897](https://github.com/rails49/control/issues/897)). A train the run has
+taken off is named nowhere, though the blocks it reads occupied in stay held.
 
 **What the detectors dispute is marked on the block it is about.** While the
 run is held the dispatcher compares its placement against the occupancy the
@@ -369,8 +375,10 @@ it until they read clear
 The rows are still only while no session is joined. The dispatcher accepts a
 block only while the run is held until
 [#822](https://github.com/rails49/control/issues/822).
-A train between two blocks is picked up from where it is drawn. A drop with
-no block under it — back on the pane, or on bare paper — writes nothing.
+A train is picked up from any block its name is in, and a drop back on one of
+them is the cancel gesture. A train between two blocks dropped on a block asks
+for nothing. A drop with no block under it — back on the pane, or on bare
+paper — writes nothing.
 
 A train **mid-request is lifted off with its request**: the dispatcher cancels
 whatever that train has and then takes it off, so `request_cancelled` arrives
@@ -687,7 +695,7 @@ decision 3). The page reads nothing new for it: placement arrives on
 `state/allocation` and facing on `state/facing` exactly as they do on a
 rejoin. What the picture gains is `crossing`, train → the transit it was
 crossing when everything stopped: a placement hint with no route behind it,
-drawn on the connection as above, and the one train the dispatcher cannot
+drawn in the blocks as above, and the one train the dispatcher cannot
 place on its own. It comes up **held**, so nothing moves before the placement
 has been checked
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
@@ -731,7 +739,7 @@ it composes. Where a drag from the pane landed is asked of the canvas, which is
 what turns a client pixel into a point on the drawing.
 
 **The component gets a suite where only mounting it can see the answer.** Each
-rule is tested at its own seam — `trainAt` in `drag.test.ts`, `standsIn` and
+rule is tested at its own seam — `trainAt` in `drag.test.ts`, `shows` and
 `inFlight` in `panel.test.ts`, `litLast` in `inspect.test.ts` — and not one of
 them can say whether this view asked. So `reversal.test.ts` mounts the app in
 this view and drives the right-click, and `run.test.ts` walks the session: a
