@@ -551,8 +551,9 @@ Railroad tab of the settings dialog behind the band's gear publishes
 `tc49/layout/railroad_wanted` and this view carries the
 press, the layout interface answers it and the row moves
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-The press loads nothing by itself, so a gesture the rails' power refuses leaves
-the page where it was. The page subscribes
+The press loads nothing by itself: with power on it drains the track first and
+asks once the row reads `off` (ADR-0085, decision 5), and a gesture nothing
+answers leaves the page where it was. The page subscribes
 `tc49/#` and publishes only the browser-writable rows. With anonymous clients
 a broker cannot tell a page from an app, so that set is convention rather than
 enforcement, and it is what keeps ADR-0036's single-minter argument holding.
