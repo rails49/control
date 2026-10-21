@@ -25,7 +25,7 @@ the same canvas the editor draws on, one of two modes of one component
 ([EDITOR.md](EDITOR.md#canvas),
 [#168](https://github.com/rails49/control/issues/168)). Everything below is
 what run mode adds over the drawing both modes paint: the state colours, the
-labels, the arrows, the aspects, the markers and the drag's rings. It arrives
+labels, the arrows, the aspects, the markers and the drag's shade. It arrives
 as one overlay object worked out in `model/panel.ts`, so the component still
 computes nothing.
 
@@ -297,7 +297,12 @@ run is held, which the hold deliberately keeps working for a timetable
 request the dispatcher then answers with `request_admitted` or
 `request_rejected`. The block's outer thirds name one arrival end — the end
 the train enters through, as [CONTEXT.md](../../CONTEXT.md) defines it — and
-the middle third names both, "either way round". Dropping on the train's own
+the middle third names both, "either way round". While the drag is in
+flight the target block's body is shaded where the drop would arrive: the A
+half for the A end, the B half for the B end, the whole body for both
+([#896](https://github.com/rails49/control/issues/896)). The shade is on the
+block itself, not a ring at its pin, so among blocks close together it cannot
+read as a neighbour's. Dropping on the train's own
 block abandons the drag and writes nothing. The departure end is never part
 of the gesture: it is the train's **facing** end, which the scheduler holds
 and the dispatcher never sees ([ADR-0019](../adr/0019-facing-is-scheduler-state.md)). Neither is the
