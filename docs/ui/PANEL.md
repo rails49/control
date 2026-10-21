@@ -553,7 +553,9 @@ press, the layout interface answers it and the row moves
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 The press loads nothing by itself: with power on it drains the track first and
 asks once the row reads `off` (ADR-0085, decision 5), and a gesture nothing
-answers leaves the page where it was. The page subscribes
+answers leaves the page where it was. The dialog closes once the page holds
+the new drawing and the dispatcher has said `state/allocation` since the row
+named it, and the page then shows this view (EDITOR.md). The page subscribes
 `tc49/#` and publishes only the browser-writable rows. With anonymous clients
 a broker cannot tell a page from an app, so that set is convention rather than
 enforcement, and it is what keeps ADR-0036's single-minter argument holding.
