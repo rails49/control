@@ -184,5 +184,35 @@ export class Drain {
   }
 }
 
+/** Where a pick stands on the page: the drawing it holds (`Filing.opened`,
+ *  `""` for none), and what the session reads off the run
+ *  (`RunStatus.railroad`, `built` and `allocated`). */
+export interface Landing {
+  opened: string;
+  railroad: string | null;
+  built: boolean;
+  allocated: boolean;
+}
+
+/**
+ * Whether the railroad `wanted` has landed, so the dialog that asked for it
+ * closes (#902): the page holds its drawing, the layout's row names it, and
+ * `tc49/dispatch/state/allocation` has arrived since — the dispatcher being
+ * the last app to build on a load. A row saying nothing was built has no
+ * dispatcher on the railroad to say anything (ADR-0085, decision 4), so the
+ * drawing and the row are the whole of it there.
+ */
+export function arrived(wanted: string, now: Landing): boolean {
+  if (now.opened !== wanted || now.railroad !== wanted) return false;
+  return !now.built || now.allocated;
+}
+
+/** How long a pick waits for `arrived` once the railroad is asked for. A
+ *  load takes a few seconds with the store answering promptly (#902). */
+export const ANSWER_MS = 15_000;
+
+/** What the picked row says where `ANSWER_MS` passed without `arrived`. */
+export const UNANSWERED = "the layout did not answer";
+
 /** What a dialog says while a `Drain` waits, beside the stop sign. */
 export const STOPPING = "stopping trains…";
