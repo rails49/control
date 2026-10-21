@@ -76,6 +76,12 @@ pins. It shows connectivity, not scale, and the layout is derived from it
 ([DRAWING.md](docs/store/DRAWING.md#what-a-drawing-is)).
 _Avoid_: diagram, plan, track plan
 
+**Valid drawing**:
+A drawing the layout can be derived from. An invalid one is saved like any
+other but nothing is built from it
+([DRAWING.md](docs/store/DRAWING.md#what-a-drawing-is)).
+_Avoid_: derives, does not derive, invalid layout
+
 **Symbol**:
 A drawing element that declares pins, transits between them, and which transit
 pairs are `concurrent`: the shape of a connection, one level down
