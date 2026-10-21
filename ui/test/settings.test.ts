@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  arrived,
   boxRefusal,
   copyRefusal,
   Drain,
@@ -232,5 +233,34 @@ describe("a press held for a dead track", () => {
     drain.heard("off");
 
     expect(acts()).toBe(1);
+  });
+});
+
+/** When a pick has landed, so the dialog closes (#902): the page holds the
+ *  drawing, the row names it, and the dispatcher has said its picture since
+ *  — or the row says nothing was built, there being no dispatcher on it. */
+describe("a pick that has landed", () => {
+  const LANDED = { opened: "otira", railroad: "otira", built: true, allocated: true };
+
+  it("has landed once all three hold", () => {
+    expect(arrived("otira", LANDED)).toBe(true);
+  });
+
+  it("has not while the page holds another drawing, or none", () => {
+    expect(arrived("otira", { ...LANDED, opened: "toy" })).toBe(false);
+    expect(arrived("otira", { ...LANDED, opened: "" })).toBe(false);
+  });
+
+  it("has not while the row names another railroad, or has not said", () => {
+    expect(arrived("otira", { ...LANDED, railroad: "toy" })).toBe(false);
+    expect(arrived("otira", { ...LANDED, railroad: null })).toBe(false);
+  });
+
+  it("has not before the allocation, where the railroad was built", () => {
+    expect(arrived("otira", { ...LANDED, allocated: false })).toBe(false);
+  });
+
+  it("has without the allocation, where the row says nothing was built", () => {
+    expect(arrived("otira", { ...LANDED, built: false, allocated: false })).toBe(true);
   });
 });
