@@ -577,7 +577,8 @@ in [BUS.md](BUS.md#device-vocabulary).
     ADR-0070 decision 5, ADR-0071 decisions 4 and 5,
     [ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)
     decision 4, [#564](https://github.com/rails49/control/issues/564)).
-20. The editor is read-only while power is `on` or `draining`
+20. The Edit view does not open while power is `on` or `draining`, and power
+    coming on moves an open one to the run view
     ([EDITOR.md](ui/EDITOR.md#track-power-freezes-the-drawing)).
 21. `layout` publishes `tc49/layout/alive_confirmed` once a second while it is
     built on a railroad. Each translator that drives trains, and any device on
