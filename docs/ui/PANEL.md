@@ -836,11 +836,12 @@ vocabulary — a page never reaches a translator.
 
 **The stop sign is one click with no confirmation**: an emergency stop that
 asks "are you sure?" is not one, and a train it leaves between blocks carries
-on with its move when power is back `on`. **Power on waits for the save**
+on with its move when power is back `on`. **ON saves first**
 while the loaded railroad has unsaved edits and power is off, since this view
-draws the open drawing; the control is then dead and says *Save the railroad
-first*. With power on or draining it never waits
-([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing), ADR-0071).
+draws the open drawing: the drawing is written, and `on` is sent once the
+apps have built it. With power on or draining it never waits
+([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing),
+[ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
 
 **The drain is `layout`'s, and the page waits for nothing.** The toggle
 publishes `power_wanted: draining` and stops there: `layout` switches the
