@@ -395,17 +395,22 @@ def named(railroad: str) -> str:
 def taken[Read](
     loaded: Loaded,
     built: str,
+    held: Read,
     log: Callable[[str], None],
     reading: Callable[[str], Read],
 ) -> Read:
-    """The documents of the railroad just named, or of the one still running
-    where the store has no such railroad or its documents do not load.
+    """The documents of the railroad just named, or `held`, the ones the app
+    is running, where the store has no such railroad or its documents do not
+    load.
 
     A railroad the store cannot give is **said and not taken**: it is
     reported against the railroad still built, `keep` puts that one back, and
     what comes back are the documents the app already had — an app still
     running the last railroad being worth more than one running none
-    (ADR-0050). A store that is not answering at all is waited for rather
+    (ADR-0050). They are not read again: under the same name the store now
+    holds what was just refused — a saved drawing that does not derive — and
+    reading `built` raised out of the app, which came back standing (#883).
+    A store that is not answering at all is waited for rather
     than refused, which is `lib/documents.py`'s own retry and not a case
     here.
 
@@ -431,7 +436,7 @@ def taken[Read](
     except (OSError, ValueError, TypeError) as refused:
         log(f"'{loaded.name}': {refused} — staying on '{built}'")
         loaded.keep(built)
-        return reading(built)
+        return held
 
 
 def still_standing(position: dict[str, str], layout: Layout) -> dict[str, str]:

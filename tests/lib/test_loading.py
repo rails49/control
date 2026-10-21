@@ -24,6 +24,7 @@ import pytest
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.inventory import AT
 from tc49.lib.loading import (
     NO_RAILROAD,
     POWER,
@@ -412,6 +413,11 @@ class Reading:
         return f"the documents of {railroad}"
 
 
+HELD = f"the documents {WAS} was built on"
+"""What an app holds while it runs, which is not what the store holds once a
+save or a restore has written over it."""
+
+
 def moved() -> Loaded:
     """A follower whose row has just named another railroad, which is where
     an app's loop calls `taken`."""
@@ -431,7 +437,7 @@ def test_the_railroad_just_named_is_read() -> None:
     reading = Reading()
     said: list[str] = []
 
-    documents = taken(loaded, WAS, said.append, reading)
+    documents = taken(loaded, WAS, HELD, said.append, reading)
 
     assert documents == f"the documents of {NOW}"
     assert (loaded.name, said) == (NOW, [])
@@ -458,12 +464,35 @@ def test_a_railroad_the_store_cannot_give_is_said_and_not_taken(
     reading = Reading(refuses=refused, of=NOW)
     said: list[str] = []
 
-    documents = taken(loaded, WAS, said.append, reading)
+    documents = taken(loaded, WAS, HELD, said.append, reading)
 
     assert said == [f"'{NOW}': {refused} — staying on '{WAS}'"]
     assert (loaded.name, loaded.moved) == (WAS, False)
-    assert documents == f"the documents of {WAS}"
-    assert reading.asked == [NOW, WAS]
+    assert documents == HELD
+    assert reading.asked == [NOW]
+
+
+def test_a_saved_drawing_that_does_not_derive_keeps_the_railroad_running() -> None:
+    """A save names the loaded railroad again (ADR-0071), and the store then
+    holds a drawing that does not derive under the name still built. The
+    documents the app already has are what it keeps: reading that name again
+    is refused too, and an app that let it out exited, came back standing
+    and named no railroad, and the page closed the drawing that needed the
+    fix."""
+    bus = bused()
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+    bus.publish(RAILROAD, {"name": WAS, AT: 1.0})
+    bus.publish(RAILROAD, {"name": WAS, AT: 2.0})
+    bus.drain()
+    reading = Reading(refuses=ValueError("pin 'yard_e.B' takes one wire"), of=WAS)
+    said: list[str] = []
+
+    documents = taken(loaded, WAS, HELD, said.append, reading)
+
+    assert documents == HELD
+    assert (loaded.name, loaded.moved) == (WAS, False)
+    assert reading.asked == [WAS]
 
 
 def test_what_an_app_reads_is_the_only_thing_it_says() -> None:
@@ -473,7 +502,9 @@ def test_what_an_app_reads_is_the_only_thing_it_says() -> None:
     interface with a layout and a roster."""
     loaded = moved()
 
-    pair = taken(loaded, WAS, lambda _line: None, lambda name: (name, len(name)))
+    pair = taken(
+        loaded, WAS, (WAS, 0), lambda _line: None, lambda name: (name, len(name))
+    )
 
     assert pair == (NOW, len(NOW))
 
