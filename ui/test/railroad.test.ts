@@ -434,7 +434,7 @@ describe("the row naming another railroad", () => {
     await flushed();
 
     expect(filing.reviewed?.refused).toBeNull();
-    expect(filing.derives).toBe(true);
+    expect(filing.valid).toBe(true);
   });
 
   it("drops the first's Save where it lands after the second was edited, and answers false", async () => {
