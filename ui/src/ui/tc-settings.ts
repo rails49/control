@@ -7,8 +7,13 @@
  * lists what the store holds, the loaded one ticked, and a press on another
  * asks for it: it publishes `railroad_wanted` through
  * the app and stops there, and the tick moves when the layout's row names the
- * new railroad, which is the only thing that loads one (ADR-0060). The dialog
- * stays open, so a person sees the answer come back. Beneath the list a name
+ * new railroad, which is the only thing that loads one (ADR-0060). **A pick
+ * looks busy until it has landed** (#902): the picked row wears a spinner
+ * from the press — through the drain, the save and the write — until the
+ * page holds the drawing, the row names it and the dispatcher has said its
+ * picture since (`arrived`), and then the dialog closes on
+ * `railroad-arrived`. Where that has not happened `ANSWER_MS` after the ask,
+ * the spinner stops and the row says the layout did not answer. Beneath the list a name
  * and two presses make a railroad (decision 3): **New** writes an empty
  * drawing under the name — no roster and no script, a railroad with neither
  * being an ordinary one — and **Copy loaded as…** has the store copy every
@@ -46,13 +51,23 @@ import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/icon/icon.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
+import "@shoelace-style/shoelace/dist/components/spinner/spinner.js";
 import "@shoelace-style/shoelace/dist/components/tab/tab.js";
 import "@shoelace-style/shoelace/dist/components/tab-group/tab-group.js";
 import "@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js";
 
 import { emptyDrawing, nameTrouble } from "../model/drawing.js";
 import { canTurnOff, turnOff } from "../model/box.js";
-import { boxRefusal, copyRefusal, Drain, refusal, STOPPING } from "../model/settings.js";
+import {
+  ANSWER_MS,
+  arrived,
+  boxRefusal,
+  copyRefusal,
+  Drain,
+  refusal,
+  STOPPING,
+  UNANSWERED,
+} from "../model/settings.js";
 import { copyRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
@@ -90,6 +105,17 @@ export class TcSettings extends LitElement {
   @property({ attribute: false }) saving: () => Promise<boolean> = () =>
     Promise.resolve(true);
 
+  /** The drawing the page holds, `Filing.opened`'s, `""` while none is. */
+  @property({ attribute: false }) opened = "";
+
+  /** Whether the row names a railroad something was built from, as
+   *  `RunStatus.built` has it. */
+  @property({ attribute: false }) built = true;
+
+  /** Whether the dispatcher has said its picture since the row named the
+   *  railroad, as `RunStatus.allocated` has it. */
+  @property({ attribute: false }) allocated = false;
+
   /** What backup has to say without being asked, in the band note's words,
    *  `null` where it says nothing (`model/commands.ts`). */
   @property({ attribute: false }) backup: string | null = null;
@@ -121,6 +147,22 @@ export class TcSettings extends LitElement {
    *  says "stopping trains…" and its presses are dead. */
   @state() private stopping: "railroad" | "shutdown" | null = null;
 
+  /** The railroad a press on the Railroad tab is for, from the press until
+   *  it has `arrived`, `null` while none is: its row wears the spinner, and
+   *  the tab's presses are dead. */
+  @state() private picked: string | null = null;
+
+  /** The railroad last asked for that did not arrive within `ANSWER_MS`,
+   *  `null` where none: its row says so. */
+  @state() private unanswered: string | null = null;
+
+  /** Whether the press `drain` holds has been acted on: a drain that ends
+   *  without it was abandoned, and the pick with it. */
+  private acted = false;
+
+  /** The `ANSWER_MS` wait once a railroad is asked for. */
+  private answer: ReturnType<typeof setTimeout> | null = null;
+
   /** What the installation refused the last request with, or what kept it
    *  from arriving, `null` where nothing did. */
   @state() private refusedOff: string | null = null;
@@ -131,6 +173,7 @@ export class TcSettings extends LitElement {
       this.drain.heard(this.power);
       this.held();
     }
+    this.landed();
     if (changed.has("open") && this.open) {
       this.canTurnOff = false;
       if (this.turning !== "sending") this.turning = "idle";
@@ -139,6 +182,11 @@ export class TcSettings extends LitElement {
         this.canTurnOff = can;
       });
     }
+  }
+
+  override disconnectedCallback(): void {
+    this.unanswering();
+    super.disconnectedCallback();
   }
 
   override render() {
@@ -186,6 +234,7 @@ export class TcSettings extends LitElement {
     const copyRefused = copyRefusal(this.railroad, this.power, this.unsaved);
     const unnamed = this.name.trim() === "";
     const stopping = this.stopping === "railroad";
+    const busy = stopping || this.picked !== null;
     return html`
       ${this.drawings.length === 0
         ? html`<p class="hint">the store lists no railroad</p>`
@@ -195,11 +244,15 @@ export class TcSettings extends LitElement {
                 <li>
                   <button
                     class=${one === this.railroad ? "loaded" : ""}
-                    ?disabled=${refused !== null || stopping}
+                    ?disabled=${refused !== null || busy}
                     @click=${() => void this.wanting(one)}
                   >
                     <span class="tick">${one === this.railroad ? "✓" : ""}</span>
                     <span class="label">${one}</span>
+                    ${one === this.picked ? html`<sl-spinner></sl-spinner>` : nothing}
+                    ${one === this.unanswered
+                      ? html`<span class="unanswered">${UNANSWERED}</span>`
+                      : nothing}
                   </button>
                 </li>
               `,
@@ -221,7 +274,7 @@ export class TcSettings extends LitElement {
         <sl-button
           class="new"
           size="small"
-          ?disabled=${refused !== null || unnamed || this.writing || stopping}
+          ?disabled=${refused !== null || unnamed || this.writing || busy}
           @click=${() => this.making(refused, (name) => saveDrawing(emptyDrawing(name)))}
         >
           New
@@ -229,7 +282,7 @@ export class TcSettings extends LitElement {
         <sl-button
           class="copy"
           size="small"
-          ?disabled=${copyRefused !== null || unnamed || this.writing || stopping}
+          ?disabled=${copyRefused !== null || unnamed || this.writing || busy}
           @click=${() => this.making(copyRefused, (name) => copyRailroad(this.railroad!, name))}
         >
           Copy loaded as…
@@ -317,6 +370,7 @@ export class TcSettings extends LitElement {
   private turningOff(): void {
     this.turning = "idle";
     if (boxRefusal(this.power) !== null) return;
+    this.abandoned();
     this.draining("shutdown", this.power, () => void this.sendingOff());
   }
 
@@ -333,8 +387,9 @@ export class TcSettings extends LitElement {
    *  live track is drained first; the drawing is saved once it is dead, a
    *  save waiting on power `off` (ADR-0085, decision 1). */
   private wanting(name: string): void {
-    if (name === this.railroad) return;
+    if (name === this.railroad || this.picked !== null) return;
     if (refusal(this.railroad, this.power, this.unsaved) !== null) return;
+    this.picking(name);
     this.draining("railroad", this.supply, () => void this.loading(name));
   }
 
@@ -342,6 +397,7 @@ export class TcSettings extends LitElement {
   private async loading(name: string): Promise<void> {
     if (!(await this.saving())) {
       this.wrong = UNSAVED;
+      this.picked = null;
       return;
     }
     this.wanted(name);
@@ -362,12 +418,13 @@ export class TcSettings extends LitElement {
    */
   private making(refused: string | null, write: (name: string) => Promise<void>): void {
     const name = this.name.trim();
-    if (refused !== null || name === "" || this.writing) return;
+    if (refused !== null || name === "" || this.writing || this.picked !== null) return;
     const trouble = nameTrouble(name, this.drawings);
     if (trouble !== null) {
       this.wrong = trouble;
       return;
     }
+    this.picking(name);
     this.draining("railroad", this.supply, () => void this.writingAs(name, write));
   }
 
@@ -378,11 +435,13 @@ export class TcSettings extends LitElement {
     try {
       if (!(await this.saving())) {
         this.wrong = UNSAVED;
+        this.picked = null;
         return;
       }
       await write(name);
     } catch (failure) {
       this.wrong = said(failure);
+      this.picked = null;
       return;
     } finally {
       this.writing = false;
@@ -402,10 +461,14 @@ export class TcSettings extends LitElement {
   /** `act` once the track is dead, `tab` saying so until then, and the drain
    *  asked for where the track has power (`Drain`). */
   private draining(tab: "railroad" | "shutdown", power: Power | null, act: () => void): void {
-    this.abandoned();
+    this.drain.abandon();
     this.stopping = tab;
     if (tab === "shutdown") this.turning = "stopping";
-    const asked = this.drain.begin(power, act);
+    this.acted = false;
+    const asked = this.drain.begin(power, () => {
+      this.acted = true;
+      act();
+    });
     this.held();
     if (asked !== null) this.powerWanted(asked);
   }
@@ -415,13 +478,50 @@ export class TcSettings extends LitElement {
   private held(): void {
     if (this.drain.waiting) return;
     if (this.turning === "stopping") this.turning = "idle";
+    // A drain that ended without acting was given up, and so was the pick.
+    if (this.stopping === "railroad" && !this.acted) this.picked = null;
     this.stopping = null;
   }
 
-  /** The wait given up, power left as it is. */
+  /** The wait given up, power left as it is, and a pick given up with it:
+   *  whatever the layout then answers, nothing here waits for it. */
   private abandoned(): void {
     this.drain.abandon();
+    this.acted = false;
     this.held();
+    this.picked = null;
+    this.unanswered = null;
+    this.unanswering();
+  }
+
+  /** A press on the Railroad tab for `name`: its row busy from here. */
+  private picking(name: string): void {
+    this.abandoned();
+    this.picked = name;
+  }
+
+  /** The pick, once it has `arrived`: the wait over, and the dialog closed
+   *  on `railroad-arrived`, the app showing the view it lands in. */
+  private landed(): void {
+    const now = {
+      opened: this.opened,
+      railroad: this.railroad,
+      built: this.built,
+      allocated: this.allocated,
+    };
+    if (this.unanswered !== null && arrived(this.unanswered, now)) this.unanswered = null;
+    if (this.picked === null || this.answer === null || !arrived(this.picked, now)) return;
+    this.picked = null;
+    this.unanswering();
+    this.dispatchEvent(
+      new CustomEvent<void>("railroad-arrived", { bubbles: true, composed: true }),
+    );
+  }
+
+  /** The `ANSWER_MS` wait stopped, where one is running. */
+  private unanswering(): void {
+    if (this.answer !== null) clearTimeout(this.answer);
+    this.answer = null;
   }
 
   private powerWanted(power: Power): void {
@@ -430,7 +530,15 @@ export class TcSettings extends LitElement {
     );
   }
 
+  /** `name` asked for, and `ANSWER_MS` given to it. */
   private wanted(name: string): void {
+    this.unanswering();
+    this.answer = setTimeout(() => {
+      this.answer = null;
+      if (this.picked !== name) return;
+      this.picked = null;
+      this.unanswered = name;
+    }, ANSWER_MS);
     this.dispatchEvent(
       new CustomEvent<string>("railroad-wanted", {
         detail: name,
