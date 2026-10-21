@@ -210,11 +210,18 @@ Both colours are palette entries in `render/units.ts`. The pale ground a block
 body wears is mixed from its own stroke in the stylesheet rather than named a
 second time, so a colour and its wash cannot drift apart.
 
-There are no sensor dots at block ends. `block_occupied` and `block_vacated`
-carry a block, and the layout interface publishes anonymous occupancy and
-never asserts train identity. RocRail's two dots depict per-end detection,
-which is finer than anything on this bus. Train identity is reconstructed
-from `lock_granted`, exactly as the dispatcher does. Direction is not derived
+**Each block end shows what its detector reads**
+([#898](https://github.com/rails49/control/issues/898)), for a person
+debugging the layout. A small square sits inside the block's rectangle at each
+end, read off that end's `tc49/layout/state/device/sensor/<block>.<end>` row:
+filled for `occupied`, hollow for `clear`, grey for `unknown` or for an end no
+row has named yet. The squares are always drawn on a run and never in the Edit
+view. They are square and in ink rather than round, red or green, because the
+signals at the same ends are round red and green lamps. They are the readings,
+not the picture: a block's colour still comes from `block_occupied` and
+`block_vacated`, which `layout` folds the two readings into, and those carry
+no train identity. Train identity is reconstructed from `lock_granted`,
+exactly as the dispatcher does. Direction is not derived
 here at all: it is the train's **facing**, read off
 `tc49/schedule/state/facing`, which the scheduler keeps from the entry end of
 each granted transit and from a committed route's departure end
@@ -824,8 +831,8 @@ Until the station has said where power stands the control is dead and says
 health area beside the store and the broker
 ([#602](https://github.com/rails49/control/issues/602)). The session reads
 `tc49/layout/state/device/track` into the panel model
-(`ui/src/model/panel.ts`), which is the one device row any view reads,
-and keeps the free-text `reason` alone: `power` there is one translator's
+(`ui/src/model/panel.ts`), one of the two device rows a view reads with
+`device/sensor` above, and keeps the free-text `reason` alone: `power` there is one translator's
 reading of its own hardware, and what the picture draws is the railroad-wide
 `state/power` that `layout` folds it into. The reason is what nothing else
 carries. A district reaches no topic, so a trip the command station cut itself
