@@ -438,7 +438,7 @@ describe("whether the drawing derives", () => {
   it("says nothing is against a drawing nothing has been asked about", () => {
     const { filing } = made();
 
-    expect(filing.derives).toBe(true);
+    expect(filing.valid).toBe(true);
   });
 
   it("marks a drawing derivation refused", async () => {
@@ -448,7 +448,7 @@ describe("whether the drawing derives", () => {
     store.answer = () => Promise.resolve(REFUSED);
     await filing.edited(editor);
 
-    expect(filing.derives).toBe(false);
+    expect(filing.valid).toBe(false);
   });
 
   it("clears as soon as an edit derives again", async () => {
@@ -460,7 +460,7 @@ describe("whether the drawing derives", () => {
     store.answer = () => Promise.resolve(CLEAN);
     await filing.edited(editor);
 
-    expect(filing.derives).toBe(true);
+    expect(filing.valid).toBe(true);
   });
 
   /** An overlap is cosmetic and derives fine, and so does a turnout with no
@@ -473,7 +473,7 @@ describe("whether the drawing derives", () => {
     editor.place("turnout", [0, 0]);
     await filing.edited(editor);
 
-    expect(filing.derives).toBe(true);
+    expect(filing.valid).toBe(true);
   });
 
   /** One is the author's to fix and the other is not, so the store going quiet
@@ -487,7 +487,7 @@ describe("whether the drawing derives", () => {
     store.broken = new Error("no store");
     await filing.edited(editor);
 
-    expect(filing.derives).toBe(false);
+    expect(filing.valid).toBe(false);
     expect(filing.trouble).toContain("no store");
   });
 });

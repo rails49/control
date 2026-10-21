@@ -125,7 +125,7 @@ export class Filing {
    *  drawing nothing has been asked about yet has nothing against it. A store
    *  that stops answering leaves the last review standing, so the mark neither
    *  appears nor clears on a fault that is not the author's. */
-  get derives(): boolean {
+  get valid(): boolean {
     return this.said === null || this.said.refused === null;
   }
 

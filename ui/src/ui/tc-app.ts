@@ -433,7 +433,7 @@ export class TcApp extends LitElement {
           name=${loaded ?? "no railroad loaded"}
           detail=${stranded(this.standing) ? "unsaved" : ""}
         ></look-about>
-        ${this.filing.derives ? nothing : chip("does not derive")}
+        ${this.filing.valid ? nothing : chip("does not derive")}
         ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
         ${note === null
           ? nothing
