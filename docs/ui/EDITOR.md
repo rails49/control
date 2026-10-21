@@ -111,7 +111,7 @@ and the two presses are dead and say why once beneath the list
 | --- | --- |
 | the layout has not said which railroad is loaded | `the layout has not said which railroad is loaded` |
 | a railroad is loaded and power is not `off` | `the track has power: switch it off to load another railroad` |
-| the drawing or the roster has unsaved edits | `<the drawing> has unsaved edits — save first` |
+| the roster has unsaved edits | `the roster has unsaved edits — save first` |
 
 **Track power off is the precondition**: a train already under a committed
 route keeps its motion whatever the software forgets. With no railroad loaded
@@ -120,10 +120,11 @@ its first railroad here. Nothing here turns the power off — that is the
 band's power toggle, which drains the run first
 ([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
 
-The band reads *unsaved* beside the name while the railroad holds edits the
-store has not been given. That state had no indicator at all before: it was inferrable only
-from the Save button being enabled, which is a control's affordance doing a
-status line's job, and #85 took that button off the screen entirely.
+The band reads *unsaved* beside the name only where the drawing holds edits
+that could not be saved: power came on from elsewhere while this page had
+edits, or the save failed ([Files](#files)). Edits the editor will save when
+it is left say nothing; there is no Save button to read them off
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
 
 **What the app could not do reads here**, in a health area at the right, each
 fault a red chip with its whole sentence as its title. That
@@ -242,7 +243,7 @@ written in look's `Mod+S` form and shown for the platform.
 
     views  Run  ·  Throttle  ·  Stock  ·  Edit
     View   Zoom out −  ·  Zoom in +  ·  Fit 0  ·  Netlist N
-    File   Save ⌘S  ·  Export SVG…
+    File   Export SVG…
     Edit   Undo ⌘Z  ·  Redo ⇧⌘Z
 
 The run view's rail is the views and the three `View` commands; the driving
@@ -265,9 +266,10 @@ dialog's too (ADR-0072, decision 3), so the editor holds the loaded railroad
 and no other, and `File` is what can be done to that one drawing. Backup is
 the store's and not the drawing's, so it is there too.
 
-**`⌘S` is the editor's.** `⇧⌘S`, which was Save As, is still taken from the
-browser and does nothing else, so a hand that remembers it saves no web page
-either.
+**There is no `Save`** (ADR-0085): the editor saves when it is left
+([Files](#files)). `⌘S`, which was Save, and `⇧⌘S`, which was Save As, are
+still taken from the browser and do nothing else, so a hand that remembers
+them saves no web page either.
 
 **`View` comes first wherever there is one.** Zoom and fit are pressed
 constantly — while drawing, and while following a train across a railroad too
@@ -282,9 +284,9 @@ rail is showing, and Escape clears the selection. Nothing on the band hangs over
 the work either. The settings and backup dialogs are modal, and while either is
 up the keyboard is the dialog's.
 
-**A shortcut is still not a bare key.** `⌘S` and `⌘Z` are the editor's and are
-taken from the browser, so Chrome's own `⌘S` never offers to save the page over
-the app.
+**A shortcut is still not a bare key.** `⌘Z` is the editor's and is taken
+from the browser, as `⌘S` is, so Chrome's own `⌘S` never offers to save the
+page over the app.
 
 **Below a short or narrow window the rail lies down** along the top of the
 work, as the occupancy UI's does: a column of twelve buttons does not fit a
@@ -292,8 +294,7 @@ phone held either way, and the throttle is used on one. The strip and the
 height and width it turns at are look's
 ([rails49/look ADR-0002](https://github.com/rails49/look/blob/main/docs/adr/0002-narrow-window-rail-becomes-a-strip.md)).
 
-What is dead and what is alive is not the rail's to decide. Save is dead with
-nothing open or nothing to write, Rotate, Flip and Delete are dead on an empty
+What is dead and what is alive is not the rail's to decide. Rotate, Flip and Delete are dead on an empty
 selection, Properties on anything but one symbol that has some, Undo and Redo
 at the ends of the snapshot stack, and Export SVG… with nothing to export. The
 zoom commands are dead in neither view: both draw on the one canvas, and an
@@ -881,9 +882,9 @@ railroad's and no other** (ADR-0072, decision 3): the row the layout
 interface publishes names it, and `model/filing.ts` opens it off the store.
 A row naming `""` — a box with no railroad loaded (#727) — closes it: the
 editor holds an empty drawing under no name, the filing reads as saved with
-no trouble and no review, Save and Export are dead, and the
+no trouble and no review, Export is dead, and the
 [stock view](STOCK.md) beside it holds no railroad either. A read, review or
-Save of the drawing that answers after the row names another railroad writes
+save of the drawing that answers after the row names another railroad writes
 nothing, even where the row has since named the first one again (#798).
 `File ▸ New…` and
 `Save As…`, which left the editor and the stock view on a drawing nothing
@@ -893,18 +894,39 @@ copies every document of the loaded one, and each then asks for what it
 wrote ([The band](#the-band)). Deleting or renaming a file stays in git,
 where it is reviewable.
 
+**The editor saves when it is left**
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 1). There is no Save button, no `⌘S` and no timer. The drawing is
+written, where it has edits and track power reads `off`:
+
+- on leaving the Edit view for another view;
+- when the page is hidden or closed (`visibilitychange` to hidden,
+  `pagehide`), with `fetch`'s `keepalive` so the write outlives the page;
+- before ON, which then waits for the build
+  ([Track power freezes the drawing](#track-power-freezes-the-drawing));
+- before a railroad is picked, or made with New or Copy loaded as…, in the
+  settings dialog, which then loads. A save that does not land loads
+  nothing, and the dialog says so.
+
+A save asked for while one is in flight is that one, so a page hidden and
+then closed writes once. Edits made while power is on or draining, which
+only reach the page where power came on from elsewhere, are not written:
+they stay on the page and the band marks them *unsaved* until the Edit view
+is next left with power off. A save that fails reads in the band's trouble
+chip and marks the edits *unsaved* the same way. Undo is unchanged: it is in
+memory, and runs back across saves.
+
 **Nothing asks before edits are thrown away, because no gesture of a person's
 throws them away.** The railroad arrives on the bus as a fact the layout
 interface reports (#371), and the row moving over unsaved edits is a load
-somebody asked for elsewhere — which the settings dialog refuses while
-anything is unsaved, in words naming which document, *the drawing*, *the
-roster* or *the drawing and the roster*
-([#415](https://github.com/rails49/control/issues/415), #733), as a restore
-is refused (#703). Both of the railroad's documents count: the drawing here
-and the roster the stock view is composing. What counts as unsaved is what
-the band marks *unsaved*: the only drawing open is one the store gave, so there is nothing
-unsaved that is not an edit, and a drawing that arrived needing staging
-counts, because it has changes to save.
+somebody asked for elsewhere. The settings dialog saves the drawing before a
+load it asks for, and refuses one while the roster the stock view is
+composing is unsaved ([#415](https://github.com/rails49/control/issues/415),
+#733). A restore is refused over either document, in words naming which, *the
+drawing*, *the roster* or *the drawing and the roster* (#703). The only
+drawing open is one the store gave, so there is nothing unsaved that is not
+an edit, and a drawing that arrived needing staging counts, because it has
+changes to save.
 
 `File ▸ Export SVG…` downloads the open drawing as a standalone SVG named for
 it (#86). The picture is the canvas's own markup, cloned rather than composed
@@ -1067,9 +1089,10 @@ railroad but the one the row last named
 decision 3), so that drawing is the loaded railroad's, and the page cannot know
 whether its track has power; an edit saved then would be drawn by the run view
 over a build no app has. A page loaded without a broker holds no drawing, so
-it has nothing to freeze. The rule keys on the row and not on power: power
-also reads nothing on a joined page whose drawing does not derive, and that
-drawing must stay editable so it can be fixed. The band's mark then says *the
+it has nothing to freeze. The rule keys on the row and not on power, which
+reads nothing too before the layout has said. Power is read off its own row
+whether or not the drawing derives, since it is what says whether the editor
+may save. The band's mark then says *the
 layout has not said whether the track has power, so the drawing is
 read-only*.
 
@@ -1086,20 +1109,20 @@ has loaded — the name on `tc49/layout/state/railroad` — writes it and then
 publishes `railroad_wanted` naming it, so every app builds what was written and
 keeps the trains that fit; those that do not are listed as unfit. The page does
 not reload: it already holds what it saved. The layout builds only with power
-off, so while power is on or draining that Save is dead, and so is any Save
-while no railroad is heard. The rule reads the
-two names and not the editor: a save of a drawing that is not the loaded
-railroad would name nothing, being only a file, though the editor opens no
-such drawing now. A save that lands after the broker has gone cannot publish,
+off, so the editor saves only with power `off` and never while no railroad is
+heard (`owed` in `model/commands.ts`, [Files](#files)). A save that lands after the broker has gone cannot publish,
 so the request is owed: it is sent once the broker is back, the row names the
 same railroad and power reads off, and dropped if the row names another
 railroad or none (#803).
 
-**Power on waits for the save.** The run view draws the open drawing, so power
-on with the loaded railroad's edits unsaved would run trains under track no app
-built. While they are unsaved and power is off, the band's power control is
-dead and says *Save the railroad first*. With power on or draining it never
-waits.
+**ON saves first** (ADR-0085, decision 2). The run view draws the open
+drawing, so power on with the loaded railroad's edits unsaved would run
+trains under track no app built. ON with edits and power off writes the
+drawing, names the railroad again, and sends `power_wanted: on` only once the
+row comes back naming it from a build after the press. A row saying
+`built: false` built nothing, and turns nothing on; nor does a save that did
+not land, a row naming another railroad, or a STOP pressed while it waits.
+With power on or draining ON never waits.
 
 The freeze replaces the permission this page carried — "Editing and running the same
 railroad at once is not prevented. The store snapshots at startup, so a run in
