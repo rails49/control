@@ -34,6 +34,17 @@ buttons as the editor — `+`, `−`, `0`. It had none of the three while it dre
 its own picture fitted to the sheet, which is what a railroad too large to see
 at once cost.
 
+**A grey run view is a railroad the apps did not build.** While
+`tc49/layout/state/railroad` names the loaded railroad with `built: false`,
+its saved drawing is an invalid drawing and nothing runs on it, so the view
+draws the drawing grey, with no trains, no aspects and no markers, and every
+gesture is dead: a press throws no point, a train is not picked up, a
+right-click opens no menu, and the roster and the request lists take
+nothing. The band says *invalid drawing*, and the Edit view is where it is
+fixed
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 4, [#886](https://github.com/rails49/control/issues/886)).
+
 **The railroad's roster is listed in the left pane.** The shell has one
 left-pane slot and each view fills it: the editor's palette, this view's
 `tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is
@@ -875,6 +886,16 @@ draws the open drawing: the drawing is written, and `on` is sent once the
 apps have built it. With power on or draining it never waits
 ([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing),
 [ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
+
+**ON waits for a valid drawing.** While the loaded railroad reads
+`built: false` the toggle is dead from `off` and from `draining` with *Fix
+the drawing first*, and a press sends no `power_wanted`: the apps built
+nothing from the saved drawing, and trains would run under a build that is
+not the drawing the store holds. From `on` the toggle is the drain, and it
+and the stop sign stay live, a supply that is on being one a person may
+always take off
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 4, [#886](https://github.com/rails49/control/issues/886)).
 
 **The drain is `layout`'s, and the page waits for nothing.** The toggle
 publishes `power_wanted: draining` and stops there: `layout` switches the
