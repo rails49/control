@@ -76,6 +76,31 @@ export function under(
 }
 
 /**
+ * Of the named symbols, the one whose centre is nearest a point, where one is
+ * within `reach` squares of it.
+ *
+ * What a tap on a touch screen lands on: a fingertip covers more than the
+ * square a mouse pointer has to hit, so the question is which of the things
+ * that can be tapped is nearest rather than which square holds the point.
+ */
+export function nearest(
+  drawing: Drawing,
+  names: Iterable<string>,
+  at: Point,
+  reach: number,
+): string | null {
+  let best: { name: string; away: number } | null = null;
+  for (const name of names) {
+    const spec = drawing.symbols[name];
+    if (spec === undefined) continue;
+    const { x, y } = centreOf(spec);
+    const away = Math.hypot(x - at.x, y - at.y);
+    if (away <= reach && (best === null || away < best.away)) best = { name, away };
+  }
+  return best?.name ?? null;
+}
+
+/**
  * The symbols a rubber band takes: those whose centre it covers.
  *
  * By the centre rather than by any overlap, so a band drawn along a row takes
