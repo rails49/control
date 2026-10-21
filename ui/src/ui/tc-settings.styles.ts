@@ -1,7 +1,7 @@
 import { css } from "lit";
 
 /**
- * The settings dialog (`tc-settings`).
+ * The settings dialog (`tc-settings`): three tabs, each laid out as below.
  *
  * A railroad is a row that acts where it is pressed, unlike a backup in
  * `tc-backup`, which is chosen and then restored from the footer: loading
@@ -11,20 +11,11 @@ import { css } from "lit";
  * reads its own. The name field and the two presses that make a railroad sit
  * in one row beneath, the field taking the width the presses leave, and what
  * refused a name or a write reads under that row in the weight a thing wrong
- * reads in. The Box part reads the same way: its press, and beneath it why
+ * reads in. The Shutdown tab reads the same way: its press, and beneath it why
  * it is dead or what the installation refused it with; asked once more, what
  * turning off costs and the two presses in a row beneath it.
  */
 export const settingsStyles = css`
-  h3 {
-    margin: 0.6rem 0 0.3rem;
-    font-size: 0.9rem;
-  }
-
-  h3:first-child {
-    margin-top: 0;
-  }
-
   .hint {
     margin: 0.2rem 0;
     color: var(--hint);
@@ -99,7 +90,7 @@ export const settingsStyles = css`
     color: var(--unfinished);
   }
 
-  .box {
+  .shutdown {
     display: flex;
     flex-direction: column;
     align-items: flex-start;

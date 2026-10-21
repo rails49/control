@@ -6,8 +6,8 @@
  * Two parts. The model against a fake `fetch`, because what it reads out of
  * the installation's answers — a yes only on `200` with `can_turn_off: true`,
  * a refusal's words as written — has nothing to do with the dialog. Then the
- * dialog through the app, which draws a **Box** part only where the
- * installation says yes and sends only while the track is dead.
+ * dialog through the app, which draws a **Shutdown** tab only where the
+ * installation says yes and sends only while the track is dead (#899).
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -147,17 +147,17 @@ async function powered(power: "on" | "draining" | "off"): Promise<TcApp> {
 }
 
 function part(dialog: TcSettings): HTMLElement | null {
-  return dialog.renderRoot.querySelector<HTMLElement>("div.box");
+  return dialog.renderRoot.querySelector<HTMLElement>("div.shutdown");
 }
 
-/** One of the Box part's presses, by its class. */
+/** One of the Shutdown tab's presses, by its class. */
 function press(dialog: TcSettings, which: string): HTMLButtonElement | null {
-  return dialog.renderRoot.querySelector<HTMLButtonElement>(`div.box sl-button.${which}`);
+  return dialog.renderRoot.querySelector<HTMLButtonElement>(`div.shutdown sl-button.${which}`);
 }
 
-/** What the Box part says beneath its press, `null` where it says nothing. */
+/** What the Shutdown tab says beneath its press, `null` where it says nothing. */
 function hint(dialog: TcSettings): string | null {
-  return dialog.renderRoot.querySelector("div.box .hint")?.textContent?.trim() ?? null;
+  return dialog.renderRoot.querySelector("div.shutdown .hint")?.textContent?.trim() ?? null;
 }
 
 async function pressed(shell: TcApp, dialog: TcSettings, which: string): Promise<void> {
@@ -165,7 +165,60 @@ async function pressed(shell: TcApp, dialog: TcSettings, which: string): Promise
   await settled(shell);
 }
 
-describe("the dialog's Box part", () => {
+/** The dialog's tabs as they read, in order. */
+function tabs(dialog: TcSettings): string[] {
+  return [...dialog.renderRoot.querySelectorAll("sl-tab")].map((tab) => tab.textContent!.trim());
+}
+
+/** The tab the dialog shows. */
+function shown(dialog: TcSettings): string | null {
+  return dialog.renderRoot.querySelector("sl-tab[active]")?.textContent?.trim() ?? null;
+}
+
+describe("the dialog's tabs", () => {
+  it("are Railroad and Backup where the box cannot turn off", async () => {
+    const shell = await powered("off");
+
+    const dialog = await settingsOpened(shell);
+
+    expect(tabs(dialog)).toEqual(["Railroad", "Backup"]);
+  });
+
+  it("are Railroad, Backup and Shutdown where it can", async () => {
+    installed(CAN);
+    const shell = await powered("off");
+
+    const dialog = await settingsOpened(shell);
+
+    expect(tabs(dialog)).toEqual(["Railroad", "Backup", "Shutdown"]);
+  });
+
+  it("open on Railroad, whichever was shown when the dialog closed", async () => {
+    installed(CAN);
+    const shell = await powered("off");
+    const first = await settingsOpened(shell);
+    first.renderRoot.querySelector("sl-tab-group")!.show("shutdown");
+    await settled(shell);
+    expect(shown(first)).toBe("Shutdown");
+    first.dispatchEvent(new CustomEvent("settings-closed", { bubbles: true, composed: true }));
+    await settled(shell);
+
+    const dialog = await settingsOpened(shell);
+
+    expect(shown(dialog)).toBe("Railroad");
+  });
+
+  it("call nothing Box", async () => {
+    installed(CAN);
+    const shell = await powered("off");
+
+    const dialog = await settingsOpened(shell);
+
+    expect(dialog.renderRoot.textContent).not.toMatch(/\bBox\b/);
+  });
+});
+
+describe("the dialog's Shutdown tab", () => {
   it("is not there where the box answers as localhost does", async () => {
     const shell = await powered("off");
 
