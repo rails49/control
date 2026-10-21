@@ -26,6 +26,7 @@ import {
   type Transit,
   type UnpairedPortal,
 } from "../src/model/store.js";
+import { BLOCK } from "../src/render/units.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import { canvasStyles } from "../src/ui/tc-canvas.styles.js";
 
@@ -707,6 +708,37 @@ describe("what each mode draws", () => {
     expect(editing.renderRoot.querySelectorAll(".marker")).toHaveLength(0);
     expect(editing.renderRoot.querySelectorAll("path.arrow")).toHaveLength(0);
     editing.remove();
+  });
+
+  /** A drop's arrival ends as a shade over the target block's body: the half
+   *  at the one end named, the whole body for both (#896). The shade sits in
+   *  the block's own group, so a turned or flipped block shades the half its
+   *  pins say. No ring is drawn at a pin any more. */
+  it("shades the half of the target block a drop would arrive at", async () => {
+    const run = await running();
+    const shade = (ends: ("A" | "B")[]) => {
+      run.machine = {
+        ...run.machine,
+        marks: {
+          reach: { from: { x: 0, y: 0 }, to: { x: 1, y: 0 } },
+          target: { block: "east", ends },
+        },
+      };
+      run.requestUpdate();
+      return run.updateComplete.then(() => {
+        expect(run.renderRoot.querySelectorAll("circle.marker.hover")).toHaveLength(0);
+        const all = run.renderRoot.querySelectorAll("rect.arriving");
+        expect(all).toHaveLength(1);
+        const rect = all[0]!;
+        expect(rect.closest("g[data-symbol]")!.getAttribute("data-symbol")).toBe("east");
+        return [rect.getAttribute("x"), rect.getAttribute("width")].map(Number);
+      });
+    };
+    const { x, w } = BLOCK.body;
+    expect(await shade(["A"])).toEqual([x, w / 2]);
+    expect(await shade(["B"])).toEqual([x + w / 2, w / 2]);
+    expect(await shade(["A", "B"])).toEqual([x, w]);
+    run.remove();
   });
 
   /** The label is one rule with two answers: a block's own name in the editor,

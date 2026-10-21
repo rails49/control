@@ -435,8 +435,9 @@ const running = css`
   }
 
   /* The gesture in flight: the reach from where the train was taken hold of,
-     and a ring at each arrival end a drop here would ask for. Both are drawn
-     from the drag model's answer, never from a guess about feasibility. */
+     and a shade over the half of the target block a drop here would arrive
+     at, or the whole body for both ends. Both are drawn from the drag model's
+     answer, never from a guess about feasibility. */
   .reach {
     stroke: var(--chosen);
     stroke-width: ${W};
@@ -445,10 +446,9 @@ const running = css`
     pointer-events: none;
   }
 
-  .marker.hover {
-    fill: none;
-    stroke: var(--chosen);
-    stroke-width: ${0.9 * W};
+  .arriving {
+    fill: var(--chosen);
+    opacity: 0.35;
     pointer-events: none;
   }
 

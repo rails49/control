@@ -44,9 +44,9 @@ export interface Marks {
   band?: Span;
   /** The line from where a train was taken hold of to the pointer. */
   reach?: Span;
-  /** The block a drop where the pointer is would ask for, and where each end
-   *  it would name sits. */
-  target?: { block: string; ends: Point[] };
+  /** The block a drop where the pointer is would ask for, and which of its
+   *  ends the drop would name — the half of the block the canvas shades. */
+  target?: { block: string; ends: ("A" | "B")[] };
 }
 
 /**
