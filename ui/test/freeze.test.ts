@@ -13,12 +13,13 @@
  * the run's reading, and back down to a view whose verbs are dead, whose
  * canvas means nothing by a press, and whose palette has nothing to give. It
  * crosses every one of those, which is why it is a DOM suite. So do the
- * rules that come with it (ADR-0085): leaving the editor with power off saves
- * the loaded railroad and names it again, and ON saves first and waits for
- * the build.
+ * rules that come with it (ADR-0085): the Edit view does not open with power
+ * on, leaving the editor with power off saves the loaded railroad and names
+ * it again, and ON saves first and waits for the build.
  */
 
 import type { LitElement } from "lit";
+import type { LookView } from "@rails49/look";
 import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -35,6 +36,7 @@ import {
   inside,
   mounted,
   power,
+  rail,
   railButton,
   serving,
   session,
@@ -81,11 +83,36 @@ async function editor(): Promise<TcApp> {
   return shell;
 }
 
-/** The editing view with track power on. */
+/** The editing view with the drawing frozen and still open: power read off,
+ *  and then the broker lost, so the page cannot know whether the track has
+ *  power (#792). With power read on the view does not stay open at all
+ *  (ADR-0085, decision 3). */
 async function frozen(): Promise<TcApp> {
   const shell = await editor();
-  await said(shell, POWER, { power: "on" });
+  await said(shell, POWER, { power: "off" });
+  await closes(shell);
   return shell;
+}
+
+/** The page's link dropping, and coming back with the rows still retained. */
+async function closes(shell: TcApp): Promise<void> {
+  Broker.last!.closes();
+  await settled(shell);
+}
+
+async function reopens(shell: TcApp): Promise<void> {
+  Broker.last!.opens();
+  await settled(shell);
+}
+
+/** The view that is current, by the rail's mark. */
+function current(shell: TcApp): string {
+  return rail(shell).querySelector<LookView>("look-view[current]")!.name;
+}
+
+/** The rail's Edit button. */
+function editButton(shell: TcApp): LookView {
+  return rail(shell).querySelector<LookView>('look-view[name="edit"]')!;
 }
 
 /** A key pressed with nothing focused, as the shell hears one. */
@@ -147,17 +174,17 @@ function dialog(shell: TcApp): Element | null {
   );
 }
 
-/** What the band says about the freeze, `null` while it says nothing. */
-function says(shell: TcApp): string | null {
-  const said = [...band(shell).querySelectorAll("look-reading")].find(
-    (one) => one.textContent!.trim() === "drawing frozen",
+/** Whether the band says anything of a frozen drawing. It no longer does:
+ *  the Edit view does not open with power on (ADR-0085, decision 3). */
+function says(shell: TcApp): boolean {
+  return [...band(shell).querySelectorAll("look-reading")].some((one) =>
+    one.textContent!.includes("frozen"),
   );
-  return said === undefined ? null : said.textContent!.trim();
 }
 
 const drawn = (shell: TcApp): Drawing => structuredClone(session(shell).drawing);
 
-describe("track power on", () => {
+describe("a frozen drawing", () => {
   /** The bar and the keyboard are one path through `model/commands.ts`, so a
    *  verb that is dead does nothing however it was reached — and the drawing
    *  is what says it did nothing. */
@@ -196,21 +223,114 @@ describe("track power on", () => {
     expect(session(shell).pending).toBeNull();
   });
 
-  /** Draining keeps the supply on until nothing is moving, so it is not a
-   *  rest either (ADR-0078). */
-  it("is frozen draining as well", async () => {
-    const shell = await editor();
-    await said(shell, POWER, { power: "draining" });
-    session(shell).select(["a"]);
-    const was = drawn(shell);
-
-    await typed(shell, "r");
-    await pressed(shell, centreOf(stored("toy").symbols.b!));
-
-    expect(drawn(shell)).toEqual(was);
-    expect(editing(shell).hasAttribute("frozen")).toBe(true);
+  /** Looking is what a frozen drawing is still for. */
+  it("leaves the netlist and the viewport alone", async () => {
+    const shell = await frozen();
+    await typed(shell, "n");
+    expect(inside(shell, "tc-netlist")).not.toBeNull();
   });
 
+  /** The "drawing frozen" chip is gone (#891). */
+  it("says nothing in the band", async () => {
+    const shell = await frozen();
+    expect(says(shell)).toBe(false);
+  });
+});
+
+/**
+ * The Edit view does not open while track power is on or draining
+ * ([ADR-0085](../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 3; amends ADR-0071 decision 5, which kept it open read-only).
+ */
+describe("the Edit view with track power on", () => {
+  for (const power of ["on", "draining"] as const) {
+    it(`disables the rail's Edit button with power ${power}, and says why`, async () => {
+      const shell = await joined();
+      await said(shell, POWER, { power });
+
+      expect(editButton(shell).hasAttribute("disabled")).toBe(true);
+      expect(editButton(shell).getAttribute("aria-disabled")).toBe("true");
+      expect(editButton(shell).title).toBe("track power is on");
+    });
+
+    it(`moves the page to the run view when power comes ${power}`, async () => {
+      const shell = await editor();
+      await said(shell, POWER, { power });
+
+      expect(current(shell)).toBe("run");
+      expect(location.hash).toBe("#run");
+      expect(editing(shell).hasAttribute("frozen")).toBe(true);
+    });
+  }
+
+  it("does not open from the rail", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+
+    await shows(shell, "edit");
+
+    expect(current(shell)).toBe("run");
+  });
+
+  /** A bookmark and a back button are the same choice by another route. */
+  it("does not open from the hash", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+
+    location.hash = "#edit";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await settled(shell);
+
+    expect(current(shell)).toBe("run");
+    expect(location.hash).toBe("#run");
+  });
+
+  /** Leaving saves nothing with power on (ADR-0085, decision 1): the edits
+   *  stay on the page, marked unsaved, for the next time it is left with
+   *  power off. */
+  it("keeps the edits on the page, marked unsaved", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "off" });
+    session(shell).select(["a"]);
+    await typed(shell, "r");
+    const was = drawn(shell);
+
+    await said(shell, POWER, { power: "on" });
+
+    expect(current(shell)).toBe("run");
+    expect(drawn(shell)).toEqual(was);
+    expect(band(shell).querySelector("look-about")!.detail).toBe("unsaved");
+  });
+
+  it("opens again once power is off", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "on" });
+    await said(shell, POWER, { power: "off" });
+
+    expect(editButton(shell).hasAttribute("disabled")).toBe(false);
+    expect(editButton(shell).hasAttribute("aria-disabled")).toBe(false);
+    expect(editButton(shell).hasAttribute("title")).toBe(false);
+    await shows(shell, "edit");
+    expect(current(shell)).toBe("edit");
+  });
+
+  it("leaves every other view open", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+
+    const closed = [...rail(shell).querySelectorAll<LookView>("look-view[disabled]")].map(
+      (one) => one.name,
+    );
+    expect(closed).toEqual(["edit"]);
+  });
+});
+
+/**
+ * Power can land while something is in flight in the editor, the page moving
+ * to the run view on the same render. What is in flight goes with it, so it
+ * does not land on the first click once the Edit view opens again.
+ */
+describe("track power coming on", () => {
   /** The freeze can land under an open dialog, whose Apply is an edit. */
   it("takes down a properties dialog it lands under", async () => {
     const shell = await editor();
@@ -223,7 +343,6 @@ describe("track power on", () => {
 
     expect(dialog(shell)).toBeNull();
   });
-
   /** The right-click menu is the one edit path that does not go through
    *  `model/commands.ts`, so a menu the freeze lands under would still act on
    *  the drawing. It goes with the dialog. */
@@ -287,41 +406,6 @@ describe("track power on", () => {
 
     expect(session(shell).pending).toBeNull();
   });
-
-  /** Looking is what a frozen drawing is still for. */
-  it("leaves the netlist and the viewport alone", async () => {
-    const shell = await frozen();
-    await typed(shell, "n");
-    expect(inside(shell, "tc-netlist")).not.toBeNull();
-  });
-
-  it("is what the band says, in the words the rest of it uses", async () => {
-    const shell = await frozen();
-    expect(says(shell)).toBe("drawing frozen");
-  });
-
-  /**
-   * The band says it in the editing view alone (#517).
-   *
-   * The mark exists to explain the verbs the freeze kills, and they are the
-   * editor's. Power on is the ordinary state of a railroad being run, so in
-   * the run view the same mark is a warning about nothing — and the freeze
-   * itself is unchanged, the editing view still being read-only when it is
-   * switched back to.
-   */
-  it("says nothing in the views the dead verbs are not in", async () => {
-    const shell = await frozen();
-    expect(says(shell)).toBe("drawing frozen");
-
-    for (const view of ["run", "throttle", "stock"] as const) {
-      await shows(shell, view);
-      expect(says(shell)).toBeNull();
-    }
-
-    await shows(shell, "edit");
-    expect(says(shell)).toBe("drawing frozen");
-    expect(editing(shell).hasAttribute("frozen")).toBe(true);
-  });
 });
 
 describe("loading another railroad", () => {
@@ -331,12 +415,12 @@ describe("loading another railroad", () => {
    *  the drawing must thaw rather than stay locked on a reading of somewhere
    *  else. */
   it("thaws the drawing, the new run having said nothing yet", async () => {
-    const shell = await frozen();
-    expect(says(shell)).toBe("drawing frozen");
+    const shell = await editor();
+    await said(shell, POWER, { power: "on" });
 
     await loads(shell, "other");
 
-    expect(says(shell)).toBeNull();
+    expect(editButton(shell).hasAttribute("disabled")).toBe(false);
     expect(editing(shell).hasAttribute("frozen")).toBe(false);
   });
 });
@@ -351,20 +435,20 @@ describe("track power off", () => {
     session(shell).select(["a"]);
     const was = drawn(shell);
 
-    expect(says(shell)).toBeNull();
     expect(editing(shell).hasAttribute("frozen")).toBe(false);
     await typed(shell, "r");
     expect(drawn(shell)).not.toEqual(was);
   });
 
-  it("thaws the drawing, the band and the palette with it", async () => {
-    const shell = await frozen();
+  it("thaws the drawing and the palette with it", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "on" });
     session(shell).select(["a"]);
     const was = drawn(shell);
 
     await said(shell, POWER, { power: "off" });
+    await shows(shell, "edit");
 
-    expect(says(shell)).toBeNull();
     expect(editing(shell).hasAttribute("frozen")).toBe(false);
     await typed(shell, "r");
     expect(drawn(shell)).not.toEqual(was);
@@ -373,8 +457,10 @@ describe("track power off", () => {
   /** The rule is read off power afresh rather than latched, so a press means
    *  something again the moment it is off. */
   it("gives the sheet its gestures back", async () => {
-    const shell = await frozen();
+    const shell = await editor();
+    await said(shell, POWER, { power: "on" });
     await said(shell, POWER, { power: "off" });
+    await shows(shell, "edit");
 
     await pressed(shell, centreOf(stored("toy").symbols.a!));
 
@@ -392,7 +478,6 @@ describe("no reading of power", () => {
     );
     await settled(shell);
 
-    expect(says(shell)).toBeNull();
     expect(editing(shell).hasAttribute("frozen")).toBe(false);
     expect(session(shell).pending).not.toBeNull();
   });
@@ -663,33 +748,19 @@ describe("hiding the page", () => {
  * again with power off lifts it.
  */
 describe("losing the broker", () => {
-  /** What the band's frozen mark gives as its reason. */
-  function why(shell: TcApp): string | null {
-    const said = [...band(shell).querySelectorAll("look-reading")].find(
-      (one) => one.textContent!.trim() === "drawing frozen",
-    );
-    return said === undefined ? null : said.getAttribute("title");
-  }
-
-  /** The page's link dropping, and coming back with the rows still retained. */
-  async function closes(shell: TcApp): Promise<void> {
-    Broker.last!.closes();
-    await settled(shell);
-  }
-
-  async function reopens(shell: TcApp): Promise<void> {
-    Broker.last!.opens();
-    await settled(shell);
-  }
-
-  it("keeps the drawing frozen with power on", async () => {
-    const shell = await frozen();
+  /** Power is no longer read, so the Edit view opens again; but the page
+   *  cannot know whether the track has power, and the drawing stays frozen. */
+  it("opens the Edit view frozen, where power was on", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "on" });
     await closes(shell);
+    await shows(shell, "edit");
     session(shell).select(["a"]);
     const was = drawn(shell);
 
     await typed(shell, "r");
 
+    expect(current(shell)).toBe("edit");
     expect(editing(shell).hasAttribute("frozen")).toBe(true);
     expect(drawn(shell)).toEqual(was);
   });
@@ -728,24 +799,14 @@ describe("losing the broker", () => {
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
   });
 
-  it("stays frozen when the row is heard again with power on", async () => {
-    const shell = await frozen();
+  it("stays frozen, and the Edit view shut, when the row is heard again with power on", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "on" });
     await closes(shell);
     await reopens(shell);
 
     expect(editing(shell).hasAttribute("frozen")).toBe(true);
-    expect(why(shell)).toBe("track power is on, so the drawing is read-only");
-  });
-
-  it("says why in the band", async () => {
-    const shell = await editor();
-    await said(shell, POWER, { power: "off" });
-    await closes(shell);
-
-    expect(says(shell)).toBe("drawing frozen");
-    expect(why(shell)).toBe(
-      "the layout has not said whether the track has power, so the drawing is read-only",
-    );
+    expect(editButton(shell).hasAttribute("disabled")).toBe(true);
   });
 });
 

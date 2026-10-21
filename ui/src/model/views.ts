@@ -17,6 +17,8 @@
  * Each view names its glyph, as each command does (`model/commands.ts`).
  */
 
+import { trackLive, type Power } from "./trace.js";
+
 export type ViewId = "run" | "throttle" | "stock" | "edit";
 
 export interface View {
@@ -49,4 +51,19 @@ export function viewOf(hash: string): ViewId {
   const named = hash.replace(/^#/, "");
   const found = VIEWS.find((view) => view.id === named);
   return found?.id ?? VIEWS[0]!.id;
+}
+
+/**
+ * Why a view does not open, `""` where it does. The Edit view does not open
+ * while track power reads `on` or `draining`
+ * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 3): the run is moving trains over what the dispatcher built, and
+ * the layout builds only with power off, so an edit made then could not be
+ * saved until power is off again. Power coming on while it is open moves the
+ * page to the first view. A supply not yet heard (`null`) closes nothing:
+ * what a page that has lost the broker may do in the editor is `frozen`'s
+ * (`model/commands.ts`).
+ */
+export function shut(view: ViewId, power: Power | null): string {
+  return view === "edit" && trackLive(power) ? "track power is on" : "";
 }
