@@ -280,7 +280,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
-| `tc49/layout/state/railroad` | state | layout | the railroad this broker runs, `""` while the binding stands ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)) |
+| `tc49/layout/state/railroad` | state | layout | the railroad this broker runs, `""` while the binding stands ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)), and whether anything was built from it ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)) |
 | `tc49/layout/railroad_wanted` | event | any (browser) | load this railroad, the apps staying up ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)) |
 | `tc49/layout/alive_confirmed` | event | layout | `layout` is up and built on a railroad, said once a second ([#716](https://github.com/rails49/control/issues/716)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
@@ -335,7 +335,8 @@ writers (rule 1), and `any (browser)` is the mark above.
 Every app but the layout interface also subscribes
 `tc49/layout/state/railroad`, and acts on one thing only: a name or a stamp
 other than the build it is running, which is a railroad being loaded under it
-(ADR-0060, #688, above). A translator does so where it reads the store: one publishing
+(ADR-0060, #688, above) — and never on a row saying `built: false`, from which
+nothing was built (ADR-0085). A translator does so where it reads the store: one publishing
 `device/sensor` reads the names the hardware knows those sensors by out of
 the drawing, and those are a railroad's (ADR-0063, below). One that reads
 nothing does not, hardware needing no layout. The layout interface does not
@@ -442,7 +443,8 @@ what a drop would cost:
 
 #### `layout`
 
-- `tc49/layout/state/railroad` — `name`: the railroad, as the store lists it.
+- `tc49/layout/state/railroad` — `name`: the railroad, as the store lists it;
+  `built`: whether anything was built from it (below).
   One broker runs one railroad, so every other row here is about that one and
   a view reads this to know which
   ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
@@ -480,6 +482,24 @@ what a drop would cost:
   replaces it. So a page tells "no railroad loaded" from "layout not
   running". A follower drops a row naming `""`: one standing keeps standing,
   one built on a railroad keeps running it.
+  **`built: false` is a railroad named and not built**
+  ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)
+  decision 4, [#889](https://github.com/rails49/control/issues/889)). `built`
+  is `true` where the railroad named was built from its drawing, as before,
+  and an absent `built` reads as `true`, so a row from an older writer means
+  what it meant. `false` is a railroad whose drawing is not a **valid
+  drawing**: the binding records it in the store as loaded and publishes it
+  with a new `at` — after a restart on it, after a save of the loaded
+  railroad, and after a pick under another name. On the steel that is a
+  track plan being rebuilt, and no train should run on the last build. The
+  binding goes on running what it holds — the last build in memory, or
+  nothing under that name after a restart — and still answers power presses,
+  so a person can drive the station by hand to test. A follower drops the
+  row: it builds nothing, keeps what it holds and clears none of its rows, so
+  `tc49/dispatch/state/allocation` and `tc49/schedule/state/facing` stand
+  until a build under that name adopts them (ADR-0071). That build is the
+  same name with `built: true` and a new `at`, as any rebuild is. A
+  railroad the store does not have at all is still refused, as above.
 - `tc49/layout/railroad_wanted` — browser-writable — `railroad`: the railroad
   to load, as the store lists it. The gesture behind the row above: a person
   chooses which railroad the apps run **while they run**, so creating one
