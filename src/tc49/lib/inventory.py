@@ -69,7 +69,7 @@ the oldest thing it knows (BUS.md, ADR-0030)."""
 TOPICS: dict[str, Topic] = {
     # Which railroad this broker runs, and so what every row under it is
     # about: `name` is the railroad as the store lists it (ADR-0059).
-    "tc49/layout/state/railroad": Topic((AT, "name")),
+    "tc49/layout/state/railroad": Topic((AT, "name", "built")),
     # And the gesture that moves it: a person choosing which railroad the
     # apps run, while they run (ADR-0060). `railroad` rather than `name`,
     # because a leaf's fields are read beside its own row and this one names

@@ -199,7 +199,7 @@ def test_the_railroad_a_person_loads_is_a_gesture_of_its_own() -> None:
     loaded."""
     assert RAILROAD_WANTED in INBOUND
     assert TOPICS[RAILROAD_WANTED].fields == ("railroad",)
-    assert TOPICS[RAILROAD].fields == (AT, "name")
+    assert TOPICS[RAILROAD].fields == (AT, "name", "built")
     assert RAILROAD not in INBOUND
 
 
