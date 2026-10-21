@@ -77,6 +77,12 @@ export interface RunStatus {
    *  ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
    *  decision 4). */
   built: boolean;
+  /** Whether `tc49/dispatch/state/allocation` has arrived since the row
+   *  last named another railroad: the dispatcher built on the one it names
+   *  and said so. The settings dialog waits for it before it closes on a
+   *  pick (#902); a railroad not built has no dispatcher on it and never
+   *  reads `true`. */
+  allocated: boolean;
   /** What a session refused, or the store not answering. Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
@@ -100,6 +106,7 @@ export const QUIET: RunStatus = {
   power: null,
   driving: null,
   built: true,
+  allocated: false,
   trouble: null,
   fault: null,
   placed: [],
@@ -254,6 +261,9 @@ export class Session {
   /** Whether the last `tc49/layout/state/railroad` row named a railroad and
    *  said nothing was built from it. */
   private unbuilt = false;
+  /** Whether `state/allocation` has arrived since the row named the
+   *  railroad joined (`RunStatus.allocated`). */
+  private allocated = false;
   /** Track power as `state/power` last said it, read whether or not a panel
    *  model is built: a page whose drawing is invalid builds none, and
    *  still has to know whether it may save (ADR-0085). */
@@ -381,6 +391,7 @@ export class Session {
       // first — an event is reported once and never comes round again.
       this.panel?.reset();
       this.supplied = null;
+      this.allocated = false;
       this.connected = true;
       this.trouble = null;
       // Armed here and not where the railroad is named: the broker replays
@@ -440,6 +451,7 @@ export class Session {
       // No railroad loaded (#727): nothing to join, so the session goes and what is said instead is that none is.
       if (this.nameless) return;
       this.leave();
+      this.allocated = false;
       this.nameless = true;
       this.settle();
       this.hooks.named("");
@@ -456,9 +468,12 @@ export class Session {
     // there is nothing to carry.
     const early = this.panel === null ? this.held : null;
     // Another railroad named under a joined one starts with nothing said
-    // about power, as its panel does; on a fresh connection the power row may
-    // have landed first, and is kept.
-    if (this.session !== null) this.supplied = null;
+    // about power or the allocation, as its panel does; on a fresh
+    // connection either row may have landed first, and is kept.
+    if (this.session !== null) {
+      this.supplied = null;
+      this.allocated = false;
+    }
     this.leave();
     this.session = railroad;
     this.last = recalled(railroad) ?? this.kept.get(railroad) ?? null;
@@ -492,9 +507,11 @@ export class Session {
       const { power } = event as unknown as { power?: unknown };
       this.supplied = power === "on" || power === "draining" ? power : "off";
     }
+    const allocated = event.event === "allocation" && !this.allocated;
+    if (allocated) this.allocated = true;
     if (this.panel === null) {
       if (this.held !== null && this.held.length < HELD) this.held.push(event);
-      if (event.event === "power") this.changed();
+      if (event.event === "power" || allocated) this.changed();
       return;
     }
     this.applied(event);
@@ -706,6 +723,7 @@ export class Session {
       power,
       driving: model?.driving ?? null,
       built: !this.unbuilt,
+      allocated: joined && this.allocated,
       trouble: this.trouble,
       // Nothing, with no session joined: it is the hardware's report on the
       // railroad this page is watching, as the supply's own reading is, and a
@@ -838,6 +856,7 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.power === now.power &&
     was.driving === now.driving &&
     was.built === now.built &&
+    was.allocated === now.allocated &&
     was.trouble === now.trouble &&
     was.fault === now.fault &&
     same(was.placed, now.placed)
