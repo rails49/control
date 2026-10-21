@@ -84,8 +84,9 @@ The dialog has three tabs, in this order, and opens on the first each time
   installation says this box can be turned off, asked each time the dialog
   opens. Its press asks once more, saying that every app on the box stops and
   that starting it again takes a person at the box, and once the box is going
-  it says to unplug it when its lights go out. It is dead while the track has
-  power or the layout has not said whether it does.
+  it says to unplug it when its lights go out. It is dead while the layout
+  has not said whether the track has power; with power on, *Turn off* drains
+  the track first, as a load does (below).
 
 The tick is all the loaded entry is — pressing it asks for nothing (#101).
 Re-reading the loaded railroad would throw away whatever has been drawn since,
@@ -121,15 +122,26 @@ and the two presses are dead and say why once beneath the list
 | Condition | Words |
 | --- | --- |
 | the layout has not said which railroad is loaded | `the layout has not said which railroad is loaded` |
-| a railroad is loaded and power is not `off` | `the track has power: switch it off to load another railroad` |
+| a railroad is loaded and the layout has not said whether the track has power | `the layout has not said whether the track has power` |
 | the roster has unsaved edits | `the roster has unsaved edits — save first` |
 
-**Track power off is the precondition**: a train already under a committed
-route keeps its motion whatever the software forgets. With no railroad loaded
-there are no rails built to change, so power is not asked and a new box loads
-its first railroad here. Nothing here turns the power off — that is the
-band's power toggle, which drains the run first
-([ADR-0051](../adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md)).
+**Track power off is the precondition, and the press meets it**
+([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 5). A pick, New or Copy loaded as… pressed with power `on` asks for
+the drain on `power_wanted`, as the band's toggle does, and the tab says
+*stopping trains…* with the stop sign beside it; once
+`tc49/layout/state/power` reads `off` the drawing is saved where it has edits
+([Files](#files)) and the press goes on as it would have with power off.
+Pressed while the track is already draining it asks for nothing more and
+waits the same way. A drain, not a cut: a train already under a committed
+route comes to rest instead of stopping across a turnout. A drain has no time
+limit, so the stop sign takes power `off` at once and the press follows.
+Closing the dialog abandons the press and leaves power as it is, and ON on
+the band, ending the drain, abandons it too. With power `off` a press acts at
+once. With no railroad loaded there are no rails built to change, so power is
+not asked and a new box loads its first railroad here
+(`Drain` in `model/settings.ts`). *Turn off* on the Shutdown tab and *Restore*
+in the backup dialog wait the same way.
 
 The band reads *unsaved* beside the name only where the drawing holds edits
 that could not be saved: power came on from elsewhere while this page had
@@ -1020,10 +1032,14 @@ knows nothing to add to *could not resolve host*.
 the drawing](#track-power-freezes-the-drawing): the rebuild after it keeps
 the trains that still fit, and those that do not come off and are listed as
 unfit (#710, ADR-0071). With a railroad loaded a restore waits for track power
-to read off, and refuses a backup that does not hold the loaded railroad —
-rules the app hands the dialog and the store server does not check. A restore
-also waits for the layout to say which railroad is loaded, as a load does: until
-it has, nothing says the backup holds the railroad the apps run (#759). After a
+to read off, draining it first with *stopping trains…* and the stop sign in the
+dialog as a load does ([The band](#the-band)), and
+refuses a backup that does not hold the loaded railroad —
+rules the app hands the dialog and the store server does not check. Closing
+the dialog while it waits restores nothing. A restore
+also waits for the layout to say which railroad is loaded, and whether the
+track has power, as a load does: until it has, nothing says the backup holds
+the railroad the apps run (#759). After a
 restore that worked the app asks for the loaded railroad again and reloads the
 page (#688, [store/BACKUP.md](../store/BACKUP.md#restoring)).
 
