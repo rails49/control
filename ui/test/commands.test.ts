@@ -369,13 +369,14 @@ describe("what backup says without being opened", () => {
  * it as `layout` says it (ADR-0078).
  */
 describe("what the power control shows", () => {
-  const LINKED = { linked: true };
+  const LINKED = { linked: true, built: true };
 
   it("shows where power stands, each of the three", () => {
     for (const power of ["on", "draining", "off"] as const) {
       expect(supply(standing({ power }), LINKED)).toEqual({
         state: power,
         reason: "",
+        toggle: "",
       });
     }
   });
@@ -384,6 +385,7 @@ describe("what the power control shows", () => {
     expect(supply(standing({ power: null }), LINKED)).toEqual({
       state: "off",
       reason: "Waiting for the station",
+      toggle: "",
     });
   });
 
@@ -392,6 +394,7 @@ describe("what the power control shows", () => {
     expect(supply(standing({ power: "on" }), { ...LINKED, linked: false })).toEqual({
       state: "on",
       reason: "Waiting for the station",
+      toggle: "",
     });
   });
 
@@ -402,6 +405,29 @@ describe("what the power control shows", () => {
     expect(supply(standing({ ...edited, power: "off" }), LINKED)).toEqual({
       state: "off",
       reason: "",
+      toggle: "",
+    });
+  });
+
+  /** A loaded railroad whose saved drawing is invalid built nothing, so ON
+   *  waits for the drawing to be fixed (ADR-0085, decision 4). */
+  it("refuses ON while the loaded railroad reads built: false", () => {
+    for (const power of ["off", "draining"] as const) {
+      expect(supply(standing({ power }), { ...LINKED, built: false })).toEqual({
+        state: power,
+        reason: "",
+        toggle: "Fix the drawing first",
+      });
+    }
+  });
+
+  /** From on the toggle is the drain, and a supply that is on may always be
+   *  taken off. */
+  it("leaves the drain and the stop live while the railroad is not built", () => {
+    expect(supply(standing({ power: "on" }), { ...LINKED, built: false })).toEqual({
+      state: "on",
+      reason: "",
+      toggle: "",
     });
   });
 });

@@ -13,14 +13,41 @@
  */
 
 import type { LookView } from "@rails49/look";
+import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { CLEAN, mounted, rail, serving, session, settled, shows } from "./support/shell.js";
-import { Broker, brokering, RAILROAD, said, STOCK, stored, unbrokered } from "./support/session.js";
+import type { TcCanvas } from "../src/ui/tc-canvas.js";
+import type { Drawing } from "../src/model/drawing.js";
+import { centreOf } from "../src/model/geometry.js";
+import {
+  CLEAN,
+  mounted,
+  power,
+  rail,
+  running,
+  serving,
+  session,
+  settled,
+  shows,
+  surface,
+} from "./support/shell.js";
+import {
+  Broker,
+  brokering,
+  DERIVES,
+  MIDDLE,
+  RAILROAD,
+  said,
+  STOCK,
+  stored,
+  unbrokered,
+  written,
+} from "./support/session.js";
 
 const POWER = "tc49/layout/state/power";
+const POWER_WANTED = "tc49/layout/power_wanted";
 
 beforeEach(() => {
   brokering();
@@ -93,5 +120,106 @@ describe("a railroad named with built: false", () => {
     await said(shell, RAILROAD, { name: "toy", at: 6, built: false });
 
     expect(current(shell)).toBe("edit");
+  });
+});
+
+/**
+ * The run while the loaded railroad reads `built: false` (#886): the apps
+ * built nothing from its saved drawing, so ON waits for the drawing to be
+ * fixed, and the Run view draws it grey with no trains and no gestures
+ * (ADR-0085, decision 4).
+ *
+ * The page's own review of the drawing is valid here, as where the store
+ * refused the roster rather than the drawing: what the row says is what
+ * holds, and the page has a panel model it could otherwise paint from.
+ */
+describe("a run on a railroad not built", () => {
+  /** The toy drawing with a point a click would throw. */
+  const POINTED: Drawing = {
+    ...stored("toy"),
+    symbols: { ...stored("toy").symbols, sw: { kind: "turnout", at: [10, 4], addr: "7" } },
+  };
+  const SWITCH = centreOf(POINTED.symbols.sw!);
+
+  beforeEach(() => {
+    serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: () => structuredClone(POINTED),
+      review: () => Promise.resolve(DERIVES),
+    });
+  });
+
+  /** A page on the run view, the row saying `built`, with track power off
+   *  and goods standing in a. */
+  async function standing(built: boolean): Promise<TcApp> {
+    const shell = await restarted({ name: "toy", at: 5, built });
+    await shows(shell, "run");
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+    return shell;
+  }
+
+  /** What is drawn on the run view's canvas. */
+  function sheet(shell: TcApp): TcCanvas {
+    return running(shell).renderRoot.querySelector<TcCanvas>("tc-canvas")!;
+  }
+
+  /** The canvas pressed and let go at each point in turn, as a mouse. */
+  async function dragged(shell: TcApp, from: { x: number; y: number }, to = from) {
+    for (const [name, at] of [
+      ["pointerdown", from],
+      ["pointermove", to],
+      ["pointerup", to],
+    ] as const) {
+      surface(shell).dispatchEvent(
+        new PointerEvent(name, { bubbles: true, button: 0, clientX: at.x, clientY: at.y }),
+      );
+    }
+    await settled(shell);
+  }
+
+  it("refuses ON with Fix the drawing first and asks for nothing", async () => {
+    const shell = await standing(false);
+
+    expect(power(shell).toggleReason).toBe("Fix the drawing first");
+    press(power(shell), "toggle");
+    await settled(shell);
+
+    expect(written()).not.toContainEqual(expect.objectContaining({ topic: POWER_WANTED }));
+  });
+
+  it("draws the drawing grey, with no trains", async () => {
+    const shell = await standing(false);
+
+    expect(sheet(shell).classList.contains("unbuilt")).toBe(true);
+    expect(sheet(shell).renderRoot.querySelector("text.name.train")).toBeNull();
+  });
+
+  it("throws nothing on a press, and asks for no request on a drag", async () => {
+    const shell = await standing(false);
+
+    await dragged(shell, SWITCH);
+    await dragged(shell, MIDDLE.a, MIDDLE.b);
+
+    expect(written()).toEqual([]);
+  });
+
+  /** The same page with the railroad built, so the two above are about
+   *  `built` and not about the fixture. */
+  it("paints the train and throws the point once it is built", async () => {
+    const shell = await standing(true);
+
+    expect(sheet(shell).classList.contains("unbuilt")).toBe(false);
+    expect(sheet(shell).renderRoot.querySelector("text.name.train")).not.toBeNull();
+    await dragged(shell, SWITCH);
+
+    expect(written()).toContainEqual({
+      topic: "tc49/dispatch/point_wanted",
+      payload: { addr: "7", position: "thrown" },
+    });
   });
 });

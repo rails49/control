@@ -205,17 +205,29 @@ export function stranded(standing: Standing): boolean {
  * broker is not answering, which would swallow the press. Unsaved edits do
  * not make it dead: ON saves them first, and the power comes on once the
  * apps have built what was saved (ADR-0085, decision 2).
+ *
+ * ON alone is refused while the loaded railroad reads `built: false`
+ * (`toggle`, look's `toggle-reason`): its saved drawing is invalid, the apps
+ * built nothing from it, and trains would run under a build that is not the
+ * drawing the store holds
+ * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+ * decision 4). The toggle asks ON from anything but on, so it is dead from
+ * off and from draining; from on it is the drain, and that and the stop sign
+ * stay live, a supply that is on being one a person may always take off.
  */
 export function supply(
   standing: Standing,
-  { linked }: { linked: boolean },
-): { state: PowerShown; reason: string } {
+  { linked, built }: { linked: boolean; built: boolean },
+): { state: PowerShown; reason: string; toggle: string } {
   const { power } = standing;
   if (power === null || !linked) {
-    return { state: power ?? "off", reason: "Waiting for the station" };
+    return { state: power ?? "off", reason: "Waiting for the station", toggle: "" };
   }
-  return { state: power, reason: "" };
+  return { state: power, reason: "", toggle: !built && power !== "on" ? UNBUILT : "" };
 }
+
+/** Why ON is refused while the loaded railroad reads `built: false`. */
+export const UNBUILT = "Fix the drawing first";
 
 /**
  * What a press on the band's power control asks `layout` for, on

@@ -458,6 +458,7 @@ export class TcApp extends LitElement {
         <look-power
           state=${power.state}
           reason=${power.reason}
+          toggle-reason=${power.toggle}
           @look-power=${(event: CustomEvent<{ state: PowerState }>) =>
             void this.supplying(event.detail.state)}
         ></look-power>
@@ -575,9 +576,13 @@ export class TcApp extends LitElement {
    *  2). A save that did not land sends nothing: the band says why. Nor
    *  does one overtaken by another press, a STOP while the write is out
    *  being a person changing their mind; the railroad is named again all
-   *  the same, as any save of it is. */
+   *  the same, as any save of it is.
+   *
+   *  ON is refused outright while the loaded railroad reads `built: false`
+   *  (`supply`; ADR-0085, decision 4): nothing is saved and nothing sent. */
   private async supplying(press: PowerState): Promise<void> {
     const wanted = asked(press);
+    if (wanted === "on" && !this.status.built) return;
     const pressed = ++this.presses;
     if (wanted !== "on" || !owed(this.standing)) {
       this.session?.pressPower(wanted);

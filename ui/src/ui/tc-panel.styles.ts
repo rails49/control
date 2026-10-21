@@ -69,4 +69,11 @@ export const panelStyles = css`
     overflow: hidden;
     min-height: 0;
   }
+
+  /* A railroad the apps did not build: its saved drawing is invalid, so it is
+     drawn grey with nothing running on it (ADR-0085, decision 4). */
+  tc-canvas.unbuilt {
+    filter: grayscale(1);
+    opacity: 0.45;
+  }
 `;
