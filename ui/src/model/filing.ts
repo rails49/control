@@ -119,9 +119,9 @@ export class Filing {
     return this.said;
   }
 
-  /** Whether the drawing derives, which is the whole of what the band says
+  /** Whether the drawing is valid, which is the whole of what the band says
    *  about the drawing itself (ADR-0024). Off the store's refusal and nothing
-   *  else: an overlap and a symbol still lacking an address derive, and a
+   *  else: an overlap and a symbol still lacking an address are valid, and a
    *  drawing nothing has been asked about yet has nothing against it. A store
    *  that stops answering leaves the last review standing, so the mark neither
    *  appears nor clears on a fault that is not the author's. */

@@ -423,7 +423,7 @@ describe("the row naming another railroad", () => {
 
   it("drops the first's review where it arrives after the second opened", async () => {
     const { railroad, filing, store } = made();
-    store.refusing.toy = "toy does not derive";
+    store.refusing.toy = "toy is an invalid drawing";
     const answer = store.hold("/review/toy");
     railroad.named("toy");
     await flushed();

@@ -257,8 +257,8 @@ export class TcApp extends LitElement {
   }
 
   /** The loaded railroad's documents handed to the session on every render,
-   *  which rebuilds its panel model only when the railroad or whether it
-   *  derives has changed (`model/session.ts`). */
+   *  which rebuilds its panel model only when the railroad or whether its
+   *  drawing is valid has changed (`model/session.ts`). */
   override willUpdate(): void {
     this.session?.documents(this.editor.drawing, this.filing.reviewed, this.railroad.trains);
     // Power come on while the Edit view is current moves the page to the run
@@ -411,8 +411,8 @@ export class TcApp extends LitElement {
    * The band: what is true of the whole system. After look's mark, the UI by
    * its name, control (org ADR-0019); then the loaded railroad's name and
    * whether it holds edits that could not be saved (`stranded`); then only
-   * what a person would act on (#517) — what the app could not do, a drawing
-   * that does not derive, what the hardware says is wrong with the supply,
+   * what a person would act on (#517) — what the app could not do, an
+   * invalid drawing (its title the store's refusal), what the hardware says is wrong with the supply,
    * and backup that is not running — and the session clock;
    * then the driving control, the last of the band's items, and track power;
    * then the gear, and look's Help after it (org ADR-0020, #873).
@@ -433,7 +433,9 @@ export class TcApp extends LitElement {
           name=${loaded ?? "no railroad loaded"}
           detail=${stranded(this.standing) ? "unsaved" : ""}
         ></look-about>
-        ${this.filing.valid ? nothing : chip("does not derive")}
+        ${this.filing.valid
+          ? nothing
+          : chip("invalid drawing", this.filing.reviewed?.refused ?? "")}
         ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
         ${note === null
           ? nothing
@@ -988,9 +990,9 @@ export class TcApp extends LitElement {
 }
 
 /** A fault on the band, its whole sentence the title of the chip that may
- *  cut it short. */
-function chip(said: string) {
-  return html`<look-chip title=${said}>${said}</look-chip>`;
+ *  cut it short, or `why` where the chip says less than the sentence. */
+function chip(said: string, why: string = said) {
+  return html`<look-chip title=${why}>${said}</look-chip>`;
 }
 
 /** Elapsed seconds as a clock: `mm:ss`, hours in front once there are any. */

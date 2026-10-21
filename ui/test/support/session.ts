@@ -56,7 +56,7 @@ export const LAYOUT: Layout = {
 
 export const EXPLAIN: Explained = { layout: "toy", connections: {} };
 
-/** What the store says the toy railroad means: it derives, and nothing about
+/** What the store says the toy railroad means: a valid drawing, and nothing about
  *  it is wrong. */
 export const DERIVES: Review = { ...CLEAN, layout: LAYOUT, explain: EXPLAIN };
 

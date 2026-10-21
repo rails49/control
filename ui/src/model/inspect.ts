@@ -134,7 +134,7 @@ export function chosenWay(review: Review, chosen: Chosen | null): Transit[] {
  * transit either, but it is unfinished rather than blind, and a block whose
  * signals vanished the moment it was dropped — the palette tile and the ghost
  * having just shown both — would read as a fault in the drawing rather than a
- * fact about it. A drawing that does not derive has no answer at all, and
+ * fact about it. An invalid drawing has no answer at all, and
  * every signal stays.
  *
  * Keyed by symbol, as `lit` is, so the canvas asks per symbol as it draws.

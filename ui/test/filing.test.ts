@@ -430,11 +430,11 @@ describe("whether there are edits to lose", () => {
 });
 
 /**
- * What the band says about the drawing itself: it derives, or it does not
- * (#91, ADR-0024). The canvas is where you find out where, so the whole of
+ * What the band says about the drawing itself: it is valid, or it is not
+ * (#91, ADR-0024, #892). The canvas is where you find out where, so the whole of
  * this is one fact off the store's refusal.
  */
-describe("whether the drawing derives", () => {
+describe("whether the drawing is valid", () => {
   it("says nothing is against a drawing nothing has been asked about", () => {
     const { filing } = made();
 
@@ -451,7 +451,7 @@ describe("whether the drawing derives", () => {
     expect(filing.valid).toBe(false);
   });
 
-  it("clears as soon as an edit derives again", async () => {
+  it("clears as soon as an edit makes it valid again", async () => {
     const { filing, store, editor } = made(["reversing-loops"]);
     await filing.open("reversing-loops", editor);
     store.answer = () => Promise.resolve(REFUSED);
@@ -463,10 +463,10 @@ describe("whether the drawing derives", () => {
     expect(filing.valid).toBe(true);
   });
 
-  /** An overlap is cosmetic and derives fine, and so does a turnout with no
+  /** An overlap is cosmetic and leaves the drawing valid, and so does a turnout with no
    *  address: a valid layout nobody can drive yet. Both are marked on the
    *  canvas in a quieter weight (#92, #96) and leave the band clean. */
-  it("stays clean over faults the store still derives through", async () => {
+  it("stays clean over faults that leave the drawing valid", async () => {
     const { filing, editor } = made(["reversing-loops"]);
     await filing.open("reversing-loops", editor);
 

@@ -294,7 +294,7 @@ describe("ON waiting for the build", () => {
   });
 });
 
-/** A drawing that does not derive builds no panel model, and the page still
+/** An invalid drawing builds no panel model, and the page still
  *  reads the supply: it is what says whether the editor may save
  *  (ADR-0085). */
 describe("power with no panel model", () => {

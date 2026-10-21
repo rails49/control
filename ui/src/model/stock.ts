@@ -267,7 +267,7 @@ export function heldBy(what: string, holders: string[]): string {
  * that has lost the broker still holds the roster, and cannot know whether
  * the track has power — the broker, `layout` and the dispatcher may well be
  * running without it (#804). It keys on the row and not on `power === null`,
- * which a joined page whose drawing does not derive also reads, and whose
+ * which a joined page whose drawing is invalid also reads, and whose
  * lengths stay editable. Nothing is latched: the row heard again with power
  * off, a length can be corrected.
  *

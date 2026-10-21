@@ -156,7 +156,7 @@ export function frozen(standing: Standing): boolean {
  *  but the one the row last named (ADR-0072, decision 3), so the open drawing
  *  is the loaded railroad's, and the page cannot know whether its track has
  *  power. It keys on the row, not on power, which also reads null on a joined
- *  page whose drawing does not derive. Nothing is latched: the row heard again
+ *  page whose drawing is invalid. Nothing is latched: the row heard again
  *  with power off lifts it. */
 export function unheard({ opened, loaded }: Standing): boolean {
   return opened !== "" && loaded === null;
