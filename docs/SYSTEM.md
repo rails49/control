@@ -400,7 +400,7 @@ LAN is still the trust boundary and a browser is not on it
   written. Both are on the page's own origin, as the store's routes are. A
   development machine at `localhost` has no installation and vite proxies
   no `/box`, so vite's own page answers under a 200 and reads as no. What
-  fetches them is the settings dialog
+  fetches them is the settings dialog's Shutdown tab
   ([ui/EDITOR.md](ui/EDITOR.md)).
 - **A name is the id** — `crossover-yard` for a railroad and its roster, and
   `crossover-yard/meet`, qualified by layout, for one of the harness's

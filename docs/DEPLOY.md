@@ -361,7 +361,7 @@ docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d --no-deps store
 ```
 
-The store makes itself a new key on the next `Settings ▸ Backup…`, in a volume
+The store makes itself a new key on the next `Settings ▸ Backup ▸ Backup…`, in a volume
 seeded from the image and owned by that person. Paste its public half into the
 repository under *Settings ▸ Deploy keys* with *Allow write access*, and delete
 the old one if it is still listed. The key is the box's identity and nothing

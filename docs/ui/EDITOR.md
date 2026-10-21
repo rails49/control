@@ -72,15 +72,26 @@ both views are of one railroad, so one control asks for it. The gear is drawn
 whether or not a session is joined, and Help after it is the last thing on
 the band.
 
-The dialog lists what the store has, asked again each time it opens, and ticks
-the one that is loaded. The tick is all that entry is — pressing it asks for
-nothing (#101). Re-reading the loaded railroad would throw away whatever has
-been drawn since, which is a lot to ask of a click that looks like it does
-nothing. Its other parts are `Backup…`, which closes it and opens the backup
-dialog ([Backing the store up](#backing-the-store-up)), and, where the
-installation says it can, a press that turns the box off (#745).
+The dialog has three tabs, in this order, and opens on the first each time
+([#899](https://github.com/rails49/control/issues/899)):
 
-**Making a railroad is the dialog's too** (ADR-0072, decision 3). Beneath the
+- **Railroad** lists what the store has, asked again each time the dialog
+  opens, and ticks the one that is loaded, with the name field and the two
+  presses that make a railroad beneath.
+- **Backup** holds `Backup…`, which closes the dialog and opens the backup
+  dialog ([Backing the store up](#backing-the-store-up)).
+- **Shutdown** turns the box off (#745). It is there only where the
+  installation says this box can be turned off, asked each time the dialog
+  opens. Its press asks once more, saying that every app on the box stops and
+  that starting it again takes a person at the box, and once the box is going
+  it says to unplug it when its lights go out. It is dead while the track has
+  power or the layout has not said whether it does.
+
+The tick is all the loaded entry is — pressing it asks for nothing (#101).
+Re-reading the loaded railroad would throw away whatever has been drawn since,
+which is a lot to ask of a click that looks like it does nothing.
+
+**Making a railroad is the Railroad tab's too** (ADR-0072, decision 3). Beneath the
 list a `Name` field has two presses beside it. **New** writes an empty drawing
 under the name — no roster and no script, a railroad with neither being an
 ordinary one — and **Copy loaded as…** has the store copy every document of
@@ -952,7 +963,7 @@ screenshot and PANEL.md wants nothing here.
 
 ### Backing the store up
 
-`Settings ▸ Backup…`, and the band's note, open the one dialog about the store
+`Settings ▸ Backup ▸ Backup…`, and the band's note, open the one dialog about the store
 as a whole — every railroad in it rather than the one that is open: where it is,
 what has moved since the last backup, what backup has not got, what git last
 said, and the backups there are to come back to. The app **drives git and does
@@ -975,7 +986,7 @@ beside it, and everything else in the editor is unaffected.
 stands when it comes up and every hour after, and the band says what is wrong
 as a press that opens this dialog, in every view ([The band](#the-band)):
 *no backup set up*, *backup behind*, *backup cannot run* or *backup is off*.
-`Settings ▸ Backup…` wears the same words beside it; the two follow one rule
+`Settings ▸ Backup ▸ Backup…` wears the same words beside it; the two follow one rule
 and never disagree
 ([store/BACKUP.md](../store/BACKUP.md#what-it-does-while-you-draw), #688). A
 store inside another repository — a checkout's `bench/` — says nothing.
