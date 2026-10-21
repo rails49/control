@@ -425,7 +425,9 @@ LAN is still the trust boundary and a browser is not on it
   ([#696](https://github.com/rails49/control/issues/696),
   [Track power](#track-power)). That is
   how the apps reach a store a restore changed; a republication of the same
-  build is not a build, and nothing is read again on it.
+  build is not a build, and nothing is read again on it. Nor is a row saying
+  `built: false`, a railroad named whose drawing is not a valid drawing
+  ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
 - **The store validates and consumers derive** — `get` never returns an
   invalid document. The store checks the schema, and the references a document
   makes: that a scenario's layout exists, that the blocks it names exist, and
