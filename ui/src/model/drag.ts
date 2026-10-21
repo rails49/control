@@ -23,7 +23,7 @@
 import { BLOCK } from "../render/units.js";
 import type { Drawing } from "./drawing.js";
 import { anchorOf, type Point } from "./geometry.js";
-import type { Machine } from "./machine.js";
+import type { Machine, Outcome } from "./machine.js";
 import type { BlockView, Crossing, EndRef } from "./panel.js";
 import { anchorAt } from "./scene.js";
 import type { Review } from "./store.js";
@@ -220,6 +220,13 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   /** The point pressed on and where on screen, while the press may still be
    *  a click on it. */
   let pressed: { symbol: string; screen: Point; touch: boolean } | null = null;
+  /** The press and the drag both dropped, nothing submitted. */
+  function abandon(): Outcome {
+    pressed = null;
+    if (drag.train === null) return "quiet";
+    drag.cancel();
+    return "render";
+  }
   return {
     down: (point, input) => {
       pressed = null;
@@ -282,12 +289,10 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       if (drop !== null) view.submit(drop);
       return "render";
     },
-    left: () => {
-      pressed = null;
-      if (drag.train === null) return "quiet";
-      drag.cancel();
-      return "render";
-    },
+    left: abandon,
+    // A second finger: the drag or the throw the first began goes, as a
+    // cancel does, and the two fingers move the view instead (#894).
+    abandon,
     // The right-click asks the same question of the same point the press does,
     // so the two can never disagree about which train was clicked. A drag the
     // press had started is abandoned: the menu takes the gesture over.

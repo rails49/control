@@ -97,6 +97,8 @@ src/
                  Save
     scene.ts     what the drawing alone answers: the frame a fit and an export
                  are drawn in, an arrow's pose, which symbol wears an address
+    pinch.ts     the view two fingers on the canvas hold: pan, and zoom about
+                 their midpoint
     under.ts     what is under a point on the canvas, read from a grid
                  position back to the thing a click there means
     inspect.ts   a `/review` read back: what the netlist pane says and what
