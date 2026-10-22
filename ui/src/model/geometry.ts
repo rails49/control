@@ -196,11 +196,19 @@ export function anchorOf(spec: SymbolSpec, pin: string): Point {
  *
  * A block standing on end is read bottom to top rather than sideways, so a
  * quarter turn takes the label with it. Neither the flip nor which end carries
- * the plus comes into it: a vertical block reads the same way whichever end is
+ * the A comes into it: a vertical block reads the same way whichever end is
  * A, which is what keeps the label from turning over as the block is flipped.
  */
 export function labelTurn(spec: SymbolSpec): number {
   return (spec.rot ?? 0) % 180 === 0 ? 0 : -90;
+}
+
+/** The transform that puts text at `local` inside a symbol's own group and
+ *  turns it as the label is turned outside it: the symbol's flip and quarter
+ *  turns undone, then `labelTurn`, so it is never upside down or mirrored. */
+export function uprightAt(spec: SymbolSpec, local: Point): string {
+  const turn = labelTurn(spec) - (spec.rot ?? 0);
+  return `translate(${local.x} ${local.y})${spec.flip ? " scale(-1 1)" : ""} rotate(${turn})`;
 }
 
 /**

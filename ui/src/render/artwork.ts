@@ -22,7 +22,12 @@ import {
   type Position,
 } from "../symbols.generated.js";
 import { motorised, type AnyKind, type SymbolSpec } from "../model/drawing.js";
-import { anchorIn, footprintOf, type Point } from "../model/geometry.js";
+import {
+  anchorIn,
+  footprintOf,
+  uprightAt,
+  type Point,
+} from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
 import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
 
@@ -74,7 +79,7 @@ export function artwork(
     case "connection":
       return opaque(spec, lit);
     case "block":
-      return block(on, dark, aspects);
+      return block(spec, on, dark, aspects);
     case "terminal":
       return terminal(on);
     case "portal":
@@ -133,7 +138,8 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
 
 /**
  * A block: a rectangle with a 1G track stub each side, a signal on each stub,
- * and a plus at the rectangle's lower corner on the A side.
+ * and an A at the rectangle's lower corner on the A side, drawn upright as the
+ * label is (`uprightAt`).
  *
  * The signal is part of what a block is rather than anything placed
  * (store/DRAWING.md), and the pair is point symmetric — below the track at A,
@@ -148,6 +154,7 @@ function opaque(spec: SymbolSpec, lit: ReadonlySet<string>): SVGTemplateResult {
  * leaves that end for a signal to clear for.
  */
 function block(
+  spec: SymbolSpec,
   on: Lit,
   dark: ReadonlySet<string>,
   aspects: ReadonlyMap<string, Aspect>,
@@ -155,7 +162,6 @@ function block(
   const [a, b] = [anchorIn("block", "A"), anchorIn("block", "B")];
   const { x, y, w, h } = BLOCK.body;
   const { at } = BLOCK.signal;
-  const { arm } = BLOCK.plus;
   return svg`
     <path class=${`track${on()}`} d=${path(a, { x, y: a.y })} />
     <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, b)} />
@@ -169,9 +175,8 @@ function block(
       ? svg``
       : svg`<g class=${`signal end-B ${aspects.get("B") ?? ""}`.trim()}>
           ${signal(b.x - at, b.y, -1)}</g>`}
-    <path class="mark" d=${`M${n(BLOCK.plus.x - arm)} ${n(BLOCK.plus.y)}
-      h${n(2 * arm)} M${n(BLOCK.plus.x)} ${n(BLOCK.plus.y - arm)}
-      v${n(2 * arm)}`} />
+    <text class="end-a" font-size=${BLOCK.endA.size}
+          transform=${uprightAt(spec, BLOCK.endA)}>A</text>
   `;
 }
 

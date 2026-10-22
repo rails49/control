@@ -229,7 +229,7 @@ describe("how a label is turned", () => {
 
   it("reads a vertical block bottom to top, whichever way it stands", () => {
     // Both quarter turns give the same 1x6 footprint, and the label is not
-    // the place to tell them apart: which end carries the plus already says.
+    // the place to tell them apart: which end carries the A already says.
     expect(labelTurn({ kind: "block", rot: 90 })).toBe(-90);
     expect(labelTurn({ kind: "block", rot: 270 })).toBe(-90);
   });
