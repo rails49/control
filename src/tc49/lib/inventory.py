@@ -4,12 +4,14 @@ Mirrors the inventory table of BUS.md. The trace's canonical key order
 depends on this module; leaf names are globally unique across all topics
 (tested), because the trace's ``event`` field is the leaf alone.
 
-Two mappings, because a topic is named two ways. ``TOPICS`` is the transit-level
-contract, one whole topic per row. ``DEVICE_TOPICS`` is the device vocabulary
-under the layout interface (ADR-0043) — the desired half and the observed half
-alike — where the row is fixed and the address is trailing levels a railroad's
-wiring decides, so the row is keyed by what is knowable. The namespace is one:
-a name is unique across both.
+Three mappings, because a topic is named three ways. ``TOPICS`` is the
+transit-level contract, one whole topic per row. ``DEVICE_TOPICS`` is the device
+vocabulary under the layout interface (ADR-0043) — the desired half and the
+observed half alike — where the row is fixed and the address is trailing levels
+a railroad's wiring decides, so the row is keyed by what is knowable.
+``WIDGET_TOPICS`` is the drawing's widgets under `ui` (ADR-0087), where the row
+is fixed and the widget's name is the last level. The namespace is one: a name
+is unique across all three.
 
 A topic names the component that **declares** it: the events that component
 emits, and the requests it responds to. Nothing in a name says who sent a
@@ -254,6 +256,29 @@ address is the string the drawing carries and the hardware answers to, with no
 system level in front of it: whatever is wired subscribes the desired rows and
 acts on the addresses it recognises, and one nobody answers to does no harm
 (ADR-0059)."""
+
+
+WIDGET_TOPICS: dict[str, Topic] = {
+    "tc49/ui/state/text": Topic(()),
+}
+"""The rows of the drawing's widgets, under `ui` (ADR-0087). Keyed by the
+topic without the widget's name, which is the one level past the key and is
+typed in the drawing, unique within it: `tc49/ui/state/text/current` is the
+text widget named `current`. A client builds the topic from the key and the
+name.
+
+No row carries a field. A widget payload is raw — not JSON control defines,
+and no `at` — and control carries it without reading it: a text row is UTF-8
+text the page shows as it arrives, rendering the ANSI SGR codes for bold, red,
+amber and green and removing any other code (ADR-0087 decision 4). So ``AT``
+does not lead a widget's state row, and the trace, which runs only on the
+in-process bus where no widget row is published, does not name one.
+
+Any writer, on a state row too: the exception to rule 1 that ADR-0087
+decision 3 makes, because a widget row is always the whole value and the last
+one written is the right one. Two writers of one text row overwrite each
+other, which is the writers' business. A text row carries no browser mark,
+because no page writes one."""
 
 
 def device_topic(prefix: str, *address: str) -> str:

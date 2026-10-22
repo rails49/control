@@ -17,14 +17,16 @@ is about words and not about every row.
 import re
 from pathlib import Path
 
-from tc49.lib.inventory import DEVICE_TOPICS, TOPICS
+from tc49.lib.inventory import DEVICE_TOPICS, TOPICS, WIDGET_TOPICS
 
 GLOSSARY = Path(__file__).resolve().parents[2] / "GLOSSARY.md"
 
-INVENTORIED = frozenset(TOPICS) | frozenset(DEVICE_TOPICS)
-"""Both mappings, because a topic is named two ways: `TOPICS` holds a whole
-topic per row and `DEVICE_TOPICS` holds the fixed part of a device row, the
-address under it being a railroad's wiring (ADR-0043)."""
+INVENTORIED = frozenset(TOPICS) | frozenset(DEVICE_TOPICS) | frozenset(WIDGET_TOPICS)
+"""The three mappings, because a topic is named three ways: `TOPICS` holds a
+whole topic per row, `DEVICE_TOPICS` holds the fixed part of a device row, the
+address under it being a railroad's wiring (ADR-0043), and `WIDGET_TOPICS`
+holds the fixed part of a widget row, the widget's name under it being the
+drawing's (ADR-0087)."""
 
 NAMED = re.compile(r"(?<![\w/.])tc49/(?:[a-z0-9_]+/?)*")
 """What a topic looks like in the prose, from the first level on. The

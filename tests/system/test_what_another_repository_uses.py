@@ -31,10 +31,12 @@ NAMES = {
         "split_device",
         "TOPICS",
         "DEVICE_TOPICS",
+        "WIDGET_TOPICS",
     ),
 }
 """The four modules another repository may import, and the names in them it
-imports today."""
+imports today. `WIDGET_TOPICS` is the one it imports next, building a text
+widget's topic from the key and the name (rails49/dccex#342)."""
 
 MOSQUITTO = ROOT / "deploy/mosquitto.conf"
 
