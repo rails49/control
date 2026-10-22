@@ -248,9 +248,8 @@ describe("the Edit view with track power on", () => {
       const shell = await joined();
       await said(shell, POWER, { power });
 
-      expect(editButton(shell).hasAttribute("disabled")).toBe(true);
-      expect(editButton(shell).getAttribute("aria-disabled")).toBe("true");
-      expect(editButton(shell).title).toBe("track power is on");
+      expect(editButton(shell).disabled).toBe(true);
+      expect(editButton(shell).reason).toBe("track power is on");
     });
 
     it(`moves the page to the run view when power comes ${power}`, async () => {
@@ -307,9 +306,8 @@ describe("the Edit view with track power on", () => {
     await said(shell, POWER, { power: "on" });
     await said(shell, POWER, { power: "off" });
 
-    expect(editButton(shell).hasAttribute("disabled")).toBe(false);
-    expect(editButton(shell).hasAttribute("aria-disabled")).toBe(false);
-    expect(editButton(shell).hasAttribute("title")).toBe(false);
+    expect(editButton(shell).disabled).toBe(false);
+    expect(editButton(shell).reason).toBe("");
     await shows(shell, "edit");
     expect(current(shell)).toBe("edit");
   });
