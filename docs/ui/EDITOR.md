@@ -331,7 +331,8 @@ height and width it turns at are look's
 ([rails49/look ADR-0002](https://github.com/rails49/look/blob/main/docs/adr/0002-narrow-window-rail-becomes-a-strip.md)).
 
 What is dead and what is alive is not the rail's to decide. Rotate, Flip and Delete are dead on an empty
-selection, Properties on anything but one symbol that has some, Undo and Redo
+selection, Rotate and Flip on one holding only widgets, Properties on anything
+but one symbol that has some or one widget, Undo and Redo
 at the ends of the snapshot stack, and Export SVG… with nothing to export. The
 zoom commands are dead in neither view: both draw on the one canvas, and an
 empty sheet still zooms. Those rules
@@ -472,11 +473,12 @@ rather than an error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
 and the title attribute has the word for anyone who wants it.
 
-The tiles are laid out in three groups, in the order of the table below: the
+The tiles are laid out in four groups, the first three in the order of the table below: the
 block by itself; the six symbols track crosses or divides at, two to a row so
 that the pairs — the two slips, the two 90 degree crossings — sit side by
 side; and the two ends of a drawing, where track stops and where it leaves the
-sheet. Space between the groups is the only thing telling them apart. A
+sheet. The fourth is the widgets ([below](#widgets)). Space between the
+groups is the only thing telling them apart. A
 heading would be the only word in the palette, naming a category the symbols
 already show. The block takes a whole row rather than half of one: its 6x1
 tile is as wide as the pane allows, and halving it would draw it smaller than
@@ -501,6 +503,33 @@ dimensions below are normative.
 
 Signals and sensors are not palette entries. Every block has both at both
 ends, so there is nothing to place.
+
+### Widgets
+
+The fourth group is the widgets: a text, a button and a toggle
+([ADR-0087](../adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+A widget is not a symbol. It sits in the drawing's own `widgets` mapping
+([DRAWING.md](../store/DRAWING.md#widgets)), has no pins, and nothing derives
+from it. A widget's box is the same shape whatever its kind, so its tile wears
+the kind's word.
+
+A widget is dragged out, selected, moved, rubber-banded, deleted and undone
+the way a symbol is. It does not turn: `r` and `f` leave one in flight as it
+is, Rotate and Flip leave a selected one alone, and its right-click menu offers
+neither, only Properties… and Delete. Nothing keeps a widget off a symbol or
+another widget, so its ghost is never blocked; it is drawn over the symbols,
+and a press there takes the widget, a pin under it still starting a wire.
+
+A new one is 3 × 1 and named for its kind with the lowest number no widget
+has, `text1`, `button1`, `toggle1`. It writes what the store needs and
+nothing else: a button's `payload` is its own name, and a toggle's `on` and
+`off` are `on` and `off`, which must differ. The size of its words and how
+they sit are left to the schema's defaults, `normal` and `center`.
+
+On the canvas a widget is a box at its place and size with its name at the
+top left and its kind at the top right, and a text widget shows its default
+text in the body, at the size and alignment it sets. What a widget shows on a
+run is the run view's ([PANEL.md](PANEL.md)).
 
 The generic connection symbol is not placed and not drawn. It has no fixed pin
 set to place, migration is over, and since station-C east was redrawn from real
@@ -808,6 +837,21 @@ reason stands beside the Length field the number was typed in, the way a
 rejected name's stands beside the Name field, and a bad name and a bad length
 are said together rather than one after the other. Apply does nothing until
 both are gone.
+
+**A widget's dialog** edits its name, its width and height, the size of its
+words (`small`, `normal`, `large`), its alignment (`left`, `center`, `right`)
+and the kind's own text: a text's Default, a button's Payload, a toggle's On
+and Off. A widget's name is typed, unlike a turnout's: it ends the widget's
+topic, and whoever writes the listener or the script has to say it. So the
+dialog shows the whole topic — `tc49/ui/state/text/<name>`,
+`tc49/ui/state/toggle/<name>` or `tc49/ui/button/<name>` — as read-only text
+to copy, and it follows the name as it is typed, a rename being a new topic.
+A name that is not one topic level (letters, digits, `_` and `-`) or that
+another widget has is refused beside the field and the old name stays; a
+symbol's name is no clash, the two being apart. A size that is not two
+positive whole numbers and a toggle whose On and Off are the same are refused
+the same way. A text widget's Default left empty is written out of the
+document.
 
 Transit names are not edited here. A drawing can still write one on a symbol's
 leg and derivation honours it — a name on a turnout's straight leg is taken by
