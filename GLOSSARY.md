@@ -153,6 +153,30 @@ installed, as against a locomotive's decoder. Its addresses are typed on the
 drawing ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
 _Avoid_: accessories, infrastructure
 
+**Widget**:
+A text widget, a button or a toggle placed on the drawing. It has no pins and
+the layout is not derived from it. Its typed name names its topic, and control
+carries its payload without reading it
+([ADR-0087](docs/adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+_Avoid_: symbol, element, indicator, control
+
+**Text widget**:
+A widget showing the last text posted on its topic, or its default text until
+something is posted
+([ADR-0087](docs/adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+_Avoid_: label, display, readout
+
+**Button**:
+A widget that sends its payload once each time a person presses it
+([ADR-0087](docs/adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+_Avoid_: trigger, action (a gesture)
+
+**Toggle**:
+A widget with two positions, on and off, each with its own payload. Its topic
+keeps the payload of the position last pressed
+([ADR-0087](docs/adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+_Avoid_: switch (a point), lever
+
 ### Stock
 
 **Model**:
