@@ -96,6 +96,8 @@ src/
                  it, read again until the store answers, the drawing's save
                  and the roster's Save, and naming the railroad again when
                  either lands
+    widgets.ts   the drawing's widgets: the name a new one gets, what it
+                 starts with, its topic, and why a name or a value will not do
     scene.ts     what the drawing alone answers: the frame a fit and an export
                  are drawn in, an arrow's pose, which symbol wears an address
     pinch.ts     the view two fingers on the canvas hold: pan, and zoom about
@@ -131,6 +133,7 @@ src/
     tc-netlist.ts  the derived netlist, and why each pair does or does not
                    run together
     tc-properties.ts  the properties dialog
+    tc-widget-properties.ts  a widget's properties dialog, its topic shown
     tc-menu.ts     the right-click menu
     tc-settings.ts the settings dialog behind the band's gear: which railroad
                    is loaded, New and Copy loaded as…, and the way into backup

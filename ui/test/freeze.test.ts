@@ -29,6 +29,8 @@ import { centreOf } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
+import type { TcWidgetProperties } from "../src/ui/tc-widget-properties.js";
+import { selectionKey } from "../src/model/widgets.js";
 import {
   band,
   editing,
@@ -222,6 +224,31 @@ describe("a frozen drawing", () => {
     expect(session(shell).pending).toBeNull();
   });
 
+  /** A widget is edited only while the drawing can be (ADR-0087 decision
+   *  1): it is not placed, pressed, moved or deleted on a frozen one. */
+  it("leaves the widgets as they are", async () => {
+    const shell = await editor();
+    await said(shell, POWER, { power: "off" });
+    session(shell).placeWidget("text", [20, 20]);
+    session(shell).clearSelection();
+    await closes(shell);
+    const was = drawn(shell);
+
+    for (const kind of ["text", "button", "toggle"]) {
+      inside(shell, "tc-palette").dispatchEvent(
+        new CustomEvent("take", { detail: kind, bubbles: true, composed: true }),
+      );
+      await settled(shell);
+      expect(session(shell).pending).toBeNull();
+    }
+    await pressed(shell, { x: 21.5, y: 20.5 });
+    expect(session(shell).selection.size).toBe(0);
+    session(shell).select([selectionKey("text1")]);
+    await typed(shell, "Delete");
+
+    expect(drawn(shell)).toEqual(was);
+  });
+
   /** Looking is what a frozen drawing is still for. */
   it("leaves the netlist and the viewport alone", async () => {
     const shell = await frozen();
@@ -340,6 +367,22 @@ describe("track power coming on", () => {
 
     expect(dialog(shell)).toBeNull();
   });
+  it("takes down a widget's properties dialog it lands under", async () => {
+    const shell = await editor();
+    session(shell).placeWidget("toggle", [20, 20]);
+    editing(shell).editSelected();
+    await settled(shell);
+    const widgetDialog = () =>
+      (inside(shell, "tc-widget-properties") as TcWidgetProperties).renderRoot.querySelector(
+        "look-dialog",
+      );
+    expect(widgetDialog()).not.toBeNull();
+
+    await said(shell, POWER, { power: "on" });
+
+    expect(widgetDialog()).toBeNull();
+  });
+
   /** The right-click menu is the one edit path that does not go through
    *  `model/commands.ts`, so a menu the freeze lands under would still act on
    *  the drawing. It goes with the dialog. */

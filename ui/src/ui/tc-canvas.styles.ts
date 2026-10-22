@@ -101,6 +101,11 @@ const sheet = css`
 /** What only the editing surface wears: the marks that answer a question about
  *  the drawing, and the parts of a gesture in flight. */
 const editing = css`
+  .widget.selected .widget-box {
+    stroke: var(--chosen);
+    stroke-width: ${W / 2};
+  }
+
   .faces {
     pointer-events: none;
   }

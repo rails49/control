@@ -12,14 +12,21 @@
  * empty canvas while drawing a wire. Each kind is drawn one way, so a tile shows
  * exactly what a drop will place — which is why the tiles carry no names, only
  * the word in their title for anyone who wants it.
+ *
+ * The fourth group is the widgets: a text, a button and a toggle (ADR-0087).
+ * They are dragged out the same way, and the editor names them as it places
+ * them. A widget's box is the same shape whatever its kind, so its tile shows
+ * the kind's word, which is also what the placed widget wears.
  */
 
 import { LitElement, html } from "lit";
 import { customElement } from "lit/decorators.js";
 
 import type { Kind } from "../symbols.generated.js";
+import type { WidgetKind } from "../model/drawing.js";
 import { FOOTPRINTS, transformOf } from "../model/geometry.js";
-import { artwork, DEFS, PALETTE, TILE } from "../render/artwork.js";
+import { WIDGET_KINDS, WIDGET_SIZE } from "../model/widgets.js";
+import { artwork, DEFS, PALETTE, TILE, widgetBox } from "../render/artwork.js";
 import { paletteStyles } from "./tc-palette.styles.js";
 
 const TITLES: Record<Kind, string> = {
@@ -35,6 +42,12 @@ const TITLES: Record<Kind, string> = {
   double_slip: "Double slip",
 };
 
+const WIDGET_TITLES: Record<WidgetKind, string> = {
+  text: "Text",
+  button: "Button",
+  toggle: "Toggle",
+};
+
 @customElement("tc-palette")
 export class TcPalette extends LitElement {
   static override styles = paletteStyles;
@@ -46,6 +59,9 @@ export class TcPalette extends LitElement {
            tree, not per svg, so repeating it in each tile would repeat the id. -->
       <svg class="defs" aria-hidden="true"><defs>${DEFS}</defs></svg>
       ${PALETTE.map((group) => this.group(group))}
+      <div class="group widgets">
+        ${WIDGET_KINDS.map((kind) => this.widgetTile(kind))}
+      </div>
       <p class="hint">drag a symbol onto the sheet</p>
       <p class="hint">
         <kbd>r</kbd> rotate · <kbd>f</kbd> flip · <kbd>esc</kbd> cancel
@@ -92,13 +108,29 @@ export class TcPalette extends LitElement {
     `;
   }
 
+  /** A widget's tile: its box at the size a new one takes, wearing its kind. */
+  private widgetTile(kind: WidgetKind) {
+    const [w, h] = WIDGET_SIZE;
+    return html`
+      <button
+        @pointerdown=${(event: PointerEvent) => this.take(kind, event)}
+        title=${WIDGET_TITLES[kind]}
+        aria-label=${WIDGET_TITLES[kind]}
+      >
+        <svg viewBox=${`-0.2 -0.2 ${w + 0.4} ${h + 0.4}`}>
+          ${widgetBox(kind, [0, 0], WIDGET_SIZE)}
+        </svg>
+      </button>
+    `;
+  }
+
   /** Only the left button starts a drag; the right one belongs to whatever
    *  menu the browser or the editor puts there. */
-  private take(kind: Kind, event: PointerEvent): void {
+  private take(kind: Kind | WidgetKind, event: PointerEvent): void {
     if (event.button !== 0) return;
     event.preventDefault();
     this.dispatchEvent(
-      new CustomEvent<Kind>("take", {
+      new CustomEvent<Kind | WidgetKind>("take", {
         detail: kind,
         bubbles: true,
         composed: true,

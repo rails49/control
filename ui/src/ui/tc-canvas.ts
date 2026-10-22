@@ -58,7 +58,14 @@ import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
-import { artwork, detectors, DEFS } from "../render/artwork.js";
+import { isWidgetKind, selectionKey, WIDGET_SIZE } from "../model/widgets.js";
+import {
+  artwork,
+  detectors,
+  DEFS,
+  widgetBox,
+  widgetWords,
+} from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
@@ -202,7 +209,7 @@ export class TcCanvas extends LitElement {
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.faces()} ${this.wires(lighting)} ${this.symbols(lighting)}
-        ${this.pins()} ${this.stacked()} ${this.arrows()}
+        ${this.widgets()} ${this.pins()} ${this.stacked()} ${this.arrows()}
         ${this.disputes()} ${this.markers()} ${this.wireline()} ${this.reach()}
         ${this.rubberBand()} ${this.ghost()}
       </svg>
@@ -569,6 +576,31 @@ export class TcCanvas extends LitElement {
   // --- what only the editor draws -----------------------------------------
 
   /**
+   * The drawing's widgets, each a box at its place and size with its name and
+   * kind, and a text widget's default text in its body, set as the widget
+   * says (ADR-0087). Drawn over the symbols, nothing keeping one off them, and
+   * under the pins, a press on a pin still starting a wire.
+   *
+   * The editor's alone: what a widget shows on a run is the run view's (#929).
+   */
+  private widgets(): unknown {
+    const editor = this.editing;
+    if (editor === null) return nothing;
+    return Object.entries(editor.widgets).map(([name, spec]) => {
+      const key = selectionKey(name);
+      const shifted = this.shift(key);
+      const worn = editor.selection.has(key) ? "widget selected" : "widget";
+      return svg`
+        <g class=${worn} data-widget=${name}
+           transform=${`translate(${shifted.x} ${shifted.y})`}>
+          ${widgetBox(spec.kind, spec.at, spec.size)}
+          ${widgetWords(name, spec)}
+        </g>
+      `;
+    });
+  }
+
+  /**
    * Where a wire can land, drawn only while one is in flight.
    *
    * A dot sits on every face centre, which is every point `faceAt` can return
@@ -659,7 +691,12 @@ export class TcCanvas extends LitElement {
     }
     const landing = editor.placementAt(this.pointer.x, this.pointer.y);
     if (landing === null) return nothing;
-    const spec = { ...pending, at: landing.at };
+    if (isWidgetKind(pending.kind)) {
+      return svg`<g class="ghost">
+        ${widgetBox(pending.kind, landing.at, WIDGET_SIZE)}
+      </g>`;
+    }
+    const spec = { ...(pending as SymbolSpec), at: landing.at };
     const blocked = landing.blocked.length > 0;
     return svg`
       <g class=${`ghost ${blocked ? "blocked" : ""}`}>

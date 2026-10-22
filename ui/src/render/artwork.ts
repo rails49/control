@@ -12,7 +12,7 @@
  * because every stroke ends in a round cap.
  */
 
-import { svg, type SVGTemplateResult } from "lit";
+import { nothing, svg, type SVGTemplateResult } from "lit";
 
 import {
   POSITIONS,
@@ -21,7 +21,13 @@ import {
   type LibraryKind,
   type Position,
 } from "../symbols.generated.js";
-import { motorised, type AnyKind, type SymbolSpec } from "../model/drawing.js";
+import {
+  motorised,
+  type AnyKind,
+  type SymbolSpec,
+  type WidgetKind,
+  type WidgetSpec,
+} from "../model/drawing.js";
 import {
   anchorIn,
   footprintOf,
@@ -29,7 +35,7 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
-import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
+import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W, WIDGET } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
 /** What a signal shows, as the dispatcher publishes it (GLOSSARY.md). */
@@ -445,6 +451,43 @@ function middle(a: Point, b: Point): Point {
  *  to more than a thousandth of a square. */
 function n(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+/** A widget's box, with its kind in the corner: what the ghost of one on its
+ *  way from the palette is, and what a placed one is drawn in. */
+export function widgetBox(
+  kind: WidgetKind,
+  [c, r]: readonly [number, number],
+  [w, h]: readonly [number, number],
+): SVGTemplateResult {
+  return svg`
+    <rect class="widget-box" x=${c} y=${r} width=${w} height=${h} rx=${WIDGET.radius} />
+    <text class="widget-kind" x=${c + w - WIDGET.inset} y=${r + WIDGET.inset}
+          font-size=${WIDGET.small}>${kind}</text>
+  `;
+}
+
+/** A widget's name at the top left of its box and, for a text widget, its
+ *  default text in the body, at the size and alignment the widget sets. */
+export function widgetWords(name: string, spec: WidgetSpec): SVGTemplateResult {
+  const [c, r] = spec.at;
+  const [w, h] = spec.size;
+  const shown = spec.kind === "text" ? (spec.default ?? "") : "";
+  const align = spec.align ?? "center";
+  const x =
+    align === "left" ? c + WIDGET.inset : align === "right" ? c + w - WIDGET.inset : c + w / 2;
+  const anchor = align === "left" ? "start" : align === "right" ? "end" : "middle";
+  return svg`
+    <text class="widget-name" x=${c + WIDGET.inset} y=${r + WIDGET.inset}
+          font-size=${WIDGET.small}>${name}</text>
+    ${
+      shown === ""
+        ? nothing
+        : svg`<text class="widget-text" x=${x} y=${r + h / 2 + WIDGET.small / 2}
+                    text-anchor=${anchor}
+                    font-size=${WIDGET.text[spec.text ?? "normal"]}>${shown}</text>`
+    }
+  `;
 }
 
 /**

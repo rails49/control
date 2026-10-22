@@ -151,6 +151,18 @@ export const SLIP = { off: 0.22, arm: 0.182, weight: TICK, lit: 1.5 * TICK };
 export const LABEL = { size: 0.5, advance: 0.55 };
 
 /**
+ * A widget in the editor: a box at its place and size, its name at the top
+ * left and its kind at the top right in small words, `inset` in from the box,
+ * and a text widget's default in its body at one of three sizes (ADR-0087).
+ */
+export const WIDGET = {
+  radius: 0.1,
+  inset: 0.08,
+  small: 0.22,
+  text: { small: 0.3, normal: 0.4, large: 0.55 },
+};
+
+/**
  * The size a label is drawn at: `LABEL.size`, or as much smaller as it takes
  * to sit inside `width`.
  *
