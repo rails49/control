@@ -51,6 +51,7 @@ import { roster, takenOff, type Overlay, type Panel, type RosterRow } from "../m
 import { pointsOffered, positionsBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
+import { widgetPress, widgetTopic } from "../model/widgets.js";
 import {
   cancellation,
   gesture,
@@ -132,6 +133,7 @@ export class TcPanel extends LitElement {
     submit: (drop) => this.submit(drop),
     remove: (train) => this.lift(train),
     throwPoint: (wanted) => this.session?.send(pointWanted(wanted)),
+    pressWidget: (name) => this.pressWidget(name),
     onRoster: (screen) => this.overRoster(screen),
   });
 
@@ -222,6 +224,20 @@ export class TcPanel extends LitElement {
   private submit(drop: Drop): void {
     if (this.panel === null) return;
     this.session?.send(gesture(this.panel.compose(drop.train, drop.dest)));
+  }
+
+  /**
+   * A button or a toggle clicked: what a press on it sends, published raw
+   * (ADR-0087, #929). A toggle's other position is read off the row the
+   * session holds now, which is the position the widget shows. Nothing asks
+   * about power: a widget is not the railroad's.
+   */
+  private pressWidget(name: string): void {
+    const spec = this.drawing?.widgets?.[name];
+    const session = this.session;
+    if (spec === undefined || session === null) return;
+    const press = widgetPress(name, spec, session.widgetRows.get(widgetTopic(spec.kind, name)));
+    if (press !== null) session.pressWidget(press);
   }
 
   // --- putting a train on the layout, and taking it off ---------------------
@@ -452,6 +468,7 @@ export class TcPanel extends LitElement {
       positions: positionsBySymbol(this.drawing, commanded),
       offered: pointsOffered(this.drawing, lit.legs, commanded),
       markers: model.markers(),
+      widgets: this.session?.widgetRows ?? new Map(),
     };
   }
 

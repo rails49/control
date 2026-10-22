@@ -39,8 +39,9 @@ export class Broker {
   static opened: Broker[] = [];
 
   /** What the page published, in the order it did: the topic and the payload
-   *  as text, exactly as MQTT carries them. */
-  readonly published: { topic: string; payload: string }[] = [];
+   *  as text, exactly as MQTT carries them, and `retain` where the page asked
+   *  the broker to keep it. */
+  readonly published: { topic: string; payload: string; retain?: true }[] = [];
   /** The filters the page subscribed. */
   readonly subscriptions: string[] = [];
   /** The last value of each retained topic, which is what answers a
@@ -91,8 +92,8 @@ export class Broker {
     );
   }
 
-  publish(topic: string, payload: string): this {
-    this.published.push({ topic, payload });
+  publish(topic: string, payload: string, options?: { retain: boolean }): this {
+    this.published.push({ topic, payload, ...(options?.retain ? { retain: true as const } : {}) });
     return this;
   }
 
@@ -130,6 +131,13 @@ export class Broker {
     const body = JSON.stringify(payload);
     if (topic.includes("/state/")) this.retained.set(topic, body);
     if (this.connected) this.delivers(topic, body);
+  }
+
+  /** A payload as it is written, not JSON: what a widget row carries
+   *  (ADR-0087). Retained on a state topic, as `says` does. */
+  saysRaw(topic: string, payload: string): void {
+    if (topic.includes("/state/")) this.retained.set(topic, payload);
+    if (this.connected) this.delivers(topic, payload);
   }
 
   /** A retained row already on the broker before this page connected: what

@@ -32,6 +32,7 @@ import type { Drawing } from "./drawing.js";
 import { Panel, type Placed } from "./panel.js";
 import { RETRY_MS, type Review, type TrainDoc } from "./store.js";
 import { cabs, type Cab } from "./throttle.js";
+import { WIDGET_PREFIX, type WidgetPress } from "./widgets.js";
 import {
   drivingWanted,
   functionWanted,
@@ -115,13 +116,14 @@ export const QUIET: RunStatus = {
 /**
  * The client, as far as a session uses one: the five calls `mqtt.connect`
  * hands back, and the same five `test/support/broker.ts` stands for. Any more
- * of MQTT.js here would be surface a suite's broker has to fake.
+ * of MQTT.js here would be surface a suite's broker has to fake. `retain` is
+ * asked for by a toggle's press alone (ADR-0087).
  */
 export interface Client {
   on(event: "connect" | "close" | "error", listener: () => void): unknown;
   on(event: "message", listener: (topic: string, payload: Uint8Array) => void): unknown;
   subscribe(filter: string): unknown;
-  publish(topic: string, payload: string): unknown;
+  publish(topic: string, payload: string, options?: { retain: boolean }): unknown;
   end(force?: boolean): unknown;
 }
 
@@ -237,6 +239,12 @@ export class Session {
   /** What the throttle view draws, one cab per train placed
    *  (`model/throttle.ts`): the same array until what it says moves. */
   cabs: readonly Cab[] = [];
+
+  /** The widget rows, `tc49/ui/state/…`, by their whole topic, each payload
+   *  as it arrived (ADR-0087): the run view's text and toggles read them. A
+   *  new map whenever one moves. Not the panel model's: a widget's topic
+   *  names no railroad, and its rows are kept whichever one is joined. */
+  widgetRows: ReadonlyMap<string, string> = new Map();
 
   /** This page's throttle id, minted when the session is made and kept for
    *  the life of the page: every take, speed and alive frame names it. */
@@ -391,6 +399,7 @@ export class Session {
       // connection left in the model that no retained row will replace goes
       // first — an event is reported once and never comes round again.
       this.panel?.reset();
+      this.widgetRows = new Map();
       this.supplied = null;
       this.allocated = false;
       this.connected = true;
@@ -487,6 +496,10 @@ export class Session {
 
   private heard(topic: string, payload: string): void {
     if (this.live === null) return;
+    if (topic.startsWith(WIDGET_PREFIX)) {
+      this.widgetRow(topic, payload);
+      return;
+    }
     const event = this.live.read(topic, payload);
     if (event === null) return;
     if (topic === RAILROAD) {
@@ -517,6 +530,24 @@ export class Session {
     }
     this.applied(event);
     this.changed();
+  }
+
+  /**
+   * A message on a widget's topic, read before anything is read as JSON: a
+   * widget payload is raw (ADR-0087 decision 4, #929), so one that is not
+   * JSON is neither an error nor dropped, and touches no other row. A state
+   * row is kept, an empty one being a row the broker no longer holds; a
+   * button's press, this page's own coming back among them, is an event and
+   * nothing here reads it.
+   */
+  private widgetRow(topic: string, payload: string): void {
+    if (!topic.startsWith(`${WIDGET_PREFIX}state/`)) return;
+    if (this.widgetRows.get(topic) === payload) return;
+    const rows = new Map(this.widgetRows);
+    if (payload === "") rows.delete(topic);
+    else rows.set(topic, payload);
+    this.widgetRows = rows;
+    this.hooks.notify();
   }
 
   /** One event applied to the model, the last train following a
@@ -676,6 +707,18 @@ export class Session {
   send(frame: Frame): void {
     if (this.client === null || !this.connected) return;
     this.client.publish(frame.topic, JSON.stringify(frame.payload));
+  }
+
+  /**
+   * A widget pressed in the run view: its payload published raw, as typed,
+   * and not through `JSON.stringify` — a toggle's retained, a button's not
+   * (`widgetPress`, ADR-0087). Whatever the track power: a widget is not the
+   * railroad's. Dropped while the broker is not answering, as `send` drops a
+   * gesture.
+   */
+  pressWidget(press: WidgetPress): void {
+    if (this.client === null || !this.connected) return;
+    this.client.publish(press.topic, press.payload, { retain: press.retain });
   }
 
   // --- what it answers ------------------------------------------------------

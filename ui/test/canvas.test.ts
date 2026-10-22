@@ -654,6 +654,7 @@ describe("what each mode draws", () => {
     positions: new Map(),
     offered: new Map(),
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
+    widgets: new Map(),
   };
 
   /** The run view's surface: the same canvas, told it is running, with the
@@ -669,6 +670,7 @@ describe("what each mode draws", () => {
       submit: () => undefined,
       remove: () => undefined,
       throwPoint: () => undefined,
+      pressWidget: () => undefined,
       onRoster: () => false,
     });
     document.body.append(canvas);
@@ -891,6 +893,7 @@ describe("a point on a run", () => {
       ["unknown", { addr: "9", position: "thrown" }],
     ]),
     markers: [],
+    widgets: new Map(),
   };
 
   async function running(live: Overlay = LIVE): Promise<TcCanvas> {
@@ -904,6 +907,7 @@ describe("a point on a run", () => {
       submit: () => undefined,
       remove: () => undefined,
       throwPoint: () => undefined,
+      pressWidget: () => undefined,
       onRoster: () => false,
     });
     document.body.append(canvas);

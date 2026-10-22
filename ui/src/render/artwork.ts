@@ -35,6 +35,7 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
+import { ansi, togglePosition, type Run } from "../model/widgets.js";
 import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W, WIDGET } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
@@ -486,6 +487,53 @@ export function widgetWords(name: string, spec: WidgetSpec): SVGTemplateResult {
         : svg`<text class="widget-text" x=${x} y=${r + h / 2 + WIDGET.small / 2}
                     text-anchor=${anchor}
                     font-size=${WIDGET.text[spec.text ?? "normal"]}>${shown}</text>`
+    }
+  `;
+}
+
+/**
+ * A widget on a run (#929): its box, and in it a text widget's row — its
+ * default where there is none — or a button's or a toggle's name, at the size
+ * and alignment the widget sets. A text row's ANSI bold and colours are runs
+ * of their own (`ansi`), and a toggle's position, read off its row, is a lamp
+ * at the top right: lit for `on`, hollow for `off`, none where the row is
+ * neither or there is no row (ADR-0087).
+ *
+ * The words are drawn in a box of their own that clips, so text that does not
+ * fit is cut at the widget's edge rather than running over the track.
+ */
+export function widgetFace(
+  name: string,
+  spec: WidgetSpec,
+  row: string | undefined,
+): SVGTemplateResult {
+  const [c, r] = spec.at;
+  const [w, h] = spec.size;
+  const runs: Run[] =
+    spec.kind === "text"
+      ? ansi(row ?? spec.default ?? "")
+      : [{ text: name, bold: false, colour: null }];
+  const align = spec.align ?? "center";
+  const x = align === "left" ? WIDGET.inset : align === "right" ? w - WIDGET.inset : w / 2;
+  const anchor = align === "left" ? "start" : align === "right" ? "end" : "middle";
+  const size = WIDGET.text[spec.text ?? "normal"];
+  const position = spec.kind === "toggle" ? togglePosition(spec, row) : null;
+  return svg`
+    <rect class="widget-box" x=${c} y=${r} width=${w} height=${h} rx=${WIDGET.radius} />
+    <svg class="widget-clip" x=${c} y=${r} width=${w} height=${h}
+         viewBox=${`0 0 ${w} ${h}`} overflow="hidden">
+      <text class="widget-text" x=${x} y=${h / 2} text-anchor=${anchor}
+            dominant-baseline="central" font-size=${size}>${runs.map(
+              ({ text, bold, colour }) =>
+                svg`<tspan class=${[bold ? "bold" : "", colour ?? ""].join(" ").trim()}>${text}</tspan>`,
+            )}</text>
+    </svg>
+    ${
+      position === null
+        ? nothing
+        : svg`<circle class=${`widget-lamp ${position}`}
+                      cx=${c + w - WIDGET.lamp - WIDGET.inset}
+                      cy=${r + WIDGET.lamp + WIDGET.inset} r=${WIDGET.lamp} />`
     }
   `;
 }

@@ -168,4 +168,22 @@ export const symbols = css`
   .widget-text {
     fill: var(--track);
   }
+
+  /* A text row's ANSI bold and colours on a run (#929), in look's own red,
+     amber and green. */
+  .widget-text .bold {
+    font-weight: 700;
+  }
+
+  .widget-text .red {
+    fill: var(--red);
+  }
+
+  .widget-text .amber {
+    fill: var(--amber);
+  }
+
+  .widget-text .green {
+    fill: var(--green);
+  }
 `;

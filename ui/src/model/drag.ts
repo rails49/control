@@ -27,7 +27,7 @@ import type { Machine, Outcome } from "./machine.js";
 import type { BlockView, EndRef } from "./panel.js";
 import type { Review } from "./store.js";
 import type { PointWanted } from "./trace.js";
-import { nearest, under } from "./under.js";
+import { nearest, under, widgetAt } from "./under.js";
 
 /** How far the pointer may travel, in screen pixels, between the press on a
  *  point and the release that throws it: a click, and a shaky hand is still
@@ -185,6 +185,8 @@ export interface Gestures {
   remove(train: string): void;
   /** A click on a point the panel offers: one `point_wanted`. */
   throwPoint(wanted: PointWanted): void;
+  /** A click on a widget: what a press on it sends (ADR-0087). */
+  pressWidget(name: string): void;
   /** Whether a screen point is over the roster pane. */
   onRoster(screen: Point): boolean;
 }
@@ -206,7 +208,12 @@ export interface Gestures {
  * offered point nearest it, within a square, and may move further before it
  * stops being one (#893).
  * A train is taken hold of first, so dragging one across a point throws
- * nothing. What is offered is read again at the release, the bus having
+ * nothing.
+ *
+ * A widget is drawn over the symbols, so a plain left press on one is the
+ * widget's before it is a train's or a point's, and a release on the same
+ * widget is a click on it (#929): a button or a toggle is pressed, a text
+ * widget is not. Power is no part of it, a widget not being the railroad's. What is offered is read again at the release, the bus having
  * moved under the press.
  *
  * `painted` answers `null` while there is nothing to gesture at: no railroad
@@ -218,9 +225,12 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   /** The point pressed on and where on screen, while the press may still be
    *  a click on it. */
   let pressed: { symbol: string; screen: Point; touch: boolean } | null = null;
+  /** The widget pressed on, while the press may still be a click on it. */
+  let widget: { name: string; screen: Point; touch: boolean } | null = null;
   /** The press and the drag both dropped, nothing submitted. */
   function abandon(): Outcome {
     pressed = null;
+    widget = null;
     if (drag.train === null) return "quiet";
     drag.cancel();
     return "render";
@@ -228,8 +238,16 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   return {
     down: (point, input) => {
       pressed = null;
+      widget = null;
       const now = painted();
       if (now === null) return "quiet";
+      const name = widgetAt(now.drawing, point);
+      if (name !== null) {
+        if (input.button === 0 && !input.shift) {
+          widget = { name, screen: input.screen, touch: input.touch };
+        }
+        return "quiet";
+      }
       if (drag.down(now.drawing, now.review, now.blocks, point)) {
         return "render";
       }
@@ -247,13 +265,8 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       return "quiet";
     },
     moved: (point, screen) => {
-      if (
-        pressed !== null &&
-        Math.hypot(screen.x - pressed.screen.x, screen.y - pressed.screen.y) >
-          (pressed.touch ? TOUCH_SLOP : SLOP)
-      ) {
-        pressed = null;
-      }
+      if (pressed !== null && strayed(pressed, screen)) pressed = null;
+      if (widget !== null && strayed(widget, screen)) widget = null;
       const now = painted();
       if (now === null || drag.train === null) return "quiet";
       drag.moved(now.drawing, now.review, point);
@@ -263,6 +276,12 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       const now = painted();
       const click = pressed;
       pressed = null;
+      const on = widget;
+      widget = null;
+      if (now !== null && on !== null) {
+        if (on.touch || widgetAt(now.drawing, point) === on.name) view.pressWidget(on.name);
+        return "quiet";
+      }
       if (now !== null && click !== null) {
         const wanted = now.offered.get(click.symbol);
         // A tap is held to the slop alone: the release is still the tap, and
@@ -298,6 +317,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       const now = painted();
       drag.cancel();
       pressed = null;
+      widget = null;
       const standing =
         now === null
           ? null
@@ -318,6 +338,15 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       };
     },
   };
+}
+
+/** Whether the pointer has travelled too far from a press for its release to
+ *  be a click: further on a touch screen, a finger rolling as it lifts. */
+function strayed(press: { screen: Point; touch: boolean }, screen: Point): boolean {
+  return (
+    Math.hypot(screen.x - press.screen.x, screen.y - press.screen.y) >
+    (press.touch ? TOUCH_SLOP : SLOP)
+  );
 }
 
 /**

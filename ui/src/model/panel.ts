@@ -181,6 +181,10 @@ export interface Overlay {
    *  drawing's answer as much as this model's. */
   offered: ReadonlyMap<string, PointWanted>;
   markers: Marker[];
+  /** The widget rows by their whole topic, as the session holds them
+   *  (ADR-0087, #929): the session's and not this model's, a widget's topic
+   *  naming no railroad. */
+  widgets: ReadonlyMap<string, string>;
 }
 
 /** One endpoint of a request still worth marking: a pending or rejected

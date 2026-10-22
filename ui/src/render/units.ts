@@ -154,11 +154,13 @@ export const LABEL = { size: 0.5, advance: 0.55 };
  * A widget in the editor: a box at its place and size, its name at the top
  * left and its kind at the top right in small words, `inset` in from the box,
  * and a text widget's default in its body at one of three sizes (ADR-0087).
+ * On a run a toggle's position is a lamp `lamp` in radius at the top right.
  */
 export const WIDGET = {
   radius: 0.1,
   inset: 0.08,
   small: 0.22,
+  lamp: 0.12,
   text: { small: 0.3, normal: 0.4, large: 0.55 },
 };
 
