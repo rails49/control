@@ -178,6 +178,10 @@ export class TcApp extends LitElement {
   private drewStatus: RunStatus = QUIET;
   private drewCabs: readonly Cab[] = [];
 
+  /** The railroad the page owes an open of the Edit view: the row said
+   *  `built: false` of it while power kept the view shut. `null` for none. */
+  private unopened: string | null = null;
+
   /** Seconds the joined session has been on screen, `null` with no session
    *  joined. The session clock: elapsed time on the page's own clock — a
    *  view reads a clock for scenery, never for control (ADR-0009, ADR-0047)
@@ -270,7 +274,16 @@ export class TcApp extends LitElement {
     // when the row first says so — after a restart, a save or a pick — and
     // leaves a person who walks away from it where they went (ADR-0085,
     // decision 4, #885).
-    if (!this.status.built && this.drewStatus.built) this.showing("edit");
+    // Where the row says so while power keeps the Edit view shut, the open
+    // is owed to that railroad and made the first time power lets it, unless
+    // the railroad is built again or another is named first (#906).
+    const { built, power, railroad } = this.status;
+    if (!built && this.drewStatus.built) this.unopened = railroad;
+    if (built || railroad !== this.unopened) this.unopened = null;
+    if (this.unopened !== null && shut("edit", power) === "") {
+      this.unopened = null;
+      this.showing("edit");
+    }
     this.drewStatus = this.status;
     this.drewCabs = this.cabs;
   }

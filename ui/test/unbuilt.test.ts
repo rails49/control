@@ -124,6 +124,54 @@ describe("a railroad named with built: false", () => {
 });
 
 /**
+ * A railroad that turns `built: false` while track power is on (#906): the
+ * Edit view is shut then, so the page owes the open and pays it the first time
+ * power reads `off`, if the same railroad is still not built (ADR-0085,
+ * decisions 3 and 4).
+ */
+describe("a railroad turning built: false with power on", () => {
+  /** A page on the run view on a built toy with track power on. */
+  async function powered(): Promise<TcApp> {
+    const shell = await mounted("run");
+    Broker.last!.retains(POWER, { power: "on" });
+    Broker.last!.retains(RAILROAD, { name: "toy", at: 5, built: true });
+    Broker.last!.opens();
+    await settled(shell);
+    return shell;
+  }
+
+  it("opens the Edit view once power reads off", async () => {
+    const shell = await powered();
+
+    await said(shell, RAILROAD, { name: "toy", at: 6, built: false });
+    expect(current(shell)).toBe("run");
+
+    await said(shell, POWER, { power: "off" });
+    expect(current(shell)).toBe("edit");
+  });
+
+  it("opens nothing where the railroad is built again before power is off", async () => {
+    const shell = await powered();
+
+    await said(shell, RAILROAD, { name: "toy", at: 6, built: false });
+    await said(shell, RAILROAD, { name: "toy", at: 7, built: true });
+    await said(shell, POWER, { power: "off" });
+
+    expect(current(shell)).toBe("run");
+  });
+
+  it("opens nothing where another railroad is named before power is off", async () => {
+    const shell = await powered();
+
+    await said(shell, RAILROAD, { name: "toy", at: 6, built: false });
+    await said(shell, RAILROAD, { name: "other", at: 7, built: false });
+    await said(shell, POWER, { power: "off" });
+
+    expect(current(shell)).toBe("run");
+  });
+});
+
+/**
  * The run while the loaded railroad reads `built: false` (#886): the apps
  * built nothing from its saved drawing, so ON waits for the drawing to be
  * fixed, and the Run view draws it grey with no trains and no gestures
