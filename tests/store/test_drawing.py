@@ -1782,3 +1782,180 @@ def test_schema_errors(mutate: Mutate, message: str) -> None:
     mutate(doc)
     with pytest.raises((ValueError, TypeError), match=message):
         Drawing.from_document(doc)
+
+
+# --- widgets ---------------------------------------------------------------
+
+
+def widgets() -> dict[str, Any]:
+    """The three widgets of #927, one of each kind."""
+    return {
+        "current": {
+            "kind": "text",
+            "at": [2, 1],
+            "size": [6, 1],
+            "text": "normal",
+            "align": "center",
+            "default": "—",
+        },
+        "lights": {
+            "kind": "toggle",
+            "at": [2, 3],
+            "size": [3, 1],
+            "on": '{"lights": true}',
+            "off": '{"lights": false}',
+        },
+        "horn": {"kind": "button", "at": [6, 3], "size": [3, 1], "payload": "horn"},
+    }
+
+
+def test_widgets_load_and_derive_to_the_same_layout() -> None:
+    """A widget has no pins and no transits (ADR-0087), so the layout, its
+    explanation and its review are what they are without one."""
+    bare = spanned()
+    with_widgets = {**spanned(), "widgets": widgets()}
+    drawing = Drawing.from_document(with_widgets)
+    assert set(drawing.widgets) == {"current", "lights", "horn"}
+    assert drawing.derive() == Drawing.from_document(bare).derive()
+    assert drawing.explain() == Drawing.from_document(bare).explain()
+    assert drawing.review() == Drawing.from_document(bare).review()
+
+
+def test_a_widget_loads_with_what_it_was_given() -> None:
+    drawing = Drawing.from_document({**spanned(), "widgets": widgets()})
+    current, lights, horn = (
+        drawing.widgets[name] for name in ("current", "lights", "horn")
+    )
+    assert (current.kind, current.at, current.size) == ("text", (2, 1), (6, 1))
+    assert (current.text, current.align, current.default) == (
+        "normal",
+        "center",
+        "—",
+    )
+    assert (lights.on, lights.off) == ('{"lights": true}', '{"lights": false}')
+    assert horn.payload == "horn"
+
+
+def test_a_widget_aligns_to_the_centre_unless_told_otherwise() -> None:
+    doc = {
+        **spanned(),
+        "widgets": {"w": {"kind": "text", "at": [0, 0], "size": [1, 1]}},
+    }
+    assert Drawing.from_document(doc).widgets["w"].align == "center"
+
+
+def test_a_drawing_without_widgets_has_none() -> None:
+    assert Drawing.from_document(spanned()).widgets == {}
+
+
+def _widget_error(name: str, **change: Any) -> Mutate:
+    """Gives the drawing the three widgets, with one key of one of them
+    changed, or removed where the change is None."""
+
+    def mutate(doc: dict[str, Any]) -> None:
+        doc["widgets"] = widgets()
+        spec = doc["widgets"][name]
+        for key, value in change.items():
+            if value is None:
+                del spec[key]
+            else:
+                spec[key] = value
+
+    return mutate
+
+
+def _renamed(to: Any) -> Mutate:
+    def mutate(doc: dict[str, Any]) -> None:
+        doc["widgets"] = widgets()
+        doc["widgets"][to] = doc["widgets"].pop("horn")
+
+    return mutate
+
+
+_WIDGET_ERRORS: list[tuple[Mutate, str]] = [
+    (_renamed("a.b"), r"widget name 'a\.b'"),
+    (_renamed("a/b"), "widget name 'a/b'"),
+    (_renamed("a b"), "widget name 'a b'"),
+    (_renamed("+"), r"widget name '\+'"),
+    (_renamed(""), "widget name ''"),
+    (_renamed(7), "widget name 7"),
+    (lambda d: d.update(widgets=[]), "widgets must be a mapping"),
+    (lambda d: d.update(widgets={"w": "text"}), "widget 'w' must be a mapping"),
+    (_widget_error("horn", kind="slider"), "widget 'horn': unknown kind 'slider'"),
+    (_widget_error("horn", kind=None), "widget 'horn': unknown kind None"),
+    (_widget_error("horn", at=[1]), "widget 'horn': at must be two integers"),
+    (_widget_error("horn", at=[1, "2"]), "widget 'horn': at must be two integers"),
+    (_widget_error("horn", at=None), r"widget 'horn': missing key\(s\) \['at'\]"),
+    (
+        _widget_error("horn", size=[0, 1]),
+        "widget 'horn': size must be two positive integers",
+    ),
+    (
+        _widget_error("horn", size=[3, -1]),
+        "widget 'horn': size must be two positive integers",
+    ),
+    (
+        _widget_error("horn", size=[3, True]),
+        "widget 'horn': size must be two positive integers",
+    ),
+    (
+        _widget_error("horn", size=None),
+        r"widget 'horn': missing key\(s\) \['size'\]",
+    ),
+    (
+        _widget_error("horn", rot=90),
+        r"widget 'horn': unknown key\(s\) \['rot'\]",
+    ),
+    (_widget_error("current", text="huge"), "widget 'current': text must be"),
+    (_widget_error("current", align="justify"), "widget 'current': align must be"),
+    (
+        _widget_error("current", default=3),
+        "widget 'current': default must be a string",
+    ),
+    (
+        _widget_error("current", payload="x"),
+        r"widget 'current': unknown key\(s\) \['payload'\]",
+    ),
+    (
+        _widget_error("horn", payload=None),
+        r"widget 'horn': missing key\(s\) \['payload'\]",
+    ),
+    (
+        _widget_error("horn", payload=["horn"]),
+        "widget 'horn': payload must be a string",
+    ),
+    (
+        _widget_error("horn", on="x"),
+        r"widget 'horn': unknown key\(s\) \['on'\]",
+    ),
+    (
+        _widget_error("lights", off='{"lights": true}'),
+        "widget 'lights': on and off must differ",
+    ),
+    (
+        _widget_error("lights", off=None),
+        r"widget 'lights': missing key\(s\) \['off'\]",
+    ),
+    (_widget_error("lights", on=1), "widget 'lights': on must be a string"),
+    (
+        _widget_error("lights", default="x"),
+        r"widget 'lights': unknown key\(s\) \['default'\]",
+    ),
+]
+
+
+@pytest.mark.parametrize("mutate, message", _WIDGET_ERRORS)
+def test_widget_schema_errors(mutate: Mutate, message: str) -> None:
+    """Each rule of a widget refuses the drawing the way any schema fault
+    does, naming the widget."""
+    doc = spanned()
+    mutate(doc)
+    with pytest.raises((ValueError, TypeError), match=message):
+        Drawing.from_document(doc)
+
+
+def test_the_store_refuses_to_save_a_bad_widget(tmp_path: Path) -> None:
+    store = AssetStore(tmp_path)
+    doc = {**spanned(), "widgets": {"w": {"kind": "slider", "at": [0, 0]}}}
+    with pytest.raises(ValueError, match="widget 'w'"):
+        store.put(doc)
