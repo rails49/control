@@ -23,6 +23,8 @@ import {
   type PinRef,
   type SymbolSpec,
   type Wire,
+  type WidgetKind,
+  type WidgetSpec,
 } from "./drawing.js";
 import {
   anchorOf,
@@ -36,8 +38,16 @@ import {
   turned,
 } from "./geometry.js";
 import { remint, settle } from "./naming.js";
-import { isName } from "./rules.js";
+import { isName, isWidgetName } from "./rules.js";
 import type { Review } from "./store.js";
+import {
+  isWidgetKind,
+  mintWidget,
+  newWidget,
+  selectionKey,
+  widgetOf,
+  WIDGET_SIZE,
+} from "./widgets.js";
 
 /** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. Short,
  *  because a key is read in the wire list far more than anywhere else, and the
@@ -61,8 +71,11 @@ const DEPTH = 200; // snapshots kept; the document is small and edits are rare
 export type Facing = Pick<SymbolSpec, "rot" | "flip">;
 
 /** A symbol on its way from the palette: an ordinary spec without a placement
- *  yet, of a kind the palette can offer. */
-type Placing = SymbolSpec & { kind: Kind };
+ *  yet, of a kind the palette can offer. A widget on its way is its kind and
+ *  nothing else, a widget not turning (ADR-0087). */
+type Placing =
+  | (SymbolSpec & { kind: Kind })
+  | { kind: WidgetKind; rot?: never; flip?: never; label?: never };
 
 /** Where a pending placement would land, and what is in the way. */
 export interface Landing {
@@ -99,6 +112,11 @@ export class Editor {
    *  is turned, which is everything about it that is not the pointer. */
   get pending(): Placing | null {
     return this.placing;
+  }
+
+  /** The drawing's widgets, by name: none where it has none. */
+  get widgets(): Readonly<Record<string, WidgetSpec>> {
+    return this.current.widgets ?? {};
   }
 
   get canUndo(): boolean {
@@ -184,8 +202,8 @@ export class Editor {
   /** Take a symbol off the palette. It starts turned the way the last one was
    *  left: a rotated run of turnouts costs one keypress for the run rather
    *  than one for each of them (EDITOR.md#palette). */
-  beginPlace(kind: Kind): void {
-    this.placing = { kind, ...this.facing };
+  beginPlace(kind: Kind | WidgetKind): void {
+    this.placing = isWidgetKind(kind) ? { kind } : { kind, ...this.facing };
   }
 
   /** A quarter turn of the symbol being dragged, by the same rule that turns a
@@ -212,13 +230,22 @@ export class Editor {
    * lands half a square off; that is as close as the grid allows.
    */
   placementAt(x: number, y: number): Landing | null {
-    if (this.placing === null) return null;
-    const { w, h } = placed(this.placing).footprint;
+    const placing = this.placing;
+    if (placing === null) return null;
+    const symbol = isWidgetKind(placing.kind) ? null : (placing as SymbolSpec);
+    const [w, h] =
+      symbol === null
+        ? WIDGET_SIZE
+        : [placed(symbol).footprint.w, placed(symbol).footprint.h];
     const at: [number, number] = [
       Math.round(x - w / 2),
       Math.round(y - h / 2),
     ];
-    return { at, blocked: taken({ ...this.placing, at }, this.current.symbols) };
+    // Nothing checks whether a widget overlaps anything (store/DRAWING.md), so
+    // a widget is never in the way and never has anything in its way.
+    const blocked =
+      symbol === null ? [] : taken({ ...symbol, at }, this.current.symbols);
+    return { at, blocked };
   }
 
   /**
@@ -235,8 +262,14 @@ export class Editor {
     const landing = this.placementAt(x, y);
     if (this.placing === null || landing === null) return null;
     if (landing.blocked.length > 0) return null;
-    const { kind, label } = this.placing;
-    const facing = facingOf(this.placing);
+    if (isWidgetKind(this.placing.kind)) {
+      const kind = this.placing.kind;
+      this.placing = null;
+      return this.putWidget(kind, landing.at);
+    }
+    const placing = this.placing as SymbolSpec & { kind: Kind };
+    const { kind, label } = placing;
+    const facing = facingOf(placing);
     this.placing = null;
     if (kind !== "portal" || label !== undefined) {
       return this.put(kind, landing.at, facing, label, label === undefined);
@@ -256,10 +289,31 @@ export class Editor {
     return this.placing !== null && this.placing.label !== undefined;
   }
 
-  private reorient(change: (spec: Placing) => Placing): void {
-    if (this.placing === null) return;
-    this.placing = change(this.placing);
-    this.facing = facingOf(this.placing);
+  /** A widget does not turn, so `r` and `f` leave one in flight as it is, and
+   *  leave the orientation the next symbol takes as it was. */
+  private reorient(
+    change: (spec: SymbolSpec & { kind: Kind }) => SymbolSpec & { kind: Kind },
+  ): void {
+    if (this.placing === null || isWidgetKind(this.placing.kind)) return;
+    this.placing = change(this.placing as SymbolSpec & { kind: Kind });
+    this.facing = facingOf(this.placing as SymbolSpec);
+  }
+
+  /** Place a widget, selected, named after its kind. Nothing is ever in its
+   *  way, so it always lands. */
+  placeWidget(kind: WidgetKind, at: [number, number]): string {
+    return this.putWidget(kind, at);
+  }
+
+  private putWidget(kind: WidgetKind, at: [number, number]): string {
+    const name = mintWidget(this.current, kind);
+    this.push();
+    this.current.widgets = {
+      ...this.current.widgets,
+      [name]: newWidget(kind, name, at),
+    };
+    this.chosen = new Set([selectionKey(name)]);
+    return name;
   }
 
   /**
@@ -308,10 +362,19 @@ export class Editor {
     if (this.chosen.size === 0 || (dx === 0 && dy === 0)) return;
     if (!this.canMove(dx, dy)) return;
     this.push();
-    for (const name of this.chosen) {
-      this.current.symbols[name] = movedBy(this.at(name), dx, dy);
+    for (const key of this.chosen) {
+      const widget = widgetOf(key);
+      if (widget === null) {
+        this.current.symbols[key] = movedBy(this.at(key), dx, dy);
+        continue;
+      }
+      const spec = this.widgets[widget]!;
+      this.current.widgets![widget] = {
+        ...spec,
+        at: [spec.at[0] + dx, spec.at[1] + dy],
+      };
     }
-    this.abut([...this.chosen]);
+    this.abut(this.chosenSymbols);
   }
 
   /**
@@ -343,7 +406,8 @@ export class Editor {
    * whatever spacing they had and only the rest of the drawing is in the way.
    */
   canMove(dx: number, dy: number): boolean {
-    return [...this.chosen].every((name) =>
+    // A widget is in nobody's way and nothing is in its (store/DRAWING.md).
+    return this.chosenSymbols.every((name) =>
       clear(movedBy(this.at(name), dx, dy), this.current.symbols, this.chosen),
     );
   }
@@ -389,6 +453,13 @@ export class Editor {
     this.push();
     const gone = new Set(this.chosen);
     for (const name of gone) delete this.current.symbols[name];
+    const widgets = Object.entries(this.widgets).filter(
+      ([name]) => !gone.has(selectionKey(name)),
+    );
+    // A drawing left with no widgets writes no `widgets` at all, which is how
+    // it was before the first one was placed.
+    if (widgets.length > 0) this.current.widgets = Object.fromEntries(widgets);
+    else delete this.current.widgets;
     this.current.wires = this.current.wires.filter(
       (wire) => !wirePins(wire).some((pin) => gone.has(symbolOf(pin))),
     );
@@ -420,9 +491,7 @@ export class Editor {
         delete this.current.symbols[name];
       }
     }
-    this.chosen = new Set(
-      [...this.chosen].filter((name) => name in this.current.symbols),
-    );
+    this.chosen = new Set([...this.chosen].filter((key) => this.holds(key)));
     if (
       this.drawingFrom !== null &&
       !(symbolOf(this.drawingFrom) in this.current.symbols)
@@ -484,6 +553,37 @@ export class Editor {
       if (this.drawingFrom !== null && symbolOf(this.drawingFrom) === was) {
         this.drawingFrom = `${name}${this.drawingFrom.slice(was.length)}`;
       }
+    }
+    return true;
+  }
+
+  /**
+   * Apply the properties dialog to a widget: its own properties, and a rename
+   * where the name changed. Answers whether it took.
+   *
+   * Nothing points at a widget by name — it has no pins — so a rename is the
+   * key and the selection, and the topic follows the name by itself. A name
+   * that is not one topic level, or that another widget has, is refused and
+   * the old name stays.
+   */
+  editWidget(was: string, name: string, spec: WidgetSpec): boolean {
+    if (!(was in this.widgets)) return false;
+    if (name !== was && (!isWidgetName(name) || name in this.widgets)) {
+      return false;
+    }
+    this.push();
+    // Rebuilt in order, as a symbol's rename is: the file keeps its order.
+    this.current.widgets = Object.fromEntries(
+      Object.entries(this.widgets).map(([key, value]) =>
+        key === was ? [name, spec] : [key, value],
+      ),
+    );
+    if (name !== was) {
+      this.chosen = new Set(
+        [...this.chosen].map((key) =>
+          key === selectionKey(was) ? selectionKey(name) : key,
+        ),
+      );
     }
     return true;
   }
@@ -655,18 +755,30 @@ export class Editor {
     // land wearing a label nothing else wears, which is the lone portal the
     // pair exists to prevent (ADR-0020).
     this.placing = null;
-    this.chosen = new Set(
-      [...this.chosen].filter((name) => name in this.current.symbols),
-    );
+    this.chosen = new Set([...this.chosen].filter((key) => this.holds(key)));
   }
 
+  /** Whether a selection entry names something the drawing has. */
+  private holds(key: string): boolean {
+    const widget = widgetOf(key);
+    return widget === null ? key in this.current.symbols : widget in this.widgets;
+  }
+
+  /** The symbols selected, leaving out the widgets. */
+  private get chosenSymbols(): string[] {
+    return [...this.chosen].filter((key) => widgetOf(key) === null);
+  }
+
+  /** Each selected symbol changed. A widget does not turn (ADR-0087), so a
+   *  selection holding nothing else changes nothing. */
   private transform(change: (spec: SymbolSpec) => SymbolSpec): void {
-    if (this.chosen.size === 0) return;
+    const symbols = this.chosenSymbols;
+    if (symbols.length === 0) return;
     this.push();
-    for (const name of this.chosen) {
+    for (const name of symbols) {
       this.current.symbols[name] = change(this.at(name));
     }
-    this.abut([...this.chosen]);
+    this.abut(symbols);
   }
 
   private at(name: string): SymbolSpec {

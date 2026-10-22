@@ -20,6 +20,7 @@ import { anchorOf, facePoint, type Point } from "./geometry.js";
 import type { Input, Machine, Outcome, Span } from "./machine.js";
 import type { Review } from "./store.js";
 import { under, within, type Under } from "./under.js";
+import { selectionKey } from "./widgets.js";
 
 /** How far the pointer has to travel, in screen pixels, before a press on a pin
  *  is a drag of its bend rather than the start of a wire. Drawing a wire is
@@ -83,11 +84,15 @@ export class Gesture {
     // click starts a wire, a drag takes hold of the bend. Held here until the
     // pointer says which (EDITOR.md#editing). Shift-click is the selection
     // gesture throughout, so it skips this and picks up the symbol.
-    const { pin, symbol } = this.at(editor, review, point);
+    const found = this.at(editor, review, point);
+    const { pin } = found;
     if (pin !== null && !input.shift && editor.free(pin)) {
       this.press = { pin, from: point, screen: input.screen };
       return "quiet";
     }
+    // A widget is selected, dragged and shift-clicked as a symbol is, under
+    // the key the selection holds it by.
+    const symbol = held(found);
 
     if (symbol === null) {
       editor.clearSelection();
@@ -222,8 +227,9 @@ export class Gesture {
       return { outcome: "render", found: null };
     }
     const found = this.at(editor, review, point);
-    if (found.symbol !== null && !editor.selection.has(found.symbol)) {
-      editor.select([found.symbol]);
+    const clicked = held(found);
+    if (clicked !== null && !editor.selection.has(clicked)) {
+      editor.select([clicked]);
       return { outcome: "picked", found };
     }
     return { outcome: "quiet", found };
@@ -275,6 +281,12 @@ export class Gesture {
     const now = facePoint(point.x, point.y);
     return { dx: now.x - was.x, dy: now.y - was.y };
   }
+}
+
+/** What a press found, as the selection holds it: a symbol's name, or a
+ *  widget's key. */
+function held({ symbol, widget }: Under): string | null {
+  return symbol ?? (widget === null ? null : selectionKey(widget));
 }
 
 /**

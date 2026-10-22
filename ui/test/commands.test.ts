@@ -162,9 +162,17 @@ describe("what the selection has to hold", () => {
   it("transforms only a selection with something in it", () => {
     for (const id of ["rotate", "flip", "delete"] as const) {
       expect(on(id)).toBe(false);
-      expect(on(id, { selection: 1 })).toBe(true);
-      expect(on(id, { selection: 4 })).toBe(true);
+      expect(on(id, { selection: 1, turnable: true })).toBe(true);
+      expect(on(id, { selection: 4, turnable: true })).toBe(true);
     }
+  });
+
+  /** A widget does not turn (ADR-0087): a selection of widgets alone can be
+   *  deleted and not rotated or flipped. */
+  it("turns only a selection holding a symbol", () => {
+    expect(on("rotate", { selection: 2, turnable: false })).toBe(false);
+    expect(on("flip", { selection: 2, turnable: false })).toBe(false);
+    expect(on("delete", { selection: 2, turnable: false })).toBe(true);
   });
 
   /** A group selection is a move about to happen, not a question about one
@@ -205,8 +213,8 @@ describe("what track power freezes", () => {
   const CHANGES: Partial<Record<CommandId, Partial<Standing>>> = {
     undo: { undo: true },
     redo: { redo: true },
-    rotate: { selection: 1 },
-    flip: { selection: 1 },
+    rotate: { selection: 1, turnable: true },
+    flip: { selection: 1, turnable: true },
     delete: { selection: 1 },
     properties: { selection: 1, editable: true },
   };
@@ -250,8 +258,8 @@ describe("what track power freezes", () => {
   /** The rule is read off power afresh rather than latched, so switching it
    *  off thaws the drawing on its own. */
   it("thaws when power goes off", () => {
-    expect(on("rotate", { selection: 1, power: "on" })).toBe(false);
-    expect(on("rotate", { selection: 1, power: "off" })).toBe(true);
+    expect(on("rotate", { selection: 1, turnable: true, power: "on" })).toBe(false);
+    expect(on("rotate", { selection: 1, turnable: true, power: "off" })).toBe(true);
   });
 
   /** A drawing open with no row heard is the loaded railroad's, the editor
