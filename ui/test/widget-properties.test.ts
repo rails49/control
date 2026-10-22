@@ -16,6 +16,7 @@ import type {
 } from "../src/ui/tc-widget-properties.js";
 import type { WidgetSpec } from "../src/model/drawing.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
+import type SlSelect from "@shoelace-style/shoelace/dist/components/select/select.js";
 
 async function opened(
   name: string,
@@ -170,5 +171,38 @@ describe("what the store would refuse", () => {
     expect(applying(again)).toEqual([
       { was: "toggle1", name: "toggle1", spec: { ...TOGGLE } },
     ]);
+  });
+});
+
+describe("closing", () => {
+  // happy-dom has no Web Animations, which a select's dropdown and the
+  // dialog run on hiding: each finishes at once.
+  Element.prototype.getAnimations = () => [];
+  Element.prototype.animate = function () {
+    const animation = new EventTarget();
+    queueMicrotask(() => animation.dispatchEvent(new Event("finish")));
+    return animation as Animation;
+  };
+
+  /** Count the `properties-closed` events `act` leads to. */
+  async function closes(dialog: TcWidgetProperties, act: () => Promise<unknown>) {
+    let closed = 0;
+    dialog.addEventListener("properties-closed", () => closed++);
+    await act();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return closed;
+  }
+
+  it("is not a select's dropdown closing", async () => {
+    const dialog = await opened("text1", TEXT);
+    const select = dialog.renderRoot.querySelector<SlSelect>("sl-select")!;
+    await select.updateComplete;
+    expect(await closes(dialog, () => select.show().then(() => select.hide()))).toBe(0);
+  });
+
+  it("is the dialog's own hiding", async () => {
+    const dialog = await opened("text1", TEXT);
+    const shell = dialog.renderRoot.querySelector("look-dialog")!;
+    expect(await closes(dialog, () => shell.hide())).toBe(1);
   });
 });

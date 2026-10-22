@@ -18,7 +18,7 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { lookTheme } from "@rails49/look";
+import { lookTheme, type LookDialog } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
@@ -81,7 +81,7 @@ export class TcWidgetProperties extends LitElement {
     if (this.editing === null) return nothing;
     const named = this.nameTrouble;
     return html`
-      <look-dialog open label="Properties" @sl-after-hide=${this.close}>
+      <look-dialog open label="Properties" @sl-after-hide=${this.afterHide}>
         <sl-input
           class=${named === null ? "" : "refused"}
           label="Name"
@@ -199,6 +199,13 @@ export class TcWidgetProperties extends LitElement {
       }),
     );
     this.close();
+  }
+
+  /** Only the dialog's own `sl-after-hide` closes it, the one that comes
+   *  once it is no longer open: a select's dropdown sends one too, and it
+   *  bubbles here. */
+  private afterHide(event: Event): void {
+    if (!(event.currentTarget as LookDialog).open) this.close();
   }
 
   private close(): void {
