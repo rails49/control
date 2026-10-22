@@ -143,6 +143,13 @@ describe("the artwork the samples fix", () => {
     expect(block).not.toContain("mast");
   });
 
+  it("marks a block's A end with one letter A and no plus", () => {
+    const block = written({ kind: "block" } as SymbolSpec);
+    expect(times(block, `class="end-a"`)).toBe(1);
+    expect(block).toMatch(/>A<\/text>/);
+    expect(block).not.toContain(`class="mark"`);
+  });
+
   it("cuts a terminal's stub square, so it stays inside the bar", () => {
     expect(written({ kind: "terminal" } as SymbolSpec)).toContain("track cut");
   });

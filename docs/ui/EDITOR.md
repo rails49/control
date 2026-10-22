@@ -564,13 +564,13 @@ face centres as always. Rotations and flips give the other orientations.
 4G×0.8G, border 0.3W, filled white in edit mode, and a 1G track stub on each
 side. The label, the block's name or the train parked in it, is
 centred in the rectangle; sensors are not drawn and everything else lives in
-the right-click dialog. A plus at the rectangle's lower corner on side A marks
-that side, drawn at the rectangle's own 0.3W.
+the right-click dialog. An A at the rectangle's lower corner on side A marks
+that side, at 0.3G in the track's colour and turned as the label is.
 
 The label turns with the block but not inside its artwork: a horizontal block
 reads upright and a vertical one bottom to top, at both quarter turns and
 under a flip, so a label is never upside down and never mirrored. Which end is
-A is the plus's business, not the label's. It is drawn at 0.50G, or at
+A is shown by the A, not by the label. It is drawn at 0.50G, or at
 whatever smaller size makes it fit the rectangle's long side — that being the
 width it has to fit whichever way the block stands. The size is estimated from
 the name's length rather than measured, since measuring means a second render

@@ -499,8 +499,8 @@ export class TcCanvas extends LitElement {
    * The text a symbol carries: a block's name or, on a run, the train standing
    * in it, and the label of a portal that pairs with nothing.
    *
-   * A block's label is the only text a *correct* drawing carries
-   * (EDITOR.md#symbol-geometry) — every other name is read in the properties
+   * A block's label and the A marking its A side are the only text a
+   * *correct* drawing carries (EDITOR.md#symbol-geometry) — every other name is read in the properties
    * dialog and in the netlist pane, portals included. The unpaired portal's
    * label is a fault mark rather than a name the symbol wears: it is drawn in
    * red and it goes away when the label pairs.

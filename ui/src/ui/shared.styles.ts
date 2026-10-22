@@ -109,7 +109,6 @@ export const symbols = css`
      and a class of that name here would be inherited by the lamps of every
      signal at stop, which sit inside a group carrying the aspect's name. */
   .buffer,
-  .mark,
   .portal-mouth,
   .tick {
     fill: none;
@@ -117,10 +116,14 @@ export const symbols = css`
     stroke-linecap: butt;
   }
 
-  /* The plus marking a block's A side, at the weight of the rectangle it sits
-     on the corner of. */
-  .mark {
-    stroke-width: ${BLOCK.body.border};
+  /* The A marking a block's A side, in the track's colour and smaller than the
+     label, so it does not read as part of the name. */
+  .end-a {
+    font-family: system-ui, sans-serif;
+    fill: var(--track);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
   }
 
   .buffer {

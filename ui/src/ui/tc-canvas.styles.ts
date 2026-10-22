@@ -86,7 +86,7 @@ const sheet = css`
     stroke: var(--lit);
   }
 
-  /* A block's label, the only text on a symbol: centred in its rectangle rather
+  /* A block's label, the only name on a symbol: centred in its rectangle rather
      than sitting on a point. The size is set per label rather than here, being
      the size that name fits the rectangle at (render/units.ts). */
   .name {
