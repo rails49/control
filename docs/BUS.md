@@ -282,8 +282,9 @@ toggle. It is rule 1's widget exception: concurrent pages do it no harm,
 because the row is always the whole value and the last one written is the
 right one
 ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)
-decision 3). Whether a row carries the mark is an ACL decision, made when the
-row lands.
+decision 3). A button's event row, `tc49/ui/button/<name>`, carries it too,
+because a page publishes it when a person presses the button. Whether a row
+carries the mark is an ACL decision, made when the row lands.
 
 **Writer** is the component the name already states for everything a
 component emits. On a request row it is `any`: one responder, any number of
@@ -339,6 +340,7 @@ nothing in control writes them ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-a
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
 | `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
 | `tc49/ui/state/toggle/<name>` | state | any (browser) | a toggle's position ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
+| `tc49/ui/button/<name>` | event | any (browser) | a button was pressed ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
 
 | Consumer | Filter(s) |
 | --- | --- |
@@ -875,6 +877,10 @@ Control carries it without reading it
   or no row, shows neither position. Retained, so a page opened later and a
   listener that restarts both find the position. No app of control reads it;
   a listener outside control does.
+- `tc49/ui/button/<name>` — browser-writable — the button's payload, as typed
+  in the drawing. One press publishes once, whatever the track power. An
+  event, not retained, so a page opened later and a listener that restarts
+  find no press. No app of control reads it; a listener outside control does.
 
 ## Time
 
