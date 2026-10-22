@@ -293,28 +293,30 @@ simply two different counts.
 An end that leads nowhere carries no signal and the dispatcher does not name
 it, so the panel draws none — no rule here, just an end absent from the map.
 
-**Every widget in the drawing is drawn at its place and size**
+**Every widget in the drawing is drawn at its place as its face alone**
 ([ADR-0087](../adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md),
-[#929](https://github.com/rails49/control/issues/929)): the box the editor
-draws, without the editor's name and kind in its corners, and the widget's
-words in it at the size and alignment it sets
-([EDITOR.md](EDITOR.md#widgets)).
+[#929](https://github.com/rails49/control/issues/929),
+[#939](https://github.com/rails49/control/issues/939)): the face the editor
+draws ([EDITOR.md](EDITOR.md#widgets)), with no box, name or kind. A button or
+a toggle carries no words, so a text widget beside it says what it does.
 
-- A **text** widget shows the row on `tc49/ui/state/text/<name>`, and its
-  default text while there is none. The row is shown as it arrives, with
-  ANSI SGR codes read for bold and three colours: `1` is bold and `22` ends
-  it; `31` or `91` is red, `33` or `93` amber and `32` or `92` green, in
-  look's `--red`, `--amber` and `--green`, and `39` ends the colour; `0`
-  resets both. Any other code, and every other escape sequence, is removed
-  from what is shown.
-- A **button** shows its name.
-- A **toggle** shows its name and its position, read off
-  `tc49/ui/state/toggle/<name>` by comparing the row with its two payloads: a
-  lamp at the top right, lit for `on` and hollow for `off`. No row, or a row
-  matching neither payload, shows neither position, and no lamp.
+- A **text** widget shows the row on `tc49/ui/state/text/<name>`, its default
+  text while there is none, and nothing where it has no default. The row is
+  shown as it arrives, with ANSI SGR codes read for bold and three colours:
+  `1` is bold and `22` ends it; `31` or `91` is red, `33` or `93` amber and
+  `32` or `92` green, in look's `--red`, `--amber` and `--green`, and `39`
+  ends the colour; `0` resets both. Any other code, and every other escape
+  sequence, is removed from what is shown. The words run over the track and
+  are cut only at the canvas's edge.
+- A **button** is a ring round a disc. The disc is drawn lighter while a
+  press is held, a press being sent and not kept.
+- A **toggle** is a rounded track with a knob, showing its position read off
+  `tc49/ui/state/toggle/<name>` by comparing the row with its two payloads:
+  the knob at the right on a green track for `on`, at the left on a grey one
+  for `off`. With no row it shows its default. A row matching neither
+  payload, or no row and no default, shows the knob in the middle.
 
-Words that do not fit are cut at the widget's box rather than run over the
-track. The rows are not the railroad's — a widget's topic names none — so
+The rows are not the railroad's — a widget's topic names none — so
 they are kept whichever railroad is joined, and dropped only when the page
 connects again, its retained rows then coming back with the rest. A drawing
 drawn grey still shows its widgets, each as it would with no row.
@@ -558,8 +560,10 @@ release on the same widget, without moving further than a click allows, is
 the press. A **button** publishes its payload on `tc49/ui/button/<name>`, once
 per press and not retained. A **toggle** publishes the payload of the other
 position from the one it shows on `tc49/ui/state/toggle/<name>`, retained, and
-its `on` payload where it shows neither; the lamp moves when the row comes
-back, not on the press. A press on a text widget does nothing. Control sends
+its `on` payload where it shows neither, a default it shows counting as the
+position; the knob moves when the row comes back, not on the press. A text
+widget is not pressed: its words may run over the track, so a press on them
+is what is under them, a train or a point (#939). Control sends
 the payload and reads none of it: it goes out as it was typed, never through
 `JSON.stringify`, and what it does is the listener's business.
 

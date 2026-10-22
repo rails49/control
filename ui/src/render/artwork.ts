@@ -12,7 +12,7 @@
  * because every stroke ends in a round cap.
  */
 
-import { nothing, svg, type SVGTemplateResult } from "lit";
+import { svg, type SVGTemplateResult } from "lit";
 
 import {
   POSITIONS,
@@ -35,7 +35,13 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
-import { ansi, togglePosition, type Run } from "../model/widgets.js";
+import {
+  ansi,
+  editorText,
+  newWidget,
+  togglePosition,
+  type Run,
+} from "../model/widgets.js";
 import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W, WIDGET } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
@@ -454,88 +460,73 @@ function n(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-/** A widget's box, with its kind in the corner: what the ghost of one on its
- *  way from the palette is, and what a placed one is drawn in. */
-export function widgetBox(
-  kind: WidgetKind,
-  [c, r]: readonly [number, number],
-  [w, h]: readonly [number, number],
-): SVGTemplateResult {
-  return svg`
-    <rect class="widget-box" x=${c} y=${r} width=${w} height=${h} rx=${WIDGET.radius} />
-    <text class="widget-kind" x=${c + w - WIDGET.inset} y=${r + WIDGET.inset}
-          font-size=${WIDGET.small}>${kind}</text>
-  `;
-}
-
-/** A widget's name at the top left of its box and, for a text widget, its
- *  default text in the body, at the size and alignment the widget sets. */
-export function widgetWords(name: string, spec: WidgetSpec): SVGTemplateResult {
-  const [c, r] = spec.at;
-  const [w, h] = spec.size;
-  const shown = spec.kind === "text" ? (spec.default ?? "") : "";
-  const align = spec.align ?? "center";
-  const x =
-    align === "left" ? c + WIDGET.inset : align === "right" ? c + w - WIDGET.inset : c + w / 2;
-  const anchor = align === "left" ? "start" : align === "right" ? "end" : "middle";
-  return svg`
-    <text class="widget-name" x=${c + WIDGET.inset} y=${r + WIDGET.inset}
-          font-size=${WIDGET.small}>${name}</text>
-    ${
-      shown === ""
-        ? nothing
-        : svg`<text class="widget-text" x=${x} y=${r + h / 2 + WIDGET.small / 2}
-                    text-anchor=${anchor}
-                    font-size=${WIDGET.text[spec.text ?? "normal"]}>${shown}</text>`
-    }
-  `;
-}
-
 /**
- * A widget on a run (#929): its box, and in it a text widget's row — its
- * default where there is none — or a button's or a toggle's name, at the size
- * and alignment the widget sets. A text row's ANSI bold and colours are runs
- * of their own (`ansi`), and a toggle's position, read off its row, is a lamp
- * at the top right: lit for `on`, hollow for `off`, none where the row is
- * neither or there is no row (ADR-0087).
+ * A widget's face (#939), the same in the editor and on a run, with no box,
+ * name or kind round it.
  *
- * The words are drawn in a box of their own that clips, so text that does not
- * fit is cut at the widget's edge rather than running over the track.
+ * - A text widget is its words alone, run from its cell the way `align` says.
+ *   On a run they are the row, else the default, else nothing, the row's ANSI
+ *   bold and colours as runs of their own (`ansi`). In the editor they are
+ *   the default, or the name and a question mark in the hint's colour where
+ *   there is none (`editorText`). Nothing cuts them but the canvas's edge.
+ * - A button is a ring round a disc.
+ * - A toggle is a rounded track with a knob: at the right on a green track
+ *   for `on`, at the left for `off`, and in the middle where the position is
+ *   not known (`togglePosition`). The editor has no rows, so it shows the
+ *   default, or `off` where there is none.
  */
 export function widgetFace(
   name: string,
   spec: WidgetSpec,
-  row: string | undefined,
+  running: boolean,
+  row?: string,
 ): SVGTemplateResult {
   const [c, r] = spec.at;
-  const [w, h] = spec.size;
-  const runs: Run[] =
-    spec.kind === "text"
-      ? ansi(row ?? spec.default ?? "")
-      : [{ text: name, bold: false, colour: null }];
+  if (spec.kind === "button") {
+    return svg`
+      <circle class="widget-ring" cx=${c + 0.5} cy=${r + 0.5} r=${WIDGET.ring}
+              stroke-width=${WIDGET.ringWidth} />
+      <circle class="widget-disc" cx=${c + 0.5} cy=${r + 0.5} r=${WIDGET.disc} />
+    `;
+  }
+  if (spec.kind === "toggle") {
+    const position = running
+      ? togglePosition(spec, row)
+      : (togglePosition(spec, undefined) ?? "off");
+    const { x, y, w, h } = WIDGET.track;
+    const knob =
+      position === "on" ? x + w - h / 2 : position === "off" ? x + h / 2 : x + w / 2;
+    return svg`
+      <rect class=${`widget-track ${position ?? "unknown"}`}
+            x=${c + x} y=${r + y} width=${w} height=${h} rx=${h / 2} />
+      <circle class="widget-knob" cx=${c + knob} cy=${r + 0.5} r=${WIDGET.knob} />
+    `;
+  }
+  const runs: Run[] = running
+    ? ansi(row ?? spec.default ?? "")
+    : [{ text: editorText(name, spec), bold: false, colour: null }];
   const align = spec.align ?? "center";
-  const x = align === "left" ? WIDGET.inset : align === "right" ? w - WIDGET.inset : w / 2;
+  const x = align === "left" ? c : align === "right" ? c + 1 : c + 0.5;
   const anchor = align === "left" ? "start" : align === "right" ? "end" : "middle";
-  const size = WIDGET.text[spec.text ?? "normal"];
-  const position = spec.kind === "toggle" ? togglePosition(spec, row) : null;
   return svg`
-    <rect class="widget-box" x=${c} y=${r} width=${w} height=${h} rx=${WIDGET.radius} />
-    <svg class="widget-clip" x=${c} y=${r} width=${w} height=${h}
-         viewBox=${`0 0 ${w} ${h}`} overflow="hidden">
-      <text class="widget-text" x=${x} y=${h / 2} text-anchor=${anchor}
-            dominant-baseline="central" font-size=${size}>${runs.map(
-              ({ text, bold, colour }) =>
-                svg`<tspan class=${[bold ? "bold" : "", colour ?? ""].join(" ").trim()}>${text}</tspan>`,
-            )}</text>
-    </svg>
-    ${
-      position === null
-        ? nothing
-        : svg`<circle class=${`widget-lamp ${position}`}
-                      cx=${c + w - WIDGET.lamp - WIDGET.inset}
-                      cy=${r + WIDGET.lamp + WIDGET.inset} r=${WIDGET.lamp} />`
-    }
+    <text class=${!running && !spec.default ? "widget-text placeholder" : "widget-text"}
+          x=${x} y=${r + 0.5} text-anchor=${anchor} dominant-baseline="central"
+          font-size=${WIDGET.text[spec.text ?? "normal"]}>${runs.map(
+            ({ text, bold, colour }) =>
+              svg`<tspan class=${[bold ? "bold" : "", colour ?? ""].join(" ").trim()}>${text}</tspan>`,
+          )}</text>
   `;
+}
+
+/** A widget of a kind as its palette tile and the ghost on its way from the
+ *  palette show it: a new one's face, a text widget's words the word `text`. */
+export function widgetSample(
+  kind: WidgetKind,
+  at: [number, number],
+): SVGTemplateResult {
+  const spec = newWidget(kind, kind, at);
+  if (kind === "text") spec.default = "text";
+  return widgetFace(kind, spec, false);
 }
 
 /**

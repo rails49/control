@@ -27,7 +27,7 @@ import type { Machine, Outcome } from "./machine.js";
 import type { BlockView, EndRef } from "./panel.js";
 import type { Review } from "./store.js";
 import type { PointWanted } from "./trace.js";
-import { nearest, under, widgetAt } from "./under.js";
+import { nearest, pressableAt, under } from "./under.js";
 
 /** How far the pointer may travel, in screen pixels, between the press on a
  *  point and the release that throws it: a click, and a shaky hand is still
@@ -241,7 +241,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       widget = null;
       const now = painted();
       if (now === null) return "quiet";
-      const name = widgetAt(now.drawing, point);
+      const name = pressableAt(now.drawing, point);
       if (name !== null) {
         if (input.button === 0 && !input.shift) {
           widget = { name, screen: input.screen, touch: input.touch };
@@ -253,7 +253,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       }
       const symbol = input.touch
         ? nearest(now.drawing, now.offered.keys(), point, TOUCH_REACH)
-        : under(now.drawing, now.review, point).symbol;
+        : under(now.drawing, now.review, point, undefined, true).symbol;
       if (
         input.button === 0 &&
         !input.shift &&
@@ -279,7 +279,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       const on = widget;
       widget = null;
       if (now !== null && on !== null) {
-        if (on.touch || widgetAt(now.drawing, point) === on.name) view.pressWidget(on.name);
+        if (on.touch || pressableAt(now.drawing, point) === on.name) view.pressWidget(on.name);
         return "quiet";
       }
       if (now !== null && click !== null) {
@@ -287,7 +287,8 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
         // A tap is held to the slop alone: the release is still the tap, and
         // asking again which point is nearest could name its neighbour.
         const on =
-          click.touch || under(now.drawing, now.review, point).symbol === click.symbol;
+          click.touch ||
+          under(now.drawing, now.review, point, undefined, true).symbol === click.symbol;
         if (wanted !== undefined && on) view.throwPoint(wanted);
         return "quiet";
       }
@@ -382,7 +383,7 @@ export function blockAt(
   review: Review,
   point: Point,
 ): string | null {
-  const { symbol, kind } = under(drawing, review, point);
+  const { symbol, kind } = under(drawing, review, point, undefined, true);
   return kind === "block" ? symbol : null;
 }
 

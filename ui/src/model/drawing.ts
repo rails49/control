@@ -126,20 +126,20 @@ export type WidgetKind = "text" | "button" | "toggle";
 /**
  * A widget, as the drawing writes it beside its symbols
  * ([DRAWING.md](../../../docs/store/DRAWING.md#widgets)). It has no pins and
- * no transits, so nothing derives from it, and it does not turn: `at` and
- * `size` are all its placement.
+ * no transits, so nothing derives from it, and it does not turn: `at` is all
+ * its placement.
  */
 export interface WidgetSpec {
   kind: WidgetKind;
-  /** The grid cell of its top-left square. */
+  /** The grid cell it is drawn from. */
   at: [number, number];
-  /** Its width and height, in squares. */
-  size: [number, number];
-  /** The size of its words, `normal` where absent. */
+  /** A text widget's: the size of its words, `normal` where absent. */
   text?: "small" | "normal" | "large";
-  /** How its words sit, `center` where absent. */
+  /** A text widget's: which way its words run from `at`, `center` where
+   *  absent. */
   align?: "left" | "center" | "right";
-  /** A text widget's, shown until a row arrives. */
+  /** A text widget's text, or a toggle's position, `on` or `off`: what it
+   *  shows until a row arrives. */
   default?: string;
   /** A button's, what a press sends. */
   payload?: string;

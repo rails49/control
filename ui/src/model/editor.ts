@@ -45,8 +45,8 @@ import {
   mintWidget,
   newWidget,
   selectionKey,
+  widgetFootprint,
   widgetOf,
-  WIDGET_SIZE,
 } from "./widgets.js";
 
 /** What a new symbol of each kind is called: `sw1`, `sw2`, and so on. Short,
@@ -235,7 +235,7 @@ export class Editor {
     const symbol = isWidgetKind(placing.kind) ? null : (placing as SymbolSpec);
     const [w, h] =
       symbol === null
-        ? WIDGET_SIZE
+        ? widgetFootprint(placing.kind as WidgetKind)
         : [placed(symbol).footprint.w, placed(symbol).footprint.h];
     const at: [number, number] = [
       Math.round(x - w / 2),

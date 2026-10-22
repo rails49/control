@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
 /**
- * Widgets on a run, end to end through the app (ADR-0087, #929): the run view
- * draws each at its place and size, a text widget shows its row, a toggle its
+ * Widgets on a run, end to end through the app (ADR-0087, #929, #939): the run
+ * view draws each as its face alone, a text widget shows its row, a toggle its
  * position, and a click on a button or a toggle publishes its payload raw.
  *
  * What a row means and what a press sends are `widget-run.test.ts`; this is
@@ -39,23 +39,22 @@ function withWidgets(name: string): Drawing {
   return {
     ...stored(name),
     widgets: {
-      current: { kind: "text", at: [0, 4], size: [4, 1], default: "no reading" },
+      current: { kind: "text", at: [0, 4], default: "no reading" },
       lights: {
         kind: "toggle",
         at: [0, 6],
-        size: [3, 1],
         on: '{"lights": true}',
         off: '{"lights": false}',
       },
-      horn: { kind: "button", at: [4, 6], size: [3, 1], payload: "toot toot" },
+      horn: { kind: "button", at: [4, 6], payload: "toot toot" },
     },
   };
 }
 
 /** The middle of each widget, which is where a click lands. */
 const MIDDLE: Record<string, Point> = {
-  lights: { x: 1.5, y: 6.5 },
-  horn: { x: 5.5, y: 6.5 },
+  lights: { x: 1, y: 6.5 },
+  horn: { x: 4.5, y: 6.5 },
 };
 
 beforeEach(() => {
@@ -80,11 +79,10 @@ function words(shell: TcApp, name: string): string {
   return widget(shell, name).querySelector(".widget-text")!.textContent!.trim();
 }
 
-/** A toggle's lamp: `on`, `off`, or `null` where it shows neither. */
+/** A toggle's position: `on`, `off`, or `null` where it shows neither. */
 function lamp(shell: TcApp, name: string): string | null {
-  const shown = widget(shell, name).querySelector(".widget-lamp");
-  if (shown === null) return null;
-  return shown.classList.contains("on") ? "on" : "off";
+  const track = widget(shell, name).querySelector(".widget-track")!.classList;
+  return track.contains("on") ? "on" : track.contains("off") ? "off" : null;
 }
 
 /** A row on a widget's topic, raw, as a script writes it. */
@@ -109,17 +107,14 @@ function sent(): { topic: string; payload: string; retain?: true }[] {
   return Broker.last!.published.filter(({ topic }) => topic.startsWith("tc49/ui/"));
 }
 
-it("draws every widget at its place and size", async () => {
+it("draws every widget as its face at its place", async () => {
   const shell = await joined();
-  const box = widget(shell, "current").querySelector(".widget-box")!;
-  expect(["x", "y", "width", "height"].map((one) => box.getAttribute(one))).toEqual([
-    "0",
-    "4",
-    "4",
-    "1",
-  ]);
-  expect(widget(shell, "lights")).not.toBeNull();
-  expect(widget(shell, "horn")).not.toBeNull();
+  const text = widget(shell, "current").querySelector(".widget-text")!;
+  expect(["x", "y"].map((one) => text.getAttribute(one))).toEqual(["0.5", "4.5"]);
+  const track = widget(shell, "lights").querySelector(".widget-track")!;
+  expect(["x", "y"].map((one) => track.getAttribute(one))).toEqual(["0.1", "6.2"]);
+  const ring = widget(shell, "horn").querySelector(".widget-ring")!;
+  expect(["cx", "cy"].map((one) => ring.getAttribute(one))).toEqual(["4.5", "6.5"]);
 });
 
 describe("a text widget", () => {
@@ -144,14 +139,11 @@ describe("a text widget", () => {
     ]);
   });
 
-  it("is cut at the widget's box", async () => {
+  it("is its words alone, with no box to cut them", async () => {
     const shell = await joined();
-    await writes(shell, TEXT, "a reading far too long for a box four squares wide");
-    const text = widget(shell, "current").querySelector(".widget-text")!;
-    const clip = text.closest("svg.widget-clip")!;
-    expect(
-      ["x", "y", "width", "height", "overflow"].map((one) => clip.getAttribute(one)),
-    ).toEqual(["0", "4", "4", "1", "hidden"]);
+    await writes(shell, TEXT, "a reading far longer than one square");
+    expect(words(shell, "current")).toBe("a reading far longer than one square");
+    expect(widget(shell, "current").querySelector("rect, svg")).toBeNull();
   });
 
   it("reads a raw row without disturbing any other", async () => {
@@ -178,7 +170,7 @@ describe("a toggle", () => {
     const shell = await joined();
     await writes(shell, TOGGLE, row);
     expect(lamp(shell, "lights")).toBe(position);
-    expect(words(shell, "lights")).toBe("lights");
+    expect(widget(shell, "lights").querySelector("text")).toBeNull();
   });
 
   it("shows neither with no row", async () => {
@@ -206,9 +198,9 @@ describe("a toggle", () => {
 });
 
 describe("a button", () => {
-  it("shows its name and publishes its payload once a press, not retained", async () => {
+  it("shows no name and publishes its payload once a press, not retained", async () => {
     const shell = await joined();
-    expect(words(shell, "horn")).toBe("horn");
+    expect(widget(shell, "horn").querySelector("text")).toBeNull();
     await clicks(shell, "horn");
     expect(sent()).toEqual([{ topic: BUTTON, payload: "toot toot" }]);
   });

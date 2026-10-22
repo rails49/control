@@ -15,8 +15,8 @@
  *
  * The fourth group is the widgets: a text, a button and a toggle (ADR-0087).
  * They are dragged out the same way, and the editor names them as it places
- * them. A widget's box is the same shape whatever its kind, so its tile shows
- * the kind's word, which is also what the placed widget wears.
+ * them. A tile shows the face a new one has (#939): the word `text`, a button
+ * and a toggle.
  */
 
 import { LitElement, html } from "lit";
@@ -25,8 +25,8 @@ import { customElement } from "lit/decorators.js";
 import type { Kind } from "../symbols.generated.js";
 import type { WidgetKind } from "../model/drawing.js";
 import { FOOTPRINTS, transformOf } from "../model/geometry.js";
-import { WIDGET_KINDS, WIDGET_SIZE } from "../model/widgets.js";
-import { artwork, DEFS, PALETTE, TILE, widgetBox } from "../render/artwork.js";
+import { WIDGET_KINDS, widgetFootprint } from "../model/widgets.js";
+import { artwork, DEFS, PALETTE, TILE, widgetSample } from "../render/artwork.js";
 import { paletteStyles } from "./tc-palette.styles.js";
 
 const TITLES: Record<Kind, string> = {
@@ -108,9 +108,9 @@ export class TcPalette extends LitElement {
     `;
   }
 
-  /** A widget's tile: its box at the size a new one takes, wearing its kind. */
+  /** A widget's tile: the face a new one has. */
   private widgetTile(kind: WidgetKind) {
-    const [w, h] = WIDGET_SIZE;
+    const [w, h] = widgetFootprint(kind);
     return html`
       <button
         @pointerdown=${(event: PointerEvent) => this.take(kind, event)}
@@ -118,7 +118,7 @@ export class TcPalette extends LitElement {
         aria-label=${WIDGET_TITLES[kind]}
       >
         <svg viewBox=${`-0.2 -0.2 ${w + 0.4} ${h + 0.4}`}>
-          ${widgetBox(kind, [0, 0], WIDGET_SIZE)}
+          <g class=${`widget ${kind}`}>${widgetSample(kind, [0, 0])}</g>
         </svg>
       </button>
     `;

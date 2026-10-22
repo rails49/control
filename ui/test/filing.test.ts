@@ -266,9 +266,9 @@ describe("saving", () => {
 
     expect(again.widgets).toEqual(editor.widgets);
     expect(store.written[0]!.widgets).toEqual({
-      current: { kind: "text", at: [0, 4], size: [3, 1], align: "left", default: "—" },
-      button1: { kind: "button", at: [4, 4], size: [3, 1], payload: "button1" },
-      toggle1: { kind: "toggle", at: [8, 4], size: [3, 1], on: "on", off: "off" },
+      current: { kind: "text", at: [0, 4], align: "left", default: "—" },
+      button1: { kind: "button", at: [4, 4], payload: "button1" },
+      toggle1: { kind: "toggle", at: [8, 4], on: "on", off: "off" },
     });
   });
 

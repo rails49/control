@@ -63,15 +63,18 @@ export function under(
   review: Review,
   at: Point,
   shift: Shift = HERE,
+  running = false,
 ): Under {
   // A pin beats the symbol carrying it: a press on one starts a wire, while a
   // press anywhere else on the symbol takes hold of the symbol. The symbol is
   // named either way, so a right-click on a pin still asks about the turnout.
   //
   // A widget is drawn over the symbols, nothing keeping it off them, so it is
-  // what a press lands on there; a pin under it still starts a wire.
+  // what a press lands on there; a pin under it still starts a wire. On a run
+  // a text widget is not pressed, so only a button or a toggle is (#939).
   const pin = pinNear(drawing, at, shift);
-  const widget = pin === null ? widgetAt(drawing, at, shift) : null;
+  const widget =
+    pin !== null ? null : running ? pressableAt(drawing, at) : widgetAt(drawing, at, shift);
   const symbol =
     pin !== null ? symbolOf(pin) : widget === null ? symbolAt(drawing, at, shift) : null;
   return {
@@ -130,7 +133,7 @@ export function within(drawing: Drawing, from: Point, to: Point): string[] {
       .filter(([, spec]) => inside(centreOf(spec)))
       .map(([name]) => name),
     ...Object.entries(drawing.widgets ?? {})
-      .filter(([, spec]) => inside(widgetCentre(spec)))
+      .filter(([name, spec]) => inside(widgetCentre(name, spec)))
       .map(([name]) => selectionKey(name)),
   ];
 }
@@ -257,7 +260,17 @@ function symbolAt(drawing: Drawing, at: Point, shift: Shift): string | null {
  *  one a press lands on. */
 export function widgetAt(drawing: Drawing, at: Point, shift: Shift = HERE): string | null {
   const found = Object.entries(drawing.widgets ?? {}).filter(([name, spec]) =>
-    widgetCovers(spec, at, shift(selectionKey(name))),
+    widgetCovers(name, spec, at, shift(selectionKey(name))),
+  );
+  return found.at(-1)?.[0] ?? null;
+}
+
+/** The button or toggle covering a point on a run. A press on a text widget
+ *  does nothing, and its words may run over the track (#939), so it does not
+ *  stand between a press and what is under it. */
+export function pressableAt(drawing: Drawing, at: Point): string | null {
+  const found = Object.entries(drawing.widgets ?? {}).filter(
+    ([name, spec]) => spec.kind !== "text" && widgetCovers(name, spec, at),
   );
   return found.at(-1)?.[0] ?? null;
 }
