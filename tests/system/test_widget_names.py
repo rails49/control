@@ -114,7 +114,7 @@ def test_the_specs_text_and_align_are_the_stores() -> None:
 
 def test_the_specs_fields_are_the_keys_the_store_allows() -> None:
     fields = set(re.findall(r"^\s*(\w+)\??:", widget_spec(), re.MULTILINE))
-    allowed = {"kind", "at", "size", "text", "align"}.union(
+    allowed = {"kind", "at"}.union(
         *(required | optional for required, optional in drawing.WIDGET_KINDS.values())
     )
     assert fields == allowed, (

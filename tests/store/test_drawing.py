@@ -1793,7 +1793,6 @@ def widgets() -> dict[str, Any]:
         "current": {
             "kind": "text",
             "at": [2, 1],
-            "size": [6, 1],
             "text": "normal",
             "align": "center",
             "default": "—",
@@ -1801,11 +1800,11 @@ def widgets() -> dict[str, Any]:
         "lights": {
             "kind": "toggle",
             "at": [2, 3],
-            "size": [3, 1],
             "on": '{"lights": true}',
             "off": '{"lights": false}',
+            "default": "off",
         },
-        "horn": {"kind": "button", "at": [6, 3], "size": [3, 1], "payload": "horn"},
+        "horn": {"kind": "button", "at": [6, 3], "payload": "horn"},
     }
 
 
@@ -1826,21 +1825,22 @@ def test_a_widget_loads_with_what_it_was_given() -> None:
     current, lights, horn = (
         drawing.widgets[name] for name in ("current", "lights", "horn")
     )
-    assert (current.kind, current.at, current.size) == ("text", (2, 1), (6, 1))
+    assert (current.kind, current.at) == ("text", (2, 1))
     assert (current.text, current.align, current.default) == (
         "normal",
         "center",
         "—",
     )
-    assert (lights.on, lights.off) == ('{"lights": true}', '{"lights": false}')
+    assert (lights.on, lights.off, lights.default) == (
+        '{"lights": true}',
+        '{"lights": false}',
+        "off",
+    )
     assert horn.payload == "horn"
 
 
 def test_a_widget_aligns_to_the_centre_unless_told_otherwise() -> None:
-    doc = {
-        **spanned(),
-        "widgets": {"w": {"kind": "text", "at": [0, 0], "size": [1, 1]}},
-    }
+    doc = {**spanned(), "widgets": {"w": {"kind": "text", "at": [0, 0]}}}
     assert Drawing.from_document(doc).widgets["w"].align == "center"
 
 
@@ -1849,32 +1849,15 @@ def test_a_drawing_without_widgets_has_none() -> None:
 
 
 def test_the_widgets_the_editor_writes_load() -> None:
-    """What the editor places (#928): 3 x 1, the schema's defaults left
+    """What the editor places (#928, #939): the schema's defaults left
     unwritten, a button's payload its own name and a toggle's on and off
     `on` and `off`; and a text widget as its dialog writes one back.
     `ui/test/filing.test.ts` saves the same mapping."""
     written = {
-        "current": {
-            "kind": "text",
-            "at": [0, 4],
-            "size": [3, 1],
-            "align": "left",
-            "default": "—",
-        },
-        "button1": {
-            "kind": "button",
-            "at": [4, 4],
-            "size": [3, 1],
-            "payload": "button1",
-        },
-        "toggle1": {
-            "kind": "toggle",
-            "at": [8, 4],
-            "size": [3, 1],
-            "on": "on",
-            "off": "off",
-        },
-        "text1": {"kind": "text", "at": [0, 6], "size": [3, 1]},
+        "current": {"kind": "text", "at": [0, 4], "align": "left", "default": "—"},
+        "button1": {"kind": "button", "at": [4, 4], "payload": "button1"},
+        "toggle1": {"kind": "toggle", "at": [8, 4], "on": "on", "off": "off"},
+        "text1": {"kind": "text", "at": [0, 6]},
     }
     drawing = Drawing.from_document({**spanned(), "widgets": written})
     assert set(drawing.widgets) == set(written)
@@ -1920,20 +1903,20 @@ _WIDGET_ERRORS: list[tuple[Mutate, str]] = [
     (_widget_error("horn", at=[1, "2"]), "widget 'horn': at must be two integers"),
     (_widget_error("horn", at=None), r"widget 'horn': missing key\(s\) \['at'\]"),
     (
-        _widget_error("horn", size=[0, 1]),
-        "widget 'horn': size must be two positive integers",
+        _widget_error("horn", size=[3, 1]),
+        r"widget 'horn': unknown key\(s\) \['size'\]",
     ),
     (
-        _widget_error("horn", size=[3, -1]),
-        "widget 'horn': size must be two positive integers",
+        _widget_error("current", size=[3, 1]),
+        r"widget 'current': unknown key\(s\) \['size'\]",
     ),
     (
-        _widget_error("horn", size=[3, True]),
-        "widget 'horn': size must be two positive integers",
+        _widget_error("horn", text="large"),
+        r"widget 'horn': unknown key\(s\) \['text'\]",
     ),
     (
-        _widget_error("horn", size=None),
-        r"widget 'horn': missing key\(s\) \['size'\]",
+        _widget_error("lights", align="left"),
+        r"widget 'lights': unknown key\(s\) \['align'\]",
     ),
     (
         _widget_error("horn", rot=90),
@@ -1972,7 +1955,15 @@ _WIDGET_ERRORS: list[tuple[Mutate, str]] = [
     (_widget_error("lights", on=1), "widget 'lights': on must be a string"),
     (
         _widget_error("lights", default="x"),
-        r"widget 'lights': unknown key\(s\) \['default'\]",
+        "widget 'lights': default must be 'on' or 'off'",
+    ),
+    (
+        _widget_error("lights", default='{"lights": true}'),
+        "widget 'lights': default must be 'on' or 'off'",
+    ),
+    (
+        _widget_error("horn", default="on"),
+        r"widget 'horn': unknown key\(s\) \['default'\]",
     ),
 ]
 

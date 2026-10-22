@@ -271,24 +271,30 @@ and the layout is the same with or without one.
 
 ```yaml
 widgets:
-  current: { kind: text, at: [2, 1], size: [6, 1], text: normal, align: center, default: '—' }
-  lights:  { kind: toggle, at: [2, 3], size: [3, 1], on: '{"lights": true}', off: '{"lights": false}' }
-  horn:    { kind: button, at: [6, 3], size: [3, 1], payload: horn }
+  current: { kind: text, at: [2, 1], text: normal, align: center, default: '—' }
+  lights:  { kind: toggle, at: [2, 3], on: '{"lights": true}', off: '{"lights": false}', default: off }
+  horn:    { kind: button, at: [6, 3], payload: horn }
 ```
 
 - **The key is the widget's name.** It ends the widget's topic, so it is one
   topic level: letters, digits, `_` and `-`. It is unique among widgets.
 - **`kind` is `text`, `button` or `toggle`.**
-- **`at` and `size` are in grid squares**, `at` the top-left cell as for a
-  symbol and `size` two positive integers. A widget does not turn, so it takes
-  neither `rot` nor `flip`.
-- **`text` sets the size of its words**, `small`, `normal` or `large`, default
-  `normal`; **`align`** is `left`, `center` or `right`, default `center`.
-  Every kind takes both.
+- **`at` is the one grid cell a widget is drawn from**, and a widget takes no
+  size ([#938](https://github.com/rails49/control/issues/938)). A button
+  covers that cell, a toggle that cell and the next to its right, and a text
+  widget's words run from it as `align` says. A widget does not turn, so it
+  takes neither `rot` nor `flip`.
+- **A text widget's `text` sets the size of its words**, `small`, `normal` or
+  `large`, default `normal`. **`align`** is `left`, `center` or `right`,
+  default `center`: `left` starts the words at the cell's left edge, `right`
+  ends them at its right edge, and `center` centres them on it. A button and a
+  toggle have no words and take neither key.
 - **Each kind takes its own payload keys, all strings.** A text widget takes an
   optional `default`, shown until a row arrives. A button needs the `payload`
   it sends. A toggle needs `on` and `off`, which must differ, since a page
-  reads the toggle's position by comparing the row with them.
+  reads the toggle's position by comparing the row with them. A toggle takes
+  an optional `default`, `on` or `off`: the position it shows until a row
+  arrives.
 
 A key that does not belong to the widget's kind is refused, and a bad widget
 refuses the drawing like any other schema fault, naming the widget. Nothing
