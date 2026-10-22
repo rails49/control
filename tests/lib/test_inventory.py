@@ -51,6 +51,7 @@ POWER = "tc49/layout/state/power"
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 RAILROAD = "tc49/layout/state/railroad"
 TEXT = "tc49/ui/state/text"
+TOGGLE = "tc49/ui/state/toggle"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -357,6 +358,23 @@ def test_a_text_widgets_topic_ends_in_its_name() -> None:
     """The name is a level past the row's key, as an address is past a device
     row's, and the topic stays a state topic (ADR-0087 decision 2)."""
     assert is_state_topic(TEXT + "/current")
+
+
+def test_a_toggles_row_is_state_browser_writable_with_no_fields() -> None:
+    """A toggle's position is retained, so a page opened later and a listener
+    that restarts both find it, and a page writes it when a person presses the
+    toggle: the one state row with the browser mark (ADR-0087 decision 3). Its
+    payload is the toggle's on or off payload, raw (decision 4)."""
+    assert WIDGET_TOPICS[TOGGLE].fields == ()
+    assert WIDGET_TOPICS[TOGGLE].browser
+    assert is_state_topic(TOGGLE + "/lights")
+
+
+def test_the_toggle_row_stays_out_of_inbound() -> None:
+    """`INBOUND` is the whole topics a page writes, read off `TOPICS`; the
+    toggle row is a pattern the drawing completes, so its mark is read off
+    `WIDGET_TOPICS` instead."""
+    assert not [topic for topic in INBOUND if topic.startswith("tc49/ui/")]
 
 
 def test_every_state_row_leads_with_the_stamp_and_no_event_row_carries_one() -> None:

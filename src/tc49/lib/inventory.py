@@ -260,6 +260,7 @@ acts on the addresses it recognises, and one nobody answers to does no harm
 
 WIDGET_TOPICS: dict[str, Topic] = {
     "tc49/ui/state/text": Topic(()),
+    "tc49/ui/state/toggle": Topic((), browser=True),
 }
 """The rows of the drawing's widgets, under `ui` (ADR-0087). Keyed by the
 topic without the widget's name, which is the one level past the key and is
@@ -270,7 +271,10 @@ name.
 No row carries a field. A widget payload is raw — not JSON control defines,
 and no `at` — and control carries it without reading it: a text row is UTF-8
 text the page shows as it arrives, rendering the ANSI SGR codes for bold, red,
-amber and green and removing any other code (ADR-0087 decision 4). So ``AT``
+amber and green and removing any other code; a toggle row is the toggle's on
+payload or its off payload as typed in the drawing, and a page reads the
+position by comparing the row with the two, a row matching neither, or no row,
+showing neither (ADR-0087 decision 4). So ``AT``
 does not lead a widget's state row, and the trace, which runs only on the
 in-process bus where no widget row is published, does not name one.
 
@@ -278,7 +282,9 @@ Any writer, on a state row too: the exception to rule 1 that ADR-0087
 decision 3 makes, because a widget row is always the whole value and the last
 one written is the right one. Two writers of one text row overwrite each
 other, which is the writers' business. A text row carries no browser mark,
-because no page writes one."""
+because no page writes one. A toggle row carries it, because a page writes the
+position a person presses: the one state row with the mark (ADR-0087 decision
+3), and the exception to ``INBOUND``'s rule below."""
 
 
 def device_topic(prefix: str, *address: str) -> str:
@@ -438,8 +444,13 @@ page may send them.
 
 Event topics only. A page has concurrent instances — two tabs are two of
 them — and concurrent writers may not write a state topic at all
-(ADR-0035). So `browser=True` belongs on event rows, and a state row must
-never carry it.
+(ADR-0035). So `browser=True` belongs on event rows, and a state row here must
+never carry it. The one exception is outside ``TOPICS``: a toggle's row,
+`tc49/ui/state/toggle/<name>` in ``WIDGET_TOPICS``, is a state row with the
+mark, because it is always the whole value and the last one written is the
+right one (ADR-0087 decision 3). It is a pattern the drawing completes, not a
+whole topic, so it is not in this set; a page reads its mark off
+``WIDGET_TOPICS``.
 
 Gestures, never requests: `tc49/dispatch/request_submitted` carries no mark
 and is refused inbound like any other unmarked topic, which is what makes the
