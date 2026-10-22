@@ -262,6 +262,7 @@ describe("the run view's machine", () => {
     const sent: Drop[] = [];
     const lifted: string[] = [];
     const thrown: PointWanted[] = [];
+    const pressed: string[] = [];
     const it = schedulingMachine(new Drag(), {
       painted: () => painting,
       submit: (drop) => {
@@ -273,12 +274,53 @@ describe("the run view's machine", () => {
       throwPoint: (wanted) => {
         thrown.push(wanted);
       },
+      pressWidget: (name) => {
+        pressed.push(name);
+      },
       onRoster: (screen) => screen.x === OVER_ROSTER.x && screen.y === OVER_ROSTER.y,
     });
-    return { sent, lifted, thrown, it };
+    return { sent, lifted, thrown, pressed, it };
   }
 
   const press = { button: 0, shift: false, touch: false, screen: { x: 0, y: 0 } };
+
+  describe("a widget", () => {
+    /** A button over block `a`, where a train stands: drawn over the
+     *  symbols, so a press there is the widget's. */
+    const COVERED: Painted = {
+      ...PAINTED,
+      drawing: {
+        ...DRAWING,
+        widgets: { horn: { kind: "button", at: [0, 0], size: [8, 4], payload: "horn" } },
+      },
+    };
+
+    it("is pressed by a click, before the train under it is taken hold of", () => {
+      const { pressed, sent, it } = machine(COVERED);
+      expect(it.down(on("a", 0.5), press)).toBe("quiet");
+      expect(it.marks).toBeNull();
+      it.up(on("a", 0.5), press.screen);
+      expect(pressed).toEqual(["horn"]);
+      expect(sent).toEqual([]);
+    });
+
+    it("is not pressed by a release off it, nor by a press that strayed", () => {
+      const { pressed, it } = machine(COVERED);
+      it.down(on("a", 0.5), press);
+      it.up({ x: 40, y: 40 }, press.screen);
+      it.down(on("a", 0.5), press);
+      it.moved(on("a", 0.5), { x: 30, y: 0 });
+      it.up(on("a", 0.5), { x: 30, y: 0 });
+      expect(pressed).toEqual([]);
+    });
+
+    it("is not pressed with nothing to gesture at", () => {
+      const { pressed, it } = machine(null);
+      it.down(on("a", 0.5), press);
+      it.up(on("a", 0.5), press.screen);
+      expect(pressed).toEqual([]);
+    });
+  });
 
   it("is quiet through and through with nothing to gesture at", () => {
     // No railroad on screen, or no session to submit to: every call answers
@@ -421,6 +463,7 @@ describe("the run view's machine", () => {
         throwPoint: (wanted) => {
           thrown.push(wanted);
         },
+        pressWidget: () => undefined,
         onRoster: () => false,
       });
       it.down(SW, at(OVER_CANVAS));

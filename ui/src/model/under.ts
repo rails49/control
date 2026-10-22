@@ -255,7 +255,7 @@ function symbolAt(drawing: Drawing, at: Point, shift: Shift): string | null {
 /** The widget covering a point, drawn where the drag has it. Two may overlap,
  *  nothing keeping them apart, and then the one drawn last — on top — is the
  *  one a press lands on. */
-function widgetAt(drawing: Drawing, at: Point, shift: Shift): string | null {
+export function widgetAt(drawing: Drawing, at: Point, shift: Shift = HERE): string | null {
   const found = Object.entries(drawing.widgets ?? {}).filter(([name, spec]) =>
     widgetCovers(spec, at, shift(selectionKey(name))),
   );

@@ -58,12 +58,18 @@ import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
-import { isWidgetKind, selectionKey, WIDGET_SIZE } from "../model/widgets.js";
+import {
+  isWidgetKind,
+  selectionKey,
+  WIDGET_SIZE,
+  widgetTopic,
+} from "../model/widgets.js";
 import {
   artwork,
   detectors,
   DEFS,
   widgetBox,
+  widgetFace,
   widgetWords,
 } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
@@ -581,11 +587,23 @@ export class TcCanvas extends LitElement {
    * says (ADR-0087). Drawn over the symbols, nothing keeping one off them, and
    * under the pins, a press on a pin still starting a wire.
    *
-   * The editor's alone: what a widget shows on a run is the run view's (#929).
+   * On a run each shows what its row says instead (`widgetFace`, #929): a
+   * text widget the row, a toggle its position, read off the rows the run
+   * hands over, and a button its name. A drawing drawn grey has no run to
+   * hand any, so each shows what it would with no row.
    */
   private widgets(): unknown {
     const editor = this.editing;
-    if (editor === null) return nothing;
+    if (editor === null) {
+      const rows = this.running?.widgets;
+      return Object.entries(this.document.widgets ?? {}).map(
+        ([name, spec]) => svg`
+          <g class=${`widget ${spec.kind}`} data-widget=${name}>
+            ${widgetFace(name, spec, rows?.get(widgetTopic(spec.kind, name)))}
+          </g>
+        `,
+      );
+    }
     return Object.entries(editor.widgets).map(([name, spec]) => {
       const key = selectionKey(name);
       const shifted = this.shift(key);

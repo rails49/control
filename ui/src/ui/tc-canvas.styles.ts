@@ -448,6 +448,26 @@ const running = css`
     fill: var(--amber);
   }
 
+  /* A toggle's position on a run (#929): lit for on, hollow for off. */
+  .widget-lamp {
+    stroke: var(--track);
+    stroke-width: ${W / 2};
+  }
+
+  .widget-lamp.on {
+    fill: var(--green);
+  }
+
+  .widget-lamp.off {
+    fill: var(--paper);
+  }
+
+  /* A button and a toggle are pressed, with or without track power. */
+  :host(.scheduling) .widget.button,
+  :host(.scheduling) .widget.toggle {
+    cursor: pointer;
+  }
+
   /* Scheduling by drag (#72). Only a joined session can submit, so only when
      the view says so does a train look like something to pick up. */
   :host(.scheduling) .symbol.occupied {
