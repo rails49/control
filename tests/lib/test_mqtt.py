@@ -286,6 +286,25 @@ def test_the_payload_on_the_wire_is_json(
     assert isinstance(sent["at"], float)
 
 
+def test_a_text_on_the_wire_is_its_utf8_retained(
+    buses: Callable[[], MqttBus], raw: paho.Client
+) -> None:
+    """A widget's text is raw, not JSON and not stamped, and a page opened
+    later finds it on the broker (ADR-0087 d.4, #941)."""
+    bus = buses()
+    text = "tc49/ui/state/text/track-A"
+    wire: list[bytes] = []
+    raw.on_message = lambda client, userdata, message: wire.append(message.payload)
+
+    bus.publish_text(text, "A \x1b[32mon\x1b[0m ⇄")
+    # Subscribed after the publish: what arrives is the retained value.
+    raw.subscribe(text, qos=0)
+
+    assert until(lambda: len(wire) == 1)
+    assert wire[0] == "A \x1b[32mon\x1b[0m ⇄".encode()
+    assert text not in bus.last_values
+
+
 def test_a_lost_connection_is_said_and_retried(
     broker: Broker, buses: Callable[[], MqttBus], capsys: pytest.CaptureFixture[str]
 ) -> None:

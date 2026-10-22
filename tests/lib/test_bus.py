@@ -309,3 +309,32 @@ def test_forgetting_drops_every_subscription_and_what_was_in_flight() -> None:
     assert EXHAUSTED in bus.last_values
     bus.drain()
     assert heard == []
+
+
+# --- a widget's text (ADR-0087 d.4, #941) -------------------------------------
+
+TEXT = "tc49/ui/state/text/track-A"
+
+
+def test_a_text_is_kept_as_written_and_delivered_to_no_subscriber() -> None:
+    """A widget's text is raw UTF-8 with no `at`, and a subscriber is handed
+    payloads, so nothing here hears it."""
+    bus = InProcessBus(Clock())
+    heard: list[str] = []
+    bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
+
+    bus.publish_text(TEXT, "A on")
+    bus.drain()
+
+    assert bus.last_texts == {TEXT: "A on"}
+    assert TEXT not in bus.last_values
+    assert heard == []
+
+
+def test_the_empty_text_clears_the_row() -> None:
+    bus = InProcessBus(Clock())
+    bus.publish_text(TEXT, "A on")
+
+    bus.publish_text(TEXT, "")
+
+    assert bus.last_texts == {}
