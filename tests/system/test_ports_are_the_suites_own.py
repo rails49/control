@@ -18,7 +18,7 @@ import socket
 
 import pytest
 
-from tests.ports import EPHEMERAL_FIRST, Ports, free_port
+from tests.ports import EPHEMERAL_FIRST, Ports, free_port, share
 
 
 def test_no_number_is_handed_out_twice_in_a_run() -> None:
@@ -55,3 +55,13 @@ def test_a_band_with_nothing_left_in_it_says_so() -> None:
         taken.listen()
         with pytest.raises(RuntimeError, match="no free port"):
             Ports(port, port, start=port).take()
+
+
+def test_parallel_workers_are_given_parts_that_do_not_overlap() -> None:
+    """Under pytest-xdist each worker is a process with a cursor of its own,
+    so the band is split rather than walked by all of them (#920)."""
+    parts = [share(45056, 49151, f"gw{n}", 12) for n in range(12)]
+    numbers = [set(range(first, last + 1)) for first, last in parts]
+    assert all(45056 <= first <= last <= 49151 for first, last in parts)
+    assert sum(len(n) for n in numbers) == len(set[int]().union(*numbers))
+    assert share(45056, 49151, None, 1) == (45056, 49151)
