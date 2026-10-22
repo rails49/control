@@ -1152,8 +1152,7 @@ to date.
 
 The drawing is still **frozen** (`frozen` in `model/commands.ts`) with power
 on: from the moment power lands until the page has moved, the editor's verbs
-and gestures are dead, and what was in flight goes (below). With power on it
-XX
+and gestures are dead, and what was in flight goes (below).
 
 **A drawing open with no railroad heard is frozen too** (#792). A page that
 has lost the broker still holds the drawing, while the broker, the layout and
@@ -1167,7 +1166,8 @@ it has nothing to freeze. The rule keys on the row and not on power, which
 reads nothing too before the layout has said. Power is read off its own row
 whether or not the drawing is valid, since it is what says whether the editor
 may save. Power then reads nothing, so the Edit view opens, frozen: this is
-the one freeze a person sees, and nothing on the band names it.
+the one freeze that leaves the Edit view open, and nothing on the band names
+it.
 
 This was a freeze on trains placed
 ([ADR-0038](../adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md),
