@@ -1084,7 +1084,7 @@ def _widget(where: str, name: Any, spec: Any) -> Widget:
             f"{where}: unknown kind {kind!r}, a widget is one of {list(WIDGET_KINDS)}"
         )
     required, optional = WIDGET_KINDS[kind]
-    check_keys(spec, where, {"kind", "at"} | required, optional)
+    check_keys(spec, where, {"kind", "at"} | required, set(optional))
     _check_geometry({"at": spec["at"]}, where)
     text = spec.get("text", "normal")
     if text not in WIDGET_TEXT:
