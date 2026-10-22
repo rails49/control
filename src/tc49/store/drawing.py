@@ -5,6 +5,8 @@ The drawing is the source of truth (ADR-0015); the layout is derived on
 their pins, and wire shape carries no meaning — derivation reads only which
 pin connects to which, so moving a symbol can never change the derived
 layout. The format is [DRAWING.md](../../../docs/store/DRAWING.md).
+Widgets sit beside the symbols and are checked with the schema, but carry no
+pins, so derivation never reads them either (ADR-0087).
 
 Validation splits in two. The *schema* is checked at construction, so a
 document that loads is well-formed. The *pin rules* — every pin holds exactly
@@ -25,6 +27,7 @@ The result is a layout *document* in canonical key order, which the store
 hands to the existing validator as a safety net against derivation bugs.
 """
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -108,6 +111,18 @@ _JOINERS = frozenset({BEND, "portal"})
 _PLACEMENT = frozenset({"at", "rot", "flip"})
 ROTATIONS = (0, 90, 180, 270)
 
+# A widget: text, a button or a toggle placed beside the track (ADR-0087). Its
+# name ends its topic, so it is one topic level. Every kind takes a place, a
+# size and how its words are set; each kind takes its own payload keys besides.
+WIDGET_KINDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    "text": (frozenset(), frozenset({"default"})),
+    "button": (frozenset({"payload"}), frozenset()),
+    "toggle": (frozenset({"on", "off"}), frozenset()),
+}
+WIDGET_TEXT = ("small", "normal", "large")
+WIDGET_ALIGN = ("left", "center", "right")
+_WIDGET_NAME = re.compile(r"[A-Za-z0-9_-]+")
+
 Use = tuple[str, str]  # a symbol and the local transit a walk took through it
 Walk = tuple[tuple[str, str], tuple[Use, ...]]  # the block ends, and the way
 
@@ -152,6 +167,23 @@ class Symbol:
 
 
 @dataclass(frozen=True)
+class Widget:
+    """A text, a button or a toggle on the drawing. It has no pins and no
+    transits, so derivation never reads one (ADR-0087)."""
+
+    name: str
+    kind: str
+    at: tuple[int, int]
+    size: tuple[int, int]
+    text: str = "normal"
+    align: str = "center"
+    default: str = ""  # a text widget's, shown until a row arrives
+    payload: str = ""  # a button's
+    on: str = ""  # a toggle's two payloads, which differ
+    off: str = ""
+
+
+@dataclass(frozen=True)
 class Drawing:
     name: str
     symbols: dict[str, Symbol]
@@ -162,10 +194,16 @@ class Drawing:
     wire_connections: dict[tuple[str, str], str] = field(
         default_factory=dict[tuple[str, str], str]
     )
+    widgets: dict[str, Widget] = field(default_factory=dict[str, Widget])
 
     @classmethod
     def from_document(cls, doc: Any) -> "Drawing":
-        check_keys(doc, "drawing document", {"drawing", "symbols"}, {"units", "wires"})
+        check_keys(
+            doc,
+            "drawing document",
+            {"drawing", "symbols"},
+            {"units", "wires", "widgets"},
+        )
         name = doc["drawing"]
         check_name(name, "drawing")
 
@@ -194,7 +232,16 @@ class Drawing:
                     connection
                 )
 
-        return cls(name, symbols, tuple(wires), doc.get("units"), wire_connections)
+        widgets: dict[str, Widget] = {}
+        for widget, spec in as_mapping(
+            {} if doc.get("widgets") is None else doc["widgets"],
+            f"drawing '{name}': widgets",
+        ).items():
+            widgets[widget] = _widget(f"drawing '{name}'", widget, spec)
+
+        return cls(
+            name, symbols, tuple(wires), doc.get("units"), wire_connections, widgets
+        )
 
     def derive(self) -> dict[str, Any]:
         """The layout document this drawing describes, in canonical order."""
@@ -1017,6 +1064,65 @@ def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
         concurrent,
         names={transit: transit for transit in transits} if names_transits else {},
         connection=_connection_of(where, spec),
+    )
+
+
+def _widget(where: str, name: Any, spec: Any) -> Widget:
+    """A widget, checked against its kind. The name is one topic level, so it
+    is narrower than a symbol's: letters, digits, `_` and `-`."""
+    if not isinstance(name, str) or not _WIDGET_NAME.fullmatch(name):
+        raise ValueError(
+            f"{where}: widget name {name!r} must be letters, digits, '_' and '-'"
+        )
+    where = f"{where}: widget '{name}'"
+    as_mapping(spec, where)
+    kind = spec.get("kind")
+    if kind not in WIDGET_KINDS:
+        raise ValueError(
+            f"{where}: unknown kind {kind!r}, a widget is one of {list(WIDGET_KINDS)}"
+        )
+    required, optional = WIDGET_KINDS[kind]
+    check_keys(
+        spec, where, {"kind", "at", "size"} | required, {"text", "align"} | optional
+    )
+    _check_geometry({"at": spec["at"]}, where)
+    size: Any = spec["size"]
+    if (
+        not isinstance(size, list)
+        or len(cast(list[Any], size)) != 2
+        or [
+            n
+            for n in cast(list[Any], size)
+            if not isinstance(n, int) or isinstance(n, bool) or n <= 0
+        ]
+    ):
+        raise ValueError(f"{where}: size must be two positive integers, got {size!r}")
+    text = spec.get("text", "normal")
+    if text not in WIDGET_TEXT:
+        raise ValueError(f"{where}: text must be one of {list(WIDGET_TEXT)}")
+    align = spec.get("align", "center")
+    if align not in WIDGET_ALIGN:
+        raise ValueError(f"{where}: align must be one of {list(WIDGET_ALIGN)}")
+    strings: dict[str, str] = {}
+    for key in sorted(required | optional):
+        if key in spec:
+            if not isinstance(spec[key], str):
+                raise ValueError(f"{where}: {key} must be a string")
+            strings[key] = spec[key]
+    if kind == "toggle" and strings["on"] == strings["off"]:
+        raise ValueError(
+            f"{where}: on and off must differ, a page reads the toggle's"
+            f" position by comparing the row with them"
+        )
+    at, size = cast(list[int], spec["at"]), cast(list[int], size)
+    return Widget(
+        name,
+        kind,
+        (at[0], at[1]),
+        (size[0], size[1]),
+        text=text,
+        align=align,
+        **strings,
     )
 
 
