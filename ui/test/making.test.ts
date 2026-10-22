@@ -731,30 +731,6 @@ describe("the roster's Save with a length corrected", () => {
     expect(saving(shell).disabled).toBe(true);
   });
 
-  it("names nothing for a save with no length changed", async () => {
-    const shell = await opened();
-    await placed(shell, "off");
-    await typed(shell, parts(shell, "li.car input.addr")[0]!, "7");
-
-    await pressed(shell, "sl-button.save");
-
-    expect(written()!.cars!["arnold-ce68-1"]!.addr).toBe("7");
-    expect(wants()).toEqual([]);
-  });
-
-  /** A save that did not land changed nothing any app could build. */
-  it("names nothing for a save the store refused", async () => {
-    const shell = await opened();
-    await placed(shell, "off");
-    await typed(shell, parts(shell, "li.car input.length")[0]!, "150");
-    between((path) => path.startsWith("/rosters/"));
-
-    await pressed(shell, "sl-button.save");
-
-    expect(trouble(shell)).not.toBeNull();
-    expect(wants()).toEqual([]);
-  });
-
   /** A save that lands with the broker gone has nobody to name the railroad
    *  to, and the row coming back names the same one, so the press is owed
    *  and sent once the row and power off are replayed (#803). It is pressed

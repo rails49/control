@@ -978,8 +978,8 @@ export class TcStock extends LitElement {
    * the corrected models and then the roster, and what the store said on the
    * line under the trains.
    *
-   * A save that changed a length tells the app, which names the loaded
-   * railroad again so the dispatcher fits trains with the new length and a
+   * A save that changed a length names the loaded railroad again — `Railroad`
+   * does, not this — so the dispatcher fits trains with the new length and a
    * train now longer than its block comes off and is listed (ADR-0071). Save
    * is dead while such an edit waits for power off, and while its own write is
    * in flight (#723), so the guards inside are a second answer and not a press
@@ -989,15 +989,7 @@ export class TcStock extends LitElement {
     const railroad = this.railroad;
     if (railroad === undefined) return;
     this.trouble = null;
-    const reached = await railroad.save(this.power, this.heard);
-    if (!reached) return;
-    this.dispatchEvent(
-      new CustomEvent<string>("lengths-saved", {
-        detail: railroad.name,
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    await railroad.save(this.power, this.heard);
   };
 
   /** An edit that cannot refuse. It still goes through `did`, so the screen

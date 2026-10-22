@@ -31,7 +31,6 @@ import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { TcProperties } from "../src/ui/tc-properties.js";
 import {
   band,
-  chips,
   editing,
   inside,
   mounted,
@@ -538,6 +537,8 @@ function marked(shell: TcApp): string {
  * so every app builds what was written and keeps the trains that fit
  * (ADR-0071); the layout builds only with power off, so with power on or
  * draining nothing is written and the edits stay on the page, marked unsaved.
+ * What the save writes and names is `Railroad`'s, and tested there
+ * (test/railroad.test.ts); these check the way in.
  */
 describe("leaving the editor", () => {
   it("has no Save on the rail", async () => {
@@ -562,40 +563,6 @@ describe("leaving the editor", () => {
     expect(marked(shell)).toBe("");
   });
 
-  it("writes nothing without edits", async () => {
-    const store = serving({
-      drawings: ["toy"],
-      rosterOf: () => STOCK,
-      read: stored,
-      review: () => Promise.resolve(DERIVES),
-    });
-    const shell = await editor();
-    await said(shell, POWER, { power: "off" });
-
-    await leaves(shell);
-
-    expect(store.saved).toEqual([]);
-    expect(wants()).toEqual([]);
-  });
-
-  for (const power of ["on", "draining"] as const) {
-    it(`writes nothing with power ${power}, and marks the edits unsaved`, async () => {
-      const store = serving({
-        drawings: ["toy"],
-        rosterOf: () => STOCK,
-        read: stored,
-        review: () => Promise.resolve(DERIVES),
-      });
-      const shell = await unsaved(power);
-
-      await leaves(shell);
-
-      expect(store.saved).toEqual([]);
-      expect(wants()).toEqual([]);
-      expect(marked(shell)).toBe("unsaved");
-    });
-  }
-
   /** Edits held while power was on are saved the next time the Edit view is
    *  left with power off. */
   it("saves held edits the next time it is left with power off", async () => {
@@ -614,47 +581,6 @@ describe("leaving the editor", () => {
 
     expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
     expect(marked(shell)).toBe("");
-  });
-
-  /** A save that failed reads in the band's trouble chip, and the edits stay
-   *  marked unsaved. */
-  it("marks the edits unsaved where the save failed", async () => {
-    serving({
-      drawings: ["toy"],
-      rosterOf: () => STOCK,
-      read: stored,
-      review: () => Promise.resolve(DERIVES),
-      refuses: (path) => (path === "/drawings/toy" ? { status: 507, error: "the disk is full" } : null),
-    });
-    const shell = await unsaved("off");
-
-    await leaves(shell);
-
-    expect(wants()).toEqual([]);
-    expect(marked(shell)).toBe("unsaved");
-    expect(chips(shell).some((one) => one.includes("the disk is full"))).toBe(true);
-  });
-
-  /** What it wrote is toy's, and otira is what is loaded once the write
-   *  answers: naming either would rebuild something nobody asked for (#798). */
-  it("names nothing where the row named another railroad before the write answered", async () => {
-    let answer: () => void = () => {};
-    const gate = new Promise<void>((resolve) => (answer = resolve));
-    serving({
-      drawings: ["toy", "otira"],
-      rosterOf: () => STOCK,
-      read: stored,
-      review: () => Promise.resolve(DERIVES),
-      held: (path) => (path === "/drawings/toy" ? gate : null),
-    });
-    const shell = await unsaved("off");
-
-    await leaves(shell);
-    await loads(shell, "otira");
-    answer();
-    await settled(shell);
-
-    expect(wants()).toEqual([]);
   });
 
   /** ⌘S was Save and ⇧⌘S Save As; both keys are still taken from the
@@ -721,20 +647,6 @@ describe("hiding the page", () => {
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
   });
 
-  it("writes nothing with power on", async () => {
-    const store = serving({
-      drawings: ["toy"],
-      rosterOf: () => STOCK,
-      read: stored,
-      review: () => Promise.resolve(DERIVES),
-    });
-    const shell = await unsaved("on");
-
-    window.dispatchEvent(new Event("pagehide"));
-    await settled(shell);
-
-    expect(store.saved).toEqual([]);
-  });
 });
 
 /**
@@ -811,7 +723,8 @@ describe("losing the broker", () => {
 /**
  * ON with unsaved edits saves first, and power comes on once the apps have
  * built what was saved (ADR-0085, decision 2): the row naming the railroad
- * again is the build arriving, and `on` goes only after it.
+ * again is the build arriving, and `on` goes only after it. What cancels the
+ * wait is the session's, and tested there (test/session.test.ts).
  */
 describe("ON with the loaded railroad's edits unsaved", () => {
   it("is live", async () => {
@@ -839,48 +752,12 @@ describe("ON with the loaded railroad's edits unsaved", () => {
     expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
   });
 
-  it("sends nothing where the build says nothing was built", async () => {
-    const shell = await unsaved("off");
-
-    await supplied(shell, "on");
-    await said(shell, RAILROAD, { name: "toy", built: false });
-
-    expect(powers()).toEqual([]);
-  });
-
-  it("sends nothing where the save failed", async () => {
-    serving({
-      drawings: ["toy"],
-      rosterOf: () => STOCK,
-      read: stored,
-      review: () => Promise.resolve(DERIVES),
-      refuses: (path) => (path === "/drawings/toy" ? { status: 507, error: "the disk is full" } : null),
-    });
-    const shell = await unsaved("off");
-
-    await supplied(shell, "on");
-    await said(shell, RAILROAD, { name: "toy" });
-
-    expect(wants()).toEqual([]);
-    expect(powers()).toEqual([]);
-  });
-
-  /** STOP pressed while the build is coming is a person changing their
-   *  mind: the build arriving after it turns nothing on. */
-  it("sends no on after a STOP pressed while it waits", async () => {
-    const shell = await unsaved("off");
-
-    await supplied(shell, "on");
-    await supplied(shell, "stopped");
-    await said(shell, RAILROAD, { name: "toy" });
-
-    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
-  });
-
-  it("sends no on after a STOP pressed while the write is out", async () => {
+  /** ON pressed while leaving the Edit view writes is the same save: the
+   *  railroad is named once, not once for each (#910). */
+  it("names the railroad once for ON pressed while leaving's write is out", async () => {
     let answer: () => void = () => {};
     const gate = new Promise<void>((resolve) => (answer = resolve));
-    serving({
+    const store = serving({
       drawings: ["toy"],
       rosterOf: () => STOCK,
       read: stored,
@@ -889,13 +766,18 @@ describe("ON with the loaded railroad's edits unsaved", () => {
     });
     const shell = await unsaved("off");
 
-    press(power(shell), "toggle");
-    press(power(shell), "stop");
+    await leaves(shell);
+    await supplied(shell, "on");
     answer();
     await settled(shell);
-    await said(shell, RAILROAD, { name: "toy" });
 
-    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
+    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+    expect(powers()).toEqual([]);
+
+    await said(shell, RAILROAD, { name: "toy", built: true });
+
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
   });
 
   it("sends on at once with nothing unsaved", async () => {
