@@ -48,6 +48,9 @@ leaves it **standing** — up, naming no railroad (`""`) on
 `tc49/layout/state/railroad`, built on the first one a person picks that the
 store can give (#564, #727, `lib/loading.py`). One whose drawing is not a
 valid drawing stays named, with `built: false`, as in `layout` (ADR-0085).
+Those steps, from the store's record to the rows cleared on a move, are
+`rebuilding`'s, the loop both layout bindings run (`lib/loading.py`,
+ADR-0086); what this file hands it is its own `_Binding`.
 
 Then the loop, which is this app's own and older than its command line: the
 discrete-event queue slept on a wall clock (`run_live`). Where every other
@@ -70,21 +73,12 @@ import contextlib
 import signal
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import (
-    NO_RAILROAD,
-    Answering,
-    answered,
-    drawn,
-    dropped,
-    named,
-    standing,
-    still_standing,
-)
+from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 from tc49.simulator.sim import Simulator
@@ -127,91 +121,95 @@ def serve(
     clear_s: float = CLEAR_S,
     log: Callable[[str], None] = to_stderr,
 ) -> None:
-    """The app: its document, its rows, and the loop it already owns.
+    """The app: the broker, then the rebuild loop both layout bindings run
+    (`lib/loading.py`, ADR-0086), handed this one's `_Binding`.
 
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. The deployment sets it never: a signal raises where the process
     happens to be — in the loop, or in either wait above it — and `main`
     lets that out.
 
-    The clock starts here and at zero, and `run_live` is the only thing that
-    advances it: seconds since this process started, which is what the two
-    delays are measured in. Nothing on the bus carries it — the stamps on the
-    wire come off wall time in the binding (ADR-0059, decision 1) — so a
-    restart resetting it is news to nobody (ADR-0009).
+    The gesture waits for `off` here as it does in `layout`: this binding
+    answers the band's power presses as that one does and comes up `off`, so
+    a railroad is picked before a person presses ON or after OFF (ADR-0070).
     """
-    # The gesture waits for `off` here as it does in `layout`: this binding
-    # answers the band's power presses as that one does and comes up `off`, so
-    # a railroad is picked before a person presses ON or after OFF (ADR-0070).
     if not connected(bus, stop, log):
         return
-    # The store's record wins, as it does in `layout` (`Answering.recorded`).
-    loaded = Answering.recorded(documents, railroad, log)
-    reading = drawn(documents.layout, _nothing, log)
-    read = standing(bus, loaded, stop, log, reading, period_s)
-    if read is None:
-        return
-    layout, derived = read
-    log(f"'{loaded.name}': {len(layout.blocks)} blocks")
-    position: dict[str, str] = {}
-    while not stop.is_set():
-        # Before the app's opening rows and not after, where the scheduler,
-        # the dispatcher and the driver subscribe to the state row
-        # afterwards: what this one watches is a **gesture**, and an event is
-        # not retained, so a press landing in the instant between the rows
-        # and the subscription would simply be gone (ADR-0059, decision 5).
-        # It also picks up the supply this app is about to state, which is
-        # the precondition on the gesture: `off` from the constructor, and
-        # then whatever each answered press commanded, so the gesture is
-        # answered while the rails read `off` and refused otherwise
-        # (ADR-0070).
-        loaded.follow(bus)
-        documents.put_loaded(loaded.name)
-        clock = Clock()
+    binding = _Binding(bus, documents, stop, period_s, transit_s, clear_s)
+    rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
+
+
+class _Binding:
+    """What this binding hands the rebuild loop: one document read, and a
+    `Simulator` built on it. This binding's steel is the drawing it was built
+    from, so another railroad is another simulator (ADR-0030)."""
+
+    owned: Sequence[str] = OWNED
+
+    def __init__(
+        self,
+        bus: MqttBus,
+        documents: Documents,
+        stop: threading.Event,
+        period_s: float,
+        transit_s: float,
+        clear_s: float,
+    ) -> None:
+        self._bus = bus
+        self._stop = stop
+        self._period_s = period_s
+        self._transit_s = transit_s
+        self._clear_s = clear_s
+        self._documents = documents
+
+    def read(self, railroad: str) -> Layout:
+        """The drawing alone: this binding sends no command, so it reads no
+        roster."""
+        return self._documents.layout(railroad)
+
+    def nothing(self, railroad: str) -> Layout:
+        """What this binding stands in for where `railroad`'s drawing is not
+        a valid drawing and there is no build to keep: no track under its
+        name, the layout interface's own answer (ADR-0085, decision 4)."""
+        return Layout(railroad, {}, {}, frozenset(), {})
+
+    def layout(self, read: Layout) -> Layout:
+        return read
+
+    def build(self, read: Layout, position: dict[str, str], built: bool) -> Running:
+        """The simulator on its own clock, starting at zero, which `run_live`
+        is the only thing to advance. The steel stands where it stood under
+        the same name, a train longer than its block included: that is where
+        the steel has it (ADR-0071)."""
         simulator = Simulator(
-            bus,
-            layout,
-            clock,
+            self._bus,
+            read,
+            Clock(),
             position,
-            transit_s=transit_s,
-            clear_s=clear_s,
-            built=derived,
+            transit_s=self._transit_s,
+            clear_s=self._clear_s,
+            built=built,
         )
-        built = loaded.name
-        log(f"up on {named(built)}, waiting at most {period_s}s a turn")
-        # The loop the app already owns, ended by a signal or by the railroad
-        # moving under it — this binding's steel is the drawing it was built
-        # from, so another railroad is another simulator (ADR-0030). A
-        # railroad picked whose drawing is not a valid drawing is named on
-        # the row, and this one goes on running (ADR-0085, decision 4).
-        picked: tuple[Layout, bool] | None = None
-        while picked is None:
-            simulator.run_live(
-                period_s,
-                sleep=_waiting(stop),
-                stop=lambda: stop.is_set() or loaded.moved,
-            )
-            if not loaded.moved:
-                return
-            picked = answered(
-                bus, documents, loaded, built, (layout, derived), log, reading
-            )
-        layout, derived = picked
-        # The steel stands where it stood under the same name, a train
-        # longer than its block included: that is where the steel has it
-        # (ADR-0071). Under another name nothing is placed.
-        position = (
-            still_standing(simulator.position, layout) if loaded.name == built else {}
-        )
-        gone = dropped(bus, OWNED, stop, RETAINED_S)
-        log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
+        return _Running(simulator, self._stop, self._period_s)
 
 
-def _nothing(railroad: str) -> Layout:
-    """What this binding stands in for where `railroad`'s drawing is not a
-    valid drawing and there is no build to keep: no track under its name, the
-    layout interface's own answer (ADR-0085, decision 4)."""
-    return Layout(railroad, {}, {}, frozenset(), {})
+class _Running:
+    """A built `Simulator` and the loop it already owns: the discrete-event
+    queue slept on a wall clock, ended by a signal or by `until`."""
+
+    def __init__(
+        self, simulator: Simulator, stop: threading.Event, period_s: float
+    ) -> None:
+        self._simulator = simulator
+        self._stop = stop
+        self._period_s = period_s
+
+    @property
+    def position(self) -> dict[str, str]:
+        return self._simulator.position
+
+    def run(self, until: Callable[[], bool]) -> None:
+        self._simulator.run_live(self._period_s, sleep=_waiting(self._stop), stop=until)
 
 
 def _waiting(stop: threading.Event) -> Callable[[float], None]:

@@ -18,29 +18,17 @@ flag either: a container is configured by its environment, so it is
 `TC49_LAYOUT_THROTTLE_SILENCE` on the layout's service (docs/DEPLOY.md), read
 once here, and a bad one stops the app before it looks for a broker.
 
-The startup order is `lib/startup.py`'s, with the subscription to
-`tc49/layout/railroad_wanted` in it. **The record first**: the store says which
-railroad was loaded last (`/loaded`), and this app starts on that one — nothing
-on the command line names a railroad, so a box comes back on the railroad its
-rails were built to and not on one an env file named, and a box that records
-none stands (ADR-0072, decision 5). Then **two documents**: the transits a
-`move` may name and the signal at each block end come off the layout, and the
-addresses that answer for a train off the roster, no address ever reaching a
-command (#199). Between the broker and the rows,
-**`tc49/layout/railroad_wanted`**, subscribed before a word is published: this
-app is the one that answers it rather than following the state row (ADR-0060),
-what it carries is a gesture, and an event is not retained, so a press landing
-before the subscription is gone; the supply the gesture is conditional on comes
-with it (`lib/loading.py`). **The rows it adopts** are the traction rows a
-previous process left, which the constructor zeroes as it runs. A railroad the
-store does not have leaves it **standing** — up, naming no railroad (`""`) on
-`tc49/layout/state/railroad`, built on the first one a person picks that the
-store can give (#564, #727, `lib/loading.py`). One whose drawing is not a
-valid drawing **stays named**: recorded, and said on that row with
-`built: false`, the app running what it holds — the last build, or nothing
-under that name after a restart — and still answering the power (ADR-0085,
-decision 4). Each railroad it is built on is **written back to the record**
-before the build, so the next start finds it.
+The startup order is `lib/startup.py`'s, and the steps from the store's
+record to the rows cleared on a move are `rebuilding`'s, the loop both
+layout bindings run (`lib/loading.py`, ADR-0086): the record first, standing
+where the store cannot give it, `tc49/layout/railroad_wanted` followed before
+each build, a drawing that is not a valid drawing named with `built: false`,
+the trains kept under the same name. What is this binding's own is handed
+over as `_Binding`. **Two documents**: the transits a `move` may name and
+the signal at each block end come off the layout, and the addresses that
+answer for a train off the roster, no address ever reaching a command
+(#199). **The rows it adopts** are the traction rows a previous process left,
+waited for as each build begins and zeroed by the constructor (#333).
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves
@@ -71,7 +59,7 @@ import signal
 import sys
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
@@ -82,16 +70,7 @@ from tc49.layout.interface import (
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
-from tc49.lib.loading import (
-    NO_RAILROAD,
-    Answering,
-    answered,
-    drawn,
-    dropped,
-    named,
-    standing,
-    still_standing,
-)
+from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
@@ -186,7 +165,8 @@ def serve(
     log: Callable[[str], None] = to_stderr,
     throttle_silence_s: float = THROTTLE_SILENCE_S,
 ) -> None:
-    """The app: its documents, its rows, and its loop.
+    """The app: the broker, then the rebuild loop both layout bindings run
+    (`lib/loading.py`, ADR-0086), handed this one's `_Binding`.
 
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. The deployment sets it never: a signal raises where the process
@@ -194,105 +174,113 @@ def serve(
     lets that out.
 
     `railroad` is where this app starts **where the store records nothing**
-    (`Answering.recorded`), read once the broker is there. A recorded
-    railroad the store no longer has is refused as any starting point is,
-    and the app stands; the record is left as it is, the next load being
-    what overwrites it.
+    (`Answering.recorded`), read once the broker is there.
 
-    The clock starts here and at zero, and every turn puts it where wall time
-    is. Seconds since this process started, which is what a settling time is
-    measured in and the only thing that reads it; nothing on the bus carries
-    it, so a restart resetting it is news to nobody (ADR-0009).
-
-    The outer loop is one railroad each time round. This app is the one that
-    publishes which railroad that is, so it is the one that **answers**
-    `tc49/layout/railroad_wanted` rather than following the row: a person loads
-    a railroad while the apps run and the layout interface is what says which
-    one is loaded (ADR-0060). The desired rows go with the old one — a speed
-    for a locomotive the new railroad does not have, a position for a point it
-    does not have, and nothing would ever republish either. Where each train
-    stands goes too under another name, and **stays under the same one**: the
-    new build starts from the old one's, less any train whose block the new
-    drawing lacks (ADR-0071). And each turn **records** the railroad it is
-    about to build on, so that the next start of this process comes up on it:
-    the same name written again leaves the store as it was.
+    The desired rows go with the railroad that is left — a speed for a
+    locomotive the new railroad does not have, a position for a point it
+    does not have, and nothing would ever republish either (`OWNED`).
     """
     if not connected(bus, stop, log):
         return
-    loaded = Answering.recorded(documents, railroad, log)
-    reading = drawn(lambda name: _documents(documents, name), _nothing, log)
-    read = standing(bus, loaded, stop, log, reading, period_s)
-    if read is None:
-        return
-    (layout, roster), derived = read
-    log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
-    position: dict[str, str] = {}
-    while not stop.is_set():
-        # First of all, where the scheduler, the dispatcher and the driver
-        # subscribe to the state row after they are built: what this one
-        # watches is a **gesture**, and an event is not retained, so a press
-        # landing anywhere before the subscription — in the window below, or
-        # between the app's opening rows and its own handlers — would simply
-        # be gone (ADR-0059, decision 5). It also picks up the supply this
-        # app is about to state, which is the precondition on the gesture.
-        loaded.follow(bus)
-        _retained(bus, stop)
-        documents.put_loaded(loaded.name)
+    binding = _Binding(bus, documents, stop, period_s, throttle_silence_s)
+    rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
+
+
+class _Binding:
+    """What this app hands the rebuild loop: two documents read, the
+    traction rows waited for before each build (#333), and a
+    `LayoutInterface` built on them."""
+
+    owned: Sequence[str] = OWNED
+
+    def __init__(
+        self,
+        bus: MqttBus,
+        documents: Documents,
+        stop: threading.Event,
+        period_s: float,
+        throttle_silence_s: float,
+    ) -> None:
+        self._bus = bus
+        self._documents = documents
+        self._stop = stop
+        self._period_s = period_s
+        self._throttle_silence_s = throttle_silence_s
+
+    def read(self, railroad: str) -> tuple[Layout, Roster]:
+        """The pair the interface is built from: the railroad's topology and
+        the stock that runs on it."""
+        return self._documents.layout(railroad), self._documents.roster(railroad)
+
+    def nothing(self, railroad: str) -> tuple[Layout, Roster]:
+        """What this app runs on where `railroad`'s drawing is not a valid
+        drawing and there is no build to keep: no block and no train under
+        its name, so the row names it and the power is still answered
+        (ADR-0085, decision 4)."""
+        return Layout(railroad, {}, {}, frozenset(), {}), Roster(railroad, {})
+
+    def layout(self, read: tuple[Layout, Roster]) -> Layout:
+        return read[0]
+
+    def build(
+        self, read: tuple[Layout, Roster], position: dict[str, str], built: bool
+    ) -> Running:
+        """The traction rows seen, then the interface built on its own clock,
+        starting at zero."""
+        _retained(self._bus, self._stop)
+        layout, roster = read
         clock = Clock()
         app = LayoutInterface(
-            bus,
+            self._bus,
             layout,
             roster,
             clock,
-            throttle_silence_s=throttle_silence_s,
+            throttle_silence_s=self._throttle_silence_s,
             position=position,
-            built=derived,
+            built=built,
         )
-        built = loaded.name
-        log(f"up on {named(built)}, draining every {period_s}s")
-        started = time.monotonic()
-        alive: float | None = None
-        # Until a railroad is picked that builds: one whose drawing is not a
-        # valid drawing is named on the row and this build goes on running,
-        # its rows kept (ADR-0085, decision 4).
-        picked: tuple[tuple[Layout, Roster], bool] | None = None
-        while picked is None:
-            while not stop.is_set() and not loaded.moved:
-                now = time.monotonic()
-                clock.advance(now - started)
-                # Here and only here: standing, or reloading for another
-                # railroad, says nothing, and loading needs the power off, so
-                # a cut then changes nothing (#716).
-                if alive is None or now - alive >= ALIVE_S:
-                    bus.publish(ALIVE_CONFIRMED, {})
-                    alive = now
-                app.settle()
-                bus.drain()
-                stop.wait(period_s)
-            if not loaded.moved:
-                return
-            picked = answered(
-                bus, documents, loaded, built, ((layout, roster), derived), log, reading
-            )
-        (layout, roster), derived = picked
-        position = still_standing(app.position, layout) if loaded.name == built else {}
-        gone = dropped(bus, OWNED, stop, RETAINED_S)
-        log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
+        return _Running(self._bus, app, clock, self._stop, self._period_s)
 
 
-def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
-    """The pair the interface is built from: the railroad's topology and the
-    stock that runs on it. What this app reads, which is the whole of what it
-    says when a railroad is loaded under it (`lib.loading.taken`)."""
-    return documents.layout(railroad), documents.roster(railroad)
+class _Running:
+    """A built `LayoutInterface` and the loop that paces it: advance the
+    clock to wall time, say it is up, `settle()`, drain, once per period."""
 
+    def __init__(
+        self,
+        bus: MqttBus,
+        app: LayoutInterface,
+        clock: Clock,
+        stop: threading.Event,
+        period_s: float,
+    ) -> None:
+        self._bus = bus
+        self._app = app
+        self._clock = clock
+        self._stop = stop
+        self._period_s = period_s
+        self._started = time.monotonic()
+        # When it last said it is up: kept across `run` being entered again
+        # after a pick that was not built, so the rate holds (#716).
+        self._alive: float | None = None
 
-def _nothing(railroad: str) -> tuple[Layout, Roster]:
-    """What this app runs on where `railroad`'s drawing is not a valid
-    drawing and there is no build to keep: no block and no train under its
-    name, so the row names it and the power is still answered (ADR-0085,
-    decision 4)."""
-    return Layout(railroad, {}, {}, frozenset(), {}), Roster(railroad, {})
+    @property
+    def position(self) -> dict[str, str]:
+        return self._app.position
+
+    def run(self, until: Callable[[], bool]) -> None:
+        while not until():
+            now = time.monotonic()
+            self._clock.advance(now - self._started)
+            # Here and only here: standing, or reloading for another
+            # railroad, says nothing, and loading needs the power off, so a
+            # cut then changes nothing (#716).
+            if self._alive is None or now - self._alive >= ALIVE_S:
+                self._bus.publish(ALIVE_CONFIRMED, {})
+                self._alive = now
+            self._app.settle()
+            self._bus.drain()
+            self._stop.wait(self._period_s)
 
 
 def _retained(

@@ -23,28 +23,19 @@ import time
 from collections.abc import Callable, Iterator
 from http.server import HTTPServer
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
-from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
-from tc49.simulator import Simulator
 from tc49.simulator.__main__ import serve
-from tc49.store import AssetStore
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, settle, until
+from tests.brokers import Broker, drained, settle
 from tests.harness import ASSETS
 from tests.ports import free_port
 
 RAILROAD_NAME = "crossover-yard"
-OTHER = "single-track-meet"
-"""A second railroad for the store to hold, loaded while the app runs: what
-the record follows (ADR-0072, decision 5)."""
-GONE = "nowhere"
-"""A name the store lists no railroad under."""
 RAILROAD = "tc49/layout/state/railroad"
 POWER = "tc49/layout/state/power"
 MOVE = "tc49/layout/move"
@@ -79,12 +70,6 @@ def drawn(root: Path, railroad: str) -> None:
         ASSETS / "layouts" / f"{railroad}.drawing.yaml",
         root / "layouts" / f"{railroad}.drawing.yaml",
     )
-
-
-def recorded(root: Path, railroad: str) -> None:
-    """The store's record of the railroad loaded last, as the binding that
-    ran before this one left it (#728)."""
-    AssetStore(root).put_loaded(railroad)
 
 
 class Store:
@@ -297,122 +282,3 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
     assert app.running, "the app stopped on its own"
     hand.close()
     witness.close()
-
-
-RAILROAD_WANTED = "tc49/layout/railroad_wanted"
-
-
-@pytest.fixture
-def built(monkeypatch: pytest.MonkeyPatch) -> list[Simulator]:
-    """Every simulator the app builds, in order: the one it came up on, then
-    one per rebuild. What a rebuild carries over is held in no row — it is
-    the steel's own memory, on no topic (ADR-0030) — so it is read off the
-    object."""
-    simulators: list[Simulator] = []
-
-    class Recorded(Simulator):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, **kwargs)
-            simulators.append(self)
-
-    monkeypatch.setattr("tc49.simulator.__main__.Simulator", Recorded)
-    return simulators
-
-
-def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
-    broker: Broker, store: Store, root: Path, app: App, built: list[Simulator]
-) -> None:
-    """With track power off a saved edit changes the drawing and not the
-    track, so the steel stands where it stood (ADR-0071). The edit here
-    renames `yard_e`: the train standing in it has no block left in the
-    drawing to stand in, and the one in `yard_w` is kept."""
-    store.start()
-    witness, heard = watching(broker)
-    app.start()
-    assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
-    hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
-    hand.publish(PLACED, {"train": "express_2", "block": "yard_e"})
-    assert drained(
-        witness, lambda: len(built[0].position) == 2
-    ), "the placements never landed"
-
-    drawing = root / "layouts" / f"{RAILROAD_NAME}.drawing.yaml"
-    drawing.write_text(drawing.read_text().replace("yard_e", "siding_e"))
-    hand.publish(RAILROAD_WANTED, {"railroad": RAILROAD_NAME})
-
-    assert drained(witness, lambda: len(built) == 2), "it was never rebuilt"
-    assert built[1].position == {"freight_1": "yard_w"}
-    hand.close()
-    witness.close()
-
-
-def test_it_starts_on_the_railroad_the_store_records(
-    broker: Broker, store: Store, root: Path
-) -> None:
-    """A box comes back on the railroad it was left on (ADR-0072, decision
-    5): started with no railroad named, as every command line starts it, the
-    app reads the store's record and comes up on that, as `layout` does."""
-    recorded(root, RAILROAD_NAME)
-    store.start()
-    app = App(broker, store, railroad=NO_RAILROAD)
-    witness, heard = watching(broker)
-    try:
-        app.start()
-        assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
-        assert rows(heard, RAILROAD)[-1]["name"] == RAILROAD_NAME
-        assert app.running, "the app stopped on its own"
-    finally:
-        app.stop()
-        witness.close()
-
-
-def test_it_records_each_railroad_it_is_built_on(
-    broker: Broker, store: Store, root: Path, app: App
-) -> None:
-    """Written each time this app is built on a railroad, on the way up and
-    on each answered gesture, so the next start finds the one loaded last
-    (ADR-0072, decision 5)."""
-    drawn(root, OTHER)
-    store.start()
-    witness, heard = watching(broker)
-    app.start()
-    assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
-    assert AssetStore(root).loaded() == RAILROAD_NAME, "the railroad it came up on"
-
-    # A person's gesture, with the rails dead as the app comes up (ADR-0070).
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
-    hand.publish(RAILROAD_WANTED, {"railroad": OTHER})
-
-    assert drained(
-        witness, lambda: rows(heard, RAILROAD)[-1]["name"] == OTHER
-    ), "the gesture was dropped"
-    assert AssetStore(root).loaded() == OTHER, "the railroad loaded afterwards"
-    hand.close()
-    witness.close()
-
-
-def test_a_recorded_railroad_the_store_no_longer_has_leaves_it_standing(
-    broker: Broker, store: Store, root: Path
-) -> None:
-    """The record is a starting point and not a binding, as the flag is: one
-    the store cannot give leaves the app standing and naming no railroad on
-    the row (#727). The record is not cleared — the next load overwrites it."""
-    recorded(root, GONE)
-    store.start()
-    said: list[str] = []
-    app = App(broker, store, railroad=NO_RAILROAD, log=said.append)
-    witness, heard = watching(broker)
-    try:
-        app.start()
-        assert until(lambda: any("standing" in line for line in said)), "never stood"
-        assert drained(witness, lambda: rows(heard, RAILROAD) != []), "no row"
-        assert rows(heard, RAILROAD)[-1]["name"] == NO_RAILROAD
-        assert rows(heard, POWER) == [], "it was built on a railroad it has not got"
-        assert AssetStore(root).loaded() == GONE, "the record was cleared"
-        assert app.running, "the app stopped on its own"
-    finally:
-        app.stop()
-        witness.close()

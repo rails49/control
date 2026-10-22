@@ -18,6 +18,8 @@ is loaded under them for real.
 """
 
 import threading
+from collections.abc import Callable, Sequence
+from dataclasses import replace
 
 import pytest
 
@@ -25,6 +27,7 @@ from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.inventory import AT
+from tc49.lib.layout import Layout
 from tc49.lib.loading import (
     BUILT,
     NO_RAILROAD,
@@ -33,10 +36,11 @@ from tc49.lib.loading import (
     RAILROAD_WANTED,
     Answering,
     Loaded,
+    Running,
     dropped,
     named,
+    rebuilding,
     standing,
-    still_standing,
     taken,
 )
 from tc49.simulator import Simulator
@@ -419,14 +423,20 @@ def test_the_simulator_dark_answers_the_gesture() -> None:
 
 
 class Recording(Documents):
-    """A store that records `railroad` as loaded and is asked nothing else."""
+    """A store that records `railroad` as loaded and is asked nothing else,
+    noting each railroad recorded since in `journal`."""
 
-    def __init__(self, railroad: str) -> None:
+    def __init__(self, railroad: str, journal: list[str] | None = None) -> None:
         super().__init__("http://unused")
         self._railroad = railroad
+        self.journal: list[str] = [] if journal is None else journal
 
     def loaded(self) -> str:
         return self._railroad
+
+    def put_loaded(self, name: str) -> None:
+        self.journal.append(f"recorded {name}")
+        self._railroad = name
 
 
 def test_the_answerer_starts_on_the_railroad_the_store_records() -> None:
@@ -743,12 +753,259 @@ def test_a_rebuild_drops_its_rows_but_the_ones_it_keeps() -> None:
     }
 
 
-def test_a_train_whose_block_the_new_drawing_lacks_is_not_carried() -> None:
-    """What a binding of the layout interface carries into a rebuild under
-    the same name: every train whose block remains, however short it now is
-    — that is where the steel has it (ADR-0071)."""
-    layout, _, _ = load("crossover-yard/meet")
+# -- the rebuild loop the two layout bindings run --------------------------
 
-    carried = still_standing({"freight_1": "yard_w", "express_2": "gone"}, layout)
 
-    assert carried == {"freight_1": "yard_w"}
+GONE = "nowhere"
+"""A name the store lists no railroad under."""
+
+
+class Scripted(threading.Event):
+    """A stop whose every wait runs the next step of a script, and which is
+    set once the script is done: the loop and the person at the page in one
+    thread, a step being what that person does between two turns."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.steps: list[Callable[[], None]] = []
+
+    def wait(self, timeout: float | None = None) -> bool:
+        if self.steps:
+            self.steps.pop(0)()
+        else:
+            self.set()
+        return self.is_set()
+
+
+def idle() -> None:
+    """A turn in which nobody does anything: what `dropped` spends its wait
+    for the retained rows on, and what `standing` drains in."""
+
+
+class Run:
+    """A binding built on a railroad: it drains between two waits until it is
+    told to stop, with a position a step can put trains in."""
+
+    def __init__(self, bus: InProcessBus, stop: Scripted) -> None:
+        self.position: dict[str, str] = {}
+        self._bus = bus
+        self._stop = stop
+
+    def run(self, until: Callable[[], bool]) -> None:
+        while not until():
+            self._stop.wait(0.0)
+            self._bus.drain()
+
+
+class Binding:
+    """A layout binding reading the fixture drawings, as `rebuilding` sees
+    one. Each build publishes the opening rows a constructor does — the
+    railroad, `built` on it, and the power `off` — and is noted, with what it
+    was handed."""
+
+    owned: Sequence[str] = (RAILROAD, POWER)
+
+    def __init__(self, bus: InProcessBus, stop: Scripted, journal: list[str]) -> None:
+        layout, _roster, _scenario = load("crossover-yard/meet")
+        self.drawings = {WAS: layout, NOW: replace(layout, name=NOW)}
+        self.broken: set[str] = set()
+        self.builds: list[tuple[Layout, dict[str, str], bool]] = []
+        self.runs: list[Run] = []
+        self.during_build: Callable[[], None] = lambda: None
+        self._bus = bus
+        self._stop = stop
+        self._journal = journal
+
+    def read(self, railroad: str) -> Layout:
+        if railroad in self.broken:
+            raise ValueError("pin 'yard_e.B' takes one wire")
+        if railroad not in self.drawings:
+            raise FileNotFoundError(f"no railroad '{railroad}'")
+        return self.drawings[railroad]
+
+    def nothing(self, railroad: str) -> Layout:
+        return Layout(railroad, {}, {}, frozenset(), {})
+
+    def layout(self, read: Layout) -> Layout:
+        return read
+
+    def build(self, read: Layout, position: dict[str, str], built: bool) -> Running:
+        self._journal.append(f"built {read.name}")
+        self.builds.append((read, position, built))
+        self._bus.publish(RAILROAD, {"name": read.name, BUILT: built})
+        self._bus.publish(POWER, {"power": "off"})
+        self.during_build()
+        run = Run(self._bus, self._stop)
+        self.runs.append(run)
+        return run
+
+
+class Rebuilding:
+    """`rebuilding` on the in-process bus, the store recording `recorded`:
+    started by `go` once a test has written the script on `stop`."""
+
+    def __init__(self, recorded: str) -> None:
+        self.bus = bused()
+        self.stop = Scripted()
+        self.journal: list[str] = []
+        self.documents = Recording(recorded, self.journal)
+        self.binding = Binding(self.bus, self.stop, self.journal)
+        self.said: list[str] = []
+
+    def go(self) -> None:
+        rebuilding(
+            self.bus,
+            self.documents,
+            NO_RAILROAD,
+            self.stop,
+            self.binding,
+            self.said.append,
+            0.0,
+            0.0,
+        )
+
+    def built(self) -> list[str]:
+        return [read.name for read, _position, _built in self.binding.builds]
+
+    def row(self) -> dict[str, object]:
+        return {
+            key: value
+            for key, value in self.bus.last_values[RAILROAD].items()
+            if key != AT
+        }
+
+
+def test_it_starts_on_the_railroad_the_store_records() -> None:
+    """A box comes back on the railroad its rails were built to (ADR-0072,
+    decision 5), and says so."""
+    rebuilt = Rebuilding(WAS)
+
+    rebuilt.go()
+
+    assert rebuilt.built() == [WAS]
+    assert f"up on '{WAS}'" in rebuilt.said
+
+
+def test_it_records_each_railroad_it_is_built_on_before_the_build() -> None:
+    """The record is written on the way up and on each answered pick, before
+    the build, so the next start finds the one loaded last."""
+    rebuilt = Rebuilding(WAS)
+    rebuilt.stop.steps = [lambda: picking(rebuilt.bus, NOW), idle]
+
+    rebuilt.go()
+
+    assert rebuilt.journal == [
+        f"recorded {WAS}",
+        f"built {WAS}",
+        f"recorded {NOW}",
+        f"built {NOW}",
+    ]
+    assert f"loading '{NOW}': 2 rows of '{WAS}' cleared" in rebuilt.said
+
+
+def test_a_recorded_railroad_the_store_does_not_have_leaves_it_standing() -> None:
+    """The record is a starting point and not a binding: one the store
+    cannot give leaves the binding standing, naming no railroad on the row
+    (#727), and the next pick is what builds it."""
+    rebuilt = Rebuilding(GONE)
+    rows: list[dict[str, object]] = []
+
+    def pick() -> None:
+        rows.append(rebuilt.row())
+        picking(rebuilt.bus, NOW)
+
+    rebuilt.stop.steps = [pick, idle]
+
+    rebuilt.go()
+
+    assert rows == [{"name": NO_RAILROAD}]
+    assert rebuilt.built() == [NOW]
+
+
+def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain() -> None:
+    """With track power off a saved edit changes the drawing and not the
+    track, so a train stands where it stood (ADR-0071). The edit here drops
+    `yard_e`: the train standing in it has no block left to stand in, and the
+    one in `yard_w` is kept."""
+    rebuilt = Rebuilding(WAS)
+    binding = rebuilt.binding
+
+    def edit() -> None:
+        binding.runs[-1].position = {"freight_1": "yard_w", "express_2": "yard_e"}
+        blocks = dict(binding.drawings[WAS].blocks)
+        del blocks["yard_e"]
+        binding.drawings[WAS] = replace(binding.drawings[WAS], blocks=blocks)
+        picking(rebuilt.bus, WAS)
+
+    rebuilt.stop.steps = [edit, idle]
+
+    rebuilt.go()
+
+    assert rebuilt.built() == [WAS, WAS]
+    assert binding.builds[1][1] == {"freight_1": "yard_w"}
+
+
+def test_a_rebuild_under_another_name_carries_no_train() -> None:
+    """A block's name in one railroad says nothing about the steel of
+    another."""
+    rebuilt = Rebuilding(WAS)
+    binding = rebuilt.binding
+
+    def pick() -> None:
+        binding.runs[-1].position = {"freight_1": "yard_w"}
+        picking(rebuilt.bus, NOW)
+
+    rebuilt.stop.steps = [pick, idle]
+
+    rebuilt.go()
+
+    assert binding.builds[1][1] == {}
+
+
+def test_a_pick_whose_drawing_is_not_valid_is_named_and_the_build_runs_on() -> None:
+    """A railroad picked whose drawing is not a valid drawing stays named:
+    the store records it and the row says nothing was built. The build it
+    runs goes on, and none of its rows go (ADR-0085, decision 4)."""
+    rebuilt = Rebuilding(WAS)
+    rebuilt.binding.broken = {NOW}
+    rebuilt.stop.steps = [lambda: picking(rebuilt.bus, NOW)]
+
+    rebuilt.go()
+
+    assert rebuilt.journal == [f"recorded {WAS}", f"built {WAS}", f"recorded {NOW}"]
+    assert rebuilt.row() == {"name": NOW, BUILT: False}
+    assert POWER in rebuilt.bus.last_values, "its rows were cleared"
+    assert not any(line.startswith("loading") for line in rebuilt.said)
+
+
+def test_a_restart_on_a_drawing_that_is_not_valid_builds_on_nothing() -> None:
+    """After a restart the record names a railroad whose drawing is not a
+    valid drawing: the binding is built on `nothing` under its name, and says
+    `built: false`, rather than standing on none (#885)."""
+    rebuilt = Rebuilding(NOW)
+    rebuilt.binding.broken = {NOW}
+
+    rebuilt.go()
+
+    [(read, _position, built)] = rebuilt.binding.builds
+    assert (read, built) == (rebuilt.binding.nothing(NOW), False)
+    assert rebuilt.row() == {"name": NOW, BUILT: False}
+
+
+def test_a_pick_made_during_the_build_is_heard() -> None:
+    """The gesture is followed before the build: an event is not retained,
+    so a press landing while the app states its opening rows would otherwise
+    be gone (ADR-0059, decision 5). The broker hands it over as it comes."""
+    rebuilt = Rebuilding(WAS)
+
+    def press() -> None:
+        rebuilt.binding.during_build = lambda: None
+        picking(rebuilt.bus, NOW)
+        rebuilt.bus.drain()
+
+    rebuilt.binding.during_build = press
+    rebuilt.stop.steps = [idle]
+
+    rebuilt.go()
+
+    assert rebuilt.built() == [WAS, NOW]
