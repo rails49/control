@@ -3,7 +3,7 @@
 On power-up the detectors assert straight away, anonymously but at once, and
 that is exactly the moment the restored placement is least trustworthy: the
 steel has stood unwatched since the last session, long enough for a stalled
-train to have been lifted out of a tunnel by hand (CONTEXT.md, recovery). So
+train to have been lifted out of a tunnel by hand (GLOSSARY.md, recovery). So
 while power reads `off` the dispatcher compares the two and names the
 contradictions — a train standing in a block that reads clear, and a block
 that reads occupied with nothing claiming it.
@@ -261,7 +261,7 @@ def test_an_occupancy_frame_that_cannot_be_read_is_dropped(payload: object) -> N
     leaves, and a bare subscript would have raised on some of these and
     written a key that is not a block name for `{"block": 42}`. The frame is
     dropped instead, leaving the block one the layout has said nothing
-    about — what such a block is worth to the check is CONTEXT.md,
+    about — what such a block is worth to the check is GLOSSARY.md,
     *disputed* (#153).
     """
     bus, dispatcher = restored(MOVED)

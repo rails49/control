@@ -3,7 +3,7 @@
 Design for the visual layout editor, decided in #41 and settled in detail
 here. Second phase of the UI work, after derivation
 ([DRAWING.md](../store/DRAWING.md)) and before the [panel](PANEL.md).
-Terminology follows [CONTEXT.md](../../CONTEXT.md).
+Terminology follows [GLOSSARY.md](../../GLOSSARY.md).
 
 Prototype railways use signal boxes (*Stellwerke*) to display track occupancy
 and related state; model railroads mimic them. The editor creates and edits

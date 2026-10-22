@@ -85,7 +85,7 @@ describe("what a train derives to", () => {
   });
 
   /** Every hauled train has a locomotive, so counting them would make every
-   *  train mixed (CONTEXT.md, **Kind**). */
+   *  train mixed (GLOSSARY.md, **Kind**). */
   it("takes its kind from what it hauls, ignoring locomotives", () => {
     expect(trainKind(OVAL.trains.ore!, OVAL, CATALOGUE)).toBe("freight");
   });

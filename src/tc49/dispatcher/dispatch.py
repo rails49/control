@@ -223,7 +223,7 @@ class State:
 
         Both claims a route carries, not just the stronger one: a resource is
         **committed** when it is on a route the dispatcher has chosen and not
-        yet locked, and that is a claim (CONTEXT.md). Under `FullRoute` the
+        yet locked, and that is a claim (GLOSSARY.md). Under `FullRoute` the
         two sets coincide, since a launch locks the whole route; under
         `Incremental` a fixed route runs on ahead of its locks, and reading
         the lock table alone would call those blocks free.
@@ -387,7 +387,7 @@ def disputed(state: State) -> Payload:
     On power-up the detectors assert straight away — anonymously, so no
     reading names a train — at exactly the moment the placement is least
     trustworthy: it is where the last session *believed* the railroad was,
-    and the steel has stood unwatched since (CONTEXT.md, recovery). Naming
+    and the steel has stood unwatched since (GLOSSARY.md, recovery). Naming
     the two contradictions turns walking the whole railroad into checking a
     handful of trains. It **resolves** nothing: the check points, and a
     person ends every entry with a `placement_wanted`.
@@ -567,7 +567,7 @@ def restored(
     It is taken **per train** (#164), so only the trains in a collision pay
     for one, and what the all-or-nothing rule protected holds train by train
     anyway: no block ends with two trains in it, and no train ends standing in
-    a block nothing holds (CONTEXT.md). A contested block goes to the train
+    a block nothing holds (GLOSSARY.md). A contested block goes to the train
     with **fewer answers**: one the picture does not name has only the
     document to stand on, while one it does name still has its own starting
     block. A train both of whose answers are taken is placed by neither and
@@ -1411,7 +1411,7 @@ class Dispatcher:
         one is holding a route — every transit and every block beyond the
         origin under `FullRoute` — and gives up **all of it but the block the
         train stands in**: that block is the train's standing lock, which
-        every parked train holds (CONTEXT.md), and releasing it would leave a
+        every parked train holds (GLOSSARY.md), and releasing it would leave a
         locomotive in a block the dispatcher believes free.
 
         A placement does not defer, as a `cancel_wanted` does: the person is
@@ -2022,7 +2022,7 @@ class Dispatcher:
 
     def _moving(self) -> bool:
         """Whether a power cut now would strand something: any train crossing
-        (CONTEXT.md, **Moving**, #844). A train standing in a block loses
+        (GLOSSARY.md, **Moving**, #844). A train standing in a block loses
         nothing when the supply goes, whether or not it is active: one a drain
         stopped at a signal partway along its route keeps that route and its
         locks, and carries on once power reads `on` again (ADR-0078). A

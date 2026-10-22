@@ -4,7 +4,7 @@ ADR-0062, #822, #844).
 `layout` ends a drain by switching the supply off, and the moment it may is
 the first at which nothing is moving. The dispatcher, which knows what is
 granted, states it on a row of its own: true while any train is **crossing**
-(CONTEXT.md, **Moving**). It is a boolean beside power and not a value of it —
+(GLOSSARY.md, **Moving**). It is a boolean beside power and not a value of it —
 a drain can be moving, because a move already granted runs to its sensor, and
 a train standing partway along its route, or `on` with nothing granted, is
 not.

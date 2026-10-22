@@ -72,7 +72,7 @@ verifying it.
 answers it and never the one that sent the frame, so nothing about
 `power_wanted` says the panel wrote it. A raw client, a test or a later UI
 that publishes `off` cuts power under whatever is mid-transit, and strands it
-where no sensor will ever say it stopped (CONTEXT.md, **Power off**). Every
+where no sensor will ever say it stopped (GLOSSARY.md, **Power off**). Every
 other browser-writable gesture is re-validated against current state on
 arrival; this one trusts the sender's sequencing.
 
@@ -95,7 +95,7 @@ published so the check can be made where the command is answered.
 ## Decision
 
 **1. `tc49/dispatch/state/run` carries `moving`.** A boolean beside `run`,
-true while any train is **active** or **crossing** (CONTEXT.md) — the same
+true while any train is **active** or **crossing** (GLOSSARY.md) — the same
 test the drain's completion already makes — and false otherwise. It is not a
 fourth value of the run: the three stand, and `moving` is orthogonal to them.
 A held run can be moving; a running run with nothing granted is not.

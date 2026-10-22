@@ -1,7 +1,7 @@
 # The catalogue
 
 The models an installation knows: what a product *is*, independent of any
-railroad that owns one (CONTEXT.md, **Catalogue**). One file per model, named
+railroad that owns one (GLOSSARY.md, **Catalogue**). One file per model, named
 for itself — the file's `model:` and its path must agree, because the name is
 the key every car refers to it by.
 

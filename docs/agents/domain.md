@@ -4,7 +4,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root — the canonical glossary (block, terminal block, connection, transit, train, request, route, lock).
+- **`GLOSSARY.md`** at the repo root — the canonical glossary (block, terminal block, connection, transit, train, request, route, lock).
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
@@ -12,13 +12,13 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ## What each doc holds
 
 The organisation's
-[ADR-0017](https://github.com/rails49/.github/blob/main/docs/adr/0017-each-fact-has-one-owner-and-an-accepted-adr-does-not-change.md)
+[ADR-0021](https://github.com/rails49/.github/blob/main/docs/adr/0021-each-fact-has-one-owner-and-the-glossary-is-glossary-md.md)
 says what each kind of doc holds and that an accepted ADR does not change.
 Where `docs/` files an app's pages: [ARCHITECTURE.md](../ARCHITECTURE.md#documentation-layout).
 
 ## Use the glossary's vocabulary
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids — each entry lists its own _Avoid_ set (e.g. "connection", never "connector" or "node"; "transit", never "crossing"; "route" only for the request-level path).
+When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids — each entry lists its own _Avoid_ set (e.g. "connection", never "connector" or "node"; "transit", never "crossing"; "route" only for the request-level path).
 
 If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 

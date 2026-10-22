@@ -3,7 +3,7 @@
 Resolves [#2](https://github.com/rails49/control/issues/2). Assesses known
 deadlock-avoidance theory against the tc49 dispatch model and ends in a
 recommended algorithm with a sketch of its deadlock-freedom argument.
-Terminology follows [CONTEXT.md](../../CONTEXT.md); the model is defined in
+Terminology follows [GLOSSARY.md](../../GLOSSARY.md); the model is defined in
 [DISPATCH.md](../dispatcher/DISPATCH.md), [ADR-0001](../adr/0001-no-reversal-within-a-route.md),
 and [ADR-0002](../adr/0002-fixed-route-per-request.md).
 

@@ -3,7 +3,7 @@
 `catalogue/<model>.yaml` is one file per model, shared between railroads — a
 product does not become a different product on another layout, so the
 catalogue sits outside `layouts/` and every railroad reads the same models
-(CONTEXT.md, **Catalogue**). `layouts/<railroad>.roster.yaml` keeps its path
+(GLOSSARY.md, **Catalogue**). `layouts/<railroad>.roster.yaml` keeps its path
 and its name and changes referent: the cars the railroad owns, with the trains
 made up from them beside (ADR-0045).
 

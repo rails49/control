@@ -19,7 +19,7 @@ for the dispatcher, and power returning to `on` releasing nothing.
 **Amended for
 [#242](https://github.com/rails49/control/issues/242):** a field whose values
 are a closed set is an **enum**; this ADR calls it a *word*, the term
-`CONTEXT.md` used until #242. Nothing below has been rewritten, so read *word*
+`GLOSSARY.md` used until #242. Nothing below has been rewritten, so read *word*
 as *enum* throughout.
 
 Before this, track power was invisible to the software, and that was not

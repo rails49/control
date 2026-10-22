@@ -1174,7 +1174,7 @@ def test_the_wire_rule_is_exact_on_the_shapes_no_railroad_is_drawn_with() -> Non
 
 def test_a_joint_through_a_portal_pair_is_the_two_wires_and_not_the_pairing() -> None:
     """The pairing is how a joint's chain crosses the canvas, not a wire on
-    it (CONTEXT.md), so nothing downstream has one to draw."""
+    it (GLOSSARY.md), so nothing downstream has one to draw."""
     assert Drawing.from_document(portal_joint()).joints() == [
         {
             "ends": ["east.A", "west.B"],

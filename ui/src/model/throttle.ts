@@ -44,7 +44,7 @@ export interface CabFunction {
 export interface Cab {
   train: string;
   /** The block it stands in, `null` while it is crossing a transit and
-   *  stands in none — on the layout all the same (CONTEXT.md, **Placed**). */
+   *  stands in none — on the layout all the same (GLOSSARY.md, **Placed**). */
   block: string | null;
   taken: Holder;
   /** Whether it has a move outstanding: granted and not yet at the sensor it
@@ -181,7 +181,7 @@ function switches(
 }
 
 /** The other end of the block a nose is at: `a.A` for `a.B`. A block has
- *  the two ends a facing runs between (CONTEXT.md, **Facing**). */
+ *  the two ends a facing runs between (GLOSSARY.md, **Facing**). */
 function tail(nose: EndRef): EndRef {
   return `${blockOf(nose)}.${endOf(nose) === "A" ? "B" : "A"}`;
 }

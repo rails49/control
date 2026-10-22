@@ -1,6 +1,6 @@
 # A portal is placed as a pair
 
-A **portal** ([CONTEXT.md](../../CONTEXT.md#drawing)) is a one-pin symbol
+A **portal** ([GLOSSARY.md](../../GLOSSARY.md#drawing)) is a one-pin symbol
 paired by label with exactly one other portal, and a label worn once derives to
 nothing: the drawing is refused. Every portal used to start that way, minted
 wearing its own name as its label, which is a label no second portal can be

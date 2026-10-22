@@ -656,7 +656,7 @@ export class Session {
   /** The throttle turned: one `throttle_wanted` carrying the number the lever
    *  shows and this page's id. One signed speed for the train — which
    *  locomotive it reaches, and which way round that one stands, is
-   *  `layout`'s (CONTEXT.md, **Throttle**). */
+   *  `layout`'s (GLOSSARY.md, **Throttle**). */
   pressThrottle(train: string, speed: number): void {
     this.send(throttleWanted(train, speed, this.throttle));
   }

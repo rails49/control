@@ -27,12 +27,12 @@ import { WHOLE } from "../model/inspect.js";
 import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
-/** What a signal shows, as the dispatcher publishes it (CONTEXT.md). */
+/** What a signal shows, as the dispatcher publishes it (GLOSSARY.md). */
 export type Aspect = "stop" | "caution" | "clear";
 
 const RESTING: ReadonlyMap<string, Aspect> = new Map();
 
-/** What a detector reads at the block end it watches (CONTEXT.md,
+/** What a detector reads at the block end it watches (GLOSSARY.md,
  *  **Detector**). */
 export type Reading = "occupied" | "clear" | "unknown";
 

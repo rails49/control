@@ -65,4 +65,4 @@ This is a precedence rule, not a roadmap. Hardware stays a later effort and
 argument wins when the two bindings pull apart. It is stated in
 [GOALS.md](../GOALS.md#approach), in `CLAUDE.md` so an agent meets it before
 designing anything, and as **layout binding** in
-[CONTEXT.md](../../CONTEXT.md#contracts).
+[GLOSSARY.md](../../GLOSSARY.md#contracts).

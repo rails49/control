@@ -57,7 +57,7 @@ reads as one.
 ## A gesture is not a request
 
 A request is an order with an id, a departure end and a set of arrival ends
-([CONTEXT.md](../../CONTEXT.md#dispatch)). A gesture has none of those. It names
+([GLOSSARY.md](../../GLOSSARY.md#dispatch)). A gesture has none of those. It names
 a train and where to put it, and the scheduler turns it into a request — which
 is why the panel's write surface can be authorized as a topic and still carry
 none of the authority a request carries.

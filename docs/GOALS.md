@@ -2,7 +2,7 @@
 
 A model railroad comprises **assets** (what it is made of) and **operations**
 (what is done with them). Terminology follows the glossary in
-[CONTEXT.md](../CONTEXT.md).
+[GLOSSARY.md](../GLOSSARY.md).
 
 ## Assets
 
@@ -252,7 +252,7 @@ what it contradicts for a person to walk
 ([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). Most of it it
 cannot. Nothing detects a train driven from a throttle the app does not know
 about, and asking for power off with a train in hand is a user error it does
-not guard (`CONTEXT.md`, **Moving**).
+not guard (`GLOSSARY.md`, **Moving**).
 
 What that costs is correctness, not liveness. A consumer never raises on what
 it reads (BUS.md, rule 4) and an unexplained reading is handled rather than

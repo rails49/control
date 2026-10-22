@@ -347,7 +347,7 @@ events everything above the layout interface reads (#288).
 say — no model, not calibrated, drift — and the free-text ``reason`` beside it
 carries that for a person, while a consumer treats `unknown` as **no
 information** about that end and keeps whatever level it last had
-(CONTEXT.md, **detector**)."""
+(GLOSSARY.md, **detector**)."""
 
 
 CLOSED = "closed"

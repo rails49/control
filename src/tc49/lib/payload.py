@@ -298,7 +298,7 @@ def chosen(payload: object) -> Chosen | None:
 
 def moving(payload: object) -> bool:
     """Whether a retained `tc49/dispatch/state/moving` value states that a
-    train is moving: true while any train is **crossing** (CONTEXT.md,
+    train is moving: true while any train is **crossing** (GLOSSARY.md,
     **Moving**).
 
     A boolean rather than a value, as `link_up` is, because what reads it asks
@@ -445,7 +445,7 @@ class Throttle:
 
     A **signed** fraction of that train's maximum, `-1.0` … `1.0` with `0.0`
     stop, and signed for the *train* rather than for a locomotive — positive
-    is the way the train points (CONTEXT.md, **Throttle**). Which decoder that
+    is the way the train points (GLOSSARY.md, **Throttle**). Which decoder that
     reaches, and which way round it stands, is `layout`'s: no throttle holds a
     roster and none names an address (#199).
     """
@@ -953,7 +953,7 @@ def link_up(payload: object) -> bool:
 def desired_speed(payload: object) -> float | None:
     """The speed a `wanted/traction` value asks a locomotive for, or None
     where it asks for none — a fraction of that locomotive's maximum, signed
-    for direction along the track (CONTEXT.md, **Traction**).
+    for direction along the track (GLOSSARY.md, **Traction**).
 
     The first of the **desired** half of the device vocabulary read here, and
     read for the reason a command is: a translator answers nothing, so a

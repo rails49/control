@@ -242,7 +242,7 @@ export function drivingWanted(driving: DrivingMode): Frame {
  *  **Signed for the train and not for a locomotive**: positive is the way the
  *  train points, so one lever drives a top-and-tail set and `layout` composes
  *  the sign each car's decoder is given out of the train's facing and the way
- *  round that car is coupled (CONTEXT.md, **Throttle**; ADR-0045). Which
+ *  round that car is coupled (GLOSSARY.md, **Throttle**; ADR-0045). Which
  *  address it reaches is `layout`'s and no view's.
  *
  *  `throttle` is the id of the throttle turning the lever, and `layout`

@@ -37,7 +37,7 @@ erased.
 
 This is not an open question. Three places say the same thing:
 
-- [CONTEXT.md](../../CONTEXT.md), **Link**: whether a participant *can reach the
+- [GLOSSARY.md](../../GLOSSARY.md), **Link**: whether a participant *can reach the
   hardware it drives*.
 - `dccex`'s own module docstring: `up` while the connection is open *and the
   station has answered*, `down` otherwise.
@@ -142,7 +142,7 @@ addresses it recognises and reports what its own hardware tells it
 It would also fix one cause and leave the switched-off station reporting `up`.
 
 **A heartbeat row, or a `detail` value naming the flash.** A second row would
-carry what `device/link` already carries once it is correct, and CONTEXT.md
+carry what `device/link` already carries once it is correct, and GLOSSARY.md
 lists *heartbeat* among the words to avoid for exactly this reason. A `detail`
 that named a flash would require the knowledge the point above refuses, and
 what a person needs to read — the station is not answering — is what the free

@@ -14,7 +14,7 @@ browser-writable and are answered by `layout`
 gestures because there are any number of throttles, two tabs being two of
 them, while the device row a throttle's speed ends at has one writer,
 `layout` ([#263](https://github.com/rails49/control/issues/263)).
-Terminology follows [CONTEXT.md](../../CONTEXT.md), **Throttle** and
+Terminology follows [GLOSSARY.md](../../GLOSSARY.md), **Throttle** and
 **Throttle** and **Driving mode**
 ([ADR-0079](../adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 
@@ -93,7 +93,7 @@ at least 44 px high.
 
 **The aspect at the end the reverser points the train to**, from
 `tc49/dispatch/state/aspects`: for Forward the end its facing names
-(`tc49/schedule/state/facing`, CONTEXT.md, **Facing**), for Reverse the
+(`tc49/schedule/state/facing`, GLOSSARY.md, **Facing**), for Reverse the
 block's other end. A person driving by hand reads the signal, and this is
 where they read it — the view derives no aspect, exactly as the panel derives
 none ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
@@ -196,7 +196,7 @@ dragging it does not scroll the page. Leaving the block is the person's
 responsibility; nothing stops a held train at its block's ends.
 
 **The reverser** is two presses, Forward and Reverse, both shown and the
-current one pressed (CONTEXT.md, **Reverser**). Forward drives the train nose
+current one pressed (GLOSSARY.md, **Reverser**). Forward drives the train nose
 first, Reverse tail first; it turns neither the facing nor any car. It is live
 under the slider's conditions **and only with the slider at 0**
 ([ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)): a flip

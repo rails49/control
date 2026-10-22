@@ -105,7 +105,7 @@ export const symbols = css`
     fill: var(--amber);
   }
 
-  /* Named buffer and not stop: stop is an aspect a signal shows (CONTEXT.md),
+  /* Named buffer and not stop: stop is an aspect a signal shows (GLOSSARY.md),
      and a class of that name here would be inherited by the lamps of every
      signal at stop, which sit inside a group carrying the aspect's name. */
   .buffer,

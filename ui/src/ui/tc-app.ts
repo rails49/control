@@ -734,7 +734,7 @@ export class TcApp extends LitElement {
    *  that is dead does nothing whichever way it was reached.
    *
    *  `invoke` and not `run`: a **run** is the railroad moving under a
-   *  dispatcher (CONTEXT.md), which this app now has a view of, and a private
+   *  dispatcher (GLOSSARY.md), which this app now has a view of, and a private
    *  method that dispatches rail buttons must not answer to that word. */
   private invoke(id: CommandId): void {
     if (!COMMANDS[id].enabled(this.standing)) return;

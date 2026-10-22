@@ -122,7 +122,7 @@ def test_the_gesture_ends_the_one_request_it_names() -> None:
 def test_a_cancelled_request_at_rest_gives_up_all_but_the_block_it_stands_in() -> None:
     """The release path whole: what a route took is given back as one
     `lock_released`, and what stays is the standing lock every parked train
-    holds (CONTEXT.md). Power off first, so the train is active with no move
+    holds (GLOSSARY.md). Power off first, so the train is active with no move
     outstanding — the sweep that would have granted the next one is the one
     power `off` stops."""
     assembly = whole_route()

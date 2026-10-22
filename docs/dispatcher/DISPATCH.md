@@ -4,7 +4,7 @@ The dispatcher accepts requests from the scheduler — as events on the bus
 ([SYSTEM.md](../SYSTEM.md#dispatcher)) — and tries to satisfy them in
 the shortest time possible. It is **online** — it commits to decisions without
 knowing future requests — and is the research core of this project: deadlock
-avoidance at high throughput. Terminology follows [CONTEXT.md](../../CONTEXT.md).
+avoidance at high throughput. Terminology follows [GLOSSARY.md](../../GLOSSARY.md).
 
 ## Semantics
 
@@ -373,7 +373,7 @@ a route it allocated whoever turns the throttle
 throttle with no request behind it is another matter — only a grant puts a
 train in `crossing`, so it is never crossing and does not read as **moving**,
 and the layout writes its wheels without asking for a grant. A cut under that train is not refused, and that is a user error
-the app does not guard (CONTEXT.md, **Moving**). A drain a wedged train would
+the app does not guard (GLOSSARY.md, **Moving**). A drain a wedged train would
 hold open forever is escaped by taking the train off the layout, and the
 request it was running goes with it
 ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),

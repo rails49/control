@@ -874,7 +874,7 @@ def _signals(where: str, spec: Any, ends: tuple[str, ...]) -> dict[str, str]:
     and is any non-empty string the way a point's is, naming no system
     (ADR-0059). An end is signalled or it is not — an end carrying none is
     absent rather than empty, since an end nothing ever leaves would have a
-    signal that could only show `stop` (CONTEXT.md, **Signal**). A key that is
+    signal that could only show `stop` (GLOSSARY.md, **Signal**). A key that is
     no end of the block is refused here, naming the block: `signals` is keyed
     by the block's own ends, and a misspelt one would silently signal nothing.
 

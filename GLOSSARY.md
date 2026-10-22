@@ -2,9 +2,9 @@
 
 The words used in `control`, the software that schedules, dispatches and drives
 trains on a model railroad. Words used in more than one rails49 repository are
-in the [organisation's CONTEXT.md](https://github.com/rails49/.github/blob/main/CONTEXT.md).
+in the [organisation's GLOSSARY.md](https://github.com/rails49/.github/blob/main/GLOSSARY.md).
 Each entry says what a thing is and links to the doc that owns it
-([ADR-0017](https://github.com/rails49/.github/blob/main/docs/adr/0017-each-fact-has-one-owner-and-an-accepted-adr-does-not-change.md)).
+([ADR-0021](https://github.com/rails49/.github/blob/main/docs/adr/0021-each-fact-has-one-owner-and-the-glossary-is-glossary-md.md)).
 
 ## Language
 

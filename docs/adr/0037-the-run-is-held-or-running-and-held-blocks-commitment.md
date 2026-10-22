@@ -32,7 +32,7 @@ and the known train, stand, as does everything else this ADR decides.
 **Amended for
 [#242](https://github.com/rails49/control/issues/242):** a field whose values
 are a closed set is an **enum**; this ADR calls it a *word*, the term
-`CONTEXT.md` used until #242. Nothing below has been rewritten, so read *word*
+`GLOSSARY.md` used until #242. Nothing below has been rewritten, so read *word*
 as *enum* throughout.
 
 **Amended for
@@ -212,7 +212,7 @@ request in flight**.
 
 *Free* means both claims a route carries, not only the stronger one. A
 resource is **committed** when it is on a route the dispatcher has chosen and
-has not locked yet ([CONTEXT.md](../../CONTEXT.md#dispatch)), and that is a
+has not locked yet ([GLOSSARY.md](../../GLOSSARY.md#dispatch)), and that is a
 claim. Under `FullRoute` the two sets coincide, a launch locking the whole
 route; under `Incremental` a fixed route runs on ahead of its locks, and
 reading the lock table alone would call those blocks free. Placing a train
@@ -278,7 +278,7 @@ A **restored** session is the hold's own case
 adopted says where the last session *believed* the railroad was, and the steel
 has stood there unwatched since, long enough for a stalled train to have been
 lifted out of a tunnel by hand
-([CONTEXT.md](../../CONTEXT.md#interruptions)). Coming up running on the
+([GLOSSARY.md](../../GLOSSARY.md#interruptions)). Coming up running on the
 strength of a picture nobody has looked at is the failure this decision exists
 to prevent.
 

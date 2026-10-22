@@ -6,7 +6,7 @@ store and the footprints in [SYSTEM.md](SYSTEM.md) — are those pages' and are
 not repeated here. Each app's internals are its own page: the dispatcher's are
 [dispatcher/INTERNALS.md](dispatcher/INTERNALS.md), the metrics derivations
 [bench/METRICS.md](bench/METRICS.md). Terminology follows
-[CONTEXT.md](../CONTEXT.md).
+[GLOSSARY.md](../GLOSSARY.md).
 
 ## Apps
 

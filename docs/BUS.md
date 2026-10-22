@@ -23,7 +23,7 @@ language implements this page rather than porting Python:
 `ui/src/model/trace.ts` already is one. The decisions behind the contract are
 [ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md) and
 [ADR-0009](adr/0009-layout-interface-owns-time.md). Terminology follows
-[CONTEXT.md](../CONTEXT.md).
+[GLOSSARY.md](../GLOSSARY.md).
 
 ## The bus
 
@@ -685,7 +685,7 @@ payload is read defensively, and one that fails the read is dropped.
   last timetable request has gone out.
 - `tc49/schedule/state/facing` — `facing`: map of train to the run it would
   make across its block, `<block>.A-to-B` or `<block>.B-to-A`; a train facing
-  `<block>.A-to-B` would depart through that block's B end (CONTEXT.md,
+  `<block>.A-to-B` would depart through that block's B end (GLOSSARY.md,
   **Facing**). The bare end letter this value once carried is refused rather
   than read, a retained row written by an older build losing that train's
   facing rather than turning it round. Kept through a rebuild under the same

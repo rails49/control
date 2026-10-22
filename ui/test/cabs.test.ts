@@ -185,7 +185,7 @@ describe("a move outstanding", () => {
 
 describe("what the train faces", () => {
   /** The scheduler's facing, in the form the aspects are keyed by: the end
-   *  the train would depart through nose-first (CONTEXT.md, **Facing**). */
+   *  the train would depart through nose-first (GLOSSARY.md, **Facing**). */
   it("names the end the train points at", () => {
     const model = panel();
     standing(model);

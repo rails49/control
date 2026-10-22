@@ -151,7 +151,7 @@ describe("pointWanted", () => {
 
 /** The throttle being turned (#207): the sixth. One number for the train,
  *  signed for the way the train points — which locomotive it reaches, and
- *  which way round that one stands, is `layout`'s (CONTEXT.md,
+ *  which way round that one stands, is `layout`'s (GLOSSARY.md,
  *  **Throttle**). */
 describe("throttleWanted", () => {
   it("names the train and one speed", () => {
