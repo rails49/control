@@ -235,62 +235,103 @@ describe("a railroad press made while the broker has gone", () => {
 });
 
 /**
- * ON over a drawing just saved: the railroad named again, and `on` sent only
- * once the row comes back from a build after the press (ADR-0085, decision
- * 2). A row stamped no later than the one held at the press is the build
- * before it, replayed on a reconnect.
+ * ON over a drawing being saved: `on` sent only once the save has landed and
+ * the row comes back from a build after it (ADR-0085, decision 2). A row
+ * stamped no later than the one held when the save landed is the build
+ * before it, replayed on a reconnect. Naming the railroad is the save's own,
+ * so the session names nothing here.
  */
 describe("ON waiting for the build", () => {
-  const WANTED = { topic: "tc49/layout/railroad_wanted", payload: { railroad: "toy" } };
   const ON = { topic: POWER_WANTED, payload: { power: "on" } };
 
-  function waiting(): Stood {
+  /** `toy` loaded at stamp 5, power off, and ON pressed over a save that
+   *  answers when the test says. */
+  function waiting(): Stood & { landed: (reached: boolean) => Promise<void> } {
     const stood = standing();
     stood.broker.retains(RAILROAD, { name: "toy", at: 5, built: true });
     stood.broker.opens();
     stood.broker.says(STATE_POWER, { power: "off", at: 5 });
-    stood.session.pressOnBuilt("toy");
+    let answer: (reached: boolean) => void = () => {};
+    stood.session.pressOnSaved("toy", new Promise<boolean>((resolve) => (answer = resolve)));
+    return {
+      ...stood,
+      landed: async (reached) => {
+        answer(reached);
+        for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+      },
+    };
+  }
+
+  /** `waiting`, with the save landed. */
+  async function saved(): Promise<Stood> {
+    const stood = waiting();
+    await stood.landed(true);
     return stood;
   }
 
-  it("names the railroad, and sends on once a later build names it", () => {
+  it("names nothing, and sends on only once a later build names it", async () => {
     const stood = waiting();
-    expect(written(stood)).toEqual([WANTED]);
-
     stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
+    expect(written(stood)).toEqual([]);
 
-    expect(written(stood)).toEqual([WANTED, ON]);
+    await stood.landed(true);
+    expect(written(stood)).toEqual([]);
+    stood.broker.says(RAILROAD, { name: "toy", at: 7, built: true });
+
+    expect(written(stood)).toEqual([ON]);
   });
 
-  it("reads a row with no built as built", () => {
-    const stood = waiting();
+  it("reads a row with no built as built", async () => {
+    const stood = await saved();
     stood.broker.says(RAILROAD, { name: "toy", at: 6 });
-    expect(written(stood)).toEqual([WANTED, ON]);
+    expect(written(stood)).toEqual([ON]);
   });
 
-  it("does not take the build before it, replayed, for the build", () => {
-    const stood = waiting();
+  it("does not take the build before it, replayed, for the build", async () => {
+    const stood = await saved();
     stood.broker.closes();
     stood.broker.opens();
-    expect(written(stood)).toEqual([WANTED]);
+    expect(written(stood)).toEqual([]);
 
     stood.broker.says(RAILROAD, { name: "toy", at: 6 });
 
-    expect(written(stood)).toEqual([WANTED, ON]);
+    expect(written(stood)).toEqual([ON]);
   });
 
-  it("sends nothing on a build that built nothing", () => {
-    const stood = waiting();
+  it("sends nothing on a build that built nothing", async () => {
+    const stood = await saved();
     stood.broker.says(RAILROAD, { name: "toy", at: 6, built: false });
     stood.broker.says(RAILROAD, { name: "toy", at: 7, built: true });
-    expect(written(stood)).toEqual([WANTED]);
+    expect(written(stood)).toEqual([]);
   });
 
-  it("sends nothing where the row names another railroad first", () => {
+  it("sends nothing where the save answers false", async () => {
     const stood = waiting();
+    await stood.landed(false);
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
+    expect(written(stood)).toEqual([]);
+  });
+
+  it("sends nothing on after a power press during the write", async () => {
+    const stood = waiting();
+    stood.session.pressPower("off");
+    await stood.landed(true);
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
+    expect(written(stood)).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+  });
+
+  it("sends nothing on after a power press during the build", async () => {
+    const stood = await saved();
+    stood.session.pressPower("off");
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
+    expect(written(stood)).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+  });
+
+  it("sends nothing where the row names another railroad first", async () => {
+    const stood = await saved();
     stood.broker.says(RAILROAD, { name: "other", at: 6 });
     stood.broker.says(RAILROAD, { name: "toy", at: 7 });
-    expect(written(stood)).toEqual([WANTED]);
+    expect(written(stood)).toEqual([]);
   });
 });
 

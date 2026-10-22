@@ -139,18 +139,19 @@ class Fake implements Store, StockStore {
   }
 }
 
-/** A railroad over a fake store, the editor the shell would own, and how
- *  often it asked to be redrawn. */
+/** A railroad over a fake store, the editor the shell would own, how
+ *  often it asked to be redrawn, and every railroad it named on the bus. */
 function made() {
   const store = new Fake();
   const told = { times: 0 };
   const notify = (): void => {
     told.times++;
   };
+  const names: string[] = [];
   const editor = new Editor(emptyDrawing("untitled"));
   const filing = new Filing(notify, store);
-  const railroad = new Railroad(filing, () => editor, notify, store);
-  return { railroad, filing, editor, store, told };
+  const railroad = new Railroad(filing, () => editor, notify, (one) => names.push(one), store);
+  return { railroad, filing, editor, store, told, names };
 }
 
 /** Every answer in flight delivered, and every answer those set off. */
@@ -488,24 +489,36 @@ describe("the roster's Save", () => {
   }
 
   it("writes the corrected models before the roster, and answers that a length reached the store", async () => {
-    const { railroad, store } = await edited();
+    const { railroad, store, names } = await edited();
 
     const reached = await railroad.save("off");
 
     expect(reached).toBe(true);
+    expect(names).toEqual(["toy"]);
     expect(store.saved).toEqual(["/catalogue/hopper", "/rosters/toy"]);
     expect(railroad.unsaved).toBeNull();
     expect(railroad.stockTrouble).toBeNull();
   });
 
-  it("answers false where no length moved", async () => {
-    const { railroad, store } = made();
+  it("answers false and names nothing where no length moved", async () => {
+    const { railroad, store, names } = made();
     railroad.named("toy");
     await flushed();
     railroad.stock!.carAddress("hopper-1", "7");
 
     expect(await railroad.save("off")).toBe(false);
     expect(store.saved).toEqual(["/rosters/toy"]);
+    expect(names).toEqual([]);
+  });
+
+  /** A Save that did not land changed nothing any app could build. */
+  it("names nothing where the store refused the length", async () => {
+    const { railroad, store, names } = await edited();
+    store.failing["/catalogue/hopper"] = "refused";
+
+    expect(await railroad.save("off")).toBe(false);
+
+    expect(names).toEqual([]);
   });
 
   it("is saving until the write answers, and writes once per press", async () => {
@@ -607,6 +620,91 @@ describe("the roster's Save", () => {
     railroad.edited();
 
     expect(railroad.stockTrouble).toBeNull();
+  });
+});
+
+describe("the drawing's save", () => {
+  /** `toy` loaded, with an edit to its drawing. */
+  async function edited() {
+    const made_ = made();
+    made_.railroad.named("toy");
+    await flushed();
+    await made_.filing.edited(made_.editor);
+    made_.store.saved.length = 0;
+    return made_;
+  }
+
+  it("writes the drawing and names the railroad once", async () => {
+    const { railroad, filing, store, names } = await edited();
+
+    expect(await railroad.saveDrawing("off")).toBe(true);
+
+    expect(store.saved).toEqual(["/drawings/toy"]);
+    expect(filing.saved).toBe(true);
+    expect(names).toEqual(["toy"]);
+  });
+
+  it("writes nothing without edits", async () => {
+    const { railroad, store, names } = made();
+    railroad.named("toy");
+    await flushed();
+    await railroad.saveDrawing("off");
+    store.saved.length = 0;
+
+    expect(await railroad.saveDrawing("off")).toBe(false);
+
+    expect(store.saved).toEqual([]);
+    expect(names).toEqual([]);
+  });
+
+  for (const power of ["on", "draining", null] as const) {
+    it(`writes nothing with power ${power}`, async () => {
+      const { railroad, filing, store, names } = await edited();
+
+      expect(await railroad.saveDrawing(power)).toBe(false);
+
+      expect(store.saved).toEqual([]);
+      expect(filing.saved).toBe(false);
+      expect(names).toEqual([]);
+    });
+  }
+
+  it("writes nothing and names nothing where another railroad was named before it answered", async () => {
+    const { railroad, store, names } = await edited();
+    const answer = store.hold("/drawings/toy");
+
+    const saved = railroad.saveDrawing("off");
+    await flushed();
+    railroad.named("yard");
+    answer();
+
+    expect(await saved).toBe(false);
+    expect(names).toEqual([]);
+  });
+
+  it("writes once and names once for a second call during the write", async () => {
+    const { railroad, store, names } = await edited();
+    const answer = store.hold("/drawings/toy");
+
+    const first = railroad.saveDrawing("off", true);
+    const second = railroad.saveDrawing("off");
+    expect(second).toBe(first);
+    answer();
+
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
+    expect(store.saved).toEqual(["/drawings/toy"]);
+    expect(names).toEqual(["toy"]);
+  });
+
+  it("names nothing where the write fails", async () => {
+    const { railroad, filing, store, names } = await edited();
+    store.failing["/drawings/toy"] = "refused";
+
+    expect(await railroad.saveDrawing("off")).toBe(false);
+
+    expect(filing.saved).toBe(false);
+    expect(names).toEqual([]);
   });
 });
 

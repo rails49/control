@@ -23,6 +23,14 @@
  *
  * The roster's Save is here too, so a Save in flight when the row names
  * another railroad writes its answer onto nothing the new railroad shows.
+ * So is the drawing's save, made where one is owed (ADR-0085, decision 1).
+ *
+ * **A save that lands names the railroad again**, on `railroad_wanted`
+ * through `name`, so every app builds what was written and keeps the trains
+ * that fit (ADR-0071): a drawing that reached the store, and a roster Save
+ * that moved a length. Each save names it once, and one that landed after the
+ * row named another railroad names nothing — what it wrote is not what is
+ * loaded (#798).
  *
  * No DOM, as nothing under `model/` has (docs/ARCHITECTURE.md). The store is a
  * dependency, as `Filing`'s is, and the `Editor` is taken when a read lands
@@ -75,16 +83,24 @@ export class Railroad {
   private stockWrong: string | null = null;
   /** The documents whose Save is in flight, `null` where none is. */
   private writing: Stock | null = null;
+  /** The drawing's save in flight, `null` while none is. */
+  private drawing: Promise<boolean> | null = null;
   /** The reads the store did not answer, to be made again. */
   private due = new Set<Read>();
   private timer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Names a railroad on the bus: the session's `pressRailroad`. */
+  private readonly naming: (railroad: string) => void;
 
   constructor(
     private readonly filing: Filing,
     private readonly editor: () => Editor,
     private readonly notify: () => void,
+    name: (railroad: string) => void,
     private readonly store: StockStore = live,
-  ) {}
+  ) {
+    this.naming = name;
+  }
 
   /** The railroad the row last named, `""` while it names none. */
   get name(): string {
@@ -195,9 +211,10 @@ export class Railroad {
    * out is a car removed (#388); a refusal stops the Save where it happened,
    * what was written staying written and the rest waiting for the next Save.
    *
-   * It answers whether a length reached the store, which is what has the
-   * shell name the railroad again so the dispatcher fits trains by it
-   * (ADR-0071) — a model written and the roster then refused included. One
+   * It answers whether a length reached the store, and where one did names
+   * the railroad it saved for again, before answering, so the dispatcher fits
+   * trains by it (ADR-0071) — a model written and the roster then refused
+   * included. One
    * Save at a time per `Stock` (#723). Where the row names another railroad
    * while it is in flight, nothing the new railroad shows is touched and it
    * answers `false`. A Save that landed reads the trains again, the lengths
@@ -216,6 +233,7 @@ export class Railroad {
       this.notify();
       return false;
     }
+    const railroad = this.last;
     const turn = this.turn;
     const lengths = stock.lengthEdits;
     const written = stock.roster;
@@ -242,7 +260,38 @@ export class Railroad {
     this.stockWrong = trouble;
     this.notify();
     if (landed) void this.reread();
+    if (reached) this.naming(railroad);
     return reached;
+  }
+
+  /**
+   * The drawing given to the store where a save is owed: the drawing open is
+   * the loaded railroad's, it holds edits, and `power` is `off` (ADR-0085,
+   * decision 1). Anything else writes nothing and answers `false`. It answers
+   * whether the drawing reached the store with the same railroad still open,
+   * and where it did names that railroad again, once, before answering.
+   * `leaving` is the page being hidden or closed, whose write must outlive
+   * it. A save asked for while one is in flight — the page hidden and then
+   * gone, or ON pressed while leaving the Edit view writes — is that one,
+   * and names the railroad once.
+   */
+  saveDrawing(power: Power | null, leaving = false): Promise<boolean> {
+    if (this.drawing !== null) return this.drawing;
+    const railroad = this.filing.opened;
+    if (railroad === "" || railroad !== this.last) return Promise.resolve(false);
+    if (this.filing.saved || power !== "off") return Promise.resolve(false);
+    const turn = this.turn;
+    this.drawing = this.filing
+      .save(this.editor(), leaving)
+      .then((reached) => {
+        if (!reached || turn !== this.turn) return false;
+        this.naming(railroad);
+        return true;
+      })
+      .finally(() => {
+        this.drawing = null;
+      });
+    return this.drawing;
   }
 
   /** One of the three reads, for the railroad last named. */

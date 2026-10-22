@@ -252,9 +252,10 @@ export class Session {
    *  to name, `null` while no press is owed (#803). The last press wins. */
   private owed: string | null = null;
   /** The railroad ON is waiting to see built, and the stamp of the row last
-   *  heard when it was pressed, `null` while ON waits for nothing
-   *  (ADR-0085, decision 2). */
-  private building: { railroad: string; after: number | null } | null = null;
+   *  heard when its save landed — `saving` while the save is still out —
+   *  `null` while ON waits for nothing (ADR-0085, decision 2). */
+  private building: { railroad: string; after: number | null; saving: boolean } | null =
+    null;
   /** The stamp on the last `tc49/layout/state/railroad` row, `null` before
    *  one or where it carried none. */
   private stamped: number | null = null;
@@ -544,22 +545,34 @@ export class Session {
   }
 
   /**
-   * ON pressed over a drawing just saved: the railroad named again on
-   * `railroad_wanted`, as any save of the loaded railroad names it, and
-   * `power_wanted` `on` sent once the row comes back naming it from a build
-   * after the press
+   * ON pressed over a drawing being saved: `power_wanted` `on` sent once the
+   * row comes back naming `railroad` from a build after the save landed
    * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
    * decision 2). The power comes on over what the apps built from what was
-   * saved, never over the build before it.
+   * saved, never over the build before it. Naming the railroad again is the
+   * save's own (`Railroad`, model/railroad.ts), so nothing is named here.
    *
-   * A row saying `built: false` built nothing, so nothing is sent: a drawing
-   * that is not a valid drawing runs no train. Nor is anything sent where a
-   * row names another railroad first, or another power press comes first —
-   * a STOP while waiting is a person changing their mind.
+   * ON is waiting from the call on. A save that answers `false` sends
+   * nothing. Nor does a row saying `built: false`, which built nothing: a
+   * drawing that is not a valid drawing runs no train. Nor is anything sent
+   * where a row names another railroad first, or another power press comes
+   * first, while the write is out or the build has not arrived — a STOP while
+   * waiting is a person changing their mind.
    */
-  pressOnBuilt(railroad: string): void {
-    this.building = { railroad, after: this.stamped };
-    this.pressRailroad(railroad);
+  pressOnSaved(railroad: string, saved: Promise<boolean>): void {
+    const waiting = { railroad, after: null as number | null, saving: true };
+    this.building = waiting;
+    void saved
+      .catch(() => false)
+      .then((landed) => {
+        if (this.building !== waiting) return;
+        if (!landed) {
+          this.building = null;
+          return;
+        }
+        waiting.after = this.stamped;
+        waiting.saving = false;
+      });
   }
 
   /** A row naming `railroad`, stamped `at`, saying whether anything was
@@ -568,7 +581,7 @@ export class Session {
   private rebuilt(railroad: string, at: number | null, built: boolean): void {
     const waiting = this.building;
     this.stamped = at;
-    if (waiting === null) return;
+    if (waiting === null || waiting.saving) return;
     if (railroad !== waiting.railroad) {
       this.building = null;
       return;
