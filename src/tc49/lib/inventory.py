@@ -261,6 +261,7 @@ acts on the addresses it recognises, and one nobody answers to does no harm
 WIDGET_TOPICS: dict[str, Topic] = {
     "tc49/ui/state/text": Topic(()),
     "tc49/ui/state/toggle": Topic((), browser=True),
+    "tc49/ui/button": Topic((), browser=True),
 }
 """The rows of the drawing's widgets, under `ui` (ADR-0087). Keyed by the
 topic without the widget's name, which is the one level past the key and is
@@ -274,8 +275,8 @@ text the page shows as it arrives, rendering the ANSI SGR codes for bold, red,
 amber and green and removing any other code; a toggle row is the toggle's on
 payload or its off payload as typed in the drawing, and a page reads the
 position by comparing the row with the two, a row matching neither, or no row,
-showing neither (ADR-0087 decision 4). So ``AT``
-does not lead a widget's state row, and the trace, which runs only on the
+showing neither; a button row is the payload typed for the button (ADR-0087
+decision 4). So ``AT`` does not lead a widget's state row, and the trace, which runs only on the
 in-process bus where no widget row is published, does not name one.
 
 Any writer, on a state row too: the exception to rule 1 that ADR-0087
@@ -284,7 +285,9 @@ one written is the right one. Two writers of one text row overwrite each
 other, which is the writers' business. A text row carries no browser mark,
 because no page writes one. A toggle row carries it, because a page writes the
 position a person presses: the one state row with the mark (ADR-0087 decision
-3), and the exception to ``INBOUND``'s rule below."""
+3), and the exception to ``INBOUND``'s rule below. A button row is an event and
+carries the mark too: a page publishes it once per press, whatever the track
+power, and nothing keeps it (ADR-0087 decisions 2 and 3)."""
 
 
 def device_topic(prefix: str, *address: str) -> str:
@@ -450,7 +453,7 @@ never carry it. The one exception is outside ``TOPICS``: a toggle's row,
 mark, because it is always the whole value and the last one written is the
 right one (ADR-0087 decision 3). It is a pattern the drawing completes, not a
 whole topic, so it is not in this set; a page reads its mark off
-``WIDGET_TOPICS``.
+``WIDGET_TOPICS``, as it does a button's, `tc49/ui/button/<name>`.
 
 Gestures, never requests: `tc49/dispatch/request_submitted` carries no mark
 and is refused inbound like any other unmarked topic, which is what makes the
