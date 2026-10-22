@@ -93,8 +93,9 @@ src/
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
     railroad.ts  the loaded railroad's documents: read when the row names
-                 it, read again until the store answers, and the roster's
-                 Save
+                 it, read again until the store answers, the drawing's save
+                 and the roster's Save, and naming the railroad again when
+                 either lands
     scene.ts     what the drawing alone answers: the frame a fit and an export
                  are drawn in, an arrow's pose, which symbol wears an address
     pinch.ts     the view two fingers on the canvas hold: pan, and zoom about
