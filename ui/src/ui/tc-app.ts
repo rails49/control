@@ -75,6 +75,7 @@ import { Wake } from "./wake.js";
 import type { Cab } from "../model/throttle.js";
 import type { DrivingMode, Power } from "../model/trace.js";
 import { hashOf, shut, viewOf, VIEWS, type ViewId } from "../model/views.js";
+import { widgetOf } from "../model/widgets.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
 import "./tc-editor.js";
@@ -699,12 +700,17 @@ export class TcApp extends LitElement {
     // band that says why and the editing view whose gestures it kills.
     const one = this.inspecting;
     const spec = one === null ? undefined : this.editor.drawing.symbols[one];
+    // Every widget has a name to set, so one selected alone is editable.
+    const widget = one === null ? null : widgetOf(one);
     return {
       opened: this.filing.opened,
       saved: this.filing.saved,
       failed: this.filing.failed,
       selection: this.editor.selection.size,
-      editable: spec !== undefined && editable(spec.kind),
+      turnable: [...this.editor.selection].some((key) => widgetOf(key) === null),
+      editable:
+        (widget !== null && widget in this.editor.widgets) ||
+        (spec !== undefined && editable(spec.kind)),
       undo: this.editor.canUndo,
       redo: this.editor.canRedo,
       power: this.status.power,

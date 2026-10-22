@@ -26,6 +26,7 @@ function at(parts: Partial<MenuAt> = {}): MenuAt {
     pin: null,
     symbol: null,
     kind: null,
+    widget: null,
     junction: null,
     joint: null,
     wire: null,

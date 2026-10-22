@@ -1848,6 +1848,39 @@ def test_a_drawing_without_widgets_has_none() -> None:
     assert Drawing.from_document(spanned()).widgets == {}
 
 
+def test_the_widgets_the_editor_writes_load() -> None:
+    """What the editor places (#928): 3 x 1, the schema's defaults left
+    unwritten, a button's payload its own name and a toggle's on and off
+    `on` and `off`; and a text widget as its dialog writes one back.
+    `ui/test/filing.test.ts` saves the same mapping."""
+    written = {
+        "current": {
+            "kind": "text",
+            "at": [0, 4],
+            "size": [3, 1],
+            "align": "left",
+            "default": "—",
+        },
+        "button1": {
+            "kind": "button",
+            "at": [4, 4],
+            "size": [3, 1],
+            "payload": "button1",
+        },
+        "toggle1": {
+            "kind": "toggle",
+            "at": [8, 4],
+            "size": [3, 1],
+            "on": "on",
+            "off": "off",
+        },
+        "text1": {"kind": "text", "at": [0, 6], "size": [3, 1]},
+    }
+    drawing = Drawing.from_document({**spanned(), "widgets": written})
+    assert set(drawing.widgets) == set(written)
+    assert drawing.widgets["text1"].text == "normal"
+
+
 def _widget_error(name: str, **change: Any) -> Mutate:
     """Gives the drawing the three widgets, with one key of one of them
     changed, or removed where the change is None."""

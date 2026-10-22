@@ -22,6 +22,11 @@ import {
   type PinRef,
 } from "./drawing.js";
 import type { Joint, Junction, Review } from "./store.js";
+import {
+  selectionKey,
+  widgetCentre,
+  widgetCovers,
+} from "./widgets.js";
 
 /** How near a pointer has to come to a pin or a line, in squares. */
 const HIT = 0.22;
@@ -46,6 +51,8 @@ export interface Under {
    *  and whether its name is the user's. The menu asks rather than reaching
    *  into the drawing itself. */
   kind: AnyKind | null;
+  /** The widget, where the point is on one and on no pin. */
+  widget: string | null;
   junction: Junction | null;
   joint: Joint | null;
   wire: [PinRef, PinRef] | null;
@@ -60,18 +67,24 @@ export function under(
   // A pin beats the symbol carrying it: a press on one starts a wire, while a
   // press anywhere else on the symbol takes hold of the symbol. The symbol is
   // named either way, so a right-click on a pin still asks about the turnout.
+  //
+  // A widget is drawn over the symbols, nothing keeping it off them, so it is
+  // what a press lands on there; a pin under it still starts a wire.
   const pin = pinNear(drawing, at, shift);
-  const symbol = pin === null ? symbolAt(drawing, at, shift) : symbolOf(pin);
+  const widget = pin === null ? widgetAt(drawing, at, shift) : null;
+  const symbol =
+    pin !== null ? symbolOf(pin) : widget === null ? symbolAt(drawing, at, shift) : null;
   return {
     pin,
     symbol,
     kind: symbol === null ? null : (drawing.symbols[symbol]?.kind ?? null),
+    widget,
     junction: junctionOf(review, symbol),
     joint: jointNear(drawing, review, at, shift),
     // Only where no symbol is. A symbol's own wires pass within a hair of its
     // pins, and an abutted one has no length at all, so a wire is near wherever
     // a symbol is; a click on a turnout is a question about the turnout.
-    wire: symbol === null ? wireNear(drawing, at, shift) : null,
+    wire: symbol === null && widget === null ? wireNear(drawing, at, shift) : null,
   };
 }
 
@@ -110,12 +123,16 @@ export function nearest(
 export function within(drawing: Drawing, from: Point, to: Point): string[] {
   const [x0, x1] = [Math.min(from.x, to.x), Math.max(from.x, to.x)];
   const [y0, y1] = [Math.min(from.y, to.y), Math.max(from.y, to.y)];
-  return Object.entries(drawing.symbols)
-    .filter(([, spec]) => {
-      const { x, y } = centreOf(spec);
-      return x >= x0 && x <= x1 && y >= y0 && y <= y1;
-    })
-    .map(([name]) => name);
+  const inside = ({ x, y }: Point) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  // A widget is taken the same way, under the key the selection holds it by.
+  return [
+    ...Object.entries(drawing.symbols)
+      .filter(([, spec]) => inside(centreOf(spec)))
+      .map(([name]) => name),
+    ...Object.entries(drawing.widgets ?? {})
+      .filter(([, spec]) => inside(widgetCentre(spec)))
+      .map(([name]) => selectionKey(name)),
+  ];
 }
 
 /** The joint whose drawn line passes nearest a point, where one does. Offered
@@ -233,4 +250,14 @@ function symbolAt(drawing: Drawing, at: Point, shift: Shift): string | null {
     if (covers) return name;
   }
   return null;
+}
+
+/** The widget covering a point, drawn where the drag has it. Two may overlap,
+ *  nothing keeping them apart, and then the one drawn last — on top — is the
+ *  one a press lands on. */
+function widgetAt(drawing: Drawing, at: Point, shift: Shift): string | null {
+  const found = Object.entries(drawing.widgets ?? {}).filter(([name, spec]) =>
+    widgetCovers(spec, at, shift(selectionKey(name))),
+  );
+  return found.at(-1)?.[0] ?? null;
 }

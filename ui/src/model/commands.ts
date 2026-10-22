@@ -46,9 +46,13 @@ export interface Standing {
    *  refused it or did not answer. The edits stay on the page, marked
    *  unsaved, until a save lands (`stranded` below). */
   failed: boolean;
-  /** How many symbols are selected. */
+  /** How many symbols and widgets are selected. */
   selection: number;
-  /** Whether the one selected symbol has anything to set. False wherever the
+  /** Whether the selection holds a symbol, which is what Rotate and Flip
+   *  turn. A widget does not turn (ADR-0087), so a selection of widgets alone
+   *  leaves both dead. */
+  turnable: boolean;
+  /** Whether the one selected symbol or widget has anything to set. False wherever the
    *  selection is not exactly one: a group selection is a move about to
    *  happen, and a kind with nothing to set opens no dialog at all. */
   editable: boolean;
@@ -120,6 +124,7 @@ export const NOTHING: Standing = {
   saved: true,
   failed: false,
   selection: 0,
+  turnable: false,
   editable: false,
   undo: false,
   redo: false,
@@ -302,12 +307,17 @@ export const COMMANDS: Record<CommandId, Command> = {
     key: "Shift+Mod+Z",
     enabled: editing(({ redo }) => redo),
   },
-  rotate: { label: "Rotate", icon: "rotate", key: "R", enabled: editing(hasSelection) },
+  rotate: {
+    label: "Rotate",
+    icon: "rotate",
+    key: "R",
+    enabled: editing(({ turnable }) => turnable),
+  },
   flip: {
     label: "Flip",
     icon: "symmetry-vertical",
     key: "F",
-    enabled: editing(hasSelection),
+    enabled: editing(({ turnable }) => turnable),
   },
   delete: { label: "Delete", icon: "trash", key: "⌫", enabled: editing(hasSelection) },
   properties: {

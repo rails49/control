@@ -120,11 +120,41 @@ export function motorised(kind: AnyKind): kind is MotorisedKind {
   return kind in POSITIONS;
 }
 
+/** A widget's kind: a text, a button or a toggle (ADR-0087). */
+export type WidgetKind = "text" | "button" | "toggle";
+
+/**
+ * A widget, as the drawing writes it beside its symbols
+ * ([DRAWING.md](../../../docs/store/DRAWING.md#widgets)). It has no pins and
+ * no transits, so nothing derives from it, and it does not turn: `at` and
+ * `size` are all its placement.
+ */
+export interface WidgetSpec {
+  kind: WidgetKind;
+  /** The grid cell of its top-left square. */
+  at: [number, number];
+  /** Its width and height, in squares. */
+  size: [number, number];
+  /** The size of its words, `normal` where absent. */
+  text?: "small" | "normal" | "large";
+  /** How its words sit, `center` where absent. */
+  align?: "left" | "center" | "right";
+  /** A text widget's, shown until a row arrives. */
+  default?: string;
+  /** A button's, what a press sends. */
+  payload?: string;
+  /** A toggle's two payloads, which differ. */
+  on?: string;
+  off?: string;
+}
+
 export interface Drawing {
   drawing: string;
   units?: string;
   symbols: Record<string, SymbolSpec>;
   wires: Wire[];
+  /** Absent in a drawing that has none. */
+  widgets?: Record<string, WidgetSpec>;
 }
 
 export function emptyDrawing(name: string): Drawing {

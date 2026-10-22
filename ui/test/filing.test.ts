@@ -244,6 +244,34 @@ describe("saving", () => {
     expect(Object.keys(store.written[0]!.symbols)).toContain("b2");
   });
 
+  /** A widget is the document's own and the store takes it as written
+   *  (store/DRAWING.md#widgets), so what is opened again is what was placed
+   *  and edited. */
+  it("round-trips the widgets", async () => {
+    const { filing, store, editor } = made(["reversing-loops"]);
+    await filing.open("reversing-loops", editor);
+    editor.placeWidget("text", [0, 4]);
+    editor.placeWidget("button", [4, 4]);
+    editor.placeWidget("toggle", [8, 4]);
+    editor.editWidget("text1", "current", {
+      ...editor.widgets.text1!,
+      align: "left",
+      default: "—",
+    });
+    await filing.edited(editor);
+    await filing.save(editor);
+
+    const again = new Editor(emptyDrawing("untitled"));
+    await filing.open("reversing-loops", again);
+
+    expect(again.widgets).toEqual(editor.widgets);
+    expect(store.written[0]!.widgets).toEqual({
+      current: { kind: "text", at: [0, 4], size: [3, 1], align: "left", default: "—" },
+      button1: { kind: "button", at: [4, 4], size: [3, 1], payload: "button1" },
+      toggle1: { kind: "toggle", at: [8, 4], size: [3, 1], on: "on", off: "off" },
+    });
+  });
+
   /** A name the list lacks is one another page made since the list was
    *  asked for; the list learns it on the save all the same. */
   it("learns a name the drawings there are lacked", async () => {

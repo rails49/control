@@ -37,6 +37,11 @@ export function fitBox(drawing: Drawing, extra: readonly Point[] = []): Box {
     ...Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
       pinsOf(spec).map((pin) => anchorOf(spec, pin)),
     ),
+    // A widget has no pins, so its two corners stand in for them.
+    ...Object.values(drawing.widgets ?? {}).flatMap(({ at: [c, r], size: [w, h] }) => [
+      { x: c, y: r },
+      { x: c + w, y: r + h },
+    ]),
     ...extra,
   ];
   if (points.length === 0) return { x: -1, y: -1, w: 16, h: 11 };

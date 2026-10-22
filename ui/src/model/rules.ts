@@ -17,6 +17,13 @@ export function isName(name: string): boolean {
   return name !== "" && !name.includes(".") && !name.includes("/");
 }
 
+/** What the drawing schema takes as a widget's name: one topic level, so
+ *  letters, digits, `_` and `-` and nothing else, the name ending the widget's
+ *  topic (`tc49.store.drawing._WIDGET_NAME`). */
+export function isWidgetName(name: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(name);
+}
+
 /** Why a length will not do, or `null` for one that will: the store takes a
  *  positive whole number of millimetres and nothing else
  *  (`tc49.lib.layout.check_length`). Named after `symbolTrouble` in
