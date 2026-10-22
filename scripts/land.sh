@@ -10,8 +10,12 @@
 #   scripts/land.sh --title … --body …    any `gh pr create` arguments
 #
 # Without `-u` on the push: the sandbox cannot write `.git/config`.
+# LAND_INTERVAL, 5 by default, is the seconds between reads of GitHub; the
+# tests shorten it.
 
 set -euo pipefail
+
+interval=${LAND_INTERVAL:-5}
 
 branch=$(git branch --show-current)
 [ -n "$branch" ] && [ "$branch" != main ] || { echo "land.sh: not on a branch other than main" >&2; exit 1; }
@@ -26,20 +30,25 @@ fi
 gh pr merge "$branch" --auto --rebase
 
 # `gh pr checks --watch` fails at once while no check has been reported yet.
+# gh exits non-zero then and while a check is pending, so its text decides
+# the wait and its status does not.
 for _ in $(seq 30); do
-  gh pr checks "$branch" 2>&1 | grep -q 'no checks reported' || break
-  sleep 5
+  checks=$(gh pr checks "$branch" 2>&1) || true
+  case $checks in *'no checks reported'*) ;; *) break ;; esac
+  sleep "$interval"
 done
 gh pr checks "$branch" --watch --fail-fast --interval 20 > /dev/null || {
-  gh pr checks "$branch"
+  gh pr checks "$branch" || true
   echo "land.sh: ci failed; the PR stays open" >&2
   exit 1
 }
 
-for _ in $(seq 30); do
+# GitHub starts the auto-merge when it gets round to it, minutes after ci on
+# #930, with the merge state UNKNOWN meanwhile: up to five minutes.
+for _ in $(seq 60); do
   state=$(gh pr view "$branch" --json state --jq .state)
-  [ "$state" = MERGED ] && break
-  sleep 5
+  case $state in MERGED | CLOSED) break ;; esac
+  sleep "$interval"
 done
 [ "$state" = MERGED ] || { echo "land.sh: ci passed but the PR is $state" >&2; exit 1; }
 gh pr view "$branch" --json url --jq '"merged: " + .url'
