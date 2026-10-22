@@ -374,6 +374,38 @@ def test_a_number_written_with_an_exponent_reads_back_as_a_number(
     assert scratch_store.model("arnold-ce68")["weight"] == value
 
 
+def test_a_saved_toggle_reads_back_with_its_on_and_off(
+    scratch_store: AssetStore,
+) -> None:
+    """A toggle whose keys and values are the words `on` and `off`, through a
+    save and back.
+
+    The writer follows YAML 1.2 and wrote them unquoted; YAML 1.1 reads
+    unquoted `on` and `off` as booleans, so the drawing came back with keys
+    `True` and `False` and was refused (#945). This reader resolves a boolean
+    from `true` and `false` alone, as the writer does.
+    """
+    doc = scratch_store.drawing("crossover-yard")
+    toggle = {"kind": "toggle", "at": [0, 0], "on": "on", "off": "off"}
+    scratch_store.put({**doc, "widgets": {"toggle1": toggle}})
+
+    assert scratch_store.drawing("crossover-yard")["widgets"]["toggle1"] == toggle
+
+
+def test_true_and_false_read_as_booleans(
+    scratch_store: AssetStore, tmp_path: Path
+) -> None:
+    """The YAML 1.2 booleans, in any case, and none of YAML 1.1's other
+    words for one (#945)."""
+    document = tmp_path / "catalogue" / "arnold-ce68.yaml"
+    words = "a: true\nb: False\nc: TRUE\nd: yes\ne: off\nf: On\n"
+    document.write_text(f"{document.read_text().rstrip()}\n{words}")
+
+    model = scratch_store.model("arnold-ce68")
+    read = {key: model[key] for key in "abcdef"}
+    assert read == {"a": True, "b": False, "c": True, "d": "yes", "e": "off", "f": "On"}
+
+
 @pytest.mark.parametrize(
     "held",
     [
