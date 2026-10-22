@@ -22,6 +22,7 @@ this cannot speak for — a program outside this run, holding a number in the
 band — and steps over what it is holding rather than into it.
 """
 
+import os
 import random
 import socket
 from pathlib import Path
@@ -84,7 +85,28 @@ class Ports:
         raise RuntimeError(f"no free port between {self._first} and {self._last}")
 
 
-_ports = Ports(max(1024, EPHEMERAL_FIRST - BAND), EPHEMERAL_FIRST - 1)
+def share(first: int, last: int, worker: str | None, workers: int) -> tuple[int, int]:
+    """This process's part of the band: all of it in a run of its own, and
+    under pytest-xdist the worker's own slice. Each worker is a process with
+    a cursor of its own, so two walking one band could pick the same number
+    before either binds it.
+
+    `worker` is xdist's name for it, `gw0` to `gw<workers - 1>`."""
+    if worker is None:
+        return first, last
+    size = (last - first + 1) // workers
+    start = first + int(worker.removeprefix("gw")) * size
+    return start, start + size - 1
+
+
+_ports = Ports(
+    *share(
+        max(1024, EPHEMERAL_FIRST - BAND),
+        EPHEMERAL_FIRST - 1,
+        os.environ.get("PYTEST_XDIST_WORKER"),
+        int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1")),
+    )
+)
 
 
 def free_port() -> int:
