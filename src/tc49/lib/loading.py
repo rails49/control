@@ -29,6 +29,8 @@ watches the row (the scheduler, the dispatcher and the driver), the
 **answerer** that watches the gesture behind it (`layout` or `simulator`,
 whichever binding of the layout interface is running), the documents an app
 comes up on and the ones it is rebuilt on, and the clearing.
+The rebuild loop is here too, run for whichever layout binding is running
+(`rebuilding`), and not for the followers, which keep their own (ADR-0086).
 An app's `__main__` names the filters it owns and what it reads, and nothing
 else here knows either — what a row is about is the app's business, and the
 rule is only that it is the row's owner who drops it.
@@ -36,6 +38,7 @@ rule is only that it is the row's owner who drops it.
 
 import threading
 from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from tc49.lib.bus import Bus, Payload, matches
 from tc49.lib.documents import Documents
@@ -333,6 +336,53 @@ class Answering(Loaded):
         self._moved = False
 
 
+class Running(Protocol):
+    """A layout binding built on a railroad, as the rebuild loop runs it."""
+
+    @property
+    def position(self) -> dict[str, str]:
+        """Where each train stands, which a rebuild under the same name
+        carries into the next build (ADR-0071)."""
+        ...
+
+    def run(self, until: Callable[[], bool]) -> None:
+        """The binding's inner loop, returning once `until()` is true."""
+        ...
+
+
+class LayoutBinding[Read](Protocol):
+    """What a layout binding hands the rebuild loop (ADR-0086): how it reads
+    a railroad, what it runs on where the drawing is not a valid drawing, the
+    `Layout` in what it read, how it builds, and the rows it owns.
+
+    `Read` is that binding's documents — a layout and a roster for `layout`,
+    a layout for the simulator — and comes back to `build` as it read them.
+    """
+
+    owned: Sequence[str]
+    """The filters of the retained rows the binding writes (`dropped`)."""
+
+    def read(self, railroad: str) -> Read:
+        """`railroad`'s documents, raising as `Documents` does."""
+        ...
+
+    def nothing(self, railroad: str) -> Read:
+        """What the binding runs on where `railroad`'s drawing is not a valid
+        drawing and there is no build to keep (ADR-0085, decision 4)."""
+        ...
+
+    def layout(self, read: Read) -> Layout:
+        """The `Layout` inside what `read` gave."""
+        ...
+
+    def build(self, read: Read, position: dict[str, str], built: bool) -> Running:
+        """The app built on `read`, with its own `Clock`, ready to run: the
+        trains standing at `position`, and `built` false where nothing was
+        built from the drawing. A step only this binding needs before it is
+        constructed happens here (ADR-0086, decision 2)."""
+        ...
+
+
 def standing[Read](
     bus: Bus,
     loaded: Loaded,
@@ -539,6 +589,69 @@ def still_standing(position: dict[str, str], layout: Layout) -> dict[str, str]:
     binding's.
     """
     return {train: block for train, block in position.items() if block in layout.blocks}
+
+
+def rebuilding[Read](
+    bus: Bus,
+    documents: Documents,
+    railroad: str,
+    stop: threading.Event,
+    binding: LayoutBinding[Read],
+    log: Callable[[str], None],
+    period_s: float,
+    retained_s: float,
+) -> None:
+    """A layout binding's life on the bus, from the store's record to the
+    rows it clears on each move: the loop `layout` and the simulator share
+    (ADR-0086). Each hands over its `binding`; everything else is here.
+
+    **The record first** (`Answering.recorded`), and the cold start on it,
+    standing where the store cannot give it (`standing`). A drawing that is
+    not a valid drawing builds on `binding.nothing` and is named with
+    `built: false` (`drawn`).
+
+    Then one railroad each time round. **`follow` comes first**: what this
+    app watches is a gesture, and an event is not retained, so a press landing
+    before the subscription — in the build, or between the app's opening rows
+    and its own handlers — would simply be gone (ADR-0059, decision 5). The
+    railroad is **recorded** before the build, so the next start comes up on
+    it. The build runs until another railroad is picked or `stop` is set, and
+    a stop returns. A pick whose drawing is not a valid drawing is named and
+    this build goes on running, its rows kept (`answered`, ADR-0085,
+    decision 4). One that builds takes the trains with it **under the same
+    name**, less any whose block the new drawing lacks (ADR-0071), and none
+    under another; then the rows the binding owns go (`dropped`).
+    """
+    loaded = Answering.recorded(documents, railroad, log)
+    reading = drawn(binding.read, binding.nothing, log)
+    came = standing(bus, loaded, stop, log, reading, period_s)
+    if came is None:
+        return
+    read, derived = came
+    log(f"'{loaded.name}': {len(binding.layout(read).blocks)} blocks")
+    position: dict[str, str] = {}
+    while not stop.is_set():
+        loaded.follow(bus)
+        documents.put_loaded(loaded.name)
+        running = binding.build(read, position, derived)
+        built = loaded.name
+        log(f"up on {named(built)}")
+        picked: tuple[Read, bool] | None = None
+        while picked is None:
+            running.run(until=lambda: stop.is_set() or loaded.moved)
+            if not loaded.moved:
+                return
+            picked = answered(
+                bus, documents, loaded, built, (read, derived), log, reading
+            )
+        read, derived = picked
+        position = (
+            still_standing(running.position, binding.layout(read))
+            if loaded.name == built
+            else {}
+        )
+        gone = dropped(bus, binding.owned, stop, retained_s)
+        log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
 
 def dropped(

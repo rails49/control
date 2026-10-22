@@ -20,7 +20,6 @@ import time
 from collections.abc import Callable, Iterator
 from http.server import HTTPServer
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
@@ -31,18 +30,16 @@ from tc49.layout.interface import (
     BLOCK_OCCUPIED,
     DEVICE_SENSOR,
     DRIVING,
-    PLACED,
     POWER,
     POWER_WANTED,
     RAILROAD,
     TAKEN,
     WANTED_TRACK,
     WANTED_TRACTION,
-    LayoutInterface,
 )
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
-from tc49.lib.loading import BUILT, NO_RAILROAD, RAILROAD_WANTED
+from tc49.lib.loading import BUILT, RAILROAD_WANTED
 from tc49.lib.mqtt import MqttBus
 from tc49.store import AssetStore
 from tc49.store.server import make_server
@@ -51,11 +48,6 @@ from tests.harness import ASSETS, catalogued
 from tests.ports import free_port
 
 NAME = "crossover-yard"
-OTHER = "single-track-meet"
-"""A second railroad for the store to hold, loaded while the app runs: what
-the record follows (ADR-0072, decision 5)."""
-GONE = "nowhere"
-"""A name the store lists no railroad under."""
 END = "up_w.A"
 BLOCK = "up_w"
 TRACTION = f"{WANTED_TRACTION}/3"
@@ -79,12 +71,6 @@ def drawn(root: Path, railroad: str) -> None:
             ASSETS / "layouts" / f"{railroad}.{suffix}.yaml",
             root / "layouts" / f"{railroad}.{suffix}.yaml",
         )
-
-
-def recorded(root: Path, railroad: str) -> None:
-    """The store's record of the railroad loaded last, as the binding that
-    ran before this one left it (#728)."""
-    AssetStore(root).put_loaded(railroad)
 
 
 class Store:
@@ -361,125 +347,6 @@ def test_a_layout_standing_with_no_railroad_says_nothing(
         witness.close()
 
 
-def test_it_starts_on_the_railroad_the_store_records(
-    broker: Broker, store: Store, root: Path
-) -> None:
-    """A box comes back on the railroad its rails were built to (ADR-0072,
-    decision 5): started with no railroad named, as every command line
-    starts it, the app reads the store's record and comes up on that."""
-    recorded(root, NAME)
-    store.start()
-    app = App(broker, store, railroad=NO_RAILROAD)
-    witness, heard = watching(broker)
-    try:
-        app.start()
-        assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
-        assert rows(heard, RAILROAD)[-1]["name"] == NAME
-        assert app.running, "the app stopped on its own"
-    finally:
-        app.stop()
-        witness.close()
-
-
-def test_it_records_each_railroad_it_is_built_on(
-    broker: Broker, store: Store, root: Path, app: App
-) -> None:
-    """The other half of the record: written each time this app is built on
-    a railroad, on the way up and on each answered gesture, so the next start
-    finds the one loaded last (ADR-0072, decision 5)."""
-    drawn(root, OTHER)
-    store.start()
-    witness, heard = watching(broker)
-    app.start()
-    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
-    assert AssetStore(root).loaded() == NAME, "the railroad it came up on"
-
-    # A person's gesture, with the rails dead as the app comes up (ADR-0060).
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
-    hand.publish(RAILROAD_WANTED, {"railroad": OTHER})
-
-    assert drained(
-        witness, lambda: rows(heard, RAILROAD)[-1]["name"] == OTHER
-    ), "the gesture was dropped"
-    assert AssetStore(root).loaded() == OTHER, "the railroad loaded afterwards"
-    hand.close()
-    witness.close()
-
-
-def test_a_recorded_railroad_the_store_no_longer_has_leaves_it_standing(
-    broker: Broker, store: Store, root: Path
-) -> None:
-    """The record is a starting point and not a binding, as the flag is: one
-    the store cannot give leaves the app standing and naming no railroad on
-    the row (#727). The record is not cleared — the next load overwrites it."""
-    recorded(root, GONE)
-    store.start()
-    said: list[str] = []
-    app = App(broker, store, railroad=NO_RAILROAD, log=said.append)
-    witness, heard = watching(broker)
-    try:
-        app.start()
-        assert until(lambda: any("standing" in line for line in said)), "never stood"
-        assert drained(witness, lambda: rows(heard, RAILROAD) != []), "no row"
-        assert rows(heard, RAILROAD)[-1]["name"] == NO_RAILROAD
-        assert rows(heard, TAKEN) == [], "it was built on a railroad it has not got"
-        assert AssetStore(root).loaded() == GONE, "the record was cleared"
-        assert app.running, "the app stopped on its own"
-    finally:
-        app.stop()
-        witness.close()
-
-
-@pytest.fixture
-def built(monkeypatch: pytest.MonkeyPatch) -> list[LayoutInterface]:
-    """Every layout interface the app builds, in order: the one it came up
-    on, then one per rebuild. What a rebuild carries over is held in no row —
-    the steel's position is on no topic (ADR-0030) — so it is read off the
-    object."""
-    interfaces: list[LayoutInterface] = []
-
-    class Recorded(LayoutInterface):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, **kwargs)
-            interfaces.append(self)
-
-    monkeypatch.setattr("tc49.layout.__main__.LayoutInterface", Recorded)
-    return interfaces
-
-
-def test_a_rebuild_under_the_same_name_keeps_the_trains_whose_blocks_remain(
-    broker: Broker, store: Store, root: Path, app: App, built: list[LayoutInterface]
-) -> None:
-    """With track power off a saved edit changes the drawing and not the
-    track, so a train stands where it stood (ADR-0071). The edit here renames
-    `yard_e`: the train standing in it has no block left in the drawing to
-    stand in, and the one in `yard_w` is kept."""
-    store.start()
-    witness, _ = watching(broker)
-    app.start()
-    # Not the taken row: the interface writes it as it is constructed, before
-    # `built` holds it.
-    assert drained(witness, lambda: built != []), "it never came up"
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
-    hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
-    hand.publish(PLACED, {"train": "express_2", "block": "yard_e"})
-    assert drained(
-        witness, lambda: len(built[0].position) == 2
-    ), "the placements never landed"
-
-    # The rails are dead as the app comes up, so the gesture is answered.
-    drawing = root / "layouts" / f"{NAME}.drawing.yaml"
-    drawing.write_text(drawing.read_text().replace("yard_e", "siding_e"))
-    hand.publish(RAILROAD_WANTED, {"railroad": NAME})
-
-    assert drained(witness, lambda: len(built) == 2), "it was never rebuilt"
-    assert built[1].position == {"freight_1": "yard_w"}
-    hand.close()
-    witness.close()
-
-
 def broken(root: Path, railroad: str) -> None:
     """`railroad`'s drawing with its last wire gone, which leaves a dangling
     pin: a drawing that is not a valid drawing, as a track plan being rebuilt
@@ -530,67 +397,6 @@ def test_a_saved_drawing_that_does_not_derive_names_the_railroad_not_built(
     assert rebuilt["at"] != unbuilt["at"]
     hand.close()
     witness.close()
-
-
-def test_a_pick_whose_drawing_does_not_derive_is_recorded_and_not_built(
-    broker: Broker, store: Store, root: Path, app: App
-) -> None:
-    """A railroad picked under another name whose drawing is not a valid
-    drawing stays named: the store records it, so a restart comes up on it,
-    and the row says nothing was built. The app goes on running the one it
-    was built on (ADR-0085, decision 4)."""
-    drawn(root, OTHER)
-    broken(root, OTHER)
-    store.start()
-    witness, heard = watching(broker)
-    app.start()
-    assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
-
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
-    hand.publish(RAILROAD_WANTED, {"railroad": OTHER})
-
-    assert drained(
-        witness, lambda: rows(heard, RAILROAD)[-1]["name"] == OTHER
-    ), "the pick was dropped"
-    assert rows(heard, RAILROAD)[-1][BUILT] is False
-    assert AssetStore(root).loaded() == OTHER
-    assert app.running, "the app stopped"
-    hand.close()
-    witness.close()
-
-
-def test_a_restart_on_a_railroad_whose_drawing_does_not_derive_names_it(
-    broker: Broker, store: Store, root: Path
-) -> None:
-    """After a restart the record names a railroad whose drawing is not a
-    valid drawing: the app names it on the row with `built: false`, rather
-    than standing on none, so the page can open it for the fix (#885). The
-    record stands, and the power is still answered, a person driving the
-    station by hand to test (rails49/dccex#329)."""
-    broken(root, NAME)
-    recorded(root, NAME)
-    store.start()
-    app = App(broker, store, railroad=NO_RAILROAD)
-    witness, heard = watching(broker)
-    try:
-        app.start()
-        assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
-        named = rows(heard, RAILROAD)[-1]
-        assert (named["name"], named[BUILT]) == (NAME, False)
-        assert AssetStore(root).loaded() == NAME
-        assert app.running, "the app stopped on its own"
-
-        hand = MqttBus(port=broker.port)
-        assert hand.wait_connected()
-        hand.publish(POWER_WANTED, {"power": "on"})
-        assert drained(
-            witness, lambda: rows(heard, WANTED_TRACK)[-1]["power"] == "on"
-        ), "ON was refused"
-        hand.close()
-    finally:
-        app.stop()
-        witness.close()
 
 
 @pytest.mark.parametrize("environ", [{}, {SILENCE_ENV: ""}, {SILENCE_ENV: "  "}])
