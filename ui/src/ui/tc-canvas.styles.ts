@@ -101,9 +101,14 @@ const sheet = css`
 /** What only the editing surface wears: the marks that answer a question about
  *  the drawing, and the parts of a gesture in flight. */
 const editing = css`
-  .widget.selected .widget-box {
+  .widget.selected .widget-text,
+  .widget.selected .widget-disc,
+  .widget.selected .widget-track {
+    fill: var(--chosen);
+  }
+
+  .widget.selected .widget-ring {
     stroke: var(--chosen);
-    stroke-width: ${W / 2};
   }
 
   .faces {
@@ -448,24 +453,15 @@ const running = css`
     fill: var(--amber);
   }
 
-  /* A toggle's position on a run (#929): lit for on, hollow for off. */
-  .widget-lamp {
-    stroke: var(--track);
-    stroke-width: ${W / 2};
-  }
-
-  .widget-lamp.on {
-    fill: var(--green);
-  }
-
-  .widget-lamp.off {
-    fill: var(--paper);
-  }
-
-  /* A button and a toggle are pressed, with or without track power. */
+  /* A button and a toggle are pressed, with or without track power. A press
+     is not kept, so a button shows one only while it is held (#939). */
   :host(.scheduling) .widget.button,
   :host(.scheduling) .widget.toggle {
     cursor: pointer;
+  }
+
+  :host(.scheduling) .widget.button:active .widget-disc {
+    fill: var(--hint);
   }
 
   /* Scheduling by drag (#72). Only a joined session can submit, so only when

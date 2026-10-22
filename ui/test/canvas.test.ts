@@ -964,26 +964,52 @@ describe("a widget in the editor", () => {
     symbols: {},
     wires: [],
     widgets: {
-      current: { kind: "text", at: [2, 1], size: [6, 1], default: "0.4 A" },
-      horn: { kind: "button", at: [2, 3], size: [3, 1], payload: "horn" },
+      current: { kind: "text", at: [2, 1], default: "0.4 A" },
+      horn: { kind: "button", at: [2, 3], payload: "horn" },
     },
   };
 
-  it("draws a box at its place and size, wearing its name and kind", async () => {
+  it("draws a button as a ring round a disc on its square, and nothing else", async () => {
     const canvas = await canvasOn(WIDGETS, UNREVIEWED);
     const horn = canvas.renderRoot.querySelector('[data-widget="horn"]')!;
-    const box = horn.querySelector(".widget-box")!;
-    expect(
-      ["x", "y", "width", "height"].map((one) => box.getAttribute(one)),
-    ).toEqual(["2", "3", "3", "1"]);
-    expect(horn.querySelector(".widget-name")!.textContent).toBe("horn");
-    expect(horn.querySelector(".widget-kind")!.textContent).toBe("button");
-    expect(horn.querySelector(".widget-text")).toBeNull();
+    const ring = horn.querySelector(".widget-ring")!;
+    expect(["cx", "cy"].map((one) => ring.getAttribute(one))).toEqual(["2.5", "3.5"]);
+    expect(horn.querySelector(".widget-disc")).not.toBeNull();
+    expect(horn.querySelector("text, rect")).toBeNull();
   });
 
-  it("shows a text widget's default text", async () => {
+  it("shows a text widget's default text and nothing else", async () => {
     const canvas = await canvasOn(WIDGETS, UNREVIEWED);
     const current = canvas.renderRoot.querySelector('[data-widget="current"]')!;
     expect(current.querySelector(".widget-text")!.textContent).toBe("0.4 A");
+    expect(current.querySelectorAll("text").length).toBe(1);
+    expect(current.querySelector("rect, svg")).toBeNull();
+  });
+
+  it("shows a text widget with no default by its name, in the hint's colour", async () => {
+    const canvas = await canvasOn(
+      { ...WIDGETS, widgets: { current: { kind: "text", at: [2, 1] } } },
+      UNREVIEWED,
+    );
+    const text = canvas.renderRoot.querySelector('[data-widget="current"] .widget-text')!;
+    expect(text.textContent).toBe("current?");
+    expect(text.classList).toContain("placeholder");
+  });
+
+  it("shows a toggle at its default, or off where it has none", async () => {
+    const canvas = await canvasOn(
+      {
+        ...WIDGETS,
+        widgets: {
+          plain: { kind: "toggle", at: [0, 0], on: "1", off: "0" },
+          lit: { kind: "toggle", at: [0, 2], on: "1", off: "0", default: "on" },
+        },
+      },
+      UNREVIEWED,
+    );
+    const track = (name: string) =>
+      canvas.renderRoot.querySelector(`[data-widget="${name}"] .widget-track`)!.classList;
+    expect(track("plain")).toContain("off");
+    expect(track("lit")).toContain("on");
   });
 });

@@ -10,6 +10,7 @@ import { motorised, pinsOf, type Drawing, type SymbolSpec } from "./drawing.js";
 import { anchorOf, centreOf, type Point } from "./geometry.js";
 import { blockOf, endOf, type EndRef } from "./panel.js";
 import type { PointWanted } from "./trace.js";
+import { widgetBounds } from "./widgets.js";
 
 export interface Box {
   x: number;
@@ -37,11 +38,14 @@ export function fitBox(drawing: Drawing, extra: readonly Point[] = []): Box {
     ...Object.values(drawing.symbols).flatMap((spec: SymbolSpec) =>
       pinsOf(spec).map((pin) => anchorOf(spec, pin)),
     ),
-    // A widget has no pins, so its two corners stand in for them.
-    ...Object.values(drawing.widgets ?? {}).flatMap(({ at: [c, r], size: [w, h] }) => [
-      { x: c, y: r },
-      { x: c + w, y: r + h },
-    ]),
+    // A widget has no pins, so the corners of where it is stand in for them.
+    ...Object.entries(drawing.widgets ?? {}).flatMap(([name, spec]) => {
+      const { x, y, w, h } = widgetBounds(name, spec);
+      return [
+        { x, y },
+        { x: x + w, y: y + h },
+      ];
+    }),
     ...extra,
   ];
   if (points.length === 0) return { x: -1, y: -1, w: 16, h: 11 };

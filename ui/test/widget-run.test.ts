@@ -75,7 +75,6 @@ describe("a toggle", () => {
   const LIGHTS: WidgetSpec = {
     kind: "toggle",
     at: [0, 0],
-    size: [3, 1],
     on: '{"lights": true}',
     off: '{"lights": false}',
   };
@@ -105,10 +104,19 @@ describe("a toggle", () => {
   it.each([["dim"], [undefined]])("sends on where row %s is neither", (row) => {
     expect(widgetPress("lights", LIGHTS, row)?.payload).toBe(LIGHTS.on);
   });
+
+  /** A default stands for the row until one arrives (#939). */
+  it("shows its default with no row, and a press sends the other position", () => {
+    const lit = { ...LIGHTS, default: "on" };
+    expect(togglePosition(lit, undefined)).toBe("on");
+    expect(widgetPress("lights", lit, undefined)?.payload).toBe(LIGHTS.off);
+    expect(togglePosition({ ...LIGHTS, default: "off" }, undefined)).toBe("off");
+    expect(togglePosition(lit, LIGHTS.off)).toBe("off");
+  });
 });
 
 it("sends a button's payload as typed, not retained", () => {
-  const horn: WidgetSpec = { kind: "button", at: [0, 0], size: [3, 1], payload: "toot toot" };
+  const horn: WidgetSpec = { kind: "button", at: [0, 0], payload: "toot toot" };
   expect(widgetPress("horn", horn, undefined)).toEqual({
     topic: "tc49/ui/button/horn",
     payload: "toot toot",
@@ -117,6 +125,6 @@ it("sends a button's payload as typed, not retained", () => {
 });
 
 it("sends nothing for a text widget", () => {
-  const text: WidgetSpec = { kind: "text", at: [0, 0], size: [3, 1] };
+  const text: WidgetSpec = { kind: "text", at: [0, 0] };
   expect(widgetPress("current", text, "0.4 A")).toBeNull();
 });

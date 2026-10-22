@@ -291,9 +291,23 @@ describe("the run view's machine", () => {
       ...PAINTED,
       drawing: {
         ...DRAWING,
-        widgets: { horn: { kind: "button", at: [0, 0], size: [8, 4], payload: "horn" } },
+        widgets: { horn: { kind: "button", at: [3, 0], payload: "horn" } },
       },
     };
+
+    /** A text widget's words over block `a`: a press on one does nothing, so
+     *  it is the train's (#939). */
+    it("lets a press on a text widget through to the train under it", () => {
+      const { pressed, it } = machine({
+        ...PAINTED,
+        drawing: {
+          ...DRAWING,
+          widgets: { current: { kind: "text", at: [3, 0], default: "0.4 A" } },
+        },
+      });
+      expect(it.down(on("a", 0.5), press)).toBe("render");
+      expect(pressed).toEqual([]);
+    });
 
     it("is pressed by a click, before the train under it is taken hold of", () => {
       const { pressed, sent, it } = machine(COVERED);

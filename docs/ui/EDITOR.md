@@ -510,8 +510,8 @@ The fourth group is the widgets: a text, a button and a toggle
 ([ADR-0087](../adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
 A widget is not a symbol. It sits in the drawing's own `widgets` mapping
 ([DRAWING.md](../store/DRAWING.md#widgets)), has no pins, and nothing derives
-from it. A widget's box is the same shape whatever its kind, so its tile wears
-the kind's word.
+from it. Each tile shows the face a new one has: the word `text`, a button and
+a toggle.
 
 A widget is dragged out, selected, moved, rubber-banded, deleted and undone
 the way a symbol is. It does not turn: `r` and `f` leave one in flight as it
@@ -520,16 +520,27 @@ neither, only Properties… and Delete. Nothing keeps a widget off a symbol or
 another widget, so its ghost is never blocked; it is drawn over the symbols,
 and a press there takes the widget, a pin under it still starting a wire.
 
-A new one is 3 × 1 and named for its kind with the lowest number no widget
+A new one lands on the square under the pointer, a toggle's two squares
+centred on it, and is named for its kind with the lowest number no widget
 has, `text1`, `button1`, `toggle1`. It writes what the store needs and
 nothing else: a button's `payload` is its own name, and a toggle's `on` and
-`off` are `on` and `off`, which must differ. The size of its words and how
-they sit are left to the schema's defaults, `normal` and `center`.
+`off` are `on` and `off`, which must differ. A text widget's words are left to
+the schema's defaults, `normal` and `center`.
 
-On the canvas a widget is a box at its place and size with its name at the
-top left and its kind at the top right, and a text widget shows its default
-text in the body, at the size and alignment it sets. What a widget shows on a
-run is the run view's ([PANEL.md](PANEL.md)).
+On the canvas a widget is its face alone, with no box, name or kind
+([#939](https://github.com/rails49/control/issues/939)), and looks the same
+as on a run:
+
+- A **text** widget is its words, run from its square the way `align` says
+  and cut only at the canvas's edge. The editor shows its default, or its name
+  and a question mark in the hint's colour where it has none, so it can be
+  seen and taken: `current?`. A press lands on the words.
+- A **button** is a ring round a disc on its one square.
+- A **toggle** is a rounded track with a knob across its two squares, shown in
+  its default position, or off where it has none.
+
+A selected widget is drawn in the selection's colour. What a widget shows on
+a run is the run view's ([PANEL.md](PANEL.md)).
 
 The generic connection symbol is not placed and not drawn. It has no fixed pin
 set to place, migration is over, and since station-C east was redrawn from real
@@ -838,20 +849,20 @@ rejected name's stands beside the Name field, and a bad name and a bad length
 are said together rather than one after the other. Apply does nothing until
 both are gone.
 
-**A widget's dialog** edits its name, its width and height, the size of its
-words (`small`, `normal`, `large`), its alignment (`left`, `center`, `right`)
-and the kind's own text: a text's Default, a button's Payload, a toggle's On
-and Off. A widget's name is typed, unlike a turnout's: it ends the widget's
-topic, and whoever writes the listener or the script has to say it. So the
+**A widget's dialog** edits its name and the kind's own fields: a text's
+size of words (`small`, `normal`, `large`), alignment (`left`, `center`,
+`right`) and Default; a button's Payload; a toggle's On and Off, and its
+Default, `none`, `on` or `off`. A widget's name is typed, unlike a
+turnout's: it ends the widget's topic, and whoever writes the listener or the
+script has to say it. So the
 dialog shows the whole topic — `tc49/ui/state/text/<name>`,
 `tc49/ui/state/toggle/<name>` or `tc49/ui/button/<name>` — as read-only text
 to copy, and it follows the name as it is typed, a rename being a new topic.
 A name that is not one topic level (letters, digits, `_` and `-`) or that
 another widget has is refused beside the field and the old name stays; a
-symbol's name is no clash, the two being apart. A size that is not two
-positive whole numbers and a toggle whose On and Off are the same are refused
-the same way. A text widget's Default left empty is written out of the
-document.
+symbol's name is no clash, the two being apart. A toggle whose On and Off are
+the same is refused the same way. A text widget's Default left empty, and a
+toggle's Default `none`, are written out of the document.
 
 Transit names are not edited here. A drawing can still write one on a symbol's
 leg and derivation honours it — a name on a turnout's straight leg is taken by

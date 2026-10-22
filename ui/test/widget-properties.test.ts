@@ -2,8 +2,8 @@
 
 /**
  * What a widget's properties dialog holds (EDITOR.md#properties, ADR-0087):
- * the name, the topic it ends, the size and the words, and the kind's own
- * text. A DOM test at the dialog's own seam, as `properties.test.ts` is for a
+ * the name, the topic it ends, a text widget's words, and the kind's own
+ * text and a toggle's default position (#939). A DOM test at the dialog's own seam, as `properties.test.ts` is for a
  * symbol's.
  */
 
@@ -42,6 +42,20 @@ function field(dialog: TcWidgetProperties, label: string): SlInput {
   )!;
 }
 
+/** A choice made in one of the dialog's selects. */
+async function chosen(
+  dialog: TcWidgetProperties,
+  label: string,
+  value: string,
+): Promise<void> {
+  const select = [...dialog.renderRoot.querySelectorAll<SlInput>("sl-select")].find(
+    (one) => one.label === label,
+  )!;
+  select.value = value;
+  select.dispatchEvent(new CustomEvent("sl-change"));
+  await dialog.updateComplete;
+}
+
 async function typed(
   dialog: TcWidgetProperties,
   label: string,
@@ -65,29 +79,27 @@ function applying(dialog: TcWidgetProperties): WidgetProperties[] {
   return handed;
 }
 
-const TEXT: WidgetSpec = { kind: "text", at: [2, 1], size: [3, 1] };
-const BUTTON: WidgetSpec = { kind: "button", at: [2, 3], size: [3, 1], payload: "button1" };
-const TOGGLE: WidgetSpec = { kind: "toggle", at: [2, 5], size: [3, 1], on: "on", off: "off" };
+const TEXT: WidgetSpec = { kind: "text", at: [2, 1] };
+const BUTTON: WidgetSpec = { kind: "button", at: [2, 3], payload: "button1" };
+const TOGGLE: WidgetSpec = { kind: "toggle", at: [2, 5], on: "on", off: "off" };
 
 describe("the fields", () => {
-  it("offers each kind its own text beside what every kind has", () => {
+  it("offers each kind its own fields beside the name and topic, and no size", () => {
     return Promise.all([
       opened("text1", TEXT).then((dialog) =>
         expect(fields(dialog)).toEqual([
           "Name",
           "Topic",
-          "Width",
-          "Height",
           "Text size",
           "Alignment",
           "Default",
         ]),
       ),
       opened("button1", BUTTON).then((dialog) =>
-        expect(fields(dialog).slice(6)).toEqual(["Payload"]),
+        expect(fields(dialog)).toEqual(["Name", "Topic", "Payload"]),
       ),
       opened("toggle1", TOGGLE).then((dialog) =>
-        expect(fields(dialog).slice(6)).toEqual(["On", "Off"]),
+        expect(fields(dialog)).toEqual(["Name", "Topic", "On", "Off", "Default"]),
       ),
     ]);
   });
@@ -139,18 +151,24 @@ describe("what the store would refuse", () => {
     expect(applying(dialog)).toEqual([]);
   });
 
-  it("refuses a size that is not a positive whole number", async () => {
-    const dialog = await opened("text1", TEXT);
-    await typed(dialog, "Width", "0");
-    expect(applying(dialog)).toEqual([]);
-  });
-
-  it("writes no empty default, and a size typed", async () => {
+  it("writes no empty default", async () => {
     const dialog = await opened("text1", { ...TEXT, default: "—" });
     await typed(dialog, "Default", "");
-    await typed(dialog, "Width", "6");
     expect(applying(dialog)).toEqual([
-      { was: "text1", name: "text1", spec: { ...TEXT, size: [6, 1] } },
+      { was: "text1", name: "text1", spec: { ...TEXT } },
+    ]);
+  });
+
+  it("writes the toggle's default chosen, and none for none", async () => {
+    const dialog = await opened("toggle1", TOGGLE);
+    await chosen(dialog, "Default", "on");
+    expect(applying(dialog)).toEqual([
+      { was: "toggle1", name: "toggle1", spec: { ...TOGGLE, default: "on" } },
+    ]);
+    const again = await opened("toggle1", { ...TOGGLE, default: "off" });
+    await chosen(again, "Default", "none");
+    expect(applying(again)).toEqual([
+      { was: "toggle1", name: "toggle1", spec: { ...TOGGLE } },
     ]);
   });
 });

@@ -139,34 +139,40 @@ export const symbols = css`
     stroke-width: ${SLIP.weight};
   }
 
-  /* A widget: a box beside the track rather than track, so a hairline, with
-     its name and kind in the hint's colour and a text widget's words in the
-     track's (ADR-0087). The palette's tiles wear the same. */
-  .widget-box {
+  /* A widget is its face alone (#939): a text widget's words and a button in
+     the track's colour, a toggle grey with a light knob and green when on.
+     The editor's words for a text widget with no default are the hint's. The
+     palette's tiles wear the same. */
+  .widget-text {
+    font-family: system-ui, sans-serif;
+    fill: var(--track);
+  }
+
+  .widget-text.placeholder {
+    fill: var(--hint);
+  }
+
+  .widget-ring {
+    fill: none;
+    stroke: var(--track);
+  }
+
+  .widget-disc {
+    fill: var(--track);
+  }
+
+  .widget-track {
+    fill: var(--hint);
+  }
+
+  .widget-track.on {
+    fill: var(--green);
+  }
+
+  .widget-knob {
     fill: var(--paper);
     stroke: var(--hint);
     stroke-width: ${HAIRLINE};
-  }
-
-  .widget-name,
-  .widget-kind,
-  .widget-text {
-    font-family: system-ui, sans-serif;
-    pointer-events: none;
-  }
-
-  .widget-name,
-  .widget-kind {
-    fill: var(--hint);
-    dominant-baseline: hanging;
-  }
-
-  .widget-kind {
-    text-anchor: end;
-  }
-
-  .widget-text {
-    fill: var(--track);
   }
 
   /* A text row's ANSI bold and colours on a run (#929), in look's own red,

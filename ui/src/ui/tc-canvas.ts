@@ -58,19 +58,13 @@ import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
-import {
-  isWidgetKind,
-  selectionKey,
-  WIDGET_SIZE,
-  widgetTopic,
-} from "../model/widgets.js";
+import { isWidgetKind, selectionKey, widgetTopic } from "../model/widgets.js";
 import {
   artwork,
   detectors,
   DEFS,
-  widgetBox,
   widgetFace,
-  widgetWords,
+  widgetSample,
 } from "../render/artwork.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
@@ -582,15 +576,13 @@ export class TcCanvas extends LitElement {
   // --- what only the editor draws -----------------------------------------
 
   /**
-   * The drawing's widgets, each a box at its place and size with its name and
-   * kind, and a text widget's default text in its body, set as the widget
-   * says (ADR-0087). Drawn over the symbols, nothing keeping one off them, and
-   * under the pins, a press on a pin still starting a wire.
+   * The drawing's widgets, each its face alone (`widgetFace`, #939). Drawn
+   * over the symbols, nothing keeping one off them, and under the pins, a
+   * press on a pin still starting a wire.
    *
-   * On a run each shows what its row says instead (`widgetFace`, #929): a
-   * text widget the row, a toggle its position, read off the rows the run
-   * hands over, and a button its name. A drawing drawn grey has no run to
-   * hand any, so each shows what it would with no row.
+   * On a run each shows what its row says (#929): a text widget the row and a
+   * toggle its position, read off the rows the run hands over. A drawing drawn
+   * grey has no run to hand any, so each shows what it would with no row.
    */
   private widgets(): unknown {
     const editor = this.editing;
@@ -599,7 +591,7 @@ export class TcCanvas extends LitElement {
       return Object.entries(this.document.widgets ?? {}).map(
         ([name, spec]) => svg`
           <g class=${`widget ${spec.kind}`} data-widget=${name}>
-            ${widgetFace(name, spec, rows?.get(widgetTopic(spec.kind, name)))}
+            ${widgetFace(name, spec, true, rows?.get(widgetTopic(spec.kind, name)))}
           </g>
         `,
       );
@@ -607,12 +599,11 @@ export class TcCanvas extends LitElement {
     return Object.entries(editor.widgets).map(([name, spec]) => {
       const key = selectionKey(name);
       const shifted = this.shift(key);
-      const worn = editor.selection.has(key) ? "widget selected" : "widget";
+      const worn = editor.selection.has(key) ? " selected" : "";
       return svg`
-        <g class=${worn} data-widget=${name}
+        <g class=${`widget ${spec.kind}${worn}`} data-widget=${name}
            transform=${`translate(${shifted.x} ${shifted.y})`}>
-          ${widgetBox(spec.kind, spec.at, spec.size)}
-          ${widgetWords(name, spec)}
+          ${widgetFace(name, spec, false)}
         </g>
       `;
     });
@@ -710,8 +701,8 @@ export class TcCanvas extends LitElement {
     const landing = editor.placementAt(this.pointer.x, this.pointer.y);
     if (landing === null) return nothing;
     if (isWidgetKind(pending.kind)) {
-      return svg`<g class="ghost">
-        ${widgetBox(pending.kind, landing.at, WIDGET_SIZE)}
+      return svg`<g class=${`ghost widget ${pending.kind}`}>
+        ${widgetSample(pending.kind, landing.at)}
       </g>`;
     }
     const spec = { ...(pending as SymbolSpec), at: landing.at };

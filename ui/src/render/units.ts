@@ -151,17 +151,20 @@ export const SLIP = { off: 0.22, arm: 0.182, weight: TICK, lit: 1.5 * TICK };
 export const LABEL = { size: 0.5, advance: 0.55 };
 
 /**
- * A widget in the editor: a box at its place and size, its name at the top
- * left and its kind at the top right in small words, `inset` in from the box,
- * and a text widget's default in its body at one of three sizes (ADR-0087).
- * On a run a toggle's position is a lamp `lamp` in radius at the top right.
+ * A widget's face (#939). A text widget is its words at one of three sizes,
+ * `advance` of their size wide per character on average. A button is a ring
+ * `ring` in radius and `ringWidth` thick round a disc `disc` in radius,
+ * centred on its square. A toggle is a rounded `track` across its two squares
+ * with a knob `knob` in radius.
  */
 export const WIDGET = {
-  radius: 0.1,
-  inset: 0.08,
-  small: 0.22,
-  lamp: 0.12,
   text: { small: 0.3, normal: 0.4, large: 0.55 },
+  advance: 0.55,
+  ring: 0.36,
+  ringWidth: 0.08,
+  disc: 0.2,
+  track: { x: 0.1, y: 0.2, w: 1.8, h: 0.6 },
+  knob: 0.25,
 };
 
 /**

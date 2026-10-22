@@ -13,9 +13,11 @@
  * `selectionKey`, which carries the `/` no symbol name can (`isName`).
  */
 
+import { WIDGET } from "../render/units.js";
 import type { Drawing, WidgetKind, WidgetSpec } from "./drawing.js";
 import type { Point } from "./geometry.js";
 import { isWidgetName } from "./rules.js";
+import type { Box } from "./scene.js";
 
 /** The kinds, in the order the palette offers them. */
 export const WIDGET_KINDS: readonly WidgetKind[] = ["text", "button", "toggle"];
@@ -25,8 +27,11 @@ export const WIDGET_KINDS: readonly WidgetKind[] = ["text", "button", "toggle"];
 export const WIDGET_TEXT = ["small", "normal", "large"] as const;
 export const WIDGET_ALIGN = ["left", "center", "right"] as const;
 
-/** A new widget's size, in squares. */
-export const WIDGET_SIZE: [number, number] = [3, 1];
+/** The squares a widget is placed by, from `at` (#939): a button's one, a
+ *  toggle's two, and a text widget's one cell its words run from. */
+export function widgetFootprint(kind: WidgetKind): [number, number] {
+  return kind === "toggle" ? [2, 1] : [1, 1];
+}
 
 /**
  * The topic each kind's row is on, without the widget's name, which is the
@@ -71,8 +76,8 @@ export function mintWidget(drawing: Drawing, kind: WidgetKind): string {
 }
 
 /**
- * A new widget: 3 × 1, words and alignment left to the schema's defaults, and
- * each kind's payload keys filled so that the store takes it. A toggle's two
+ * A new widget: words and alignment left to the schema's defaults, and each
+ * kind's payload keys filled so that the store takes it. A toggle's two
  * payloads must differ, so they start as `on` and `off`; a button sends its
  * own name until somebody types something else.
  */
@@ -81,7 +86,7 @@ export function newWidget(
   name: string,
   at: [number, number],
 ): WidgetSpec {
-  const spec: WidgetSpec = { kind, at, size: [...WIDGET_SIZE] };
+  const spec: WidgetSpec = { kind, at };
   if (kind === "button") spec.payload = name;
   if (kind === "toggle") Object.assign(spec, { on: "on", off: "off" });
   return spec;
@@ -106,13 +111,6 @@ export function widgetTrouble(
   return null;
 }
 
-/** Why a size will not do: the store takes two positive whole numbers. */
-export function sizeTrouble(size: readonly [number, number]): string | null {
-  return size.every((n) => Number.isInteger(n) && n > 0)
-    ? null
-    : "a size is a positive whole number of squares";
-}
-
 /** Why a toggle's two payloads will not do: a page reads its position by
  *  comparing the row with them, so they must differ (ADR-0087 decision 4). */
 export function toggleTrouble(spec: WidgetSpec): string | null {
@@ -121,22 +119,48 @@ export function toggleTrouble(spec: WidgetSpec): string | null {
     : null;
 }
 
+/** What the editor shows of a text widget: its default, or its name and a
+ *  question mark where it has none, so that it can be seen and taken. */
+export function editorText(name: string, spec: WidgetSpec): string {
+  return spec.default || `${name}?`;
+}
+
+/**
+ * Where a widget is on the canvas, in squares: a button's and a toggle's
+ * footprint, and a text widget's words as the editor shows them, run from
+ * its cell the way `align` says and one square tall. There is no DOM here to
+ * measure the words, so their width is their length at an average advance.
+ */
+export function widgetBounds(name: string, spec: WidgetSpec): Box {
+  const [c, r] = spec.at;
+  if (spec.kind !== "text") {
+    const [w, h] = widgetFootprint(spec.kind);
+    return { x: c, y: r, w, h };
+  }
+  const w =
+    editorText(name, spec).length * WIDGET.text[spec.text ?? "normal"] * WIDGET.advance;
+  const align = spec.align ?? "center";
+  const x = align === "left" ? c : align === "right" ? c + 1 - w : c + 0.5 - w / 2;
+  return { x, y: r, w, h: 1 };
+}
+
 /** The middle of a widget, which is what a rubber band takes it by. */
-export function widgetCentre({ at, size }: WidgetSpec): Point {
-  return { x: at[0] + size[0] / 2, y: at[1] + size[1] / 2 };
+export function widgetCentre(name: string, spec: WidgetSpec): Point {
+  const { x, y, w, h } = widgetBounds(name, spec);
+  return { x: x + w / 2, y: y + h / 2 };
 }
 
 /** Whether a widget, drawn `shift` from where the document puts it, covers a
  *  point. */
 export function widgetCovers(
-  { at, size }: WidgetSpec,
+  name: string,
+  spec: WidgetSpec,
   point: Point,
   shift: Point = { x: 0, y: 0 },
 ): boolean {
-  const [x, y] = [at[0] + shift.x, at[1] + shift.y];
-  return (
-    point.x >= x && point.x < x + size[0] && point.y >= y && point.y < y + size[1]
-  );
+  const { w, h, ...corner } = widgetBounds(name, spec);
+  const [x, y] = [corner.x + shift.x, corner.y + shift.y];
+  return point.x >= x && point.x < x + w && point.y >= y && point.y < y + h;
 }
 
 // --- what the run view shows and sends ---------------------------------------
@@ -217,13 +241,16 @@ export function ansi(text: string): Run[] {
   return runs;
 }
 
-/** A toggle's position, read by comparing its row with its two payloads:
- *  `null` where there is no row or the row is neither (ADR-0087 decision 4). */
+/** A toggle's position, read by comparing its row with its two payloads
+ *  (ADR-0087 decision 4): its default where there is no row (#939), and
+ *  `null` where there is neither or the row is neither payload. */
 export function togglePosition(
   spec: WidgetSpec,
   row: string | undefined,
 ): "on" | "off" | null {
-  if (row === undefined) return null;
+  if (row === undefined) {
+    return spec.default === "on" || spec.default === "off" ? spec.default : null;
+  }
   if (row === spec.on) return "on";
   if (row === spec.off) return "off";
   return null;

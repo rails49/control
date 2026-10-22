@@ -1,7 +1,8 @@
 /**
- * The properties dialog for a widget: its name, its size, how its words are
+ * The properties dialog for a widget: its name, how a text widget's words are
  * set, and the kind's own text — a text's default, a button's payload, a
- * toggle's on and off (EDITOR.md#properties, ADR-0087).
+ * toggle's on and off and the position it shows until a row arrives
+ * (EDITOR.md#properties, ADR-0087, #939).
  *
  * **A widget's name is typed**, unlike a turnout's: it ends the widget's
  * topic, and whoever writes the listener or the script has to say it. So the
@@ -11,8 +12,7 @@
  *
  * What the store would refuse is refused here, beside the field it was typed
  * in, as the symbol dialog does (ADR-0023): a name that is not one topic level
- * or that another widget has, a size that is not two positive whole numbers,
- * and a toggle whose on and off are the same. Apply does nothing until all of
+ * or that another widget has, and a toggle whose on and off are the same. Apply does nothing until all of
  * them are gone, and the old name stays.
  */
 
@@ -26,7 +26,6 @@ import "@shoelace-style/shoelace/dist/components/select/select.js";
 
 import type { WidgetSpec } from "../model/drawing.js";
 import {
-  sizeTrouble,
   toggleTrouble,
   widgetTopic,
   widgetTrouble,
@@ -68,7 +67,7 @@ export class TcWidgetProperties extends LitElement {
    *  refused against. */
   @property({ attribute: false }) taken: readonly string[] = [];
 
-  @state() private draft: WidgetSpec = { kind: "text", at: [0, 0], size: [3, 1] };
+  @state() private draft: WidgetSpec = { kind: "text", at: [0, 0] };
   @state() private name = "";
 
   override willUpdate(changed: Map<string, unknown>): void {
@@ -81,7 +80,6 @@ export class TcWidgetProperties extends LitElement {
   override render() {
     if (this.editing === null) return nothing;
     const named = this.nameTrouble;
-    const sized = sizeTrouble(this.draft.size);
     return html`
       <look-dialog open label="Properties" @sl-after-hide=${this.close}>
         <sl-input
@@ -99,46 +97,9 @@ export class TcWidgetProperties extends LitElement {
           readonly
           value=${widgetTopic(this.draft.kind, this.name)}
         ></sl-input>
-        <sl-input
-          type="number"
-          class=${sized === null ? "" : "refused"}
-          label="Width"
-          value=${String(this.draft.size[0])}
-          @sl-input=${this.sized(0)}
-        ></sl-input>
-        <sl-input
-          type="number"
-          class=${sized === null ? "" : "refused"}
-          label="Height"
-          help-text=${sized ?? "In squares."}
-          value=${String(this.draft.size[1])}
-          @sl-input=${this.sized(1)}
-        ></sl-input>
-        <sl-select
-          label="Text size"
-          value=${this.draft.text ?? "normal"}
-          @sl-change=${(event: Event) => {
-            this.draft = {
-              ...this.draft,
-              text: (event.target as HTMLSelectElement).value as WidgetSpec["text"] & string,
-            };
-          }}
-        >
-          ${WIDGET_TEXT.map((one) => html`<sl-option value=${one}>${one}</sl-option>`)}
-        </sl-select>
-        <sl-select
-          label="Alignment"
-          value=${this.draft.align ?? "center"}
-          @sl-change=${(event: Event) => {
-            this.draft = {
-              ...this.draft,
-              align: (event.target as HTMLSelectElement).value as WidgetSpec["align"] & string,
-            };
-          }}
-        >
-          ${WIDGET_ALIGN.map((one) => html`<sl-option value=${one}>${one}</sl-option>`)}
-        </sl-select>
+        ${this.draft.kind === "text" ? this.words() : nothing}
         ${TEXTS[this.draft.kind].map((field) => this.text(field))}
+        ${this.draft.kind === "toggle" ? this.position() : nothing}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
           Apply
@@ -173,19 +134,59 @@ export class TcWidgetProperties extends LitElement {
     `;
   }
 
-  private sized(index: 0 | 1) {
-    return (event: Event) => {
-      const size: [number, number] = [...this.draft.size];
-      size[index] = Number((event.target as HTMLInputElement).value);
-      this.draft = { ...this.draft, size };
-    };
+  /** A text widget's text size and alignment; a button and a toggle have no
+   *  words to set. */
+  private words() {
+    return html`
+      <sl-select
+        label="Text size"
+        value=${this.draft.text ?? "normal"}
+        @sl-change=${(event: Event) => {
+          this.draft = {
+            ...this.draft,
+            text: (event.target as HTMLSelectElement).value as WidgetSpec["text"] & string,
+          };
+        }}
+      >
+        ${WIDGET_TEXT.map((one) => html`<sl-option value=${one}>${one}</sl-option>`)}
+      </sl-select>
+      <sl-select
+        label="Alignment"
+        value=${this.draft.align ?? "center"}
+        @sl-change=${(event: Event) => {
+          this.draft = {
+            ...this.draft,
+            align: (event.target as HTMLSelectElement).value as WidgetSpec["align"] & string,
+          };
+        }}
+      >
+        ${WIDGET_ALIGN.map((one) => html`<sl-option value=${one}>${one}</sl-option>`)}
+      </sl-select>
+    `;
+  }
+
+  /** A toggle's default: the position it shows until a row arrives, or none,
+   *  which shows neither on a run. */
+  private position() {
+    return html`
+      <sl-select
+        label="Default"
+        help-text="The position shown until a row arrives."
+        value=${this.draft.default ?? "none"}
+        @sl-change=${(event: Event) => {
+          const value = (event.target as HTMLSelectElement).value;
+          this.draft = { ...this.draft, default: value === "none" ? "" : value };
+        }}
+      >
+        ${["none", "on", "off"].map((one) => html`<sl-option value=${one}>${one}</sl-option>`)}
+      </sl-select>
+    `;
   }
 
   private apply(): void {
     if (this.editing === null) return;
     if (
       this.nameTrouble !== null ||
-      sizeTrouble(this.draft.size) !== null ||
       toggleTrouble(this.draft) !== null
     ) {
       return;
@@ -207,8 +208,7 @@ export class TcWidgetProperties extends LitElement {
   }
 }
 
-/** A text widget's empty default is no default, which is how a new one is
- *  written; a button's payload and a toggle's on and off are kept even empty,
+/** An empty default is no default, which is how a new one is written; a button's payload and a toggle's on and off are kept even empty,
  *  the store needing them. */
 function tidy(spec: WidgetSpec): WidgetSpec {
   const tidied: WidgetSpec = { ...spec };
