@@ -138,3 +138,120 @@ export function widgetCovers(
     point.x >= x && point.x < x + size[0] && point.y >= y && point.y < y + size[1]
   );
 }
+
+// --- what the run view shows and sends ---------------------------------------
+
+/** Where every widget row is, `tc49/ui/…`: the session reads these before it
+ *  reads anything as JSON, a widget payload being raw (ADR-0087 decision 4). */
+export const WIDGET_PREFIX = "tc49/ui/";
+
+/** The three colours a text widget renders, each drawn in look's own
+ *  (`--red`, `--amber`, `--green`). */
+export type Colour = "red" | "amber" | "green";
+
+/** A stretch of a text widget's words that look the same. */
+export interface Run {
+  text: string;
+  bold: boolean;
+  colour: Colour | null;
+}
+
+/** The SGR codes that set a colour, bright or not. */
+const COLOURS: Record<number, Colour> = {
+  31: "red",
+  91: "red",
+  33: "amber",
+  93: "amber",
+  32: "green",
+  92: "green",
+};
+
+/** Every escape sequence a terminal knows: a CSI sequence (`ESC [`, SGR among
+ *  them), an OSC string, or any other escape, such as `ESC ( B`. A lone ESC
+ *  is one too. */
+const ESCAPE =
+  // eslint-disable-next-line no-control-regex
+  /\x1b(?:\[([0-?]*)([ -/]*)([@-~])|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[ -/]*[0-~]?)/g;
+
+/**
+ * A text row as the run view shows it: bold and three colours read off its
+ * ANSI SGR codes, and every other escape sequence removed (ADR-0087
+ * decision 4). `1` is bold and `22` ends it; `31`/`91` red, `33`/`93` amber
+ * and `32`/`92` green, `39` ending the colour; `0`, or no code at all, resets
+ * both. Any other code changes nothing, the arguments of an extended colour
+ * (`38;5;n`, `38;2;r;g;b`) among them.
+ */
+export function ansi(text: string): Run[] {
+  const runs: Run[] = [];
+  let bold = false;
+  let colour: Colour | null = null;
+  const add = (words: string) => {
+    if (words === "") return;
+    const last = runs.at(-1);
+    if (last !== undefined && last.bold === bold && last.colour === colour) {
+      last.text += words;
+    } else {
+      runs.push({ text: words, bold, colour });
+    }
+  };
+  let from = 0;
+  for (const found of text.matchAll(ESCAPE)) {
+    add(text.slice(from, found.index));
+    from = found.index + found[0].length;
+    const [, params, between, final] = found;
+    if (final !== "m" || between !== "" || !/^[0-9;]*$/.test(params ?? "")) continue;
+    const codes = params === "" ? [0] : params!.split(";").map((code) => Number(code || 0));
+    for (let at = 0; at < codes.length; at++) {
+      const code = codes[at]!;
+      if (code === 0) [bold, colour] = [false, null];
+      else if (code === 1) bold = true;
+      else if (code === 22) bold = false;
+      else if (code === 39) colour = null;
+      else if (code in COLOURS) colour = COLOURS[code]!;
+      else if (code === 38 || code === 48 || code === 58) {
+        at += codes[at + 1] === 5 ? 2 : codes[at + 1] === 2 ? 4 : 0;
+      }
+    }
+  }
+  add(text.slice(from));
+  return runs;
+}
+
+/** A toggle's position, read by comparing its row with its two payloads:
+ *  `null` where there is no row or the row is neither (ADR-0087 decision 4). */
+export function togglePosition(
+  spec: WidgetSpec,
+  row: string | undefined,
+): "on" | "off" | null {
+  if (row === undefined) return null;
+  if (row === spec.on) return "on";
+  if (row === spec.off) return "off";
+  return null;
+}
+
+/** What a press on a widget publishes: the payload raw, as typed, on the
+ *  widget's own topic, and whether the broker keeps it. */
+export interface WidgetPress {
+  topic: string;
+  payload: string;
+  retain: boolean;
+}
+
+/**
+ * What a press on a widget sends, `row` being what its topic last carried:
+ * a button its payload, once and not kept, being an event; a toggle the
+ * other position's payload, kept, being the position — and `on` where it
+ * shows neither, there being no other position to go to. A text widget is
+ * not pressed (ADR-0087).
+ */
+export function widgetPress(
+  name: string,
+  spec: WidgetSpec,
+  row: string | undefined,
+): WidgetPress | null {
+  const topic = widgetTopic(spec.kind, name);
+  if (spec.kind === "button") return { topic, payload: spec.payload ?? "", retain: false };
+  if (spec.kind !== "toggle") return null;
+  const payload = togglePosition(spec, row) === "on" ? spec.off : spec.on;
+  return { topic, payload: payload ?? "", retain: true };
+}
