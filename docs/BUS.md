@@ -116,6 +116,11 @@ report supersedes it (ADR-0030).
    a publisher has to supply the whole value, so a writer that knows about
    one train replaces what another knew about the rest
    ([ADR-0035](adr/0035-a-topic-has-one-writing-role.md)).
+
+   A widget's state row under `ui` is the exception: any writer may publish
+   on it. A widget row is always the whole value, so no writer supplies only
+   part of it, and the last one written is the right one
+   ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md) decision 3).
 2. **A topic is either an event topic or a state topic, never both.** An event
    topic reports something that happened, and is never replayed. A state topic
    holds a current value, of which only the last one published survives. Every
@@ -239,8 +244,8 @@ arrives from the bus
 
 ## Event inventory
 
-A topic is named `tc49/<component>/<leaf>`: `layout`, `schedule` or
-`dispatch`. The component comes first because it is the component that
+A topic is named `tc49/<component>/<leaf>`: `layout`, `schedule`,
+`dispatch` or `ui`. The component comes first because it is the component that
 **declares** the topic — the events it emits, and the requests it responds
 to. Naming topics this way means rule 1 can be checked by reading the name,
 `tc49/layout/*` keeps its meaning when hardware replaces the simulator, and a
@@ -277,6 +282,10 @@ lands.
 **Writer** is the component the name already states for everything a
 component emits. On a request row it is `any`: one responder, any number of
 writers (rule 1), and `any (browser)` is the mark above.
+
+A row ending in `<name>` is a **pattern**: one topic per widget on the loaded
+drawing, the widget's name as the last level. `ui` declares these rows and
+nothing in control writes them ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
 
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
@@ -322,6 +331,7 @@ writers (rule 1), and `any (browser)` is the mark above.
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
+| `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
 
 | Consumer | Filter(s) |
 | --- | --- |
@@ -386,11 +396,12 @@ rather than stored.
 
 ### Payload schemas
 
-Every payload is a JSON object. The listings give each topic's fields in the
+Every payload is a JSON object, except a widget's: that payload is raw
+(`ui` below). The listings give each topic's fields in the
 trace's canonical key order, which `tc49.lib.inventory` fixes. Every **state**
 topic's payload leads with `at`, the stamp the bus above describes, and no
 event payload carries one; it is stated once here rather than repeated on
-every state row below. Every field is
+every state row below, a widget's excepted. Every field is
 **required unless marked *optional***; an enum's values are the field's whole
 vocabulary, and which way an unreadable one falls is declared with it. Names
 are strings throughout: a **train** as the roster names it, a **block** as the
@@ -838,6 +849,19 @@ payload is read defensively, and one that fails the read is dropped.
   again where its block still exists and still holds it, and the run comes up
   held. Cleared when another railroad is loaded
   ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+
+#### `ui`
+
+A widget payload is **raw**: not JSON, no `at`, and no field control defines.
+Control carries it without reading it
+([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md) decision 4).
+
+- `tc49/ui/state/text/<name>` — UTF-8 text, shown as it arrives. ANSI SGR
+  codes are kept in the row as written; the page renders bold, red, amber and
+  green, and removes any other code
+  ([#929](https://github.com/rails49/control/issues/929)). Retained, so a page
+  opened later shows the current text. Two writers of one row overwrite each
+  other, and a deleted widget's row stays on the broker.
 
 ## Time
 
