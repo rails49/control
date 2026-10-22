@@ -52,6 +52,7 @@ RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 RAILROAD = "tc49/layout/state/railroad"
 TEXT = "tc49/ui/state/text"
 TOGGLE = "tc49/ui/state/toggle"
+BUTTON = "tc49/ui/button"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -372,9 +373,18 @@ def test_a_toggles_row_is_state_browser_writable_with_no_fields() -> None:
 
 def test_the_toggle_row_stays_out_of_inbound() -> None:
     """`INBOUND` is the whole topics a page writes, read off `TOPICS`; the
-    toggle row is a pattern the drawing completes, so its mark is read off
-    `WIDGET_TOPICS` instead."""
+    toggle and button rows are patterns the drawing completes, so their marks
+    are read off `WIDGET_TOPICS` instead."""
     assert not [topic for topic in INBOUND if topic.startswith("tc49/ui/")]
+
+
+def test_a_buttons_row_is_an_event_browser_writable_with_no_fields() -> None:
+    """A press is an event and is not kept, and a page writes it when a person
+    presses the button (ADR-0087 decisions 2 and 3). Its payload is the one
+    typed for the button, raw (decision 4)."""
+    assert WIDGET_TOPICS[BUTTON].fields == ()
+    assert WIDGET_TOPICS[BUTTON].browser
+    assert not is_state_topic(BUTTON + "/horn")
 
 
 def test_every_state_row_leads_with_the_stamp_and_no_event_row_carries_one() -> None:
