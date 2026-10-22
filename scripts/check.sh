@@ -14,13 +14,21 @@
 # at the end. Stopping at the first red would report one broken thing per
 # invocation — the wrong shape for anyone, agent or human, handed the output
 # and asked to fix what they broke.
+#
+#   scripts/check.sh --fast    every check but pytest: seconds, not minutes
 
 set -uo pipefail
+
+FAST=0
+[ "${1:-}" = --fast ] && FAST=1
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
 
-[ -d ui/node_modules ] || (cd ui && pnpm install)
+# pnpm keeps a copy of the lockfile it installed in node_modules/.pnpm, so a
+# bumped dependency shows as a difference rather than as tsc errors against
+# the old build.
+cmp -s ui/pnpm-lock.yaml ui/node_modules/.pnpm/lock.yaml || (cd ui && pnpm install --frozen-lockfile)
 
 # The link check reads other rails49 repositories through GitHub's REST API,
 # which answers 60 requests an hour without a token. CI sets one; here it is
@@ -43,7 +51,7 @@ run() {
 run ruff uv run ruff check .
 run black uv run black --check .
 run pyright uv run pyright
-run pytest uv run pytest -q
+[ "$FAST" = 1 ] || run pytest uv run pytest -q
 # pnpm verifies node_modules against the lockfile before running a script and,
 # without a TTY, aborts rather than replace it. That happens whenever this tree
 # is mounted into a container while node_modules holds the host's binaries, and
