@@ -159,6 +159,39 @@ def test_no_move_while_the_power_is_off(build: Build, words: list[str]) -> None:
     assert binding.position == {"freight_1": "up_w"}
 
 
+@pytest.mark.parametrize("words", [[], ["on", "off"]])
+def test_a_move_granted_while_the_power_is_off_is_carried_out_at_on(
+    build: Build, words: list[str]
+) -> None:
+    """`on` resumes the move it was granted (ADR-0078, decision 6)."""
+    binding = build()
+    for word in words:
+        press(binding, word)
+    stand(binding.bus, "freight_1", "up_w")
+    crosses(binding, "freight_1", "to_dn", "dn_e")
+    assert binding.position == {"freight_1": "up_w"}
+    press(binding, "on")
+    binding.settle()
+    assert binding.position == {"freight_1": "dn_e"}
+
+
+@pytest.mark.parametrize("words", [[], ["on", "off"]])
+def test_a_kept_move_for_a_train_taken_off_is_dropped_at_on(
+    build: Build, words: list[str]
+) -> None:
+    """`on` resumes no move for a train taken off (ADR-0078, decision 6)."""
+    binding = build()
+    for word in words:
+        press(binding, word)
+    stand(binding.bus, "freight_1", "up_w")
+    crosses(binding, "freight_1", "to_dn", "dn_e")
+    binding.bus.publish(REMOVED, {"train": "freight_1"})
+    binding.bus.drain()
+    press(binding, "on")
+    binding.settle()
+    assert binding.position == {}
+
+
 def test_a_move_granted_while_draining_is_carried_out(build: Build) -> None:
     """The supply is on through a drain and the move was granted, so the
     train runs into the next block and stops at its sensor (#862, #863)."""
