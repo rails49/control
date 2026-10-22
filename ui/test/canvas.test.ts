@@ -951,3 +951,35 @@ describe("a point on a run", () => {
     run.remove();
   });
 });
+
+/** A widget is a box at its place and size with its name and kind, and a text
+ *  widget shows its default text (ADR-0087, #928). */
+describe("a widget in the editor", () => {
+  const WIDGETS: Drawing = {
+    drawing: "widgets",
+    symbols: {},
+    wires: [],
+    widgets: {
+      current: { kind: "text", at: [2, 1], size: [6, 1], default: "0.4 A" },
+      horn: { kind: "button", at: [2, 3], size: [3, 1], payload: "horn" },
+    },
+  };
+
+  it("draws a box at its place and size, wearing its name and kind", async () => {
+    const canvas = await canvasOn(WIDGETS, UNREVIEWED);
+    const horn = canvas.renderRoot.querySelector('[data-widget="horn"]')!;
+    const box = horn.querySelector(".widget-box")!;
+    expect(
+      ["x", "y", "width", "height"].map((one) => box.getAttribute(one)),
+    ).toEqual(["2", "3", "3", "1"]);
+    expect(horn.querySelector(".widget-name")!.textContent).toBe("horn");
+    expect(horn.querySelector(".widget-kind")!.textContent).toBe("button");
+    expect(horn.querySelector(".widget-text")).toBeNull();
+  });
+
+  it("shows a text widget's default text", async () => {
+    const canvas = await canvasOn(WIDGETS, UNREVIEWED);
+    const current = canvas.renderRoot.querySelector('[data-widget="current"]')!;
+    expect(current.querySelector(".widget-text")!.textContent).toBe("0.4 A");
+  });
+});

@@ -25,21 +25,29 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import type { Kind } from "../symbols.generated.js";
-import { emptyDrawing, type SymbolSpec } from "../model/drawing.js";
+import {
+  emptyDrawing,
+  type SymbolSpec,
+  type WidgetKind,
+  type WidgetSpec,
+} from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { editingMachine, Gesture } from "../model/gesture.js";
 import type { Chosen } from "../model/inspect.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import type { Under } from "../model/under.js";
+import { widgetOf } from "../model/widgets.js";
 import { editorStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
 import "./tc-menu.js";
 import "./tc-netlist.js";
 import "./tc-palette.js";
 import "./tc-properties.js";
+import "./tc-widget-properties.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
 import { editable, type Properties } from "./tc-properties.js";
+import type { WidgetProperties } from "./tc-widget-properties.js";
 
 export type MenuAction =
   | "properties"
@@ -59,6 +67,9 @@ export type MenuAt = Under & { x: number; y: number };
  * bindings also do; and a wire offers to be cut, this being the only way to
  * delete one — a wire has no symbol to select and so no keystroke to take it.
  *
+ * A widget offers its properties and Delete, and neither Rotate nor Flip: it
+ * does not turn (ADR-0087).
+ *
  * A junction and a joint offer nothing, so a right-click on one draws no menu
  * at all. Their names are the editor's own: it mints them, `settle` keeps them
  * settled through splits and merges, and the netlist pane is where one is read
@@ -67,6 +78,12 @@ export type MenuAt = Under & { x: number; y: number };
 export function editorMenu(at: MenuAt): MenuItem[] {
   const items: MenuItem[] = [];
   if (at.wire !== null) items.push({ label: "Delete wire", action: "delete-wire" });
+  if (at.widget !== null) {
+    items.push(
+      { label: "Properties…", action: "properties" },
+      { label: "Delete", action: "delete", key: "⌫" },
+    );
+  }
   if (at.symbol !== null) {
     if (at.kind !== null && editable(at.kind)) {
       items.push({ label: "Properties…", action: "properties" });
@@ -119,6 +136,7 @@ export class TcEditor extends LitElement {
 
   @state() private menu: MenuAt | null = null;
   @state() private editing: { name: string; spec: SymbolSpec } | null = null;
+  @state() private widget: { name: string; spec: WidgetSpec } | null = null;
   @state() private chosen: Chosen | null = null;
 
   override willUpdate(changed: Map<string, unknown>): void {
@@ -138,6 +156,7 @@ export class TcEditor extends LitElement {
     // redraw because it holds the same `Editor` and sees no property change.
     if (changed.has("frozen") && this.frozen) {
       this.editing = null;
+      this.widget = null;
       this.menu = null;
       this.editor.cancelWire();
       this.editor.cancelPending();
@@ -191,6 +210,15 @@ export class TcEditor extends LitElement {
           this.editing = null;
         }}
       ></tc-properties>
+
+      <tc-widget-properties
+        .editing=${this.widget}
+        .taken=${Object.keys(this.editor.widgets)}
+        @widget-properties=${this.widgetApplied}
+        @properties-closed=${() => {
+          this.widget = null;
+        }}
+      ></tc-widget-properties>
     `;
   }
 
@@ -199,6 +227,12 @@ export class TcEditor extends LitElement {
   /** The properties of the one selected symbol. The right-click menu asks the
    *  same dialog about whatever is under the pointer instead. */
   editSelected(): void {
+    const [one, ...rest] = this.editor.selection;
+    const widget = one === undefined || rest.length > 0 ? null : widgetOf(one);
+    if (widget !== null) {
+      this.editWidget(widget);
+      return;
+    }
     const name = this.inspecting;
     if (name === null) return;
     const spec = this.editor.drawing.symbols[name];
@@ -235,7 +269,9 @@ export class TcEditor extends LitElement {
    *  frog. */
   private get inspecting(): string | null {
     const selected = [...this.editor.selection];
-    return selected.length === 1 ? selected[0]! : null;
+    return selected.length === 1 && widgetOf(selected[0]!) === null
+      ? selected[0]!
+      : null;
   }
 
   // --- edits ---------------------------------------------------------------
@@ -260,6 +296,10 @@ export class TcEditor extends LitElement {
     if (at === null) return;
     switch (event.detail as MenuAction) {
       case "properties": {
+        if (at.widget !== null) {
+          this.editWidget(at.widget);
+          return;
+        }
         const spec = at.symbol === null ? undefined : this.editor.drawing.symbols[at.symbol];
         if (at.symbol !== null && spec !== undefined) {
           this.editing = { name: at.symbol, spec };
@@ -292,6 +332,22 @@ export class TcEditor extends LitElement {
     this.edited();
   }
 
+  /** Open the widget dialog on one widget. */
+  private editWidget(name: string): void {
+    const spec = this.editor.widgets[name];
+    if (spec !== undefined) this.widget = { name, spec };
+  }
+
+  /** What the widget dialog handed back, which it only does for a name and
+   *  values the drawing can take. */
+  private widgetApplied(event: CustomEvent<WidgetProperties>): void {
+    const { was, name, spec } = event.detail;
+    this.widget = null;
+    if (!this.editor.editWidget(was, name, spec)) return;
+    this.redraw();
+    this.edited();
+  }
+
   // --- dragging a symbol off the palette -----------------------------------
 
   /**
@@ -303,7 +359,7 @@ export class TcEditor extends LitElement {
    * shadow root reaches the window afterwards — so by the time this sees a
    * release over the canvas there is nothing pending left to cancel.
    */
-  private take(event: CustomEvent<Kind>): void {
+  private take(event: CustomEvent<Kind | WidgetKind>): void {
     // The other half of the freeze: the canvas's machine answers for presses
     // on the sheet, and a palette drag starts on a tile (#169).
     if (this.frozen) return;

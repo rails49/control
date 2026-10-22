@@ -138,4 +138,34 @@ export const symbols = css`
   .tick {
     stroke-width: ${SLIP.weight};
   }
+
+  /* A widget: a box beside the track rather than track, so a hairline, with
+     its name and kind in the hint's colour and a text widget's words in the
+     track's (ADR-0087). The palette's tiles wear the same. */
+  .widget-box {
+    fill: var(--paper);
+    stroke: var(--hint);
+    stroke-width: ${HAIRLINE};
+  }
+
+  .widget-name,
+  .widget-kind,
+  .widget-text {
+    font-family: system-ui, sans-serif;
+    pointer-events: none;
+  }
+
+  .widget-name,
+  .widget-kind {
+    fill: var(--hint);
+    dominant-baseline: hanging;
+  }
+
+  .widget-kind {
+    text-anchor: end;
+  }
+
+  .widget-text {
+    fill: var(--track);
+  }
 `;
