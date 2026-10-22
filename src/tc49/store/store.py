@@ -41,6 +41,7 @@ reboot, the broker keeping nothing across a restart (ADR-0072 decision 5).
 """
 
 import math
+import re
 import shutil
 from pathlib import Path
 from typing import Any, cast
@@ -62,9 +63,13 @@ LOADED = "loaded.yaml"
 _TIMESTAMP = "tag:yaml.org,2002:timestamp"
 """The one implicit tag this store's reader does not resolve (`_Reader`)."""
 
+_BOOL = "tag:yaml.org,2002:bool"
+"""The implicit tag this store's reader resolves from fewer words (`_Reader`)."""
+
 
 class _Reader(yaml.SafeLoader):
-    """`yaml.SafeLoader` with the date dropped out of it.
+    """`yaml.SafeLoader` with the date dropped out of it, and a boolean read
+    from `true` and `false` alone.
 
     **A date is text.** `bought: 2026-10-05` in a field nothing here reads is
     the string somebody typed, not a `datetime.date`: a document is handed on
@@ -80,13 +85,23 @@ class _Reader(yaml.SafeLoader):
     at every depth of two document types and would turn `!!timestamp` into
     text as well, where an explicit tag asks for exactly what
     `_check_values` refuses.
+
+    **`on`, `off`, `yes` and `no` are text.** YAML 1.1 reads them unquoted as
+    booleans; YAML 1.2, which `yamlfile` writes in, reads them as words and
+    writes them unquoted. A toggle saved with `on: on, off: off` came back
+    with keys `True` and `False` and its drawing was refused (#945).
     """
 
 
 _Reader.yaml_implicit_resolvers = {
-    first: [(tag, pattern) for tag, pattern in resolvers if tag != _TIMESTAMP]
+    first: [
+        (tag, pattern) for tag, pattern in resolvers if tag not in (_TIMESTAMP, _BOOL)
+    ]
     for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
 }
+_Reader.add_implicit_resolver(  # pyright: ignore[reportUnknownMemberType]
+    _BOOL, re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"), list("tTfF")
+)
 
 
 def _check_values(value: Any, path: Path, field: str = "") -> None:
