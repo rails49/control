@@ -12,3 +12,4 @@ node_modules/
 ui/dist/
 .pnpm-store/
 bench/loaded.yaml
+.claude/worktrees/
