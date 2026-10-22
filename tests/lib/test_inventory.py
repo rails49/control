@@ -11,6 +11,7 @@ from tc49.lib.inventory import (
     DEVICE_TOPICS,
     INBOUND,
     TOPICS,
+    WIDGET_TOPICS,
     device_topic,
     is_state_topic,
     leaf,
@@ -49,6 +50,7 @@ POWER_WANTED = "tc49/layout/power_wanted"
 POWER = "tc49/layout/state/power"
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 RAILROAD = "tc49/layout/state/railroad"
+TEXT = "tc49/ui/state/text"
 
 
 @pytest.mark.parametrize("topic", sorted(TOPICS))
@@ -329,14 +331,32 @@ def test_no_device_row_is_browser_writable() -> None:
     assert not any(row.browser for row in DEVICE_TOPICS.values())
 
 
-def test_names_are_unique_across_both_mappings() -> None:
+def test_names_are_unique_across_the_three_mappings() -> None:
     """The trace records one name per row in its `event` field, so two rows
     sharing one could not be told apart there — and the device rows are named
-    by their key past `tc49/layout/state/`."""
-    names = [leaf(topic) for topic in TOPICS] + [
-        key.removeprefix(DEVICE_PREFIX) for key in DEVICE_TOPICS
-    ]
+    by their key past `tc49/layout/state/`. A widget row is named by its key
+    past `tc49/ui/`, which is the namespace the widget's own name hangs off."""
+    names = (
+        [leaf(topic) for topic in TOPICS]
+        + [key.removeprefix(DEVICE_PREFIX) for key in DEVICE_TOPICS]
+        + [key.removeprefix("tc49/ui/") for key in WIDGET_TOPICS]
+    )
     assert len(names) == len(set(names))
+
+
+def test_a_text_widgets_row_is_state_any_writer_with_no_fields() -> None:
+    """The text a widget shows is retained, so a page opened later shows it,
+    and is raw text control defines no field of (ADR-0087 decisions 3 and 4).
+    It carries no browser mark: no page writes a text row."""
+    assert WIDGET_TOPICS[TEXT].fields == ()
+    assert not WIDGET_TOPICS[TEXT].browser
+    assert is_state_topic(TEXT)
+
+
+def test_a_text_widgets_topic_ends_in_its_name() -> None:
+    """The name is a level past the row's key, as an address is past a device
+    row's, and the topic stays a state topic (ADR-0087 decision 2)."""
+    assert is_state_topic(TEXT + "/current")
 
 
 def test_every_state_row_leads_with_the_stamp_and_no_event_row_carries_one() -> None:
