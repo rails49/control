@@ -1138,12 +1138,11 @@ decision 3, amending
 decision 5, which kept it open read-only). The run moves trains over what the
 dispatcher built, and the drawing must not drift from it; and the layout
 builds only with power off, so an edit made then could not be saved until it
-is off again. The rail's Edit button is marked disabled while `state/power`
-reads `on` or `draining`, its title *track power is on*, and pressing it does
-nothing. It is not drawn grey: `look-view` has no disabled state of its own
-and the app does not style look's elements. A hash naming the view is put
-back to the one that is current. Power coming on while the Edit view is
-open — the band's ON pressed elsewhere — moves the page to the run view.
+is off again. The rail's Edit button is greyed while `state/power` reads `on`
+or `draining`, its tooltip *track power is on*, and pressing it does nothing.
+A hash naming the view is put back to the one that is current. Power coming
+on while the Edit view is open — the band's ON pressed elsewhere — moves the
+page to the run view.
 Leaving saves nothing with power on, so edits made before stay on the page,
 marked *unsaved*, until the Edit view is next left with power off
 ([Files](#files)). `shut` in `model/views.ts` is the one reading of it. With

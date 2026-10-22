@@ -311,18 +311,15 @@ export class TcApp extends LitElement {
             this.showing(viewOf(event.detail.name))}
         >
           ${VIEWS.map((view) => {
-            // A view that does not open is marked on its host and refused in
-            // `showing`. look-view draws no disabled state of its own, and
-            // the app may not style look's elements, so it is not greyed
-            // until look gives it one.
+            // A view that does not open is disabled, saying why, and refused
+            // in `showing`.
             const why = shut(view.id, this.status.power);
             return html`
               <look-view
                 name=${view.id}
                 icon=${view.icon}
                 label=${view.label}
-                title=${why || nothing}
-                aria-disabled=${why === "" ? nothing : "true"}
+                reason=${why}
                 ?disabled=${why !== ""}
                 ?current=${view.id === this.view}
               ></look-view>
