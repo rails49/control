@@ -276,8 +276,14 @@ track power a person commands
 and the railroad a person loads
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
 are eight of them, under `layout`, which is the component that responds to
-them. Whether a row carries the mark is an ACL decision, made when the row
-lands.
+them. Beyond them, one state row carries the mark: a toggle's,
+`tc49/ui/state/toggle/<name>`, which a page writes when a person presses the
+toggle. It is rule 1's widget exception: concurrent pages do it no harm,
+because the row is always the whole value and the last one written is the
+right one
+([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)
+decision 3). Whether a row carries the mark is an ACL decision, made when the
+row lands.
 
 **Writer** is the component the name already states for everything a
 component emits. On a request row it is `any`: one responder, any number of
@@ -332,6 +338,7 @@ nothing in control writes them ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-a
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
 | `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
+| `tc49/ui/state/toggle/<name>` | state | any (browser) | a toggle's position ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
 
 | Consumer | Filter(s) |
 | --- | --- |
@@ -862,6 +869,12 @@ Control carries it without reading it
   ([#929](https://github.com/rails49/control/issues/929)). Retained, so a page
   opened later shows the current text. Two writers of one row overwrite each
   other, and a deleted widget's row stays on the broker.
+- `tc49/ui/state/toggle/<name>` — browser-writable — the toggle's on payload
+  or its off payload, as typed in the drawing. A page reads the toggle's
+  position by comparing the row with the two payloads; a row matching neither,
+  or no row, shows neither position. Retained, so a page opened later and a
+  listener that restarts both find the position. No app of control reads it;
+  a listener outside control does.
 
 ## Time
 
