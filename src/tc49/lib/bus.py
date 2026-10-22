@@ -71,6 +71,12 @@ class Bus(Protocol):
 
     def publish(self, topic: str, payload: Payload) -> None: ...
 
+    def publish_text(self, topic: str, text: str) -> None:
+        """A widget's text, which is raw UTF-8 and not a payload: not JSON and
+        not stamped, retained on a state topic, and handed to no subscriber of
+        this bus (ADR-0087 d.4, #941). The empty text clears the row."""
+        ...
+
     def drain(self) -> None: ...
 
     def clear(self, topic: str) -> None: ...
@@ -88,6 +94,7 @@ class InProcessBus:
         self._subscriptions: list[_Subscription] = []
         self._queue: deque[tuple[str, Payload, _Subscription | None]] = deque()
         self._last_values: dict[str, Payload] = {}
+        self._last_texts: dict[str, str] = {}
 
     @property
     def last_values(self) -> dict[str, Payload]:
@@ -111,6 +118,21 @@ class InProcessBus:
             payload = self._stamped(payload)
             self._last_values[topic] = payload
         self._queue.append((topic, payload, None))
+
+    @property
+    def last_texts(self) -> dict[str, str]:
+        """Every widget text published on a state topic, by topic: what a
+        broker would hold, for a test to read. Nothing here has a page to show
+        it on."""
+        return dict(self._last_texts)
+
+    def publish_text(self, topic: str, text: str) -> None:
+        if not is_state_topic(topic):
+            return
+        if text:
+            self._last_texts[topic] = text
+        else:
+            self._last_texts.pop(topic, None)
 
     def clear(self, topic: str) -> None:
         """The retained value dropped: the row is **gone**, rather than

@@ -210,6 +210,13 @@ class MqttBus:
                 self._last_values[topic] = payload
         self._client.publish(topic, json.dumps(payload), qos=QOS, retain=retain)
 
+    def publish_text(self, topic: str, text: str) -> None:
+        """The text's UTF-8 bytes, retained on a state topic. Not stamped and
+        not kept in `last_values`, which holds payloads (`lib.bus.Bus`)."""
+        self._client.publish(
+            topic, text.encode(), qos=QOS, retain=is_state_topic(topic)
+        )
+
     def clear(self, topic: str) -> None:
         """The retained value dropped, which on a broker is an empty payload
         published retained: it tells every client the row is gone and takes
