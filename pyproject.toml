@@ -21,6 +21,7 @@ dev = [
     "pyright",
     "types-pyyaml>=6.0.12.20260724",
     "hypothesis>=6.165.8",
+    "pytest-xdist>=3.8.0",
 ]
 
 [build-system]
