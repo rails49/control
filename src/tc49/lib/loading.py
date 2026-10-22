@@ -447,7 +447,7 @@ def standing[Read](
     return None
 
 
-def drawn[Read](
+def _drawn[Read](
     reading: Callable[[str], Read],
     nothing: Callable[[str], Read],
     log: Callable[[str], None],
@@ -465,7 +465,7 @@ def drawn[Read](
 
     A railroad the store does not have is raised as before: there is no
     drawing to open, and the binding stands (`standing`) or stays on the one
-    it runs (`answered`).
+    it runs (`_answered`).
     """
 
     def read(railroad: str) -> tuple[Read, bool]:
@@ -478,7 +478,7 @@ def drawn[Read](
     return read
 
 
-def answered[Read](
+def _answered[Read](
     bus: Bus,
     documents: Documents,
     loaded: Answering,
@@ -491,7 +491,7 @@ def answered[Read](
     nothing and goes on running what it holds: what `taken` is for a
     follower, for the binding that answers the pick.
 
-    `reading` is `drawn`'s. A drawing that is not a valid drawing **names
+    `reading` is `_drawn`'s. A drawing that is not a valid drawing **names
     the railroad without building it** (ADR-0085, decision 4): the store
     records it as loaded, so a restart comes up on it, and the row says
     `built: false` with a new stamp. After a save of the loaded railroad
@@ -560,7 +560,7 @@ def taken[Read](
     dispatcher. A row saying `built: false` never reaches it, being dropped
     on arrival (`Loaded._said`); what it still catches is a railroad the
     store refuses on a row that said it was built. The two bindings call
-    `answered`, which also names a railroad its drawing cannot build.
+    `_answered`, which also names a railroad its drawing cannot build.
 
     `reading` is the one thing those apps differ in: a railroad's name to
     what that app reads, which is one document for the scheduler and two for
@@ -576,7 +576,7 @@ def taken[Read](
         return held
 
 
-def still_standing(position: dict[str, str], layout: Layout) -> dict[str, str]:
+def _still_standing(position: dict[str, str], layout: Layout) -> dict[str, str]:
     """Where each train stood under the last build, less any train whose
     block `layout` lacks: what a binding of the layout interface carries into
     a rebuild under the same railroad name (ADR-0071).
@@ -608,7 +608,7 @@ def rebuilding[Read](
     **The record first** (`Answering.recorded`), and the cold start on it,
     standing where the store cannot give it (`standing`). A drawing that is
     not a valid drawing builds on `binding.nothing` and is named with
-    `built: false` (`drawn`).
+    `built: false` (`_drawn`).
 
     Then one railroad each time round. **`follow` comes first**: what this
     app watches is a gesture, and an event is not retained, so a press landing
@@ -617,13 +617,13 @@ def rebuilding[Read](
     railroad is **recorded** before the build, so the next start comes up on
     it. The build runs until another railroad is picked or `stop` is set, and
     a stop returns. A pick whose drawing is not a valid drawing is named and
-    this build goes on running, its rows kept (`answered`, ADR-0085,
+    this build goes on running, its rows kept (`_answered`, ADR-0085,
     decision 4). One that builds takes the trains with it **under the same
     name**, less any whose block the new drawing lacks (ADR-0071), and none
     under another; then the rows the binding owns go (`dropped`).
     """
     loaded = Answering.recorded(documents, railroad, log)
-    reading = drawn(binding.read, binding.nothing, log)
+    reading = _drawn(binding.read, binding.nothing, log)
     came = standing(bus, loaded, stop, log, reading, period_s)
     if came is None:
         return
@@ -641,12 +641,12 @@ def rebuilding[Read](
             running.run(until=lambda: stop.is_set() or loaded.moved)
             if not loaded.moved:
                 return
-            picked = answered(
+            picked = _answered(
                 bus, documents, loaded, built, (read, derived), log, reading
             )
         read, derived = picked
         position = (
-            still_standing(running.position, binding.layout(read))
+            _still_standing(running.position, binding.layout(read))
             if loaded.name == built
             else {}
         )
