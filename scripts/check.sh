@@ -5,7 +5,7 @@
 #
 #   ruff, black    style, over src and tests
 #   pyright        strict, over src and tests
-#   pytest         the Python suite
+#   pytest         the Python suite, one worker per CPU
 #   tsc, vitest    the ui, which carries its own toolchain
 #   vite           the ui's production build
 #   look-check     the ui styles none of look's chrome
@@ -51,7 +51,7 @@ run() {
 run ruff uv run ruff check .
 run black uv run black --check .
 run pyright uv run pyright
-[ "$FAST" = 1 ] || run pytest uv run pytest -q
+[ "$FAST" = 1 ] || run pytest uv run pytest -q -n auto
 # pnpm verifies node_modules against the lockfile before running a script and,
 # without a TTY, aborts rather than replace it. That happens whenever this tree
 # is mounted into a container while node_modules holds the host's binaries, and
