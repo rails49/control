@@ -29,11 +29,15 @@ changing one files an issue in rails49/dccex and rails49/jmri. See
 ## Landing work
 
 History is linear, and `main` only moves by PR with the `ci` check green — a
-ruleset with no bypass, so this applies to everyone. Open an issue, commit on
-a branch in reviewable steps referencing it, then
-`git push -u origin <branch> && gh pr create --fill && gh pr merge --auto --rebase`;
-close the issue once it lands. Rebase merge keeps the history linear. Keep
-mechanical moves in their own commit so renames stay legible in the diff.
+ruleset with no bypass, so this applies to everyone. Open an issue, then make
+the branch in a worktree (`EnterWorktree`): this checkout stays on `main`,
+where other sessions and `/implement-loop` expect it. Commit in reviewable
+steps referencing the issue. `scripts/check.sh` is the gate; `--fast` skips
+pytest, the one slow check. Land with
+`scripts/land.sh --title … --body "Closes #<n> …"` run in the background: it
+pushes, opens the PR, rebase-merges it once `ci` is green and deletes the
+branch. Rebase merge keeps the history linear. Keep mechanical moves in their
+own commit so renames stay legible in the diff.
 
 ## Agent skills
 
@@ -65,3 +69,5 @@ issue in a Docker sandbox, `scripts/check.sh` run by the host between them, and
 the batch landing as one PR that `ci` must pass. It is a user skill rather than
 a repo one — `~/.claude/skills/implement-loop/SKILL.md` — and derives the repo
 and the gate from wherever it is run.
+`~/.claude/skills/implement-loop/implement-loop.sh --status`, run with the
+sandbox off, says whether a run is alive and how far it got.
