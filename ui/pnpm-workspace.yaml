@@ -6,3 +6,6 @@ supportedArchitectures:
   os: [current, linux]
   cpu: [current, arm64]
   libc: [current, glibc]
+# Without a terminal, pnpm stops rather than replace a node_modules it did not
+# lay out; an agent's shell has no terminal.
+confirmModulesPurge: false
