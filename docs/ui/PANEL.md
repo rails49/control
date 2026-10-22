@@ -293,6 +293,32 @@ simply two different counts.
 An end that leads nowhere carries no signal and the dispatcher does not name
 it, so the panel draws none — no rule here, just an end absent from the map.
 
+**Every widget in the drawing is drawn at its place and size**
+([ADR-0087](../adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md),
+[#929](https://github.com/rails49/control/issues/929)): the box the editor
+draws, without the editor's name and kind in its corners, and the widget's
+words in it at the size and alignment it sets
+([EDITOR.md](EDITOR.md#widgets)).
+
+- A **text** widget shows the row on `tc49/ui/state/text/<name>`, and its
+  default text while there is none. The row is shown as it arrives, with
+  ANSI SGR codes read for bold and three colours: `1` is bold and `22` ends
+  it; `31` or `91` is red, `33` or `93` amber and `32` or `92` green, in
+  look's `--red`, `--amber` and `--green`, and `39` ends the colour; `0`
+  resets both. Any other code, and every other escape sequence, is removed
+  from what is shown.
+- A **button** shows its name.
+- A **toggle** shows its name and its position, read off
+  `tc49/ui/state/toggle/<name>` by comparing the row with its two payloads: a
+  lamp at the top right, lit for `on` and hollow for `off`. No row, or a row
+  matching neither payload, shows neither position, and no lamp.
+
+Words that do not fit are cut at the widget's box rather than run over the
+track. The rows are not the railroad's — a widget's topic names none — so
+they are kept whichever railroad is joined, and dropped only when the page
+connects again, its retained rows then coming back with the rest. A drawing
+drawn grey still shows its widgets, each as it would with no row.
+
 ![A live session mid-run: two committed routes, green where the dispatcher holds the lock and cyan where it does not, and a drag from `resident` to C6's middle third](images/live-drag.png)
 
 ## What it does
@@ -524,6 +550,19 @@ is not reported. The panel does not move the drawn position itself: it follows
 what this is for — trains still move only on granted routes, and reversal
 happens only between requests, at rest.
 
+**A click on a button or a toggle presses it** (ADR-0087, #929), whatever
+the track power: a widget is not the railroad's, and a person may want the
+lights on with the track dead. A widget is drawn over the symbols, so a plain
+left press on one is the widget's before it is a train's or a point's, and a
+release on the same widget, without moving further than a click allows, is
+the press. A **button** publishes its payload on `tc49/ui/button/<name>`, once
+per press and not retained. A **toggle** publishes the payload of the other
+position from the one it shows on `tc49/ui/state/toggle/<name>`, retained, and
+its `on` payload where it shows neither; the lamp moves when the row comes
+back, not on the press. A press on a text widget does nothing. Control sends
+the payload and reads none of it: it goes out as it was typed, never through
+`JSON.stringify`, and what it does is the listener's business.
+
 ## Implementation
 
 The asset store already has an HTTP face, built for the editor and belonging
@@ -559,6 +598,13 @@ named it, and the page then shows this view (EDITOR.md). The page subscribes
 `tc49/#` and publishes only the browser-writable rows. With anonymous clients
 a broker cannot tell a page from an app, so that set is convention rather than
 enforcement, and it is what keeps ADR-0036's single-minter argument holding.
+
+**A widget's row is read before anything is read as JSON.** Every other
+topic the page hears carries a JSON object, and the session reads it as one;
+a widget's payload is raw (ADR-0087, decision 4), so the session takes
+anything under `tc49/ui/` first, keeps a state row as the text it arrived as,
+and lets a button's press go by. A payload there that is not JSON is neither
+an error nor dropped, and changes no other row.
 
 **A page joins in the middle of a cold start.** The retained rows arrive as
 the subscription lands, which may be before the store has answered for the
