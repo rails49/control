@@ -291,8 +291,9 @@ component emits. On a request row it is `any`: one responder, any number of
 writers (rule 1), and `any (browser)` is the mark above.
 
 A row ending in `<name>` is a **pattern**: one topic per widget on the loaded
-drawing, the widget's name as the last level. `ui` declares these rows and
-nothing in control writes them ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+drawing, the widget's name as the last level. `ui` declares these rows. A
+page writes the toggle and button rows when a person presses one; nothing in
+control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
 
 | Topic | Kind | Writer | Meaning |
 | --- | --- | --- | --- |
