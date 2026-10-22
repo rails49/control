@@ -112,12 +112,13 @@ _PLACEMENT = frozenset({"at", "rot", "flip"})
 ROTATIONS = (0, 90, 180, 270)
 
 # A widget: text, a button or a toggle placed beside the track (ADR-0087). Its
-# name ends its topic, so it is one topic level. Every kind takes a place, a
-# size and how its words are set; each kind takes its own payload keys besides.
+# name ends its topic, so it is one topic level. Every kind takes a place and
+# no size, and each kind takes its own keys besides. Only a text widget has
+# words, so only it takes their size and alignment.
 WIDGET_KINDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
-    "text": (frozenset(), frozenset({"default"})),
+    "text": (frozenset(), frozenset({"text", "align", "default"})),
     "button": (frozenset({"payload"}), frozenset()),
-    "toggle": (frozenset({"on", "off"}), frozenset()),
+    "toggle": (frozenset({"on", "off"}), frozenset({"default"})),
 }
 WIDGET_TEXT = ("small", "normal", "large")
 WIDGET_ALIGN = ("left", "center", "right")
@@ -174,10 +175,11 @@ class Widget:
     name: str
     kind: str
     at: tuple[int, int]
-    size: tuple[int, int]
     text: str = "normal"
     align: str = "center"
-    default: str = ""  # a text widget's, shown until a row arrives
+    # A text widget's text, or a toggle's position, `on` or `off`: what it
+    # shows until a row arrives.
+    default: str = ""
     payload: str = ""  # a button's
     on: str = ""  # a toggle's two payloads, which differ
     off: str = ""
@@ -1082,21 +1084,8 @@ def _widget(where: str, name: Any, spec: Any) -> Widget:
             f"{where}: unknown kind {kind!r}, a widget is one of {list(WIDGET_KINDS)}"
         )
     required, optional = WIDGET_KINDS[kind]
-    check_keys(
-        spec, where, {"kind", "at", "size"} | required, {"text", "align"} | optional
-    )
+    check_keys(spec, where, {"kind", "at"} | required, optional)
     _check_geometry({"at": spec["at"]}, where)
-    size: Any = spec["size"]
-    if (
-        not isinstance(size, list)
-        or len(cast(list[Any], size)) != 2
-        or [
-            n
-            for n in cast(list[Any], size)
-            if not isinstance(n, int) or isinstance(n, bool) or n <= 0
-        ]
-    ):
-        raise ValueError(f"{where}: size must be two positive integers, got {size!r}")
     text = spec.get("text", "normal")
     if text not in WIDGET_TEXT:
         raise ValueError(f"{where}: text must be one of {list(WIDGET_TEXT)}")
@@ -1104,7 +1093,7 @@ def _widget(where: str, name: Any, spec: Any) -> Widget:
     if align not in WIDGET_ALIGN:
         raise ValueError(f"{where}: align must be one of {list(WIDGET_ALIGN)}")
     strings: dict[str, str] = {}
-    for key in sorted(required | optional):
+    for key in sorted((required | optional) - {"text", "align"}):
         if key in spec:
             if not isinstance(spec[key], str):
                 raise ValueError(f"{where}: {key} must be a string")
@@ -1114,12 +1103,13 @@ def _widget(where: str, name: Any, spec: Any) -> Widget:
             f"{where}: on and off must differ, a page reads the toggle's"
             f" position by comparing the row with them"
         )
-    at, size = cast(list[int], spec["at"]), cast(list[int], size)
+    if kind == "toggle" and strings.get("default", "on") not in ("on", "off"):
+        raise ValueError(f"{where}: default must be 'on' or 'off'")
+    at = cast(list[int], spec["at"])
     return Widget(
         name,
         kind,
         (at[0], at[1]),
-        (size[0], size[1]),
         text=text,
         align=align,
         **strings,
