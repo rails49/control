@@ -937,7 +937,9 @@ stays named: after a restart, a save or a pick, the row names it with
 moves to the Edit view when the row first says so, so the drawing can be
 fixed; a person who then goes to another view stays there, and the next
 save that builds clears it. Power on keeps the Edit view shut as always
-([Track power freezes the drawing](#track-power-freezes-the-drawing)).
+([Track power freezes the drawing](#track-power-freezes-the-drawing)); where
+the row says so with power on, the page opens it the first time power reads
+`off`, unless the railroad has been built or another named by then (#906).
 
 `File ▸ New…` and
 `Save As…`, which left the editor and the stock view on a drawing nothing
