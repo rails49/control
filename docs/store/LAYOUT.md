@@ -18,7 +18,7 @@ and `bench/replay.py` and served on no route. The split is what lets one railroa
 many benchmark runs, and it makes the benchmark CLI's argument a single
 scenario path.
 
-Terminology follows [CONTEXT.md](../../CONTEXT.md); the semantics of what these
+Terminology follows [GLOSSARY.md](../../GLOSSARY.md); the semantics of what these
 describe are in [GOALS.md](../GOALS.md) and
 [DISPATCH.md](../dispatcher/DISPATCH.md).
 
@@ -359,7 +359,7 @@ requests:
   equally acceptable and route selection decides between them, so writing a
   preferred track first has no effect.
 - **`facing` is declared, then derived.** It is the run the train would make
-  across `at` ([CONTEXT.md](../../CONTEXT.md#stock)) — `A-to-B` or `B-to-A`,
+  across `at` ([GLOSSARY.md](../../GLOSSARY.md#stock)) — `A-to-B` or `B-to-A`,
   required at placement, `A-to-B` meaning it would depart nose-first through
   that block's `B` end. Refused at load where no connection holds the end it
   would depart through — a train facing a wall could never leave — and

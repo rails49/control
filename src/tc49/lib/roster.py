@@ -3,7 +3,7 @@ a railroad owns.
 
 A **model** is what a product is — a length, a **kind**, and what each
 function does on it — and it is a fact about the product rather than about any
-railroad, so two railroads owning the same item read one entry (CONTEXT.md,
+railroad, so two railroads owning the same item read one entry (GLOSSARY.md,
 **Model**). A **car** is one item a railroad owns: that model with zero or
 more fields overridden, plus its own address where it has a decoder. A
 **train** is an ordered list of cars, each recording which way round it is
@@ -11,7 +11,7 @@ coupled, and its length and its kind are derived from them
 ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
 
 A railroad's roster is the cars it owns, with the trains made up from them
-alongside (CONTEXT.md, **Roster**). Being on it is what makes stock **known**,
+alongside (GLOSSARY.md, **Roster**). Being on it is what makes stock **known**,
 which is separate from a train being **placed** — a railroad at rest says what
 stock it has without saying where any of it stands
 ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 LOCOMOTIVE = "locomotive"
 KINDS = (LOCOMOTIVE, "passenger", "freight", "special")
 """What a model may be. A train's kind is derived and is not one of these
-(CONTEXT.md, **Kind**): the two lists differ."""
+(GLOSSARY.md, **Kind**): the two lists differ."""
 
 MIXED = "mixed"
 LIGHT_ENGINE = "light engine"
@@ -64,7 +64,7 @@ class Model:
     """What a product is, independent of any railroad that owns one.
 
     Shared between railroads, which is why it is keyed by its own name and
-    not by the railroad's (CONTEXT.md, **Catalogue**).
+    not by the railroad's (GLOSSARY.md, **Catalogue**).
 
     `manufacturer`, `scale` and `description` are what a real product needs
     beyond a synthetic one, and all three are **plain data**: nothing filters,
@@ -133,7 +133,7 @@ class Coupled:
     """A car's place in a train: which car, and which way round it is coupled.
 
     `reverse` says the car's nose points toward the tail, which is what makes
-    a top-and-tail set a reversed locomotive at the end (CONTEXT.md,
+    a top-and-tail set a reversed locomotive at the end (GLOSSARY.md,
     **Orientation**).
     """
 
@@ -175,7 +175,7 @@ class Train:
         locomotives**: every hauled train has one, so counting them would
         make every train *mixed* and the classification would say nothing.
         Exactly one sort hauled gives that sort, more than one gives `mixed`,
-        and nothing but locomotives is a `light engine` (CONTEXT.md,
+        and nothing but locomotives is a `light engine` (GLOSSARY.md,
         **Kind**).
 
         A train that names no cars has no kind to derive, which is what a
@@ -196,7 +196,7 @@ class Train:
         declare, **by name**, first car first and each name once.
 
         In the train's frame like everything else a throttle works in
-        (CONTEXT.md, **Throttle**): a set with a locomotive at each end has one
+        (GLOSSARY.md, **Throttle**): a set with a locomotive at each end has one
         headlight to press, not two, and which car — which address, which
         orientation — a press reaches is `layout`'s, the same composition it
         does for a speed. So the name is the whole of the entry, and the
@@ -241,7 +241,7 @@ class Train:
     def priority_key(self) -> tuple[int, int]:
         """Where the train sorts against another: lowest number highest, and
         **a train with no priority after every train that has one**
-        (CONTEXT.md, **Priority**).
+        (GLOSSARY.md, **Priority**).
 
         Absent is not a number and is not written as one, so it cannot be
         confused with a number a document authored. Two trains at one

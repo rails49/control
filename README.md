@@ -17,7 +17,7 @@ This repo (eventually) implements the features described in the docs:
   payload, time, and the device vocabulary the hardware speaks.
 - [Architecture](docs/ARCHITECTURE.md) — how the repository is organized and
   how it is tested.
-- [Glossary](CONTEXT.md) — canonical terms; decisions in [docs/adr](docs/adr).
+- [Glossary](GLOSSARY.md) — canonical terms; decisions in [docs/adr](docs/adr).
 - [Deploy](docs/DEPLOY.md) — what a box runs: the containers, the two files
   they are started against, and the routers they declare for the
   installation's door, living in [deploy/](deploy).

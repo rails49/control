@@ -10,7 +10,7 @@ The store serves drawings alone (#45): a layout is derived on `get` and is not
 a file, which is what [LAYOUT.md](LAYOUT.md) describes. Order of work:
 derivation (Python, no UI), then the
 [editor](../ui/EDITOR.md), then the [panel](../ui/PANEL.md). Terminology
-follows [CONTEXT.md](../../CONTEXT.md).
+follows [GLOSSARY.md](../../GLOSSARY.md).
 
 ## What a drawing is
 

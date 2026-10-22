@@ -98,7 +98,7 @@ def facing(assembly: Assembly, train: str) -> str:
 
 def test_a_placement_moves_the_lock_and_redraws_the_picture(off: Assembly) -> None:
     """Every parked train holds the lock on the block it stands in
-    (CONTEXT.md), so placing one is moving that lock; the picture is
+    (GLOSSARY.md), so placing one is moving that lock; the picture is
     republished because a joining client draws from it and nothing else."""
     before = last(off, "allocation")
     assert before["locks"]["yard_w"] == "freight_1"
@@ -499,7 +499,7 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
 def test_a_placement_into_a_committed_block_is_dropped() -> None:
     """A resource is claimed when it is **committed** — on a route the
     dispatcher has chosen, with no lock on it yet — and that is the weaker of
-    the two claims a route carries (CONTEXT.md), not no claim at all. Under
+    the two claims a route carries (GLOSSARY.md), not no claim at all. Under
     `Incremental` a fixed route runs on ahead of its locks, so reading the
     lock table alone would call those blocks free.
 

@@ -85,7 +85,7 @@ export type { Aspect, Reading };
 
 /**
  * A train on the layout, and where it is standing: the block, or `null` while
- * it is crossing and standing in none (CONTEXT.md, **Placed**).
+ * it is crossing and standing in none (GLOSSARY.md, **Placed**).
  *
  * Presence in the run's picture is the whole of being placed, absence being
  * off the layout rather than a sentinel
@@ -769,7 +769,7 @@ export class Panel {
   }
 
   /** Whether any train is crossing, so a power cut now would
-   *  strand it (CONTEXT.md, **Moving**), as `state/moving` last said, `null`
+   *  strand it (GLOSSARY.md, **Moving**), as `state/moving` last said, `null`
    *  where it has said nothing readable. Read and never derived: the picture
    *  a page draws says where trains stand, not what the dispatcher has
    *  granted. */
@@ -1061,7 +1061,7 @@ export class Panel {
   /**
    * The end of its block each placed train points at, `<block>.<end>`: where
    * its facing runs to, which is the end it would depart through nose-first
-   * and the end whose signal it is reading (CONTEXT.md, **Facing**).
+   * and the end whose signal it is reading (GLOSSARY.md, **Facing**).
    *
    * The scheduler's answer with nothing added — the same value the run
    * view's direction arrow is drawn from — put in the form the aspects are

@@ -11,7 +11,7 @@
 # obstacle.
 #
 # Note where the self-intersection actually lives. A route is a simple path
-# (CONTEXT.md), so no single route can revisit a block; what revisits is the
+# (GLOSSARY.md), so no single route can revisit a block; what revisits is the
 # TRAIN, across two requests. That is the only form the rule can take on this
 # model, and it is the form the return working takes here. `safe()` is
 # exercised on the hand-built version of the same shape in

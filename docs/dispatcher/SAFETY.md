@@ -4,7 +4,7 @@ How incremental locking stays deadlock-free. The algorithm choice is recorded
 in [ADR-0003](../adr/0003-route-aware-bankers-safety-check.md) and justified
 against the literature in the
 [deadlock-avoidance survey](../research/deadlock-avoidance-survey.md);
-terminology follows [CONTEXT.md](../../CONTEXT.md) and the dispatch model
+terminology follows [GLOSSARY.md](../../GLOSSARY.md) and the dispatch model
 [DISPATCH.md](DISPATCH.md).
 
 ## Two independent guarantees

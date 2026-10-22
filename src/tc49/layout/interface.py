@@ -751,7 +751,7 @@ class LayoutInterface:
         facing says which end its nose points at. Equal is nose-first;
         different is **propelled** — pushed out of the end its nose points
         away from — which is an ordinary movement and not an error
-        (CONTEXT.md, **Facing**). The second is the car's `orientation`, the
+        (GLOSSARY.md, **Facing**). The second is the car's `orientation`, the
         way round it is coupled: that is what lets a locomotive at each end of
         a train run opposite (ADR-0045). So a car runs positive when the move
         is nose-first and the car is `forward`, or when the move is propelled
@@ -1345,7 +1345,7 @@ class LayoutInterface:
 
     def _on_moving(self, topic: str, payload: Payload) -> None:
         """Whether the dispatcher says a train is moving: some train crossing
-        (CONTEXT.md, **Moving**).
+        (GLOSSARY.md, **Moving**).
 
         The one thing this app reads it for is the end of a drain: the supply
         goes the first moment it reads false, and not before, because a cut

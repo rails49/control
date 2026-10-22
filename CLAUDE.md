@@ -52,11 +52,11 @@ What `ready-for-agent` asserts, and why an issue does not carry it: `docs/agents
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
 
 What each doc holds, and that an accepted ADR does not change: the
 organisation's
-[ADR-0017](https://github.com/rails49/.github/blob/main/docs/adr/0017-each-fact-has-one-owner-and-an-accepted-adr-does-not-change.md).
+[ADR-0021](https://github.com/rails49/.github/blob/main/docs/adr/0021-each-fact-has-one-owner-and-the-glossary-is-glossary-md.md).
 
 ### Batch implementation
 

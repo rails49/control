@@ -32,7 +32,7 @@ To implement one component you need this page, [BUS.md](BUS.md) — the bus
 contract, every topic and every payload — and at most one internals doc
 ([dispatcher/INTERNALS.md](dispatcher/INTERNALS.md) for the dispatcher).
 Nothing here requires another component's internals. Terminology follows
-[CONTEXT.md](../CONTEXT.md). The contract decisions are recorded in
+[GLOSSARY.md](../GLOSSARY.md). The contract decisions are recorded in
 [ADR-0008](adr/0008-bus-contract-is-the-mqtt-safe-intersection.md),
 [ADR-0009](adr/0009-layout-interface-owns-time.md), and
 [ADR-0010](adr/0010-asset-store-serves-coarse-read-only-documents.md).

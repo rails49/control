@@ -136,7 +136,7 @@ still in the history and restoring it is the same one press.
 - **Conflict resolution is out of scope.** The app reports and stops. A store
   is one person's, and sharing one between people is not a thing this offers.
 - **It coins two words**, *backup* and *restore*, in
-  [CONTEXT.md](../../CONTEXT.md). *Restore* there is already the word for
+  [GLOSSARY.md](../../GLOSSARY.md). *Restore* there is already the word for
   bringing a run's placement back after a restart; the store's documents and a
   run's placement are far enough apart that the qualifier does the work, and
   inventing a second word for the same act would be worse.

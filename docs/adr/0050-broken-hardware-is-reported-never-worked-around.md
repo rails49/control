@@ -99,7 +99,7 @@ happening.
 **Emergency stop is a hardwired contact, and no software command stops a
 locomotive.** The stop is a control on the command station, reported to the
 app as `stopped` on `tc49/layout/state/power`, and the run holds on it
-([CONTEXT.md](../../CONTEXT.md), **Emergency stop**;
+([GLOSSARY.md](../../GLOSSARY.md), **Emergency stop**;
 [ADR-0041](0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md)).
 `move` carries no speed field and nothing on the bus retracts one, so
 [ADR-0049](0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md) puts
@@ -168,7 +168,7 @@ a place where a failure is visible at all.
   detector fault is allowed, and hiding an outage the software is holding in
   its hand is not.
 - **It coins nothing.** *Report*, *drop* and *outage* already carry the rule,
-  and [CONTEXT.md](../../CONTEXT.md) is unchanged: a name here would be a word
+  and [GLOSSARY.md](../../GLOSSARY.md) is unchanged: a name here would be a word
   for a decision rather than for anything on the railroad.
 - **No code changes with it.** The two findings above are their own issues and
   land on their own; this records the rule they will be fixed against.

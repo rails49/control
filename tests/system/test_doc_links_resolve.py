@@ -31,7 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 PAGES = sorted(
-    [ROOT / name for name in ("README.md", "CLAUDE.md", "CONTEXT.md")]
+    [ROOT / name for name in ("README.md", "CLAUDE.md", "GLOSSARY.md")]
     + list((ROOT / "docs").rglob("*.md"))
 )
 

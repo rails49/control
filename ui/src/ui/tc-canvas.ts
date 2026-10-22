@@ -75,7 +75,7 @@ export type Mode = "edit" | "run";
  * means derivation stopped (ADR-0024); the run view lights a committed route
  * in the two colours the dispatcher's claim on it reads in (ui/PANEL.md).
  *
- * A **way** and not a **route** (CONTEXT.md): what is drawn is the path
+ * A **way** and not a **route** (GLOSSARY.md): what is drawn is the path
  * through a connection, symbol by symbol and leg by leg, whoever asked for it.
  * `model/panel.ts`'s `LitRoute` is the request-level answer, and it is a
  * separate type that this one is built from in run mode — it carries a

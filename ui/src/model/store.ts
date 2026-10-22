@@ -360,7 +360,7 @@ export async function saveRoster(roster: RosterDoc): Promise<void> {
 export interface ModelDoc {
   model: string;
   /** `locomotive`, `passenger`, `freight` or `special`. A train's kind is
-   *  derived and is never one a document states (CONTEXT.md, **Kind**). */
+   *  derived and is never one a document states (GLOSSARY.md, **Kind**). */
   kind: string;
   /** Millimetres of actual model track, measured over buffers on the item,
    *  whatever the scale (`catalogue/README.md`). */
@@ -386,7 +386,7 @@ export interface ModelFn {
  * The installation's catalogue: every model it knows, by name.
  *
  * One catalogue for the box rather than one per railroad — a product does not
- * become a different product on another layout (CONTEXT.md, **Catalogue**) —
+ * become a different product on another layout (GLOSSARY.md, **Catalogue**) —
  * so this takes no railroad. An installation that has written no model yet
  * answers an empty map, which is what a fresh box is and not a fault.
  */

@@ -98,7 +98,7 @@ def restarted(
 
 def coherent(dispatcher: Dispatcher) -> None:
     """The invariant every adoption keeps, whatever it took from the picture:
-    one train to a block, and the standing lock CONTEXT.md says every parked
+    one train to a block, and the standing lock GLOSSARY.md says every parked
     train always has (#164). A train placed by neither holds nothing, which
     is off the layout and not a fault (ADR-0039)."""
     placed = dispatcher.state.block_of

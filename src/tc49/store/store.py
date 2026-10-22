@@ -302,7 +302,7 @@ class AssetStore:
 
         Beside `layouts/` rather than under it: a model is what a product is,
         and a product does not become a different product on another layout,
-        so every railroad reads the same ones (CONTEXT.md, **Catalogue**). An
+        so every railroad reads the same ones (GLOSSARY.md, **Catalogue**). An
         installation with no `catalogue/` directory knows none, which is a
         railroad whose stock is still written the old way and not a fault.
         """

@@ -75,7 +75,7 @@ export class TcRoster extends LitElement {
   /** One train: its name, its length, and where the run has it. A train
    *  between two blocks stands in none and is on the layout all the same, so
    *  the cell says what it is doing rather than naming a block it has left,
-   *  beside `off the layout` for a train that is not placed (CONTEXT.md,
+   *  beside `off the layout` for a train that is not placed (GLOSSARY.md,
    *  **Placed** and **Transit**). */
   private row({ train, block, length, placed }: RosterRow) {
     return html`

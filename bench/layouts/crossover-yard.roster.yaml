@@ -1,5 +1,5 @@
 # crossover-yard — the cars this railroad owns and the trains made up from them
-# (CONTEXT.md, **Roster**).
+# (GLOSSARY.md, **Roster**).
 #
 # The stock is synthetic: nobody owns one of these, so every train is a single
 # car of the `bench-<length>` model of its length (`catalogue/`) rather than a

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * What a point drawn in a position looks like (CONTEXT.md, ui/PANEL.md, #98).
+ * What a point drawn in a position looks like (GLOSSARY.md, ui/PANEL.md, #98).
  *
  * A DOM test because the position is classes on rendered strokes: the road a
  * point does not currently offer is drawn faint, and which strokes those are

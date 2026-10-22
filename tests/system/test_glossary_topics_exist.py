@@ -1,6 +1,6 @@
 """Every topic the glossary names, against the inventory (#433).
 
-`CONTEXT.md` is the canonical glossary and names topics to explain the words
+`GLOSSARY.md` is the canonical glossary and names topics to explain the words
 that ride on them; `tc49.lib.inventory` is the list the apps publish and
 subscribe. Nothing compared the two, so the glossary could describe a topic
 that does not exist. It named `tc49/layout/railroad_wanted` two batches
@@ -19,7 +19,7 @@ from pathlib import Path
 
 from tc49.lib.inventory import DEVICE_TOPICS, TOPICS
 
-GLOSSARY = Path(__file__).resolve().parents[2] / "CONTEXT.md"
+GLOSSARY = Path(__file__).resolve().parents[2] / "GLOSSARY.md"
 
 INVENTORIED = frozenset(TOPICS) | frozenset(DEVICE_TOPICS)
 """Both mappings, because a topic is named two ways: `TOPICS` holds a whole
@@ -36,7 +36,7 @@ from reading as one, and the levels stop at the `<` of a placeholder, so
 def inventoried(name: str) -> bool:
     """Whether the inventory holds `name` as the prose writes it.
 
-    Three ways, all three in `CONTEXT.md` today. A whole topic —
+    Three ways, all three in `GLOSSARY.md` today. A whole topic —
     `tc49/dispatch/state/allocation` — is a row. A **prefix**, written with a
     trailing slash where the prose means everything under it, holds where the
     inventory has a topic under it or is that topic itself: the device halves
@@ -57,7 +57,7 @@ def test_every_topic_the_glossary_names_is_in_the_inventory() -> None:
     """Reported with line and name, so whoever trips it reads neither file end
     to end to find out which topic it was."""
     missing = [
-        f"CONTEXT.md:{number}: {found.group(0)}"
+        f"GLOSSARY.md:{number}: {found.group(0)}"
         for number, line in enumerate(GLOSSARY.read_text().splitlines(), 1)
         for found in NAMED.finditer(line)
         if not inventoried(found.group(0))

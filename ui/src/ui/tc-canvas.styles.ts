@@ -314,7 +314,7 @@ const running = css`
     fill: var(--committed);
   }
 
-  /* Where a point lies (CONTEXT.md): the road its position does not offer is
+  /* Where a point lies (GLOSSARY.md): the road its position does not offer is
      drawn faint, so a turnout on a run shows which way it is set and the
      editor's plain drawing keeps saying only what a point is. Fading rather
      than recolouring, because this is not a fault and not a way lit: the road

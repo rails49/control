@@ -2,7 +2,7 @@
 
 Drag scheduling on the [panel](../ui/PANEL.md) names a train and a destination;
 the departure end of the resulting request has to come from somewhere. It comes
-from **facing** ([CONTEXT.md](../../CONTEXT.md#stock)): the end of its block a
+from **facing** ([GLOSSARY.md](../../GLOSSARY.md#stock)): the end of its block a
 parked train would leave through nose-first, declared in the scenario at
 placement and thereafter fully determined, since routes are strict
 pass-throughs — a train faces away from the end it entered through. The

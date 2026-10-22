@@ -19,7 +19,7 @@ at placement and carried forward by every `move` it executed, routes being
 strict pass-throughs. That is rejected: it is a **second copy of a fact one
 component already holds**, and the two would drift the first time a person
 turned a train round at rest — the one change routes do not account for
-(CONTEXT.md, **Facing**) — or the first time a hand moved a train and the
+(GLOSSARY.md, **Facing**) — or the first time a hand moved a train and the
 placement said nothing about which way it now points.
 
 Reading a scheduler topic from the layout interface is not the layering

@@ -7,7 +7,7 @@ product is), a **car** (a model with fields overridden, plus its own bare DCC
 address) and a **train** (an ordered list of cars, each recording which way
 round it is coupled) — and against the fields that model needs: length, kind,
 address, function meanings, train composition, orientation and priority
-([CONTEXT.md](../../CONTEXT.md#stock),
+([GLOSSARY.md](../../GLOSSARY.md#stock),
 [ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
 The prior stands: **we define our own shape and import.** The point is two
 worked examples, not a format to adopt.

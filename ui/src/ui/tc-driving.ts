@@ -15,10 +15,10 @@
  *
  * **The speed is in the train's frame.** The slider runs 0 to 1 and the
  * reverser gives it its sign: Forward nose first, `+`, Reverse tail first,
- * `−` (CONTEXT.md, **Reverser**). `layout` composes the sign each locomotive
+ * `−` (GLOSSARY.md, **Reverser**). `layout` composes the sign each locomotive
  * is given from the train's facing and the way round its car is coupled — so
  * one slider drives a top-and-tail set and this sends one number and never a
- * direction for a locomotive (CONTEXT.md, **Throttle**).
+ * direction for a locomotive (GLOSSARY.md, **Throttle**).
  */
 
 import { LitElement, html, nothing } from "lit";

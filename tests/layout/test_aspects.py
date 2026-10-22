@@ -44,7 +44,7 @@ def test_each_signalled_end_is_written_to_the_signal_standing_there() -> None:
 
 def test_an_end_no_signal_stands_at_writes_nothing() -> None:
     """An end nothing ever leaves carries no signal, one that could only show
-    `stop` being furniture (CONTEXT.md, **Signal**). There is nothing to tell,
+    `stop` being furniture (GLOSSARY.md, **Signal**). There is nothing to tell,
     and inventing an address for it is the one thing this app must not do."""
     bus, _app = build()
     written = signals(bus)

@@ -49,7 +49,7 @@ up this evening and unmade the next.
 
 ## The roster changes referent, and the glossary gives
 
-CONTEXT.md defined **roster** as "the trains a railroad owns" and ADR-0039
+GLOSSARY.md defined **roster** as "the trains a railroad owns" and ADR-0039
 defined *known* as being in it. A railroad owns **cars**, not trains — a
 train is something a person makes up out of cars and takes apart again — so
 the roster becomes the cars, with trains beside them in the same per-railroad

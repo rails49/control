@@ -11,7 +11,7 @@ made it a view rather than the scheduler it began as
 ([ADR-0016](../adr/0016-the-panel-is-a-scheduler.md)),
 [ADR-0035](../adr/0035-a-topic-has-one-writing-role.md), and
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md).
-Terminology follows [CONTEXT.md](../../CONTEXT.md).
+Terminology follows [GLOSSARY.md](../../GLOSSARY.md).
 
 ## What it shows
 
@@ -239,7 +239,7 @@ each granted transit and from a committed route's departure end
 ([ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). A
 train that has never moved has an arrow for the same reason a moved one does.
 The value is the run the train would make across its block, `<block>.A-to-B`
-or `<block>.B-to-A` (CONTEXT.md, **Facing**), and the arrow points at the end
+or `<block>.B-to-A` (GLOSSARY.md, **Facing**), and the arrow points at the end
 that run comes out at — B for `A-to-B` — which is the whole of the reading.
 
 **Point positions are read off `wanted/point`.** `layout` writes a retained
@@ -256,7 +256,7 @@ ignored. A point stays where its row last left it. An unlit point whose
 position is known is drawn in it, the road the other position offers faint, so
 a turnout shows its straight road or its diverging one and a slip's tick says
 which road it has; one whose position is unknown draws every road plainly. A
-**lit** point (CONTEXT.md) is drawn with nothing faint: the lit road is the
+**lit** point (GLOSSARY.md) is drawn with nothing faint: the lit road is the
 position it is being set to, and a lit leg the `align` has not reached yet is
 a route chosen, not a road the point does not offer. The panel infers
 nothing, which supersedes the inference
@@ -320,7 +320,7 @@ run is held, which the hold deliberately keeps working for a timetable
 `tc49/schedule/request_wanted` — `{train, dest}` — and the scheduler composes the
 request the dispatcher then answers with `request_admitted` or
 `request_rejected`. The block's outer thirds name one arrival end — the end
-the train enters through, as [CONTEXT.md](../../CONTEXT.md) defines it — and
+the train enters through, as [GLOSSARY.md](../../GLOSSARY.md) defines it — and
 the middle third names both, "either way round". While the drag is in
 flight the target block's body is shaded where the drop would arrive: the A
 half for the A end, the B half for the B end, the whole body for both

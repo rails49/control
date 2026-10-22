@@ -333,7 +333,7 @@ def test_a_trains_length_is_the_sum_of_its_cars() -> None:
 
 def test_a_trains_kind_ignores_the_locomotives() -> None:
     """Every hauled train has one, so counting them would make every train
-    mixed and the classification would say nothing (CONTEXT.md, **Kind**)."""
+    mixed and the classification would say nothing (GLOSSARY.md, **Kind**)."""
     stock = roster(
         {
             "re460_1": {"model": "sbb-re460"},

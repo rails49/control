@@ -1,7 +1,7 @@
 # Metrics
 
 How each number in [BENCHMARKS.md](BENCHMARKS.md) is derived. Terminology
-follows [CONTEXT.md](../../CONTEXT.md).
+follows [GLOSSARY.md](../../GLOSSARY.md).
 
 `metrics(trace) -> Metrics` is a pure function of the trace. Nothing is
 accumulated live, and no component computes a metric at runtime. Everything

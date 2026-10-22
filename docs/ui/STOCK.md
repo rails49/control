@@ -10,7 +10,7 @@ it edits the railroad's **roster** and the installation's **catalogue** over
 the two store routes those documents have
 ([#388](https://github.com/rails49/control/issues/388),
 [#392](https://github.com/rails49/control/issues/392)). Terminology follows
-[CONTEXT.md](../../CONTEXT.md), **Stock**.
+[GLOSSARY.md](../../GLOSSARY.md), **Stock**.
 
 Until this view existed a person could draw a railroad and save it and then
 not put a train on it: the flow the app exists for stopped one step short.

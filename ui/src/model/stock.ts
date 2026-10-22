@@ -39,7 +39,7 @@ import type {
 } from "./store.js";
 
 /** What a model may be. A train's kind is derived and is never one of these:
- *  the two lists differ (CONTEXT.md, **Kind**). */
+ *  the two lists differ (GLOSSARY.md, **Kind**). */
 export const KINDS = ["locomotive", "passenger", "freight", "special"] as const;
 
 const LOCOMOTIVE = "locomotive";
@@ -153,7 +153,7 @@ export function trainLength(
  * What the train is, from **the cars it hauls, ignoring locomotives**: every
  * hauled train has one, so counting them would make every train *mixed*.
  * Exactly one sort hauled gives that sort, more than one gives `mixed`, and
- * nothing but locomotives is a `light engine` (CONTEXT.md, **Kind**).
+ * nothing but locomotives is a `light engine` (GLOSSARY.md, **Kind**).
  *
  * A train that names nothing the documents have has no kind to derive, the
  * same answer as a train that names nothing at all — and as one that states

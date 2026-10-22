@@ -32,7 +32,7 @@ common case: a platform road that trains also run through is a `station` that
 The word is **`through`** and not *transient*, which the first draft used.
 **Transit** is a hard-worked term in this glossary — an (end, end) pair
 through a connection — and two near-identical words for unrelated things in
-one drawing is a bug waiting for a reader. **Siding** stays: CONTEXT.md
+one drawing is a bug waiting for a reader. **Siding** stays: GLOSSARY.md
 refuses it only as a synonym for *terminal block* and explicitly leaves it
 available as the physical description, which is exactly what a role is.
 

@@ -88,12 +88,12 @@ which is the class of error the operator is already the backstop for. It can be
 added later as a field on `cars` without changing the consist shape.
 
 **Keying a car by its address.** Unique and physical, but an item may be
-identified by an override and carry no address at all, and CONTEXT.md keeps
+identified by an override and carry no address at all, and GLOSSARY.md keeps
 *address* from serving as an id.
 
 ## Consequences
 
-- CONTEXT.md's **Car** and **Roster** entries say what `cars` holds, and that an
+- GLOSSARY.md's **Car** and **Roster** entries say what `cars` holds, and that an
   item with nothing of its own is named by its model.
 - The store's roster validator accepts both entry shapes; `lib/roster.py` is
   untouched.

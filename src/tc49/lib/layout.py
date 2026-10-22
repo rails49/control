@@ -281,7 +281,7 @@ def check_signals(spec: Any, block: str, where: str) -> dict[str, str]:
     is said, keyed by the end letter, and the layout keys it by the
     `<block>.<A|B>` end the rest of the system names an end by. An end
     carrying no signal is absent rather than empty: an end nothing ever leaves
-    has none, a signal that could only show `stop` being furniture (CONTEXT.md,
+    has none, a signal that could only show `stop` being furniture (GLOSSARY.md,
     **Signal**). A key that is no end of a block is refused, naming the block.
 
     Two ends may share an address, as two points may (ADR-0031): two signals
@@ -359,7 +359,7 @@ def departure_end(layout: Layout, lie: str) -> str:
 
     The composed rule — `connected_end` applied to the far side of the end
     the train came in through — and the whole of what a strict pass-through
-    means for one block (ADR-0001, CONTEXT.md **facing**). Everything that
+    means for one block (ADR-0001, GLOSSARY.md **facing**). Everything that
     settles where a train goes out asks it: the scheduler of a move it saw
     granted, the dispatcher of the route it has just committed to. It takes
     the end and not a route, since `lib` has no reason to know what a `Route`

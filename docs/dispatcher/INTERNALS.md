@@ -3,7 +3,7 @@
 How the dispatcher is built, one level beneath its footprint in
 [SYSTEM.md](../SYSTEM.md#dispatcher). The dispatch model is
 [DISPATCH.md](DISPATCH.md) and the avoidance layer [SAFETY.md](SAFETY.md);
-terminology follows [CONTEXT.md](../../CONTEXT.md). The seam decisions are
+terminology follows [GLOSSARY.md](../../GLOSSARY.md). The seam decisions are
 [ADR-0004](../adr/0004-dispatcher-returns-commands.md) and
 [ADR-0005](../adr/0005-seam-at-locking-strategy.md).
 
