@@ -261,6 +261,39 @@ A drawing without placement still loads and still derives. It has no picture,
 so the editor cannot show it until someone places it, there being no
 auto-layout.
 
+### Widgets
+
+A widget is a text, a button or a toggle placed beside the track
+([ADR-0087](../adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
+The drawing carries its widgets in a `widgets` mapping beside `symbols` and
+`wires`. A widget has no pins and no transits, so derivation reads none of it
+and the layout is the same with or without one.
+
+```yaml
+widgets:
+  current: { kind: text, at: [2, 1], size: [6, 1], text: normal, align: center, default: '—' }
+  lights:  { kind: toggle, at: [2, 3], size: [3, 1], on: '{"lights": true}', off: '{"lights": false}' }
+  horn:    { kind: button, at: [6, 3], size: [3, 1], payload: horn }
+```
+
+- **The key is the widget's name.** It ends the widget's topic, so it is one
+  topic level: letters, digits, `_` and `-`. It is unique among widgets.
+- **`kind` is `text`, `button` or `toggle`.**
+- **`at` and `size` are in grid squares**, `at` the top-left cell as for a
+  symbol and `size` two positive integers. A widget does not turn, so it takes
+  neither `rot` nor `flip`.
+- **`text` sets the size of its words**, `small`, `normal` or `large`, default
+  `normal`; **`align`** is `left`, `center` or `right`, default `center`.
+  Every kind takes both.
+- **Each kind takes its own payload keys, all strings.** A text widget takes an
+  optional `default`, shown until a row arrives. A button needs the `payload`
+  it sends. A toggle needs `on` and `off`, which must differ, since a page
+  reads the toggle's position by comparing the row with them.
+
+A key that does not belong to the widget's kind is refused, and a bad widget
+refuses the drawing like any other schema fault, naming the widget. Nothing
+checks whether a widget overlaps a symbol or another widget.
+
 ## Hardware ids
 
 The drawing holds the identities of the fixed wiring, as optional symbol
