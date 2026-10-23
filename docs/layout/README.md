@@ -409,7 +409,10 @@ These drop a lever, and none of them is answered:
 frame whose sign is opposite to the last nonzero speed written for the train —
 the lever's or a grant's, signed for the train before it is composed onto the
 cars — writes `0.0` to each addressed car instead, and so does every later
-frame of that sign until the throttle sends `0`. How hard a decoder reverses
+frame of that sign until the throttle sends `0` or this app stops the train:
+an arrival, a cut, a release that stops it, or a removal
+([ADR-0088](../adr/0088-a-stop-the-layout-writes-frees-the-reverser-as-the-throttles-0-does.md)). The `0.0` a refused frame writes does not count.
+How hard a decoder reverses
 depends on settings the roster does not record, and behind a long train cars
 can leave the rails.
 

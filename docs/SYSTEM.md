@@ -1131,8 +1131,9 @@ granted move or not
 a lever is applied from the throttle holding the train while `state/power`
 reads `on` or `draining`, the move ending at its sensor writes `0.0`, and the
 next lever frame drives the train on. A lever reversing a running train writes
-`0.0` until the throttle sends `0`
-([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)). Released
+`0.0` until the throttle sends `0` or `layout` stops the train itself
+([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md),
+[ADR-0088](adr/0088-a-stop-the-layout-writes-frees-the-reverser-as-the-throttles-0-does.md)). Released
 in `manual`, a train is written `0.0`. Released in `automatic` mid-move, it
 keeps the speed the person left until its move ends, or is given its grant's
 speed if it stands
