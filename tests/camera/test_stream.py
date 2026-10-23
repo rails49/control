@@ -25,6 +25,22 @@ def test_each_part_is_its_jpeg_unchanged() -> None:
     assert list(frames(body(part(one), part(two)))) == [one, two]
 
 
+def test_bytes_before_a_boundary_on_its_line_are_skipped() -> None:
+    # The Pnzeo W3 sends two bytes after each JPEG and the next boundary on
+    # the same line, with no CRLF between them.
+    one, two = b"\xff\xd8one\xff\xd9", b"\xff\xd8two\xff\xd9"
+    sent = (
+        b"--ipcamera\r\nContent-Type: image/jpeg\r\n"
+        + f"Content-Length: {len(one)}\r\n\r\n".encode()
+        + one
+        + b"\x1e\xb4--ipcamera\r\nContent-Type: image/jpeg\r\n"
+        + f"Content-Length: {len(two)}\r\n\r\n".encode()
+        + two
+        + b"\x0fZ"
+    )
+    assert list(frames(body(sent))) == [one, two]
+
+
 def test_a_part_with_no_length_ends_the_stream() -> None:
     no_length = b"--myboundary\r\nContent-Type: image/jpeg\r\n\r\n\xff\xd8\xff\xd9\r\n"
     assert list(frames(body(part(b"a"), no_length, part(b"b")))) == [b"a"]

@@ -101,8 +101,10 @@ def _part(body: BinaryIO) -> dict[str, str] | None:
             if headers:
                 return headers
             continue
-        if not headers and line.startswith(b"--"):
-            continue  # the boundary, or the end of the body after it
+        if not headers and b"--" in line:
+            # The boundary, or the end of the body after it. A Pnzeo W3 puts
+            # two bytes before it on the same line, after the JPEG.
+            continue
         name, colon, value = line.partition(b":")
         if not colon:
             return None
