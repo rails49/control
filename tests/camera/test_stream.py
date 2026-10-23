@@ -41,6 +41,28 @@ def test_bytes_before_a_boundary_on_its_line_are_skipped() -> None:
     assert list(frames(body(sent))) == [one, two]
 
 
+def test_bytes_before_a_boundary_on_a_line_of_their_own_are_skipped() -> None:
+    # Where one of the two bytes is a line feed, they are a line of their own
+    # before the boundary's (#958).
+    one, two, three = (
+        b"\xff\xd8one\xff\xd9",
+        b"\xff\xd8two\xff\xd9",
+        b"\xff\xd8\xff\xd9",
+    )
+    sent = (
+        b"--ipcamera\r\nContent-Type: image/jpeg\r\n"
+        + f"Content-Length: {len(one)}\r\n\r\n".encode()
+        + one
+        + b"\xef\n--ipcamera\r\nContent-Type: image/jpeg\r\n"
+        + f"Content-Length: {len(two)}\r\n\r\n".encode()
+        + two
+        + b"\nZ--ipcamera\r\nContent-Type: image/jpeg\r\n"
+        + f"Content-Length: {len(three)}\r\n\r\n".encode()
+        + three
+    )
+    assert list(frames(body(sent))) == [one, two, three]
+
+
 def test_a_part_with_no_length_ends_the_stream() -> None:
     no_length = b"--myboundary\r\nContent-Type: image/jpeg\r\n\r\n\xff\xd8\xff\xd9\r\n"
     assert list(frames(body(part(b"a"), no_length, part(b"b")))) == [b"a"]
