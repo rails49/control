@@ -16,8 +16,10 @@ The answers, each with no body but the picture:
   train carries no camera; and any other path or method.
 - **502** — the camera sent no first frame within `silence_s`: unreachable,
   refusing, answering anything but 200 (a 401 included), or silent.
-- **200** once the first frame is in hand, `multipart/x-mixed-replace` with a
-  part per frame, each JPEG as the camera sent it. It ends when the camera's
+- **200** once the first frame is in hand, a part per frame, each JPEG as
+  the camera sent it, laid out as `multipart/x-mixed-replace` but typed
+  `application/octet-stream`: WebKit fails a `fetch` of the multipart type
+  before its first byte, and the page parses the parts itself (#955). It ends when the camera's
   stream does, or when the camera goes `silence_s` without a frame. Nothing
   reconnects: a page asks again, adding a query string if it must, which is
   ignored here.
@@ -96,9 +98,7 @@ class Picture(BaseHTTPRequestHandler):
                 self._empty(502)
                 return
             self.send_response(200)
-            self.send_header(
-                "Content-Type", f"multipart/x-mixed-replace; boundary={BOUNDARY}"
-            )
+            self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             while got is not None:
