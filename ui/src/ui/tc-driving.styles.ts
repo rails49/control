@@ -2,8 +2,8 @@ import { css } from "lit";
 
 /**
  * One train's driving controls (`tc-driving`), as arrangement A
- * ([#852](https://github.com/rails49/control/issues/852)): the train's
- * picture across the top with what it is reading over it, and below it two
+ * ([#852](https://github.com/rails49/control/issues/852)): what the train is
+ * reading across the top, its picture whole below that, and below it two
  * columns — the reverser, the functions, Turn around and the clock on the
  * left, and the speed, the slider and STOP on the right, where a right thumb
  * holding a phone is. The slider stands upright, 0 at the bottom, and takes
@@ -24,10 +24,9 @@ export const drivingStyles = css`
     color: var(--ink);
   }
 
-  /* The train's picture, with what it is reading laid over its top. */
+  /* What the train is reading, and its picture below with nothing laid over
+     it but LIVE: the picture is what a person drives by. */
   .top {
-    position: relative;
-    min-height: 6rem;
     border: 1px solid var(--rule);
     border-radius: 4px;
     overflow: hidden;
@@ -70,22 +69,25 @@ export const drivingStyles = css`
     letter-spacing: 0.08em;
   }
 
-  .over {
-    position: absolute;
-    inset: 0 0 auto 0;
+  .bar {
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem 0.6rem;
     align-items: center;
     padding: 0.4rem 0.6rem;
-    background: color-mix(in srgb, var(--body) 80%, transparent);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .view {
+    position: relative;
+    min-height: 6rem;
   }
 
   .stands {
     color: var(--hint);
   }
 
-  .over button.release {
+  .bar button.release {
     padding: 0.25rem 0.9rem;
     border: 1px solid var(--rule);
     border-radius: 4px;
@@ -95,7 +97,7 @@ export const drivingStyles = css`
     cursor: pointer;
   }
 
-  .over button.release {
+  .bar button.release {
     margin-left: auto;
     border-color: var(--chosen);
     color: var(--chosen);

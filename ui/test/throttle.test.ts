@@ -304,7 +304,7 @@ describe("taking a train", () => {
     await said(shell, ALLOCATION, BOTH);
     await taking(shell, "goods");
     await said(shell, TAKEN, { taken: { shunter: mine(), goods: mine() } });
-    expect(part(shell, ".over h2")!.textContent!.trim()).toBe("goods");
+    expect(part(shell, ".bar h2")!.textContent!.trim()).toBe("goods");
   });
 });
 
@@ -742,7 +742,8 @@ describe("the camera car's picture", () => {
   }
 
   /** In the thumbnail's place rather than over it, so the picture's own
-   *  frame sets the box and a short photo does not crop it (#953). */
+   *  frame sets the box and a short photo does not crop it (#953), with
+   *  nothing laid over it but LIVE (#956). */
   it("is drawn in the thumbnail's place once a frame comes, marked LIVE", async () => {
     const shell = await driving();
     await held(shell);
@@ -755,6 +756,8 @@ describe("the camera car's picture", () => {
     expect(live(shell)!.getAttribute("src")).toMatch(/^blob:/);
     expect(live(shell)!.getAttribute("alt")).toBe("");
     expect(thumbnail(shell)).toBeNull();
+    const view = part(shell, ".top .view")!;
+    expect([...view.children].map((one) => one.className)).toEqual(["picture", "live"]);
     const rules = drivingStyles.cssText
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .match(/[^{}]*\.picture[^{}]*\{[^{}]*\}/g);

@@ -1,7 +1,7 @@
 /**
  * One train's driving controls on the throttle view (ui/THROTTLE.md), laid
  * out as arrangement A ([#852](https://github.com/rails49/control/issues/852)):
- * the train's picture at the top with what it is reading over it, the
+ * what the train is reading at the top, its picture whole below that, the
  * reverser, its functions, Turn around and — where the view asks for it — the
  * clock below on the left, and the speed, the slider and STOP below on the
  * right, where a right thumb is.
@@ -186,12 +186,14 @@ export class TcDriving extends LitElement {
     const still = this.still;
     return html`
       <section class="top">
-        ${this.frame === null ? this.thumbnail(cab) : this.picture()}
-        <div class="over">
+        <div class="bar">
           <h2>${cab.train}</h2>
           ${this.signal(cab)}
           <span class="stands">${cab.block ?? "crossing a transit"}</span>
           ${this.road(cab)} ${this.holding(cab)}
+        </div>
+        <div class="view">
+          ${this.frame === null ? this.thumbnail(cab) : this.picture()}
         </div>
       </section>
       ${still === null ? nothing : html`<p class="still">${still}</p>`}
