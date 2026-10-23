@@ -63,6 +63,7 @@ from collections.abc import Callable, Mapping, Sequence
 
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
+    ALLOCATION,
     THROTTLE_SILENCE_S,
     WANTED_TRACTION,
     LayoutInterface,
@@ -227,7 +228,7 @@ class _Binding:
     ) -> Running:
         """The traction rows seen, then the interface built on its own clock,
         starting at zero."""
-        _retained(self._bus, self._stop)
+        retained(self._bus, self._stop)
         layout, roster = read
         clock = Clock()
         app = LayoutInterface(
@@ -283,7 +284,7 @@ class _Running:
             self._stop.wait(self._period_s)
 
 
-def _retained(
+def retained(
     bus: MqttBus, stop: threading.Event, timeout_s: float = RETAINED_S
 ) -> None:
     """Subscribe to the traction rows and give the broker its moment to hand
@@ -305,8 +306,13 @@ def _retained(
 
     The value is read here only in the sense of being waited for; reading it is
     the app's, and this handler does nothing with what it is given.
+
+    The dispatcher's allocation is waited for in the same window: it is where
+    the app takes each train's position from, `train_placed` being an event
+    the broker does not keep (#960).
     """
     bus.subscribe(TRACTION, lambda _topic, _payload: None)
+    bus.subscribe(ALLOCATION, lambda _topic, _payload: None)
     stop.wait(timeout_s)
 
 

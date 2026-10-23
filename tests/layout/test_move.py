@@ -21,6 +21,7 @@ from tests.layout.railroad import (
     heard,
     move,
     stand,
+    wired,
 )
 
 
@@ -32,6 +33,23 @@ def test_a_train_crosses_when_the_way_has_been_set() -> None:
     move(bus, "freight_1", "crossover", "to_dn", "dn_e")
 
     assert app.position == {"freight_1": "dn_e"}
+
+
+def test_a_restarted_app_takes_where_a_train_stands_from_the_allocation() -> None:
+    """`train_placed` is an event, so the dispatcher's retained allocation is
+    what says where a train stood when this app went down (#960)."""
+    bus, app, _clock = wired(allocated={"freight_1": "up_w"})
+    energised(bus)
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+
+    assert app.position == {"freight_1": "dn_e"}
+
+
+def test_an_allocated_block_this_railroad_does_not_have_is_no_position() -> None:
+    _bus, app, _clock = wired(allocated={"freight_1": "CE1"})
+
+    assert app.position == {}
 
 
 def test_a_move_delivered_before_its_align_waits_for_it() -> None:
