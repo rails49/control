@@ -81,11 +81,13 @@ at least 44 px high.
 **Each held train's column**, laid out as arrangement A at every width
 ([#852](https://github.com/rails49/control/issues/852)), for that train only:
 
-- **At the top, the train's picture**: the same photo as its card, or its
-  name — the thumbnail — and, where the train carries a camera, the camera
-  car's live picture in its place once a frame comes (below), the whole
-  frame shown. Over that: the train's name, the aspect, the block it stands
-  in or *crossing a transit*, the blocks ahead, and Release.
+- **At the top, what the train is reading**: its name, the aspect, the block
+  it stands in or *crossing a transit*, the blocks ahead, and Release.
+- **Below that, the train's picture**, with nothing laid over it but *LIVE*:
+  the same photo as its card, or its name — the thumbnail — and, where the
+  train carries a camera, the camera car's live picture in its place once a
+  frame comes (below), the whole frame shown
+  ([#956](https://github.com/rails49/control/issues/956)).
 - **Below, on the left**: the reverser, the train's functions, Turn around and,
   on a phone's first column only, the clock.
 - **Below, on the right**: the speed, the slider and STOP, where a right thumb
