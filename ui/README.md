@@ -90,6 +90,7 @@ src/
     session.ts   the page's one broker connection: the railroad the row
                  names, the panel model it feeds, the presses, the OFF drain
     throttle.ts  what the throttle draws for each train there is to drive
+    picture.ts   the camera car's live picture: its stream read frame by frame
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
     railroad.ts  the loaded railroad's documents: read when the row names

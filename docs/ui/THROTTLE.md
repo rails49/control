@@ -371,22 +371,28 @@ its column shows and, signed, what it last sent. When the run takes a train off
 the layout its column goes, and with none left the view goes back to the
 picker: there is nothing left for a slider to move.
 
-**The camera car's picture** is an `<img class="picture">` on the `camera`
-app's `GET /picture/<railroad>/<train>`, the loaded railroad's name and the
-train's each URL-encoded, with a *LIVE* mark on it
+**The camera car's picture** is read with `fetch` from the `camera` app's
+`GET /picture/<railroad>/<train>`, the loaded railroad's name and the train's
+each URL-encoded, and each JPEG in the stream is drawn as an
+`<img class="picture">` with a *LIVE* mark on it
 ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md),
-[#857](https://github.com/rails49/control/issues/857)). It is drawn over the
-thumbnail while all three hold: this view is the one on screen, `state/taken`
-names this throttle for the train, and the trains route says the train carries
-a camera. Track power does not matter. Otherwise it is not in the page at all,
-so the page holds no connection to the route: a release by anybody, taking
-another train, the train leaving the layout and switching to another view each
-remove it. A stream that fails — an `error` on the element — removes it too,
-and the thumbnail shows; while the three still hold it is put back after
-`RETRY_MS` (`ui/src/model/store.ts`) under `?try=<n>`, so the browser makes a
-new request, and again after each failure until a stream plays or one of the
-three stops holding. A picture that stops changing while its connection stays
-open is not noticed.
+[#857](https://github.com/rails49/control/issues/857),
+`ui/src/model/picture.ts`). It is read while all three hold: this view is the
+one on screen, `state/taken` names this throttle for the train, and the trains
+route says the train carries a camera. Track power does not matter. Otherwise
+the read is aborted and the picture is not in the page: a release by anybody,
+taking another train, the train leaving the layout and switching to another
+view each end it. Until the first frame comes the thumbnail shows alone.
+
+The page reads the stream rather than giving the route to an `<img>`, because
+an image fires no `error` once its first frame is in: a stream that ends, or
+stays open and sends nothing, would leave the last frame up under *LIVE*
+([#950](https://github.com/rails49/control/issues/950)). An answer other than
+200, a failed connection, the stream ending, and no frame for `STALL_MS` each
+take the picture away and the thumbnail shows; while the three still hold it
+is asked for again after `RETRY_MS` (`ui/src/model/store.ts`) under
+`?try=<n>`, and again after each failure until a stream plays or one of the
+three stops holding.
 
 The **roster route** carries what a person can switch beside the length,
 whether the train carries a camera, and the model of its first locomotive,
@@ -436,12 +442,13 @@ power reads off and stays put on a frame that ends no move, that the speed
 reads as a percentage and which end leads, that STOP publishes zero and leaves
 the reverser, that the aspect shown follows the reverser, that the picture is
 the first locomotive's photo with the name standing in, that a train held
-here with a camera shows the camera car's picture over it, and none for a
-train with no camera, held elsewhere or held by nobody, that an `error` takes
-the picture away until `RETRY_MS` on a fake clock puts it back under a new
-`try`, but not once the train is released, that a release, taking another
-train, the train leaving the layout and the run view each leave no picture,
-that releasing writes
+here with a camera shows each frame of the camera car's picture over it once
+one comes, and asks for none for a train with no camera, held elsewhere or held
+by nobody, that the stream ending, failing, answering other than 200 or
+sending nothing for `STALL_MS` takes the picture away until `RETRY_MS` on a
+fake clock asks again under a new `try`, but not once the train is released,
+that a release, taking another train, the train leaving the layout and the run
+view each abort the read and leave no picture, that releasing writes
 `null` and goes back to the picker with Take back, that a train with no
 functions shows no button and no `>>`, one or two show with no `>>` and three
 show two and `>>`, which opens the third, that a press on a held train, with

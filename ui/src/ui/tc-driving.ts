@@ -24,6 +24,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import { watchPicture, type Watching } from "../model/picture.js";
 import { photoUrl, pictureUrl, RETRY_MS } from "../model/store.js";
 import { driveRefusal, type Cab } from "../model/throttle.js";
 import type { Power } from "../model/trace.js";
@@ -116,6 +117,13 @@ export class TcDriving extends LitElement {
   /** The timer that asks for it again, `null` while none is set. */
   private retry: ReturnType<typeof setTimeout> | null = null;
 
+  /** The newest frame of the picture, as an object URL; `null` until one
+   *  has come, and while the picture is not drawn. */
+  @state() private frame: string | null = null;
+
+  /** The stream being read, `null` while none is. */
+  private reading: Watching | null = null;
+
   override willUpdate(changed: Map<string, unknown>): void {
     // The picture no longer wanted: no retry waits, and the next time it is
     // wanted it is asked for afresh.
@@ -142,9 +150,18 @@ export class TcDriving extends LitElement {
     if (cab !== null && was?.granted === true && !cab.granted) this.slider = 0;
   }
 
+  /** Read the stream the picture is wanted from, and stop reading any
+   *  other. In `update` rather than `willUpdate`, so it sees the `attempt`
+   *  and `failed` that `willUpdate` has just set. */
+  override update(changed: Map<string, unknown>): void {
+    this.follow(this.failed ? null : this.watched);
+    super.update(changed);
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.unwatch();
+    this.follow(null);
   }
 
   override render() {
@@ -207,29 +224,53 @@ export class TcDriving extends LitElement {
   /**
    * The camera car's live picture, over the thumbnail, while all three hold:
    * this view is current, this throttle holds the train, and the train
-   * carries a camera. Otherwise it is not in the DOM at all, so the page holds
-   * no connection to the camera app (ui/THROTTLE.md). A stream that fails —
-   * an `error` — takes it away, and the thumbnail shows until it is asked for
-   * again `RETRY_MS` later under a new `try`.
+   * carries a camera. Otherwise the page holds no connection to the camera
+   * app (ui/THROTTLE.md). A stream that fails, ends or stalls takes it away
+   * (`model/picture.ts`), and the thumbnail shows until it is asked for again
+   * `RETRY_MS` later under a new `try`.
    */
   private picture() {
-    const url = this.watched;
-    if (url === null || this.failed) return nothing;
-    return html`<img class="picture" src=${url} alt="" @error=${() => this.lost()} />
+    if (this.frame === null) return nothing;
+    return html`<img class="picture" src=${this.frame} alt="" />
       <span class="live">LIVE</span>`;
+  }
+
+  /** Read the stream at `url`, or none where it is `null`, dropping the
+   *  frame of any other. */
+  private follow(url: string | null): void {
+    if (url === (this.reading?.url ?? null)) return;
+    this.reading?.stop();
+    this.show(null);
+    this.reading =
+      url === null
+        ? null
+        : watchPicture(
+            url,
+            (jpeg) => this.show(URL.createObjectURL(jpeg)),
+            () => this.lost(),
+          );
+  }
+
+  /** Draw `frame`, letting go of the one before it. */
+  private show(frame: string | null): void {
+    if (this.frame !== null) URL.revokeObjectURL(this.frame);
+    this.frame = frame;
   }
 
   /** The camera app's route for the train held, `null` where the picture is
    *  not to be drawn. Track power does not matter: a train standing dark is
-   *  still worth seeing. */
+   *  still worth seeing. A column taken out of the page still updates, so
+   *  it asks for nothing. */
   private get watched(): string | null {
     const cab = this.cab;
-    if (!this.current || cab === null || !cab.camera || !this.railroad) return null;
+    if (!this.isConnected || !this.current || cab === null || !cab.camera || !this.railroad) {
+      return null;
+    }
     return pictureUrl(this.railroad, cab.train, this.attempt);
   }
 
-  /** The stream failed: the thumbnail shows, and the picture is asked for
-   *  again after `RETRY_MS`, while it is still wanted. */
+  /** The stream failed, ended or stalled: the thumbnail shows, and the
+   *  picture is asked for again after `RETRY_MS`, while it is still wanted. */
   private lost(): void {
     this.failed = true;
     if (this.retry !== null) clearTimeout(this.retry);
