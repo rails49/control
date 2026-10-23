@@ -33,7 +33,8 @@ export const drivingStyles = css`
     overflow: hidden;
   }
 
-  .thumbnail {
+  .thumbnail,
+  .picture {
     display: block;
     width: 100%;
     max-height: 40vh;
@@ -49,14 +50,9 @@ export const drivingStyles = css`
     color: var(--hint);
   }
 
-  /* The camera car's live picture, laid over the thumbnail, which shows
-     again whenever the stream fails. */
+  /* The camera car's live picture, in the thumbnail's place and its whole
+     frame shown; the thumbnail shows again whenever the stream fails. */
   .picture {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
     background: var(--body);
   }
 

@@ -40,6 +40,7 @@ import {
 import { FakeLock } from "./support/wake.js";
 import { STALL_MS } from "../src/model/picture.js";
 import { photoUrl, pictureUrl, RETRY_MS } from "../src/model/store.js";
+import { drivingStyles } from "../src/ui/tc-driving.styles.js";
 
 beforeEach(brokering);
 
@@ -715,7 +716,8 @@ describe("the camera car's picture", () => {
     return part<HTMLImageElement>(shell, "img.picture");
   }
 
-  /** The thumbnail, the photo or the name, which is drawn either way. */
+  /** The thumbnail, the photo or the name, `null` while the picture is
+   *  drawn in its place. */
   function thumbnail(shell: TcApp): Element | null {
     return part(shell, ".thumbnail");
   }
@@ -739,17 +741,25 @@ describe("the camera car's picture", () => {
     return shell;
   }
 
-  it("is drawn over the thumbnail once a frame comes, marked LIVE", async () => {
+  /** In the thumbnail's place rather than over it, so the picture's own
+   *  frame sets the box and a short photo does not crop it (#953). */
+  it("is drawn in the thumbnail's place once a frame comes, marked LIVE", async () => {
     const shell = await driving();
     await held(shell);
     expect(feeds.map((one) => one.path)).toEqual(["/picture/toy/goods"]);
     expect(live(shell)).toBeNull();
+    expect(thumbnail(shell)).not.toBeNull();
 
     await framed(shell);
 
     expect(live(shell)!.getAttribute("src")).toMatch(/^blob:/);
     expect(live(shell)!.getAttribute("alt")).toBe("");
-    expect(thumbnail(shell)).not.toBeNull();
+    expect(thumbnail(shell)).toBeNull();
+    const rules = drivingStyles.cssText
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .match(/[^{}]*\.picture[^{}]*\{[^{}]*\}/g);
+    expect(rules?.some((rule) => /object-fit:\s*contain/.test(rule))).toBe(true);
+    expect(rules?.some((rule) => /position:\s*absolute/.test(rule))).toBe(false);
     expect(part(shell, ".top .live")!.textContent!.trim()).toBe("LIVE");
   });
 

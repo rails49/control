@@ -83,9 +83,9 @@ at least 44 px high.
 
 - **At the top, the train's picture**: the same photo as its card, or its
   name — the thumbnail — and, where the train carries a camera, the camera
-  car's live picture over it (below). Over that: the train's name, the
-  aspect, the block it stands in or *crossing a transit*, the blocks ahead,
-  and Release.
+  car's live picture in its place once a frame comes (below), the whole
+  frame shown. Over that: the train's name, the aspect, the block it stands
+  in or *crossing a transit*, the blocks ahead, and Release.
 - **Below, on the left**: the reverser, the train's functions, Turn around and,
   on a phone's first column only, the clock.
 - **Below, on the right**: the speed, the slider and STOP, where a right thumb
@@ -442,7 +442,7 @@ power reads off and stays put on a frame that ends no move, that the speed
 reads as a percentage and which end leads, that STOP publishes zero and leaves
 the reverser, that the aspect shown follows the reverser, that the picture is
 the first locomotive's photo with the name standing in, that a train held
-here with a camera shows each frame of the camera car's picture over it once
+here with a camera shows each frame of the camera car's picture in its place once
 one comes, and asks for none for a train with no camera, held elsewhere or held
 by nobody, that the stream ending, failing, answering other than 200 or
 sending nothing for `STALL_MS` takes the picture away until `RETRY_MS` on a
