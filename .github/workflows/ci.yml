@@ -27,9 +27,11 @@ jobs:
       # The broker the MQTT binding's suite runs against (#369). The install
       # may still fail, but the absence is loud: `CI` is set above, and under
       # it the `broker` fixture fails rather than skips (tests/brokers.py), so
-      # a package index having a bad day reddens the gate here (#423).
+      # a package index having a bad day reddens the gate here (#423). One
+      # that hangs is cut off rather than held for six hours (#947).
       - name: mosquitto
         continue-on-error: true
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y mosquitto
       - name: gate
         run: |
