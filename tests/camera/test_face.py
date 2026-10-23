@@ -45,9 +45,7 @@ def test_two_readers_of_one_train_share_one_connection_and_its_bytes(
     one, two = asked(face, picture("ore")), asked(face, picture("ore"))
     for answer in (one, two):
         assert answer.status == 200
-        assert answer.getheader("Content-Type") == (
-            "multipart/x-mixed-replace; boundary=frame"
-        )
+        assert answer.getheader("Content-Type") == "application/octet-stream"
         assert answer.getheader("Cache-Control") == "no-store"
         read = [part for part, _ in zip(parts(answer), range(5), strict=False)]
         assert all(kind == "image/jpeg" for kind, _ in read)

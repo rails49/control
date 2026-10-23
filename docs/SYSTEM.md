@@ -366,8 +366,9 @@ LAN is still the trust boundary and a browser is not on it
   other path or method; **502** with no body where the camera sends no first
   frame within 5 s — unreachable, refusing, answering anything but 200, a 401
   included, or silent. A **200** is sent once the first frame is in hand:
-  `multipart/x-mixed-replace; boundary=frame` with `Cache-Control: no-store`,
-  each part `image/jpeg` with its `Content-Length` and one JPEG as the camera
+  `application/octet-stream` with `Cache-Control: no-store`, the body laid out
+  as `multipart/x-mixed-replace; boundary=frame` (WebKit fails a `fetch` of
+  that type, #955), each part `image/jpeg` with its `Content-Length` and one JPEG as the camera
   sent it. It ends when the camera's stream ends or the camera goes 5 s
   without a frame, and nothing reconnects: a page asks again, with a query
   string if it must, which is ignored. One connection per camera however many

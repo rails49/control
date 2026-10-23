@@ -144,9 +144,10 @@ def asked(
 
 
 def parts(answer: http.client.HTTPResponse) -> Iterator[tuple[str, bytes]]:
-    """Each part of a `multipart/x-mixed-replace; boundary=frame` body: its
-    type and its bytes, read by its `Content-Length`. Read here rather than
-    with the app's own reader, which is what is under test."""
+    """Each part of a body laid out as `multipart/x-mixed-replace;
+    boundary=frame`: its type and its bytes, read by its `Content-Length`.
+    Read here rather than with the app's own reader, which is what is under
+    test."""
     while True:
         line = answer.readline()
         if not line:

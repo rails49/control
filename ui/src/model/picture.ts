@@ -64,9 +64,9 @@ export function watchPicture(
 
 const BLANK = new Uint8Array([13, 10, 13, 10]);
 
-/** The JPEGs of a `multipart/x-mixed-replace` body as the camera app writes
- *  it, each part carrying its `Content-Length`. Ends at the end of the body
- *  and at a part with no length. */
+/** The JPEGs of a body laid out as `multipart/x-mixed-replace`, as the
+ *  camera app writes it, each part carrying its `Content-Length`. Ends at the
+ *  end of the body and at a part with no length. */
 export async function* jpegs(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
   const reader = body.getReader();
   let held = new Uint8Array(0);
