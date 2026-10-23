@@ -25,7 +25,7 @@ import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcDriving } from "../src/ui/tc-driving.js";
 import type { TcTrainPicker } from "../src/ui/tc-train-picker.js";
-import { serving, settled, shows, throttling } from "./support/shell.js";
+import { serving, settled, shows, throttling, type Answers } from "./support/shell.js";
 import {
   Broker,
   brokering,
@@ -38,6 +38,7 @@ import {
   written as everything,
 } from "./support/session.js";
 import { FakeLock } from "./support/wake.js";
+import { STALL_MS } from "../src/model/picture.js";
 import { photoUrl, pictureUrl, RETRY_MS } from "../src/model/store.js";
 
 beforeEach(brokering);
@@ -638,15 +639,70 @@ describe("the train's thumbnail", () => {
   });
 });
 
+/** The camera app's side of one read of its route: the path it was asked
+ *  on, the frames a test sends down it, and whether the page aborted it. */
+class Feed {
+  aborted = false;
+  readonly body: ReadableStream<Uint8Array>;
+  private sending!: ReadableStreamDefaultController<Uint8Array>;
+
+  constructor(
+    readonly path: string,
+    signal: AbortSignal,
+  ) {
+    this.body = new ReadableStream({ start: (sending) => (this.sending = sending) });
+    signal.addEventListener("abort", () => {
+      this.aborted = true;
+      this.fail();
+    });
+  }
+
+  /** One part, as the camera app writes it. */
+  send(): void {
+    const jpeg = [0xff, 0xd8, 0xff, 0xd9];
+    const head = `--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`;
+    this.sending.enqueue(new Uint8Array([...new TextEncoder().encode(head), ...jpeg, 13, 10]));
+  }
+
+  /** The closing boundary, and the body over. */
+  end(): void {
+    this.sending.enqueue(new TextEncoder().encode("--frame--\r\n"));
+    this.sending.close();
+  }
+
+  /** The connection gone, as a reset or an abort ends it. */
+  fail(): void {
+    try {
+      this.sending.error(new Error("connection lost"));
+    } catch {
+      // already over
+    }
+  }
+}
+
 describe("the camera car's picture", () => {
+  /** What the camera app has been asked, one read of its route each. */
+  let feeds: Feed[] = [];
+
+  /** What the shell answers, which a test may change between reads. */
+  let answers: Answers;
+
   /** The toy roster with `goods` carrying a camera, as the trains route
-   *  says (#850): `shunter` carries none. */
+   *  says (#850): `shunter` carries none. The camera app answers every read
+   *  with a stream the test writes into, unless a test says otherwise. */
   beforeEach(() => {
-    serving({
+    feeds = [];
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    answers = serving({
       drawings: ["toy"],
       rosterOf: () => ({ ...STOCK, goods: { ...STOCK.goods, camera: true } }),
       read: stored,
       review: () => Promise.resolve(DERIVES),
+      picture: (path, signal) => {
+        const feed = new Feed(path, signal);
+        feeds.push(feed);
+        return { status: 200, body: feed.body };
+      },
     });
   });
 
@@ -654,7 +710,7 @@ describe("the camera car's picture", () => {
     vi.useRealTimers();
   });
 
-  /** The camera app's route, which the page holds open while it is drawn. */
+  /** The picture as drawn, `null` where the thumbnail shows alone. */
   function live(shell: TcApp): HTMLImageElement | null {
     return part<HTMLImageElement>(shell, "img.picture");
   }
@@ -664,25 +720,44 @@ describe("the camera car's picture", () => {
     return part(shell, ".thumbnail");
   }
 
-  /** A train held here with a camera, on the view, and the picture failing
-   *  once: what the retry tests start from. */
-  async function failing(): Promise<TcApp> {
+  /** The newest read of the route. */
+  function feed(): Feed {
+    return feeds.at(-1)!;
+  }
+
+  /** A frame sent on the newest read, and drawn. */
+  async function framed(shell: TcApp): Promise<void> {
+    feed().send();
+    await settled(shell);
+  }
+
+  /** A train held here with a camera, on the view, its picture drawn. */
+  async function watching(): Promise<TcApp> {
     const shell = await driving();
     await held(shell);
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    live(shell)!.dispatchEvent(new Event("error"));
-    await settled(shell);
+    await framed(shell);
     return shell;
   }
 
-  it("is drawn over the thumbnail, from the camera app's route, marked LIVE", async () => {
+  it("is drawn over the thumbnail once a frame comes, marked LIVE", async () => {
     const shell = await driving();
     await held(shell);
+    expect(feeds.map((one) => one.path)).toEqual(["/picture/toy/goods"]);
+    expect(live(shell)).toBeNull();
 
-    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods");
+    await framed(shell);
+
+    expect(live(shell)!.getAttribute("src")).toMatch(/^blob:/);
     expect(live(shell)!.getAttribute("alt")).toBe("");
     expect(thumbnail(shell)).not.toBeNull();
     expect(part(shell, ".top .live")!.textContent!.trim()).toBe("LIVE");
+  });
+
+  it("draws each frame as it comes", async () => {
+    const shell = await watching();
+    const first = live(shell)!.getAttribute("src");
+    await framed(shell);
+    expect(live(shell)!.getAttribute("src")).not.toBe(first);
   });
 
   it("names the railroad and the train, each URL-encoded", () => {
@@ -692,17 +767,16 @@ describe("the camera car's picture", () => {
 
   /** Track power does not matter: the picture is the train's, not a move's. */
   it("is drawn with the track off", async () => {
-    const shell = await driving();
-    await held(shell);
+    const shell = await watching();
     await said(shell, POWER, { power: "off" });
     expect(live(shell)).not.toBeNull();
   });
 
-  it("is not drawn for a train held here with no camera", async () => {
+  it("is not asked for for a train held here with no camera", async () => {
     const shell = await driving();
     await said(shell, ALLOCATION, BOTH);
     await held(shell, "shunter");
-    expect(live(shell)).toBeNull();
+    expect(feeds).toEqual([]);
     expect(part(shell, ".live")).toBeNull();
     expect(thumbnail(shell)!.textContent!.trim()).toBe("shunter");
   });
@@ -712,41 +786,66 @@ describe("the camera car's picture", () => {
   it.each([
     ["held elsewhere", { goods: "another-page" }],
     ["held by nobody", {}],
-  ])("is not drawn for a train %s", async (_, holders) => {
+  ])("is not asked for for a train %s", async (_, holders) => {
     const shell = await driving();
     await said(shell, TAKEN, { taken: holders });
-    expect(live(shell)).toBeNull();
+    expect(feeds).toEqual([]);
     expect(card(shell, "goods")!.querySelector("img.picture")).toBeNull();
     expect(card(shell, "goods")!.querySelector(".thumbnail")).not.toBeNull();
   });
 
-  it("goes on error, and is back after RETRY_MS with a new try", async () => {
-    const shell = await failing();
+  /** Each of these is the picture lost: the thumbnail alone, and the route
+   *  asked again `RETRY_MS` later under a new `try`. An end and a stall fire
+   *  no `error` on an image, which is why the page reads the stream (#950). */
+  it.each([
+    ["the stream ends", () => feed().end()],
+    ["the connection fails", () => feed().fail()],
+    ["no frame comes for STALL_MS", () => vi.advanceTimersByTime(STALL_MS)],
+  ])("goes when %s, and is back after RETRY_MS with a new try", async (_, lose) => {
+    const shell = await watching();
+
+    lose();
+    await settled(shell);
     expect(live(shell)).toBeNull();
     expect(thumbnail(shell)).not.toBeNull();
 
     vi.advanceTimersByTime(RETRY_MS);
     await settled(shell);
-    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods?try=1");
-
-    live(shell)!.dispatchEvent(new Event("error"));
-    await settled(shell);
-    vi.advanceTimersByTime(RETRY_MS);
-    await settled(shell);
-    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods?try=2");
+    expect(feed().path).toBe("/picture/toy/goods?try=1");
+    await framed(shell);
+    expect(live(shell)).not.toBeNull();
   });
 
-  it("does not come back after an error once the train is released", async () => {
-    const shell = await failing();
+  it("is asked again after RETRY_MS where the camera app answers no stream", async () => {
+    answers.picture = () => ({ status: 502 });
+    const shell = await driving();
+    await held(shell);
+    expect(live(shell)).toBeNull();
+
+    answers.picture = (path, signal) => {
+      const again = new Feed(path, signal);
+      feeds.push(again);
+      return { status: 200, body: again.body };
+    };
+    vi.advanceTimersByTime(RETRY_MS);
+    await settled(shell);
+    expect(feed().path).toBe("/picture/toy/goods?try=1");
+  });
+
+  it("is not asked again once the train is released", async () => {
+    const shell = await watching();
+    feed().end();
+    await settled(shell);
     await said(shell, TAKEN, { taken: {} });
 
     vi.advanceTimersByTime(RETRY_MS);
     await settled(shell);
+    expect(feeds).toHaveLength(1);
     expect(live(shell)).toBeNull();
   });
 
-  /** Each of these ends the page's connection to the route: the element
-   *  goes, and nothing puts it back. */
+  /** Each of these ends the page's read of the route: the picture goes,
+   *  and nothing puts it back. */
   it.each([
     ["state/taken drops the train", (shell: TcApp) => said(shell, TAKEN, { taken: {} })],
     [
@@ -762,23 +861,22 @@ describe("the camera car's picture", () => {
     ],
     ["the run view is shown", (shell: TcApp) => shows(shell, "run")],
   ])("is gone once %s", async (_, then) => {
-    const shell = await driving();
-    await held(shell);
+    const shell = await watching();
     expect(live(shell)).not.toBeNull();
 
     await then(shell);
 
     expect(live(shell)).toBeNull();
+    expect(feed().aborted).toBe(true);
   });
 
   /** Back on the throttle view the train is still held, and the picture
    *  is asked for again. */
   it("is back when the throttle view is shown again", async () => {
-    const shell = await driving();
-    await held(shell);
+    const shell = await watching();
     await shows(shell, "run");
     await shows(shell, "throttle");
-    expect(live(shell)!.getAttribute("src")).toBe("/picture/toy/goods");
+    expect(feeds.map((one) => one.path)).toEqual(["/picture/toy/goods", "/picture/toy/goods"]);
   });
 });
 

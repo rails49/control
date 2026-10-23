@@ -118,6 +118,11 @@ export interface Answers {
    *  read out of it. A promise for a suite that wants to look at the screen
    *  while the camera is being waited on. */
   camera: () => Take | Promise<Take>;
+  /** What the `camera` app answers `GET /picture/<railroad>/<train>` with,
+   *  given the path and the signal that aborts the page's read: a status, and
+   *  for a 200 the stream of parts. Not the store either (ADR-0082). By
+   *  default a 502, which is the app with no frame to give. */
+  picture: (path: string, signal: AbortSignal) => Stream;
   /** What the installation answers `GET /box` with. **Not the store** either:
    *  the installation answers it, on the page's origin, and only on a box it
    *  runs on (#745). By default what `localhost` answers, vite's own page
@@ -150,6 +155,12 @@ export interface Take {
   jpeg?: Uint8Array;
 }
 
+/** One answer from the camera app: the status, and the body where it is 200. */
+export interface Stream {
+  status: number;
+  body?: ReadableStream<Uint8Array>;
+}
+
 /** One answer from the installation: the status and the body as text, which
  *  is JSON from `GET /box` and a line of plain text from `POST /box/off`. */
 export interface Reply {
@@ -168,6 +179,9 @@ const OFF = "/box/off";
 /** The route the camera answers, which the page fetches on its own origin as
  *  it fetches the store's (docs/DEPLOY.md). */
 const SNAPSHOT = "/camera/snapshot";
+
+/** The camera app's route, a camera car's live picture (ADR-0082). */
+const PICTURE = "/picture/";
 
 /** How often the store has been asked anything. `quiet` watches this instead
  *  of counting turns, so what it waits for is the shell falling silent. */
@@ -192,6 +206,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // A box with no camera, which is most of them: the press that asks for a
     // picture has to answer in words whatever comes back (#629).
     camera: () => ({ status: 502, statusText: "Bad Gateway" }),
+    picture: () => ({ status: 502 }),
     box: () => FALLBACK,
     off: () => FALLBACK,
     held: () => null,
@@ -204,6 +219,14 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     // installation are other apps, and a store that is down says nothing
     // about them.
     if (path === SNAPSHOT) return Promise.resolve(store.camera()).then(pictured);
+    if (path.startsWith(PICTURE)) {
+      const { status, body } = store.picture(path, init!.signal!);
+      return Promise.resolve({
+        ok: status === 200,
+        status,
+        body: body ?? null,
+      } as unknown as Response);
+    }
     if (path === BOX) return Promise.resolve(store.box()).then(replied);
     if (path === OFF) return Promise.resolve(store.off()).then(replied);
     if (store.broken !== null) return Promise.reject(store.broken);
