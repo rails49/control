@@ -92,18 +92,21 @@ def _part(body: BinaryIO) -> dict[str, str] | None:
     """The headers of the next part, read past the boundary and the blank
     lines around it; `None` at the end of the body."""
     headers: dict[str, str] = {}
+    bounded = False
     while True:
         line = body.readline(MAX_LINE)
         if not line or not line.endswith(b"\n"):
             return None
         line = line.strip()
+        if not bounded:
+            # Everything up to the boundary, or the end of the body after it.
+            # A Pnzeo W3 puts two bytes before it after the JPEG: on its line,
+            # or on a line of their own where one of them is a line feed.
+            bounded = b"--" in line
+            continue
         if not line:
             if headers:
                 return headers
-            continue
-        if not headers and b"--" in line:
-            # The boundary, or the end of the body after it. A Pnzeo W3 puts
-            # two bytes before it on the same line, after the JPEG.
             continue
         name, colon, value = line.partition(b":")
         if not colon:
