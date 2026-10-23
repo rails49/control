@@ -430,7 +430,7 @@ class LayoutInterface:
         # cut included, which is what says whether a train released mid-move
         # is running (ADR-0083); and the last nonzero speed written for each
         # train, signed for the train, which is what a lever reversing it is
-        # held against until its throttle sends `0` (ADR-0084).
+        # held against until the train is stopped (ADR-0084, ADR-0088).
         self._wrote: dict[str, float] = {}
         self._heading: dict[str, float] = {}
         # The bit on each `wanted/function` row this app knows of, by address
@@ -853,10 +853,20 @@ class LayoutInterface:
     def _headed(self, train: str, heading: float) -> None:
         """A speed written for the train, signed for the train: held as the
         last nonzero one, which a lever of the other sign is refused against
-        (ADR-0084). A zero leaves the one held standing, as a stop by anything
-        but the throttle's own `0` does."""
+        (ADR-0084). A zero leaves the one held standing: the `0.0` a refused
+        lever writes is not a stop the person asked for."""
         if heading != 0.0:
             self._heading[train] = heading
+
+    def _stop(self, train: str) -> None:
+        """`0.0` to each of the train's addressed cars, and the sign held
+        against a reversing lever dropped with it: this app stopping a train,
+        at an arrival, a release or a removal, stops it as its throttle's own
+        `0` does (ADR-0088). The page shows the slider at 0 after each of
+        these without sending it (#962)."""
+        self._heading.pop(train, None)
+        for addr, _orientation in self._addressed(train):
+            self._traction_write(addr, 0.0)
 
     def _give(self, block: str, crossing: _Crossing) -> None:
         """The train crossing into `block` given the speed its grant implies,
@@ -887,6 +897,9 @@ class LayoutInterface:
             split = split_device(topic)
             if split is not None and split[0] == WANTED_TRACTION:
                 self._traction_write(split[1], 0.0)
+        # Every train stopped, so none is held to the way it last ran
+        # (ADR-0088).
+        self._heading.clear()
 
     # -- who drives, and a person's throttle ---------------------------------
 
@@ -1019,8 +1032,7 @@ class LayoutInterface:
             return
         self._publish_taken()
         if self._driving != AUTOMATIC:
-            for addr, _orientation in self._addressed(train):
-                self._traction_write(addr, 0.0)
+            self._stop(train)
             return
         flight = self._outstanding(train)
         if flight is not None and self._power != OFF and self._running(train):
@@ -1061,8 +1073,7 @@ class LayoutInterface:
         if flight is not None and self._power != OFF and flight[1].implied:
             self._give(*flight)
             return
-        for addr, _orientation in self._addressed(train):
-            self._traction_write(addr, 0.0)
+        self._stop(train)
 
     def _publish_taken(self) -> None:
         self._bus.publish(TAKEN, {"taken": dict(self._taken)})
@@ -1289,8 +1300,7 @@ class LayoutInterface:
             for block, crossing in self._crossing.items()
             if crossing.train != train
         }
-        for addr, _orientation in self._addressed(train):
-            self._traction_write(addr, 0.0)
+        self._stop(train)
 
     # -- which way each train points ----------------------------------------
 
@@ -1595,8 +1605,7 @@ class LayoutInterface:
             # the grant implies nothing more once the train is there, so what
             # it implied goes with the arrival.
             if crossing.driving or crossing.train in self._taken:
-                for addr, _orientation in self._addressed(crossing.train):
-                    self._traction_write(addr, 0.0)
+                self._stop(crossing.train)
             crossing = replace(crossing, implied=(), outstanding=False)
             self._crossing[block] = crossing
         if end == crossing.far:
