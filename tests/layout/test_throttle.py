@@ -17,7 +17,8 @@ names is not asked, a facing lagging the train it is about.
 A throttle drives only the train it holds, and drives it at any time, granted
 move or not (ADR-0079, ADR-0081): the move ending at its sensor writes `0.0`,
 and the next lever frame drives the train on. A lever reversing a running train
-stops it instead, until the throttle has sent `0` (ADR-0084).
+stops it instead, until the throttle has sent `0` or this app has stopped the
+train (ADR-0084, ADR-0088).
 """
 
 from tc49.layout import LayoutInterface
@@ -25,6 +26,7 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import MANUAL
 from tests.layout.railroad import (
+    POWER_WANTED,
     THROTTLE_WANTED,
     align,
     build,
@@ -232,6 +234,45 @@ def test_a_flip_at_speed_writes_zero_until_the_lever_is_at_zero() -> None:
         ("3", 0.0),
         ("3", -0.4),
     ]
+
+
+def test_an_arrival_lets_the_lever_drive_the_other_way() -> None:
+    """The arrival's `0.0` stops the train as the throttle's own `0` would,
+    and the page shows the slider at 0 without sending it, so the other way
+    is free from there (#962)."""
+    bus, app, clock, written = underway("single", "up_w.A-to-B")
+    turns(bus, "single", 0.4)
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    turns(bus, "single", -0.4)
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0), ("3", -0.4)]
+
+
+def test_a_cut_lets_the_lever_drive_the_other_way() -> None:
+    """A cut writes `0.0` over every row and stops every train (#962)."""
+    bus, written = held("single", "up_w.A-to-B")
+    turns(bus, "single", 0.4)
+    bus.publish(POWER_WANTED, {"power": "off"})
+    bus.drain()
+    bus.publish(POWER_WANTED, {"power": "on"})
+    bus.drain()
+    energised(bus)
+    turns(bus, "single", -0.4)
+
+    assert speeds(written)[-1] == ("3", -0.4)
+
+
+def test_a_release_in_manual_lets_the_next_take_drive_the_other_way() -> None:
+    """A release in `manual` writes `0.0`, and the next take opens at
+    Forward with the slider at 0: its first frame drives (#962)."""
+    bus, _app, _clock, written = underway("single", "up_w.A-to-B", MANUAL)
+    turns(bus, "single", -0.4)
+    gives(bus, "single")
+    takes(bus, "single")
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", -0.4), ("3", 0.0), ("3", 0.4)]
 
 
 def test_a_flip_against_the_grants_speed_writes_zero() -> None:
