@@ -186,7 +186,7 @@ export class TcDriving extends LitElement {
     const still = this.still;
     return html`
       <section class="top">
-        ${this.thumbnail(cab)} ${this.picture()}
+        ${this.frame === null ? this.thumbnail(cab) : this.picture()}
         <div class="over">
           <h2>${cab.train}</h2>
           ${this.signal(cab)}
@@ -222,15 +222,14 @@ export class TcDriving extends LitElement {
   }
 
   /**
-   * The camera car's live picture, over the thumbnail, while all three hold:
-   * this view is current, this throttle holds the train, and the train
+   * The camera car's live picture, in the thumbnail's place, while all three
+   * hold: this view is current, this throttle holds the train, and the train
    * carries a camera. Otherwise the page holds no connection to the camera
    * app (ui/THROTTLE.md). A stream that fails, ends or stalls takes it away
    * (`model/picture.ts`), and the thumbnail shows until it is asked for again
-   * `RETRY_MS` later under a new `try`.
+   * `RETRY_MS` later under a new `try`. Called once a frame has come.
    */
   private picture() {
-    if (this.frame === null) return nothing;
     return html`<img class="picture" src=${this.frame} alt="" />
       <span class="live">LIVE</span>`;
   }
