@@ -143,7 +143,8 @@ it in this view too ([PANEL.md](PANEL.md)). A take of a train another throttle h
 dropped. The speed is applied from the throttle holding the train at any time,
 granted move or not, while the rails are live: the move ending at its sensor
 writes `0.0`, and the next speed frame drives the train on. A frame reversing a
-running train writes `0.0` until the throttle sends `0` (ADR-0084). A train no
+running train writes `0.0` until the throttle sends `0` or `layout` stops the
+train itself (ADR-0084, ADR-0088). A train no
 throttle holds stands at its signal in `manual` and is driven on its grant in
 `automatic`. So a release writes `0.0` in `manual`; in `automatic` mid-move it
 writes nothing and the train keeps the person's speed until the move ends, or

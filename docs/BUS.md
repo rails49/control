@@ -632,8 +632,10 @@ what a drop would cost:
   one. When a granted move ends at its sensor `layout` writes `0.0`, and the
   next frame is applied again. A frame whose sign is opposite to the last
   nonzero speed `layout` wrote for the train writes `0.0` instead, and so does
-  every later frame of that sign until the throttle sends `0`
-  ([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)).
+  every later frame of that sign until the throttle sends `0` or `layout`
+  stops the train itself
+  ([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md),
+  [ADR-0088](adr/0088-a-stop-the-layout-writes-frees-the-reverser-as-the-throttles-0-does.md)).
 - `tc49/layout/driving_wanted` — browser-writable — `driving`: enum `manual`
   or `automatic`, the same closed set `state/driving` below carries; any
   other value is dropped. Accepted at any power
