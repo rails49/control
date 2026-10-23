@@ -199,6 +199,7 @@ from tc49.lib.payload import (
     command,
     desired_function,
     detected,
+    kept_allocation,
     kept_facing,
     link_up,
     named_train,
@@ -228,6 +229,7 @@ PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
 MOVING = "tc49/dispatch/state/moving"
+ALLOCATION = "tc49/dispatch/state/allocation"
 FACING = "tc49/schedule/state/facing"
 DEVICE = "tc49/layout/state/device/#"
 
@@ -409,7 +411,14 @@ class LayoutInterface:
         # and which way each one points, which is half of the traction write's
         # sign. The one is this app's own record and the other is read off the
         # scheduler's state topic, there being nowhere else facing lives.
+        # `train_placed` is an event, so a restarted app takes where each train
+        # stands from the dispatcher's retained allocation, which is what the
+        # dispatcher restores from too (#960).
         self._position: dict[str, str] = dict(position or {})
+        kept = kept_allocation(bus.last_values.get(ALLOCATION))
+        for train, block in (kept.trains if kept is not None else {}).items():
+            if block in layout.blocks:
+                self._position.setdefault(train, block)
         self._facing: dict[str, str] = {}
         # Who drives (ADR-0079): the railroad's one driving mode, which throttle
         # holds each train — what `state/taken` carries — and when each
@@ -1113,7 +1122,9 @@ class LayoutInterface:
         `_faces` says why.
 
         A train that **stands nowhere**, never placed or taken off by
-        `train_removed`: its decoder is in a hand, if anywhere.
+        `train_removed`: its decoder is in a hand, if anywhere. After a
+        restart, a train the retained allocation names stands where it says
+        (#960).
 
         **A lever reversing a running train stops it instead** (ADR-0084). A
         frame whose sign is opposite to the last nonzero speed written for the

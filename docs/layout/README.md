@@ -35,6 +35,7 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`,
 `tc49/dispatch/train_placed`, `tc49/dispatch/train_removed`,
 `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
+`tc49/dispatch/state/allocation`, read once as it starts,
 `tc49/schedule/state/facing`, `tc49/layout/state/device/#` and
 `tc49/layout/state/wanted/function/#`, the function rows it writes, read back.
 
@@ -195,7 +196,10 @@ has left the near end — so a redelivery is a no-op **on state alone**, with no
 clock, no stamp and no agreement between apps. The same check refuses a command
 overtaken by a hand's placement and one naming a train no longer on the layout.
 Where each train stands comes from `train_placed`, `train_removed` and the
-moves this app has itself carried out.
+moves this app has itself carried out. Those are events, which the broker does
+not keep, so the app starts from the dispatcher's retained
+`state/allocation`: each train it names in a block of this railroad stands
+there ([#960](https://github.com/rails49/control/issues/960)).
 
 **No move while the rails are dead.** Nothing is acted on while `state/power`
 reads `off`

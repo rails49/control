@@ -30,6 +30,7 @@ PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
 MOVING = "tc49/dispatch/state/moving"
+ALLOCATION = "tc49/dispatch/state/allocation"
 FACING = "tc49/schedule/state/facing"
 
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
@@ -157,10 +158,15 @@ def wired(
     settling_s: float = SETTLING_S,
     driving: str = AUTOMATIC,
     throttle_silence_s: float = THROTTLE_SILENCE_S,
+    allocated: dict[str, str] | None = None,
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
     from the hardware.
+
+    `allocated`: where the dispatcher's retained allocation says each train
+    stands, held on the bus before the app is built, as a broker that
+    outlived the last `layout` holds it (#960).
 
     Switched to `automatic` unless `driving` says otherwise. The app comes up
     `manual` (ADR-0079), where it writes no traction for a train no throttle
@@ -171,6 +177,8 @@ def wired(
     the suite drives it directly — nothing here sleeps (#288)."""
     clock = Clock()
     bus = InProcessBus(clock)
+    if allocated is not None:
+        bus.publish(ALLOCATION, {"trains": allocated, "crossing": {}})
     app = LayoutInterface(
         bus, railroad(), stock(), clock, settling_s, throttle_silence_s
     )

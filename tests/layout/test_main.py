@@ -24,9 +24,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tc49.layout.__main__ import SILENCE_ENV, main, serve, silence
+from tc49.layout.__main__ import SILENCE_ENV, main, retained, serve, silence
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
+    ALLOCATION,
     BLOCK_OCCUPIED,
     DEVICE_SENSOR,
     DRIVING,
@@ -240,6 +241,25 @@ def test_a_traction_row_a_previous_process_left_is_zeroed(
     written = [payload["speed"] for payload in rows(heard, TRACTION)]
     assert written == [0.7, 0.0], "the speed the last process left was not zeroed"
     witness.close()
+
+
+def test_the_allocation_a_dispatcher_left_is_held_before_the_build(
+    broker: Broker,
+) -> None:
+    """The app takes where each train stands from the retained allocation as
+    it is constructed (#960), so the wait before the build has to have it."""
+    left = MqttBus(port=broker.port)
+    assert left.wait_connected()
+    left.publish(ALLOCATION, {"trains": {"freight_1": BLOCK}, "crossing": {}})
+    assert until(lambda: ALLOCATION in left.last_values)
+    left.close()
+
+    bus = MqttBus(port=broker.port)
+    assert bus.wait_connected()
+    retained(bus, threading.Event(), 0.5)
+
+    assert bus.last_values[ALLOCATION]["trains"] == {"freight_1": BLOCK}
+    bus.close()
 
 
 def test_it_acts_on_a_command_it_finds_on_the_broker(

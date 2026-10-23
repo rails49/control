@@ -203,6 +203,20 @@ def test_a_lever_for_a_train_taken_off_the_layout_writes_nothing() -> None:
     assert speeds(written) == [("3", 0.0)]
 
 
+def test_a_lever_after_a_restart_drives_a_train_the_allocation_names() -> None:
+    """`train_placed` is an event, so a restarted app takes where the train
+    stands from the dispatcher's retained allocation, and the lever is not
+    dead until the train is dispatched or dragged (#579, #960)."""
+    bus, _app, _clock = wired(driving=MANUAL, allocated={"single": "up_w"})
+    energised(bus)
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    written = commanded(bus)
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", 0.4)]
+
+
 def test_a_flip_at_speed_writes_zero_until_the_lever_is_at_zero() -> None:
     """A reverser moves only with the lever at 0 (ADR-0084): a frame of the
     other sign stops the train instead, and so does every later one of that
