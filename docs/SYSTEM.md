@@ -438,9 +438,10 @@ LAN is still the trust boundary and a browser is not on it
   build is not a build, and nothing is read again on it. Nor is a row saying
   `built: false`, a railroad named whose drawing is not a valid drawing
   ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
-  The one read between builds is the dispatcher's, of the roster, for a
-  placement naming a train it has not got: one attempt, adding the trains it
-  lacks and changing none it has
+  The one read between builds is of the roster: the dispatcher's, for a
+  placement naming a train it has not got, and `layout`'s, for a take naming
+  one. Each is one attempt, adding the trains the app lacks and changing none
+  it has
   ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
 - **The store validates and consumers derive** — `get` never returns an
   invalid document. The store checks the schema, and the references a document

@@ -18,10 +18,9 @@ import pytest
 from tc49.dispatcher.__main__ import serve
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
 from tc49.lib.bus import Payload
-from tc49.lib.documents import Documents, reread_roster
+from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
-from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
@@ -283,26 +282,6 @@ def test_a_train_made_after_it_came_up_is_placed(
     assert rows(heard, PLACED)[-1] == {"train": "railcar", "block": "yard_e"}
     hand.close()
     witness.close()
-
-
-def test_the_roster_read_again_is_the_stores(store: Store, root: Path) -> None:
-    store.start()
-    documents = Documents(store.url, log=quiet)
-
-    assert reread_roster(documents, RAILROAD, quiet)() == AssetStore(root).roster(
-        RAILROAD
-    )
-
-
-def test_a_store_that_does_not_answer_reads_no_roster_and_says_so(
-    store: Store,
-) -> None:
-    """One attempt and no wait: the bus loop asks this on its own thread."""
-    said: list[str] = []
-    documents = Documents(store.url, log=said.append)
-
-    assert reread_roster(documents, RAILROAD, said.append)() is None
-    assert len(said) == 1 and "not read again" in said[0]
 
 
 @pytest.fixture

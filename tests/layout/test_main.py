@@ -41,6 +41,7 @@ from tc49.layout.interface import (
     POWER,
     POWER_WANTED,
     RAILROAD,
+    TAKE_WANTED,
     TAKEN,
     WANTED_TRACK,
     WANTED_TRACTION,
@@ -290,6 +291,38 @@ def test_it_acts_on_a_command_it_finds_on_the_broker(
     assert drained(
         witness, lambda: rows(heard, WANTED_TRACK)[-1]["power"] == "on"
     ), "the press was dropped"
+    hand.close()
+    witness.close()
+
+
+def test_a_train_made_after_it_came_up_is_driven(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """A train made in the stock view while the app runs is on the store's
+    roster and not on the one the app was built from: the take reads the
+    roster again, so the release in `manual` stops its addressed car
+    (ADR-0091, decision 2)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
+
+    roster = root / "layouts" / f"{NAME}.roster.yaml"
+    text = roster.read_text().replace(
+        "cars:\n", "cars:\n  railcar_car: { model: bench-600, addr: '21' }\n", 1
+    )
+    roster.write_text(text + "  railcar: { cars: [{ car: railcar_car }] }\n")
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(TAKE_WANTED, {"train": "railcar", "throttle": "t-1"})
+    assert drained(
+        witness, lambda: rows(heard, TAKEN)[-1]["taken"] == {"railcar": "t-1"}
+    ), "the take was dropped"
+    hand.publish(TAKE_WANTED, {"train": "railcar", "throttle": None})
+
+    railcar = f"{WANTED_TRACTION}/21"
+    assert drained(witness, lambda: rows(heard, railcar) != []), "nothing written"
+    assert rows(heard, railcar)[-1]["speed"] == 0.0
     hand.close()
     witness.close()
 
