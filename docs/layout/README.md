@@ -430,9 +430,15 @@ does not name, or a name no addressed car declares, is dropped with a log
 line. A press is accepted at any power and in either driving mode: a light is
 not a wheel, and the row waits for the supply.
 
-Nothing else writes a function row. A release, a silent throttle,
-`train_removed`, a cut and a restart leave them as they are, so the lights a
-person left on stay on.
+Nothing else writes a function row, with one exception: when this app lets go
+of a train (a release, `take_wanted` with `throttle: null`, a silent throttle),
+each of the train's **momentary** functions that `state/functions` says is on
+is written off, on the row a press of its name writes
+([#998](https://github.com/rails49/control/issues/998)). Nobody holds its
+button any more, so the off its throttle sends later is dropped as not the
+holder's, and on the real locomotive the horn would keep sounding. Latching
+functions, `train_removed`, a cut and a restart leave the rows as they are, so
+the lights a person left on stay on.
 
 `tc49/layout/state/functions` says which of each train's functions are on, by
 name: the `value` of the row a press of that name writes, absent where there is
