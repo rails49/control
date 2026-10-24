@@ -55,12 +55,10 @@ been saved and so has no `/rosters/<railroad>/trains` answer to read; the two
 derivations say the same thing, and `ui/test/composing.test.ts` pins them
 together.
 
-**The car's and the train's editors are their older controls** until
-[#979](https://github.com/rails49/control/issues/979) and
-[#980](https://github.com/rails49/control/issues/980) draw theirs: a car's
-name, address, camera and length with its remove, and a train's name, unmake,
-derived line and entries, with every car and model listed under it beside a
-`+` that puts it at the tail.
+**The train's editor is its older controls** until
+[#980](https://github.com/rails49/control/issues/980) draws its own: a train's
+name, unmake, derived line and entries, with every car and model listed under
+it beside a `+` that puts it at the tail.
 
 ## What it does
 
@@ -105,8 +103,8 @@ percent-encodes the train. An empty name is refused: *A car needs a name.*,
 (`layout/interface.py`), so the address field is offered on every entry and
 never assumed from what the model is.
 
-**A car's camera sits beside its address**, on each car row and each entry
-row: where the camera riding in that car answers on the LAN, a host name or an
+**A car's camera sits under its address**, in the car editor and on each
+entry row: where the camera riding in that car answers on the LAN, a host name or an
 IPv4 address with no scheme, port, path or login — how the camera is spoken to
 is the `camera` app's
 ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
@@ -199,7 +197,7 @@ A refusal on one field leaves an edit standing in another alone for the same
 reason: what was not typed there was not refused.
 
 **Refusals name what holds a thing.** A car a train is made of cannot be
-removed, and the message says which train. A model's editor says what uses
+removed: its Remove is dead, its title naming the train. A model's editor says what uses
 it — the cars that are one, then the trains whose entries do — read there
 rather than run into, and its Delete is dead while anything does.
 
@@ -251,7 +249,59 @@ yet saved goes from the page alone; the store has never had it.
 
 **New car**, at the top right, makes a car of this model, named after it —
 *Ae 6/6*, then *Ae 6/6 (2)* — with no address, and shows it in the Cars list.
-The Cars list's own New car asks which model first.
+The Cars list's own New car asks *New car of which model?* first. Where the
+model has a decoder, the car editor asks for the address at once (below).
+
+## The car editor
+
+From the top, as the mockup draws it
+([#979](https://github.com/rails49/control/issues/979)).
+
+**The model's photo**, read-only and marked *Photo of the model*: a car has no
+photo of its own (ADR-0061).
+
+**Name**: any characters. Refused when empty — *A car needs a name.* — or when
+another car on the railroad has it — *There is already a car 'Re 460 001'.* —
+and the field is put back. Renaming a car renames it in every train naming it.
+
+**Model**: a button with the model's name that opens it in the Models list.
+
+**The address**, the number programmed into the car's decoder, where the
+model has a decoder or the car already has one. Committed when the field is
+left, and written without leading zeros. Refused, the field put back, where it
+is not a number from 1 to 10239, the field's words saying so, and where
+another car has it: *Car Re 460 001 already has address 460.* — two cars on one
+address both answer the same packet, which the store refuses too. Where the
+model has no decoder and the car no address it says *<model> has no decoder.*
+and offers *Fitted one to this car? Give it an address*, which shows the
+field. Emptying the field takes the address off and keeps the car.
+
+**Camera address**, always shown, under the address: as above, empty where
+the car carries no camera.
+
+**Different from the model.** *Length over buffers*, empty meaning the
+model's, with the model's length as its placeholder and under the length
+guard. **Functions**, where the model has a decoder or the car an address: the
+model's shown as chips — number, name, *hold* on a momentary one — and *This
+car's decoder is different: give it its own functions*, which copies them onto
+the car as function rows edited as the model editor's are, Save refused the
+same way while a number is listed twice or a function has no name. *Use the
+model's functions again* takes the car's own off. **Notes**: the model's shown
+above, read-only, and a textarea for the car's own `notes`, kept apart from
+the model's ([#975](https://github.com/rails49/control/issues/975)); emptied,
+the key goes.
+
+**In trains**: each train whose entries name the car, as a link that opens it
+in the Trains list.
+
+**Remove**, at the top right, takes the car off the roster. It is dead while a
+train holds the car, its title naming the train: *In train IC. Take it out of
+the train first.*
+
+**A new car of a model with a decoder is asked for its address at once**:
+*Address for <car>* — *<model> has a decoder. Type the address programmed into
+this car's decoder.* — with **Later**, which leaves it with none, and **Set
+address**, refused in the field's words with the question left standing.
 
 ## Saving
 
@@ -474,7 +524,7 @@ minted name and refusal is `ui/src/model/stock.ts`'s answer, which holds the
 two documents and every edit to either and knows nothing about the DOM.
 
 The fields are the browser's own `input`, `select` and `textarea`, and the
-question Delete asks is look's `look-dialog`, the way the properties dialog
+questions Delete and a new car's address ask are look's `look-dialog`, the way the properties dialog
 is. The view's layout, the bar, the tabs and the cards follow the mockup; its
 colours are the app's palette.
 
@@ -515,7 +565,9 @@ kind and functions, two locomotives of one product, what holds a car or a
 model, the length guard, and the model editor's rules: New model's names, the
 key minted from a name and kept, a name refused, the decoder and its function
 rows with their mode, a number listed twice stopping Save, a photo held for
-Save. `ui/test/railroad.test.ts` has Save write a model made here, its photo
+Save; and the car editor's: an address out of 1 to 10239 or another car's
+refused, a car's own notes, and its own functions copied from the model,
+stopping Save while one has no name, and taken off again. `ui/test/railroad.test.ts` has Save write a model made here, its photo
 and the roster, in that order and under the key minted.
 
 `ui/test/making.test.ts` mounts the app in this view against a store with no
@@ -525,7 +577,12 @@ model written by Save and not before, a model named `Ae 6/6` saved under
 `ae-6-6`, a duplicate name refused and put back, the decoder switch and the
 function rows reaching the document with `mode`, a duplicate function number
 refusing Save, Delete dead while the model is used, asking and sending
-`DELETE` where it is not, and the store's refusal under it; a car named
+`DELETE` where it is not, and the store's refusal under it; the car editor —
+a second car of a decoder model asked for its address and refusing the first
+car's, an address refused and put back, a camera address set, refused and
+emptied, a length override written and removed by emptying it, the car's own
+functions written and removed, its notes reaching the roster document, Remove
+dead while a train holds the car, and its links to its model and its trains; a car named
 `Re 4/4 II` and a train named `S 1/S 2` saved; a train made up of a locomotive
 and three hoppers, the document that reaches `PUT /rosters/<railroad>` with one
 car entry and three model entries, the guard killing a field while track power
