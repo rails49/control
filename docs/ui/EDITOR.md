@@ -57,11 +57,23 @@ and `tc-app` fills it.
 
 The band starts with look's mark and the UI's name, `control`
 ([org ADR-0019](https://github.com/rails49/.github/blob/main/docs/adr/0019-the-band-starts-with-the-mark-and-the-ui-name.md)).
-Its right is the UI's items: the health area and the session clock, then the
+Its right is the UI's items: the health area and the fast clock, then the
 driving control ([PANEL.md](PANEL.md)), track power and the stop sign. Then
 the gear, and **Help** last of all
 ([org ADR-0020](https://github.com/rails49/.github/blob/main/docs/adr/0020-the-bands-right-ends-with-the-gear-and-help.md),
 [#873](https://github.com/rails49/control/issues/873)).
+
+**The fast clock is the railroad's time of day**, drawn off
+`tc49/layout/state/clock` and nothing else: a round face about 40 px across
+with hour and minute hands and no second hand, `×8` beside it where the
+speed-up is not 1, and the time, `HH:MM`, as its tooltip. No page reads a
+wall clock for it, so two tablets whose clocks disagree show one time. With
+no railroad loaded or no broker answering the band shows no clock. Pressing
+it opens a dialog with the time (`HH:MM`) and the speed-up (a number greater
+than 0, decimals allowed); Save publishes `tc49/layout/clock_wanted` with
+only the fields the person changed, and what the face then shows is
+`state/clock` coming back
+([ADR-0090](../adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 
 **The railroad the app has loaded is named here**, as
 `tc49/layout/state/railroad` reports it, and the name is not pressed. Loading
