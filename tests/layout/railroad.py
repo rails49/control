@@ -16,7 +16,17 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
 from tc49.lib.layout import Layout
-from tc49.lib.roster import FORWARD, REVERSE, Car, Coupled, Function, Roster, Train
+from tc49.lib.roster import (
+    FORWARD,
+    LATCHING,
+    MOMENTARY,
+    REVERSE,
+    Car,
+    Coupled,
+    Function,
+    Roster,
+    Train,
+)
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -95,12 +105,16 @@ def loco(addr: str | None) -> Car:
 
 def lit(addr: str | None, functions: dict[str, str]) -> Car:
     """A car of a model with functions, number to name as a catalogue writes
-    them and in the order it declares them: the bench's lit stock (#849)."""
+    them and in the order it declares them: the bench's lit stock (#849).
+    Its horn is momentary (#975) and every other function latching."""
     return Car(
         "bench-lit",
         "locomotive",
         600,
-        functions={number: Function(name) for number, name in functions.items()},
+        functions={
+            number: Function(name, MOMENTARY if name == "horn" else LATCHING)
+            for number, name in functions.items()
+        },
         addr=addr,
     )
 
@@ -119,8 +133,8 @@ def stock() -> Roster:
 
     `lit` is what the function suite drives: a coach with no decoder whose
     model declares headlights ahead of a locomotive that declares them too,
-    with its horn on two numbers, and a `reverse` locomotive at the tail with
-    a bell.
+    with its momentary horn on two numbers, and a `reverse` locomotive at the
+    tail with a bell.
     """
     return Roster(
         "bench",

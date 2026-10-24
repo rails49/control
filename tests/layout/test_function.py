@@ -6,12 +6,14 @@ which decoder and which function number it reaches is `layout`'s: the first
 car in the train's order that has an address and declares the name, and that
 car's first number for it. The press is the holding throttle's alone, and is
 accepted at any power and in either driving mode. Nothing else writes a
-function row, and `state/functions` says which of each train's functions are
+function row bar a train let go of having its momentary functions that are on
+written off (#998), and `state/functions` says which of each train's functions are
 on, read back off the rows themselves so a light a decoder still has on shows
 on after a restart.
 """
 
 from tc49.layout import LayoutInterface
+from tc49.layout.interface import THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import MANUAL
@@ -23,10 +25,12 @@ from tests.layout.railroad import (
     heard,
     railroad,
     removed,
+    settle,
     stand,
     stock,
     switches_function,
     takes,
+    wired,
 )
 
 
@@ -148,6 +152,67 @@ def test_a_release_writes_no_function_row() -> None:
     gives(bus, "lit")
 
     assert len(written) == 1
+
+
+HORN_OFF = (f"{WANTED_FUNCTION}/5/3", {"addr": "5", "function": "3", "value": False})
+"""The off row a press of the horn writes."""
+
+
+def test_a_release_writes_a_momentary_function_that_is_on_off() -> None:
+    """Nobody holds the horn's button once the train is let go, so the off
+    its throttle would send is dropped as not the holder's: `layout` writes
+    it, or the real locomotive keeps sounding (#998)."""
+    bus, written = held()
+    switches_function(bus, "lit", "horn", True)
+    gives(bus, "lit")
+
+    assert rows(written)[1:] == [HORN_OFF]
+
+
+def test_a_release_before_another_throttle_takes_writes_the_off_once() -> None:
+    """A panel's release before its take (#971): the off is written at the
+    release, and the take after it writes nothing."""
+    bus, written = held()
+    switches_function(bus, "lit", "horn", True)
+    gives(bus, "lit")
+    takes(bus, "lit", throttle="t-2")
+
+    assert rows(written)[1:] == [HORN_OFF]
+
+
+def test_a_silent_throttle_writes_a_momentary_function_that_is_on_off() -> None:
+    bus, app, clock = wired()
+    takes(bus, "lit")
+    written = heard(bus, WANTED_FUNCTION + "/#")
+    switches_function(bus, "lit", "horn", True)
+    settle(bus, app, clock, after=THROTTLE_SILENCE_S)
+
+    assert rows(written)[1:] == [HORN_OFF]
+
+
+def test_a_release_with_the_momentary_function_off_writes_no_row() -> None:
+    bus, written = held()
+    switches_function(bus, "lit", "horn", True)
+    switches_function(bus, "lit", "horn", False)
+    gives(bus, "lit")
+
+    assert len(written) == 2
+
+
+def test_a_release_with_the_momentary_function_never_pressed_writes_no_row() -> None:
+    bus, written = held()
+    gives(bus, "lit")
+
+    assert written == []
+
+
+def test_a_release_states_the_momentary_function_off() -> None:
+    bus, _written = held()
+    said = heard(bus, FUNCTIONS)
+    switches_function(bus, "lit", "horn", True)
+    gives(bus, "lit")
+
+    assert on(said) == {"lit": {"horn": False}}
 
 
 def test_a_train_taken_off_writes_no_function_row() -> None:
