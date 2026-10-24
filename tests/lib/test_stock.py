@@ -84,12 +84,137 @@ def test_a_model_saying_none_of_the_three_is_still_a_model() -> None:
     assert CATALOGUE["hbis"].description is None
 
 
-def test_the_three_are_words_and_not_coerced() -> None:
-    """`scale: 160` would read as a number where every other catalogue writes
-    a word, and the two would not compare as the same thing — `_addr`'s reason
-    one field along."""
-    with pytest.raises(ValueError, match="scale: must be a non-empty string"):
-        models({**IC2000, "scale": 160})
+def test_the_two_words_are_words_and_not_coerced() -> None:
+    """`manufacturer: 160` would read as a number where every other catalogue
+    writes a word, and the two would not compare as the same thing — `_addr`'s
+    reason one field along."""
+    with pytest.raises(ValueError, match="manufacturer: must be a non-empty string"):
+        models({**IC2000, "manufacturer": 160})
+
+
+AE66 = {
+    "model": "sbb-ae66",
+    "name": "Ae 6/6",
+    "scale": "H0",
+    "kind": "locomotive",
+    "length": 230,
+    "decoder": True,
+    "notes": "Märklin 39364, SBB green.\n",
+    "functions": {
+        "0": {"name": "Headlights"},
+        "2": {"name": "Horn", "mode": "momentary"},
+    },
+}
+
+
+def test_a_model_carries_a_name_a_scale_notes_a_decoder_and_each_mode() -> None:
+    """The fields the stock view edits (#975). The name may hold any
+    character, `/` included: the key is the file's name and the name is not."""
+    model = models(AE66)["sbb-ae66"]
+    assert (model.model, model.name) == ("sbb-ae66", "Ae 6/6")
+    assert model.scale == "H0"
+    assert model.decoder is True
+    assert model.notes == "Märklin 39364, SBB green.\n"
+    assert model.functions["2"] == Function("Horn", "momentary")
+
+
+def test_a_model_without_a_name_is_named_by_its_key() -> None:
+    """So every catalogue file committed before the name existed still reads."""
+    assert CATALOGUE["hbis"].name == "hbis"
+
+
+def test_a_name_is_a_non_empty_string_after_trimming() -> None:
+    with pytest.raises(ValueError, match="name must be a non-empty string"):
+        models({**AE66, "name": "  "})
+    with pytest.raises(ValueError, match="name must be a non-empty string"):
+        models({**AE66, "name": 66})
+
+
+def test_a_scale_is_one_of_the_eight() -> None:
+    for scale in ("Z", "N", "TT", "H0", "S", "0", "1", "G"):
+        assert models({**IC2000, "scale": scale})["sbb-ic2000"].scale == scale
+    with pytest.raises(ValueError, match="scale must be one of"):
+        models({**IC2000, "scale": "HO"})
+
+
+def test_a_scale_written_as_a_number_is_refused_naming_the_quotes() -> None:
+    """YAML reads `scale: 0` as an integer, and it is refused as a function
+    number written as an integer is rather than coerced."""
+    with pytest.raises(TypeError, match='scale must be a string — write scale: "0"'):
+        models({**IC2000, "scale": 0})
+
+
+def test_a_decoder_is_a_boolean() -> None:
+    with pytest.raises(TypeError, match="decoder must be true or false"):
+        models({**AE66, "decoder": "yes"})
+
+
+def test_a_model_without_a_decoder_lists_no_functions() -> None:
+    with pytest.raises(
+        ValueError, match="model 'Hbis-tt' has no decoder and lists functions"
+    ):
+        models(
+            {
+                "model": "Hbis-tt",
+                "kind": "freight",
+                "length": 180,
+                "decoder": False,
+                "functions": {"0": {"name": "lights"}},
+            }
+        )
+    assert models({**HBIS, "decoder": False})["hbis"].decoder is False
+
+
+def test_an_unstated_decoder_reads_as_one_where_functions_are_listed() -> None:
+    """And as none where nothing is: a `bench-<length>` stand-in has nothing
+    to switch."""
+    unstated = {key: value for key, value in AE66.items() if key != "decoder"}
+    assert models(unstated)["sbb-ae66"].decoder is True
+    assert CATALOGUE["hbis"].decoder is False
+
+
+def test_a_function_without_a_mode_is_latching() -> None:
+    assert models(AE66)["sbb-ae66"].functions["0"] == Function("Headlights")
+    assert Function("Headlights").mode == "latching"
+
+
+def test_a_mode_is_latching_or_momentary() -> None:
+    with pytest.raises(ValueError, match="mode must be 'latching' or 'momentary'"):
+        models({**AE66, "functions": {"0": {"name": "Horn", "mode": "hold"}}})
+
+
+def test_notes_are_a_string() -> None:
+    with pytest.raises(TypeError, match="notes must be a string"):
+        models({**AE66, "notes": ["a"]})
+
+
+def test_a_car_keeps_notes_of_its_own_beside_its_models() -> None:
+    """The car's notes are the item's — a chipped buffer — and not an override
+    of the product's: both are kept, and neither replaces the other."""
+    catalogue = models(AE66)
+    owned = validate_roster(
+        {
+            "roster": "reversing-loops",
+            "cars": {
+                "ae66_1": {"model": "sbb-ae66", "notes": "chipped buffer"},
+                "ae66_2": {"model": "sbb-ae66"},
+            },
+            "trains": {},
+        },
+        catalogue,
+    )
+    assert owned.cars["ae66_1"].notes == "chipped buffer"
+    assert owned.cars["ae66_2"].notes is None
+    assert catalogue["sbb-ae66"].notes == "Märklin 39364, SBB green.\n"
+    with pytest.raises(TypeError, match="notes must be a string"):
+        validate_roster(
+            {
+                "roster": "reversing-loops",
+                "cars": {"ae66_1": {"model": "sbb-ae66", "notes": 3}},
+                "trains": {},
+            },
+            catalogue,
+        )
 
 
 def test_a_car_inherits_the_three_and_may_not_override_them() -> None:

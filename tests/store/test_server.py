@@ -466,6 +466,47 @@ def test_a_model_cannot_be_saved_under_another_name(
     assert handle(store, backup, "GET", "/catalogue", None)[1] == {"models": {}}
 
 
+def test_a_model_named_as_another_is_refused(store: AssetStore, backup: Backup) -> None:
+    """The key tells the files apart and the name tells the models apart, so
+    a second `Ae 6/6` is refused and nothing is written (#975). A model with
+    no name is named by its key, and that counts too."""
+    doc = {"model": "sbb-ae66", "name": "Ae 6/6", "kind": "locomotive", "length": 230}
+    assert handle(store, backup, "PUT", "/catalogue/sbb-ae66", doc)[0] == 200
+    status, body = handle(
+        store, backup, "PUT", "/catalogue/sbb-ae66b", {**doc, "model": "sbb-ae66b"}
+    )
+    assert (status, body) == (400, {"error": "there is already a model 'Ae 6/6'"})
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/catalogue/sbb-ae66b",
+        {**doc, "model": "sbb-ae66b", "name": "conrad-e10"},
+    )
+    assert (status, body) == (400, {"error": "there is already a model 'conrad-e10'"})
+    assert (
+        "sbb-ae66b" not in handle(store, backup, "GET", "/catalogue", None)[1]["models"]
+    )
+    # Saving a model again under its own name is not a collision with itself.
+    assert handle(store, backup, "PUT", "/catalogue/sbb-ae66", doc)[0] == 200
+
+
+def test_every_committed_model_still_loads_and_saves_unchanged(
+    store: AssetStore, backup: Backup
+) -> None:
+    """Written before a model had a name, a decoder or a mode, each reads as
+    it did and is accepted back as it is."""
+    models = handle(store, backup, "GET", "/catalogue", None)[1]["models"]
+    assert set(models) == {path.stem for path in (ASSETS / "catalogue").glob("*.yaml")}
+    for key, doc in models.items():
+        assert handle(store, backup, "PUT", f"/catalogue/{key}", doc) == (
+            200,
+            {"saved": key},
+        )
+        assert store.catalogue()[key].name == key
+        assert handle(store, backup, "GET", f"/catalogue/{key}", None) == (200, doc)
+
+
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF" + bytes(range(64))
 """Bytes that open as a JPEG does. Not a picture: the store keeps what it is
 handed and reads none of it (#626)."""

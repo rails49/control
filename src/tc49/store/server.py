@@ -15,7 +15,7 @@ rather than to an app of its own — a `ui` package could not import
                                 functions its cars declare, whether
                                 one carries a camera and its first
                                 locomotive's model
-    GET  /catalogue             every model the installation knows, by name
+    GET  /catalogue             every model the installation knows, by key
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
     GET  /catalogue/<name>/photo that model's photo, as the JPEG it is
