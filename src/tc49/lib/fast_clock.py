@@ -12,6 +12,7 @@ so the binding that runs it decides what a second is — the monotonic clock in
 `layout` — and a test drives it without sleeping.
 """
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -38,6 +39,22 @@ class FastClock:
         """The time of day at the real clock's reading `now`, in whole
         fast-clock seconds since midnight, `0` to `DAY_S - 1`."""
         return int(self.start + (now - self.since) * self.speed_up) % DAY_S
+
+    def changed(
+        self, now: float, time: int | None = None, speed_up: float | None = None
+    ) -> "FastClock":
+        """The clock a person set at the real clock's reading `now`: reading
+        `time` from now, or where it stands if None, and running at
+        `speed_up`, or the one it ran at if None (ADR-0090, decision 2).
+
+        Where it stands keeps the part of a second it had run into, so a
+        speed-up set again and again does not hold the clock back."""
+        rate = self.speed_up if speed_up is None else speed_up
+        if time is not None:
+            return FastClock(time, rate, now)
+        stands = self.start + (now - self.since) * self.speed_up
+        whole = math.floor(stands)
+        return FastClock(whole % DAY_S, rate, now - (stands - whole) / rate)
 
     def row(self, now: float) -> dict[str, int | float]:
         """The payload of `tc49/layout/state/clock` at `now`, less the stamp
