@@ -507,6 +507,144 @@ def test_every_committed_model_still_loads_and_saves_unchanged(
         assert handle(store, backup, "GET", f"/catalogue/{key}", None) == (200, doc)
 
 
+def _deletable(tmp_path: Path) -> AssetStore:
+    """A store with one model `ae66`, named `Ae 6/6`, and nothing else."""
+    store = AssetStore(tmp_path)
+    store.put_model(
+        {"model": "ae66", "name": "Ae 6/6", "kind": "locomotive", "length": 230},
+        "ae66",
+    )
+    return store
+
+
+def test_an_unused_model_is_deleted_with_its_photo(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Both files go, and the backup hears the store moved, as a save does
+    (#976)."""
+    store = _deletable(tmp_path)
+    store.put_photo(JPEG, "ae66")
+    saved: list[bool] = []
+
+    class Saving(Backup):
+        def saved(self) -> None:
+            saved.append(True)
+
+    assert handle(
+        store, Saving(tmp_path, log=lambda _: None), "DELETE", "/catalogue/ae66", None
+    ) == (200, {"deleted": "ae66"})
+    assert not (tmp_path / "catalogue" / "ae66.yaml").exists()
+    assert not (tmp_path / "catalogue" / "ae66.jpg").exists()
+    assert saved == [True]
+    assert handle(store, backup, "GET", "/catalogue/ae66", None)[0] == 404
+
+
+def test_an_unphotographed_model_is_deleted(tmp_path: Path, backup: Backup) -> None:
+    store = _deletable(tmp_path)
+    assert handle(store, backup, "DELETE", "/catalogue/ae66", None) == (
+        200,
+        {"deleted": "ae66"},
+    )
+    assert not (tmp_path / "catalogue" / "ae66.yaml").exists()
+
+
+def test_a_model_a_car_uses_is_refused(tmp_path: Path, backup: Backup) -> None:
+    """Nothing deleted, and the words name the railroad and the car, the
+    model by its name rather than its key (#976)."""
+    store = _deletable(tmp_path)
+    store.put_photo(JPEG, "ae66")
+    store.put_roster(
+        {"roster": "demo", "cars": {"Ae 6/6 11401": {"model": "ae66"}}, "trains": {}},
+        "demo",
+    )
+    store.put_loaded("demo")
+    assert handle(store, backup, "DELETE", "/catalogue/ae66", None) == (
+        400,
+        {"error": "model 'Ae 6/6' is used by railroad 'demo': car 'Ae 6/6 11401'"},
+    )
+    assert (tmp_path / "catalogue" / "ae66.yaml").exists()
+    assert (tmp_path / "catalogue" / "ae66.jpg").exists()
+
+
+def test_a_model_a_train_on_a_railroad_not_loaded_uses_is_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Every roster in the store is read, whichever railroad is loaded, and a
+    train's model entry counts as a car's `model:` does (#976)."""
+    store = _deletable(tmp_path)
+    store.put_roster({"roster": "demo", "cars": {}, "trains": {}}, "demo")
+    store.put_roster(
+        {
+            "roster": "station-2",
+            "cars": {},
+            "trains": {"IC 721": {"cars": [{"model": "ae66"}, {"model": "ae66"}]}},
+        },
+        "station-2",
+    )
+    store.put_loaded("demo")
+    assert handle(store, backup, "DELETE", "/catalogue/ae66", None) == (
+        400,
+        {"error": "model 'Ae 6/6' is used by railroad 'station-2': train 'IC 721'"},
+    )
+    assert (tmp_path / "catalogue" / "ae66.yaml").exists()
+
+
+def test_every_place_a_model_is_used_is_named(tmp_path: Path, backup: Backup) -> None:
+    """A model with no `name` is named by its key, and every railroad and
+    place using it is listed, so a person knows all there is to change."""
+    store = AssetStore(tmp_path)
+    store.put_model({"model": "re460", "kind": "locomotive", "length": 220}, "re460")
+    store.put_roster(
+        {
+            "roster": "demo",
+            "cars": {"Re 460 001": {"model": "re460"}},
+            "trains": {"IR 2": {"cars": [{"car": "Re 460 001"}, {"model": "re460"}]}},
+        },
+        "demo",
+    )
+    store.put_roster(
+        {
+            "roster": "station-2",
+            "cars": {},
+            "trains": {"IC 721": {"cars": [{"model": "re460"}]}},
+        },
+        "station-2",
+    )
+    assert handle(store, backup, "DELETE", "/catalogue/re460", None) == (
+        400,
+        {
+            "error": "model 're460' is used by railroad 'demo': car 'Re 460 001',"
+            " train 'IR 2'; railroad 'station-2': train 'IC 721'"
+        },
+    )
+
+
+def test_a_roster_is_read_as_written_for_what_it_uses(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A roster that would not validate — hand-edited, half-made — still
+    holds a model by name, and is not where a deletion slips through."""
+    store = _deletable(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "demo.roster.yaml").write_text(
+        "roster: demo\ncars:\n  x: {model: ae66, kind: spaceship}\n"
+        "trains:\n  odd: {cars: []}\n  odder: 7\n"
+    )
+    assert handle(store, backup, "DELETE", "/catalogue/ae66", None) == (
+        400,
+        {"error": "model 'Ae 6/6' is used by railroad 'demo': car 'x'"},
+    )
+
+
+def test_deleting_a_model_that_is_not_there_is_not_found(
+    store: AssetStore, backup: Backup
+) -> None:
+    assert handle(store, backup, "DELETE", "/catalogue/atlantis", None) == (
+        404,
+        {"error": "no model 'atlantis'"},
+    )
+
+
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF" + bytes(range(64))
 """Bytes that open as a JPEG does. Not a picture: the store keeps what it is
 handed and reads none of it (#626)."""
@@ -1389,6 +1527,12 @@ def test_the_routes_are_reachable_over_http(tmp_path: Path) -> None:
         with pytest.raises(HTTPError) as missing:
             urlopen(f"{url}/drawings/atlantis")
         assert missing.value.code == 404
+
+        # DELETE is a verb this face reads, and answers as the route says.
+        with pytest.raises(HTTPError) as unmodelled:
+            urlopen(Request(f"{url}/catalogue/atlantis", method="DELETE"))
+        assert unmodelled.value.code == 404
+        assert json.load(unmodelled.value) == {"error": "no model 'atlantis'"}
 
         # A body the handler cannot measure is answered, not dropped.
         unmeasured = Request(

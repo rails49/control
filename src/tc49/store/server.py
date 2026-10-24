@@ -337,6 +337,8 @@ def _route(
                 return 404, {"error": f"no model '{model}'"}
         if method == "PUT":
             return _put_model(store, backup, model, body)
+        if method == "DELETE":
+            return _delete_model(store, backup, model)
 
     rest = route.removeprefix("/rosters/")
     if rest != route:
@@ -658,6 +660,23 @@ def _put_model(store: AssetStore, backup: Backup, name: str, body: Any) -> Respo
     return 200, {"saved": name}
 
 
+def _delete_model(store: AssetStore, backup: Backup, name: str) -> Response:
+    """One model deleted with its photo, where no roster in the store uses it.
+
+    A model a car or a train still names is the store's refusal, a 400 naming
+    every railroad and place that does (`AssetStore.delete_model`), and
+    nothing is deleted (#976).
+    """
+    try:
+        store.delete_model(name)
+    except FileNotFoundError:
+        return 404, {"error": f"no model '{name}'"}
+    # As a model's save does: a model gone is a document of the store that
+    # has moved.
+    backup.saved()
+    return 200, {"deleted": name}
+
+
 def _photo(store: AssetStore, name: str) -> Response:
     """One model's photo, as the bytes it is.
 
@@ -726,6 +745,9 @@ def make_server(
 
         def do_POST(self) -> None:
             self._answer("POST", self._body())
+
+        def do_DELETE(self) -> None:
+            self._answer("DELETE", None)
 
         def do_OPTIONS(self) -> None:
             """A preflight only ever comes from a page on another origin, and

@@ -153,6 +153,26 @@ def _check_values(value: Any, path: Path, field: str = "") -> None:
     )
 
 
+def _field(held: Any, key: str) -> Any:
+    """What a document as written holds under `key`, and `None` where it is
+    not the mapping that would hold it — the read a roster gets when it is
+    asked what it uses rather than validated."""
+    return cast(dict[str, Any], held).get(key) if isinstance(held, dict) else None
+
+
+def _items(section: Any) -> list[tuple[Any, Any]]:
+    """A roster section's entries as written, and none where it is not the
+    mapping a roster's `cars` and `trains` are."""
+    return (
+        list(cast(dict[Any, Any], section).items()) if isinstance(section, dict) else []
+    )
+
+
+def _entries(listed: Any) -> list[Any]:
+    """A train's `cars` as written, and none where it is not a list."""
+    return cast(list[Any], listed) if isinstance(listed, list) else []
+
+
 class AssetStore:
     def __init__(self, root: Path) -> None:
         self._root = root
@@ -372,6 +392,53 @@ class AssetStore:
         path = self._model_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
         yamlfile.save(path, doc)
+
+    def delete_model(self, name: str) -> None:
+        """Delete one model and its photo, where no roster uses it (#976).
+
+        Every roster in the store is asked, whichever railroad is loaded: a
+        railroad not running today is still one somebody will load, and a car
+        naming a model that is gone is a roster that no longer reads. Each is
+        read as written rather than validated, so a half-made roster is not
+        where a deletion slips through. Refused with every place that names
+        the model, so a person knows what to change; a missing model raises
+        `FileNotFoundError`.
+        """
+        path = self._model_path(name)
+        doc = self._read(path)
+        users = [
+            f"railroad '{railroad}': {', '.join(places)}"
+            for railroad, places in self._uses(name).items()
+        ]
+        if users:
+            shown = _field(doc, "name") or name
+            raise ValueError(f"model '{shown}' is used by {'; '.join(users)}")
+        path.unlink()
+        self._photo_path(name).unlink(missing_ok=True)
+
+    def _uses(self, model: str) -> dict[str, list[str]]:
+        """Where each roster names `model`, by railroad: a car whose `model:`
+        is it, or a train with an entry whose `model:` is it. Read as written,
+        so whatever shape a hand-edited roster is in, what names the model
+        is found."""
+        uses: dict[str, list[str]] = {}
+        for path in sorted((self._root / "layouts").glob("*.roster.yaml")):
+            doc = self._read(path)
+            places = [
+                f"car '{car}'"
+                for car, spec in _items(_field(doc, "cars"))
+                if _field(spec, "model") == model
+            ] + [
+                f"train '{train}'"
+                for train, spec in _items(_field(doc, "trains"))
+                if any(
+                    _field(entry, "model") == model
+                    for entry in _entries(_field(spec, "cars"))
+                )
+            ]
+            if places:
+                uses[path.name.removesuffix(".roster.yaml")] = places
+        return uses
 
     def photo(self, name: str) -> bytes:
         """One model's photo, as the bytes it was given.
