@@ -19,7 +19,7 @@
  * there is no cold start to seed and nothing two tabs can disagree about.
  */
 
-import type { Reason } from "../rejection.generated.js";
+import type { PlacementRefusal, Reason } from "../rejection.generated.js";
 import type { Aspect, Reading } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
@@ -114,6 +114,9 @@ export interface RosterRow extends Placed {
    *  nothing the page has read names it. */
   locomotive: string | null;
   placed: boolean;
+  /** Why the dispatcher last refused to place it, in words, said in place of
+   *  where it is until it is placed, removed or picked up again (#1011). */
+  refused?: string;
 }
 
 /**
@@ -131,16 +134,21 @@ export interface RosterRow extends Placed {
 export function roster(
   stock: Record<string, { length: number; locomotive?: string | null }>,
   placed: readonly Placed[],
+  refused: ReadonlyMap<string, string> = new Map(),
 ): RosterRow[] {
   const where = new Map(placed.map((train) => [train.train, train.block]));
   const names = new Set([...Object.keys(stock), ...where.keys()]);
-  return [...names].sort().map((train) => ({
-    train,
-    length: stock[train]?.length ?? null,
-    locomotive: stock[train]?.locomotive ?? null,
-    block: where.get(train) ?? null,
-    placed: where.has(train),
-  }));
+  return [...names].sort().map((train) => {
+    const said = refused.get(train);
+    return {
+      train,
+      length: stock[train]?.length ?? null,
+      locomotive: stock[train]?.locomotive ?? null,
+      block: where.get(train) ?? null,
+      placed: where.has(train),
+      ...(said === undefined ? {} : { refused: said }),
+    };
+  });
 }
 
 export interface BlockView {
@@ -255,6 +263,25 @@ function mapping(value: unknown): value is Record<string, unknown> {
 function spell(table: Partial<Record<Reason, string>>, reason: string): string {
   const wordings: Record<string, string | undefined> = table;
   return wordings[reason] ?? reason;
+}
+
+/** A refused placement in words, by its reason, as the roster pane says it
+ *  under the train's row (#1011). Keyed by the generated set, so a reason
+ *  minted in Python and left unworded here is a compile error. `block` is the
+ *  block the gesture named, `null` for a removal, which only `unknown_train`
+ *  answers. */
+const REFUSED: Record<PlacementRefusal, (block: string | null) => string> = {
+  unknown_train: () => "not on the roster",
+  unknown_block: (block) => `${block} is not on the drawing`,
+  not_free: (block) => `${block} is not free`,
+  no_fit: (block) => `too long for ${block}`,
+};
+
+/** A refusal's reason and block in words, or the raw token where the
+ *  dispatcher answering is newer than the page reading it. */
+export function refusal(reason: string, block: string | null): string {
+  const wordings: Record<string, ((block: string | null) => string) | undefined> = REFUSED;
+  return wordings[reason]?.(block) ?? reason;
 }
 
 /** A train the last rebuild under the same name took off the layout: the
@@ -374,6 +401,11 @@ export class Panel {
    *  A name the map does not give for a train is off. */
   private switched = new Map<string, ReadonlyMap<string, boolean>>();
   private requests = new Map<string, Request>();
+  /** train → its last refused placement in words, as `placement_refused`
+   *  said, until `train_placed` or `train_removed` answers for it or its row
+   *  is picked up again (#1011). An event and in no picture, so a page that
+   *  joined after it has none. */
+  private refusals = new Map<string, string>();
   /** Whether the opening picture has arrived: a lock on a block before it is
    *  the run's opening placement, there being no occupancy event for a
    *  train that never moved. The dispatcher publishes `allocation` right
@@ -429,6 +461,7 @@ export class Panel {
     this.holders.clear();
     this.switched.clear();
     this.requests.clear();
+    this.refusals.clear();
     this.started = false;
     this.ordering.reset();
   }
@@ -721,6 +754,24 @@ export class Panel {
         );
         return;
       }
+      case "placement_refused": {
+        // A placement the dispatcher did not accept, and why (ADR-0091). It
+        // names what the gesture named, so the train is the whole key.
+        const { train, block, reason } = event as unknown as {
+          train?: unknown;
+          block?: unknown;
+          reason?: unknown;
+        };
+        if (typeof train !== "string" || typeof reason !== "string") return;
+        this.refusals.set(train, refusal(reason, typeof block === "string" ? block : null));
+        return;
+      }
+      case "train_placed":
+      case "train_removed": {
+        const { train } = event as unknown as { train?: unknown };
+        if (typeof train === "string") this.refusals.delete(train);
+        return;
+      }
       case "request_submitted": {
         const { id, train, depart, dest, after } = event as unknown as Submission;
         for (const [old, request] of this.requests) {
@@ -826,6 +877,18 @@ export class Panel {
    *  placed. */
   unfit(): Unfit[] {
     return [...this.unfitRows];
+  }
+
+  /** Each train's last refused placement in words (#1011), for the roster
+   *  pane to say under its row. */
+  refused(): ReadonlyMap<string, string> {
+    return new Map(this.refusals);
+  }
+
+  /** A train's row picked up again: what was said about its last placement
+   *  goes, the person trying again (#1011). */
+  picked(train: string): void {
+    this.refusals.delete(train);
   }
 
   /** Every block of the layout, at the strongest state that holds for it:

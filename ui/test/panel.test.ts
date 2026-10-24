@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { Panel, roster } from "../src/model/panel.js";
+import { Panel, refusal, roster } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import type { Position } from "../src/symbols.generated.js";
@@ -1246,6 +1246,66 @@ describe("the roster's rows", () => {
   it("keeps a placed train the roster does not name", () => {
     expect(roster({}, [{ train: "ghost", block: null }])).toEqual([
       { train: "ghost", block: null, length: null, placed: true, locomotive: null },
+    ]);
+  });
+});
+
+describe("a refused placement", () => {
+  /** The pane's wording, one line per reason in the generated set (#1011). */
+  it("words each reason, naming the block the gesture named", () => {
+    expect(refusal("unknown_train", null)).toBe("not on the roster");
+    expect(refusal("unknown_block", "q")).toBe("q is not on the drawing");
+    expect(refusal("not_free", "b")).toBe("b is not free");
+    expect(refusal("no_fit", "b")).toBe("too long for b");
+  });
+
+  /** A dispatcher newer than the page: said as it came. */
+  it("says a reason it has no words for as it came", () => {
+    expect(refusal("haunted", "b")).toBe("haunted");
+  });
+
+  it("keeps the last refusal for each train", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "placement_refused", train: "t1", block: "b", reason: "no_fit" },
+      { event: "placement_refused", train: "t1", block: "a", reason: "not_free" },
+      { event: "placement_refused", train: "t2", block: null, reason: "unknown_train" },
+    );
+    expect(model.refused()).toEqual(
+      new Map([
+        ["t1", "a is not free"],
+        ["t2", "not on the roster"],
+      ]),
+    );
+  });
+
+  it("forgets it once the train is placed, removed or picked up", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "placement_refused", train: "t1", block: "b", reason: "no_fit" },
+      { event: "placement_refused", train: "t2", block: "b", reason: "no_fit" },
+      { event: "placement_refused", train: "t3", block: "b", reason: "no_fit" },
+      { event: "train_placed", train: "t1", block: "a" },
+      { event: "train_removed", train: "t2" },
+    );
+    model.picked("t3");
+    expect(model.refused()).toEqual(new Map());
+  });
+
+  it("puts it on the train's roster row", () => {
+    expect(
+      roster({ goods: { length: 400 } }, [], new Map([["goods", "b is not free"]])),
+    ).toEqual([
+      {
+        train: "goods",
+        block: null,
+        length: 400,
+        placed: false,
+        locomotive: null,
+        refused: "b is not free",
+      },
     ]);
   });
 });
