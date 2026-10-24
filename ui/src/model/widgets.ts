@@ -20,7 +20,7 @@ import { isWidgetName } from "./rules.js";
 import type { Box } from "./scene.js";
 
 /** The kinds, in the order the palette offers them. */
-export const WIDGET_KINDS: readonly WidgetKind[] = ["text", "button", "toggle"];
+export const WIDGET_KINDS: readonly WidgetKind[] = ["button", "toggle", "text"];
 
 /** The sizes a widget's words come in, and how they sit
  *  (`tc49.store.drawing.WIDGET_TEXT`, `WIDGET_ALIGN`). */

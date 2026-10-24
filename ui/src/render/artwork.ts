@@ -536,23 +536,17 @@ export function widgetSample(
  * new placeable kind has to be given a home here rather than appearing
  * wherever the alphabet puts it.
  *
- * The block stands alone, being the only symbol that is a place rather than a
- * way through one. Then the six symbols track crosses or divides at, laid two
- * to a row so the pairs — the two slips, the two 90 degree crossings — sit
- * side by side. Then the two ends of a drawing: where track stops and where it
- * leaves the sheet.
+ * A group is a list of rows, two tiles to a row at most. The block stands
+ * alone, being the only symbol that is a place rather than a way through one.
+ * Then the points, the turnout on a row of its own so the two slips sit side
+ * by side; the crossings, the two 90 degree ones side by side; and the two
+ * ends of a drawing: where track stops and where it leaves the sheet.
  */
-export const PALETTE: readonly (readonly Kind[])[] = [
-  ["block"],
-  [
-    "turnout",
-    "crossing",
-    "single_slip",
-    "double_slip",
-    "crossing_90",
-    "crossing_90d",
-  ],
-  ["terminal", "portal"],
+export const PALETTE: readonly (readonly (readonly Kind[])[])[] = [
+  [["block"]],
+  [["turnout"], ["single_slip", "double_slip"]],
+  [["crossing_90", "crossing_90d"], ["crossing"]],
+  [["terminal", "portal"]],
 ];
 
 /** What a palette tile shows: the symbol at its default placement. */
