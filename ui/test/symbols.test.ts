@@ -66,11 +66,11 @@ describe("the generated symbol library", () => {
     // The palette is drawn in EDITOR.md's groups, which are not the
     // generator's order, so a new placeable kind would otherwise be silently
     // left off.
-    expect(PALETTE.flat().sort()).toEqual([...PLACEABLE].sort());
+    expect(PALETTE.flat(2).sort()).toEqual([...PLACEABLE].sort());
   });
 
   it("puts each kind in exactly one group", () => {
-    const placed = PALETTE.flat();
+    const placed = PALETTE.flat(2);
     expect(new Set(placed).size).toBe(placed.length);
   });
 

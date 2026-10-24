@@ -473,16 +473,25 @@ rather than an error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
 and the title attribute has the word for anyone who wants it.
 
-The tiles are laid out in four groups, the first three in the order of the table below: the
-block by itself; the six symbols track crosses or divides at, two to a row so
-that the pairs — the two slips, the two 90 degree crossings — sit side by
-side; and the two ends of a drawing, where track stops and where it leaves the
-sheet. The fourth is the widgets ([below](#widgets)). Space between the
-groups is the only thing telling them apart. A
-heading would be the only word in the palette, naming a category the symbols
-already show. The block takes a whole row rather than half of one: its 6x1
-tile is as wide as the pane allows, and halving it would draw it smaller than
-every other symbol when the tiles are all at one grid square.
+The tiles are laid out in five groups, the first four in the order of the
+table below, two tiles to a row:
+
+- **Block**, by itself.
+- **Points**: the turnout on a row of its own, then the single and the double
+  slip side by side.
+- **Crossings**: the two 90 degree crossings side by side, then the crossing.
+- **Ends**, the two ends of a drawing: the terminal, where track stops, and the
+  portal, where it leaves the sheet.
+- **Widgets** ([below](#widgets)).
+
+A third tile sits in the left column, so every group shares the same two
+columns. Each group is a box of its own, drawn as the throttle panel draws a
+function button: the `--body` ground, a `--rule` border and round corners. The
+boxes have no headings. A heading would be the only word in the palette,
+naming a category the symbols already show. The block takes a whole row rather
+than half of one: its 6x1 tile is as wide as the pane allows, and halving it
+would draw it smaller than every other symbol when the tiles are all at one
+grid square.
 
 The placeable symbols, with their semantics defined in
 [DRAWING.md](../store/DRAWING.md#symbols). The images are the tiles themselves,
@@ -493,11 +502,11 @@ dimensions below are normative.
 | --- | --- | --- |
 | Block | ![block](images/symbol-block.svg) | shows occupancy on the panel; carries a signal and a sensor at each end |
 | Turnout | ![turnout](images/symbol-turnout.svg) | |
-| Crossing | ![crossing](images/symbol-crossing.svg) | |
 | Single slip | ![single slip](images/symbol-single_slip.svg) | |
 | Double slip | ![double slip](images/symbol-double_slip.svg) | |
 | 90° crossing | ![90 degree crossing](images/symbol-crossing_90.svg) | upright, two straight routes |
 | 90° crossing, diagonal | ![90 degree crossing, diagonal](images/symbol-crossing_90d.svg) | the same at 45 degrees |
+| Crossing | ![crossing](images/symbol-crossing.svg) | |
 | Terminal | ![terminal](images/symbol-terminal.svg) | deliberate track end |
 | Portal | ![portal](images/symbol-portal.svg) | paired by label; placed as a pair |
 
@@ -506,12 +515,12 @@ ends, so there is nothing to place.
 
 ### Widgets
 
-The fourth group is the widgets: a text, a button and a toggle
+The fifth group is the widgets: a button, a toggle and a text
 ([ADR-0087](../adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)).
 A widget is not a symbol. It sits in the drawing's own `widgets` mapping
 ([DRAWING.md](../store/DRAWING.md#widgets)), has no pins, and nothing derives
-from it. Each tile shows the face a new one has: the word `text`, a button and
-a toggle.
+from it. Each tile shows the face a new one has: a button, a toggle and the
+word `text`.
 
 A widget is dragged out, selected, moved, rubber-banded, deleted and undone
 the way a symbol is. It does not turn: `r` and `f` leave one in flight as it

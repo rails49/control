@@ -13,10 +13,10 @@
  * exactly what a drop will place — which is why the tiles carry no names, only
  * the word in their title for anyone who wants it.
  *
- * The fourth group is the widgets: a text, a button and a toggle (ADR-0087).
+ * The fifth group is the widgets: a button, a toggle and a text (ADR-0087).
  * They are dragged out the same way, and the editor names them as it places
- * them. A tile shows the face a new one has (#939): the word `text`, a button
- * and a toggle.
+ * them. A tile shows the face a new one has (#939): a button, a toggle and
+ * the word `text`.
  */
 
 import { LitElement, html } from "lit";
@@ -63,26 +63,30 @@ export class TcPalette extends LitElement {
         ${WIDGET_KINDS.map((kind) => this.widgetTile(kind))}
       </div>
       <p class="hint">drag a symbol onto the sheet</p>
-      <p class="hint">
-        <kbd>r</kbd> rotate · <kbd>f</kbd> flip · <kbd>esc</kbd> cancel
+      <p class="hint keys">
+        <span><kbd>r</kbd> rotate</span>
+        <span><kbd>f</kbd> flip</span>
+        <span><kbd>esc</kbd> cancel</span>
       </p>
     `;
   }
 
   /**
-   * One group of the palette, laid two tiles to a row. A group of one takes
-   * the whole width, which is what a block's 6x1 tile wants: at half the pane
-   * it would be drawn smaller than every other symbol, and the tiles are all
-   * at one grid square (EDITOR.md).
+   * One group of the palette, a box of its own laid two tiles to a row. A
+   * group of one takes the whole width, which is what a block's 6x1 tile
+   * wants: at half the pane it would be drawn smaller than every other symbol,
+   * and the tiles are all at one grid square (EDITOR.md). A row's first tile
+   * starts a new row, so a row of one leaves the right column empty.
    *
-   * The groups are told apart by the space between them and nothing else. The
-   * tiles carry no names, so a heading here would be the only word in the
-   * palette and would name a category the symbols already show.
+   * The boxes carry no headings. The tiles carry no names, so a heading here
+   * would be the only word in the palette and would name a category the
+   * symbols already show.
    */
-  private group(kinds: readonly Kind[]) {
+  private group(rows: readonly (readonly Kind[])[]) {
+    const wide = rows.length === 1 && rows[0]!.length === 1;
     return html`
-      <div class=${kinds.length === 1 ? "group wide" : "group"}>
-        ${kinds.map((kind) => this.tile(kind))}
+      <div class=${wide ? "group wide" : "group"}>
+        ${rows.map((row) => row.map((kind, i) => this.tile(kind, i === 0)))}
       </div>
     `;
   }
@@ -92,11 +96,12 @@ export class TcPalette extends LitElement {
    * the gesture that places is the pointer press: a drag has to begin before
    * the button would have decided it was a click.
    */
-  private tile(kind: Kind) {
+  private tile(kind: Kind, first: boolean) {
     const { w, h } = FOOTPRINTS[kind];
     const spec = TILE[kind];
     return html`
       <button
+        class=${first ? "first" : ""}
         @pointerdown=${(event: PointerEvent) => this.take(kind, event)}
         title=${TITLES[kind]}
         aria-label=${TITLES[kind]}
