@@ -22,7 +22,7 @@ process to come up. What is retried is the store not answering at all —
 nothing listening, a connection refused or dropped, a reply that is not JSON —
 and the 5xx it sends when it cannot answer a request it should have.
 
-Standard library only: this is what an app is built on, and it fetches three
+Standard library only: this is what an app is built on, and it fetches four
 documents per build and nothing between (SYSTEM.md, "read once per build").
 The writes are the layout binding's: its record of which railroad it loaded
 (`put_loaded`, ADR-0072 decision 5), and the railroad's clock when a person

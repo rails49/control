@@ -309,7 +309,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
 | `tc49/layout/driving_wanted` | event | any (browser) | switch the railroad's driving mode ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/state/driving` | state | layout | manual or automatic: who drives the trains ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
-| `tc49/layout/state/clock` | state | layout | the fast clock: the railroad's time of day and its speed-up ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)) |
+| `tc49/layout/state/clock` | state | layout, simulator | the fast clock: the railroad's time of day and its speed-up ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)) |
 | `tc49/layout/clock_wanted` | event | any (browser) | set the fast clock: a time of day, a speed-up, or both ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)) |
 | `tc49/layout/take_wanted` | event | any (browser) | a throttle takes a train, or the train is released ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/throttle_alive` | event | any (browser) | a throttle holding a train is still there ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
@@ -656,17 +656,17 @@ what a drop would cost:
   per real second. `layout` publishes it once a real second, by the monotonic
   clock and at the beat of `alive_confirmed`, while a railroad is loaded, and
   none while it stands, and at once after it takes a `clock_wanted`. The
-  simulator, in its place, publishes it once a second of its run clock: a
-  real second live, a simulated one in a batch run, so a replay stays
-  byte-identical. Loading
-  a railroad clears it with the other `layout` rows
+  simulator, in its place, publishes it when it is given a fast clock, read
+  off its run clock once a second of that run clock: a real second live. A
+  batch run (`bench`) gives it none, so no benchmark run publishes a clock and
+  a replay stays byte-identical. Loading a railroad clears it with the other `layout` rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
   and starts the clock again at the start time and speed-up the railroad
   keeps in the store, `layouts/<layout>.clock.yaml`
   ([LAYOUT.md](store/LAYOUT.md)), or at the box's wall time of day at a
-  speed-up of 1 where it keeps none. It wraps at midnight, has no date, and runs whatever track power and the
-  run are doing. The page reads it; no app does, and nothing in the control
-  path may
+  speed-up of 1 where it keeps none. It wraps at midnight, has no date, and
+  runs whatever track power and the run are doing. The page reads it; no app
+  does, and nothing in the control path may
   ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md),
   [ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 - `tc49/layout/clock_wanted` — browser-writable — at least one of `time`:
@@ -674,10 +674,10 @@ what a drop would cost:
   once; and `speed_up`: number greater than 0, which the clock runs at from
   now. A field left out leaves that part of the clock as it is. A payload with
   neither, or with a value out of range, is dropped whole, as any malformed
-  gesture is. Taken whatever track power and the run are doing. `layout`,
-  or the simulator in its place, answers it, publishes `state/clock` at once and keeps the setting with the
-  railroad: a new `time` as its start, rounded down to the minute, and the
-  speed-up the clock now runs at
+  gesture is. Taken whatever track power and the run are doing. `layout`, or
+  the simulator in its place, answers it, publishes `state/clock` at once and
+  keeps the setting with the railroad: a new `time` as its start, rounded down
+  to the minute, and the speed-up the clock now runs at
   ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 - `tc49/layout/take_wanted` — browser-writable — `train`; `throttle`: a
   non-empty string, the id the throttle's page minted when it opened, or
@@ -946,13 +946,16 @@ that comparison alone.
 
 **`layout` publishes the fast clock** on `tc49/layout/state/clock`, once a
 real second while a railroad is loaded: the railroad's time of day and its
-speed-up. The simulator publishes the same row off its run clock. A person sets it from any page with `tc49/layout/clock_wanted`, and
-every page is told at once. The railroad keeps the start time and speed-up
-it is loaded at, saved when a person sets them and never as the clock runs. Every page draws the time it is sent and reads
-no wall clock of its own, so two tablets whose clocks disagree still show one time
-([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)). Nothing in the control path reads it — it feeds scheduling
-and scenery, never dispatch and never safety, so a train that is late is late
-and nothing follows from it
+speed-up. The simulator, when it is given one, publishes the same row off its
+run clock; a batch run gives it none. A person sets it from any page with
+`tc49/layout/clock_wanted`, and every page is told at once. The railroad keeps
+the start time and speed-up it is loaded at, saved when a person sets them and
+never as the clock runs. Every page draws the time it is sent and reads no wall
+clock of its own, so two tablets whose clocks disagree still show one time
+([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
+Nothing in the control path reads it — it feeds scheduling and scenery, never
+dispatch and never safety, so a train that is late is late and nothing follows
+from it
 ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md)).
 
 ## Device vocabulary
