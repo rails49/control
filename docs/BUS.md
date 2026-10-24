@@ -707,8 +707,12 @@ what a drop would cost:
   order where it has two — with `value` set to `on`. A train the roster does
   not name, or a name no addressed car of the train declares, is dropped with
   a log line. Accepted at any power and in either driving mode. Nothing else
-  writes a function row: a release, a silent throttle, `train_removed`, a cut
-  and a restart leave them as they are
+  writes a function row, with one exception: when `layout` lets go of a train
+  (a release, `take_wanted` with `throttle: null`, a silent throttle), each of
+  the train's **momentary** functions that `state/functions` says is on is
+  written off, on the row a press of its name writes
+  ([#998](https://github.com/rails49/control/issues/998)). Latching functions,
+  `train_removed`, a cut and a restart leave the rows as they are
   ([#849](https://github.com/rails49/control/issues/849)).
 - `tc49/layout/state/functions` — `functions`: map of train to a map of
   function name to boolean, the `value` of the `wanted/function` row a press
@@ -963,7 +967,9 @@ and again on the arrival, its sign composed from the train's facing and the
 way round each car is coupled
 ([#296](https://github.com/rails49/control/issues/296)), and
 `wanted/function` on each `function_wanted` it applies
-([#849](https://github.com/rails49/control/issues/849)). `wanted/function`'s
+([#849](https://github.com/rails49/control/issues/849)) and off for each
+momentary function on when it lets go of a train
+([#998](https://github.com/rails49/control/issues/998)). `wanted/function`'s
 `value` is a **boolean** and not a word out of a catalogue:
 a function is one bit on the wire wherever it was checked, and setting a
 volume or a brightness is decoder configuration, a different capability that
