@@ -99,6 +99,12 @@ export const rosterStyles = css`
     color: var(--hint);
   }
 
+  /* Why the last placement was refused, in place of where the train is: red,
+     as a rejected request's reason is on the drawing. */
+  .where.refused {
+    color: var(--red);
+  }
+
   .hint {
     margin: 0.8rem 0.2rem 0;
     font-size: 0.7rem;

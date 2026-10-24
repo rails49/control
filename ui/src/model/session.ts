@@ -775,6 +775,21 @@ export class Session {
     return this.panel?.placed() ?? [];
   }
 
+  /** Each train's last refused placement in words (model/panel.ts, #1011):
+   *  nothing with no session joined, as `standing` has nothing. */
+  get refused(): ReadonlyMap<string, string> {
+    if (this.session === null) return new Map();
+    return this.panel?.refused() ?? new Map();
+  }
+
+  /** A train's roster row picked up again: its refusal goes, the person
+   *  trying again, and the views are told (#1011). */
+  picked(train: string): void {
+    if (this.panel === null || !this.panel.refused().has(train)) return;
+    this.panel.picked(train);
+    this.changed();
+  }
+
   /** The session goes: the broker has stopped answering, or it has named
    *  another railroad. What the model holds is kept — a page getting back in
    *  must not flash — and everything the last session put on screen of its own

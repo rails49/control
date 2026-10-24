@@ -269,6 +269,12 @@ export class TcPanel extends LitElement {
    * row let go over the pane would then place its train in a block nobody can
    * see.
    */
+  /** A row picked up: the train's last refusal goes, the person trying
+   *  again (#1011). */
+  private picked(event: CustomEvent<{ train: string }>): void {
+    this.session?.picked(event.detail.train);
+  }
+
   private dropped(event: CustomEvent<RosterDrag>): void {
     const { train, x, y } = event.detail;
     const painted = this.painted;
@@ -388,6 +394,7 @@ export class TcPanel extends LitElement {
         <tc-roster
           .trains=${this.roster}
           .live=${this.inSession && !grey}
+          @roster-picked=${this.picked}
           @roster-dropped=${this.dropped}
         ></tc-roster>
         <tc-requests
@@ -436,7 +443,9 @@ export class TcPanel extends LitElement {
    *  (ADR-0010) — and the pane is handed the answer rather than either. */
   private get roster(): RosterRow[] {
     const session = this.session;
-    return session === null ? [] : roster(session.owned, session.standing);
+    return session === null
+      ? []
+      : roster(session.owned, session.standing, session.refused);
   }
 
   override updated(): void {
