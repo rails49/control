@@ -18,6 +18,7 @@ rather than to an app of its own — a `ui` package could not import
     GET  /catalogue             every model the installation knows, by key
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
+    DELETE /catalogue/<name>    delete it and its photo, if no roster uses it
     GET  /catalogue/<name>/photo that model's photo, as the JPEG it is
     PUT  /catalogue/<name>/photo save it, replacing any before it
     GET  /scripts/<railroad>    the translator script that railroad carries
@@ -87,8 +88,11 @@ independently editable and a backup's `git diff` readable.
 `PUT /catalogue/<name>` is the first write on this face that is not a
 drawing's, and it is the one a fresh box needs: with no `catalogue/` directory
 every car names a model the installation has not got, so no roster can be
-written at all (#392). There is **no `DELETE`** — this face has no DELETE verb
-for any document, and an unused model costs nothing.
+written at all (#392). `DELETE /catalogue/<name>` is the one DELETE on this
+face, and it removes the model's photo with it. **A model a roster uses is
+refused** — every `layouts/*.roster.yaml`, whichever railroad is loaded, read
+as written for a car or a train entry naming it — with a 400 naming each
+railroad and place, so a person knows what to change (#976).
 
 A model's **photo** hangs below its document, the way a roster's trains do, and
 it is the one thing here that is not a document: the JPEG itself, kept as
@@ -104,7 +108,7 @@ field holds is a value no document can hold (#641). The document says nothing ab
 that has none is a 404 and `GET /catalogue` does not say which models have
 one. Refused with a 400 where the bytes do not open as a JPEG or where the
 installation has no such model, both of them the client's mistake
-rather than a missing page. No `DELETE`, as for every document, and the origin
+rather than a missing page. No `DELETE` of a photo alone, and the origin
 rule is the same one: a page on another origin writes no picture either
 (#626).
 
@@ -115,7 +119,7 @@ store keeps it and reads none of it — it does not parse, compile or run the
 text, and the only thing it refuses is the shape of the document, so a script
 that will not compile is still one somebody can save and come back to. No
 `ETag` and no `304`: a translator holding a script compares the text itself.
-No `DELETE`, as for every document here.
+No `DELETE`, as for every document here but a model.
 
 **Both callers are apps rather than pages** — the translator that loads the
 script, and the face that edits it — each `rails49/dccex`'s and reaching this

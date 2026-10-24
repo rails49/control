@@ -133,6 +133,7 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /catalogue             the models the installation knows, by key
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
+    DELETE /catalogue/<name>    delete it and its photo, if no roster uses it
     GET  /catalogue/<name>/photo that model's photo, as the JPEG it is
     PUT  /catalogue/<name>/photo create or replace it
     GET  /scripts/<railroad>    the translator script that railroad carries
@@ -322,7 +323,7 @@ LAN is still the trust boundary and a browser is not on it
   two prefixes are on no proxy in front of a page, no browser reaches one, and
   the origin rule below is untouched
   ([ADR-0055](adr/0055-a-browser-is-not-on-the-lan-and-the-store-refuses-it.md)).
-  There is no `DELETE`, as for every document, and no `ETag`: a translator
+  There is no `DELETE`, as for every document but a model, and no `ETag`: a translator
   holding a script compares the text itself
   ([#586](https://github.com/rails49/control/issues/586)).
 - **The catalogue is the installation's, and it is writable over HTTP** — the
@@ -336,9 +337,14 @@ LAN is still the trust boundary and a browser is not on it
   written at all, and `PUT /catalogue/<name>` is what makes the first one
   ([#392](https://github.com/rails49/control/issues/392)). The routes answer
   the documents as written rather than the merged models a roster is read
-  against, because what reads them is the screen that edits them. There is no
-  `DELETE`: an unused model costs nothing, and one a car still names could not
-  be removed anyway. **A model's photo hangs below its document** and is kept
+  against, because what reads them is the screen that edits them.
+  `DELETE /catalogue/<name>` removes a model and its photo, and **a model a
+  roster uses is refused**: every `layouts/*.roster.yaml`, whichever railroad
+  is loaded, is read as written for a car or a train entry naming it, and the
+  400 names each place — `model 'Ae 6/6' is used by railroad 'demo': car
+  'Ae 6/6 11401'; railroad 'station-2': train 'IC 721'` — so a person knows
+  what to change ([#976](https://github.com/rails49/control/issues/976)).
+  **A model's photo hangs below its document** and is kept
   as `catalogue/<name>.jpg` beside it, backed up with the rest of the store;
   the document names no photo, so a model has one exactly where the file is
   there. The two photo routes are the only ones the store serves whose body is
