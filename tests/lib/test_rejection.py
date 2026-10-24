@@ -2,7 +2,7 @@
 
 import json
 
-from tc49.lib.rejection import GENERATED_PATH, Reason, render
+from tc49.lib.rejection import GENERATED_PATH, PlacementRefusal, Reason, render
 from tests.harness import ROOT
 
 
@@ -28,4 +28,10 @@ def test_the_committed_file_is_current() -> None:
 def test_every_reason_is_rendered_as_a_member_of_the_union() -> None:
     generated = render()
     for reason in Reason:
+        assert f'\n  | "{reason}"' in generated
+
+
+def test_every_placement_refusal_is_rendered_as_a_member_of_its_union() -> None:
+    generated = render().split("export type PlacementRefusal =")[1]
+    for reason in PlacementRefusal:
         assert f'\n  | "{reason}"' in generated
