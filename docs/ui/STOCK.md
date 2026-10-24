@@ -243,6 +243,7 @@ yet saved goes from the page alone; the store has never had it.
 *Ae 6/6*, then *Ae 6/6 (2)* — with no address, and shows it in the Cars list.
 The Cars list's own New car asks *New car of which model?* first. Where the
 model has a decoder, the car editor asks for the address at once (below).
+An empty Cars list says *no cars yet — press New car on a model to make one*.
 
 ## The car editor
 
@@ -317,6 +318,13 @@ entry is reversed; the car's name or, for a model entry, the model's; a line
 saying its address, *no address* or *by model*, *camera* where the car carries
 one, and its length. **Forward / Reversed** flips the entry's `orientation`
 (`reverse` written, `forward` the key taken off) and **×** takes the entry out.
+A model entry of a model with a decoder — a roster written that way, or a
+model whose decoder was turned on while a train used it — has no address, so
+nothing drives it; its tile has a third button, **Give it an address**
+(`Stock.carFor`, #993). Pressed, a car of that model is made as New car makes
+one (*Ae 6/6 (2)* where the name is taken) and takes the entry's place, same
+position and same `orientation`, in one edit; then *Address for <car>* is
+asked, with Later / Set address, as the picker asks it for a car it made.
 **Tiles are dragged to reorder**, with HTML drag and drop, which iPadOS has: a
 tile dropped on another takes its place. A last tile, **Add**, opens the
 picker.
@@ -630,7 +638,8 @@ emptied, a length override written and removed by emptying it, the car's own
 functions written and removed, its notes reaching the roster document, Remove
 dead while a train holds the car, and its links to its model and its trains;
 the train editor — New train and New train (2) with the picker open, a name
-refused, a priority written, the tiles' words, a decoder model added to a
+refused, a priority written, the tiles' words, a decoder model's entry given an
+address from its tile and saved as a car in its place, a decoder model added to a
 train becoming a new car with its address asked for, the same model added
 again reusing that car, a choice offered where there are two, a car refused a
 second place in one train, a model without a decoder added as a model entry,
