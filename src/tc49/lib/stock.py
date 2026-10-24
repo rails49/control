@@ -40,7 +40,9 @@ from typing import Any, cast
 from tc49.lib.layout import as_mapping, check_length, check_name, check_required
 from tc49.lib.roster import (
     KINDS,
+    MODES,
     ORIENTATIONS,
+    SCALES,
     Car,
     Coupled,
     Function,
@@ -56,20 +58,33 @@ def validate_model(doc: Any, name: str) -> Model:
     The file names itself, as a roster does, and the name is the key every
     car refers to it by — so a file whose `model:` disagrees with its path is
     refused rather than filed under one name and referred to by the other.
+    What a person reads is `name`, which is the key where it is absent, so
+    every file written before it existed still reads (#975).
     """
     where = f"model '{name}'"
     spec = check_required(doc, f"{where} document", {"model", "kind", "length"})
     check_name(spec["model"], "model")
     if spec["model"] != name:
         raise ValueError(f"{where}: file names itself '{spec['model']}'")
+    functions = _functions(spec.get("functions"), where)
+    decoder = spec.get("decoder", bool(functions))
+    if not isinstance(decoder, bool):
+        raise TypeError(f"{where}: decoder must be true or false, got {decoder!r}")
+    # A function is a bit on a decoder, so a product with none has nothing
+    # for a number to name.
+    if not decoder and functions:
+        raise ValueError(f"{where} has no decoder and lists functions")
     return Model(
         name,
+        _display_name(spec.get("name", name), where),
         _kind(spec["kind"], where),
         check_length(spec["length"], where),
-        _functions(spec.get("functions"), where),
+        functions,
         _text(spec.get("manufacturer"), f"{where}: manufacturer"),
-        _text(spec.get("scale"), f"{where}: scale"),
+        _scale(spec.get("scale"), where),
         _text(spec.get("description"), f"{where}: description"),
+        decoder,
+        _notes(spec.get("notes"), where),
     )
 
 
@@ -146,6 +161,9 @@ def _car(doc: Any, catalogue: Mapping[str, Model], where: str) -> Car:
         model.scale,
         model.description,
         _camera(spec.get("camera"), where),
+        # The car's own, kept beside the model's rather than replacing them:
+        # a note about this item says nothing about the product (#975).
+        _notes(spec.get("notes"), where),
     )
 
 
@@ -287,6 +305,40 @@ def _text(value: Any, where: str) -> str | None:
     return value
 
 
+def _display_name(named: Any, where: str) -> str:
+    """A model's name as a person reads it: any characters, `Ae 6/6` among
+    them, since it is not a file's name — the key is."""
+    if not isinstance(named, str) or not named.strip():
+        raise ValueError(f"{where}: name must be a non-empty string, got {named!r}")
+    return named.strip()
+
+
+def _scale(scale: Any, where: str) -> str | None:
+    """A model's scale, one of eight words, absent where unstated.
+
+    YAML reads `scale: 0` as an integer, so a number is refused naming the
+    quotes, as a function number written as one is, rather than coerced.
+    """
+    if scale is None:
+        return None
+    if not isinstance(scale, str):
+        raise TypeError(f'{where}: scale must be a string — write scale: "{scale}"')
+    if scale not in SCALES:
+        raise ValueError(
+            f"{where}: scale must be one of {', '.join(SCALES)}, got {scale!r}"
+        )
+    return scale
+
+
+def _notes(notes: Any, where: str) -> str | None:
+    """Free text about a model or a car, absent where there is none."""
+    if notes is None:
+        return None
+    if not isinstance(notes, str):
+        raise TypeError(f"{where}: notes must be a string, got {notes!r}")
+    return notes
+
+
 def _addr(addr: Any, where: str) -> str | None:
     """A car's decoder address, absent where it has no decoder.
 
@@ -331,8 +383,9 @@ def _functions(spec: Any, where: str) -> dict[str, Function]:
     The key is the number **written as a string**, because YAML integer keys
     and JSON object keys do not agree.
 
-    The name is the whole of the entry: a function is one bit, so there is
-    nothing a value list could say that a translator could send (ADR-0063).
+    A name and how its button answers are the whole of the entry: a function
+    is one bit, so there is nothing a value list could say that a translator
+    could send (ADR-0063).
     A `values` an older file still states is an unknown key like any other
     here and is ignored, which is what `check_required` is lenient for — no
     catalogue has to be rewritten to be read.
@@ -346,5 +399,11 @@ def _functions(spec: Any, where: str) -> dict[str, Function]:
         name = held["name"]
         if not isinstance(name, str) or not name:
             raise ValueError(f"{at}: name must be a non-empty string, got {name!r}")
-        functions[number] = Function(name)
+        mode = held.get("mode", MODES[0])
+        if mode not in MODES:
+            raise ValueError(
+                f"{at}: mode must be {' or '.join(repr(one) for one in MODES)},"
+                f" got {mode!r}"
+            )
+        functions[number] = Function(name, mode)
     return functions

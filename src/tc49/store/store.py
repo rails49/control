@@ -353,8 +353,22 @@ class AssetStore:
         catalogue entry is hand-written and says on itself where the length
         was measured (`catalogue/README.md`), and a fresh dump would delete
         that (ADR-0018).
+
+        A name another model already has is refused: the key tells the files
+        apart, and the name is how a person tells the models apart (#975). A
+        sibling that does not validate has no name to collide with, and does
+        not stand in the way of this save.
         """
-        stock.validate_model(doc, name)
+        model = stock.validate_model(doc, name)
+        for other, path in self._model_paths().items():
+            if other == name:
+                continue
+            try:
+                taken = stock.validate_model(self._read(path), other).name
+            except (ValueError, TypeError, yaml.YAMLError):
+                continue
+            if taken == model.name:
+                raise ValueError(f"there is already a model '{model.name}'")
         path = self._model_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
         yamlfile.save(path, doc)

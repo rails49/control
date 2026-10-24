@@ -37,6 +37,15 @@ KINDS = (LOCOMOTIVE, "passenger", "freight", "special")
 MIXED = "mixed"
 LIGHT_ENGINE = "light engine"
 
+SCALES = ("Z", "N", "TT", "H0", "S", "0", "1", "G")
+"""What a model's scale may be: strings, `0` and `1` among them."""
+
+LATCHING = "latching"
+MOMENTARY = "momentary"
+MODES = (LATCHING, MOMENTARY)
+"""How a function answers its button: on at one press and off at the next, or
+on only while the button is held (GLOSSARY.md, **Function**)."""
+
 FORWARD = "forward"
 REVERSE = "reverse"
 ORIENTATIONS = (FORWARD, REVERSE)
@@ -54,9 +63,14 @@ class Function:
     What people mean by a range — volume, brightness, momentum — is written
     as decoder configuration, which is a different capability and would be a
     different row.
+
+    `mode` is how a person drives that bit, latching or momentary, and a
+    function that does not say is latching: what every function was before
+    the mode could be written (#975).
     """
 
     name: str
+    mode: str = LATCHING
 
 
 @dataclass(frozen=True)
@@ -79,16 +93,25 @@ class Model:
 
     `description` is free text, and it earns a field rather than a comment
     because comments do not survive a save (DRAWING.md): once a roster is
-    written by anything but a person, a note in the YAML is lost.
+    written by anything but a person, a note in the YAML is lost. `notes` is
+    free text too, the longer kind the stock view edits.
+
+    `model` is the key — the file's name, what every car names — and `name` is
+    what a person reads, which may hold any character and is the key where
+    the document states none (#975). `decoder` is whether the product has
+    one; a document that does not say has one where it lists functions.
     """
 
     model: str
+    name: str
     kind: str
     length: int
     functions: dict[str, Function] = field(default_factory=dict[str, Function])
     manufacturer: str | None = None
     scale: str | None = None
     description: str | None = None
+    decoder: bool = False
+    notes: str | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +138,9 @@ class Car:
     camera fitted, are still one product
     ([ADR-0082](../../../docs/adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
     Last, so the positional constructions in `lib.stock` still hold.
+
+    `notes` are the car's own, about this item rather than the product, and
+    are kept beside the model's rather than overriding them (#975).
     """
 
     model: str
@@ -126,6 +152,7 @@ class Car:
     scale: str | None = None
     description: str | None = None
     camera: str | None = None
+    notes: str | None = None
 
 
 @dataclass(frozen=True)
