@@ -3,9 +3,9 @@
  * (`model/stock.ts`, ui/STOCK.md, #393).
  *
  * No DOM. What is under test is the third kind of thing the app has — neither
- * the document nor the DOM (ui/README.md): what promotes an entry to a car,
- * what a minted name is, what a train's length and kind derive to, what holds
- * a thing somebody asked to remove, and why a length may not be corrected.
+ * the document nor the DOM (ui/README.md): what a model put in a train goes
+ * in as, what a train's length and kind derive to, what holds a thing
+ * somebody asked to remove, and why a length may not be corrected.
  *
  * The derivations are pinned against `tc49.lib.roster.Train`'s, which is the
  * other implementation of the same three rules: the browser derives a train
@@ -21,7 +21,6 @@ import {
   MIXED,
   keyFor,
   merged,
-  mint,
   Stock,
   trainFunctions,
   trainKind,
@@ -127,8 +126,8 @@ describe("what a train derives to", () => {
       },
     };
     expect(trainFunctions(roster.trains.topped!, roster, CATALOGUE)).toEqual([
-      { name: "headlights" },
-      { name: "vacuum" },
+      { name: "headlights", mode: "latching" },
+      { name: "vacuum", mode: "latching" },
     ]);
   });
 });
@@ -188,17 +187,6 @@ describe("a train that states its length and names no cars", () => {
   });
 });
 
-describe("a name minted for a promoted item", () => {
-  it("is the model with the lowest suffix nothing has taken", () => {
-    expect(mint("arnold-ce68", [])).toBe("arnold-ce68-1");
-    expect(mint("arnold-ce68", ["arnold-ce68-1", "arnold-ce68-2"])).toBe("arnold-ce68-3");
-  });
-
-  it("steps over a name a person typed", () => {
-    expect(mint("hopper", ["hopper-1", "krokodil-a"])).toBe("hopper-2");
-  });
-});
-
 describe("making up a train", () => {
   it("starts with a name and nothing in it", () => {
     const screen = stock(EMPTY);
@@ -210,7 +198,7 @@ describe("making up a train", () => {
   it("takes a name of any characters, and refuses a second train of one name", () => {
     const screen = stock();
     expect(screen.addTrain("S 1/S 2")).toBeNull();
-    expect(screen.addTrain("ore")).toMatch("already a train");
+    expect(screen.addTrain("ore")).toBe("There is already a train 'ore'.");
     expect(Object.keys(screen.roster.trains)).toEqual(["ore", "S 1/S 2"]);
   });
 
@@ -219,6 +207,47 @@ describe("making up a train", () => {
     screen.addTrain("ore");
     screen.append("ore", { model: "hopper" });
     expect(screen.roster.trains.ore!.cars).toEqual([{ model: "hopper" }]);
+  });
+
+  it("is New train, then New train (2), with nothing in it", () => {
+    const screen = stock(EMPTY);
+    expect(screen.newTrain()).toBe("New train");
+    expect(screen.newTrain()).toBe("New train (2)");
+    expect(screen.roster.trains["New train (2)"]).toEqual({ cars: [] });
+  });
+
+  /** One item cannot stand in a train twice. */
+  it("refuses a car the train already has", () => {
+    const screen = stock();
+    expect(screen.append("ore", { car: "krokodil-a" })).toBe(
+      "krokodil-a is already in ore. One item cannot stand in a train twice.",
+    );
+    expect(screen.roster.trains.ore!.cars).toHaveLength(4);
+    expect(screen.edits).toBe(false);
+  });
+
+  it("moves an entry to where it is dropped", () => {
+    const screen = stock();
+    screen.moveEntry("ore", 0, 3);
+    expect(screen.roster.trains.ore!.cars!.map((one) => one.car ?? one.model)).toEqual([
+      "hopper",
+      "hopper",
+      "hopper",
+      "krokodil-a",
+    ]);
+    screen.moveEntry("ore", 3, 0);
+    expect(screen.roster.trains.ore!.cars![0]).toEqual({ car: "krokodil-a" });
+  });
+
+  it("sets a priority, takes it off when emptied, and refuses one that is none", () => {
+    const screen = stock();
+    expect(screen.trainPriority("ore", "2")).toBeNull();
+    expect(screen.roster.trains.ore!.priority).toBe(2);
+    expect(screen.trainPriority("ore", "0")).toBe(
+      "'0' is not a priority. Use a whole number: 1 is highest.",
+    );
+    expect(screen.trainPriority("ore", "")).toBeNull();
+    expect(screen.roster.trains.ore!.priority).toBeUndefined();
   });
 
   it("turns an item round, and back by taking the key off", () => {
@@ -238,7 +267,7 @@ describe("making up a train", () => {
     const screen = stock(EMPTY);
     screen.addTrain("ore");
     expect(screen.stopsSaving()).toBe(
-      "train 'ore' has nothing in it — press + beside a car or a model, or remove it",
+      "train 'ore' has nothing in it — press Add to put a car or a model in it, or unmake it",
     );
     expect(screen.edits).toBe(true);
     screen.append("ore", { model: "hopper" });
@@ -253,7 +282,7 @@ describe("making up a train", () => {
    *  than the key, and the words stay the screen's about the row (#447). */
   it("stops the save for a train naming neither cars nor a length", () => {
     const words =
-      "train 'goods' has nothing in it — press + beside a car or a model, or remove it";
+      "train 'goods' has nothing in it — press Add to put a car or a model in it, or unmake it";
     expect(stock({ roster: "oval", trains: { goods: {} } }).stopsSaving()).toBe(words);
     expect(stock({ roster: "oval", trains: { goods: { cars: [] } } }).stopsSaving()).toBe(
       words,
@@ -275,70 +304,39 @@ describe("making up a train", () => {
   });
 });
 
-describe("filling in an address", () => {
-  /** Nothing asks a person to classify an item before they add it: the
-   *  address is the whole gesture, and the name is minted (ADR-0061). */
-  it("promotes an anonymous entry to a car named from its model", () => {
-    const screen = stock(EMPTY);
-    screen.addTrain("ore");
-    screen.append("ore", { model: "arnold-ce68" });
-    expect(screen.address("ore", 0, "3")).toBeNull();
-    expect(screen.roster.cars).toEqual({
-      "arnold-ce68-1": { model: "arnold-ce68", addr: "3" },
-    });
-    expect(screen.roster.trains.ore!.cars).toEqual([{ car: "arnold-ce68-1" }]);
+/** A model put in a train goes in as a model entry where it has no decoder,
+ *  and as a car where it has one: an address belongs to one item (#980). */
+describe("a model put in a train", () => {
+  it("goes in as a model entry where it has no decoder", () => {
+    const screen = stock();
+    expect(screen.addModel("ore", "hopper")).toEqual({ as: "model" });
+    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ model: "hopper" });
   });
 
-  it("keeps which way round the item was coupled", () => {
+  it("makes a car of a decoder model the railroad has none of to spare", () => {
+    const screen = stock();
+    expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "made", car: "arnold-ce68" });
+    expect(screen.roster.cars!["arnold-ce68"]).toEqual({ model: "arnold-ce68" });
+    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ car: "arnold-ce68" });
+  });
+
+  it("puts in the one car of it the railroad has", () => {
     const screen = stock(EMPTY);
-    screen.addTrain("ore");
-    screen.append("ore", { model: "arnold-ce68" });
-    screen.turn("ore", 0);
-    screen.address("ore", 0, "3");
-    expect(screen.roster.trains.ore!.cars).toEqual([
-      { car: "arnold-ce68-1", orientation: "reverse" },
+    screen.addTrain("light");
+    screen.newCar("arnold-ce68");
+    expect(screen.addModel("light", "arnold-ce68")).toEqual({ as: "only", car: "arnold-ce68" });
+    expect(screen.roster.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
+  });
+
+  it("puts in nothing yet where there are several, and lists them", () => {
+    const screen = stock();
+    screen.newCar("arnold-ce68");
+    expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "which" });
+    expect(screen.roster.trains.ore!.cars).toHaveLength(4);
+    expect(screen.carsOf("ore", "arnold-ce68")).toEqual([
+      { car: "arnold-ce68", inTrain: false },
+      { car: "krokodil-a", inTrain: true },
     ]);
-  });
-
-  /** Two locomotives of one product keep their two addresses, written once,
-   *  and neither is restated when a rake is made up (ADR-0061). */
-  it("gives two items of one model two cars and two addresses", () => {
-    const screen = stock(EMPTY);
-    screen.addTrain("shed");
-    screen.append("shed", { model: "arnold-ce68" });
-    screen.append("shed", { model: "arnold-ce68" });
-    screen.address("shed", 0, "3");
-    screen.address("shed", 1, "4");
-    expect(screen.roster.cars).toEqual({
-      "arnold-ce68-1": { model: "arnold-ce68", addr: "3" },
-      "arnold-ce68-2": { model: "arnold-ce68", addr: "4" },
-    });
-    expect(screen.roster.trains.shed!.cars).toEqual([
-      { car: "arnold-ce68-1" },
-      { car: "arnold-ce68-2" },
-    ]);
-  });
-
-  it("sets the car's own address where the entry already names one", () => {
-    const screen = stock();
-    expect(screen.address("ore", 0, "7")).toBeNull();
-    expect(screen.roster.cars!["krokodil-a"]).toEqual({ model: "arnold-ce68", addr: "7" });
-  });
-
-  /** Two cars on one address both answer the same packet, and no run can tell
-   *  them apart. The store refuses it; this says which car has it. */
-  it("refuses an address another car already wears, and names it", () => {
-    const screen = stock();
-    screen.addTrain("shunt");
-    screen.append("shunt", { model: "arnold-ce68" });
-    expect(screen.address("shunt", 0, "3")).toBe("Car krokodil-a already has address 3.");
-    expect(screen.roster.cars).toEqual({ "krokodil-a": { model: "arnold-ce68", addr: "3" } });
-  });
-
-  it("clears an address without taking the car off the roster", () => {
-    const screen = stock();
-    expect(screen.address("ore", 0, "")).toBeNull();
-    expect(screen.roster.cars!["krokodil-a"]).toEqual({ model: "arnold-ce68" });
   });
 });
 
@@ -394,54 +392,17 @@ describe("filling in a camera", () => {
     expect(screen.carCamera("krokodil-a", "cam-1")).toBeNull();
   });
 
-  it("promotes an anonymous entry to a car with the camera and no address", () => {
-    const screen = stock();
-    screen.turn("ore", 1);
-    expect(screen.camera("ore", 1, "10.0.0.7")).toBeNull();
-    expect(screen.roster.cars!["hopper-1"]).toEqual({ model: "hopper", camera: "10.0.0.7" });
-    expect(screen.roster.trains.ore!.cars![1]).toEqual({
-      car: "hopper-1",
-      orientation: "reverse",
-    });
-  });
 
-  it("sets the camera of the car an entry already names", () => {
-    const screen = stock();
-    expect(screen.camera("ore", 0, "cam-1")).toBeNull();
-    expect(screen.roster.cars!["krokodil-a"]).toEqual({
-      model: "arnold-ce68",
-      addr: "3",
-      camera: "cam-1",
-    });
-    expect(screen.trains()[0]!.entries[0]).toMatchObject({ car: "krokodil-a", camera: "cam-1" });
-    expect(screen.cars()[0]).toMatchObject({ name: "krokodil-a", camera: "cam-1" });
-  });
 
-  it("refuses a malformed or taken camera on an anonymous entry, promoting nothing", () => {
-    const screen = stock({
-      ...OVAL,
-      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "cam-1" } },
-    });
-    expect(screen.camera("ore", 1, "cam-1")).toBe(
-      "car 'krokodil-a' already carries camera 'cam-1'",
-    );
-    expect(screen.camera("ore", 1, "cam:1")).toBe(
-      "'cam:1' is not a camera address — write the camera's host name or IP address",
-    );
-    expect(screen.camera("ore", 1, "")).toBeNull();
-    expect(Object.keys(screen.roster.cars!)).toEqual(["krokodil-a"]);
-    expect(screen.edits).toBe(false);
-  });
 });
 
 describe("a car of one's own", () => {
   it("can stand in no train at all", () => {
     const screen = stock(EMPTY);
     screen.addTrain("ore");
-    screen.append("ore", { model: "arnold-ce68" });
-    screen.address("ore", 0, "3");
+    screen.addModel("ore", "arnold-ce68");
     screen.removeTrain("ore");
-    expect(screen.cars().map((car) => car.name)).toEqual(["arnold-ce68-1"]);
+    expect(screen.cars().map((car) => car.name)).toEqual(["arnold-ce68"]);
   });
 
   it("is renamed everywhere a train names it", () => {
