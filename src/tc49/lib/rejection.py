@@ -1,4 +1,5 @@
-"""Why a request was rejected: one set, both sides answering to it (#126).
+"""Why a request was rejected, or a placement refused: one set each, both
+sides answering to it (#126, ADR-0091).
 
 The dispatcher is the only app that mints a rejection reason, and every
 reader of one — the panel first — has to know the same names. Minted as bare
@@ -43,17 +44,33 @@ class Reason(StrEnum):
     UNREACHABLE = "unreachable"
 
 
+class PlacementRefusal(StrEnum):
+    """Why the dispatcher did not accept a placement, in the order it judges
+    one (ADR-0091, decision 3): the train is on neither its roster nor the
+    store's, the block is not on the layout, the block is not free, or the
+    train is longer than the block. A placement carries no id, so this
+    travels on its own event, `placement_refused`, beside the train and block
+    the gesture named, rather than as a `request_rejected` reason."""
+
+    UNKNOWN_TRAIN = "unknown_train"
+    UNKNOWN_BLOCK = "unknown_block"
+    NOT_FREE = "not_free"
+    NO_FIT = "no_fit"
+
+
 _HEADER = """\
 // Generated from src/tc49/lib/rejection.py. Run `tc49 generate` to update.
 //
-// Why the dispatcher rejected a request. The names alone: what each one
-// tells a reader is the panel's wording, and no part of the schema.
+// Why the dispatcher rejected a request, or refused a placement. The names
+// alone: what each one tells a reader is the panel's wording, and no part of
+// the schema.
 """
 
 
 def render() -> str:
     """The whole of `ui/src/rejection.generated.ts`."""
     names = "\n".join(f'  | "{reason}"' for reason in Reason)
+    refusals = "\n".join(f'  | "{reason}"' for reason in PlacementRefusal)
     return f"""\
 {_HEADER}
 /** A rejection reason, as `tc49/dispatch/request_rejected` carries it. A
@@ -61,4 +78,8 @@ def render() -> str:
  *  left unworded here is a compile error rather than a raw token on screen. */
 export type Reason =
 {names};
+
+/** A refusal reason, as `tc49/dispatch/placement_refused` carries it. */
+export type PlacementRefusal =
+{refusals};
 """

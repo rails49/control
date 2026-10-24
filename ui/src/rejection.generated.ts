@@ -1,7 +1,8 @@
 // Generated from src/tc49/lib/rejection.py. Run `tc49 generate` to update.
 //
-// Why the dispatcher rejected a request. The names alone: what each one
-// tells a reader is the panel's wording, and no part of the schema.
+// Why the dispatcher rejected a request, or refused a placement. The names
+// alone: what each one tells a reader is the panel's wording, and no part of
+// the schema.
 
 /** A rejection reason, as `tc49/dispatch/request_rejected` carries it. A
  *  wording table keyed by this is total, so a reason minted in Python and
@@ -15,3 +16,10 @@ export type Reason =
   | "no_fit"
   | "no_entry"
   | "unreachable";
+
+/** A refusal reason, as `tc49/dispatch/placement_refused` carries it. */
+export type PlacementRefusal =
+  | "unknown_train"
+  | "unknown_block"
+  | "not_free"
+  | "no_fit";
