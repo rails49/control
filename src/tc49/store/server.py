@@ -12,9 +12,9 @@ rather than to an app of its own — a `ui` package could not import
     GET  /rosters/<name>        one railroad's roster, as the document it is
     PUT  /rosters/<name>        save it, keeping what the file says
     GET  /rosters/<name>/trains its trains, each with its length, the
-                                functions its cars declare, whether
-                                one carries a camera and its first
-                                locomotive's model
+                                functions its cars declare with each
+                                one's mode, whether one carries a
+                                camera and its first locomotive's model
     GET  /catalogue             every model the installation knows, by key
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
