@@ -14,15 +14,18 @@ silence and to the trace: a gesture carries no id and there is nothing to
 address an answer to (ADR-0034).
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
-from tc49.bench.runner import Assembly, assemble_live
-from tc49.dispatcher import FullRoute, Incremental
-from tc49.lib.bus import Payload
+from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live
+from tc49.dispatcher import Dispatcher, FullRoute, Incremental
+from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import OFF, ON
+from tc49.lib.roster import Roster
 from tc49.lib.scenario import TrainSpec
 from tests.harness import events, load, minted, power, press, stock, ticks
 
@@ -775,3 +778,73 @@ def test_a_picture_naming_stock_the_railroad_lacks_is_not_adopted(
     assembly.bus.drain()
 
     assert last(assembly, "allocation")["trains"] == {}
+
+
+def built(
+    roster: Roster, reread: Callable[[], Roster | None]
+) -> tuple[InProcessBus, list[Payload]]:
+    """A dispatcher for a run an operator drives, built on `crossover-yard`
+    from `roster`, that reads the roster again through `reread`; and every
+    `train_placed` it publishes."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    placed: list[Payload] = []
+    bus.subscribe(
+        "tc49/dispatch/train_placed", lambda _, payload: placed.append(payload)
+    )
+    Dispatcher(bus, layout, roster, {}, Incremental(layout, DEFAULT_K), reread=reread)
+    bus.drain()
+    return bus, placed
+
+
+def put(bus: InProcessBus, train: str, block: str) -> None:
+    bus.publish(PLACEMENT_WANTED, {"train": train, "block": block})
+    bus.drain()
+
+
+def test_a_train_made_after_the_build_is_placed_from_the_roster_read_again() -> None:
+    """A train made in the stock view after the last build is on the store's
+    roster and not the dispatcher's: its placement reads the roster once more
+    and is then judged as any other (ADR-0091, decision 1)."""
+    reads: list[None] = []
+
+    def reread() -> Roster:
+        reads.append(None)
+        return stock(freight_1=1100, railcar_3=600)
+
+    bus, placed = built(stock(freight_1=1100), reread)
+    put(bus, "railcar_3", "yard_w")
+
+    assert reads == [None]
+    assert placed == [{"train": "railcar_3", "block": "yard_w"}]
+
+
+def test_a_train_the_store_lacks_too_is_dropped() -> None:
+    reads: list[None] = []
+
+    def reread() -> Roster | None:
+        reads.append(None)
+        return None if len(reads) == 1 else stock(freight_1=1100)
+
+    bus, placed = built(stock(freight_1=1100), reread)
+    put(bus, "ghost", "yard_w")
+    put(bus, "ghost", "yard_w")
+
+    assert len(reads) == 2
+    assert placed == []
+
+
+def test_a_train_the_dispatcher_has_keeps_the_length_it_was_built_with() -> None:
+    """A changed length waits for a build (ADR-0071): the read adds what the
+    dispatcher lacks and leaves what it has alone. `freight_1` at 1100 fits a
+    1400 yard block, and at the store's 2000 would not."""
+    bus, placed = built(
+        stock(freight_1=1100), lambda: stock(freight_1=2000, railcar_3=600)
+    )
+    put(bus, "railcar_3", "up_w")
+    put(bus, "freight_1", "yard_w")
+
+    assert placed == [
+        {"train": "railcar_3", "block": "up_w"},
+        {"train": "freight_1", "block": "yard_w"},
+    ]
