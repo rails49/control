@@ -154,9 +154,11 @@ move outstanding it is written `0.0`.
 gives it, on `function_wanted`, and the press is the holding throttle's
 alone, at any power and in either driving mode. It reaches the first car in
 the train's order that has an address and declares the name, on that car's
-first number for it, whichever way the train runs: one `wanted/function` row,
-and nothing else ever writes one — a release, a silent throttle,
-`train_removed`, a cut and a restart leave them standing. `state/functions`
+first number for it, whichever way the train runs: one `wanted/function` row.
+The one other write is a train let go of — a release, a silent throttle —
+having each momentary function that is on written off, nobody holding its
+button any more (#998); latching functions, `train_removed`, a cut and a
+restart leave the rows standing. `state/functions`
 says which of each train's functions are on, read off those rows: this app's
 own writes and the ones a bus that outlived it hands back, so a light a
 decoder still has on shows on after a restart (#849).
@@ -213,7 +215,7 @@ from tc49.lib.payload import (
     wanted_throttle,
 )
 from tc49.lib.power import TrackPower
-from tc49.lib.roster import FORWARD, Roster
+from tc49.lib.roster import FORWARD, MOMENTARY, Roster
 
 _log = logging.getLogger(__name__)
 
@@ -1027,10 +1029,14 @@ class LayoutInterface:
 
         **In `automatic` otherwise**, with no move outstanding or over dead
         rails, `_take_up` writes `0.0`.
+
+        In either mode its momentary functions that are on are written off
+        (`_unhold`): nobody holds their buttons any more.
         """
         if self._taken.pop(train, None) is None:
             return
         self._publish_taken()
+        self._unhold(train)
         if self._driving != AUTOMATIC:
             self._stop(train)
             return
@@ -1186,8 +1192,10 @@ class LayoutInterface:
         no addressed car of it declares, is dropped with a log line: the
         throttle showed a button the roster cannot back.
 
-        Nothing else writes a function row: a release, a silent throttle,
-        `train_removed`, a cut and a restart leave them as they are.
+        Nothing else writes a function row, with one exception: a train let
+        go of has its momentary functions that are on written off
+        (`_unhold`). Latching functions, `train_removed`, a cut and a restart
+        leave the rows as they are.
         """
         switched = wanted_function(payload)
         if switched is None or self._taken.get(switched.train) != switched.throttle:
@@ -1206,6 +1214,30 @@ class LayoutInterface:
             {"addr": addr, "function": number, "value": switched.on},
         )
         self._function_known(addr, number, switched.on)
+
+    def _unhold(self, train: str) -> None:
+        """Each momentary function of a train just let go of that
+        `state/functions` says is on, written off on the row a press of its
+        name writes (#998).
+
+        A momentary function is on only while a person holds its button, and
+        once the train is let go nobody does: the off its throttle sends
+        later is dropped as not the holder's, and on the real locomotive the
+        horn would keep sounding. A latching function is left as the person
+        left it — a light is nobody's to put out."""
+        made_up = self._roster.trains.get(train)
+        for function in made_up.functions if made_up is not None else ():
+            if function.mode != MOMENTARY:
+                continue
+            reached = self._reaches(train, function.name)
+            if reached is None or not self._lit.get(reached, False):
+                continue
+            addr, number = reached
+            self._bus.publish(
+                device_topic(WANTED_FUNCTION, addr, number),
+                {"addr": addr, "function": number, "value": False},
+            )
+            self._function_known(addr, number, False)
 
     def _on_function_row(self, topic: str, payload: Payload) -> None:
         """A `wanted/function` row: this app's own write coming back, or one
