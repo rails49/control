@@ -98,6 +98,7 @@ export const POINT_WANTED = "tc49/dispatch/point_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 export const DRIVING_WANTED = "tc49/layout/driving_wanted";
+export const CLOCK_WANTED = "tc49/layout/clock_wanted";
 export const TAKE_WANTED = "tc49/layout/take_wanted";
 export const THROTTLE_ALIVE = "tc49/layout/throttle_alive";
 export const FUNCTION_WANTED = "tc49/layout/function_wanted";
@@ -234,6 +235,21 @@ export type DrivingMode = "manual" | "automatic";
  *  (ADR-0035). */
 export function drivingWanted(driving: DrivingMode): Frame {
   return { topic: DRIVING_WANTED, payload: { driving } };
+}
+
+/** A `clock_wanted` frame: set the fast clock to a time of day, run it at
+ *  a speed-up, or both, carrying only what was given — a field left out
+ *  leaves that part of the clock as it is (BUS.md,
+ *  [ADR-0090](../../../docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
+ *  `layout` answers on `state/clock` at once. */
+export function clockWanted(change: { time?: number; speedUp?: number }): Frame {
+  return {
+    topic: CLOCK_WANTED,
+    payload: {
+      ...(change.time === undefined ? {} : { time: change.time }),
+      ...(change.speedUp === undefined ? {} : { speed_up: change.speedUp }),
+    },
+  };
 }
 
 /** A `throttle_wanted` frame: how fast a person is driving a train, `-1.0`

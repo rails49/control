@@ -10,6 +10,8 @@ import {
   CANCEL_WANTED,
   cancellation,
   DRIVING_WANTED,
+  CLOCK_WANTED,
+  clockWanted,
   drivingWanted,
   FUNCTION_WANTED,
   functionWanted,
@@ -230,6 +232,20 @@ describe("drivingWanted", () => {
     });
     expect(drivingWanted("manual").payload).toEqual({ driving: "manual" });
     expect(DRIVING_WANTED).toBe("tc49/layout/driving_wanted");
+  });
+});
+
+/** Setting the fast clock (ADR-0090): only what a person changed goes out,
+ *  in the contract's words. */
+describe("clockWanted", () => {
+  it("carries the time, the speed-up, or both, and nothing left out", () => {
+    expect(clockWanted({ time: 3600 })).toEqual({
+      topic: "tc49/layout/clock_wanted",
+      payload: { time: 3600 },
+    });
+    expect(clockWanted({ speedUp: 1.5 }).payload).toEqual({ speed_up: 1.5 });
+    expect(clockWanted({ time: 0, speedUp: 8 }).payload).toEqual({ time: 0, speed_up: 8 });
+    expect(CLOCK_WANTED).toBe("tc49/layout/clock_wanted");
   });
 });
 

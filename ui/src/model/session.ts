@@ -28,12 +28,14 @@
 
 import mqtt from "mqtt";
 
+import { clockOf, sameClock, type ClockChange, type FastClock } from "./clock.js";
 import type { Drawing } from "./drawing.js";
 import { Panel, type Placed } from "./panel.js";
 import { RETRY_MS, type Review, type TrainDoc } from "./store.js";
 import { cabs, type Cab } from "./throttle.js";
 import { WIDGET_PREFIX, type WidgetPress } from "./widgets.js";
 import {
+  clockWanted,
   drivingWanted,
   functionWanted,
   Live,
@@ -245,6 +247,13 @@ export class Session {
    *  names no railroad, and its rows are kept whichever one is joined. */
   widgetRows: ReadonlyMap<string, string> = new Map();
 
+  /** The fast clock as `state/clock` last said it, `null` with no session
+   *  joined, the broker not answering, or before the clock has said
+   *  (ADR-0090). The band's face and the throttle's station clock draw it.
+   *  The same object until what it says moves. Not on `status`: it moves
+   *  once a second, and the band is the only thing of the app's that
+   *  redraws for it. */
+  clock: FastClock | null = null;
 
   /** The railroad the broker says it runs, `null` while it has not said —
    *  before the connection lands, and again after it has gone (#371). */
@@ -273,6 +282,9 @@ export class Session {
    *  model is built: a page whose drawing is invalid builds none, and
    *  still has to know whether it may save (ADR-0085). */
   private supplied: Power | null = null;
+  /** The fast clock as `state/clock` last said it, read whether or not a
+   *  panel model is built, as `supplied` is. */
+  private ticked: FastClock | null = null;
   private connected = false;
   private trouble: string | null = null;
   /** The railroad the model was built for, so it is rebuilt when the app loads
@@ -385,6 +397,7 @@ export class Session {
       this.panel?.reset();
       this.widgetRows = new Map();
       this.supplied = null;
+      this.ticked = null;
       this.allocated = false;
       this.connected = true;
       this.trouble = null;
@@ -446,6 +459,7 @@ export class Session {
       if (this.nameless) return;
       this.leave();
       this.allocated = false;
+      this.ticked = null;
       this.nameless = true;
       this.settle();
       this.hooks.named("");
@@ -466,6 +480,7 @@ export class Session {
     // connection either row may have landed first, and is kept.
     if (this.session !== null) {
       this.supplied = null;
+      this.ticked = null;
       this.allocated = false;
     }
     this.leave();
@@ -497,6 +512,12 @@ export class Session {
       // The same railroad named again joins nothing, so what the row says
       // about its build is told here.
       if (turned) this.changed();
+      return;
+    }
+    if (event.event === "clock") {
+      // The band's alone: the panel model has nothing to draw of it.
+      this.ticked = clockOf(event);
+      this.changed();
       return;
     }
     if (event.event === "power") {
@@ -610,6 +631,18 @@ export class Session {
    */
   pressDriving(driving: DrivingMode): void {
     this.send(drivingWanted(driving));
+  }
+
+  /**
+   * The fast clock set from the band's dialog: one `clock_wanted` carrying
+   * what the person changed, the time of day, the speed-up or both
+   * ([ADR-0090](../../../docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
+   * `layout` answers on `state/clock` at once, which is what the face draws.
+   * A change of nothing sends nothing.
+   */
+  pressClock(change: ClockChange): void {
+    if (change.time === undefined && change.speedUp === undefined) return;
+    this.send(clockWanted(change));
   }
 
   /**
@@ -783,6 +816,8 @@ export class Session {
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
+    const clock = joined && this.connected ? this.ticked : null;
+    if (!sameClock(this.clock, clock)) this.clock = clock;
     const driving = this.driving;
     const written = JSON.stringify(driving);
     if (written !== this.saidCabs) {
