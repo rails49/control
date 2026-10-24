@@ -36,7 +36,7 @@ reading no granted move accounts for; it drains the railroad instead
 """
 
 import sys
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 
 from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
@@ -666,6 +666,7 @@ class Dispatcher:
         roster: Roster,
         placement: dict[str, str],
         strategy: LockingStrategy,
+        reread: Callable[[], Roster | None] | None = None,
     ) -> None:
         """The railroad's `roster` is the stock: every train it owns, whether
         anything places it or not. `placement` is train to block, and it is
@@ -675,9 +676,17 @@ class Dispatcher:
         arrive by gesture, and a train nothing places comes up **off the
         layout** — known, standing nowhere, and waiting for a person to put it
         somewhere (ADR-0039).
+
+        `reread` reads the railroad's roster again, once and without waiting
+        on a store that does not answer, and is None where it cannot be read
+        (ADR-0091, decision 1). A placement naming a train this dispatcher was
+        not built with asks it, because a train made in the stock view after
+        the last build is on the store's roster and nowhere else. The bench
+        passes none: its stock is the scenario's and nothing changes it.
         """
         self._bus = bus
         self._strategy = strategy
+        self._reread = reread
         # The last picture, where the bus binding held one across a restart:
         # the dispatcher's own state topic, found waiting exactly as it would
         # be against a broker that outlived the app (#123). Read here rather
@@ -1125,7 +1134,11 @@ class Dispatcher:
         """
         wanted = placement(payload)
         state = self._state
-        if wanted is None or wanted.train not in state.roster:
+        if wanted is None:
+            return
+        if wanted.train not in state.roster:
+            self._learn()
+        if wanted.train not in state.roster:
             return
         if wanted.block is None:
             self._remove(wanted.train)
@@ -1141,6 +1154,22 @@ class Dispatcher:
             # (ADR-0062), so the row has to follow it or `layout` waits
             # forever to switch the supply off.
             self._sweep()
+
+    def _learn(self) -> None:
+        """The trains the store's roster has and this dispatcher lacks, added
+        (ADR-0091, decision 1). A train it already has keeps the length and
+        priority it was built with until the next build (ADR-0071): a placed
+        train whose length changed under it is a rule nobody has written. A
+        store that does not answer, or a roster it refuses, adds nothing."""
+        if self._reread is None:
+            return
+        roster = self._reread()
+        if roster is None:
+            return
+        for name, train in roster.trains.items():
+            if name not in self._state.roster:
+                self._state.roster[name] = train.length
+                self._priority[name] = train.priority_key
 
     def _stand(self, train: str, block: str) -> None:
         """A train put on the layout, or moved by hand from where it was.
