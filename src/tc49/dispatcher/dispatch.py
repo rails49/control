@@ -62,7 +62,7 @@ from tc49.lib.payload import (
     wanted_point,
     wanted_reorder,
 )
-from tc49.lib.rejection import Reason
+from tc49.lib.rejection import PlacementRefusal, Reason
 from tc49.lib.roster import Roster
 
 # The two state topics named in full, because each is read as well as
@@ -1071,7 +1071,9 @@ class Dispatcher:
         announcements coming back past it, and is ignored — the filter is the
         component, as every consumer's is (BUS.md, rule 3). What it cannot
         act on it drops, in silence and to the trace: a gesture carries no id
-        and there is nothing to address an answer to (ADR-0034).
+        and there is nothing to address an answer to (ADR-0034). A placement
+        is the exception: its answer, `placement_refused`, names what the
+        gesture named instead (ADR-0091).
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "request_submitted":
@@ -1095,7 +1097,8 @@ class Dispatcher:
         destination, so `block: null` is a placement whose answer is *off the
         layout* rather than a leaf of its own.
 
-        The train has to be known either way, and **either direction is
+        The train has to be known either way, on this dispatcher's roster or,
+        read again, on the store's (ADR-0091), and **either direction is
         accepted at any power** (#821, ADR-0069): a person puts a train on
         the rails or lifts it off whenever they need to, and what decides
         whether a block can take it is whether the block is **free** — of
@@ -1128,6 +1131,12 @@ class Dispatcher:
         which is honoured, and then said where it is, which is refused. What
         it leaves behind is exactly what a `cancel_wanted` would have.
 
+        **A refusal is answered**, never dropped in silence: `placement_refused`
+        names the train and block the gesture named and why (ADR-0091,
+        decision 3), an unknown train being one the store's roster lacks too.
+        A payload that cannot be read as a placement names no train, and is
+        dropped with no answer.
+
         Where the train stands *now* is no precondition at all: one adoption
         placed nowhere (`restored`) is exactly the train a person has to say
         something about.
@@ -1139,6 +1148,7 @@ class Dispatcher:
         if wanted.train not in state.roster:
             self._learn()
         if wanted.train not in state.roster:
+            self._refuse(wanted.train, wanted.block, PlacementRefusal.UNKNOWN_TRAIN)
             return
         if wanted.block is None:
             self._remove(wanted.train)
@@ -1174,8 +1184,9 @@ class Dispatcher:
     def _stand(self, train: str, block: str) -> None:
         """A train put on the layout, or moved by hand from where it was.
 
-        The block has to exist, be free of every claim, and fit the train. A
-        block the train still holds as residue of its own removal is free to
+        The block has to exist, be free of every claim, and fit the train;
+        where it does not, the placement is refused on `placement_refused`
+        and nothing moves. A block the train still holds as residue of its own removal is free to
         it, and becomes its standing lock (ADR-0069); whatever else it holds
         that way stays until it reads clear. Having accepted, the dispatcher moves the train's standing
         lock and announces `train_placed`. That event is the ledger line for a
@@ -1186,10 +1197,13 @@ class Dispatcher:
         """
         state = self._state
         if block not in state.layout.blocks:
+            self._refuse(train, block, PlacementRefusal.UNKNOWN_BLOCK)
             return
         if not state.free(block, train):
+            self._refuse(train, block, PlacementRefusal.NOT_FREE)
             return
         if state.roster[train] > state.layout.blocks[block]:
+            self._refuse(train, block, PlacementRefusal.NO_FIT)
             return
         state.residue.discard(block)
         # A train that is off the layout holds no standing lock and has none
@@ -1217,6 +1231,14 @@ class Dispatcher:
         # the block is a standing lock now, and no clear reading will come
         # for it as residue.
         self._open(train, self._spent(train))
+
+    def _refuse(self, train: str, block: str | None, reason: PlacementRefusal) -> None:
+        """A placement not accepted, answered with the train and block the
+        gesture named and why (ADR-0091, decision 3). It carries no id: what
+        it names is what a reader matches it to its drag by (ADR-0034)."""
+        self._publish(
+            "placement_refused", {"train": train, "block": block, "reason": reason}
+        )
 
     def _remove(self, train: str) -> None:
         """A train taken off the layout: lifted out of its block by hand.
