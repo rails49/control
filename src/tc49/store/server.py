@@ -606,7 +606,7 @@ def _put_clock(store: AssetStore, backup: Backup, name: str, body: Any) -> Respo
         return 400, {"error": "a clock document is required"}
     try:
         store.put_clock(cast(dict[str, Any], body), name)
-    except ValueError as refused:
+    except (ValueError, TypeError) as refused:
         return 400, {"error": f"clock '{name}': {refused}"}
     # As a drawing's save does: a clock set is a document of the store that
     # has moved, and the one write the clock makes (ADR-0090).

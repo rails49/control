@@ -126,7 +126,7 @@ def test_a_railroad_is_loaded_at_its_start_time() -> None:
     ],
 )
 def test_a_kept_clock_that_is_not_one_is_refused(doc: object) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, TypeError)):
         kept_clock(doc)
 
 

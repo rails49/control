@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 ROUTE = re.compile(r"^\s+(?:GET|PUT|POST|DELETE)\s+(/[a-z]+)", re.MULTILINE)
 
-SERVER_SIDE = frozenset({"/scripts", "/loaded"})
+SERVER_SIDE = frozenset({"/scripts", "/loaded", "/clocks"})
 """The prefixes whose callers are apps rather than pages, and which are
 therefore on no proxy. A railroad's translator script is fetched by the
 translator that loads it and written by the face that edits it, each
@@ -32,7 +32,9 @@ translator that loads it and written by the face that edits it, each
 network, so the door in front of the app never sees one
 ([#586](https://github.com/rails49/control/issues/586), ADR-0055). The
 railroad recorded as loaded is read and written by the layout binding alone,
-over this stack's own network (ADR-0072)."""
+over this stack's own network (ADR-0072), and so is a railroad's clock: read at
+each build and written when a person sets it, a page setting it on the bus
+(ADR-0090)."""
 
 
 def store_prefixes() -> set[str]:

@@ -117,8 +117,8 @@ def start_of(time: int) -> int:
 
 
 def kept_clock(doc: object) -> KeptClock:
-    """The `KeptClock` a store document says, or `ValueError` naming what is
-    wrong with it. Both fields, `start` as `"HH:MM"` text and `speed_up` a
+    """The `KeptClock` a store document says, or `ValueError` or `TypeError`
+    naming what is wrong with it. Both fields, `start` as `"HH:MM"` text and `speed_up` a
     finite number greater than 0, and nothing else. A bool is no number,
     though Python counts it one.
 
@@ -126,7 +126,7 @@ def kept_clock(doc: object) -> KeptClock:
     unquoted `12:30` as the integer 750: a document that says one is refused
     rather than read as a time it may not mean."""
     if not isinstance(doc, dict):
-        raise ValueError("a clock is a document of 'start' and 'speed_up'")
+        raise TypeError("a clock is a document of 'start' and 'speed_up'")
     fields = cast(dict[str, Any], doc)
     if set(fields) != {"start", "speed_up"}:
         raise ValueError(
@@ -138,6 +138,6 @@ def kept_clock(doc: object) -> KeptClock:
         raise ValueError(f"clock 'start' is {start!r}, not \"HH:MM\" quoted")
     speed_up = fields["speed_up"]
     if isinstance(speed_up, bool) or not isinstance(speed_up, (int, float)):
-        raise ValueError(f"clock 'speed_up' is {speed_up!r}, not a number")
+        raise TypeError(f"clock 'speed_up' is {speed_up!r}, not a number")
     hours, minutes = int(matched[1]), int(matched[2])
     return KeptClock((hours * 60 + minutes) * 60, float(speed_up))
