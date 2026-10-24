@@ -951,7 +951,9 @@ describe("making up a train", () => {
     expect(written()!.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
   });
 
-  it("asks which car where the railroad has two, greying the one in the train", async () => {
+  /** Two cars of the model, one already in the train, leave one to put in:
+   *  it goes in without a question (#980). */
+  it("adds the one car the train does not already hold, and says so", async () => {
     const shell = await opened();
     await ore(shell);
     await chosen(shell, "arnold-ce68");
@@ -961,14 +963,32 @@ describe("making up a train", () => {
 
     await add(shell, "models", "arnold-ce68");
 
+    expect(screen(shell).renderRoot.querySelector("look-dialog.picker")).toBeNull();
+    expect(part(shell, ".toast").textContent).toBe("Added arnold-ce68 (2), your only arnold-ce68.");
+    expect((await tiles(shell))[4]).toBe("arnold-ce68 (2)");
+  });
+
+  it("asks which car where two are free, greying the one in the train", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await chosen(shell, "arnold-ce68");
+    await pressed(shell, ".ed-head button.new-car");
+    await answered(shell, "4");
+    await chosen(shell, "arnold-ce68");
+    await pressed(shell, ".ed-head button.new-car");
+    await answered(shell, "5");
+    await tab(shell, "trains");
+
+    await add(shell, "models", "arnold-ce68");
+
     expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Which arnold-ce68?");
-    expect(offered(shell)).toEqual(["arnold-ce68", "arnold-ce68 (2)"]);
+    expect(offered(shell)).toEqual(["arnold-ce68", "arnold-ce68 (2)", "arnold-ce68 (3)"]);
     const choices = parts(shell, "look-dialog.picker button.card") as HTMLButtonElement[];
-    expect(choices.map((one) => one.disabled)).toEqual([true, false]);
-    await pressed(shell, "look-dialog.picker button.card", 1);
+    expect(choices.map((one) => one.disabled)).toEqual([true, false, false]);
+    await pressed(shell, "look-dialog.picker button.card", 2);
 
     expect(screen(shell).renderRoot.querySelector("look-dialog.picker")).toBeNull();
-    expect((await tiles(shell))[4]).toBe("arnold-ce68 (2)");
+    expect((await tiles(shell))[4]).toBe("arnold-ce68 (3)");
   });
 
   /** One item cannot stand in a train twice. */

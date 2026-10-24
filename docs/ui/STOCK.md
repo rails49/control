@@ -340,8 +340,8 @@ it, and opens the picker.
   - where the railroad has no car of it that is not already in this train, a
     car is made, named after the model as New car names one, and its address
     is asked for at once, as New car asks;
-  - where it has exactly one, that car goes in, and the view says *Added
-    <car>, your only <model>.* for a moment;
+  - where it has exactly one such car, that car goes in, and the view says
+    *Added <car>, your only <model>.* for a moment;
   - where it has several, *Which <model>?* lists them, those already in this
     train greyed, and the one pressed goes in.
 
