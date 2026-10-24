@@ -137,6 +137,10 @@ class Fake implements Store, StockStore {
   saveModel(model: ModelDoc): Promise<void> {
     return this.write(`/catalogue/${model.model}`);
   }
+
+  savePhoto(model: string): Promise<void> {
+    return this.write(`/catalogue/${model}/photo`);
+  }
 }
 
 /** A railroad over a fake store, the editor the shell would own, how
@@ -498,6 +502,31 @@ describe("the roster's Save", () => {
     expect(store.saved).toEqual(["/catalogue/hopper", "/rosters/toy"]);
     expect(railroad.unsaved).toBeNull();
     expect(railroad.stockTrouble).toBeNull();
+  });
+
+  /** A model made on the page is given its key and written first, then its
+   *  photo, then the roster naming it: the store refuses a roster or a photo
+   *  naming a model it has not got (#978). */
+  it("writes a model made here, then its photo, then the roster, under the key minted", async () => {
+    const { railroad, store, names } = made();
+    railroad.named("toy");
+    await flushed();
+    const stock = railroad.stock!;
+    const key = stock.newModel();
+    stock.renameModel(key, "Ae 6/6");
+    stock.setPhoto(key, { jpeg: new Uint8Array([1]), shown: "data:," });
+    stock.newCar(key);
+
+    expect(await railroad.save("off")).toBe(false);
+
+    expect(store.saved).toEqual([
+      "/catalogue/ae-6-6",
+      "/catalogue/ae-6-6/photo",
+      "/rosters/toy",
+    ]);
+    expect(stock.roster.cars!["Ae 6/6"]).toEqual({ model: "ae-6-6" });
+    expect(names).toEqual([]);
+    expect(railroad.unsaved).toBeNull();
   });
 
   it("answers false and names nothing where no length moved", async () => {

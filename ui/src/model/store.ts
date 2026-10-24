@@ -298,6 +298,9 @@ export interface CarDoc {
    *  IPv4 address, with no scheme, port, path or login. Absent where it
    *  carries none, and no two cars may name the same one (ADR-0082). */
   camera?: string;
+  /** Free text about this item rather than the product: the car's own, kept
+   *  beside its model's notes rather than replacing them (#975). */
+  notes?: string;
 }
 
 /** A train the railroad has made up: an ordered list, head first. Its length
@@ -355,10 +358,14 @@ export async function saveRoster(roster: RosterDoc): Promise<void> {
  * what the catalogue screen edits, so every field comes back as it is on disk
  * — including the ones nothing branches on, the shelf a locomotive lives on
  * among them. `model` is the name it is filed under and the key every car
- * refers to it by, so it is what the path says.
+ * refers to it by, so it is what the path says. It is never shown: what a
+ * person reads is `name`, which may hold any character (#975).
  */
 export interface ModelDoc {
   model: string;
+  /** What a person reads, `Ae 6/6` among them: any characters, and the key
+   *  where the document states none. No two models share one. */
+  name?: string;
   /** `locomotive`, `passenger`, `freight` or `special`. A train's kind is
    *  derived and is never one a document states (GLOSSARY.md, **Kind**). */
   kind: string;
@@ -368,18 +375,27 @@ export interface ModelDoc {
   manufacturer?: string;
   scale?: string;
   description?: string;
+  /** Free text, the longer kind the stock view edits. */
+  notes?: string;
+  /** Whether the product has a decoder. Absent reads as whether it lists
+   *  functions: a function is a bit on a decoder, so a product with none has
+   *  nothing for a number to name, and the store refuses functions on one. */
+  decoder?: boolean;
   /** What each DCC function does on this product, keyed by the function
    *  number **written as a string**: YAML integer keys and JSON object keys
    *  do not agree, so the number is quoted at both ends. */
   functions?: Record<string, ModelFn>;
 }
 
-/** One function on a model: what it is called, and nothing else. A function
- *  is one bit, so a value list would be describing something no throttle can
- *  ask for; a `values` an older file states is ignored at both ends
- *  (ADR-0063). */
+/** One function on a model: what it is called, and how its button answers.
+ *  A function is one bit, so a value list would be describing something no
+ *  throttle can ask for; a `values` an older file states is ignored at both
+ *  ends (ADR-0063). */
 export interface ModelFn {
   name: string;
+  /** `latching`, on at one press and off at the next, or `momentary`, on only
+   *  while the button is held; absent reads as `latching` (#975). */
+  mode?: string;
 }
 
 /**
@@ -404,6 +420,12 @@ export async function readModel(name: string): Promise<ModelDoc> {
  *  carrying the validator's words. */
 export async function saveModel(model: ModelDoc): Promise<void> {
   await ask("PUT", `/catalogue/${encodeURIComponent(model.model)}`, model);
+}
+
+/** Delete one model, its photo going with it. The store refuses a model a
+ *  roster uses, on any railroad, naming each place in its own words (#976). */
+export async function deleteModel(model: string): Promise<void> {
+  await ask("DELETE", `/catalogue/${encodeURIComponent(model)}`);
 }
 
 /**
@@ -502,7 +524,7 @@ export async function takePicture(): Promise<Picture> {
  *  URL (`Picture`). Written in chunks because `String.fromCharCode` takes one
  *  argument per byte and a photo's worth of them at once overflows the
  *  stack. */
-function shows(jpeg: Uint8Array): string {
+export function shows(jpeg: Uint8Array): string {
   let text = "";
   for (let at = 0; at < jpeg.length; at += 8192) {
     text += String.fromCharCode(...jpeg.subarray(at, at + 8192));

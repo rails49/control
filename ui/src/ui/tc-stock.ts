@@ -1265,8 +1265,7 @@ export class TcStock extends LitElement {
   private wrong(making: Draft, stock: Stock): string | null {
     const name = making.model.trim();
     if (!isName(name)) return `'${name}' is not a name a model can have`;
-    const already = stock.stopsMaking(name);
-    if (already !== null) return already;
+    if (stock.model(name) !== null) return `there is already a model '${name}'`;
     const trouble = lengthTrouble(Number(making.length));
     if (trouble !== null) return trouble;
     for (const fn of making.functions) {

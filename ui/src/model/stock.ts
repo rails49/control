@@ -26,7 +26,7 @@
  * plain values.
  */
 
-import { isName, lengthTrouble } from "./rules.js";
+import { lengthTrouble } from "./rules.js";
 import { trackLive, type Power } from "./trace.js";
 import type {
   CarDoc,
@@ -34,6 +34,7 @@ import type {
   Fn,
   ModelDoc,
   ModelFn,
+  Picture,
   RosterDoc,
   RosterTrain,
 } from "./store.js";
@@ -50,6 +51,79 @@ export const LIGHT_ENGINE = "light engine";
 
 export const FORWARD = "forward";
 export const REVERSE = "reverse";
+
+/** What a model's scale may be, strings all, `0` and `1` among them
+ *  (`tc49.lib.roster.SCALES`). */
+export const SCALES = ["Z", "N", "TT", "H0", "S", "0", "1", "G"] as const;
+
+/** How a function answers its button: on at one press and off at the next,
+ *  or on only while it is held (GLOSSARY.md, **Function**). The stock view
+ *  calls them *toggle* and *hold*. Absent reads as latching. */
+export const LATCHING = "latching";
+export const MOMENTARY = "momentary";
+
+/** The highest function number a decoder has: F0 to F68. */
+export const TOP_FUNCTION = 68;
+
+/** What a person reads a model as: its `name`, and its key where the
+ *  document states none (#975). */
+export function modelName(model: ModelDoc): string {
+  return model.name ?? model.model;
+}
+
+/** Whether a model has a decoder: as it says, and where it does not say,
+ *  whether it lists functions (`tc49.lib.stock.validate_model`). */
+export function hasDecoder(model: ModelDoc): boolean {
+  return model.decoder ?? Object.keys(model.functions ?? {}).length > 0;
+}
+
+/**
+ * The key a model is filed under, minted from its name at its first write
+ * and never changed afterwards: lower-cased, accents dropped, every run of
+ * anything but `a–z0–9` one `-`, `-` trimmed from both ends, `model` where
+ * nothing is left, then `-2`, `-3` … until nothing has it. `Ae 6/6` is
+ * `ae-6-6`. The key is never shown — the name is what a person reads — so it
+ * only has to be a file's name the store takes (`check_name`) and nobody
+ * else's.
+ */
+export function keyFor(name: string, taken: Iterable<string>): string {
+  const base =
+    name
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "model";
+  const already = new Set(taken);
+  if (!already.has(base)) return base;
+  for (let n = 2; ; n++) {
+    if (!already.has(`${base}-${n}`)) return `${base}-${n}`;
+  }
+}
+
+/** A name nothing has taken, from `base`: itself, then `base (2)`, `base (3)`
+ *  … — what New model and New car call what they make, a name being any
+ *  characters and the person's to change at once. */
+export function untaken(base: string, taken: Iterable<string>): string {
+  const already = new Set(taken);
+  if (!already.has(base)) return base;
+  for (let n = 2; ; n++) {
+    if (!already.has(`${base} (${n})`)) return `${base} (${n})`;
+  }
+}
+
+/** One function row as the model editor holds it: the number as typed, so a
+ *  number listed twice can stand on the screen while it is said to be wrong —
+ *  a document keyed by number cannot hold two of one. */
+export interface FnRow {
+  number: string;
+  name: string;
+  mode: string;
+}
+
+/** Where a model made on this page is held until Save writes it: a key no
+ *  document has, `/` being what no file's name may hold (`check_name`). */
+const FRESH = "new/";
 
 /**
  * One item as it stands in a train: its model's every field, with anything
@@ -296,7 +370,9 @@ export const LENGTH_UNHEARD =
  *  its length may not be corrected. */
 export interface CarRow {
   name: string;
+  /** The model's key, and the name a person reads it by. */
   model: string;
+  modelName: string;
   addr: string | null;
   /** Where the camera it carries answers, `null` where it carries none. */
   camera: string | null;
@@ -311,9 +387,13 @@ export interface CarRow {
 /** One model as the list below draws it, with what names it: ten identical
  *  hoppers are this one row (ADR-0061). */
 export interface ModelRow {
+  /** The key, which is never shown. */
   model: string;
+  name: string;
   kind: string;
+  scale: string | null;
   length: number;
+  decoder: boolean;
   holders: string[];
   held: string | null;
 }
@@ -341,6 +421,10 @@ export interface TrainRow {
   length: number | null;
   kind: string | null;
   functions: Fn[];
+  /** The model of its first locomotive, head first, whose photo is the
+   *  train's on its card; `null` where it has none. */
+  locomotive: string | null;
+  priority: number | null;
   placed: boolean;
   /** Whether it **states its length and names no cars**, which is the shape a
    *  roster written before #223 has: the length is that stated number rather
@@ -358,11 +442,12 @@ export interface TrainRow {
  * `PUT` on `/rosters/<railroad>` are inverses, and a car left out is a car
  * removed (#388).
  *
- * **A model is written the moment it is made and the roster when Save is
- * pressed.** They are two documents on two routes: a roster naming a model the
- * installation has not got is refused whole, so the product exists before
- * anything refers to it (#392). A model's length corrected on its row is
- * written on Save too, before the roster (#718).
+ * **One Save writes everything**: each changed model's document, then each
+ * changed photo, then the roster (#718, #978). They are documents on three
+ * routes, and the order is the store's: a roster naming a model the
+ * installation has not got is refused whole, and so is a photo of a model it
+ * has not got (#392, #630). A model made here is held under a key no document
+ * has until that Save mints its own from its name (`keyFor`).
  *
  * Every method that can refuse answers with the words to show and changes
  * nothing, rather than throwing: a refusal here is an ordinary answer about a
@@ -379,8 +464,26 @@ export class Stock {
   /** The count the store holds, and the count at the latest length edit. */
   private stored = 0;
   private lengthAt = 0;
-  /** The models whose length was corrected and not yet written, by name. */
-  private corrected = new Set<string>();
+  /** The models changed and not yet written, by key. */
+  private changed = new Set<string>();
+  /** The models made on this page that the store has not got, by key: under
+   *  a `FRESH` key until Save mints theirs, and under it until the write
+   *  lands. */
+  private fresh = new Set<string>();
+  /** How many models this page has made, which the `FRESH` keys count. */
+  private made = 0;
+  /** The key a `FRESH` key was minted as, so a screen holding the old one
+   *  still finds the model. */
+  private minted = new Map<string, string>();
+  /** The function rows of each model the editor has drawn, by key: what the
+   *  model's `functions` are written from (`FnRow`). */
+  private rows = new Map<string, FnRow[]>();
+  /** A photo chosen, dropped or taken and not yet written, by key. */
+  private pending = new Map<string, Picture>();
+  /** How many times a model's photo has been written from this page, by key:
+   *  the `?v=<n>` its thumbnail asks for, the bytes at the route having
+   *  changed under what the browser holds (#630). */
+  private written = new Map<string, number>();
 
   constructor(roster: RosterDoc, catalogue: Record<string, ModelDoc>) {
     this.doc = roster;
@@ -397,11 +500,15 @@ export class Stock {
     return this.models;
   }
 
-  /** Whether the roster, or a model's corrected length, holds edits the store
-   *  has not been given. A model made in the dialog is not counted: it was
-   *  written when it was made. */
+  /** Whether the roster, a model or a photo holds edits the store has not
+   *  been given. */
   get edits(): boolean {
     return this.edited > this.stored;
+  }
+
+  /** How many edits the store has not been given, which the bar counts. */
+  get unsaved(): number {
+    return Math.max(0, this.edited - this.stored);
   }
 
   /** Whether those edits change a length, which is what makes the roster's
@@ -411,16 +518,35 @@ export class Stock {
     return this.lengthAt > this.stored;
   }
 
-  /** The models whose length was corrected and not yet written, as Save is
-   *  to write them: each once, with its latest length. */
+  /** The models changed and not yet written, as Save is to write them: each
+   *  once, as it stands, its function rows written into it. */
   get corrections(): ModelDoc[] {
-    return [...this.corrected].map((name) => this.models[name]!);
+    return [...this.changed]
+      .filter((key) => this.models[key] !== undefined)
+      .map((key) => this.models[key]!);
   }
 
-  /** The store took one corrected model, as `corrections` gave it. A model
-   *  corrected again since is still pending, with its newer length. */
+  /** The store took one changed model, as `corrections` gave it. A model
+   *  changed again since is still pending, as it now stands. */
   landed(model: ModelDoc): void {
-    if (this.models[model.model] === model) this.corrected.delete(model.model);
+    if (this.models[model.model] !== model) return;
+    this.changed.delete(model.model);
+    this.fresh.delete(model.model);
+  }
+
+  /** The photos chosen, dropped or taken and not yet written, as Save is to
+   *  write them: after the models, the store refusing a photo for a model it
+   *  has not got (#630). */
+  get photos(): [string, Picture][] {
+    return [...this.pending].filter(([key]) => this.models[key] !== undefined);
+  }
+
+  /** The store took one photo, as `photos` gave it. One chosen since is
+   *  still pending. */
+  photoLanded(key: string, picture: Picture): void {
+    if (this.pending.get(key) !== picture) return;
+    this.pending.delete(key);
+    this.written.set(key, (this.written.get(key) ?? 0) + 1);
   }
 
   /** The store took the roster, as `roster` gave it. An edit made since is
@@ -464,10 +590,17 @@ export class Stock {
       .find(
         ([, train]) => train.length === undefined && (train.cars ?? []).length === 0,
       );
-    return empty === undefined
-      ? null
-      : `train '${empty[0]}' has nothing in it — press + beside a car or a` +
-          ` model, or remove it`;
+    if (empty !== undefined) {
+      return (
+        `train '${empty[0]}' has nothing in it — press + beside a car or a` +
+        ` model, or remove it`
+      );
+    }
+    for (const key of this.rows.keys()) {
+      const trouble = this.functionTrouble(key);
+      if (trouble !== null) return trouble;
+    }
+    return null;
   }
 
   // --- what the three lists draw -------------------------------------------
@@ -480,6 +613,10 @@ export class Stock {
         return {
           name,
           model: car.model,
+          modelName:
+            this.models[car.model] === undefined
+              ? car.model
+              : modelName(this.models[car.model]!),
           addr: car.addr ?? null,
           camera: car.camera ?? null,
           length: whole?.length ?? null,
@@ -492,11 +629,14 @@ export class Stock {
 
   modelRows(power: Power | null = null, heard: boolean = true): ModelRow[] {
     return Object.values(this.models)
-      .sort((one, other) => (one.model < other.model ? -1 : 1))
+      .sort((one, other) => byName(modelName(one), modelName(other)))
       .map((model) => ({
         model: model.model,
+        name: modelName(model),
         kind: model.kind,
+        scale: model.scale ?? null,
         length: model.length,
+        decoder: hasDecoder(model),
         holders: modelHolders(model.model, this.doc),
         held: lengthHeld(power, heard),
       }));
@@ -512,9 +652,19 @@ export class Stock {
         length: trainLength(made, this.doc, this.models),
         kind: trainKind(made, this.doc, this.models),
         functions: trainFunctions(made, this.doc, this.models),
+        locomotive: this.locomotive(made),
+        priority: made.priority ?? null,
         placed: onLayout.has(train),
         stated: made.length !== undefined,
       }));
+  }
+
+  private locomotive(train: RosterTrain): string | null {
+    for (const entry of train.cars ?? []) {
+      const one = stands(entry, this.doc, this.models);
+      if (one?.kind === LOCOMOTIVE) return one.model;
+    }
+    return null;
   }
 
   private entry(entry: Coupled): EntryRow {
@@ -534,7 +684,7 @@ export class Stock {
   /** Make up a train: a name and nothing in it yet, which is what composing
    *  right from left starts with. */
   addTrain(name: string): string | null {
-    if (!isName(name)) return `'${name}' is not a name a train can have`;
+    if (name.trim() === "") return "A train needs a name.";
     if (this.doc.trains[name] !== undefined) return `there is already a train '${name}'`;
     this.write({ trains: { ...this.doc.trains, [name]: { cars: [] } } });
     return null;
@@ -542,7 +692,7 @@ export class Stock {
 
   renameTrain(was: string, name: string): string | null {
     if (name === was) return null;
-    if (!isName(name)) return `'${name}' is not a name a train can have`;
+    if (name.trim() === "") return "A train needs a name.";
     if (this.doc.trains[name] !== undefined) return `there is already a train '${name}'`;
     const train = this.doc.trains[was];
     if (train === undefined) return null;
@@ -641,7 +791,11 @@ export class Stock {
   private promote(train: string, index: number, own: Partial<CarDoc>): void {
     const model = this.doc.trains[train]!.cars![index]!.model;
     if (model === undefined) return;
-    const name = mint(model, Object.keys(this.doc.cars ?? {}));
+    const product = this.models[model];
+    const name = mint(
+      product === undefined ? model : modelName(product),
+      Object.keys(this.doc.cars ?? {}),
+    );
     this.write({
       cars: { ...this.doc.cars, [name]: { model, ...own } },
       trains: {
@@ -660,7 +814,7 @@ export class Stock {
 
   renameCar(was: string, name: string): string | null {
     if (name === was) return null;
-    if (!isName(name)) return `'${name}' is not a name a car can have`;
+    if (name.trim() === "") return "A car needs a name.";
     if (this.doc.cars?.[name] !== undefined) return `there is already a car '${name}'`;
     const car = this.doc.cars?.[was];
     if (car === undefined) return null;
@@ -752,29 +906,97 @@ export class Stock {
 
   // --- models ---------------------------------------------------------------
 
-  /** A model the store has taken, in the catalogue this roster is read
-   *  against. Written rather than merged: `PUT /catalogue/<name>` replaces the
-   *  document, so this holds what the store now has. */
-  putModel(model: ModelDoc): void {
-    this.models = { ...this.models, [model.model]: model };
+  /** One model by key, `null` where the catalogue has none. A `FRESH` key
+   *  Save has minted another for still finds it. */
+  model(key: string): ModelDoc | null {
+    return this.models[this.keyOf(key)] ?? null;
+  }
+
+  /** The key a model is filed under now: `key`, or what Save minted for it. */
+  keyOf(key: string): string {
+    return this.minted.get(key) ?? key;
+  }
+
+  /** Whether the store has not got this model yet: it was made on this page
+   *  and no Save has written it. Deleting one is dropping it here. */
+  isFresh(key: string): boolean {
+    return this.fresh.has(this.keyOf(key));
+  }
+
+  /** The photo chosen, dropped or taken for a model and not yet written. */
+  photo(key: string): Picture | null {
+    return this.pending.get(this.keyOf(key)) ?? null;
+  }
+
+  /** How many times this page has written the model's photo (`written`). */
+  photoVersion(key: string): number {
+    return this.written.get(this.keyOf(key)) ?? 0;
+  }
+
+  /** A photo for the model, written by the next Save. */
+  setPhoto(key: string, picture: Picture): void {
+    const at = this.keyOf(key);
+    if (this.models[at] === undefined) return;
+    this.pending.set(at, picture);
+    this.write({});
   }
 
   /**
-   * What stops a model being made under this name, or `null` where nothing
-   * does.
-   *
-   * A name the catalogue already has is the one thing. `PUT
-   * /catalogue/<name>` replaces the document whole, so Create under a name in
-   * use would rewrite that product's kind, length and functions for every
-   * railroad in the installation — and step around the length guard the
-   * product's own row keeps, a placed train's derived length moving under the
-   * dispatcher with nothing said. A dialog labelled New model touches nothing
-   * that exists, and correcting a product is done on its row (#413).
+   * A model made here: *New model*, or *New model (2)* where that is taken,
+   * and nothing else said — a passenger car in H0 with no decoder, which is
+   * what the person is about to change. It is written by Save, ahead of the
+   * roster, so the roster never names a model the store lacks (#978).
    */
-  stopsMaking(name: string): string | null {
-    return this.models[name] === undefined
-      ? null
-      : `there is already a model '${name}'`;
+  newModel(): string {
+    this.made += 1;
+    const key = `${FRESH}${this.made}`;
+    const name = untaken(
+      "New model",
+      Object.values(this.models).map((model) => modelName(model)),
+    );
+    this.models = {
+      ...this.models,
+      [key]: { model: key, name, kind: "passenger", scale: "H0", length: 200, decoder: false },
+    };
+    this.fresh.add(key);
+    this.changed.add(key);
+    this.write({});
+    return key;
+  }
+
+  /** A model's name: any characters, refused empty or where another model
+   *  has it — the store refuses that too (`AssetStore.put_model`). */
+  renameModel(key: string, name: string): string | null {
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined) return null;
+    const wanted = name.trim();
+    if (wanted === modelName(model)) return null;
+    if (wanted === "") return "A model needs a name.";
+    for (const other of Object.values(this.models)) {
+      if (other.model !== at && modelName(other) === wanted) {
+        return `There is already a model '${wanted}'.`;
+      }
+    }
+    this.change(at, { name: wanted });
+    return null;
+  }
+
+  modelKind(key: string, kind: string): void {
+    this.change(this.keyOf(key), { kind });
+  }
+
+  modelScale(key: string, scale: string): void {
+    this.change(this.keyOf(key), { scale });
+  }
+
+  /** A model's notes; empty takes the key off rather than writing `""`. */
+  modelNotes(key: string, notes: string): void {
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined || (model.notes ?? "") === notes) return;
+    const { notes: _was, ...rest } = model;
+    this.put(at, notes === "" ? rest : { ...rest, notes });
   }
 
   /** Correcting a product's length changes every item of that product, which
@@ -786,20 +1008,226 @@ export class Stock {
     power: Power | null = null,
     heard: boolean = true,
   ): string | null {
-    const model = this.models[name];
+    const at = this.keyOf(name);
+    const model = this.models[at];
     if (model === undefined) return null;
     const held = lengthHeld(power, heard);
     if (held !== null) return held;
     const trouble = lengthTrouble(mm);
     if (trouble !== null) return trouble;
-    this.putModel({ ...model, length: mm });
-    this.corrected.add(name);
-    // Counted as an edit to the roster, which Save writes after the models:
-    // the correction is outstanding until a roster written after it lands.
-    // `edits` and `lengthEdits` read this count and not `corrected`.
-    this.write({});
+    this.change(at, { length: mm });
     this.lengthAt = this.edited;
     return null;
+  }
+
+  /**
+   * Whether the product has a decoder. Turned on with no functions it gets
+   * F0 *Headlights*, which nearly every decoder has; turned off it loses its
+   * functions, a function being a bit on a decoder (`lib/stock.py`).
+   */
+  modelDecoder(key: string, on: boolean): void {
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined) return;
+    const rows = on ? this.functionRows(at) : [];
+    this.putModel({ ...model, decoder: on });
+    this.setRows(
+      at,
+      on && rows.length === 0 ? [{ number: "0", name: "Headlights", mode: LATCHING }] : rows,
+    );
+  }
+
+  /** The function rows of a model, as the editor draws them: the ones it is
+   *  holding, or the document's, by number. */
+  functionRows(key: string): FnRow[] {
+    const at = this.keyOf(key);
+    const held = this.rows.get(at);
+    if (held !== undefined) return held;
+    const functions = this.models[at]?.functions ?? {};
+    return Object.entries(functions)
+      .sort(([one], [other]) => Number(one) - Number(other))
+      .map(([number, fn]) => ({ number, name: fn.name, mode: fn.mode ?? LATCHING }));
+  }
+
+  /** A function row added, on the lowest number not in use. */
+  addFunction(key: string): void {
+    const rows = this.functionRows(key);
+    const used = new Set(rows.map((row) => row.number));
+    let number = 0;
+    while (used.has(String(number))) number++;
+    this.setRows(key, [...rows, { number: String(number), name: "", mode: LATCHING }]);
+  }
+
+  removeFunction(key: string, at: number): void {
+    this.setRows(
+      key,
+      this.functionRows(key).filter((_, index) => index !== at),
+    );
+  }
+
+  /** A function's number, F0 to F68. One listed twice stands, said to be
+   *  wrong, and stops Save while it does (`functionTrouble`). */
+  functionNumber(key: string, at: number, typed: string): string | null {
+    const number = typed.trim().replace(/^[Ff]/, "");
+    if (!/^\d+$/.test(number) || Number(number) > TOP_FUNCTION) {
+      return `A function number is 0 to ${TOP_FUNCTION}.`;
+    }
+    this.setRow(key, at, { number: String(Number(number)) });
+    return null;
+  }
+
+  functionName(key: string, at: number, name: string): void {
+    this.setRow(key, at, { name: name.trim() });
+  }
+
+  functionMode(key: string, at: number, mode: string): void {
+    this.setRow(key, at, { mode });
+  }
+
+  /** What is wrong with a model's function rows, or `null` where nothing is:
+   *  a number listed twice, or a function with no name. Either stops Save —
+   *  the store would refuse the document (`lib/stock.py`). */
+  functionTrouble(key: string): string | null {
+    const rows = this.functionRows(key);
+    const seen = new Set<string>();
+    for (const row of rows) {
+      if (seen.has(row.number)) {
+        return `F${row.number} is listed twice. One number names one function.`;
+      }
+      seen.add(row.number);
+    }
+    const unnamed = rows.find((row) => row.name === "");
+    return unnamed === undefined ? null : `F${unnamed.number} needs a name.`;
+  }
+
+  /** A car of this model, named after it as New model names a model: no
+   *  address yet, which is a car's to be given. */
+  newCar(key: string): string | null {
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined) return null;
+    const name = untaken(modelName(model), Object.keys(this.doc.cars ?? {}));
+    this.write({ cars: { ...this.doc.cars, [name]: { model: at } } });
+    return name;
+  }
+
+  /** A model gone from the catalogue: the store deleted it, or it was made
+   *  here and never written. Nothing on this railroad names it, the delete
+   *  being refused while anything does. */
+  dropModel(key: string): void {
+    const at = this.keyOf(key);
+    const models = { ...this.models };
+    delete models[at];
+    this.models = models;
+    this.changed.delete(at);
+    this.fresh.delete(at);
+    this.rows.delete(at);
+    this.pending.delete(at);
+  }
+
+  /**
+   * Every model made here given the key it is filed under, minted from its
+   * name (`keyFor`) — what Save does first, so what it writes names keys the
+   * store will have. The roster's references move with it, and that is no
+   * edit: the document says what it said, under the key it will be read by.
+   */
+  mintKeys(): void {
+    for (const was of [...this.fresh]) {
+      if (!was.startsWith(FRESH)) continue;
+      const model = this.models[was]!;
+      const key = keyFor(
+        modelName(model),
+        Object.keys(this.models).filter((one) => one !== was),
+      );
+      this.rekey(was, key);
+    }
+  }
+
+  /** A model a train is made of, put in the catalogue the store answered: a
+   *  model `PUT` replaces the document, so this holds what the store now has. */
+  putModel(model: ModelDoc): void {
+    this.models = { ...this.models, [model.model]: model };
+  }
+
+  /** One model changed: the fields given set, and the model owed a write. */
+  private change(key: string, part: Partial<ModelDoc>): void {
+    const model = this.models[key];
+    if (model === undefined) return;
+    this.put(key, { ...model, ...part });
+  }
+
+  /** One model, as it now stands, owed a write and counted as an edit. */
+  private put(key: string, model: ModelDoc): void {
+    this.putModel(model);
+    this.changed.add(key);
+    // Counted as an edit to the roster, which Save writes after the models:
+    // the change is outstanding until a roster written after it lands.
+    this.write({});
+  }
+
+  private setRow(key: string, at: number, part: Partial<FnRow>): void {
+    this.setRows(
+      key,
+      this.functionRows(key).map((row, index) => (index === at ? { ...row, ...part } : row)),
+    );
+  }
+
+  /** A model's function rows, and the document's `functions` written from
+   *  them: a number listed twice is the later row's in the document until it
+   *  is put right, Save being refused meanwhile. A latching function says
+   *  nothing about its mode, that being what absent reads as. */
+  private setRows(key: string, rows: FnRow[]): void {
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined) return;
+    this.rows.set(at, rows);
+    const functions: Record<string, ModelFn> = {};
+    for (const row of rows) {
+      functions[row.number] =
+        row.mode === LATCHING ? { name: row.name } : { name: row.name, mode: row.mode };
+    }
+    const { functions: _was, ...rest } = model;
+    this.put(at, rows.length === 0 ? rest : { ...rest, functions });
+  }
+
+  /** A model moved from one key to another, and everything that names it. */
+  private rekey(was: string, key: string): void {
+    const models: Record<string, ModelDoc> = {};
+    for (const [at, model] of Object.entries(this.models)) {
+      models[at === was ? key : at] = at === was ? { ...model, model: key } : model;
+    }
+    this.models = models;
+    for (const held of [this.changed, this.fresh]) {
+      if (held.delete(was)) held.add(key);
+    }
+    for (const held of [this.rows, this.pending, this.written] as Map<string, unknown>[]) {
+      if (held.has(was)) {
+        held.set(key, held.get(was));
+        held.delete(was);
+      }
+    }
+    this.minted.set(was, key);
+    const cars: Record<string, CarDoc> = {};
+    for (const [name, car] of Object.entries(this.doc.cars ?? {})) {
+      cars[name] = car.model === was ? { ...car, model: key } : car;
+    }
+    const trains: Record<string, RosterTrain> = {};
+    for (const [name, train] of Object.entries(this.doc.trains)) {
+      trains[name] =
+        train.cars === undefined
+          ? train
+          : {
+              ...train,
+              cars: train.cars.map((entry) =>
+                entry.model === was ? { ...entry, model: key } : entry,
+              ),
+            };
+    }
+    // The same document under the key it will be read by, and no edit: it
+    // counts as the document it replaces, so `kept` reads it as that one.
+    const count = this.countOf.get(this.doc) ?? this.edited;
+    this.doc = { ...this.doc, ...(this.doc.cars === undefined ? {} : { cars }), trains };
+    this.countOf.set(this.doc, count);
   }
 
   // --- writing --------------------------------------------------------------
@@ -895,4 +1323,9 @@ function promoted(entry: Coupled, car: string): Coupled {
   return entry.orientation === undefined
     ? { car }
     : { car, orientation: entry.orientation };
+}
+
+/** Names in the order a person reads a list: case aside. */
+function byName(one: string, other: string): number {
+  return one.localeCompare(other, undefined, { sensitivity: "base" });
 }
