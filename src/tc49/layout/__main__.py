@@ -43,7 +43,11 @@ order for a detector.
 The loop is also where `layout` says it is up: `alive_confirmed`, once a
 second by the monotonic clock whatever the period, so that something off the
 box can cut track power when the box goes silent (#716). Standing and
-reloading are outside it and say nothing.
+reloading are outside it and say nothing. The fast clock goes out at the same
+beat, `tc49/layout/state/clock`, started at each build from the box's wall
+time of day at a speed-up of 1 and run on the monotonic clock from there
+(ADR-0090): the wall clock is read once a build, here, and by nothing in
+`LayoutInterface`, which never learns what time it is (ADR-0044).
 
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
@@ -70,6 +74,7 @@ from tc49.layout.interface import (
 )
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.fast_clock import FastClock, time_of_day
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
@@ -87,11 +92,13 @@ OWNED = (
     "tc49/layout/state/driving",
     "tc49/layout/state/taken",
     "tc49/layout/state/functions",
+    "tc49/layout/state/clock",
     "tc49/layout/state/wanted/#",
 )
 """The retained rows this app writes: which railroad is loaded, the supply as
 it observes it, the driving mode, which throttle holds which train, which of
-each train's functions are on, and every desired row under `wanted/` — one per
+each train's functions are on, the fast clock, and every desired row under
+`wanted/` — one per
 address a railroad's wiring decides. The observed rows under `device/` are
 **not** here: they belong to whatever answers for that address, which is
 hardware and not this app (ADR-0043, ADR-0058), and a reload leaves them to
@@ -107,6 +114,9 @@ ALIVE_S = 1.0
 clock and not in turns of the loop: something off the box cuts track power
 when `alive_confirmed` stops (#716), and its timeout is set against this
 rate, which the drain period must not move."""
+
+CLOCK = "tc49/layout/state/clock"
+"""The fast clock, said at the beat `alive_confirmed` is (ADR-0090)."""
 
 TRACTION = f"{WANTED_TRACTION}/#"
 """Every traction row, which is what has to be on the broker's way here before
@@ -227,7 +237,10 @@ class _Binding:
         self, read: tuple[Layout, Roster], position: dict[str, str], built: bool
     ) -> Running:
         """The traction rows seen, then the interface built on its own clock,
-        starting at zero."""
+        starting at zero, and the fast clock started at the box's time of
+        day: a railroad is loaded at its start time (ADR-0090, decision 4),
+        and one with no start time of its own starts at the wall clock's, at
+        a speed-up of 1."""
         retained(self._bus, self._stop)
         layout, roster = read
         clock = Clock()
@@ -240,29 +253,34 @@ class _Binding:
             position=position,
             built=built,
         )
-        return _Running(self._bus, app, clock, self._stop, self._period_s)
+        fast = FastClock(time_of_day(time.localtime()), 1.0, time.monotonic())
+        return _Running(self._bus, app, clock, fast, self._stop, self._period_s)
 
 
 class _Running:
     """A built `LayoutInterface` and the loop that paces it: advance the
-    clock to wall time, say it is up, `settle()`, drain, once per period."""
+    clock to wall time, say it is up and what the fast clock reads,
+    `settle()`, drain, once per period."""
 
     def __init__(
         self,
         bus: MqttBus,
         app: LayoutInterface,
         clock: Clock,
+        fast: FastClock,
         stop: threading.Event,
         period_s: float,
     ) -> None:
         self._bus = bus
         self._app = app
         self._clock = clock
+        self._fast = fast
         self._stop = stop
         self._period_s = period_s
         self._started = time.monotonic()
-        # When it last said it is up: kept across `run` being entered again
-        # after a pick that was not built, so the rate holds (#716).
+        # When it last said it is up and what the fast clock reads: kept
+        # across `run` being entered again after a pick that was not built,
+        # so the rate holds (#716, ADR-0090).
         self._alive: float | None = None
 
     @property
@@ -278,6 +296,7 @@ class _Running:
             # cut then changes nothing (#716).
             if self._alive is None or now - self._alive >= ALIVE_S:
                 self._bus.publish(ALIVE_CONFIRMED, {})
+                self._bus.publish(CLOCK, self._fast.row(now))
                 self._alive = now
             self._app.settle()
             self._bus.drain()
