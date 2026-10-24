@@ -96,7 +96,7 @@ which is a lot to ask of a click that looks like it does nothing.
 list a `Name` field has two presses beside it. **New** writes an empty drawing
 under the name — no roster and no script, a railroad with neither being an
 ordinary one — and **Copy loaded as…** has the store copy every document of
-the loaded railroad under it, drawing, roster and script where they exist
+the loaded railroad under it, drawing, roster, script and clock where they exist
 (`POST /railroads/<from>/copy`, #729), so the copy has stock to place and a
 script to run from the start, which Save As never gave. Each then asks for
 what it wrote, the way a press on the list does, and the tick lands on the new

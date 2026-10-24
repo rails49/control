@@ -28,6 +28,7 @@ catalogue/<model>.jpg                           # its photo, where one was taken
 layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
 layouts/<layout>.script.py                      # the script its translator loads
+layouts/<layout>.clock.yaml                     # the start time and speed-up its fast clock is loaded at
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
@@ -349,6 +350,25 @@ trains:
   on it, and a railroad with no roster file owns nothing yet — a drawing made
   this morning, which is not a missing railroad. Neither document carries live
   state.
+
+## Clock schema
+
+A railroad's clock is the start time and the speed-up its fast clock is
+loaded at
+([ADR-0090](../adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)):
+
+```yaml
+start: '06:30'   # "HH:MM", quoted: YAML reads a bare 12:30 as a number
+speed_up: 8      # fast-clock seconds per real second, greater than 0
+```
+
+Both fields, and nothing else. `layout` writes it when a person sets the
+clock: a new time becomes `start`, rounded down to the minute, and the
+speed-up is the one the clock runs at. It is never written as the clock runs.
+A railroad with no clock document starts at the box's wall time of day at a
+speed-up of 1, and nothing is written until somebody sets it. One that does
+not read is said in `layout`'s log and treated as none. Copy carries it with
+the drawing, roster and script.
 
 ## Scenario schema
 
