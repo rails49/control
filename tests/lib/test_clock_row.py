@@ -1,11 +1,14 @@
 """The fast clock's row as a layout binding holds it: said at each beat and
 at once when a person sets it, and what is kept with the railroad (ADR-0090)."""
 
+import time
 from collections.abc import Callable
+from typing import cast
 
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import CLOCK, CLOCK_WANTED, FastClockRow
+from tc49.lib.clock_row import CLOCK, CLOCK_WANTED, FastClockRow, kept_by, loaded
+from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock
 
 
@@ -110,3 +113,51 @@ def test_a_clock_gesture_that_cannot_be_read_says_nothing() -> None:
     bus.drain()
     assert len(said) == 1
     assert kept == []
+
+
+def loaded_on(
+    kept: KeptClock | None, keeping: list[KeptClock]
+) -> tuple[InProcessBus, list[Payload]]:
+    """The row a build starts on a railroad keeping `kept`, at 14:25:07 by
+    the box's wall clock, and what it says at once."""
+    bus = InProcessBus(Clock())
+    said: list[Payload] = []
+    bus.subscribe(CLOCK, lambda _topic, payload: said.append(payload))
+    moment = time.strptime("2026-10-24 14:25:07", "%Y-%m-%d %H:%M:%S")
+    row = loaded(bus, kept, Monotonic(), moment, keeping.append)
+    row.say()
+    bus.drain()
+    return bus, said
+
+
+def test_a_railroad_is_loaded_at_the_start_time_it_keeps() -> None:
+    _, said = loaded_on(KeptClock(6 * 3600, 4.0), [])
+    assert [(row["time"], row["speed_up"]) for row in said] == [(6 * 3600, 4.0)]
+
+
+def test_a_railroad_that_keeps_no_clock_starts_at_the_box_time_of_day() -> None:
+    """At a speed-up of 1, and nothing kept until a person sets the clock;
+    then its start is the box's time to the minute (ADR-0090, decision 4)."""
+    keeping: list[KeptClock] = []
+    bus, said = loaded_on(None, keeping)
+    assert [(row["time"], row["speed_up"]) for row in said] == [
+        ((14 * 60 + 25) * 60 + 7, 1.0)
+    ]
+    assert keeping == []
+    bus.publish(CLOCK_WANTED, {"speed_up": 8})
+    bus.drain()
+    assert keeping == [KeptClock((14 * 60 + 25) * 60, 8.0)]
+
+
+def test_a_clock_document_the_store_cannot_read_is_said_and_read_as_none() -> None:
+    """A clock is no reason not to build a railroad (ADR-0044)."""
+
+    class Refusing:
+        def clock(self, railroad: str) -> KeptClock | None:
+            raise ValueError("clock 'start' is 750")
+
+    logged: list[str] = []
+    assert kept_by(cast(Documents, Refusing()), "yard", logged.append) is None
+    assert logged == [
+        "'yard': clock 'start' is 750 — the clock starts at the box's time"
+    ]

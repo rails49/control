@@ -10,11 +10,12 @@ around it.
 
 import queue
 import threading
+import time
 from collections.abc import Callable
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.documents import Documents
-from tc49.lib.fast_clock import FastClock, KeptClock, start_of
+from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
 from tc49.lib.payload import wanted_clock
 
 CLOCK = "tc49/layout/state/clock"
@@ -109,3 +110,37 @@ class FastClockRow:
             self._fast.speed_up,
         )
         self._keep(self._kept)
+
+
+def kept_by(
+    documents: Documents, railroad: str, log: Callable[[str], None]
+) -> KeptClock | None:
+    """The clock `railroad` keeps, or None. One the store cannot read is
+    said and started as none would be, at the wall clock's time: a clock is
+    no reason not to build a railroad, and nothing in the control path reads
+    it (ADR-0044)."""
+    try:
+        return documents.clock(railroad)
+    except (ValueError, TypeError) as refused:
+        log(f"'{railroad}': {refused} — the clock starts at the box's time")
+        return None
+
+
+def loaded(
+    bus: Bus,
+    kept: KeptClock | None,
+    monotonic: Callable[[], float],
+    moment: time.struct_time,
+    keep: Callable[[KeptClock], None],
+) -> FastClockRow:
+    """The row a build starts: at the start time the railroad keeps
+    (ADR-0090, decision 4), or, where it keeps none, at `moment`'s time of
+    day, the box's wall clock read once a build, at a speed-up of 1, which is
+    not written until a person sets the clock."""
+    if kept is None:
+        now = time_of_day(moment)
+        fast = FastClock(now, 1.0, monotonic())
+        kept = KeptClock(start_of(now), 1.0)
+    else:
+        fast = kept.started(monotonic())
+    return FastClockRow(bus, fast, kept, monotonic, keep)

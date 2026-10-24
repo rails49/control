@@ -80,9 +80,9 @@ from tc49.layout.interface import (
     LayoutInterface,
 )
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import FastClockRow, Keeping
+from tc49.lib.clock_row import FastClockRow, Keeping, kept_by, loaded
 from tc49.lib.documents import Documents
-from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
+from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
@@ -252,15 +252,7 @@ class _Binding:
         )
 
     def _kept(self, railroad: str) -> KeptClock | None:
-        """The clock `railroad` keeps, or None. One the store cannot read is
-        said and started as none would be, at the wall clock's time: a clock
-        is no reason not to build a railroad, and nothing in the control path
-        reads it (ADR-0044)."""
-        try:
-            return self._documents.clock(railroad)
-        except (ValueError, TypeError) as refused:
-            self._log(f"'{railroad}': {refused} — the clock starts at the box's time")
-            return None
+        return kept_by(self._documents, railroad, self._log)
 
     def layout(self, read: _Read) -> Layout:
         return read[0]
@@ -283,17 +275,11 @@ class _Binding:
             position=position,
             built=built,
         )
-        if kept is None:
-            now = time_of_day(time.localtime())
-            fast = FastClock(now, 1.0, time.monotonic())
-            kept = KeptClock(start_of(now), 1.0)
-        else:
-            fast = kept.started(time.monotonic())
 
         def keep(changed: KeptClock) -> None:
             self._keeping.keep(layout.name, changed)
 
-        row = FastClockRow(self._bus, fast, kept, time.monotonic, keep)
+        row = loaded(self._bus, kept, time.monotonic, time.localtime(), keep)
         return _Running(self._bus, app, clock, row, self._stop, self._period_s)
 
 
