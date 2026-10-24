@@ -237,10 +237,11 @@ def _reason(answered: urllib.error.HTTPError) -> str:
 def reread_roster(
     documents: Documents, railroad: str, log: Callable[[str], None]
 ) -> Callable[[], Roster | None]:
-    """How the dispatcher built on `railroad` reads its roster again, for a
-    placement naming a train it has not got (ADR-0091, decision 1). One
-    attempt, on the bus loop's own thread: a store that does not answer, or a
-    roster it refuses, is None and the placement is dropped as it was."""
+    """How an app built on `railroad` reads its roster again: the dispatcher
+    for a placement naming a train it has not got, `layout` for a take
+    (ADR-0091, decisions 1 and 2). One attempt, on the bus loop's own thread:
+    a store that does not answer, or a roster it refuses, is None and said on
+    `log`, and the app goes on as it was."""
 
     def read() -> Roster | None:
         try:

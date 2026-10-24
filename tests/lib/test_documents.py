@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from tc49.lib.documents import Documents
+from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
 from tc49.store import AssetStore
 from tc49.store.server import make_server
@@ -187,3 +187,21 @@ def test_a_roster_read_once_raises_where_no_store_answers() -> None:
 
 def test_a_roster_read_once_is_the_roster(url: str, root: Path) -> None:
     assert client(url).roster(RAILROAD, once=True) == AssetStore(root).roster(RAILROAD)
+
+
+def test_the_roster_read_again_is_the_stores(url: str, root: Path) -> None:
+    said: list[str] = []
+
+    read = reread_roster(client(url), RAILROAD, said.append)()
+
+    assert read == AssetStore(root).roster(RAILROAD)
+    assert said == []
+
+
+def test_a_store_that_does_not_answer_reads_no_roster_and_says_so() -> None:
+    """One attempt and no wait: the bus loop asks this on its own thread."""
+    said: list[str] = []
+    documents = client(f"http://127.0.0.1:{free_port()}")
+
+    assert reread_roster(documents, RAILROAD, said.append)() is None
+    assert len(said) == 1 and "not read again" in said[0]
