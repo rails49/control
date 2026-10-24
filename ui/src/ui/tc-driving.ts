@@ -1,9 +1,12 @@
 /**
  * One train's driving controls on the throttle view (ui/THROTTLE.md), laid
- * out as arrangement A ([#852](https://github.com/rails49/control/issues/852)):
- * what the train is reading at the top, its picture whole below that, the
- * reverser, its functions, Turn around and the clock below on the left, and
- * the speed, the slider and STOP below on the right, where a right thumb is.
+ * out as `docs/ui/images/throttle-mockup.html` draws a held panel
+ * ([#968](https://github.com/rails49/control/issues/968)): the train's
+ * picture across the top, and below it two columns — the clock, the blocks
+ * the train is at and heading for, the signal it reads and its functions on
+ * the left, and the speed, the slider and the one button under it on the
+ * right, where a right thumb is. The same layout at every width a panel is
+ * drawn at, 360–440 px (ADR-0089).
  *
  * `tc-throttle` draws one in each panel whose throttle holds a train
  * (ADR-0089), and each owns its own train's slider and reverser: they are the
@@ -22,15 +25,17 @@
  * direction for a locomotive (GLOSSARY.md, **Throttle**).
  */
 
-import { LitElement, html, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { LitElement, html, nothing, svg } from "lit";
+import { customElement, property, query, state } from "lit/decorators.js";
 
 import { watchPicture, type Watching } from "../model/picture.js";
+import type { Ahead } from "../model/panel.js";
 import { photoUrl, pictureUrl, RETRY_MS } from "../model/store.js";
 import { driveRefusal, type Cab } from "../model/throttle.js";
+import type { Aspect } from "../render/artwork.js";
 import type { Power } from "../model/trace.js";
 import "./tc-clock.js";
-import { drivingStyles } from "./tc-driving.styles.js";
+import { drivingStyles, TRACK_PAD_PX } from "./tc-driving.styles.js";
 
 /** The slider moved: the train it is about, the speed it now asks for,
  *  signed by the reverser, and the panel's throttle id. The view writes
@@ -52,14 +57,64 @@ export interface FunctionWanted {
   on: boolean;
 }
 
-/** How many of a train's functions show before `>>`: the rest wait below it
- *  until a person opens them. */
-const FIRST = 2;
+/** How many steps the slider divides its travel into: hundredths, the whole
+ *  percentage a person reads, so the number on screen is what goes on the
+ *  bus. */
+const STEPS = 100;
 
-/** How finely the slider divides its travel. Twenty steps is finer than a
- *  thumb on a phone resolves and coarser than the noise of a drag, and the
- *  number a person reads is what goes on the bus. */
-const STEP = 0.05;
+/** What an arrow key moves it by: one step. */
+const STEP = 1 / STEPS;
+
+/** What PageUp and PageDown move it by. */
+const PAGE = 0.1;
+
+/** The tick marks up the track, one every 5 %: 0 through 20. */
+const TICKS = Array.from({ length: 21 }, (_, at) => at);
+
+/** The signal's three lamps, top to bottom, in the Swiss order
+ *  (docs/ui/EDITOR.md): each with its height on the head and the colour it
+ *  is lit in. The colours are a lamp's and not the page's, so they are the
+ *  same in either theme. */
+const LAMPS = [
+  { lamp: "green", y: 32, colour: "#22c55e" },
+  { lamp: "red", y: 68, colour: "#ef4444" },
+  { lamp: "amber", y: 104, colour: "#f59e0b" },
+] as const;
+
+/** Which lamps each aspect lights. */
+const LIT: Record<Aspect, readonly string[]> = {
+  stop: ["red"],
+  caution: ["green", "amber"],
+  clear: ["green"],
+};
+
+/** A train seen from the front, drawn where it has no photo. */
+const TRAIN = svg`<svg class="icon" viewBox="0 0 64 64" aria-hidden="true" fill="none"
+    stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="15" y="6" width="34" height="40" rx="9" />
+  <rect x="21" y="12" width="22" height="13" rx="3" />
+  <circle cx="24" cy="36" r="2.4" fill="currentColor" />
+  <circle cx="40" cy="36" r="2.4" fill="currentColor" />
+  <path d="M22 46 13 58M42 46l9 12M17 53h30" />
+</svg>`;
+
+/** ▶, ◀ and the stop square, each 24 units, drawn in the text's colour. */
+const FORWARD = svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5 20 12 7 19.5Z" fill="currentColor" /></svg>`;
+const REVERSE = svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 4.5 4 12l13 7.5Z" fill="currentColor" /></svg>`;
+const SQUARE = svg`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" /></svg>`;
+
+/** Two arrows, one each way: the picture changes the train. */
+const SWAP = svg`<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7h12l-3-3M17 13H5l3 3" fill="none"
+    stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+
+/** A drag on the track under way: where the pointer went down, the value it
+ *  stood at then, and the pixels the whole of its travel spans. */
+interface Drag {
+  pointer: number;
+  y: number;
+  from: number;
+  span: number;
+}
 
 @customElement("tc-driving")
 export class TcDriving extends LitElement {
@@ -101,10 +156,6 @@ export class TcDriving extends LitElement {
    *  it is the person's, and it sends nothing when it moves (ADR-0084). */
   @state() private reverse = false;
 
-  /** Whether `>>` has the functions past the first two open. Closed on
-   *  every take. */
-  @state() private more = false;
-
   /** The models whose photo did not load, drawn by the train's name. */
   @state() private unseen: ReadonlySet<string> = new Set();
 
@@ -126,6 +177,11 @@ export class TcDriving extends LitElement {
   /** The stream being read, `null` while none is. */
   private reading: Watching | null = null;
 
+  /** The drag on the track under way, `null` while there is none. */
+  private drag: Drag | null = null;
+
+  @query(".track") private track!: HTMLElement | null;
+
   override willUpdate(changed: Map<string, unknown>): void {
     // The picture no longer wanted: no retry waits, and the next time it is
     // wanted it is asked for afresh.
@@ -143,7 +199,6 @@ export class TcDriving extends LitElement {
       this.unwatch();
       this.slider = 0;
       this.reverse = false;
-      this.more = false;
       return;
     }
     // A granted move ended at its sensor: `layout` has written `0.0`, and
@@ -187,39 +242,48 @@ export class TcDriving extends LitElement {
   private cabinet(cab: Cab) {
     const still = this.still;
     return html`
-      <section class="top">
-        <div class="bar">
-          <h2>${cab.train}</h2>
-          ${this.signal(cab)}
-          <span class="stands">${cab.block ?? "crossing a transit"}</span>
-          ${this.road(cab)}
-        </div>
-        <button
-          class="view"
-          aria-label="Choose a train"
-          @click=${() => this.say<null>("selector-wanted", null)}
-        >
-          ${this.frame === null ? this.thumbnail(cab) : this.picture()}
-        </button>
-      </section>
-      ${still === null ? nothing : html`<p class="still">${still}</p>`}
-      <section class="below">
+      <button
+        class="view"
+        aria-label="Choose a train"
+        @click=${() => this.say<null>("selector-wanted", null)}
+      >
+        ${this.frame === null ? this.thumbnail(cab) : this.picture()}
+        ${this.frame === null
+          ? nothing
+          : html`<span class="chip live"><i></i>LIVE</span>`}
+        ${this.frame === null && this.drawnAsName(cab)
+          ? nothing
+          : html`<span class="chip title">${cab.train}</span>`}
+        <span class="chip trains">${SWAP}Trains</span>
+      </button>
+      <section class=${still === null ? "lower" : "lower dead"}>
         <div class="left">
-          ${this.reverser()} ${this.functions(cab)}
-          <tc-clock></tc-clock>
+          <div class="readout">
+            <tc-clock></tc-clock>
+            ${this.blocks(cab)} ${this.signal(cab)}
+          </div>
+          ${this.functions(cab)}
         </div>
         <div class="right">${this.driving(cab)}</div>
+        ${still === null ? nothing : html`<p class="still">${still}</p>`}
       </section>
     `;
   }
 
-  /** The model photo of the train's first locomotive, or its name where it
-   *  has none, the roster does not have it, or the photo does not load — a
-   *  model with no photo filed answers 404, as the stock screen finds. */
+  /** Whether the train is drawn as its icon and name rather than a photo:
+   *  the name is under the icon then, and not laid over it a second time. */
+  private drawnAsName(cab: Cab): boolean {
+    return cab.locomotive === null || this.unseen.has(cab.locomotive);
+  }
+
+  /** The model photo of the train's first locomotive, or a train and its
+   *  name where it has none, the roster does not have it, or the photo does
+   *  not load — a model with no photo filed answers 404, as the stock screen
+   *  finds. */
   private thumbnail(cab: Cab) {
     const model = cab.locomotive;
     if (model === null || this.unseen.has(model)) {
-      return html`<span class="thumbnail name">${cab.train}</span>`;
+      return html`<span class="thumbnail name">${TRAIN}<span>${cab.train}</span></span>`;
     }
     return html`<img
       class="thumbnail"
@@ -239,8 +303,7 @@ export class TcDriving extends LitElement {
    * `RETRY_MS` later under a new `try`. Called once a frame has come.
    */
   private picture() {
-    return html`<img class="picture" src=${this.frame} alt="" />
-      <span class="live">LIVE</span>`;
+    return html`<img class="picture" src=${this.frame} alt="" />`;
   }
 
   /** Read the stream at `url`, or none where it is `null`, dropping the
@@ -305,150 +368,208 @@ export class TcDriving extends LitElement {
   }
 
   /**
-   * Forward and Reverse, both shown, the current one pressed. Live only with
-   * the slider at 0: a flip at speed reverses a rolling train, and a long
-   * one can leave the rails (ADR-0084). Switching it sends nothing; the next
-   * slider input carries the new sign.
+   * Where the train is and where it is going: *at* the block it stands in,
+   * *next* the first block of the road ahead and *to* the last, the two
+   * coloured as the run view lights a route — green where the lock is held,
+   * cyan where the route is chosen. A train crossing a transit stands in no
+   * block, and says so; with no road ahead, *next* and *to* read *—*.
    */
-  private reverser() {
-    const dead = !this.live || this.slider !== 0;
-    const title = this.slider === 0 ? nothing : "the slider must be at 0";
-    return html`
-      <div class="reverser" role="group" aria-label="reverser">
-        <button
-          class="forward"
-          aria-pressed=${!this.reverse}
-          title=${title}
-          ?disabled=${dead}
-          @click=${() => this.reversing(false)}
-        >
-          Forward
-        </button>
-        <button
-          class="reverse"
-          aria-pressed=${this.reverse}
-          title=${title}
-          ?disabled=${dead}
-          @click=${() => this.reversing(true)}
-        >
-          Reverse
-        </button>
-      </div>
+  private blocks(cab: Cab) {
+    const next = cab.ahead[0];
+    const to = cab.ahead.at(-1);
+    const road = (label: string, block: Ahead | undefined) => html`
+      <span class="label">${label}</span>
+      ${block === undefined
+        ? html`<span class=${`block ${label} none`}>—</span>`
+        : html`<span class=${`block ${label} ${block.claim}`} title=${block.claim}
+            >${block.block}</span
+          >`}
     `;
+    return html`<div class="blocks">
+      ${cab.block === null
+        ? html`<span class="label"></span
+            ><span class="block at none">crossing a transit</span>`
+        : html`<span class="label">at</span><span class="block at">${cab.block}</span>`}
+      ${road("next", next)} ${road("to", to)}
+    </div>`;
   }
 
   /**
-   * The speed, the slider and STOP.
-   *
-   * The speed reads as a whole percentage of the train's maximum, with no
-   * sign — which end leads is said under it. The slider runs 0 at the bottom
-   * to 1 at the top and is live whenever this throttle holds the train over
-   * live rails, granted move or not (ADR-0081). STOP puts it to 0 in one
-   * press: it is what a person reaches for when something is wrong.
+   * The signal the train reads, as a three-lamp head: green at the top, red
+   * in the middle, amber at the bottom (the Swiss order, docs/ui/EDITOR.md).
+   * Stop lights red, caution green and amber, clear green, and no aspect
+   * lights nothing. It is the aspect at the end the reverser points the
+   * train to: the end its facing names for Forward, the block's other end
+   * for Reverse (ADR-0025). Like the clock it is a picture of a thing on the
+   * railroad, so the head and its lamps keep their colours in either theme;
+   * the rim follows the page.
    */
-  private driving(cab: Cab) {
-    const motion =
-      this.slider === 0 ? "at rest" : this.reverse ? "tail first" : "nose first";
-    return html`
-      <span class="reading">${Math.round(this.slider * 100)} %</span>
-      <span class="motion">${motion}</span>
-      <input
-        type="range"
-        class="speed"
-        min="0"
-        max="1"
-        step=${STEP}
-        .value=${String(this.slider)}
-        ?disabled=${!this.live}
-        aria-label="speed"
-        aria-orientation="vertical"
-        @input=${(event: Event) =>
-          this.drive(cab.train, Number((event.target as HTMLInputElement).value))}
-      />
-      <button class="stop" ?disabled=${!this.live} @click=${() => this.drive(cab.train, 0)}>
-        STOP
-      </button>
-    `;
-  }
-
-  /** The aspect at the end the reverser points the train to: the end its
-   *  facing names for Forward, the block's other end for Reverse. A person
-   *  driving by hand reads the signal, and this is where they read it
-   *  (ADR-0025). */
   private signal(cab: Cab) {
     const aspect = this.reverse ? cab.tailAspect : cab.aspect;
-    return html`<span class="signal">
-      ${aspect === null
-        ? html`<span class="hint">no signal ahead</span>`
-        : html`<span class=${`aspect ${aspect}`}>${aspect}</span>`}
-    </span>`;
-  }
-
-  /** The blocks of the route the train is committed to, in the two colours
-   *  a route is lit in on the run view. */
-  private road(cab: Cab) {
-    return cab.ahead.length === 0
-      ? html`<span class="hint">no route committed</span>`
-      : html`<ol class="ahead">
-          ${cab.ahead.map(
-            (block) => html`<li class=${block.claim} title=${block.claim}>${block.block}</li>`,
-          )}
-        </ol>`;
+    const lit = aspect === null ? [] : LIT[aspect];
+    return html`<svg
+      class="signal"
+      viewBox="0 0 52 160"
+      role="img"
+      aria-label=${aspect === null ? "no signal ahead" : `signal ahead: ${aspect}`}
+    >
+      <rect class="mast" x="22" y="132" width="8" height="28" />
+      <rect class="head" x="3" y="4" width="46" height="128" rx="17" fill="#0d0f12" />
+      ${LAMPS.map(({ lamp, y, colour }) =>
+        lit.includes(lamp)
+          ? svg`<circle class=${`lamp ${lamp} lit`} cx="26" cy=${y} r="12.5" fill=${colour} />`
+          : svg`<circle class=${`lamp ${lamp}`} cx="26" cy=${y} r="12.5" fill="#22262d" />`,
+      )}
+    </svg>`;
   }
 
   /**
    * What a person can switch on this train, by the names the catalogue gives
-   * them (ADR-0045), in the order the roster lists them. A train whose cars
-   * declare none shows none, which is most of the stock a railroad owns.
+   * them (ADR-0045), in the order the roster lists them, two across, every
+   * one of them: where they do not fit, they scroll and nothing else does. A
+   * train whose cars declare none shows none, which is most of the stock a
+   * railroad owns.
    *
-   * The first two always show; with three or more, `>>` follows them and
-   * opens the rest below, in the same order. Each latches: a press asks for
-   * the opposite of what the button shows, and the button shows what
-   * `state/functions` says, `aria-pressed` where it is on — it changes when
-   * `layout` says it switched it and not when it was pressed
-   * ([#856](https://github.com/rails49/control/issues/856)). Live whenever
-   * this throttle holds the train over live rails, granted move or not, and
-   * otherwise drawn with their state and dead.
+   * Each latches: a press asks for the opposite of what the button shows,
+   * and the button shows what `state/functions` says, `aria-pressed` where it
+   * is on — it changes when `layout` says it switched it and not when it was
+   * pressed ([#856](https://github.com/rails49/control/issues/856)). Live
+   * whenever this throttle holds the train over live rails, granted move or
+   * not, and otherwise drawn with their state and dead.
    */
   private functions(cab: Cab) {
-    if (cab.functions.length === 0) return nothing;
-    const button = (one: Cab["functions"][number]) => html`
-      <button
-        class="function"
-        aria-pressed=${one.on}
-        ?disabled=${!this.live}
-        @click=${() => this.switching(cab.train, one.name, !one.on)}
-      >
-        ${one.name}
-      </button>
-    `;
-    const rest = cab.functions.slice(FIRST);
+    return html`<div class="functions">
+      ${cab.functions.map(
+        (one) => html`
+          <button
+            class="function"
+            aria-pressed=${one.on}
+            ?disabled=${!this.live}
+            @click=${() => this.switching(cab.train, one.name, !one.on)}
+          >
+            ${one.name}
+          </button>
+        `,
+      )}
+    </div>`;
+  }
+
+  /**
+   * The speed, the slider and the button under it.
+   *
+   * The speed reads as a whole percentage of the train's maximum, with no
+   * sign — which way the reverser is set is said under it. The slider runs
+   * 0 at the bottom to 1 at the top in hundredths and is live whenever this
+   * throttle holds the train over live rails, granted move or not (ADR-0081).
+   * A drag moves it by the distance the pointer travels over the track's
+   * usable height, so a touch does not jump it; the arrow keys move it a
+   * hundredth and PageUp and PageDown a tenth.
+   *
+   * The button is two presses by where the slider is. Above 0 it is the
+   * stop: the slider to 0 in one press, what a person reaches for when
+   * something is wrong, the reverser left as it is. At 0 it is the reverser,
+   * ▶ Forward or ◀ Reverse, and a press flips it and sends nothing; the next
+   * slider move carries the new sign (ADR-0084).
+   */
+  private driving(cab: Cab) {
+    const percent = Math.round(this.slider * 100);
+    const way = this.reverse ? "Reverse" : "Forward";
+    const moving = this.slider > 0;
     return html`
-      <div class="functions">
-        ${cab.functions.slice(0, FIRST).map(button)}
-        ${rest.length === 0
-          ? nothing
-          : html`<button
-              class="more"
-              aria-expanded=${this.more}
-              aria-label="more functions"
-              @click=${() => (this.more = !this.more)}
-            >
-              &gt;&gt;
-            </button>`}
+      <div class="reading">${percent}<span class="unit">%</span></div>
+      <div class="motion">${this.reverse ? REVERSE : FORWARD}<span>${way}</span></div>
+      <div
+        class="track"
+        role="slider"
+        tabindex=${this.live ? 0 : -1}
+        aria-label="speed"
+        aria-orientation="vertical"
+        aria-valuemin="0"
+        aria-valuemax="1"
+        aria-valuenow=${String(this.slider)}
+        aria-valuetext=${`${percent} % ${way}`}
+        aria-disabled=${String(!this.live)}
+        style=${`--value: ${this.slider}`}
+        @pointerdown=${(event: PointerEvent) => this.grab(event)}
+        @pointermove=${(event: PointerEvent) => this.dragging(cab.train, event)}
+        @pointerup=${() => (this.drag = null)}
+        @pointercancel=${() => (this.drag = null)}
+        @keydown=${(event: KeyboardEvent) => this.keyed(cab.train, event)}
+      >
+        <span class="fill"></span>
+        ${TICKS.map(
+          (at) =>
+            html`<b class=${at / 20 <= this.slider + 1e-9 ? "tick lit" : "tick"}
+              style=${`--at: ${at}`}></b>`,
+        )}
+        <span class="thumb"><i></i><i></i><i></i></span>
       </div>
-      ${this.more && rest.length > 0
-        ? html`<div class="functions rest">${rest.map(button)}</div>`
-        : nothing}
+      <button
+        class=${moving ? "go stop" : "go reverser"}
+        aria-label=${moving
+          ? "Stop"
+          : `${way}: press for ${this.reverse ? "Forward" : "Reverse"}`}
+        ?disabled=${!this.live}
+        @click=${() => this.going(cab.train)}
+      >
+        ${moving ? SQUARE : this.reverse ? REVERSE : FORWARD}
+      </button>
     `;
   }
 
   // --- what goes on the bus -------------------------------------------------
 
-  /** The reverser switched: nothing on the bus (ADR-0084). */
-  private reversing(reverse: boolean): void {
-    if (!this.live || this.slider !== 0) return;
-    this.reverse = reverse;
+  /** A pointer down on the track: the drag starts from where the slider
+   *  stands, and nothing moves until the pointer does. */
+  private grab(event: PointerEvent): void {
+    const track = this.track;
+    if (!this.live || track === null) return;
+    track.setPointerCapture?.(event.pointerId);
+    this.drag = {
+      pointer: event.pointerId,
+      y: event.clientY,
+      from: this.slider,
+      span: track.getBoundingClientRect().height - 2 * TRACK_PAD_PX,
+    };
+  }
+
+  /** The pointer moved over the track: the slider by the distance it went
+   *  up, over the track's usable height. */
+  private dragging(train: string, event: PointerEvent): void {
+    const drag = this.drag;
+    if (drag === null || drag.pointer !== event.pointerId || drag.span <= 0) return;
+    this.slide(train, drag.from + (drag.y - event.clientY) / drag.span);
+  }
+
+  /** A key on the track: the arrows a hundredth, PageUp and PageDown a
+   *  tenth. */
+  private keyed(train: string, event: KeyboardEvent): void {
+    const by: Record<string, number> = {
+      ArrowUp: STEP,
+      ArrowRight: STEP,
+      ArrowDown: -STEP,
+      ArrowLeft: -STEP,
+      PageUp: PAGE,
+      PageDown: -PAGE,
+    };
+    const step = by[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    this.slide(train, this.slider + step);
+  }
+
+  /** Move the slider to `to`, held to 0–1 and to the hundredth, and drive
+   *  the train there where that is a value it is not at already. */
+  private slide(train: string, to: number): void {
+    const value = Math.round(Math.min(1, Math.max(0, to)) * STEPS) / STEPS;
+    if (value !== this.slider) this.drive(train, value);
+  }
+
+  /** The button under the slider: the stop above 0, the reverser at 0. */
+  private going(train: string): void {
+    if (!this.live) return;
+    if (this.slider > 0) this.drive(train, 0);
+    else this.reverse = !this.reverse;
   }
 
   /** The slider moved: one `throttle_wanted` carrying the number now shown,
