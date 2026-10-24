@@ -156,24 +156,43 @@ function model(shell: TcApp, selector: string): HTMLInputElement {
   return part(shell, `.model-editor ${selector}`) as HTMLInputElement;
 }
 
-/** Make a train up, which is a one-field prompt like naming a railroad. */
+/** The picker put away, as its close does. */
+async function away(shell: TcApp): Promise<void> {
+  part(shell, "look-dialog.picker").dispatchEvent(new Event("sl-after-hide"));
+  await settled(shell);
+}
+
+/** Make a train up: New train, the picker it opens put away, and the name
+ *  typed over *New train*. */
 async function train(shell: TcApp, name: string): Promise<void> {
-  vi.spyOn(window, "prompt").mockReturnValue(name);
   await tab(shell, "trains");
   await pressed(shell, "button.new");
+  await away(shell);
+  await typed(shell, part(shell, ".train-editor input.name"), name);
 }
 
-/** Press the + beside a car or a model in the train editor, which puts it at
- *  the tail of the train chosen. */
-async function add(shell: TcApp, list: "car" | "product", at: number): Promise<void> {
-  await tab(shell, "trains");
-  await pressed(shell, `li.addable.${list} button.add`, at);
+/** The names on the picker's cards, in the tab it shows. */
+function offered(shell: TcApp): string[] {
+  return parts(shell, "look-dialog.picker button.card .name").map((one) =>
+    one.textContent!.trim(),
+  );
 }
 
-/** A field on one of the chosen train's entries. */
-async function entry(shell: TcApp, field: string, at = 0): Promise<HTMLInputElement> {
+/** Add on the chosen train's strip, then one card of the picker's Cars or
+ *  Models tab, by the name it shows. */
+async function add(shell: TcApp, list: "cars" | "models", name: string): Promise<void> {
   await tab(shell, "trains");
-  return parts(shell, `li.entry input.${field}`)[at] as HTMLInputElement;
+  await pressed(shell, ".train-editor button.add-tile");
+  await pressed(shell, `look-dialog.picker button.tab[data-tab="${list}"]`);
+  const at = offered(shell).indexOf(name);
+  expect(at).toBeGreaterThanOrEqual(0);
+  await pressed(shell, "look-dialog.picker button.card", at);
+}
+
+/** The chosen train's tiles, by the name each shows. */
+async function tiles(shell: TcApp): Promise<string[]> {
+  await tab(shell, "trains");
+  return parts(shell, ".train-editor .tile .tn").map((one) => one.textContent!.trim());
 }
 
 /** A field of the car chosen, the first in the list unless `at` says
@@ -190,18 +209,25 @@ function written(): RosterDoc | undefined {
   return put?.body as RosterDoc | undefined;
 }
 
-/** Build the ore train of the acceptance: a locomotive with an address, and
- *  three hoppers with nothing of their own. */
+/** Build the ore train of the acceptance: a locomotive with a decoder, put
+ *  in as a car made for it and given its address when asked, and three
+ *  hoppers with nothing of their own. */
 async function ore(shell: TcApp): Promise<void> {
   await product(shell, "arnold-ce68", "locomotive", "122");
+  await pressed(shell, ".model-editor button.switch");
   await product(shell, "hopper", "freight", "100");
   await train(shell, "ore");
-  // arnold-ce68 sorts before hopper, so the rows are in that order.
-  await add(shell, "product", 0);
-  await typed(shell, await entry(shell, "addr"), "3");
-  await add(shell, "product", 1);
-  await add(shell, "product", 1);
-  await add(shell, "product", 1);
+  await add(shell, "models", "arnold-ce68");
+  await answered(shell, "3");
+  await add(shell, "models", "hopper");
+  await add(shell, "models", "hopper");
+  await add(shell, "models", "hopper");
+}
+
+/** The address a new car of a decoder model is asked for, typed and set. */
+async function answered(shell: TcApp, addr: string): Promise<void> {
+  typing(part(shell, "look-dialog.address input"), addr);
+  await pressed(shell, "look-dialog.address .set");
 }
 
 /** The one Save, in the bar. */
@@ -759,7 +785,7 @@ describe("a name of any characters", () => {
     await ore(shell);
     await typed(shell, await car(shell, "name"), "Re 4/4 II");
     await tab(shell, "trains");
-    await typed(shell, part(shell, "li.train input.name"), "S 1/S 2");
+    await typed(shell, part(shell, ".train-editor input.name"), "S 1/S 2");
 
     await saved(shell);
 
@@ -815,11 +841,11 @@ describe("making up a train", () => {
 
     expect(written()).toEqual({
       roster: "toy",
-      cars: { "arnold-ce68-1": { model: "arnold-ce68", addr: "3" } },
+      cars: { "arnold-ce68": { model: "arnold-ce68", addr: "3" } },
       trains: {
         ore: {
           cars: [
-            { car: "arnold-ce68-1" },
+            { car: "arnold-ce68" },
             { model: "hopper" },
             { model: "hopper" },
             { model: "hopper" },
@@ -836,38 +862,225 @@ describe("making up a train", () => {
     expect(part(shell, ".derived").textContent).toMatch("freight");
   });
 
-  /** Filling in an address promotes an anonymous item to a car, named from
-   *  the model until a person calls it something else. */
-  it("promotes an item to a car when an address is filled in", async () => {
+  it("makes New train, then New train (2), chosen with the picker open on it", async () => {
     const shell = await opened();
-    await ore(shell);
-    const name = await car(shell, "name");
-    expect(name.value).toBe("arnold-ce68-1");
-    await typed(shell, name, "krokodil-a");
     await tab(shell, "trains");
-    expect(parts(shell, "li.entry .what")[0]!.textContent).toMatch("krokodil-a");
+    await pressed(shell, "button.new");
+
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Add to New train");
+    await away(shell);
+    await pressed(shell, "button.new");
+
+    expect(cards(shell)).toEqual(["New train", "New train (2)"]);
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Add to New train (2)");
+    expect((part(shell, ".train-editor input.name") as HTMLInputElement).value).toBe(
+      "New train (2)",
+    );
   });
 
-  /** Two locomotives of one product keep their two addresses, written once,
-   *  and neither is restated when a rake is made up (ADR-0061). */
-  it("keeps two addresses for two locomotives of one model", async () => {
+  it("refuses a name another train has, and puts the field back", async () => {
     const shell = await opened();
-    await product(shell, "arnold-ce68", "locomotive", "122");
-    await train(shell, "shed");
-    await add(shell, "product", 0);
-    await add(shell, "product", 0);
-    await typed(shell, await entry(shell, "addr", 0), "3");
-    await typed(shell, await entry(shell, "addr", 1), "4");
+    await train(shell, "ore");
+    await train(shell, "shunt");
+
+    await typed(shell, part(shell, ".train-editor input.name"), "ore");
+
+    expect(trouble(shell)).toBe("There is already a train 'ore'.");
+    expect((part(shell, ".train-editor input.name") as HTMLInputElement).value).toBe("shunt");
+  });
+
+  it("writes a priority, and takes it off when emptied", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await typed(shell, part(shell, ".train-editor input.priority"), "2");
+    await saved(shell);
+    expect(written()!.trains.ore!.priority).toBe(2);
+    expect(part(shell, "button.card.train .pill").textContent).toBe("P2");
+
+    await typed(shell, part(shell, ".train-editor input.priority"), "");
+    await saved(shell);
+    expect(written()!.trains.ore!.priority).toBeUndefined();
+  });
+
+  /** A tile says what the entry is: the car's address, or *by model*. */
+  it("draws one tile per entry, head first, with what each is", async () => {
+    const shell = await opened();
+    await ore(shell);
+
+    expect(await tiles(shell)).toEqual(["arnold-ce68", "hopper", "hopper", "hopper"]);
+    expect(parts(shell, ".tile .tm").map((one) => one.textContent!.trim())).toEqual([
+      "address 3 · 122 mm",
+      "by model · 100 mm",
+      "by model · 100 mm",
+      "by model · 100 mm",
+    ]);
+    expect(part(shell, ".train-editor .chip").textContent!.trim()).toBe(
+      "No locomotive with a photo",
+    );
+  });
+
+  /** A decoder's address belongs to one item, so a model with a decoder goes
+   *  in as a car, made for it where the railroad has none (#980). */
+  it("makes a car of a decoder model added to a train, and asks its address at once", async () => {
+    const shell = await opened();
+    await product(shell, "Re 460", "locomotive", "189");
+    await pressed(shell, ".model-editor button.switch");
+    await train(shell, "IC");
+
+    await add(shell, "models", "Re 460");
+
+    expect(part(shell, "look-dialog.address").getAttribute("label")).toBe("Address for Re 460");
+    await answered(shell, "460");
+    await saved(shell);
+    expect(written()!.cars).toEqual({ "Re 460": { model: "re-460", addr: "460" } });
+    expect(written()!.trains.IC!.cars).toEqual([{ car: "Re 460" }]);
+  });
+
+  it("reuses that car where the model is added to another train, and says so", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await train(shell, "light");
+
+    await add(shell, "models", "arnold-ce68");
+
+    expect(screen(shell).renderRoot.querySelector("look-dialog.address")).toBeNull();
+    expect(part(shell, ".toast").textContent).toBe("Added arnold-ce68, your only arnold-ce68.");
+    expect(await tiles(shell)).toEqual(["arnold-ce68"]);
+    await saved(shell);
+    expect(Object.keys(written()!.cars!)).toEqual(["arnold-ce68"]);
+    expect(written()!.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
+  });
+
+  it("asks which car where the railroad has two, greying the one in the train", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await chosen(shell, "arnold-ce68");
+    await pressed(shell, ".ed-head button.new-car");
+    await answered(shell, "4");
+    await tab(shell, "trains");
+
+    await add(shell, "models", "arnold-ce68");
+
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Which arnold-ce68?");
+    expect(offered(shell)).toEqual(["arnold-ce68", "arnold-ce68 (2)"]);
+    const choices = parts(shell, "look-dialog.picker button.card") as HTMLButtonElement[];
+    expect(choices.map((one) => one.disabled)).toEqual([true, false]);
+    await pressed(shell, "look-dialog.picker button.card", 1);
+
+    expect(screen(shell).renderRoot.querySelector("look-dialog.picker")).toBeNull();
+    expect((await tiles(shell))[4]).toBe("arnold-ce68 (2)");
+  });
+
+  /** One item cannot stand in a train twice. */
+  it("greys a car already in the train, and puts it in no second place", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await tab(shell, "trains");
+    await pressed(shell, ".train-editor button.add-tile");
+
+    const car = part(shell, "look-dialog.picker button.card.car") as HTMLButtonElement;
+    expect(car.disabled).toBe(true);
+    expect(car.title).toBe("arnold-ce68 is already in ore.");
+    car.click();
+    await settled(shell);
+    expect(await tiles(shell)).toEqual(["arnold-ce68", "hopper", "hopper", "hopper"]);
+  });
+
+  it("adds a model without a decoder as a model entry", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+    await train(shell, "ore");
+
+    await add(shell, "models", "hopper");
+
+    expect(screen(shell).renderRoot.querySelector("look-dialog")).toBeNull();
+    await saved(shell);
+    expect(written()!.cars).toBeUndefined();
+    expect(written()!.trains.ore!.cars).toEqual([{ model: "hopper" }]);
+  });
+
+  /** HTML drag and drop, which iPadOS has: the tile dragged is put where it
+   *  is dropped. */
+  it("reorders by drag, and saves the order", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await tab(shell, "trains");
+    const strip = parts(shell, ".train-editor .tile");
+
+    strip[0]!.dispatchEvent(new Event("dragstart"));
+    strip[3]!.dispatchEvent(new Event("dragover", { cancelable: true }));
+    strip[3]!.dispatchEvent(new Event("drop", { cancelable: true }));
+    await settled(shell);
+
+    expect(await tiles(shell)).toEqual(["hopper", "hopper", "hopper", "arnold-ce68"]);
+    await saved(shell);
+    expect(written()!.trains.ore!.cars).toEqual([
+      { model: "hopper" },
+      { model: "hopper" },
+      { model: "hopper" },
+      { car: "arnold-ce68" },
+    ]);
+  });
+
+  it("flips an entry, writing orientation reverse, and takes one out", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await tab(shell, "trains");
+
+    await pressed(shell, ".tile button.flip", 1);
+    expect(parts(shell, ".tile button.flip").map((one) => one.textContent!.trim())).toEqual([
+      "Forward",
+      "Reversed",
+      "Forward",
+      "Forward",
+    ]);
+    expect(parts(shell, ".tile")[1]!.classList.contains("rev")).toBe(true);
+    await pressed(shell, ".tile button.out", 3);
     await saved(shell);
 
-    expect(written()!.cars).toEqual({
-      "arnold-ce68-1": { model: "arnold-ce68", addr: "3" },
-      "arnold-ce68-2": { model: "arnold-ce68", addr: "4" },
-    });
-    expect(written()!.trains.shed!.cars).toEqual([
-      { car: "arnold-ce68-1" },
-      { car: "arnold-ce68-2" },
+    expect(written()!.trains.ore!.cars).toEqual([
+      { car: "arnold-ce68" },
+      { model: "hopper", orientation: "reverse" },
+      { model: "hopper" },
     ]);
+  });
+
+  /** The functions follow from the cars, a momentary one saying *hold*. */
+  it("shows the functions the cars have, a momentary one saying hold", async () => {
+    store.catalogue = {
+      re460: {
+        model: "re460",
+        name: "Re 460",
+        kind: "locomotive",
+        length: 189,
+        decoder: true,
+        functions: { "0": { name: "Headlights" }, "2": { name: "Horn", mode: "momentary" } },
+      },
+    };
+    store.documentOf = () => ({
+      roster: "toy",
+      cars: { "Re 460 001": { model: "re460", addr: "460" } },
+      trains: { IC: { cars: [{ car: "Re 460 001" }] } },
+    });
+    const shell = await opened();
+    await tab(shell, "trains");
+
+    expect(
+      parts(shell, ".train-editor dd.functions .fchip").map((one) => one.textContent!.trim()),
+    ).toEqual(["Headlights", "Hornhold"]);
+    expect(part(shell, ".train-editor .fchip.hold em").textContent).toBe("hold");
+  });
+
+  it("unmakes the train, and leaves its cars on the roster", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await tab(shell, "trains");
+
+    await pressed(shell, ".ed-head button.unmake");
+    await saved(shell);
+
+    expect(written()!.trains).toEqual({});
+    expect(Object.keys(written()!.cars!)).toEqual(["arnold-ce68"]);
   });
 
   /** The screen invites this order of work — make a train up, then fill it —
@@ -882,13 +1095,13 @@ describe("making up a train", () => {
 
     expect(store.saved).toEqual([]);
     expect(trouble(shell)).toBe(
-      "train 'ore' has nothing in it — press + beside a car or a model, or remove it",
+      "train 'ore' has nothing in it — press Add to put a car or a model in it, or unmake it",
     );
     // Still there to be filled, and the press is still there to make again.
     expect(cards(shell)).toEqual(["ore"]);
     expect(saving(shell).disabled).toBe(false);
 
-    await add(shell, "product", 0);
+    await add(shell, "models", "hopper");
     await saved(shell);
     expect(written()!.trains.ore!.cars).toEqual([{ model: "hopper" }]);
     expect(trouble(shell)).toBeNull();
@@ -899,31 +1112,18 @@ describe("making up a train", () => {
 /** A camera is the item's own as an address is, and Save carries it in the
  *  whole roster like any other edit (ADR-0082, ui/STOCK.md). */
 describe("a car's camera", () => {
-  it("promotes a model entry to a car with the camera and no address", async () => {
-    const shell = await opened();
-    await product(shell, "van", "freight", "90");
-    await train(shell, "ore");
-    await add(shell, "product", 0);
-    await typed(shell, await entry(shell, "camera"), "192.168.178.58");
-    await saved(shell);
-
-    expect(written()!.cars).toEqual({ "van-1": { model: "van", camera: "192.168.178.58" } });
-    expect(written()!.trains.ore!.cars).toEqual([{ car: "van-1" }]);
-    expect((await car(shell, "camera")).value).toBe("192.168.178.58");
-  });
-
   it("is taken off a car cleared on its row, and the car stays", async () => {
     const shell = await opened();
     await ore(shell);
     await typed(shell, await car(shell, "camera"), "cam-1");
     await saved(shell);
     expect(written()!.cars).toEqual({
-      "arnold-ce68-1": { model: "arnold-ce68", addr: "3", camera: "cam-1" },
+      "arnold-ce68": { model: "arnold-ce68", addr: "3", camera: "cam-1" },
     });
 
     await typed(shell, await car(shell, "camera"), "");
     await saved(shell);
-    expect(written()!.cars).toEqual({ "arnold-ce68-1": { model: "arnold-ce68", addr: "3" } });
+    expect(written()!.cars).toEqual({ "arnold-ce68": { model: "arnold-ce68", addr: "3" } });
   });
 
   it("puts a malformed camera back to the roster's, says why, and saves none", async () => {
@@ -938,7 +1138,7 @@ describe("a car's camera", () => {
     );
     expect((await car(shell, "camera")).value).toBe("cam-1");
     await saved(shell);
-    expect(written()!.cars!["arnold-ce68-1"]!.camera).toBe("cam-1");
+    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("cam-1");
   });
 });
 
@@ -1031,7 +1231,7 @@ describe("the length guard", () => {
     expect(store.saved).toEqual([]);
 
     await saved(shell);
-    expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+    expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
   });
 
   it("leaves length editing alone with nothing placed", async () => {
@@ -1089,7 +1289,7 @@ describe("the length guard", () => {
       }
       expect(saving(shell).disabled).toBe(false);
       await saved(shell);
-      expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+      expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
     });
 
     it("says power is on once the row is heard again with power on", async () => {
@@ -1144,7 +1344,7 @@ describe("the roster's Save with a length corrected", () => {
 
     await saved(shell);
 
-    expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+    expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
     expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
     expect(saving(shell).disabled).toBe(true);
   });
@@ -1168,7 +1368,7 @@ describe("the roster's Save with a length corrected", () => {
     store.held = () => null;
     answer();
     await settled(shell);
-    expect(written()!.cars!["arnold-ce68-1"]!.length).toBe(150);
+    expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
     expect(wants()).toEqual([]);
 
     Broker.last!.opens();
@@ -1368,12 +1568,12 @@ describe("the roster's Save in flight", () => {
     await typed(shell, await car(shell, "addr"), "8");
     await answer();
 
-    expect(written()!.cars!["arnold-ce68-1"]!.addr).toBe("7");
+    expect(written()!.cars!["arnold-ce68"]!.addr).toBe("7");
     expect((await car(shell, "addr")).value).toBe("8");
     expect(saving(shell).disabled).toBe(false);
 
     await saved(shell);
-    expect(written()!.cars!["arnold-ce68-1"]!.addr).toBe("8");
+    expect(written()!.cars!["arnold-ce68"]!.addr).toBe("8");
     expect(saving(shell).disabled).toBe(true);
   });
 
@@ -1419,9 +1619,8 @@ describe("a roster written the old way", () => {
     expect(trouble(shell)).toBeNull();
     expect(cards(shell)).toEqual(["goods"]);
     expect(part(shell, ".derived").textContent).toMatch("400 mm");
-    expect(part(shell, "li.train p.hint").textContent!.trim()).toBe(
-      "states its length and names no cars — press + beside a car or a model" +
-        " to fill it in, and the stated 400 mm goes",
+    expect(part(shell, ".train-editor p.hint.stated").textContent!.replace(/\s+/g, " ").trim()).toBe(
+      "states its length and names no cars — press Add to fill it in, and the stated 400 mm goes",
     );
   });
 
@@ -1431,14 +1630,14 @@ describe("a roster written the old way", () => {
    *  says it goes, before the press that takes it (#448). */
   it("says what the stated length costs before it is given up", async () => {
     const shell = await older();
-    expect(part(shell, "li.train p.hint").textContent).toMatch("the stated 400 mm goes");
+    expect(part(shell, ".train-editor p.hint.stated").textContent).toMatch("400 mm goes");
 
-    await add(shell, "car", 0);
-    await pressed(shell, "li.entry button.remove");
+    await add(shell, "cars", "krokodil-a");
+    await pressed(shell, ".tile button.out");
 
     // The conversion is not undone: the train is the ordinary shape now, so
-    // the note is the ordinary one and the stated number is not on the row.
-    expect(part(shell, "li.train p.hint").textContent!.trim()).toBe("nothing in it yet");
+    // the note is gone and the stated number is not on the editor.
+    expect(screen(shell).renderRoot.querySelector(".train-editor p.hint.stated")).toBeNull();
     expect(part(shell, ".derived").textContent).not.toMatch("400 mm");
     await saved(shell);
     expect(written()).toBeUndefined();
@@ -1449,7 +1648,7 @@ describe("a roster written the old way", () => {
    *  both, and the store refuses one that says both. */
   it("drops the stated length when the first car is put in it", async () => {
     const shell = await older();
-    await add(shell, "car", 0);
+    await add(shell, "cars", "krokodil-a");
     await saved(shell);
 
     expect(written()!.trains.goods).toEqual({ cars: [{ car: "krokodil-a" }] });
@@ -1586,13 +1785,12 @@ describe("a store that does not answer with a document", () => {
 });
 
 /**
- * The chosen train: the one the `+` buttons put something at the tail of,
- * and the one the train editor shows.
+ * The chosen train: the one the train editor shows and the picker fills.
  *
- * Every `+` names one train, and it is always a train there is
- * (ui/STOCK.md). It used to be left naming one that was gone (#416), and
- * renaming it was the other road there, the train being held as a name and
- * the rename writing the roster under a new key (#445).
+ * It is always a train there is (ui/STOCK.md). It used to be left naming one
+ * that was gone (#416), and renaming it was the other road there, the train
+ * being held as a name and the rename writing the roster under a new key
+ * (#445).
  */
 describe("the chosen train", () => {
   /** Two trains, the second of which is chosen: making one up chooses it.
@@ -1605,37 +1803,31 @@ describe("the chosen train", () => {
     return shell;
   }
 
-  /** The `+` beside the first model, which is what composing is. */
-  function plus(shell: TcApp): HTMLButtonElement {
-    return part(shell, "li.addable.product button.add") as HTMLButtonElement;
-  }
-
-  /** What the chosen train is called, which is the train every `+` names. */
+  /** What the chosen train is called, as its editor's name field says. */
   function current(shell: TcApp): string | null {
-    const row = screen(shell).renderRoot.querySelector("li.train.current input.name");
-    return row === null ? null : (row as HTMLInputElement).value;
+    const field = screen(shell).renderRoot.querySelector(".train-editor input.name");
+    return field === null ? null : (field as HTMLInputElement).value;
   }
 
   it("makes the first train left chosen, and adds to that one", async () => {
     const shell = await pair();
     expect(current(shell)).toBe("shunt");
-    await pressed(shell, "li.train button.remove");
+    await pressed(shell, ".ed-head button.unmake");
 
     expect(cards(shell)).toEqual(["ore"]);
     expect(current(shell)).toBe("ore");
-    expect(plus(shell).title).toBe("add to 'ore'");
 
-    await pressed(shell, "li.addable.product button.add");
-    expect(part(shell, "li.entry .what").textContent).toMatch("hopper");
+    await add(shell, "models", "hopper");
+    expect(await tiles(shell)).toEqual(["hopper"]);
   });
 
   it("leaves no train to add to where the last train goes", async () => {
     const shell = await pair();
-    await pressed(shell, "li.train button.remove");
-    await pressed(shell, "li.train button.remove");
+    await pressed(shell, ".ed-head button.unmake");
+    await pressed(shell, ".ed-head button.unmake");
 
     expect(cards(shell)).toEqual([]);
-    expect(screen(shell).renderRoot.querySelector("li.addable")).toBeNull();
+    expect(screen(shell).renderRoot.querySelector("button.add-tile")).toBeNull();
     expect(part(shell, ".editor .empty").textContent!.trim()).toBe(
       "Nothing here yet. Press New train.",
     );
@@ -1646,35 +1838,32 @@ describe("the chosen train", () => {
   it("goes on naming the train it named when that train is renamed", async () => {
     const shell = await pair();
 
-    await typed(shell, part(shell, "li.train input.name"), "shunt-2");
+    await typed(shell, part(shell, ".train-editor input.name"), "shunt-2");
 
     expect(current(shell)).toBe("shunt-2");
-    expect(plus(shell).title).toBe("add to 'shunt-2'");
-    await pressed(shell, "li.addable.product button.add");
-    expect(part(shell, "li.train.current li.entry .what").textContent).toMatch("hopper");
+    await add(shell, "models", "hopper");
+    expect(await tiles(shell)).toEqual(["hopper"]);
+    expect(screen(shell).railroad!.stock!.roster.trains["shunt-2"]!.cars).toHaveLength(1);
   });
 
   /** A refusal changes the document by construction not at all, so there is
-   *  nothing to carry: the roster still has `shunt` and the `+` still names
-   *  it. */
+   *  nothing to carry: the roster still has `shunt` and it is still chosen. */
   it("is left as it was where a rename is refused for the name in use", async () => {
     const shell = await pair();
 
-    await typed(shell, part(shell, "li.train input.name"), "ore");
+    await typed(shell, part(shell, ".train-editor input.name"), "ore");
 
-    expect(trouble(shell)).toBe("there is already a train 'ore'");
+    expect(trouble(shell)).toBe("There is already a train 'ore'.");
     expect(current(shell)).toBe("shunt");
-    expect(plus(shell).title).toBe("add to 'shunt'");
   });
 
   it("is left as it was where a rename is refused for the name itself", async () => {
     const shell = await pair();
 
-    await typed(shell, part(shell, "li.train input.name"), " ");
+    await typed(shell, part(shell, ".train-editor input.name"), " ");
 
     expect(trouble(shell)).toBe("A train needs a name.");
     expect(current(shell)).toBe("shunt");
-    expect(plus(shell).title).toBe("add to 'shunt'");
   });
 
   it("is the train whose card is pressed", async () => {
@@ -1701,7 +1890,7 @@ describe("a refused edit", () => {
     await typed(shell, field, "");
 
     expect(trouble(shell)).toBe("A car needs a name.");
-    expect((await car(shell, "name")).value).toBe("arnold-ce68-1");
+    expect((await car(shell, "name")).value).toBe("arnold-ce68");
   });
 
   it("puts a length refused under power back to the document's", async () => {
@@ -1763,11 +1952,11 @@ describe("an edit standing in a field", () => {
     const shell = await opened();
     await ore(shell);
     await tab(shell, "trains");
-    typing(part(shell, "li.train input.name"), "ore up");
+    typing(part(shell, ".train-editor input.name"), "ore up");
 
     await power(shell);
 
-    expect((part(shell, "li.train input.name") as HTMLInputElement).value).toBe("ore up");
+    expect((part(shell, ".train-editor input.name") as HTMLInputElement).value).toBe("ore up");
   });
 
   /** A refusal is about the field it was typed in. What stands in another
@@ -1780,7 +1969,7 @@ describe("an edit standing in a field", () => {
     await typed(shell, await car(shell, "name"), "");
 
     expect(trouble(shell)).toBe("A car needs a name.");
-    expect((await car(shell, "name")).value).toBe("arnold-ce68-1");
+    expect((await car(shell, "name")).value).toBe("arnold-ce68");
     expect((await car(shell, "addr")).value).toBe("37");
   });
 });

@@ -33,9 +33,6 @@
  * row naming the railroad is heard, and the trains read which are placed
  * (ui/STOCK.md#the-length-guard,
  * [ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
- *
- * The train's editor is the controls it had before the view was rebuilt, in
- * the editor column, until #980 draws its own.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -48,11 +45,11 @@ import { isPicture, NOT_A_PICTURE, toJpeg } from "../model/photo.js";
 import {
   KINDS,
   LATCHING,
+  modelName,
   MOMENTARY,
   SCALES,
   Stock,
   type CarRow,
-  type EntryRow,
   type FnOwner,
   type ModelRow,
   type TrainRow,
@@ -93,8 +90,10 @@ const KIND: Record<string, string> = {
   special: "Special",
 };
 
-/** How long *Saved* stands in the bar once a Save lands. */
+/** How long *Saved* stands in the bar once a Save lands, and how long what
+ *  the picker did stands at the foot of the view. */
 const SAVED_MS = 2500;
+const TOLD_MS = 4000;
 
 /** What a press that writes is dead with where no railroad is loaded: this
  *  view is one of the app's views of the loaded railroad (ADR-0038), so
@@ -144,7 +143,7 @@ export class TcStock extends LitElement {
    *  it. Two columns wide, both stand and this changes nothing. */
   @state() private editing = false;
 
-  /** The train chosen, which is the train a `+` puts something in, as a
+  /** The train chosen, which is the train the picker puts something in, as a
    *  **name**. Read through `pointed()` and never directly: a name is not a
    *  hold on the train, and the roster can stop having it (#445). */
   @state() private train: string | null = null;
@@ -196,6 +195,20 @@ export class TcStock extends LitElement {
    *  its model has no decoder. */
   @state() private fitting: string | null = null;
 
+  /** The picker, open on a train: which tab it shows, and the model whose
+   *  cars *Which <model>?* lists where it is asking that. */
+  @state() private picking: { train: string; tab: "cars" | "models"; model: string | null } | null =
+    null;
+
+  /** What the picker did that is worth a word — *Added <car>, your only
+   *  <model>.* — standing at the foot of the view for a moment. */
+  @state() private told: string | null = null;
+
+  /** The place of the tile being dragged along the strip, and of the tile
+   *  it is over. */
+  @state() private dragged: number | null = null;
+  @state() private over: number | null = null;
+
   /** The photo version at which each model's photo did not load, by key:
    *  the route answering anything but 200, which is the whole of how this
    *  screen learns there is none (docs/SYSTEM.md). A photo written since is
@@ -212,6 +225,7 @@ export class TcStock extends LitElement {
   private back: string | null = null;
 
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private telling: ReturnType<typeof setTimeout> | null = null;
 
   /** The roster and the catalogue, and every edit to either
    *  (`model/stock.ts`), as the loaded railroad holds them: `null` until the
@@ -242,6 +256,8 @@ export class TcStock extends LitElement {
     this.asked = null;
     this.refusal = null;
     this.fitting = null;
+    this.picking = null;
+    this.told = null;
   }
 
   override updated(): void {
@@ -254,6 +270,7 @@ export class TcStock extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.timer !== null) clearTimeout(this.timer);
+    if (this.telling !== null) clearTimeout(this.telling);
   }
 
   override render() {
@@ -263,7 +280,8 @@ export class TcStock extends LitElement {
         <section class="list" aria-label="Stock">${this.list()}</section>
         <section class="editor" aria-label="Editor">${this.editor()}</section>
       </div>
-      ${this.deleting()} ${this.chooser()} ${this.addressing()}
+      ${this.deleting()} ${this.chooser()} ${this.picker()} ${this.addressing()}
+      ${this.told === null ? nothing : html`<p class="toast" role="status">${this.told}</p>`}
     `;
   }
 
@@ -371,7 +389,7 @@ export class TcStock extends LitElement {
     }
     const trains = stock?.trains(this.placed) ?? [];
     if (trains.length === 0) {
-      return this.none("no trains yet — make one up, then press + beside a car or a model");
+      return this.none("no trains yet — press New train, then Add to put cars in it");
     }
     const chosen = this.pointed();
     return trains.map((train) => this.trainCard(train, train.train === chosen));
@@ -381,7 +399,9 @@ export class TcStock extends LitElement {
     return html`<p class="hint">${words}</p>`;
   }
 
-  /** One card: a photo frame 10:3 wide, the name, and a line of facts. */
+  /** One card: a photo frame 10:3 wide, the name, and a line of facts. A
+   *  card that is `dead` is greyed and does nothing, its title saying why:
+   *  what the picker draws a car already in the train as. */
   private card(
     which: string,
     photo: string | null,
@@ -389,11 +409,14 @@ export class TcStock extends LitElement {
     facts: unknown,
     chosen: boolean,
     press: () => void,
+    dead: string | null = null,
   ) {
     return html`
       <button
         class=${`card ${which}`}
         aria-current=${chosen ? "true" : "false"}
+        title=${dead ?? nothing}
+        ?disabled=${dead !== null}
         @click=${press}
       >
         <span class="frame">${this.photo(photo)}</span>
@@ -428,15 +451,19 @@ export class TcStock extends LitElement {
       "car",
       car.kind === null ? null : car.model,
       car.name,
-      html`<span>${car.modelName}${car.kind === null ? " — no such model" : ""}</span>${car.addr ===
-        null
-          ? nothing
-          : html`<span class="pill">${car.addr}</span>`}${car.camera === null
-          ? nothing
-          : html`<span class="pill">camera</span>`}`,
+      this.carFacts(car),
       chosen,
       () => this.chose("cars", car.name),
     );
+  }
+
+  private carFacts(car: CarRow) {
+    return html`<span>${car.modelName}${car.kind === null ? " — no such model" : ""}</span>${car.addr ===
+      null
+        ? nothing
+        : html`<span class="pill">${car.addr}</span>`}${car.camera === null
+        ? nothing
+        : html`<span class="pill">camera</span>`}`;
   }
 
   /** A train's facts: how many cars, its length, its kind, its priority. Its
@@ -1295,146 +1322,331 @@ export class TcStock extends LitElement {
     this.chose(tab, key);
   }
 
-  // --- the train's editor, until #980 ---------------------------------------
+  // --- the train's editor --------------------------------------------------
 
-  /** The train's controls as they were — its name, the unmake, what it
-   *  derives to and the ordered list it is made of — and below them every car
-   *  and model with the `+` that puts it at the tail. */
+  /**
+   * The train editor, from the top as the mockup draws it (#980): the first
+   * locomotive's photo, the name, the priority, the cars as a strip of
+   * tiles head first with Add at its end, and what follows from them, with
+   * Unmake at the top right. Every edit is the roster's to hold and Save's to
+   * write. Placing the train is the run view's (ADR-0039).
+   */
   private trainEditor(train: TrainRow) {
-    const stock = this.stock!;
-    const title = `add to '${train.train}'`;
+    const name = train.train;
+    const pictured = train.locomotive !== null && this.hasPhoto(train.locomotive);
     return html`
-      ${this.head("Train", train.train)}
-      <div class="body">
-        <ul class="rows">
-          ${this.trainRow(train)}
-        </ul>
-        <section class="sec addable">
-          <h3>Add to this train</h3>
-          <ul class="rows">
-            ${stock.cars(this.power, this.heard).map(
-              (car) => html`
-                <li class="addable car">
-                  <span class="what">${car.name} <span class="of">${car.modelName}</span></span>
-                  <button class="add" title=${title} @click=${() => this.coupled({ car: car.name })}>
-                    +
-                  </button>
-                </li>
-              `,
-            )}
-            ${stock.modelRows(this.power, this.heard).map(
-              (model) => html`
-                <li class="addable product">
-                  <span class="what anonymous">${model.name}</span>
-                  <button
-                    class="add"
-                    title=${title}
-                    @click=${() => this.coupled({ model: model.model })}
-                  >
-                    +
-                  </button>
-                </li>
-              `,
-            )}
-          </ul>
+      ${this.head(
+        "Train",
+        name,
+        html`${train.placed ? html`<span class="pill placed">on the layout</span>` : nothing}
+          <button
+            class="unmake"
+            title="The cars stay on the roster."
+            @click=${() => this.changed((one) => one.removeTrain(name))}
+          >
+            Unmake
+          </button>`,
+      )}
+      <div class="body train-editor">
+        <div class="photo-frame">
+          ${pictured ? this.photo(train.locomotive) : this.noPhoto()}
+          <span class="chip">
+            ${pictured ? "Photo of the first locomotive" : "No locomotive with a photo"}
+          </span>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span class="label">Name</span>
+            <input
+              class="name"
+              .value=${this.putting(`train:${name}:name`, name)}
+              @change=${(event: Event) => this.renamed(name, value(event))}
+            />
+          </label>
+          <label class="field">
+            <span class="label">Priority</span>
+            <input
+              class="priority"
+              inputmode="numeric"
+              placeholder="lowest"
+              .value=${this.putting(`train:${name}:priority`, String(train.priority ?? ""))}
+              @change=${(event: Event) =>
+                this.did(
+                  this.stock?.trainPriority(name, value(event)),
+                  `train:${name}:priority`,
+                )}
+            />
+            <span class="hint">1 is highest. Empty is lowest.</span>
+          </label>
+        </div>
+        <section class="sec cars">
+          <div class="sec-head">
+            <h3>Cars</h3>
+            <span class="hint">Drag to reorder.</span>
+          </div>
+          ${train.stated
+            ? html`<p class="hint stated">
+                states its length and names no cars — press Add to fill it in, and the
+                stated ${train.length} mm goes
+              </p>`
+            : nothing}
+          <div class="ends"><span>← Head</span><span>Tail</span></div>
+          <div class="strip">
+            ${train.entries.map((entry, at) => this.tile(name, entry, at))}
+            <button
+              class="add-tile"
+              @click=${() => {
+                this.picking = { train: name, tab: "cars", model: null };
+              }}
+            >
+              <span aria-hidden="true">+</span>Add
+            </button>
+          </div>
+        </section>
+        <section class="sec follows">
+          <h3>What follows from the cars</h3>
+          <dl class="derived">
+            <dt>Length</dt>
+            <dd class="length">${train.length === null ? "—" : `${train.length} mm`}</dd>
+            <dt>Kind</dt>
+            <dd class="kind">${train.kind ?? "—"}</dd>
+            <dt>Functions</dt>
+            <dd class="functions">
+              ${train.functions.length === 0
+                ? html`<span class="hint">None</span>`
+                : html`<span class="chips">
+                    ${train.functions.map(
+                      (fn) =>
+                        html`<span class=${`fchip ${fn.mode === MOMENTARY ? "hold" : ""}`}
+                          >${fn.name}${fn.mode === MOMENTARY
+                            ? html`<em>hold</em>`
+                            : nothing}</span
+                        >`,
+                    )}
+                  </span>`}
+            </dd>
+          </dl>
         </section>
       </div>
     `;
   }
 
-  /** One train: its name, what it derives to, and the ordered list it is made
-   *  of. Length, kind and functions are shown and never offered for editing
-   *  (ADR-0045). A train written before #223 states its length and names no
-   *  cars, and says what filling it in costs before the press (#414, #448). */
-  private trainRow(train: TrainRow) {
+  /**
+   * One entry as a tile: its model's photo, mirrored where the entry is
+   * reversed; the car's name or the model's; its address, *no address* or
+   * *by model*, *camera*, and its length; Forward / Reversed and the ×.
+   * Dragged along the strip with HTML drag and drop, which iPadOS has.
+   */
+  private tile(train: string, entry: TrainRow["entries"][number], at: number) {
+    const facts = [
+      entry.car === null ? "by model" : entry.addr === null ? "no address" : `address ${entry.addr}`,
+      ...(entry.camera === null ? [] : ["camera"]),
+      entry.length === null ? "—" : `${entry.length} mm`,
+    ].join(" · ");
+    const classes = [
+      "tile",
+      entry.reverse ? "rev" : "",
+      this.dragged === at ? "dragging" : "",
+      this.over === at && this.dragged !== at ? "over" : "",
+    ].join(" ");
     return html`
-      <li class="train current">
-        <header>
-          <input
-            class="name"
-            .value=${this.putting(`train:${train.train}:name`, train.train)}
-            aria-label="train name"
-            @change=${(event: Event) => this.renamed(train.train, value(event))}
-          />
-          ${train.placed ? html`<span class="of">on the layout</span>` : nothing}
+      <div
+        class=${classes}
+        draggable="true"
+        data-at=${at}
+        @dragstart=${(event: DragEvent) => {
+          this.dragged = at;
+          // A drag dispatched as a plain event carries no data transfer.
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", String(at));
+          }
+        }}
+        @dragover=${(event: DragEvent) => {
+          if (this.dragged === null) return;
+          event.preventDefault();
+          this.over = at;
+        }}
+        @drop=${(event: DragEvent) => {
+          event.preventDefault();
+          const from = this.dragged;
+          this.dragged = null;
+          this.over = null;
+          if (from !== null && from !== at) {
+            this.changed((one) => one.moveEntry(train, from, at));
+          }
+        }}
+        @dragend=${() => {
+          this.dragged = null;
+          this.over = null;
+        }}
+      >
+        <span class="tph">${entry.model === null ? this.noPhoto() : this.photo(entry.model)}</span>
+        <span class="tb">
+          <span class="tn">${entry.name}</span>
+          <span class="tm">${facts}</span>
+        </span>
+        <span class="ta">
           <button
-            class="remove"
-            title="unmake this train"
-            @click=${() => this.changed((stock) => stock.removeTrain(train.train))}
+            class="flip"
+            aria-pressed=${entry.reverse ? "true" : "false"}
+            @click=${() => this.changed((one) => one.turn(train, at))}
+          >
+            ${entry.reverse ? "Reversed" : "Forward"}
+          </button>
+          <button
+            class="out"
+            aria-label=${`Take ${entry.name} out`}
+            @click=${() => this.changed((one) => one.removeEntry(train, at))}
           >
             ×
           </button>
-          <span class="derived">
-            ${train.length === null ? "—" : `${train.length} mm`} ·
-            ${train.kind ?? "—"}${train.functions.length === 0
-              ? ""
-              : ` · ${train.functions.map((fn) => fn.name).join(", ")}`}
-          </span>
-        </header>
-        ${train.entries.length === 0
-          ? html`<p class="hint">
-              ${train.stated
-                ? `states its length and names no cars — press + beside a car` +
-                  ` or a model to fill it in, and the stated ${train.length} mm` +
-                  ` goes`
-                : "nothing in it yet"}
-            </p>`
-          : html`<ol>
-              ${train.entries.map((entry, at) => this.entry(train.train, entry, at))}
-            </ol>`}
-      </li>
+        </span>
+      </div>
     `;
   }
 
-  /** One place in a train. The address is offered whatever the item's kind —
-   *  a powered van is a real thing, so kind never implies an address
-   *  (ADR-0061) — and so is the camera; typing either is what promotes an
-   *  anonymous item to a car. */
-  private entry(train: string, entry: EntryRow, at: number) {
+  /**
+   * *Add to <train>*, with a Cars tab and a Models tab, or *Which <model>?*
+   * where a model with a decoder has several cars. A car already in the
+   * train is greyed: one item cannot stand in a train twice.
+   */
+  private picker() {
     const stock = this.stock;
-    const model = entry.model === null ? null : (stock?.model(entry.model) ?? null);
-    const shown = model === null ? entry.model : (model.name ?? model.model);
+    const picking = this.picking;
+    if (stock === null || picking === null || stock.roster.trains[picking.train] === undefined) {
+      return nothing;
+    }
+    const train = picking.train;
+    const held = new Set(
+      (stock.roster.trains[train]!.cars ?? []).flatMap((entry) =>
+        entry.car === undefined ? [] : [entry.car],
+      ),
+    );
+    const cars = stock.cars(this.power, this.heard);
+    const car = (one: CarRow) =>
+      this.card(
+        "car",
+        one.kind === null ? null : one.model,
+        one.name,
+        this.carFacts(one),
+        false,
+        () => this.pickedCar(one.name),
+        held.has(one.name) ? `${one.name} is already in ${train}.` : null,
+      );
+    const which = picking.model === null ? null : stock.model(picking.model);
+    if (which !== null && picking.model !== null) {
+      const named = new Set(stock.carsOf(train, picking.model).map((one) => one.car));
+      return html`
+        <look-dialog
+          open
+          class="picker which"
+          label=${`Which ${modelName(which)}?`}
+          @sl-after-hide=${() => this.closePicker()}
+        >
+          <p class="hint">You own more than one. A car already in this train is greyed.</p>
+          <div class="cards offered">${cars.filter((one) => named.has(one.name)).map(car)}</div>
+        </look-dialog>
+      `;
+    }
+    const models = stock.modelRows(this.power, this.heard);
     return html`
-      <li class="entry">
-        <span class=${`what ${entry.car === null ? "anonymous" : ""}`}>
-          ${entry.car ?? shown ?? "—"}
-          ${entry.car === null
-            ? nothing
-            : html`<span class="of">${shown ?? "no such model"}</span>`}
-        </span>
-        <input
-          class="addr"
-          .value=${this.putting(`entry:${train}:${at}:addr`, entry.addr ?? "")}
-          placeholder="address"
-          aria-label="address"
-          @change=${(event: Event) =>
-            this.did(stock?.address(train, at, value(event)), `entry:${train}:${at}:addr`)}
-        />
-        <input
-          class="camera"
-          .value=${this.putting(`entry:${train}:${at}:camera`, entry.camera ?? "")}
-          placeholder="camera"
-          aria-label="camera"
-          @change=${(event: Event) =>
-            this.did(stock?.camera(train, at, value(event)), `entry:${train}:${at}:camera`)}
-        />
-        <button
-          class="turn"
-          title="which way round it is coupled"
-          aria-pressed=${entry.reverse ? "true" : "false"}
-          @click=${() => this.changed((one) => one.turn(train, at))}
-        >
-          ${entry.reverse ? "↰" : "↱"}
-        </button>
-        <button
-          class="remove"
-          title="take it out of the train"
-          @click=${() => this.changed((one) => one.removeEntry(train, at))}
-        >
-          ×
-        </button>
-      </li>
+      <look-dialog
+        open
+        class="picker"
+        label=${`Add to ${train}`}
+        @sl-after-hide=${() => this.closePicker()}
+      >
+        <div class="tabs two" role="tablist">
+          ${(
+            [
+              ["cars", "Cars"],
+              ["models", "Models"],
+            ] as const
+          ).map(
+            ([tab, label]) => html`
+              <button
+                class="tab"
+                role="tab"
+                data-tab=${tab}
+                aria-selected=${picking.tab === tab ? "true" : "false"}
+                @click=${() => {
+                  this.picking = { ...picking, tab };
+                }}
+              >
+                ${label}
+              </button>
+            `,
+          )}
+        </div>
+        <p class="hint">
+          ${picking.tab === "cars"
+            ? "A car already in this train is greyed."
+            : "A model with a decoder goes in as its car, made for it if there is none."}
+        </p>
+        <div class="cards offered">
+          ${picking.tab === "cars"
+            ? cars.length === 0
+              ? this.none("no cars yet — a model with a decoder becomes one when it is added")
+              : cars.map(car)
+            : models.length === 0
+              ? this.none("no models yet — make one in the Models list first")
+              : models.map((model) =>
+                  this.card("model", model.model, model.name, this.modelFacts(model), false, () =>
+                    this.pickedModel(model.model),
+                  ),
+                )}
+        </div>
+      </look-dialog>
     `;
+  }
+
+  private closePicker(): void {
+    this.picking = null;
+  }
+
+  /** A car pressed in the picker: at the tail of the train, as itself. */
+  private pickedCar(car: string): void {
+    const picking = this.picking;
+    if (picking === null || this.stock === null) return;
+    const refused = this.stock.append(picking.train, { car });
+    if (refused === null) this.picking = null;
+    this.did(refused);
+  }
+
+  /**
+   * A model pressed in the picker: a model entry where it has no decoder;
+   * otherwise its car — made, and asked for its address at once as New car
+   * does; the only one, said; or chosen from several (`Stock.addModel`).
+   */
+  private pickedModel(key: string): void {
+    const picking = this.picking;
+    const stock = this.stock;
+    if (picking === null || stock === null) return;
+    const added = stock.addModel(picking.train, key);
+    if (added.as === "which") {
+      this.picking = { ...picking, model: stock.keyOf(key) };
+      return;
+    }
+    this.picking = null;
+    if (added.as === "made") {
+      this.asked = added.car;
+      this.refusal = null;
+    }
+    this.did(null);
+    if (added.as === "only") {
+      const model = stock.model(key);
+      this.tell(`Added ${added.car}, your only ${model === null ? key : modelName(model)}.`);
+    }
+  }
+
+  /** Words at the foot of the view, for a moment. */
+  private tell(words: string): void {
+    this.told = words;
+    if (this.telling !== null) clearTimeout(this.telling);
+    this.telling = setTimeout(() => {
+      this.told = null;
+    }, TOLD_MS);
   }
 
   // --- the presses ----------------------------------------------------------
@@ -1472,18 +1684,12 @@ export class TcStock extends LitElement {
     this.renderRoot.querySelector<HTMLInputElement>(".model-editor input.name")?.select();
   }
 
-  /** A one-field prompt, as the app names a railroad with. The prompt
-   *  cancelled or left empty is a person's own no. */
+  /** *New train* in the list, chosen, with the picker open on it. */
   private newTrain(stock: Stock): void {
-    const answer = window.prompt("New train", "");
-    const name = answer === null ? "" : answer.trim();
-    if (name === "") return;
-    const refused = stock.addTrain(name);
-    this.did(refused);
-    if (refused === null) {
-      this.train = name;
-      this.editing = true;
-    }
+    this.train = stock.newTrain();
+    this.editing = true;
+    this.picking = { train: this.train, tab: "cars", model: null };
+    this.did(null);
   }
 
   /**
@@ -1502,7 +1708,8 @@ export class TcStock extends LitElement {
   }
 
   /**
-   * The train every `+` names: the one chosen, where the roster has it, and
+   * The train the editor shows and the picker fills: the one chosen, where
+   * the roster has it, and
    * the first train it has where it has not — `null` where it has none at
    * all (#416, #445).
    */
@@ -1510,14 +1717,6 @@ export class TcStock extends LitElement {
     const trains = this.stock?.roster.trains ?? {};
     if (this.train !== null && this.train in trains) return this.train;
     return Object.keys(trains).sort()[0] ?? null;
-  }
-
-  /** A car or a model put at the tail of the chosen train. */
-  private coupled(what: { car: string } | { model: string }): void {
-    const train = this.pointed();
-    if (train === null) return;
-    this.stock?.append(train, what);
-    this.did(null);
   }
 
   /**
