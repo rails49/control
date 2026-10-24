@@ -1222,12 +1222,15 @@ describe("which blocks are free to place in", () => {
  * there is, the bus says where it stands (ADR-0010).
  */
 describe("the roster's rows", () => {
-  const STOCK = { goods: { length: 400 }, shunter: { length: 200 } };
+  const STOCK = {
+    goods: { length: 400, locomotive: "BR 218" },
+    shunter: { length: 200 },
+  };
 
   it("marks the placed trains and leaves the rest off the layout", () => {
     expect(roster(STOCK, [{ train: "goods", block: "a" }])).toEqual([
-      { train: "goods", block: "a", length: 400, placed: true },
-      { train: "shunter", block: null, length: 200, placed: false },
+      { train: "goods", block: "a", length: 400, placed: true, locomotive: "BR 218" },
+      { train: "shunter", block: null, length: 200, placed: false, locomotive: null },
     ]);
   });
 
@@ -1242,7 +1245,7 @@ describe("the roster's rows", () => {
    *  blank rather than nought: nothing the page has read names one. */
   it("keeps a placed train the roster does not name", () => {
     expect(roster({}, [{ train: "ghost", block: null }])).toEqual([
-      { train: "ghost", block: null, length: null, placed: true },
+      { train: "ghost", block: null, length: null, placed: true, locomotive: null },
     ]);
   });
 });

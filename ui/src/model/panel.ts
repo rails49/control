@@ -97,8 +97,8 @@ export interface Placed {
 }
 
 /**
- * One row of the roster pane: a train the railroad owns, how long it is, and
- * where the run has it.
+ * One row of the roster pane: a train the railroad owns, how long it is, what
+ * it is drawn as, and where the run has it.
  *
  * `placed` is the whole of being on the layout, `block` saying where within
  * it — `null` for a train holding a transit and standing in no block. A train
@@ -109,6 +109,10 @@ export interface RosterRow extends Placed {
   /** Its length, `null` where nothing the page has read names one — a train
    *  the picture has and the railroad's roster does not. */
   length: number | null;
+  /** The model of its first locomotive, whose photo the row shows, as the
+   *  throttle's picker does (#1012); `null` where the train has none or
+   *  nothing the page has read names it. */
+  locomotive: string | null;
   placed: boolean;
 }
 
@@ -117,14 +121,15 @@ export interface RosterRow extends Placed {
  * run has, ordered by name.
  *
  * Two sources because they are two things — the store says which trains the
- * railroad owns and how long each is, the bus says where they are
+ * railroad owns, how long each is and the model of its first locomotive
+ * (`/rosters/<railroad>/trains`, #866), the bus says where they are
  * (ADR-0010) — and one list, because a person looking at the pane is looking
  * for a train and does not care which half named it. A train the picture has
  * and the roster does not still gets a row: it is on the layout, and a pane
  * that hid it would hide the thing the operator can see.
  */
 export function roster(
-  stock: Record<string, { length: number }>,
+  stock: Record<string, { length: number; locomotive?: string | null }>,
   placed: readonly Placed[],
 ): RosterRow[] {
   const where = new Map(placed.map((train) => [train.train, train.block]));
@@ -132,6 +137,7 @@ export function roster(
   return [...names].sort().map((train) => ({
     train,
     length: stock[train]?.length ?? null,
+    locomotive: stock[train]?.locomotive ?? null,
     block: where.get(train) ?? null,
     placed: where.has(train),
   }));
