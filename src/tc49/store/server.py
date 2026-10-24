@@ -23,8 +23,10 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /catalogue/<name>/photo save it, replacing any before it
     GET  /scripts/<railroad>    the translator script that railroad carries
     PUT  /scripts/<railroad>    save it, as the text it is
-    POST /railroads/<from>/copy copy that railroad's drawing, roster and
-                                script under the name the body gives
+    GET  /clocks/<railroad>     the start time and speed-up that railroad keeps
+    PUT  /clocks/<railroad>     save them, replacing what was
+    POST /railroads/<from>/copy copy that railroad's drawing, roster, script
+                                and clock under the name the body gives
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /backup                whether the store can be backed up, is being,
@@ -126,6 +128,14 @@ script, and the face that edits it — each `rails49/dccex`'s and reaching this
 server over `rails49`, the box's shared network, which is why these two prefixes
 are on no proxy in front of a page and the origin rule is untouched (ADR-0055).
 
+The **clock** routes are one railroad's start time and speed-up,
+`layouts/<railroad>.clock.yaml`, answered and taken as the document the file
+holds: `{"start": "HH:MM", "speed_up": <number>}` (ADR-0090, decision 3). A
+railroad that keeps none is a 404, and `layout` starts it at the box's wall
+time. Its one caller is `layout`, writing it when a person sets the clock and
+reading it at each build, so `/clocks` is on no proxy in front of a page
+either.
+
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
 progress is answered with 200 and a refusal inside; only a document that will
@@ -138,7 +148,7 @@ that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
 save is what arms the idle timer, which is why every `PUT` — a drawing's, a
-model's, a roster's, a script's — tells the backup it happened, the one place
+model's, a roster's, a script's, a clock's — tells the backup it happened, the one place
 the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
@@ -369,6 +379,16 @@ def _route(
         if method == "PUT":
             return _put_script(store, backup, script, body)
 
+    clock = route.removeprefix("/clocks/")
+    if clock != route and "/" not in clock:
+        if method == "GET":
+            try:
+                return 200, store.clock(clock)
+            except FileNotFoundError:
+                return 404, {"error": f"no clock '{clock}'"}
+        if method == "PUT":
+            return _put_clock(store, backup, clock, body)
+
     copied = route.removeprefix("/railroads/")
     if method == "POST" and copied != route:
         source, _, verb = copied.partition("/")
@@ -571,6 +591,25 @@ def _put_script(store: AssetStore, backup: Backup, name: str, body: Any) -> Resp
     store.put_script(text, name)
     # As a drawing's save does, and for the same reason: a script written is a
     # document of the store that has moved.
+    backup.saved()
+    return 200, {"saved": name}
+
+
+def _put_clock(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
+    """One railroad's clock, created or replaced: `{"start": "HH:MM",
+    "speed_up": <number>}` and nothing else (ADR-0090, decision 3).
+
+    The layout binding is the one writer, when a person sets the clock; the
+    railroad is not checked for a drawing, as a script's is not either.
+    """
+    if not isinstance(body, dict):
+        return 400, {"error": "a clock document is required"}
+    try:
+        store.put_clock(cast(dict[str, Any], body), name)
+    except ValueError as refused:
+        return 400, {"error": f"clock '{name}': {refused}"}
+    # As a drawing's save does: a clock set is a document of the store that
+    # has moved, and the one write the clock makes (ADR-0090).
     backup.saved()
     return 200, {"saved": name}
 
