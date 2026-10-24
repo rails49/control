@@ -44,7 +44,6 @@ export const throttleStyles = css`
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    padding: 0.8rem 1rem;
     overflow-y: auto;
   }
 
@@ -57,8 +56,11 @@ export const throttleStyles = css`
     border-top: 1px solid var(--rule);
   }
 
+  /* The selector in place has a margin; the driving controls have none,
+     their picture running to the panel's edges. */
   .panel > tc-train-picker {
     flex: 1;
+    padding: 0.8rem 1rem;
   }
 
   /* The selector opened from the picture, over the whole panel and the
@@ -67,6 +69,5 @@ export const throttleStyles = css`
     position: absolute;
     inset: 0;
     z-index: 1;
-    padding: 0.8rem 1rem;
   }
 `;

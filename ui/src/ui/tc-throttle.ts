@@ -6,8 +6,8 @@
  * most one train. A panel whose throttle holds no train is the train selector
  * (`tc-train-picker`, [#853](https://github.com/rails49/control/issues/853));
  * one whose throttle holds a train is that train's driving controls
- * (`tc-driving`, arrangement A,
- * [#852](https://github.com/rails49/control/issues/852)), clock and all.
+ * (`tc-driving`, laid out as `docs/ui/images/throttle-mockup.html`,
+ * [#968](https://github.com/rails49/control/issues/968)), clock and all.
  * Pressing that train's picture opens the selector over the whole panel
  * ([#967](https://github.com/rails49/control/issues/967)), and it stays open
  * until it is closed or `state/taken` names the panel's throttle for the
