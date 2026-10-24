@@ -113,6 +113,10 @@ TOPICS: dict[str, Topic] = {
     # seconds per real second (ADR-0090). Nothing in the control path reads
     # it (ADR-0044).
     "tc49/layout/state/clock": Topic((AT, "time", "speed_up")),
+    # A person sets the fast clock from any page: a time of day, a
+    # speed-up, or both, at least one (ADR-0090). Taken whatever track power
+    # and the run are doing.
+    "tc49/layout/clock_wanted": Topic(("time", "speed_up"), browser=True),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
