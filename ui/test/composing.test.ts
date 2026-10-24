@@ -328,13 +328,24 @@ describe("a model put in a train", () => {
     expect(screen.roster.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
   });
 
+  /** "Such" is a car the train does not already hold: one in the train and
+   *  one free is one choice, not two (#980). */
+  it("puts in the one car of it the train does not already hold", () => {
+    const screen = stock();
+    screen.newCar("arnold-ce68");
+    expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "only", car: "arnold-ce68" });
+    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ car: "arnold-ce68" });
+  });
+
   it("puts in nothing yet where there are several, and lists them", () => {
     const screen = stock();
+    screen.newCar("arnold-ce68");
     screen.newCar("arnold-ce68");
     expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "which" });
     expect(screen.roster.trains.ore!.cars).toHaveLength(4);
     expect(screen.carsOf("ore", "arnold-ce68")).toEqual([
       { car: "arnold-ce68", inTrain: false },
+      { car: "arnold-ce68 (2)", inTrain: false },
       { car: "krokodil-a", inTrain: true },
     ]);
   });

@@ -444,8 +444,8 @@ export interface TrainRow {
 
 /** What a model put in a train went in as (`Stock.addModel`): a model
  *  entry, a car made for it whose address is to be asked, the one car of it
- *  the railroad has, or nothing yet, the railroad having several to choose
- *  from — or nothing at all, where there is no such train or model. */
+ *  the train does not already hold, or nothing yet, there being several to
+ *  choose from — or nothing at all, where there is no such train or model. */
 export type Added =
   | { as: "model" }
   | { as: "made"; car: string }
@@ -800,7 +800,7 @@ export class Stock {
    * with a decoder goes in as a car**, its address belonging to one item:
    * where the railroad has no car of it the train does not already hold, one
    * is made (`newCar`) and its address is the next thing to ask; where it has
-   * exactly one car of it, that car goes in; where it has more, nothing goes
+   * exactly one such car, that car goes in; where it has more, nothing goes
    * in yet and the cars are the person's to choose from (`carsOf`).
    */
   addModel(train: string, key: string): Added {
@@ -818,7 +818,7 @@ export class Stock {
       this.append(train, { car });
       return { as: "made", car };
     }
-    if (cars.length === 1) {
+    if (free.length === 1) {
       this.append(train, { car: free[0]!.car });
       return { as: "only", car: free[0]!.car };
     }
