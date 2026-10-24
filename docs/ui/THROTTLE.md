@@ -82,8 +82,9 @@ load. The cards are a grid two across, and **every card is a press**:
   throttle*. Pressing it asks first, in a dialog inside the panel: *Take
   <name>?* — *Another throttle is driving this train. Taking it releases it
   there first. In manual driving the train stops before it is yours.* —
-  with *Cancel*, which writes nothing, and *Take train*, which writes
-  `take_wanted` with `null` for the train and then the take, in that order.
+  with *Cancel*, which writes nothing, and *Take train*, which writes — where
+  the panel holds a train — `take_wanted` with `null` for that train first,
+  then `null` for the chosen train, then the take, in that order.
   There is no Force release: confirming a take is the same release frame.
 
 The selector's bottom row is one full-width, 48 px **Release <name>**, which
@@ -208,10 +209,12 @@ of this page's ids `state/taken` names for a train on the layout, and none
 while it names none, or the broker goes.
 
 **A train another throttle holds** is taken only once a person confirms it.
-*Take train* publishes `take_wanted` with `null` — the same frame as a
-release, which frees the train whoever holds it — and then the take. `layout`'s
-rule that a take of a held train is dropped stays, which is why the release
-goes first.
+*Take train* publishes, where the panel holds a train, `take_wanted` with
+`null` for that train first — a throttle holds one train (ADR-0089), and
+`layout` does not refuse a second take by the same id — then `take_wanted` with
+`null` for the chosen train — the same frame as a release, which frees the
+train whoever holds it — and then the take. `layout`'s rule that a take of a
+held train is dropped stays, which is why the release goes first.
 
 The release writes **one frame and no speed of its own**. `layout` decides what
 a release is worth on the rails — `0.0` in `manual`; in `automatic` mid-move,
@@ -468,7 +471,8 @@ locomotive's photo or the train's name, that a card writes one `take_wanted`
 and not two, that the selector stays until `state/taken` names the panel's
 throttle, that a train another throttle holds is faded with no Force release
 and opens a dialog that writes nothing, *Cancel* nothing and *Take train*
-`null` then the take, that the picture opens the selector with a close button
+`null` then the take, or in a panel holding a train `null` for that train
+first, that the picture opens the selector with a close button
 that writes nothing, that the panel's own card closes it, that a free card in a
 panel holding a train writes `null` for that train then the take, that the
 selector closes only when `state/taken` names the panel's id for the train and
