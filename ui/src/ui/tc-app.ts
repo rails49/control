@@ -66,6 +66,7 @@ import {
   type Standing,
 } from "../model/commands.js";
 import { Backing } from "../model/backup.js";
+import type { ClockChange, FastClock } from "../model/clock.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
@@ -78,6 +79,7 @@ import { hashOf, shut, viewOf, VIEWS, type ViewId } from "../model/views.js";
 import { widgetOf } from "../model/widgets.js";
 import { appStyles } from "./tc-app.styles.js";
 import "./tc-backup.js";
+import "./tc-band-clock.js";
 import "./tc-editor.js";
 import "./tc-panel.js";
 import "./tc-settings.js";
@@ -174,20 +176,11 @@ export class TcApp extends LitElement {
    *  redraws the run view and not the whole page. */
   private drewStatus: RunStatus = QUIET;
   private drewCabs: readonly Cab[] = [];
+  private drewClock: FastClock | null = null;
 
   /** The railroad the page owes an open of the Edit view: the row said
    *  `built: false` of it while power kept the view shut. `null` for none. */
   private unopened: string | null = null;
-
-  /** Seconds the joined session has been on screen, `null` with no session
-   *  joined. The session clock: elapsed time on the page's own clock — a
-   *  view reads a clock for scenery, never for control (ADR-0009, ADR-0047)
-   *  — until a fast clock derived from the railroad's configuration replaces
-   *  it. */
-  @state() private sessionS: number | null = null;
-
-  private sessionStart = 0;
-  private sessionTimer: ReturnType<typeof setInterval> | undefined;
 
   /** The screen kept awake while any of this page's throttles holds a
    *  train, on the condition the session's `throttle_alive` runs on
@@ -223,8 +216,6 @@ export class TcApp extends LitElement {
     window.removeEventListener("hashchange", this.hashed);
     window.removeEventListener("pagehide", this.hiding);
     document.removeEventListener("visibilitychange", this.hiding);
-    if (this.sessionTimer !== undefined) clearInterval(this.sessionTimer);
-    this.sessionTimer = undefined;
     this.session?.end();
     this.session = null;
     this.wake?.end();
@@ -253,15 +244,27 @@ export class TcApp extends LitElement {
     return this.session?.cabs ?? [];
   }
 
+  /** The fast clock as the session last read it off `state/clock`, `null`
+   *  for none (ADR-0090). The band's face and the throttle's station clock
+   *  draw it. */
+  private get clock(): FastClock | null {
+    return this.session?.clock ?? null;
+  }
+
   /**
    * The session said something moved. The run view paints every frame; the
-   * app redraws only where the status or the cabs are a different object
-   * from the ones it last drew with, so a frame that changes nothing the app
-   * shows does not redraw the page.
+   * app redraws only where the status, the cabs or the fast clock are a
+   * different object from the ones it last drew with, so a frame that
+   * changes nothing the app shows does not redraw the page.
    */
   private told(): void {
     this.running?.requestUpdate();
-    if (this.status !== this.drewStatus || this.cabs !== this.drewCabs) this.requestUpdate();
+    if (
+      this.status !== this.drewStatus ||
+      this.cabs !== this.drewCabs ||
+      this.clock !== this.drewClock
+    )
+      this.requestUpdate();
   }
 
   /** The loaded railroad's documents handed to the session on every render,
@@ -290,6 +293,7 @@ export class TcApp extends LitElement {
     }
     this.drewStatus = this.status;
     this.drewCabs = this.cabs;
+    this.drewClock = this.clock;
   }
 
   override updated(): void {
@@ -299,18 +303,6 @@ export class TcApp extends LitElement {
     if (opened !== this.fitted) {
       this.fitted = opened;
       if (opened !== "") this.edit?.fit();
-    }
-    const joined = this.status.joined;
-    if (joined && this.sessionTimer === undefined) {
-      this.sessionStart = Date.now();
-      this.sessionS = 0;
-      this.sessionTimer = setInterval(() => {
-        this.sessionS = Math.floor((Date.now() - this.sessionStart) / 1000);
-      }, 1000);
-    } else if (!joined && this.sessionTimer !== undefined) {
-      clearInterval(this.sessionTimer);
-      this.sessionTimer = undefined;
-      this.sessionS = null;
     }
     this.wake?.hold(this.cabs.some((cab) => this.session?.ours(cab.holder) === true));
   }
@@ -367,6 +359,7 @@ export class TcApp extends LitElement {
         .linked=${this.status.linked}
         .current=${this.view === "throttle"}
         .railroad=${this.status.railroad}
+        .clock=${this.clock?.time ?? null}
         @take-wanted=${(event: CustomEvent<TakeWanted>) =>
           this.session?.pressTake(event.detail.train, event.detail.throttle)}
         @release-wanted=${(event: CustomEvent<string>) =>
@@ -447,7 +440,7 @@ export class TcApp extends LitElement {
    * whether it holds edits that could not be saved (`stranded`); then only
    * what a person would act on (#517) — what the app could not do, an
    * invalid drawing (its title the store's refusal), what the hardware says is wrong with the supply,
-   * and backup that is not running — and the session clock;
+   * and backup that is not running — and the fast clock (ADR-0090);
    * then the driving control, the last of the band's items, and track power;
    * then the gear, and look's Help after it (org ADR-0020, #873).
    *
@@ -479,9 +472,11 @@ export class TcApp extends LitElement {
               label=${note.why}
               @look-press=${() => this.backingOpen()}
             ></look-band-press>`}
-        ${this.sessionS === null
-          ? nothing
-          : html`<look-reading>session ${clocked(this.sessionS)}</look-reading>`}
+        <tc-band-clock
+          .clock=${this.clock}
+          @clock-wanted=${(event: CustomEvent<ClockChange>) =>
+            this.session?.pressClock(event.detail)}
+        ></tc-band-clock>
         ${this.drivingPress()}
         <look-power
           state=${power.state}
@@ -1014,14 +1009,6 @@ export class TcApp extends LitElement {
  *  cut it short, or `why` where the chip says less than the sentence. */
 function chip(said: string, why: string = said) {
   return html`<look-chip title=${why}>${said}</look-chip>`;
-}
-
-/** Elapsed seconds as a clock: `mm:ss`, hours in front once there are any. */
-function clocked(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-  const s = String(seconds % 60).padStart(2, "0");
-  return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
 }
 
 declare global {

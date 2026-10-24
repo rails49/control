@@ -147,6 +147,11 @@ export class TcDriving extends LitElement {
    *  camera app. */
   @property({ type: Boolean }) current = false;
 
+  /** The fast clock's time of day, fast seconds since midnight, as
+   *  `state/clock` last said it; `null` with no railroad loaded or the
+   *  broker not answering (ADR-0090). The station clock draws it. */
+  @property({ attribute: false }) clock: number | null = null;
+
   /** The loaded railroad's name, which the camera app's route is under;
    *  `null` or `""` while none is loaded. */
   @property() railroad: string | null = null;
@@ -286,7 +291,7 @@ export class TcDriving extends LitElement {
       <section class=${still === null ? "lower" : "lower dead"}>
         <div class="left">
           <div class="readout">
-            <tc-clock></tc-clock>
+            <tc-clock .time=${this.clock}></tc-clock>
             ${this.blocks(cab)} ${this.signal(cab)}
           </div>
           ${this.functions(cab)}

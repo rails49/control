@@ -10,7 +10,7 @@
  * power control shows is `commands.test.ts`.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
@@ -26,7 +26,16 @@ import {
   settingsOpened,
   settled,
 } from "./support/shell.js";
-import { brokering, joined, said, unbrokered } from "./support/session.js";
+import type { TcBandClock } from "../src/ui/tc-band-clock.js";
+import {
+  Broker,
+  brokering,
+  joined,
+  RAILROAD,
+  said,
+  unbrokered,
+  written,
+} from "./support/session.js";
 
 beforeEach(brokering);
 
@@ -34,6 +43,8 @@ afterEach(unbrokered);
 
 const STATE_POWER = "tc49/layout/state/power";
 const DEVICE_TRACK = "tc49/layout/state/device/track";
+const STATE_CLOCK = "tc49/layout/state/clock";
+const CLOCK_WANTED = "tc49/layout/clock_wanted";
 
 /** What the band reads, as text, in the order it reads it: its readings and
  *  its chips. The gear and power are not text. */
@@ -85,11 +96,12 @@ describe("the way into settings", () => {
 describe("what the band says", () => {
   /** Nothing that is going right reads here (#517). The ordinary case: a
    *  session joined, the broker answering, the rails live, the drawing
-   *  deriving. Only the session clock is drawn. */
-  it("says nothing but the session clock while everything is going right", async () => {
+   *  deriving. */
+  it("says nothing while everything is going right", async () => {
     const shell = await joined();
     await said(shell, STATE_POWER, { power: "on" });
-    expect(readings(shell)).toEqual(["session 00:00"]);
+    await said(shell, STATE_CLOCK, { at: 1, time: 36_000, speed_up: 1 });
+    expect(readings(shell)).toEqual([]);
   });
 
   /** A fault reads as a chip, cut short where it is long, so the whole
@@ -108,25 +120,136 @@ describe("what the band says", () => {
     expect(chips(shell)[0]).toContain("the store is not answering");
   });
 
-  /** The session clock: elapsed time on the page's own clock, until a fast
-   *  clock derived from the railroad's configuration replaces it (ADR-0047).
-   *  A view reads a clock for scenery, never for control (ADR-0009). */
-  it("runs a session clock while a session is joined", async () => {
-    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
-    try {
-      const shell = await joined();
-      expect(readings(shell)).toContain("session 00:00");
-      vi.advanceTimersByTime(65_000);
-      await settled(shell);
-      expect(readings(shell)).toContain("session 01:05");
-    } finally {
-      vi.useRealTimers();
-    }
+  /** The session clock is gone: the fast clock is where it was (ADR-0090). */
+  it("runs no session clock", async () => {
+    const shell = await joined();
+    expect(band(shell).textContent).not.toContain("session");
+  });
+});
+
+/** The railroad's fast clock on the band (ADR-0090, decision 6): drawn off
+ *  `state/clock` alone, and set from its dialog with `clock_wanted`. */
+describe("the fast clock", () => {
+  /** 10:08:30 by the railroad's clock. */
+  const TEN_PAST = 10 * 3600 + 8 * 60 + 30;
+
+  function face(shell: TcApp): HTMLButtonElement | null {
+    return bandClock(shell).renderRoot.querySelector<HTMLButtonElement>("button.face");
+  }
+
+  function bandClock(shell: TcApp): TcBandClock {
+    return band(shell).querySelector("tc-band-clock")!;
+  }
+
+  async function ticking(time = TEN_PAST, speedUp = 1): Promise<TcApp> {
+    const shell = await joined();
+    await said(shell, STATE_CLOCK, { at: 1, time, speed_up: speedUp });
+    await bandClock(shell).updateComplete;
+    return shell;
+  }
+
+  /** The dialog, opened from the face. */
+  async function opened(shell: TcApp): Promise<TcBandClock> {
+    face(shell)!.click();
+    const clock = bandClock(shell);
+    await clock.updateComplete;
+    return clock;
+  }
+
+  async function typed(clock: TcBandClock, field: string, value: string): Promise<void> {
+    const input = clock.renderRoot.querySelector<HTMLInputElement>(`sl-input.${field}`)!;
+    input.value = value;
+    input.dispatchEvent(new Event("sl-input"));
+    await clock.updateComplete;
+  }
+
+  function saveButton(clock: TcBandClock): HTMLButtonElement {
+    return clock.renderRoot.querySelector<HTMLButtonElement>("sl-button.save")!;
+  }
+
+  it("draws a face with hour and minute hands and the time as its tooltip", async () => {
+    const shell = await ticking();
+    const drawn = face(shell)!;
+    expect(drawn.title).toBe("10:08");
+    const hands = drawn.querySelector("tc-clock")!;
+    expect(hands.plain).toBe(true);
+    expect(hands.time).toBe(TEN_PAST);
   });
 
-  it("shows no session clock with no session joined", async () => {
-    const shell = await mounted("run");
-    expect(readings(shell).some((one) => one.startsWith("session"))).toBe(false);
+  it("says the speed-up beside the face where it is not 1", async () => {
+    expect(face(await ticking())!.textContent!.trim()).toBe("");
+    unbrokered();
+    brokering();
+    expect(face(await ticking(TEN_PAST, 8))!.textContent!.trim()).toBe("×8");
+  });
+
+  it("moves when state/clock does, and reads no clock of its own", async () => {
+    const shell = await ticking();
+    await said(shell, STATE_CLOCK, { at: 2, time: TEN_PAST + 60, speed_up: 1 });
+    await bandClock(shell).updateComplete;
+    expect(face(shell)!.title).toBe("10:09");
+  });
+
+  it("shows no clock before state/clock, with none loaded, or with the broker gone", async () => {
+    expect(face(await joined())).toBeNull();
+
+    const shell = await ticking();
+    await said(shell, RAILROAD, { name: "" });
+    await bandClock(shell).updateComplete;
+    expect(face(shell)).toBeNull();
+
+    await said(shell, RAILROAD, { name: "toy" });
+    await said(shell, STATE_CLOCK, { at: 3, time: TEN_PAST, speed_up: 1 });
+    await bandClock(shell).updateComplete;
+    expect(face(shell)).not.toBeNull();
+    Broker.last!.closes();
+    await settled(shell);
+    await bandClock(shell).updateComplete;
+    expect(face(shell)).toBeNull();
+  });
+
+  it("opens a dialog with the time and the speed-up", async () => {
+    const clock = await opened(await ticking(TEN_PAST, 8));
+    expect(clock.renderRoot.querySelector("look-dialog")).not.toBeNull();
+    const field = (name: string) =>
+      clock.renderRoot.querySelector<HTMLInputElement>(`sl-input.${name}`)!.value;
+    expect(field("time")).toBe("10:08");
+    expect(field("speed-up")).toBe("8");
+  });
+
+  it("publishes only the speed-up where only it was changed", async () => {
+    const shell = await ticking();
+    const clock = await opened(shell);
+    await typed(clock, "speed-up", "1.5");
+    saveButton(clock).click();
+    await settled(shell);
+    expect(written()).toEqual([{ topic: CLOCK_WANTED, payload: { speed_up: 1.5 } }]);
+    expect(clock.renderRoot.querySelector("look-dialog")).toBeNull();
+  });
+
+  it("publishes only the time where only it was changed", async () => {
+    const shell = await ticking(TEN_PAST, 4);
+    const clock = await opened(shell);
+    await typed(clock, "time", "06:30");
+    saveButton(clock).click();
+    await settled(shell);
+    expect(written()).toEqual([
+      { topic: CLOCK_WANTED, payload: { time: 6 * 3600 + 30 * 60 } },
+    ]);
+  });
+
+  it("publishes nothing where nothing was changed", async () => {
+    const shell = await ticking();
+    const clock = await opened(shell);
+    saveButton(clock).click();
+    await settled(shell);
+    expect(written()).toEqual([]);
+  });
+
+  it("will not save a speed-up that is not above 0", async () => {
+    const clock = await opened(await ticking());
+    await typed(clock, "speed-up", "0");
+    expect(saveButton(clock).disabled).toBe(true);
   });
 });
 

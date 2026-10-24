@@ -25,6 +25,7 @@ import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { Session } from "../src/model/session.js";
 import type { Cab } from "../src/model/throttle.js";
+import type { TcClock } from "../src/ui/tc-clock.js";
 import type { TcDriving } from "../src/ui/tc-driving.js";
 import type { TcTrainPicker } from "../src/ui/tc-train-picker.js";
 import {
@@ -2120,6 +2121,21 @@ describe("a row of throttles", () => {
     const second = await takeIn(shell, 1, "goods");
     await said(shell, TAKEN, { taken: { shunter: first, goods: second } });
     expect(parts(shell, "tc-clock")).toHaveLength(2);
+  });
+
+  /** The station clock draws the railroad's fast clock, off `state/clock`
+   *  (ADR-0090), and its face with no hands before it has said. */
+  it("draws the fast clock in each panel", async () => {
+    const shell = await laid(758);
+    const first = await takeIn(shell, 0, "goods");
+    await said(shell, TAKEN, { taken: { goods: first } });
+    const clock = () => parts(shell, "tc-clock")[0] as TcClock;
+    expect(clock().time).toBeNull();
+
+    await said(shell, "tc49/layout/state/clock", { at: 1, time: 36_000, speed_up: 8 });
+
+    expect(clock().time).toBe(36_000);
+    expect(clock().plain).toBe(false);
   });
 
   it("drives each panel's train under its own id", async () => {
