@@ -205,7 +205,7 @@ export class TcDriving extends LitElement {
       ${still === null ? nothing : html`<p class="still">${still}</p>`}
       <section class="below">
         <div class="left">
-          ${this.reverser()} ${this.functions(cab)} ${this.turn(cab)}
+          ${this.reverser()} ${this.functions(cab)}
           <tc-clock></tc-clock>
         </div>
         <div class="right">${this.driving(cab)}</div>
@@ -335,25 +335,6 @@ export class TcDriving extends LitElement {
         </button>
       </div>
     `;
-  }
-
-  /** Turn the train round where it stands, only while the slider reads zero:
-   *  flipping the facing under a moving train would reverse it on the spot.
-   *  Dead too while it has a request in flight (#295). */
-  private turn(cab: Cab) {
-    const inFlight = cab.inFlight;
-    return html`<button
-      class="turn"
-      title=${inFlight
-        ? "the train has a request in flight"
-        : this.slider === 0
-          ? "turn the train round where it stands"
-          : "the slider must be at rest"}
-      ?disabled=${!this.live || this.slider !== 0 || inFlight}
-      @click=${() => this.turning(cab.train)}
-    >
-      Turn around
-    </button>`;
   }
 
   /**
@@ -494,14 +475,6 @@ export class TcDriving extends LitElement {
       function: name,
       on,
     });
-  }
-
-  /** Turn the train round where it stands: the same `reversal_wanted` the run
-   *  view's menu writes. The scheduler flips the facing, and the same
-   *  reverser then drives the train the other way physically. */
-  private turning(train: string): void {
-    if (!this.live || this.slider !== 0) return;
-    this.say<string>("reversal-wanted", train);
   }
 
   private say<T>(name: string, detail: T): void {

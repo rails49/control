@@ -39,7 +39,6 @@ import {
   Live,
   powerWanted,
   railroadWanted,
-  reversal,
   takeWanted,
   throttleAlive,
   throttleWanted,
@@ -673,13 +672,6 @@ export class Session {
     this.send(throttleWanted(train, speed, throttle));
   }
 
-  /** Turn a train round where it stands, from the throttle: the same
-   *  `reversal_wanted` the run view's menu writes, the scheduler flipping
-   *  the facing and nothing moving (ADR-0019). */
-  pressReversal(train: string): void {
-    this.send(reversal(train));
-  }
-
   /** One frame, published on its own topic: the presses above, and the
    *  gestures the run view composes. `connected` and not merely a client:
    *  MQTT.js queues a publish made while it is reconnecting, and a gesture
@@ -861,9 +853,6 @@ export class Session {
       noses: model.noses(),
       aspects: model.aspects(),
       ahead: model.ahead(),
-      inFlight: new Set(
-        placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
-      ),
       stock: this.owned,
     });
   }

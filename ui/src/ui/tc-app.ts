@@ -377,8 +377,6 @@ export class TcApp extends LitElement {
             event.detail.speed,
             event.detail.throttle,
           )}
-        @reversal-wanted=${(event: CustomEvent<string>) =>
-          this.session?.pressReversal(event.detail)}
         @function-wanted=${(event: CustomEvent<FunctionWanted>) =>
           this.session?.pressFunction(
             event.detail.train,

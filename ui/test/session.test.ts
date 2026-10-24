@@ -156,7 +156,6 @@ describe("the broker not answering", () => {
     stood.session.pressTake("goods", stood.session.throttleFor(0));
     stood.session.pressRelease("goods");
     stood.session.pressThrottle("goods", 40, stood.session.throttleFor(0));
-    stood.session.pressReversal("goods");
 
     expect(written(stood)).toEqual([]);
     expect(stood.session.status.linked).toBe(false);
