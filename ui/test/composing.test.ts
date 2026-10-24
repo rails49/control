@@ -331,7 +331,7 @@ describe("filling in an address", () => {
     const screen = stock();
     screen.addTrain("shunt");
     screen.append("shunt", { model: "arnold-ce68" });
-    expect(screen.address("shunt", 0, "3")).toBe("car 'krokodil-a' already wears address '3'");
+    expect(screen.address("shunt", 0, "3")).toBe("Car krokodil-a already has address 3.");
     expect(screen.roster.cars).toEqual({ "krokodil-a": { model: "arnold-ce68", addr: "3" } });
   });
 
@@ -463,6 +463,108 @@ describe("a car of one's own", () => {
   it("refuses a length that is not a positive whole number of millimetres", () => {
     const screen = stock();
     expect(screen.carLength("krokodil-a", 0)).toMatch("positive whole number");
+  });
+
+  it("refuses a name another car has, in the editor's words", () => {
+    const screen = stock();
+    screen.newCar("hopper");
+    expect(screen.renameCar("hopper", "krokodil-a")).toBe("There is already a car 'krokodil-a'.");
+  });
+
+  /** A DCC address is 1 to 10239, the long addresses' top; anything else is
+   *  no address a decoder can be programmed with (#979). */
+  it("refuses an address that is no DCC address, and changes nothing", () => {
+    const screen = stock();
+    const refused = "'abc' is not a DCC address. Use a number from 1 to 10239.";
+    expect(screen.carAddress("krokodil-a", "abc")).toBe(refused);
+    expect(screen.carAddress("krokodil-a", "0")).toMatch("'0' is not a DCC address");
+    expect(screen.carAddress("krokodil-a", "10240")).toMatch("'10240' is not a DCC address");
+    expect(screen.roster.cars!["krokodil-a"]!.addr).toBe("3");
+    expect(screen.edits).toBe(false);
+  });
+
+  it("refuses an address another car has, naming that car", () => {
+    const screen = stock();
+    const name = screen.newCar("arnold-ce68")!;
+    expect(screen.carAddress(name, "3")).toBe("Car krokodil-a already has address 3.");
+    expect(screen.carAddress(name, "10239")).toBeNull();
+    expect(screen.roster.cars![name]!.addr).toBe("10239");
+  });
+
+  it("writes its own notes, and takes the key off where they are emptied", () => {
+    const screen = stock();
+    screen.carNotes("krokodil-a", "repainted");
+    expect(screen.roster.cars!["krokodil-a"]!.notes).toBe("repainted");
+    expect(screen.cars()[0]).toMatchObject({ notes: "repainted" });
+    screen.carNotes("krokodil-a", "");
+    expect("notes" in screen.roster.cars!["krokodil-a"]!).toBe(false);
+  });
+
+  it("draws what the editor shows of it: its model's decoder, notes and the trains holding it", () => {
+    const screen = stock();
+    expect(screen.cars()[0]).toMatchObject({
+      decoder: true,
+      modelLength: 122,
+      modelNotes: null,
+      notes: null,
+      ownFunctions: false,
+      trains: ["ore"],
+    });
+  });
+});
+
+/** A car whose decoder is not its model's: the model's functions copied onto
+ *  it as rows to edit, and taken off again to read the model's (#979). */
+describe("a car's own functions", () => {
+  it("starts as a copy of the model's, written on the car", () => {
+    const screen = stock();
+    screen.ownFunctions("krokodil-a");
+    expect(screen.functionRows({ car: "krokodil-a" })).toEqual([
+      { number: "0", name: "headlights", mode: "latching" },
+    ]);
+    expect(screen.roster.cars!["krokodil-a"]!.functions).toEqual({ "0": { name: "headlights" } });
+    expect(screen.cars()[0]!.ownFunctions).toBe(true);
+  });
+
+  it("is edited as the model's rows are, and leaves the model alone", () => {
+    const screen = stock();
+    const krokodil = { car: "krokodil-a" };
+    screen.ownFunctions("krokodil-a");
+    screen.addFunction(krokodil);
+    screen.functionName(krokodil, 1, "Horn");
+    screen.functionMode(krokodil, 1, "momentary");
+    expect(screen.roster.cars!["krokodil-a"]!.functions).toEqual({
+      "0": { name: "headlights" },
+      "1": { name: "Horn", mode: "momentary" },
+    });
+    expect(screen.model("arnold-ce68")!.functions).toEqual({ "0": { name: "headlights" } });
+    expect(screen.corrections).toEqual([]);
+  });
+
+  it("stops Save while one of its rows has no name", () => {
+    const screen = stock();
+    screen.ownFunctions("krokodil-a");
+    screen.addFunction({ car: "krokodil-a" });
+    expect(screen.stopsSaving()).toBe("F1 needs a name.");
+  });
+
+  it("goes with Use the model's functions again", () => {
+    const screen = stock();
+    screen.ownFunctions("krokodil-a");
+    screen.addFunction({ car: "krokodil-a" });
+    screen.modelFunctions("krokodil-a");
+    expect("functions" in screen.roster.cars!["krokodil-a"]!).toBe(false);
+    expect(screen.stopsSaving()).toBeNull();
+    expect(screen.functionRows({ car: "krokodil-a" })).toEqual([]);
+  });
+
+  it("follows the car through a rename", () => {
+    const screen = stock();
+    screen.ownFunctions("krokodil-a");
+    screen.addFunction({ car: "krokodil-a" });
+    screen.renameCar("krokodil-a", "krokodil");
+    expect(screen.stopsSaving()).toBe("F1 needs a name.");
+    expect(screen.functionRows({ car: "krokodil" })).toHaveLength(2);
   });
 });
 

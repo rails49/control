@@ -65,6 +65,9 @@ export const MOMENTARY = "momentary";
 /** The highest function number a decoder has: F0 to F68. */
 export const TOP_FUNCTION = 68;
 
+/** The highest DCC address, the top of the long addresses; the lowest is 1. */
+export const TOP_ADDRESS = 10239;
+
 /** What a person reads a model as: its `name`, and its key where the
  *  document states none (#975). */
 export function modelName(model: ModelDoc): string {
@@ -120,6 +123,9 @@ export interface FnRow {
   name: string;
   mode: string;
 }
+
+/** Whose function rows: a model's, by key, or a car's own, by name. */
+export type FnOwner = string | { car: string };
 
 /** Where a model made on this page is held until Save writes it: a key no
  *  document has, `/` being what no file's name may hold (`check_name`). */
@@ -298,9 +304,14 @@ export function mint(model: string, taken: Iterable<string>): string {
 /** What names a car, in words: the trains whose entries do. Empty where
  *  nothing holds it. */
 export function carHolders(name: string, roster: RosterDoc): string[] {
+  return carTrains(name, roster).map((train) => `train '${train}'`);
+}
+
+/** The trains whose entries name a car, by name. */
+export function carTrains(name: string, roster: RosterDoc): string[] {
   return Object.entries(roster.trains)
     .filter(([, train]) => (train.cars ?? []).some((entry) => entry.car === name))
-    .map(([train]) => `train '${train}'`);
+    .map(([train]) => train);
 }
 
 /** What names a model, in words: the cars that are one, then the trains whose
@@ -381,7 +392,20 @@ export interface CarRow {
   kind: string | null;
   /** Whether that length is the car's own rather than the model's. */
   own: boolean;
+  /** The model's length, which an empty length field reads as; `null` where
+   *  the catalogue has no such model. */
+  modelLength: number | null;
   held: string | null;
+  /** Whether its model has a decoder, which is where the car is asked for an
+   *  address. */
+  decoder: boolean;
+  /** Whether it lists functions of its own rather than reading its model's. */
+  ownFunctions: boolean;
+  /** Its own notes, and its model's, kept apart (#975). */
+  notes: string | null;
+  modelNotes: string | null;
+  /** The trains whose entries name it, by name. */
+  trains: string[];
 }
 
 /** One model as the list below draws it, with what names it: ten identical
@@ -478,6 +502,9 @@ export class Stock {
   /** The function rows of each model the editor has drawn, by key: what the
    *  model's `functions` are written from (`FnRow`). */
   private rows = new Map<string, FnRow[]>();
+  /** The function rows of each car given its own, by name: what the car's
+   *  `functions` are written from, as `rows` is for a model's. */
+  private carRows = new Map<string, FnRow[]>();
   /** A photo chosen, dropped or taken and not yet written, by key. */
   private pending = new Map<string, Picture>();
   /** How many times a model's photo has been written from this page, by key:
@@ -600,6 +627,10 @@ export class Stock {
       const trouble = this.functionTrouble(key);
       if (trouble !== null) return trouble;
     }
+    for (const car of this.carRows.keys()) {
+      const trouble = this.functionTrouble({ car });
+      if (trouble !== null) return trouble;
+    }
     return null;
   }
 
@@ -610,6 +641,7 @@ export class Stock {
       .sort(([one], [other]) => (one < other ? -1 : 1))
       .map(([name, car]) => {
         const whole = merged(car, this.models);
+        const product = this.models[car.model];
         return {
           name,
           model: car.model,
@@ -622,7 +654,13 @@ export class Stock {
           length: whole?.length ?? null,
           kind: whole?.kind ?? null,
           own: car.length !== undefined,
+          modelLength: product?.length ?? null,
           held: lengthHeld(power, heard),
+          decoder: product !== undefined && hasDecoder(product),
+          ownFunctions: "functions" in car,
+          notes: car.notes ?? null,
+          modelNotes: product?.notes ?? null,
+          trains: carTrains(name, this.doc),
         };
       });
   }
@@ -759,9 +797,9 @@ export class Stock {
     const wanted = addr.trim();
     if (entry.car !== undefined) return this.carAddress(entry.car, wanted);
     if (wanted === "") return null;
-    const clash = this.wearing(wanted, null);
-    if (clash !== null) return clash;
-    this.promote(train, index, { addr: wanted });
+    const trouble = this.addressTrouble(wanted, null);
+    if (trouble !== null) return trouble;
+    this.promote(train, index, { addr: String(Number(wanted)) });
     return null;
   }
 
@@ -815,20 +853,27 @@ export class Stock {
   renameCar(was: string, name: string): string | null {
     if (name === was) return null;
     if (name.trim() === "") return "A car needs a name.";
-    if (this.doc.cars?.[name] !== undefined) return `there is already a car '${name}'`;
+    if (this.doc.cars?.[name] !== undefined) return `There is already a car '${name}'.`;
     const car = this.doc.cars?.[was];
     if (car === undefined) return null;
     const cars: Record<string, CarDoc> = {};
     for (const [key, one] of Object.entries(this.doc.cars ?? {})) {
       cars[key === was ? name : key] = one;
     }
+    const rows = this.carRows.get(was);
+    if (rows !== undefined) {
+      this.carRows.delete(was);
+      this.carRows.set(name, rows);
+    }
     this.write({ cars, trains: this.renamed(was, name) });
     return null;
   }
 
-  /** The number programmed into a car's decoder. Two cars on one address both
-   *  answer the same packet, which is what the store refuses; it is refused
-   *  here so the words name the other car rather than arriving on a save. */
+  /** The number programmed into a car's decoder, 1 to 10239, written without
+   *  leading zeros so `0460` and `460` are one address. Two cars on one
+   *  address both answer the same packet, which is what the store refuses; it
+   *  is refused here so the words name the other car rather than arriving on
+   *  a save. */
   carAddress(name: string, addr: string): string | null {
     const car = this.doc.cars?.[name];
     if (car === undefined) return null;
@@ -838,9 +883,9 @@ export class Stock {
       this.write({ cars: { ...this.doc.cars, [name]: rest } });
       return null;
     }
-    const clash = this.wearing(wanted, name);
-    if (clash !== null) return clash;
-    this.write({ cars: { ...this.doc.cars, [name]: { ...car, addr: wanted } } });
+    const trouble = this.addressTrouble(wanted, name);
+    if (trouble !== null) return trouble;
+    this.write({ cars: { ...this.doc.cars, [name]: { ...car, addr: String(Number(wanted)) } } });
     return null;
   }
 
@@ -900,8 +945,36 @@ export class Stock {
     if (holders.length > 0) return heldBy(`car '${name}'`, holders);
     const cars = { ...this.doc.cars };
     delete cars[name];
+    this.carRows.delete(name);
     this.write({ cars });
     return null;
+  }
+
+  /** A car's own notes, beside its model's rather than over them (#975);
+   *  empty takes the key off rather than writing `""`. */
+  carNotes(name: string, notes: string): void {
+    const car = this.doc.cars?.[name];
+    if (car === undefined || (car.notes ?? "") === notes) return;
+    const { notes: _was, ...rest } = car;
+    this.write({ cars: { ...this.doc.cars, [name]: notes === "" ? rest : { ...rest, notes } } });
+  }
+
+  /** *This car's decoder is different*: its model's functions copied onto the
+   *  car as rows of its own, edited from then on as a model's are. */
+  ownFunctions(name: string): void {
+    const car = this.doc.cars?.[name];
+    if (car === undefined || "functions" in car) return;
+    this.setRows({ car: name }, this.functionRows(car.model).map((row) => ({ ...row })));
+  }
+
+  /** *Use the model's functions again*: the car's own taken off. */
+  modelFunctions(name: string): void {
+    const car = this.doc.cars?.[name];
+    if (car === undefined) return;
+    this.carRows.delete(name);
+    if (!("functions" in car)) return;
+    const { functions: _was, ...rest } = car;
+    this.write({ cars: { ...this.doc.cars, [name]: rest } });
   }
 
   // --- models ---------------------------------------------------------------
@@ -1042,20 +1115,28 @@ export class Stock {
     );
   }
 
-  /** The function rows of a model, as the editor draws them: the ones it is
-   *  holding, or the document's, by number. */
-  functionRows(key: string): FnRow[] {
-    const at = this.keyOf(key);
-    const held = this.rows.get(at);
+  /** The function rows of a model, or of a car with its own, as the editor
+   *  draws them: the ones it is holding, or the document's, by number. A car
+   *  reading its model's has none. */
+  functionRows(of: FnOwner): FnRow[] {
+    let held: FnRow[] | undefined;
+    let functions: Record<string, ModelFn>;
+    if (typeof of === "string") {
+      const at = this.keyOf(of);
+      held = this.rows.get(at);
+      functions = this.models[at]?.functions ?? {};
+    } else {
+      held = this.carRows.get(of.car);
+      functions = this.doc.cars?.[of.car]?.functions ?? {};
+    }
     if (held !== undefined) return held;
-    const functions = this.models[at]?.functions ?? {};
     return Object.entries(functions)
       .sort(([one], [other]) => Number(one) - Number(other))
       .map(([number, fn]) => ({ number, name: fn.name, mode: fn.mode ?? LATCHING }));
   }
 
   /** A function row added, on the lowest number not in use. */
-  addFunction(key: string): void {
+  addFunction(key: FnOwner): void {
     const rows = this.functionRows(key);
     const used = new Set(rows.map((row) => row.number));
     let number = 0;
@@ -1063,7 +1144,7 @@ export class Stock {
     this.setRows(key, [...rows, { number: String(number), name: "", mode: LATCHING }]);
   }
 
-  removeFunction(key: string, at: number): void {
+  removeFunction(key: FnOwner, at: number): void {
     this.setRows(
       key,
       this.functionRows(key).filter((_, index) => index !== at),
@@ -1072,7 +1153,7 @@ export class Stock {
 
   /** A function's number, F0 to F68. One listed twice stands, said to be
    *  wrong, and stops Save while it does (`functionTrouble`). */
-  functionNumber(key: string, at: number, typed: string): string | null {
+  functionNumber(key: FnOwner, at: number, typed: string): string | null {
     const number = typed.trim().replace(/^[Ff]/, "");
     if (!/^\d+$/.test(number) || Number(number) > TOP_FUNCTION) {
       return `A function number is 0 to ${TOP_FUNCTION}.`;
@@ -1081,18 +1162,18 @@ export class Stock {
     return null;
   }
 
-  functionName(key: string, at: number, name: string): void {
+  functionName(key: FnOwner, at: number, name: string): void {
     this.setRow(key, at, { name: name.trim() });
   }
 
-  functionMode(key: string, at: number, mode: string): void {
+  functionMode(key: FnOwner, at: number, mode: string): void {
     this.setRow(key, at, { mode });
   }
 
   /** What is wrong with a model's function rows, or `null` where nothing is:
    *  a number listed twice, or a function with no name. Either stops Save —
    *  the store would refuse the document (`lib/stock.py`). */
-  functionTrouble(key: string): string | null {
+  functionTrouble(key: FnOwner): string | null {
     const twice = this.listedTwice(key);
     if (twice !== null) return twice;
     const unnamed = this.functionRows(key).find((row) => row.name === "");
@@ -1101,7 +1182,7 @@ export class Stock {
 
   /** A function number listed twice on a model, said as the editor says it
    *  under the rows while it stands, or `null` where none is. */
-  listedTwice(key: string): string | null {
+  listedTwice(key: FnOwner): string | null {
     const seen = new Set<string>();
     for (const row of this.functionRows(key)) {
       if (seen.has(row.number)) {
@@ -1177,7 +1258,7 @@ export class Stock {
     this.write({});
   }
 
-  private setRow(key: string, at: number, part: Partial<FnRow>): void {
+  private setRow(key: FnOwner, at: number, part: Partial<FnRow>): void {
     this.setRows(
       key,
       this.functionRows(key).map((row, index) => (index === at ? { ...row, ...part } : row)),
@@ -1188,16 +1269,25 @@ export class Stock {
    *  them: a number listed twice is the later row's in the document until it
    *  is put right, Save being refused meanwhile. A latching function says
    *  nothing about its mode, that being what absent reads as. */
-  private setRows(key: string, rows: FnRow[]): void {
-    const at = this.keyOf(key);
-    const model = this.models[at];
-    if (model === undefined) return;
-    this.rows.set(at, rows);
+  private setRows(key: FnOwner, rows: FnRow[]): void {
     const functions: Record<string, ModelFn> = {};
     for (const row of rows) {
       functions[row.number] =
         row.mode === LATCHING ? { name: row.name } : { name: row.name, mode: row.mode };
     }
+    if (typeof key !== "string") {
+      // A car's own stay its own with every row removed: `functions: {}` is a
+      // decoder with none, where no key would be the model's.
+      const car = this.doc.cars?.[key.car];
+      if (car === undefined) return;
+      this.carRows.set(key.car, rows);
+      this.write({ cars: { ...this.doc.cars, [key.car]: { ...car, functions } } });
+      return;
+    }
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined) return;
+    this.rows.set(at, rows);
     const { functions: _was, ...rest } = model;
     this.put(at, rows.length === 0 ? rest : { ...rest, functions });
   }
@@ -1294,12 +1384,16 @@ export class Stock {
     return trains;
   }
 
-  /** The car already wearing an address, said as a refusal, or `null` where
-   *  none is. */
-  private wearing(addr: string, but: string | null): string | null {
+  /** Why an address may not be written on a car, said as a refusal, or
+   *  `null` where it may: no DCC address, or worn by another car already. */
+  private addressTrouble(addr: string, but: string | null): string | null {
+    const number = Number(addr);
+    if (!/^\d+$/.test(addr) || number < 1 || number > TOP_ADDRESS) {
+      return `'${addr}' is not a DCC address. Use a number from 1 to ${TOP_ADDRESS}.`;
+    }
     for (const [name, car] of Object.entries(this.doc.cars ?? {})) {
-      if (name !== but && car.addr === addr) {
-        return `car '${name}' already wears address '${addr}'`;
+      if (name !== but && car.addr === String(number)) {
+        return `Car ${name} already has address ${number}.`;
       }
     }
     return null;
