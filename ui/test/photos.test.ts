@@ -1,25 +1,27 @@
 // @vitest-environment happy-dom
 
 /**
- * A model's photo, through the screen that shows it (ui/STOCK.md, #631).
+ * A model's photo, through the screen that shows it (ui/STOCK.md, #631,
+ * #978).
  *
- * A DOM test because it crosses the rows, two routes and a camera that is not
- * this repository's: what is under test is that a row says where the picture
- * is, that a press takes one and the next press keeps it, that a box with no
- * camera is answered in words rather than with a dead control, and that a
- * product written with a picture reaches the store as two writes in the order
- * the store takes them (#629, #630).
+ * A DOM test because it crosses the cards, the model editor, two routes and a
+ * camera that is not this repository's: what is under test is that a card
+ * says where the picture is, that a file dropped or chosen and a picture the
+ * camera took become the model's photo, that a file that is no picture is
+ * refused in words, and that Save writes the photo after the model's
+ * document, the store refusing a photo of a model it has not got (#630).
  *
- * The client's own side of the photo routes — the URL a photo is at, and the
- * `image/jpeg` a `PUT` carries it under — is `test/catalogue.test.ts`'s, and
- * the words a call that came back with no document gets are
- * `test/asking.test.ts`'s; nothing is asserted twice.
+ * The browser's decoding is `model/photo.ts`'s `toJpeg`, replaced here: a
+ * test's DOM has no canvas to decode with, and what is under test is what the
+ * screen does with the answer. The client's own side of the photo routes is
+ * `test/catalogue.test.ts`'s; nothing is asserted twice.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
-import type { ModelDoc, RosterDoc } from "../src/model/store.js";
+import { fitted, toJpeg, UNREADABLE } from "../src/model/photo.js";
+import type { ModelDoc, Picture, RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcStock } from "../src/ui/tc-stock.js";
 import {
@@ -32,17 +34,22 @@ import {
 } from "./support/shell.js";
 import { brokering, DERIVES, loads, stored, unbrokered } from "./support/session.js";
 
-const RE460: ModelDoc = { model: "sbb-re460", kind: "locomotive", length: 220 };
+vi.mock("../src/model/photo.js", async (original) => ({
+  ...(await original<typeof import("../src/model/photo.js")>()),
+  toJpeg: vi.fn(),
+}));
 
-/** The railroad owns one item of that product, so a car row and a model row
- *  are both on the screen and both are about the same photo (ADR-0061). Made
- *  fresh for each read: the screen holds the document it was given and edits
- *  it. */
+const RE460: ModelDoc = { model: "sbb-re460", name: "Re 460", kind: "locomotive", length: 220 };
+
+/** The railroad owns one item of that product in one train, so a car card, a
+ *  train card and a model card are all about the same photo (ADR-0061).
+ *  Made fresh for each read: the screen holds the document it was given and
+ *  edits it. */
 function roster(): RosterDoc {
   return {
     roster: "toy",
     cars: { "krokodil-a": { model: "sbb-re460", addr: "3" } },
-    trains: {},
+    trains: { ic: { cars: [{ car: "krokodil-a" }] } },
   };
 }
 
@@ -53,10 +60,19 @@ const TOOK = new Uint8Array([0xff, 0xd8, 0xff, 0x2a, 0x2b]);
 /** A camera that takes that picture, which is a box with one plugged in. */
 const WORKING = (): Take => ({ status: 200, statusText: "OK", jpeg: TOOK });
 
+/** What the conversion answers for a file: other bytes than the file's, so
+ *  that what reaches the store is seen to be the conversion's output. */
+const CONVERTED: Picture = {
+  jpeg: new Uint8Array([0xff, 0xd8, 0xff, 0x01]),
+  shown: "data:image/jpeg;base64,/9j/AQ==",
+};
+
 let store: Answers;
 
 beforeEach(() => {
   brokering();
+  vi.mocked(toJpeg).mockReset();
+  vi.mocked(toJpeg).mockResolvedValue(CONVERTED);
   store = serving({
     drawings: ["toy"],
     read: stored,
@@ -72,11 +88,13 @@ afterEach(() => {
   unbrokered();
 });
 
-/** The app with the toy railroad loaded, showing the stock screen. The
- *  broker's retained row is the only thing that loads a railroad (ADR-0060). */
+/** The app with the toy railroad loaded, showing the stock screen's Models
+ *  list. The broker's retained row is the only thing that loads a railroad
+ *  (ADR-0060). */
 async function opened(): Promise<TcApp> {
   const shell = await mounted("stock");
   await loads(shell, "toy");
+  await tab(shell, "models");
   return shell;
 }
 
@@ -93,518 +111,207 @@ function text(shell: TcApp, selector: string): string | null {
   return part(shell, selector)?.textContent?.trim() ?? null;
 }
 
-/** Where a row's thumbnail is pointed. */
-function thumbnail(shell: TcApp, row: string): string | null {
-  return part(shell, `${row} button.thumb img`)?.getAttribute("src") ?? null;
-}
-
-/** Where every model row's thumbnail is pointed, whichever row is first. */
-function thumbnails(shell: TcApp): string[] {
-  return [
-    ...screen(shell).renderRoot.querySelectorAll("li.product button.thumb img"),
-  ].map((img) => img.getAttribute("src") ?? "");
-}
-
-/** Whether a control in the New model dialog is dead. */
-function dead(shell: TcApp, selector: string): boolean {
-  return (part(shell, `look-dialog ${selector}`) as HTMLInputElement).disabled;
-}
-
 async function pressed(shell: TcApp, selector: string): Promise<void> {
   part(shell, selector)!.click();
   await settled(shell);
 }
 
-/** The photo dialog opened on the product's row, with nothing taken yet. */
-async function dialog(shell: TcApp): Promise<void> {
-  await pressed(shell, "li.product button.thumb");
+async function tab(shell: TcApp, which: "trains" | "cars" | "models"): Promise<void> {
+  await pressed(shell, `button.tab[data-tab="${which}"]`);
 }
 
-/** A picture taken, whatever the camera answers with. */
-async function takes(shell: TcApp, where = "look-dialog.photo"): Promise<void> {
-  await pressed(shell, `${where} button.take`);
+/** Where a card's photo is pointed. */
+function card(shell: TcApp, which: string): string | null {
+  return part(shell, `button.card.${which} .frame img`)?.getAttribute("src") ?? null;
 }
 
-/** What was typed into one of the dialog's fields. */
-async function typed(shell: TcApp, selector: string, value: string): Promise<void> {
-  const field = part(shell, selector) as HTMLInputElement;
-  field.value = value;
-  field.dispatchEvent(new Event("change"));
+/** Where the model editor's photo frame is pointed. */
+function framed(shell: TcApp): string | null {
+  return part(shell, ".model-editor .photo-frame img")?.getAttribute("src") ?? null;
+}
+
+/** A file dropped on the model editor's photo frame. */
+async function dropped(shell: TcApp, file: File): Promise<void> {
+  const drop = new Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(drop, "dataTransfer", { value: { files: [file] } });
+  part(shell, ".model-editor .photo-frame")!.dispatchEvent(drop);
   await settled(shell);
 }
 
-/** Write a product in the New model dialog and press Create, the photo in it
- *  left as it stands. */
-async function created(shell: TcApp, model: string): Promise<void> {
-  await typed(shell, "look-dialog #model", model);
-  await typed(shell, "look-dialog #length", "120");
-  await pressed(shell, "look-dialog .create");
+/** A file chosen with Choose file…, which is the browser's own file input. */
+async function picked(shell: TcApp, file: File): Promise<void> {
+  const input = part(shell, ".model-editor input.file") as HTMLInputElement;
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  input.dispatchEvent(new Event("change"));
+  await settled(shell);
 }
 
-/** The first photo `PUT` held in flight, and the press that lets it answer:
- *  what a Save outstanding while a person goes on pressing looks like. */
-function holding(): () => void {
-  let answer: () => void = () => {};
-  let first = true;
-  store.held = (path) => {
-    if (!path.endsWith("/photo") || !first) return null;
-    first = false;
-    return new Promise<void>((resolve) => (answer = resolve));
-  };
-  return () => answer();
+/** A photo off a phone, which is what a person drops. */
+function phone(): File {
+  return new File([new Uint8Array([1, 2, 3])], "IMG_0001.jpg", { type: "image/jpeg" });
 }
 
-describe("the thumbnail on a row", () => {
-  it("is an image on the model's photo route, on a model row and a car row", async () => {
+/** The photo writes the store took. */
+function photos(): { path: string; body: unknown }[] {
+  return store.saved.filter((one) => one.path.endsWith("/photo"));
+}
+
+describe("a card's photo", () => {
+  it("is the model's photo route, on a model card, a car card and a train card", async () => {
     const shell = await opened();
-
-    expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo");
-    expect(thumbnail(shell, "li.car")).toBe("/catalogue/sbb-re460/photo");
+    expect(card(shell, "model")).toBe("/catalogue/sbb-re460/photo");
+    await tab(shell, "cars");
+    expect(card(shell, "car")).toBe("/catalogue/sbb-re460/photo");
+    await tab(shell, "trains");
+    expect(card(shell, "train")).toBe("/catalogue/sbb-re460/photo");
   });
 
-  /** A car's photo is its model's: the picture says what the product looks
-   *  like, and ten identical hoppers have one between them (ADR-0061). So the
-   *  dialog a car's thumbnail opens is the model's, and says so. */
-  it("opens a dialog titled for the model, pressed on a car", async () => {
+  /** Nothing on a model's document says whether there is a photo, so a route
+   *  answering anything but 200 is the whole of how the screen learns (#630). */
+  it("says No photo, and the editor's frame asks for one, where the route did not load", async () => {
     const shell = await opened();
+    part(shell, "button.card.model .frame img")!.dispatchEvent(new Event("error"));
+    await settled(shell);
 
-    await pressed(shell, "li.car button.thumb");
-
-    expect(part(shell, "look-dialog.photo")!.getAttribute("label")).toBe(
-      "Photo — sbb-re460",
-    );
+    expect(text(shell, "button.card.model .frame")).toBe("No photo");
+    expect(text(shell, ".model-editor .photo-frame b")).toBe("Drop a picture here");
+    expect(text(shell, ".model-editor button.take")).toBe("Take photo");
   });
 });
 
-describe("taking a picture", () => {
+describe("a file dropped or chosen", () => {
+  it("reaches PUT /catalogue/<model>/photo as the conversion's output, on Save", async () => {
+    const shell = await opened();
+    const file = phone();
+
+    await dropped(shell, file);
+
+    expect(vi.mocked(toJpeg)).toHaveBeenCalledWith(file);
+    expect(framed(shell)).toBe(CONVERTED.shown);
+    expect(photos()).toEqual([]);
+    await pressed(shell, ".bar button.save");
+
+    expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: CONVERTED.jpeg }]);
+    expect(card(shell, "model")).toBe("/catalogue/sbb-re460/photo?v=1");
+  });
+
+  it("is the photo the same way where it is chosen with Choose file…", async () => {
+    const shell = await opened();
+    await picked(shell, phone());
+    await pressed(shell, ".bar button.save");
+
+    expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: CONVERTED.jpeg }]);
+  });
+
+  it("is refused where it is not a picture, and decodes nothing", async () => {
+    const shell = await opened();
+
+    await dropped(shell, new File(["hello"], "notes.txt", { type: "text/plain" }));
+
+    expect(text(shell, ".model-editor .photo-trouble")).toBe("That file is not a picture.");
+    expect(vi.mocked(toJpeg)).not.toHaveBeenCalled();
+    expect(text(shell, ".bar .said")).toBe("Everything is saved");
+  });
+
+  it("is refused where the browser cannot read it", async () => {
+    vi.mocked(toJpeg).mockRejectedValue(new Error(UNREADABLE));
+    const shell = await opened();
+
+    await dropped(shell, new File(["…"], "IMG_0002.heic", { type: "image/heic" }));
+
+    expect(text(shell, ".model-editor .photo-trouble")).toBe(
+      "This browser cannot read that picture. Try a JPEG or PNG.",
+    );
+    expect(text(shell, ".bar .said")).toBe("Everything is saved");
+  });
+});
+
+describe("a picture the camera took", () => {
   it("says so while the camera is being waited on, with the press dead", async () => {
     let answer: (took: Take) => void = () => {};
     store.camera = () => new Promise<Take>((resolve) => (answer = resolve));
     const shell = await opened();
-    await dialog(shell);
 
-    await takes(shell);
+    await pressed(shell, ".model-editor button.take");
 
-    expect(text(shell, "look-dialog.photo .picture")).toBe("taking a picture…");
-    expect(part(shell, "look-dialog.photo button.take")).toHaveProperty(
-      "disabled",
-      true,
-    );
+    expect(text(shell, ".model-editor .photo-frame .wait")).toBe("Taking a picture…");
+    expect(part(shell, ".model-editor button.take")).toHaveProperty("disabled", true);
     answer(WORKING());
     await settled(shell);
-    expect(text(shell, "look-dialog.photo button.take")).toBe("Retake");
+    expect(part(shell, ".model-editor button.take")).toHaveProperty("disabled", false);
+    expect(text(shell, ".model-editor button.take")).toBe("Retake photo");
   });
 
-  it("offers to save the picture the camera answered with", async () => {
+  it("goes to the store as the camera's own bytes, on Save", async () => {
     store.camera = WORKING;
     const shell = await opened();
-    await dialog(shell);
+    await pressed(shell, ".model-editor button.take");
 
-    await takes(shell);
+    expect(text(shell, ".bar .said")).toBe("1 unsaved change");
+    await pressed(shell, ".bar button.save");
 
-    expect(text(shell, "look-dialog.photo button.keep")).toBe("Save");
-    expect(text(shell, "look-dialog.photo p.unkept")).toBe("not saved yet");
-    expect(store.saved).toEqual([]);
+    expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: TOOK }]);
+    expect(vi.mocked(toJpeg)).not.toHaveBeenCalled();
   });
 
-  it("sends the camera's own bytes to the model's photo route", async () => {
-    store.camera = WORKING;
-    const shell = await opened();
-    await dialog(shell);
-    await takes(shell);
-
-    await pressed(shell, "look-dialog.photo button.keep");
-
-    expect(store.saved).toEqual([
-      { path: "/catalogue/sbb-re460/photo", body: TOOK },
-    ]);
-  });
-
-  /** The bytes at that URL have changed and the browser is holding the ones
-   *  from before, so the thumbnail asks for them again. The store drops a
-   *  query string, so it is the same route (#630). */
-  it("points the thumbnail at a URL the browser has no answer for", async () => {
-    store.camera = WORKING;
-    const shell = await opened();
-    await dialog(shell);
-    await takes(shell);
-
-    await pressed(shell, "look-dialog.photo button.keep");
-
-    expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo?v=1");
-  });
-
-  /** Any answer but 200 means no picture and there is nothing else to read out
-   *  of it (docs/SYSTEM.md), and the press is never dead for want of a camera:
-   *  one plugged in a minute later is a picture a minute later (#629). */
+  /** Any answer but 200 means no picture and there is nothing else to read
+   *  out of it (docs/SYSTEM.md), and the press is never dead for want of a
+   *  camera: one plugged in a minute later is a picture a minute later (#629). */
   it("says what the camera answered where it answered no picture", async () => {
     store.camera = () => ({ status: 502, statusText: "Bad Gateway" });
     const shell = await opened();
-    await dialog(shell);
 
-    await takes(shell);
+    await pressed(shell, ".model-editor button.take");
 
-    const said = text(shell, "look-dialog.photo p.no-picture")!;
+    const said = text(shell, ".model-editor .photo-trouble")!;
     expect(said.startsWith("no picture:")).toBe(true);
     expect(said).toContain("502");
-    expect(text(shell, "look-dialog.photo button.take")).toBe("Try again");
+    expect(part(shell, ".model-editor button.take")).toHaveProperty("disabled", false);
   });
 });
 
-describe("a product written with a picture", () => {
-  /** Two writes and in that order: the store refuses a photo for a model it
-   *  has not got, a file beside a document that is not there being a photo of
-   *  nothing (#630). */
-  it("writes the model's document before its photo", async () => {
-    store.camera = WORKING;
+describe("a model made with a photo", () => {
+  /** Three writes and in that order: the store refuses a photo for a model
+   *  it has not got, and a roster naming one (#630, #978). */
+  it("is written as the document, then the photo, then the roster, under the key minted", async () => {
     const shell = await opened();
-    await pressed(shell, "button.new-model");
-    await takes(shell, "look-dialog");
+    await pressed(shell, "button.new");
+    expect(text(shell, ".model-editor .photo-frame b")).toBe("Drop a picture here");
+    const name = part(shell, ".model-editor input.name") as HTMLInputElement;
+    name.value = "Ae 6/6";
+    name.dispatchEvent(new Event("change"));
+    await settled(shell);
+    await dropped(shell, phone());
 
-    await created(shell, "hopper");
+    await pressed(shell, ".bar button.save");
 
     expect(store.saved.map((one) => one.path)).toEqual([
-      "/catalogue/hopper",
-      "/catalogue/hopper/photo",
+      "/catalogue/ae-6-6",
+      "/catalogue/ae-6-6/photo",
+      "/rosters/toy",
     ]);
-    expect(store.saved[1]!.body).toEqual(TOOK);
+    expect(card(shell, "model[aria-current='true']")).toBe("/catalogue/ae-6-6/photo?v=1");
   });
 
-  /** The model is written and the photo is not, so the dialog stays open and
-   *  says which of the two is missing: the product is in the catalogue either
-   *  way, and the picture is still there to save again (#638). */
-  it("leaves the model written where its photo does not land", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
+  it("keeps the photo for the next Save where the store refuses it", async () => {
     const shell = await opened();
-    await pressed(shell, "button.new-model");
-    await takes(shell, "look-dialog");
+    await dropped(shell, phone());
+    store.refuses = (path) =>
+      path.endsWith("/photo") ? { status: 400, error: "not a JPEG" } : null;
 
-    await created(shell, "hopper");
+    await pressed(shell, ".bar button.save");
 
-    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
-    const said = text(shell, "look-dialog p.trouble")!;
-    expect(said).toContain("'hopper' is written, but its photo was not saved");
-    expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
-  });
-
-  /** Create has written the product, so the dialog's frame is drawn for it and
-   *  the picture nothing kept has the photo dialog's own Save — the same bytes
-   *  to the same route, and no second Save written for this dialog (#638). */
-  it("offers Save for the picture its failed photo left unsaved", async () => {
-    store.camera = WORKING;
-    // The `PUT` Create makes is refused and the one Save makes is taken, which
-    // is the camera's bytes reaching the route on the second press.
-    let refuse = true;
-    store.intercepted = (path) => {
-      if (!path.endsWith("/photo") || !refuse) return null;
-      refuse = false;
-      return { status: 404, statusText: "" };
-    };
-    const shell = await opened();
-    await pressed(shell, "button.new-model");
-    await takes(shell, "look-dialog");
-    await created(shell, "hopper");
-
-    expect(text(shell, "look-dialog button.keep")).toBe("Save");
-
-    await pressed(shell, "look-dialog button.keep");
-
-    expect(store.saved.map((one) => one.path)).toEqual([
-      "/catalogue/hopper",
-      "/catalogue/hopper/photo",
-    ]);
-    expect(store.saved[1]!.body).toEqual(TOOK);
-    // The photo is saved, so both of the dialog's writes are done: it is put
-    // away, and the line that said the photo was not saved goes with it (#644).
-    expect(text(shell, "look-dialog p.trouble")).toBeNull();
-  });
-
-  /** One product is written per New model dialog. Pressing Create again
-   *  reached the duplicate-name check and replaced the refusal with *there is
-   *  already a model 'hopper'* — a sentence about this dialog's own write
-   *  (#638). */
-  it("leaves Create dead once the model is written", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
-    const shell = await opened();
-    await pressed(shell, "button.new-model");
-    await takes(shell, "look-dialog");
-    await created(shell, "hopper");
-
-    expect(
-      (part(shell, "look-dialog .create") as HTMLElement & { disabled: boolean })
-        .disabled,
-    ).toBe(true);
-
-    await pressed(shell, "look-dialog .create");
-
-    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
-    expect(text(shell, "look-dialog p.trouble")).toContain(
-      "'hopper' is written, but its photo was not saved",
-    );
+    expect(text(shell, ".bar .said")).toBe("not a JPEG");
+    expect(framed(shell)).toBe(CONVERTED.shown);
+    store.refuses = () => null;
+    await pressed(shell, ".bar button.save");
+    expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: CONVERTED.jpeg }]);
   });
 });
 
-/** The dialog Create has written a model in: a second state of the same dialog,
- *  where one of its two writes is done and the other is not
- *  ([#644](https://github.com/rails49/control/issues/644)). */
-describe("the New model dialog about the model it wrote", () => {
-  /** A Create whose photo did not land, a function row filled in so that there
-   *  is one to be dead. */
-  async function wrote(shell: TcApp): Promise<void> {
-    await pressed(shell, "button.new-model");
-    await takes(shell, "look-dialog");
-    await pressed(shell, "look-dialog button.add-function");
-    await typed(shell, "look-dialog li.function input.number", "0");
-    await typed(shell, "look-dialog li.function input.name", "headlights");
-    await created(shell, "hopper");
-  }
-
-  /** Every control the dialog edits the draft with. */
-  const FIELDS = [
-    "#model",
-    "#kind",
-    "#length",
-    "li.function input.number",
-    "li.function input.name",
-    "li.function button.remove",
-    "button.add-function",
-  ];
-
-  /** Create is dead from the write on and nothing else reads the draft, so an
-   *  edit typed into one of these cannot be saved — and a different name typed
-   *  there while Save still sends the picture to the written model says nothing
-   *  about which model it goes to. */
-  it("leaves every control that edits the model dead, and the photo's Save live", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
-    const shell = await opened();
-
-    await wrote(shell);
-
-    expect(FIELDS.filter((one) => !dead(shell, one))).toEqual([]);
-    expect(dead(shell, "button.keep")).toBe(false);
-  });
-
-  /** Both writes are done, so there is nothing left for the dialog to say and
-   *  it goes the way a Create whose photo landed first time takes it: the
-   *  catalogue row is drawn with the photo it now has. */
-  it("is put away when the photo Save lands", async () => {
-    store.camera = WORKING;
-    // The `PUT` Create makes is refused and the one Save makes is taken.
-    let refuse = true;
-    store.intercepted = (path) => {
-      if (!path.endsWith("/photo") || !refuse) return null;
-      refuse = false;
-      return { status: 404, statusText: "" };
-    };
-    const shell = await opened();
-    await wrote(shell);
-
-    await pressed(shell, "look-dialog button.keep");
-
-    expect(part(shell, "look-dialog")).toBeNull();
-    expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
-  });
-
-  /** The dialog's Save is the photo dialog's Save, so it is dead from the press
-   *  until its `PUT` answers too — and the dialog goes when that write lands,
-   *  which is the press that a second one would have skipped (#655). */
-  it("leaves Save dead while its own PUT is in flight, and is put away when it lands", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
-    const shell = await opened();
-    await wrote(shell);
-
-    // Held from here rather than from the start: Create's own photo `PUT` has
-    // been refused and answered, so the one that is held is the Save's.
-    let lands: () => void = () => {};
-    store.intercepted = () => null;
-    store.held = (path) =>
-      path.endsWith("/photo")
-        ? new Promise<void>((resolve) => (lands = resolve))
-        : null;
-
-    await pressed(shell, "look-dialog button.keep");
-
-    expect(dead(shell, "button.keep")).toBe(true);
-
-    await pressed(shell, "look-dialog button.keep");
-
-    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper"]);
-
-    lands();
-    await settled(shell);
-
-    expect(store.saved.map((one) => one.path)).toEqual([
-      "/catalogue/hopper",
-      "/catalogue/hopper/photo",
-    ]);
-    expect(part(shell, "look-dialog")).toBeNull();
-    expect(thumbnails(shell)).toContain("/catalogue/hopper/photo?v=1");
-  });
-
-  /** A Save the store will not take is a write that did not happen, so the
-   *  dialog stays where it was with the picture still on it to save again, and
-   *  the store's wording beside the picture. */
-  it("stays open where the photo Save is refused, and says what the store said", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
-    const shell = await opened();
-    await wrote(shell);
-
-    await pressed(shell, "look-dialog button.keep");
-
-    expect(part(shell, "look-dialog")).not.toBeNull();
-    const said = text(shell, "look-dialog p.no-picture")!;
-    expect(said).toContain("PUT /catalogue/hopper/photo answered 404");
-    expect(text(shell, "look-dialog button.keep")).toBe("Save");
-  });
-});
-
-/** A Save from the press until its `PUT` answers: one shot has at most one
- *  write of it in flight, so the control is dead meanwhile and a second press
- *  is nothing to answer
- *  ([#655](https://github.com/rails49/control/issues/655)). */
-describe("a photo Save whose own PUT is in flight", () => {
-  /** Retake and Cancel are not dead with it: the picture can be put away or
-   *  taken again while the write goes on, and #651 covers what the answer then
-   *  lands on. */
-  it("leaves Save dead from the press on, so a second press sends no second PUT", async () => {
-    store.camera = WORKING;
-    const shell = await opened();
-    const lands = holding();
-    await dialog(shell);
-    await takes(shell);
-
-    await pressed(shell, "look-dialog.photo button.keep");
-
-    expect(part(shell, "look-dialog.photo button.keep")).toHaveProperty(
-      "disabled",
-      true,
-    );
-    expect(part(shell, "look-dialog.photo button.take")).toHaveProperty(
-      "disabled",
-      false,
-    );
-    expect(part(shell, "look-dialog.photo button.drop")).toHaveProperty(
-      "disabled",
-      false,
-    );
-
-    // Only the first photo `PUT` is held, so a second would be in `saved`
-    // before this press has returned.
-    await pressed(shell, "look-dialog.photo button.keep");
-
-    expect(store.saved).toEqual([]);
-
-    lands();
-    await settled(shell);
-
-    expect(store.saved).toEqual([
-      { path: "/catalogue/sbb-re460/photo", body: TOOK },
-    ]);
-    expect(text(shell, "look-dialog.photo p.unkept")).toBeNull();
-  });
-
-  /** A refused Save is a write that did not happen, so the picture is still
-   *  there to save again and the control it is saved with is live again, with
-   *  the store's wording beside the picture as before. */
-  it("brings Save back where the held PUT is refused, and sends again on the next press", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
-    const shell = await opened();
-    const refuses = holding();
-    await dialog(shell);
-    await takes(shell);
-    await pressed(shell, "look-dialog.photo button.keep");
-
-    refuses();
-    await settled(shell);
-
-    expect(part(shell, "look-dialog.photo button.keep")).toHaveProperty(
-      "disabled",
-      false,
-    );
-    expect(text(shell, "look-dialog.photo p.no-picture")).toContain(
-      "PUT /catalogue/sbb-re460/photo answered 404",
-    );
-
-    // Nothing in front of the store this time, and the second `PUT` is not
-    // held: the press that follows the refusal writes the picture.
-    store.intercepted = () => null;
-    await pressed(shell, "look-dialog.photo button.keep");
-
-    expect(store.saved).toEqual([
-      { path: "/catalogue/sbb-re460/photo", body: TOOK },
-    ]);
-    expect(text(shell, "look-dialog.photo p.unkept")).toBeNull();
-  });
-});
-
-/** A Save whose `PUT` is still in flight when its dialog is put away: the
- *  answer is about a picture nobody is looking at any more, and the picture on
- *  screen is somebody else's
- *  ([#651](https://github.com/rails49/control/issues/651)). */
-describe("a photo Save that resolves after its dialog has gone", () => {
-  /** The photo dialog put away the way its own close press puts it away, with
-   *  whatever the frame was showing. */
-  async function closed(shell: TcApp): Promise<void> {
-    part(shell, "look-dialog.photo")!.dispatchEvent(new CustomEvent("sl-after-hide"));
-    await settled(shell);
-  }
-
-  /** A Save pressed on a picture, its `PUT` held, the dialog then put away and
-   *  a fresh picture taken in a dialog opened again. */
-  async function retaken(shell: TcApp): Promise<void> {
-    await dialog(shell);
-    await takes(shell);
-    await pressed(shell, "look-dialog.photo button.keep");
-    await closed(shell);
-    await dialog(shell);
-    await takes(shell);
-  }
-
-  /** The write happened, so the model has its photo and the thumbnail asks for
-   *  the bytes again — whoever is still watching. */
-  it("takes the thumbnail to the saved photo and leaves the new picture", async () => {
-    store.camera = WORKING;
-    const shell = await opened();
-    const lands = holding();
-
-    await retaken(shell);
-    lands();
-    await settled(shell);
-
-    expect(text(shell, "look-dialog.photo p.unkept")).toBe("not saved yet");
-    expect(text(shell, "look-dialog.photo button.keep")).toBe("Save");
-    expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo?v=1");
-  });
-
-  /** A refusal of a save nobody is waiting for is a sentence about nothing, and
-   *  the picture it would be written beside is not the picture it is about
-   *  (#446). */
-  it("says nothing about the picture it was refused, the dialog having gone", async () => {
-    store.camera = WORKING;
-    store.intercepted = (path) =>
-      path.endsWith("/photo") ? { status: 404, statusText: "" } : null;
-    const shell = await opened();
-    const refuses = holding();
-
-    await retaken(shell);
-    refuses();
-    await settled(shell);
-
-    expect(text(shell, "look-dialog.photo p.no-picture")).toBeNull();
-    expect(text(shell, "look-dialog.photo p.unkept")).toBe("not saved yet");
-    expect(text(shell, "look-dialog.photo button.keep")).toBe("Save");
-    expect(thumbnail(shell, "li.product")).toBe("/catalogue/sbb-re460/photo");
+describe("the conversion's size", () => {
+  it("is the picture's own up to 1600 px wide, and scaled down whole past it", () => {
+    expect(fitted(1200, 400)).toEqual({ width: 1200, height: 400 });
+    expect(fitted(4000, 1200)).toEqual({ width: 1600, height: 480 });
   });
 });

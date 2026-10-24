@@ -837,6 +837,16 @@ describe("making a model", () => {
     expect(screen.keyOf(made)).toBe("hopper-2");
   });
 
+  /** No train the dispatcher fits is made of a model the store has not got,
+   *  so its length is neither held under power nor a length edit. */
+  it("takes a length with power on, and makes no length edit of it", () => {
+    const screen = stock();
+    const made = screen.newModel();
+    expect(screen.modelLength(made, 230, "on")).toBeNull();
+    expect(screen.lengthEdits).toBe(false);
+    expect(screen.modelRows("on").find((row) => row.model === made)!.held).toBeNull();
+  });
+
   it("is written once, and fresh no longer", () => {
     const screen = stock();
     const made = screen.newModel();

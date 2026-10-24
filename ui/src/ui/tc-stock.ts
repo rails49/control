@@ -1,7 +1,8 @@
 /**
- * The stock view (ui/STOCK.md): what can go in a train on the left — cars
- * above, models below — and the trains on the right. You compose right from
- * left.
+ * The stock view (ui/STOCK.md), as
+ * [stock-mockup.html](../../../docs/ui/images/stock-mockup.html) lays it out:
+ * a bar across the top with the one Save, and below it two columns — the list
+ * of trains, cars or models, and the editor of the item chosen in it (#978).
  *
  * The railroad it is editing is not its own: the app holds the loaded railroad
  * and hands it down, exactly as it hands the drawing to the editor
@@ -9,24 +10,17 @@
  * **No session**, like the editor: this is a document view. **It reads no
  * document either**: the roster and the catalogue are the loaded railroad's to
  * read, to read again where the store did not answer, and to drop when the row
- * names another railroad, and the roster's Save is its too
- * (`model/railroad.ts`, #758). What this writes itself is a new model and a
- * photo (#392, #630).
+ * names another railroad, and the one Save is its too (`model/railroad.ts`,
+ * #758). What this sends itself is a model's `DELETE` and a picture asked of
+ * the camera (#976, #629).
  *
  * It works nothing out. Every length, kind and function shown is
- * `model/stock.ts`'s answer, and so is every refusal: what promotes an entry
- * to a car, what a minted name is, what holds a thing somebody asked to
- * remove, and why a length may not be corrected are rules, and a rule lives
- * where it can be driven from plain values (ui/README.md).
+ * `model/stock.ts`'s answer, and so is every refusal and every key minted: a
+ * rule lives where it can be driven from plain values (ui/README.md).
  *
  * **No press is answered with silence.** A press either does what it says or
- * says why it cannot. The two that write — New model and New train — are dead
- * with `unwritable()` on them until the documents are read, the `+` buttons
- * are dead with *make a train up first* until a train is made up, and the
- * guard left inside a handler either sits behind such a press or answers in
- * words.
- * New model was live with no railroad loaded and Create returned without a
- * word, which is a dialog that takes a product and drops it
+ * says why it cannot. The presses that write are dead with `unwritable()` on
+ * them until the documents are read
  * ([#565](https://github.com/rails49/control/issues/565)).
  *
  * **Composing a train and placing it are two actions**
@@ -36,16 +30,12 @@
  *
  * The run state comes down from the app because the app is the only thing on
  * the page that has any: the length guard reads its power and whether the
- * row naming the railroad is heard, the trains' rows read which are
- * placed, and a second browser editing stock during a run is not covered (ui/STOCK.md#the-length-guard,
+ * row naming the railroad is heard, and the trains read which are placed
+ * (ui/STOCK.md#the-length-guard,
  * [ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
  *
- * **A model's photo is on every row**, and the camera behind Take photo is the
- * one thing this screen fetches that the store does not answer: a camera app
- * does, outside this repository, and a `200` is a picture while any other
- * status is none (ui/STOCK.md#a-models-photo, docs/SYSTEM.md,
- * [#629](https://github.com/rails49/control/issues/629),
- * [#630](https://github.com/rails49/control/issues/630)).
+ * The car's and the train's editors are the controls each had before the
+ * view was rebuilt, in the editor column, until #979 and #980 draw theirs.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -54,9 +44,12 @@ import { lookTheme } from "@rails49/look";
 import { live } from "lit/directives/live.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 
-import { isName, lengthTrouble } from "../model/rules.js";
+import { isPicture, NOT_A_PICTURE, toJpeg } from "../model/photo.js";
 import {
   KINDS,
+  LATCHING,
+  MOMENTARY,
+  SCALES,
   Stock,
   type CarRow,
   type EntryRow,
@@ -64,63 +57,43 @@ import {
   type TrainRow,
 } from "../model/stock.js";
 import type { Railroad } from "../model/railroad.js";
-import {
-  photoUrl,
-  said,
-  saveModel,
-  savePhoto,
-  takePicture,
-  type ModelDoc,
-  type ModelFn,
-  type Picture,
-} from "../model/store.js";
+import { deleteModel, photoUrl, said, takePicture } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { stockStyles } from "./tc-stock.styles.js";
 
-/**
- * A model being written in the dialog, before it is a document.
- *
- * A product that does not exist yet is created in the same dialog rather than
- * on a screen of its own: the catalogue is a real document with its own route
- * underneath, and never a place a person navigates to for its own sake
- * (ui/STOCK.md).
- */
-export interface Draft {
-  model: string;
-  kind: string;
-  /** As typed: a field mid-edit is not a number yet, and the refusal for one
-   *  that never becomes one is the same refusal a length gets anywhere else. */
-  length: string;
-  /** What each DCC function does, keyed by the number as typed — the number is
-   *  the model's business and no view shows it again (ADR-0045). */
-  functions: { number: string; name: string }[];
-}
+/** The three lists, in the order their tabs stand. */
+type Tab = "trains" | "cars" | "models";
 
-/** An empty dialog: a freight wagon, which is what most of a catalogue is. */
-function draft(): Draft {
-  return { model: "", kind: "freight", length: "", functions: [] };
-}
+const TABS: [Tab, string][] = [
+  ["trains", "Trains"],
+  ["cars", "Cars"],
+  ["models", "Models"],
+];
 
-/**
- * What the camera has been asked for and what came of it, while a dialog with
- * a photo in it is open; `null` where it has not been asked.
- *
- * One of these at a time, because one such dialog is open at a time: the
- * photo dialog a thumbnail opens, or the New model dialog, which takes a
- * picture for a product that does not exist yet and goes on holding it where
- * Create wrote the product and the photo did not land (ui/STOCK.md).
- */
-type Shot =
-  /** Asked, and nothing back yet: the frame says so and the press is dead. */
-  | { phase: "taking" }
-  /** A picture nothing has been told to keep. `refused` is a Save the store
-   *  would not take, said beside the picture — which is still there to save
-   *  again — and `null` where nothing has been refused. */
-  | { phase: "took"; picture: Picture; refused: string | null }
-  /** No picture: what the camera answered, or what `fetch` said. Any status
-   *  but 200 means no picture and there is nothing else to read out of it
-   *  (docs/SYSTEM.md), so the press stays live and says *Try again*. */
-  | { phase: "failed"; why: string };
+/** What each list's New button says. */
+const NEW: Record<Tab, string> = {
+  trains: "New train",
+  cars: "New car",
+  models: "New model",
+};
+
+/** What each list says under its tabs. */
+const LEAD: Record<Tab, string> = {
+  trains: "Cars in order, head first.",
+  cars: "What you own, with addresses.",
+  models: "Products, shared by every railroad.",
+};
+
+/** A kind as the editor's buttons and the cards say it. */
+const KIND: Record<string, string> = {
+  locomotive: "Locomotive",
+  passenger: "Passenger",
+  freight: "Freight",
+  special: "Special",
+};
+
+/** How long *Saved* stands in the bar once a Save lands. */
+const SAVED_MS = 2500;
 
 /** What a press that writes is dead with where no railroad is loaded: this
  *  view is one of the app's views of the loaded railroad (ADR-0038), so
@@ -129,8 +102,8 @@ type Shot =
 const UNLOADED = "load a railroad first";
 
 /** What it is dead with where a railroad is loaded and its documents have not
- *  arrived: which of the three ways the read failed is the line under the
- *  trains' to say (#411), and a read still in flight is a moment. */
+ *  arrived: which of the three ways the read failed is the bar's to say
+ *  (#411), and a read still in flight is a moment. */
 const UNREAD = "the roster and the catalogue are not read yet";
 
 @customElement("tc-stock")
@@ -138,115 +111,97 @@ export class TcStock extends LitElement {
   static override styles = [lookTheme, stockStyles];
 
   /** The loaded railroad, whose roster this edits: the app's one instance,
-   *  which reads the documents, holds them and saves the roster
+   *  which reads the documents, holds them and saves them
    *  (`model/railroad.ts`). It holds them across a look at another view, so
    *  edits come back as they were left. `undefined` only before the app has
    *  handed it down. */
   @property({ attribute: false }) railroad: Railroad | undefined = undefined;
 
   /** The trains the run has on the layout, as the session says
-   *  (`RunStatus.placed`). The trains' rows say which of them are. */
+   *  (`RunStatus.placed`). */
   @property({ attribute: false }) placed: readonly string[] = [];
 
   /** The run's track power, as the session says (`RunStatus.power`), `null`
-   *  with no session. The length guard and the roster's Save read it
-   *  (ADR-0071). */
+   *  with no session. The length guard and the Save read it (ADR-0071). */
   @property({ attribute: false }) power: Power | null = null;
 
   /** The railroad the broker's row names (`RunStatus.railroad`), `null` while
    *  it has not been heard — a page that has lost the broker among them. The
-   *  roster is held across that, and the length guard holds lengths while it
-   *  lasts: the page cannot know whether the track has power (#804). */
+   *  length guard holds lengths while it lasts (#804). */
   @property({ attribute: false }) loaded: string | null = null;
 
-  /** The documents this view last drew, so what was about them — the train
-   *  being composed, what an edit was refused with — goes when the loaded
-   *  railroad holds others. */
+  /** The documents this view last drew, so what was about them — what is
+   *  chosen, what an edit was refused with — goes when the loaded railroad
+   *  holds others. */
   private held: Stock | null = null;
 
-  /** The train a press on the left is about, as a **name**. Composing right
-   *  from left needs somewhere for the left to go, and one train is current
-   *  at a time. Read through `pointed()` and never directly: a name is not a
+  /** Which list is shown: the trains, first, until a tab says another. */
+  @state() private tab: Tab = "trains";
+
+  /** Whether the editor stands in place of the list, which is what a press on
+   *  a card does where the view is one column wide; the back button undoes
+   *  it. Two columns wide, both stand and this changes nothing. */
+  @state() private editing = false;
+
+  /** The train chosen, which is the train a `+` puts something in, as a
+   *  **name**. Read through `pointed()` and never directly: a name is not a
    *  hold on the train, and the roster can stop having it (#445). */
   @state() private train: string | null = null;
 
+  /** The car chosen, by name; the first there is where it names none. */
+  @state() private car: string | null = null;
+
+  /** The model chosen, by key; the first there is where it names none. A
+   *  model made here is held under a key Save replaces, and `Stock.keyOf`
+   *  finds it under the new one. */
+  @state() private model: string | null = null;
+
   /** What an edit was refused with, by this screen before the store had to
    *  see it. What the store said about reading the documents or the last
-   *  Save is the loaded railroad's `stockTrouble`, and reads on the same
-   *  line. */
+   *  Save is the loaded railroad's `stockTrouble`, said in the same place. */
   @state() private trouble: string | null = null;
 
-  /** The model being written, `null` while the dialog is shut. */
-  @state() private making: Draft | null = null;
+  /** Whether *Saved* is standing in the bar: for a moment after a Save
+   *  lands. */
+  @state() private landed = false;
 
-  /** What the New-model dialog was refused with, in the words of whichever
-   *  refused it, and `null` where nothing was. The dialog's own rather than
-   *  the screen's `trouble`: the two are unrelated surfaces, so sharing one
-   *  state said a refusal about the dialog under the Trains heading as well,
-   *  and left it standing there once the dialog was gone (#446). */
-  @state() private refusal: string | null = null;
+  /** The model the camera is being waited on for, `null` where none is. */
+  @state() private taking: string | null = null;
 
-  /** The model the New-model dialog has written, `null` until Create has
-   *  succeeded and again once the dialog is shut. The dialog outlives the
-   *  write where the picture did not land, and then the product **is** in the
-   *  catalogue: so the frame is drawn for it, the picture on screen has the
-   *  photo dialog's own Save, and Create is dead — one dialog writes one
-   *  product, and a second press reached the duplicate-name check and said
-   *  *there is already a model '…'* about this dialog's own write (#638).
-   *
-   *  The fields that edit the draft are dead with Create, because Create is
-   *  the only thing that reads what they hold: an edit typed into one of them
-   *  could not be saved, and a name typed over the written one while Save goes
-   *  on sending the picture to the written model says nothing about which
-   *  model the picture is of (#644). */
-  @state() private wrote: string | null = null;
+  /** Why the last picture for a model did not become its photo — not an
+   *  image, one the browser cannot read, or the camera's answer — and the
+   *  model it was for. */
+  @state() private shot: { model: string; words: string } | null = null;
 
-  /** The model whose photo dialog is open, `null` while none is. A car's
-   *  thumbnail opens its model's: the photo is the product's, ten identical
-   *  hoppers having one picture between them (ADR-0061). */
-  @state() private showing: string | null = null;
+  /** The model whose frame a file is being dragged over. */
+  @state() private hot: string | null = null;
 
-  /** What the camera was asked for and what came of it, `null` where it has
-   *  not been asked. Whichever dialog is open owns it, and opening or putting
-   *  away either takes it down: a picture nobody kept is a picture nobody
-   *  wanted. */
-  @state() private shot: Shot | null = null;
+  /** The model whose Delete is being asked about, `null` while none is. */
+  @state() private asking: string | null = null;
 
-  /** The picture whose photo `PUT` is in flight, `null` where none is. Save is
-   *  dead while its own write goes on, the way Create is dead from the write on
-   *  (#638): one shot has at most one `PUT` of it in flight, and two presses on
-   *  the same picture are a second write of bytes the store already has and an
-   *  answer about a picture the first answer has already spoken for (#655).
-   *
-   *  The shot itself rather than a flag, because the write is one picture's and
-   *  not the screen's: Retake stays live, so the picture taken next has its own
-   *  Save live while the one before it is still being written — and #651's
-   *  guard reads `shot` by identity, which a flag kept inside the shot would
-   *  cost it. */
-  @state() private keeping: Shot | null = null;
+  /** What the store refused a model's `DELETE` with, in its words, and the
+   *  model it was for (#976). */
+  @state() private kept: { model: string; words: string } | null = null;
 
-  /** How many times a model's photo has been saved from this screen, by model.
-   *  It is what the `?v=<n>` on a thumbnail carries: the bytes at that URL have
-   *  changed and the browser is holding the ones from before, and the store
-   *  drops a query string so the route is the same one (#630). */
-  @state() private saves: Record<string, number> = {};
+  /** Whether the New car chooser on the Cars list is open. */
+  @state() private choosing = false;
 
-  /** The models whose photo the browser could not load, which is the route
-   *  answering anything but 200: the thumbnail is the empty box rather than a
-   *  broken picture. Nothing on a model's document says whether there is a
-   *  photo, so an `<img>` that failed is the whole of how this screen learns
-   *  (docs/SYSTEM.md). Not `@state`: it is read on the render the `error`
-   *  event asks for with `beat`. */
-  private absent = new Set<string>();
+  /** The photo version at which each model's photo did not load, by key:
+   *  the route answering anything but 200, which is the whole of how this
+   *  screen learns there is none (docs/SYSTEM.md). A photo written since is
+   *  a newer version and is asked for again. Not `@state`: read on the
+   *  render the `error` event asks for with `beat`. */
+  private absent = new Map<string, number>();
 
   /** Bumped after each edit: `Stock` keeps its identity across one, so
    *  rendering is asked for rather than observed. */
   @state() private beat = 0;
 
   /** The field an edit was just typed into, while the render that edit asked
-   *  for is outstanding, and `null` on every other render. Not `@state`: the
-   *  edit bumps `beat`, so the render it names is already asked for. */
+   *  for is outstanding, and `null` on every other render (#444). */
   private back: string | null = null;
+
+  private timer: ReturnType<typeof setTimeout> | null = null;
 
   /** The roster and the catalogue, and every edit to either
    *  (`model/stock.ts`), as the loaded railroad holds them: `null` until the
@@ -263,11 +218,17 @@ export class TcStock extends LitElement {
 
   override willUpdate(): void {
     // The loaded railroad holds other documents — another railroad, or none —
-    // so what is being composed belongs to the ones that went.
+    // so what was chosen and said belongs to the ones that went.
     if (this.stock === this.held) return;
     this.held = this.stock;
     this.train = null;
+    this.car = null;
+    this.model = null;
     this.trouble = null;
+    this.shot = null;
+    this.kept = null;
+    this.asking = null;
+    this.choosing = false;
   }
 
   override updated(): void {
@@ -277,55 +238,786 @@ export class TcStock extends LitElement {
     this.back = null;
   }
 
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this.timer !== null) clearTimeout(this.timer);
+  }
+
   override render() {
+    return html`
+      ${this.bar()}
+      <div class=${`cols ${this.editing ? "editing" : ""}`}>
+        <section class="list" aria-label="Stock">${this.list()}</section>
+        <section class="editor" aria-label="Editor">${this.editor()}</section>
+      </div>
+      ${this.deleting()} ${this.chooser()}
+    `;
+  }
+
+  // --- the bar --------------------------------------------------------------
+
+  /** *Stock*, the railroad's name, what is unsaved, and the one Save. */
+  private bar() {
     const stock = this.stock;
+    const said = this.said();
+    const waits = stock?.waitsForPower(this.power, this.heard) ?? null;
     return html`
-      <section class="parts">
-        ${this.carList(stock?.cars(this.power, this.heard) ?? [])}
-        ${this.modelList(stock?.modelRows(this.power, this.heard) ?? [])}
-      </section>
-      ${this.trainList(stock?.trains(this.placed) ?? [])}
-      ${this.dialog()} ${this.photoDialog()}
+      <header class="bar">
+        <h1>Stock</h1>
+        <span class="railroad">${this.railroad?.name ?? ""}</span>
+        <span class=${`said ${said.tone}`}>${said.words}</span>
+        <button
+          class="save"
+          title=${waits ?? this.unwritable() ?? nothing}
+          ?disabled=${stock === null ||
+          this.railroad?.saving === true ||
+          !stock.edits ||
+          waits !== null}
+          @click=${this.save}
+        >
+          Save
+        </button>
+      </header>
     `;
   }
 
-  // --- the cars a railroad owns --------------------------------------------
+  /** What the bar says, and in which tone: what was refused, why nothing can
+   *  be written, why Save waits, how much is unsaved — or that nothing is. */
+  private said(): { words: string; tone: string } {
+    const stock = this.stock;
+    const trouble = this.trouble ?? this.railroad?.stockTrouble ?? null;
+    if (trouble !== null) return { words: trouble, tone: "trouble" };
+    if (stock === null) return { words: this.unwritable() ?? "", tone: "trouble" };
+    const waits = stock.waitsForPower(this.power, this.heard);
+    if (waits !== null) return { words: waits, tone: "waits" };
+    const unsaved = stock.unsaved;
+    if (unsaved > 0) {
+      return { words: `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}`, tone: "" };
+    }
+    if (this.landed) return { words: "Saved", tone: "landed" };
+    return { words: "Everything is saved", tone: "" };
+  }
 
-  /** The identified stock: an item with an address, or with a field corrected
-   *  on that item (ADR-0061). A car may stand in no train — a locomotive you
-   *  own and have not made a rake for is an ordinary thing to have. */
-  private carList(cars: CarRow[]) {
+  // --- the list -------------------------------------------------------------
+
+  private list() {
+    const stock = this.stock;
+    const counts: Record<Tab, number> = {
+      trains: Object.keys(stock?.roster.trains ?? {}).length,
+      cars: Object.keys(stock?.roster.cars ?? {}).length,
+      models: Object.keys(stock?.catalogue ?? {}).length,
+    };
     return html`
-      <section class="cars">
-        <header class="head"><h2>Cars</h2></header>
-        ${cars.length === 0
-          ? html`<p class="hint">
-              no cars yet — a model entry becomes one when you give it an
-              address
-            </p>`
-          : html`<ul>
-              ${cars.map((car) => this.car(car))}
-            </ul>`}
+      <div class="tabs" role="tablist">
+        ${TABS.map(
+          ([tab, label]) => html`
+            <button
+              class="tab"
+              role="tab"
+              data-tab=${tab}
+              aria-selected=${this.tab === tab ? "true" : "false"}
+              @click=${() => {
+                this.tab = tab;
+              }}
+            >
+              ${label}<span class="count">${counts[tab]}</span>
+            </button>
+          `,
+        )}
+      </div>
+      <div class="head">
+        <p>${LEAD[this.tab]}</p>
+        <button
+          class="new"
+          title=${this.unwritable() ?? nothing}
+          ?disabled=${stock === null}
+          @click=${this.made}
+        >
+          ${NEW[this.tab]}
+        </button>
+      </div>
+      <div class="cards">${this.cards()}</div>
+    `;
+  }
+
+  private cards() {
+    const stock = this.stock;
+    if (this.tab === "models") {
+      const models = stock?.modelRows(this.power, this.heard) ?? [];
+      if (models.length === 0) return this.none("no models yet — a train is made of them");
+      const chosen = this.chosenModel();
+      return models.map((model) => this.modelCard(model, model.model === chosen));
+    }
+    if (this.tab === "cars") {
+      const cars = stock?.cars(this.power, this.heard) ?? [];
+      if (cars.length === 0) {
+        return this.none("no cars yet — a model entry becomes one when you give it an address");
+      }
+      const chosen = this.chosenCar();
+      return cars.map((car) => this.carCard(car, car.name === chosen));
+    }
+    const trains = stock?.trains(this.placed) ?? [];
+    if (trains.length === 0) {
+      return this.none("no trains yet — make one up, then press + beside a car or a model");
+    }
+    const chosen = this.pointed();
+    return trains.map((train) => this.trainCard(train, train.train === chosen));
+  }
+
+  private none(words: string) {
+    return html`<p class="hint">${words}</p>`;
+  }
+
+  /** One card: a photo frame 10:3 wide, the name, and a line of facts. */
+  private card(
+    which: string,
+    photo: string | null,
+    name: string,
+    facts: unknown,
+    chosen: boolean,
+    press: () => void,
+  ) {
+    return html`
+      <button
+        class=${`card ${which}`}
+        aria-current=${chosen ? "true" : "false"}
+        @click=${press}
+      >
+        <span class="frame">${this.photo(photo)}</span>
+        <span class="text">
+          <span class="name">${name}</span>
+          <span class="facts">${facts}</span>
+        </span>
+      </button>
+    `;
+  }
+
+  /** A model's facts: kind, scale, length, and *decoder* where it has one. */
+  private modelFacts(model: ModelRow) {
+    return html`<span>${KIND[model.kind] ?? model.kind}</span>${model.scale === null
+        ? nothing
+        : html`<span>${model.scale}</span>`}<span>${model.length} mm</span>${model.decoder
+        ? html`<span class="pill">decoder</span>`
+        : nothing}`;
+  }
+
+  private modelCard(model: ModelRow, chosen: boolean) {
+    return this.card("model", model.model, model.name, this.modelFacts(model), chosen, () =>
+      this.chose("models", model.model),
+    );
+  }
+
+  /** A car's facts: its model's name, its address, *camera*. Its photo is its
+   *  model's: ten identical hoppers have one picture between them
+   *  (ADR-0061). */
+  private carCard(car: CarRow, chosen: boolean) {
+    return this.card(
+      "car",
+      car.kind === null ? null : car.model,
+      car.name,
+      html`<span>${car.modelName}${car.kind === null ? " — no such model" : ""}</span>${car.addr ===
+        null
+          ? nothing
+          : html`<span class="pill">${car.addr}</span>`}${car.camera === null
+          ? nothing
+          : html`<span class="pill">camera</span>`}`,
+      chosen,
+      () => this.chose("cars", car.name),
+    );
+  }
+
+  /** A train's facts: how many cars, its length, its kind, its priority. Its
+   *  photo is its first locomotive's. */
+  private trainCard(train: TrainRow, chosen: boolean) {
+    const count = train.entries.length;
+    return this.card(
+      "train",
+      train.locomotive,
+      train.train,
+      html`<span>${count} ${count === 1 ? "car" : "cars"}</span><span
+          >${train.length === null ? "—" : `${train.length} mm`}</span
+        ><span>${train.kind ?? "—"}</span>${train.priority === null
+          ? nothing
+          : html`<span class="pill">P${train.priority}</span>`}${train.placed
+          ? html`<span>on the layout</span>`
+          : nothing}`,
+      chosen,
+      () => this.chose("trains", train.train),
+    );
+  }
+
+  /** A card pressed: its item chosen, and the editor shown in place of the
+   *  list where there is room for only one. */
+  private chose(tab: Tab, key: string): void {
+    if (tab === "trains") this.train = key;
+    if (tab === "cars") this.car = key;
+    if (tab === "models") this.model = key;
+    this.editing = true;
+  }
+
+  /**
+   * A model's photo, shown whole: the picture chosen and not yet saved, the
+   * one the store has, or *No photo*. Nothing on a model's document says
+   * whether there is one, so an `<img>` on the route that did not load is the
+   * whole of how this screen learns there is none (#630). A model made here
+   * has none the store could have.
+   */
+  private photo(model: string | null) {
+    const stock = this.stock;
+    if (model === null || stock === null) return this.noPhoto();
+    const pending = stock.photo(model);
+    if (pending !== null) return html`<img src=${pending.shown} alt="" />`;
+    const key = stock.keyOf(model);
+    const version = stock.photoVersion(key);
+    if (stock.isFresh(key) || this.absent.get(key) === version) return this.noPhoto();
+    return html`<img
+      src=${photoUrl(key, version)}
+      alt=""
+      @error=${() => this.missing(key, version)}
+    />`;
+  }
+
+  private noPhoto() {
+    return html`<span class="no-photo">No photo</span>`;
+  }
+
+  private missing(model: string, version: number): void {
+    if (this.absent.get(model) === version) return;
+    this.absent.set(model, version);
+    this.beat++;
+  }
+
+  /** Whether a model has a photo to show, the store's or one waiting. */
+  private hasPhoto(model: string): boolean {
+    const stock = this.stock;
+    if (stock === null) return false;
+    if (stock.photo(model) !== null) return true;
+    const key = stock.keyOf(model);
+    return !stock.isFresh(key) && this.absent.get(key) !== stock.photoVersion(key);
+  }
+
+  // --- the editor -----------------------------------------------------------
+
+  private editor() {
+    const stock = this.stock;
+    if (this.tab === "models") {
+      const model = this.chosenModel();
+      return model === null || stock === null ? this.nothingHere() : this.modelEditor(model);
+    }
+    if (this.tab === "cars") {
+      const name = this.chosenCar();
+      const car = stock?.cars(this.power, this.heard).find((one) => one.name === name);
+      return car === undefined ? this.nothingHere() : this.carEditor(car);
+    }
+    const name = this.pointed();
+    const train = stock?.trains(this.placed).find((one) => one.train === name);
+    return train === undefined ? this.nothingHere() : this.trainEditor(train);
+  }
+
+  private nothingHere() {
+    return html`<div class="empty">Nothing here yet. Press ${NEW[this.tab]}.</div>`;
+  }
+
+  /** The editor's head: the back button where the list is not beside it,
+   *  what it edits, and its own press at the right. */
+  private head(eyebrow: string, title: string, press: unknown = nothing) {
+    return html`
+      <header class="ed-head">
+        <button
+          class="back"
+          aria-label="Back to the list"
+          @click=${() => {
+            this.editing = false;
+          }}
+        >
+          ‹
+        </button>
+        <div class="title">
+          <p class="eyebrow">${eyebrow}</p>
+          <h2>${title}</h2>
+        </div>
+        ${press}
+      </header>
+    `;
+  }
+
+  /** The model chosen, by its key now, or the first model there is. */
+  private chosenModel(): string | null {
+    const stock = this.stock;
+    if (stock === null) return null;
+    if (this.model !== null && stock.model(this.model) !== null) return stock.keyOf(this.model);
+    return stock.modelRows()[0]?.model ?? null;
+  }
+
+  private chosenCar(): string | null {
+    const cars = this.stock?.roster.cars ?? {};
+    if (this.car !== null && this.car in cars) return this.car;
+    return this.stock?.cars()[0]?.name ?? null;
+  }
+
+  /**
+   * The model editor, from the top as the mockup draws it: the photo, name,
+   * kind, scale, length, notes, the decoder and its functions, and what uses
+   * the model with the Delete beside it. Every edit is the document's to
+   * hold and Save's to write; only Delete goes to the store at once.
+   */
+  private modelEditor(key: string) {
+    const stock = this.stock!;
+    const model = stock.model(key)!;
+    const row = stock.modelRows(this.power, this.heard).find((one) => one.model === key)!;
+    return html`
+      ${this.head(
+        "Model",
+        row.name,
+        html`<button class="new-car" @click=${() => this.carOf(key)}>New car</button>`,
+      )}
+      <div class="body model-editor">
+        ${this.photoFrame(key)}
+        <div class="grid">
+          <label class="field wide">
+            <span class="label">Name</span>
+            <input
+              class="name"
+              .value=${this.putting(`model:${key}:name`, row.name)}
+              placeholder="Ae 6/6"
+              @change=${(event: Event) =>
+                this.did(stock.renameModel(key, value(event)), `model:${key}:name`)}
+            />
+          </label>
+          <div class="field wide">
+            <span class="label">Kind</span>
+            <div class="seg kind" role="group" aria-label="Kind">
+              ${KINDS.map(
+                (kind) => html`
+                  <button
+                    data-kind=${kind}
+                    aria-pressed=${model.kind === kind ? "true" : "false"}
+                    @click=${() => this.changed((one) => one.modelKind(key, kind))}
+                  >
+                    ${KIND[kind]}
+                  </button>
+                `,
+              )}
+            </div>
+          </div>
+          <label class="field">
+            <span class="label">Scale</span>
+            <select
+              class="scale"
+              @change=${(event: Event) =>
+                this.changed((one) => one.modelScale(key, value(event)))}
+            >
+              ${model.scale === undefined
+                ? html`<option value="" selected>—</option>`
+                : nothing}
+              ${SCALES.map(
+                (scale) =>
+                  html`<option value=${scale} ?selected=${model.scale === scale}>
+                    ${scale}
+                  </option>`,
+              )}
+            </select>
+          </label>
+          <label class="field">
+            <span class="label">Length over buffers, mm</span>
+            <input
+              class="length"
+              inputmode="numeric"
+              .value=${this.putting(`model:${key}:length`, String(row.length))}
+              title=${row.held ?? "millimetres over buffers, on every item of this product"}
+              ?disabled=${row.held !== null}
+              @change=${(event: Event) =>
+                this.did(
+                  stock.modelLength(key, millimetres(event) ?? 0, this.power, this.heard),
+                  `model:${key}:length`,
+                )}
+            />
+            ${row.held === null ? nothing : html`<span class="why">${row.held}</span>`}
+          </label>
+        </div>
+        <label class="field">
+          <span class="label">Notes</span>
+          <textarea
+            class="notes"
+            rows="4"
+            placeholder="Manufacturer, catalogue number, colour, when you bought it…"
+            .value=${this.putting(`model:${key}:notes`, model.notes ?? "")}
+            @change=${(event: Event) =>
+              this.changed((one) => one.modelNotes(key, value(event)), `model:${key}:notes`)}
+          ></textarea>
+        </label>
+        ${this.decoder(key, row.decoder)} ${this.usedBy(key, row)}
+      </div>
+    `;
+  }
+
+  /**
+   * The photo frame and its two presses. A file dropped on the frame at any
+   * time, or chosen, is the model's photo from then on; the camera's picture
+   * is too, its bytes kept as they are. Either is written by Save, after the
+   * model's document (#630).
+   */
+  private photoFrame(key: string) {
+    const has = this.hasPhoto(key);
+    const taking = this.taking === key;
+    return html`
+      <div
+        class=${`photo-frame ${has ? "" : "empty"} ${this.hot === key ? "hot" : ""}`}
+        @dragover=${(event: DragEvent) => {
+          event.preventDefault();
+          this.hot = key;
+        }}
+        @dragleave=${() => {
+          this.hot = null;
+        }}
+        @drop=${(event: DragEvent) => {
+          event.preventDefault();
+          this.hot = null;
+          const file = event.dataTransfer?.files[0];
+          if (file !== undefined) void this.picked(key, file);
+        }}
+      >
+        ${has
+          ? this.photo(key)
+          : html`<div class="drop">
+              <b>Drop a picture here</b>
+              <span>or choose a file, or take one with the photo camera</span>
+            </div>`}
+        ${taking ? html`<span class="wait">Taking a picture…</span>` : nothing}
+      </div>
+      <div class="photo-tools">
+        <label class="choose">
+          Choose file…
+          <input
+            class="file"
+            type="file"
+            accept="image/*"
+            @change=${(event: Event) => {
+              const input = event.target as HTMLInputElement;
+              const file = input.files?.[0];
+              if (file !== undefined) void this.picked(key, file);
+            }}
+          />
+        </label>
+        <button class="take" ?disabled=${taking} @click=${() => void this.takes(key)}>
+          ${has ? "Retake photo" : "Take photo"}
+        </button>
+      </div>
+      ${this.shot?.model === key
+        ? html`<p class="trouble photo-trouble">${this.shot.words}</p>`
+        : nothing}
+    `;
+  }
+
+  /** A file dropped or chosen: refused where it is not an image, and
+   *  otherwise decoded and written again as the JPEG the store keeps
+   *  (`model/photo.ts`), refused where the browser cannot read it. */
+  private async picked(key: string, file: File): Promise<void> {
+    const stock = this.stock;
+    if (stock === null) return;
+    if (!isPicture(file)) {
+      this.shot = { model: key, words: NOT_A_PICTURE };
+      return;
+    }
+    try {
+      const picture = await toJpeg(file);
+      if (this.stock !== stock) return;
+      stock.setPhoto(key, picture);
+      this.shot = null;
+      this.did(null);
+    } catch (trouble) {
+      if (this.stock === stock) this.shot = { model: key, words: said(trouble) };
+    }
+  }
+
+  /**
+   * A picture from the photo camera, now: `GET /camera/snapshot`, its bytes
+   * kept as they are. While it is waited on the frame says so and the press
+   * is dead. Any answer but 200 is no picture, said under the frame, and the
+   * press is live again — a camera plugged in a minute later is a picture a
+   * minute later (#629).
+   */
+  private takes = async (key: string): Promise<void> => {
+    const stock = this.stock;
+    if (stock === null || this.taking !== null) return;
+    this.taking = key;
+    this.shot = null;
+    try {
+      const picture = await takePicture();
+      if (this.stock === stock) {
+        stock.setPhoto(key, picture);
+        this.did(null);
+      }
+    } catch (trouble) {
+      if (this.stock === stock) this.shot = { model: key, words: `no picture: ${said(trouble)}` };
+    } finally {
+      this.taking = null;
+    }
+  };
+
+  /** The decoder switch, and the function rows while it is on. */
+  private decoder(key: string, on: boolean) {
+    return html`
+      <section class="sec decoder">
+        <div class="sec-head">
+          <div>
+            <h3>Decoder</h3>
+            <p class="hint">
+              ${on
+                ? "Each car of this model gets its own address."
+                : "This product has no decoder."}
+            </p>
+          </div>
+          <button
+            class="switch"
+            role="switch"
+            aria-checked=${on ? "true" : "false"}
+            aria-label="Has a decoder"
+            @click=${() => this.changed((one) => one.modelDecoder(key, !on))}
+          >
+            <i></i>
+          </button>
+        </div>
+        ${on ? this.functions(key) : nothing}
       </section>
     `;
   }
 
-  private car(car: CarRow) {
+  /** One row per function: its number, its name, Toggle or Hold, and a
+   *  remove. A number listed twice is said under the rows while it stands. */
+  private functions(key: string) {
+    const stock = this.stock!;
+    const rows = stock.functionRows(key);
+    const twice = stock.listedTwice(key);
+    return html`
+      <ul class="functions">
+        ${rows.map(
+          (row, at) => html`
+            <li class="function">
+              <span class="number">
+                <i>F</i>
+                <input
+                  class="number"
+                  inputmode="numeric"
+                  aria-label="function number"
+                  .value=${this.putting(`fn:${key}:${at}:number`, row.number)}
+                  @change=${(event: Event) =>
+                    this.did(
+                      stock.functionNumber(key, at, value(event)),
+                      `fn:${key}:${at}:number`,
+                    )}
+                />
+              </span>
+              <input
+                class="fn-name"
+                aria-label="function name"
+                placeholder="Horn, Headlights…"
+                .value=${this.putting(`fn:${key}:${at}:name`, row.name)}
+                @change=${(event: Event) =>
+                  this.changed(
+                    (one) => one.functionName(key, at, value(event)),
+                    `fn:${key}:${at}:name`,
+                  )}
+              />
+              <div class="seg mode" role="group" aria-label="Toggle or hold">
+                ${[LATCHING, MOMENTARY].map(
+                  (mode) => html`
+                    <button
+                      data-mode=${mode}
+                      aria-pressed=${row.mode === mode ? "true" : "false"}
+                      @click=${() => this.changed((one) => one.functionMode(key, at, mode))}
+                    >
+                      ${mode === LATCHING ? "Toggle" : "Hold"}
+                    </button>
+                  `,
+                )}
+              </div>
+              <button
+                class="remove"
+                aria-label=${`Remove F${row.number}`}
+                @click=${() => this.changed((one) => one.removeFunction(key, at))}
+              >
+                ×
+              </button>
+            </li>
+          `,
+        )}
+      </ul>
+      ${twice === null ? nothing : html`<p class="trouble twice">${twice}</p>`}
+      <div class="row-end">
+        <button class="add-function" @click=${() => this.changed((one) => one.addFunction(key))}>
+          Add a function
+        </button>
+        <span class="hint">
+          Toggle: one press on, the next off, like lights. Hold: on only while
+          the button is held down, like a horn.
+        </span>
+      </div>
+    `;
+  }
+
+  /** What uses the model on the loaded railroad — its cars, then its trains
+   *  with entries naming it — and Delete, dead while anything does. The
+   *  store's refusal, for a railroad that is not loaded, is said under it in
+   *  the store's words (#976). */
+  private usedBy(key: string, row: ModelRow) {
+    const used = row.holders.length > 0;
+    return html`
+      <section class="sec used">
+        <h3>Used by</h3>
+        ${used
+          ? html`<ul class="uses">
+              ${row.holders.map((holder) => html`<li>${holder}</li>`)}
+            </ul>`
+          : html`<p class="hint">Nothing uses this model.</p>`}
+        <div class="row-end">
+          <button
+            class="delete"
+            ?disabled=${used}
+            @click=${() => {
+              this.asking = key;
+              this.kept = null;
+            }}
+          >
+            Delete model
+          </button>
+          <span class="hint">
+            ${used
+              ? "A model in use cannot be deleted. Take it out of everything above first."
+              : "Its photo goes with it."}
+          </span>
+        </div>
+        ${this.kept?.model === key
+          ? html`<p class="trouble delete-trouble">${this.kept.words}</p>`
+          : nothing}
+      </section>
+    `;
+  }
+
+  /** The question Delete asks before it sends anything. */
+  private deleting() {
+    const stock = this.stock;
+    const key = this.asking;
+    if (key === null || stock === null) return nothing;
+    const row = stock.modelRows().find((one) => one.model === stock.keyOf(key));
+    if (row === undefined) return nothing;
+    return html`
+      <look-dialog
+        open
+        class="delete"
+        label=${`Delete ${row.name}?`}
+        @sl-after-hide=${() => {
+          this.asking = null;
+        }}
+      >
+        <p>Its photo goes with it. A backup can bring it back.</p>
+        <sl-button slot="footer" class="cancel" @click=${() => (this.asking = null)}>
+          Cancel
+        </sl-button>
+        <sl-button
+          slot="footer"
+          variant="danger"
+          class="confirm"
+          @click=${() => void this.deletes(key)}
+        >
+          Delete
+        </sl-button>
+      </look-dialog>
+    `;
+  }
+
+  /**
+   * The model deleted at once: `DELETE /catalogue/<model>`, its photo going
+   * with it (#976). A model made here and never written is the store's
+   * business not at all, and goes from this page alone. A refusal — another
+   * railroad's roster uses it — is said under the button in the store's
+   * words, and the model stays.
+   */
+  private deletes = async (key: string): Promise<void> => {
+    const stock = this.stock;
+    this.asking = null;
+    if (stock === null) return;
+    const at = stock.keyOf(key);
+    if (!stock.isFresh(at)) {
+      try {
+        await deleteModel(at);
+      } catch (trouble) {
+        if (this.stock === stock) this.kept = { model: at, words: said(trouble) };
+        return;
+      }
+    }
+    if (this.stock !== stock) return;
+    stock.dropModel(at);
+    if (this.model !== null && stock.keyOf(this.model) === at) this.model = null;
+    this.did(null);
+  };
+
+  /** A car of this model, chosen in the Cars list. */
+  private carOf(key: string): void {
+    const name = this.stock?.newCar(key) ?? null;
+    if (name === null) return;
+    this.choosing = false;
+    this.tab = "cars";
+    this.car = name;
+    this.editing = true;
+    this.did(null);
+  }
+
+  /** The New car chooser on the Cars list: which model the car is one of. */
+  private chooser() {
+    const stock = this.stock;
+    if (!this.choosing || stock === null) return nothing;
+    const models = stock.modelRows(this.power, this.heard);
+    return html`
+      <look-dialog
+        open
+        class="which-model"
+        label="New car of which model?"
+        @sl-after-hide=${() => {
+          this.choosing = false;
+        }}
+      >
+        <div class="cards">
+          ${models.length === 0
+            ? this.none("no models yet — make one in the Models list first")
+            : models.map((model) =>
+                this.card("model", model.model, model.name, this.modelFacts(model), false, () =>
+                  this.carOf(model.model),
+                ),
+              )}
+        </div>
+      </look-dialog>
+    `;
+  }
+
+  // --- the car's editor, until #979 -----------------------------------------
+
+  /** The car's controls as they were: its name, address, camera and length,
+   *  and the remove. */
+  private carEditor(car: CarRow) {
+    return html`
+      ${this.head("Car", car.name)}
+      <div class="body">
+        <div class="photo-frame">${this.photo(car.kind === null ? null : car.model)}</div>
+        <ul class="rows">
+          ${this.carRow(car)}
+        </ul>
+      </div>
+    `;
+  }
+
+  private carRow(car: CarRow) {
     return html`
       <li class="car">
-        ${this.thumbnail(car.model)}
         <span class="what">
           <input
             class="name"
             .value=${this.putting(`car:${car.name}:name`, car.name)}
             aria-label="car name"
             @change=${(event: Event) =>
-              this.did(
-                this.stock?.renameCar(car.name, value(event)),
-                `car:${car.name}:name`,
-              )}
+              this.did(this.stock?.renameCar(car.name, value(event)), `car:${car.name}:name`)}
           />
-          <span class="of">${car.model}${car.kind === null ? " — no such model" : ""}</span>
+          <span class="of">${car.modelName}${car.kind === null ? " — no such model" : ""}</span>
         </span>
         <input
           class="addr"
@@ -333,10 +1025,7 @@ export class TcStock extends LitElement {
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
-            this.did(
-              this.stock?.carAddress(car.name, value(event)),
-              `car:${car.name}:addr`,
-            )}
+            this.did(this.stock?.carAddress(car.name, value(event)), `car:${car.name}:addr`)}
         />
         <input
           class="camera"
@@ -344,17 +1033,11 @@ export class TcStock extends LitElement {
           placeholder="camera"
           aria-label="camera"
           @change=${(event: Event) =>
-            this.did(
-              this.stock?.carCamera(car.name, value(event)),
-              `car:${car.name}:camera`,
-            )}
+            this.did(this.stock?.carCamera(car.name, value(event)), `car:${car.name}:camera`)}
         />
         <input
           class="length"
-          .value=${this.putting(
-            `car:${car.name}:length`,
-            car.own ? String(car.length) : "",
-          )}
+          .value=${this.putting(`car:${car.name}:length`, car.own ? String(car.length) : "")}
           placeholder=${car.length === null ? "" : String(car.length)}
           aria-label="length"
           title=${car.held ?? "millimetres over buffers, where this item is not its model's length"}
@@ -365,16 +1048,6 @@ export class TcStock extends LitElement {
               `car:${car.name}:length`,
             )}
         />
-        <button
-          class="add"
-          title=${this.pointed() === null
-            ? "make a train up first"
-            : `add to '${this.pointed()}'`}
-          ?disabled=${this.pointed() === null}
-          @click=${() => this.coupled({ car: car.name })}
-        >
-          +
-        </button>
         <button
           class="remove"
           title="remove from the roster"
@@ -387,389 +1060,60 @@ export class TcStock extends LitElement {
     `;
   }
 
-  // --- the catalogue --------------------------------------------------------
+  // --- the train's editor, until #980 ---------------------------------------
 
-  /** What anything is made of. No remove: the store's catalogue face has no
-   *  DELETE for any document and an unused model costs nothing
-   *  (`store/server.py`), so what holds a model is read on the row rather
-   *  than run into. */
-  private modelList(models: ModelRow[]) {
+  /** The train's controls as they were — its name, the unmake, what it
+   *  derives to and the ordered list it is made of — and below them every car
+   *  and model with the `+` that puts it at the tail. */
+  private trainEditor(train: TrainRow) {
+    const stock = this.stock!;
+    const title = `add to '${train.train}'`;
     return html`
-      <section class="models">
-        <header class="head">
-          <h2>Models</h2>
-          <button
-            class="new-model"
-            title=${this.unwritable() ?? nothing}
-            ?disabled=${this.stock === null}
-            @click=${() => (this.making = draft())}
-          >
-            New model…
-          </button>
-        </header>
-        ${models.length === 0
-          ? html`<p class="hint">
-              no models yet — a train is made of them, so write the first one
-            </p>`
-          : html`<ul>
-              ${models.map((model) => this.model(model))}
-            </ul>`}
-      </section>
-    `;
-  }
-
-  private model(model: ModelRow) {
-    return html`
-      <li class="product">
-        ${this.thumbnail(model.model)}
-        <span class="what">
-          ${model.model}
-          <span class="of">
-            ${model.kind}${model.holders.length === 0
-              ? ""
-              : ` — ${model.holders.join(", ")}`}
-          </span>
-        </span>
-        <span></span>
-        <span></span>
-        <input
-          class="length"
-          .value=${this.putting(`model:${model.model}:length`, String(model.length))}
-          aria-label="length"
-          title=${model.held ?? "millimetres over buffers, on every item of this product"}
-          ?disabled=${model.held !== null}
-          @change=${(event: Event) =>
-            this.did(
-              this.stock?.modelLength(
-                model.model,
-                millimetres(event) ?? 0,
-                this.power,
-                this.heard,
-              ),
-              `model:${model.model}:length`,
+      ${this.head("Train", train.train)}
+      <div class="body">
+        <ul class="rows">
+          ${this.trainRow(train)}
+        </ul>
+        <section class="sec addable">
+          <h3>Add to this train</h3>
+          <ul class="rows">
+            ${stock.cars(this.power, this.heard).map(
+              (car) => html`
+                <li class="addable car">
+                  <span class="what">${car.name} <span class="of">${car.modelName}</span></span>
+                  <button class="add" title=${title} @click=${() => this.coupled({ car: car.name })}>
+                    +
+                  </button>
+                </li>
+              `,
             )}
-        />
-        <button
-          class="add"
-          title=${this.pointed() === null
-            ? "make a train up first"
-            : `add to '${this.pointed()}'`}
-          ?disabled=${this.pointed() === null}
-          @click=${() => this.coupled({ model: model.model })}
-        >
-          +
-        </button>
-        <span></span>
-        ${model.held === null ? nothing : html`<span class="why">${model.held}</span>`}
-      </li>
-    `;
-  }
-
-  // --- a model's photo ------------------------------------------------------
-
-  /**
-   * The small picture at the head of a row, and the press that opens the
-   * photo. A car's is its **model's**: a photo is what the product looks like,
-   * and ten identical hoppers have one picture between them (ADR-0061).
-   *
-   * An `<img>` on the route, because the browser is the thing that fetches
-   * pictures: nothing on a model's document says whether there is one, so the
-   * route answering anything but 200 is what puts the empty box there
-   * (docs/SYSTEM.md, #630).
-   */
-  private thumbnail(model: string) {
-    return html`
-      <button
-        class="thumb"
-        title=${`the photo of '${model}'`}
-        @click=${() => this.opens(model)}
-      >
-        ${this.absent.has(model)
-          ? html`<span>no photo</span>`
-          : html`<img
-              src=${photoUrl(model, this.saves[model] ?? 0)}
-              alt=""
-              @error=${() => this.none(model)}
-            />`}
-      </button>
-    `;
-  }
-
-  /** The dialog a thumbnail opens: the photo large, and the camera. Titled for
-   *  the model even where a car's thumbnail opened it, so a person pressing a
-   *  car sees whose picture they are looking at. */
-  private photoDialog() {
-    const model = this.showing;
-    if (model === null) return nothing;
-    return html`
-      <look-dialog
-        open
-        class="photo"
-        label=${`Photo — ${model}`}
-        @sl-after-hide=${this.closes}
-      >
-        ${this.frame(model)}
-      </look-dialog>
-    `;
-  }
-
-  /**
-   * The photo, or what the camera is doing, and the presses that go with it.
-   *
-   * `model` is the model the picture is of, and `null` where there is none yet:
-   * the New model dialog until Create has written one, where a picture is
-   * kept by Create and has no Save of its own, the store refusing a photo for
-   * a model it has not got (#630). Once Create has written the product the
-   * dialog hands the written name down, and the picture has the same Save a
-   * photo dialog's has (#638).
-   *
-   * **The press is never dead for want of a camera.** A box with none answers
-   * something, and whatever that is becomes *Try again* rather than a control
-   * nobody can use: a camera plugged in a minute later is a picture a minute
-   * later (#629).
-   */
-  private frame(model: string | null) {
-    const shot = this.shot;
-    if (shot?.phase === "taking") {
-      return html`
-        <div class="shot">
-          <div class="picture waiting"><span>taking a picture…</span></div>
-          <div class="presses">
-            <button class="take" disabled>Take photo</button>
-          </div>
-        </div>
-      `;
-    }
-    if (shot?.phase === "took") {
-      return html`
-        <div class="shot">
-          <div class="picture unsaved"><img src=${shot.picture.shown} alt="" /></div>
-          <p class="unkept">not saved yet</p>
-          ${shot.refused === null
-            ? nothing
-            : html`<p class="no-picture">${shot.refused}</p>`}
-          <div class="presses">
-            ${model === null
-              ? nothing
-              : html`<button
-                  class="keep"
-                  ?disabled=${this.keeping === shot}
-                  @click=${() => void this.keeps(model)}
-                >
-                  Save
-                </button>`}
-            <button class="take" @click=${() => void this.takes()}>Retake</button>
-            <button class="drop" @click=${this.drops}>Cancel</button>
-          </div>
-        </div>
-      `;
-    }
-    if (shot?.phase === "failed") {
-      return html`
-        <div class="shot">
-          ${this.picture(model)}
-          <p class="no-picture">no picture: ${shot.why}</p>
-          <div class="presses">
-            <button class="take" @click=${() => void this.takes()}>Try again</button>
-            <button class="drop" @click=${this.drops}>Cancel</button>
-          </div>
-        </div>
-      `;
-    }
-    return html`
-      <div class="shot">
-        ${this.picture(model)}
-        <div class="presses">
-          <button class="take" @click=${() => void this.takes()}>
-            ${model !== null && !this.absent.has(model)
-              ? "Retake photo"
-              : "Take photo"}
-          </button>
-        </div>
+            ${stock.modelRows(this.power, this.heard).map(
+              (model) => html`
+                <li class="addable product">
+                  <span class="what anonymous">${model.name}</span>
+                  <button
+                    class="add"
+                    title=${title}
+                    @click=${() => this.coupled({ model: model.model })}
+                  >
+                    +
+                  </button>
+                </li>
+              `,
+            )}
+          </ul>
+        </section>
       </div>
-    `;
-  }
-
-  /** The photo the model has, large, or the empty box saying it has none —
-   *  which is what the New model dialog shows until Create has written a
-   *  product, there being no model to have one. */
-  private picture(model: string | null) {
-    if (model === null || this.absent.has(model)) {
-      return html`<div class="picture"><span>no photo</span></div>`;
-    }
-    return html`
-      <div class="picture">
-        <img
-          src=${photoUrl(model, this.saves[model] ?? 0)}
-          alt=""
-          @error=${() => this.none(model)}
-        />
-      </div>
-    `;
-  }
-
-  /** The photo dialog opened on one model, with nothing taken yet. */
-  private opens(model: string): void {
-    this.showing = model;
-    this.shot = null;
-  }
-
-  /** The photo dialog put away, and the camera's answer with it. */
-  private closes(): void {
-    this.showing = null;
-    this.shot = null;
-  }
-
-  /** The picture, or the reason there is none, dropped: whatever the frame was
-   *  showing goes and the photo the model has is back. */
-  private drops(): void {
-    this.shot = null;
-  }
-
-  /**
-   * A picture, now.
-   *
-   * While the camera is being waited on the frame says so and the press is
-   * dead, there being nothing to press twice. What comes back is either the
-   * picture or the reason there is none, which is the camera's status and its
-   * text — any answer but 200 means no picture (docs/SYSTEM.md).
-   */
-  private takes = async (): Promise<void> => {
-    this.shot = { phase: "taking" };
-    let took: Shot;
-    try {
-      took = { phase: "took", picture: await takePicture(), refused: null };
-    } catch (trouble) {
-      took = { phase: "failed", why: said(trouble) };
-    }
-    // The dialog can have been put away while the camera was being waited on,
-    // and then nobody is waiting for this picture: a shot that is no longer
-    // the one asked for is one to drop rather than to answer.
-    if (this.shot?.phase !== "taking") return;
-    this.shot = took;
-  };
-
-  /** The picture kept: the camera's own bytes to the store, and the thumbnail
-   *  pointed at a URL the browser has no answer of its own for. */
-  private keeps = async (model: string): Promise<void> => {
-    const shot = this.shot;
-    if (shot?.phase !== "took" || this.keeping === shot) return;
-    // Dead from here until the answer, so a second press is nothing to answer.
-    // The guard above says the same to a press that reached the handler anyway.
-    this.keeping = shot;
-    try {
-      await savePhoto(model, shot.picture.jpeg);
-    } catch (trouble) {
-      // The picture is still there to save again, so it stays on the screen
-      // with what the store said beside it — unless it is not the picture on
-      // screen any more, and then a refusal of this save is a sentence about
-      // nothing beside a picture it is not about (#446, #651).
-      if (this.shot === shot) this.shot = { ...shot, refused: said(trouble) };
-      return;
-    } finally {
-      // This picture's write has answered, so Save is live for it again: a
-      // refused one is a picture to save again, and one that landed takes the
-      // frame down below. Only this picture's, a shot taken since having a
-      // write of its own to be dead with (#655).
-      if (this.keeping === shot) this.keeping = null;
-    }
-    // The write landed, so the model has its photo whoever is still watching:
-    // the thumbnail asks for the bytes again either way.
-    this.fetched(model);
-    // The dialog can have been put away while the `PUT` was in flight, and a
-    // picture taken in a dialog opened since is not the one this save is
-    // about: an answer to a shot that is no longer the one on screen is one to
-    // drop rather than one to take the current picture down with, and no
-    // dialog goes for it (#651). The same guard `takes` keeps over the camera.
-    if (this.shot !== shot) return;
-    this.shot = null;
-    // Where this is the New model dialog saving the picture its Create left
-    // unsaved, both of that dialog's writes are done — the model and its photo
-    // — so there is nothing left for it to say: it goes the way a Create whose
-    // photo landed first time takes it, and the line saying the photo had not
-    // landed goes with it (#638, #644). The photo dialog has no refusal of its
-    // own to take down and stays open on the picture the model has now.
-    if (this.making !== null && model === this.wrote) {
-      this.shut();
-      this.did(null);
-    }
-  };
-
-  /** One model's photo fetched again: it has one now, and the bytes at its URL
-   *  are not the bytes the browser was given for it. */
-  private fetched(model: string): void {
-    this.absent.delete(model);
-    this.saves = { ...this.saves, [model]: (this.saves[model] ?? 0) + 1 };
-  }
-
-  /** One model's photo the browser could not load, which is the route
-   *  answering anything but 200: there is none to draw. */
-  private none(model: string): void {
-    if (this.absent.has(model)) return;
-    this.absent.add(model);
-    this.beat++;
-  }
-
-  // --- the trains -----------------------------------------------------------
-
-  private trainList(trains: TrainRow[]) {
-    const trouble = this.trouble ?? this.railroad?.stockTrouble ?? null;
-    return html`
-      <section class="trains">
-        <header class="head">
-          <h2>Trains</h2>
-          <button
-            class="new-train"
-            title=${this.unwritable() ?? nothing}
-            ?disabled=${this.stock === null}
-            @click=${this.newTrain}
-          >
-            New train…
-          </button>
-          <sl-button
-            class="save"
-            size="small"
-            variant="primary"
-            title=${this.stock?.waitsForPower(this.power, this.heard) ?? nothing}
-            ?disabled=${this.stock === null ||
-            this.railroad?.saving === true ||
-            !this.stock.edits ||
-            this.stock.waitsForPower(this.power, this.heard) !== null}
-            @click=${this.save}
-            >Save</sl-button
-          >
-        </header>
-        ${trouble === null ? nothing : html`<p class="trouble">${trouble}</p>`}
-        ${trains.length === 0
-          ? html`<p class="hint">
-              no trains yet — make one up, then press + beside a car or a model
-            </p>`
-          : html`<ul>
-              ${trains.map((train) => this.trainRow(train))}
-            </ul>`}
-      </section>
     `;
   }
 
   /** One train: its name, what it derives to, and the ordered list it is made
    *  of. Length, kind and functions are shown and never offered for editing
-   *  (ADR-0045).
-   *
-   *  A train written before #223 states its length and names no cars: it is
-   *  drawn with that length and a note saying so, and the first thing put in
-   *  it converts it to the ordinary shape (#414). The note names the stated
-   *  number and says that filling the train in takes it: the stated length is
-   *  a property of the older shape that the conversion consumes, and emptying
-   *  the train again does not bring it back, so the screen owes the price
-   *  before the press rather than the number afterwards (#448). */
+   *  (ADR-0045). A train written before #223 states its length and names no
+   *  cars, and says what filling it in costs before the press (#414, #448). */
   private trainRow(train: TrainRow) {
     return html`
-      <li
-        class=${`train ${this.pointed() === train.train ? "current" : ""}`}
-        @click=${() => {
-          this.train = train.train;
-        }}
-      >
+      <li class="train current">
         <header>
           <input
             class="name"
@@ -781,7 +1125,7 @@ export class TcStock extends LitElement {
           <button
             class="remove"
             title="unmake this train"
-            @click=${(event: Event) => this.unmade(event, train.train)}
+            @click=${() => this.changed((stock) => stock.removeTrain(train.train))}
           >
             ×
           </button>
@@ -810,15 +1154,18 @@ export class TcStock extends LitElement {
   /** One place in a train. The address is offered whatever the item's kind —
    *  a powered van is a real thing, so kind never implies an address
    *  (ADR-0061) — and so is the camera; typing either is what promotes an
-   *  anonymous item to a car in the list above. */
+   *  anonymous item to a car. */
   private entry(train: string, entry: EntryRow, at: number) {
+    const stock = this.stock;
+    const model = entry.model === null ? null : (stock?.model(entry.model) ?? null);
+    const shown = model === null ? entry.model : (model.name ?? model.model);
     return html`
       <li class="entry">
         <span class=${`what ${entry.car === null ? "anonymous" : ""}`}>
-          ${entry.car ?? entry.model ?? "—"}
+          ${entry.car ?? shown ?? "—"}
           ${entry.car === null
             ? nothing
-            : html`<span class="of">${entry.model ?? "no such model"}</span>`}
+            : html`<span class="of">${shown ?? "no such model"}</span>`}
         </span>
         <input
           class="addr"
@@ -826,10 +1173,7 @@ export class TcStock extends LitElement {
           placeholder="address"
           aria-label="address"
           @change=${(event: Event) =>
-            this.did(
-              this.stock?.address(train, at, value(event)),
-              `entry:${train}:${at}:addr`,
-            )}
+            this.did(stock?.address(train, at, value(event)), `entry:${train}:${at}:addr`)}
         />
         <input
           class="camera"
@@ -837,23 +1181,20 @@ export class TcStock extends LitElement {
           placeholder="camera"
           aria-label="camera"
           @change=${(event: Event) =>
-            this.did(
-              this.stock?.camera(train, at, value(event)),
-              `entry:${train}:${at}:camera`,
-            )}
+            this.did(stock?.camera(train, at, value(event)), `entry:${train}:${at}:camera`)}
         />
         <button
           class="turn"
           title="which way round it is coupled"
           aria-pressed=${entry.reverse ? "true" : "false"}
-          @click=${() => this.changed((stock) => stock.turn(train, at))}
+          @click=${() => this.changed((one) => one.turn(train, at))}
         >
           ${entry.reverse ? "↰" : "↱"}
         </button>
         <button
           class="remove"
           title="take it out of the train"
-          @click=${() => this.changed((stock) => stock.removeEntry(train, at))}
+          @click=${() => this.changed((one) => one.removeEntry(train, at))}
         >
           ×
         </button>
@@ -864,108 +1205,79 @@ export class TcStock extends LitElement {
   // --- the presses ----------------------------------------------------------
 
   /**
-   * Why there is nothing here to write into, or `null` where there is.
-   *
-   * The two documents are what a press that writes writes into, and until
-   * they are read there are none: New model and New train are dead with this
-   * on them, and the handler behind each says it rather than returning. One
-   * answer for the button's title and the refusal, because they are the same
-   * sentence said at two moments — before the press and after it (#565).
+   * Why there is nothing here to write into, or `null` where there is. The
+   * two documents are what a press that writes writes into, and until they
+   * are read there are none: the New buttons and Save are dead with this on
+   * them (#565).
    */
   private unwritable(): string | null {
     if (this.stock !== null) return null;
     return (this.railroad?.name ?? "") === "" ? UNLOADED : UNREAD;
   }
 
-  /** A one-field prompt, as the app names a railroad with: a dialog for a
-   *  single word would be more of the app than naming a train is worth.
-   *
-   *  With no roster read there is nothing to make a train in, and the press
-   *  is dead, so the guard here is the second answer rather than the way in.
-   *  It says why before the prompt: asking for a name and then doing nothing
-   *  with it is the shape #565 was reported as. The prompt cancelled or left
-   *  empty is a person's own no, and the app answers its own prompts the same
-   *  way. */
-  private newTrain = (): void => {
+  /** The New button of the list shown. */
+  private made = (): void => {
     const stock = this.stock;
     if (stock === null) {
       this.did(this.unwritable());
       return;
     }
-    const said = window.prompt("New train", "");
-    const name = said === null ? "" : said.trim();
+    if (this.tab === "models") void this.newModel(stock);
+    else if (this.tab === "cars") this.choosing = true;
+    else this.newTrain(stock);
+  };
+
+  /** *New model* in the list, chosen, with its name selected to be typed
+   *  over. It is written by Save, which mints its key from its name. */
+  private async newModel(stock: Stock): Promise<void> {
+    this.model = stock.newModel();
+    this.editing = true;
+    this.did(null);
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLInputElement>(".model-editor input.name")?.select();
+  }
+
+  /** A one-field prompt, as the app names a railroad with. The prompt
+   *  cancelled or left empty is a person's own no. */
+  private newTrain(stock: Stock): void {
+    const answer = window.prompt("New train", "");
+    const name = answer === null ? "" : answer.trim();
     if (name === "") return;
     const refused = stock.addTrain(name);
     this.did(refused);
-    if (refused === null) this.train = name;
-  };
-
-  /**
-   * Unmake a train. All it does is unmake it: `×` sits inside the row and the
-   * row's click is what makes a train current, so the press is stopped from
-   * being a press on the row as well (#416).
-   *
-   * It moves nothing. Whatever was current, a train that is gone is not, and
-   * `pointed()` is what says so — the first train left, and `null` where the
-   * roster has none, which is the `+` disabled with no target as it is before
-   * any train is made up. Moving `this.train` here as well would be the same
-   * rule written twice, and it was written here alone that let the rename
-   * road into the same defect stay open (#445).
-   */
-  private unmade(event: Event, train: string): void {
-    event.stopPropagation();
-    this.changed((stock) => stock.removeTrain(train));
+    if (refused === null) {
+      this.train = name;
+      this.editing = true;
+    }
   }
 
   /**
-   * A train renamed.
-   *
-   * The current train is a name and `renameTrain` rebuilds `trains` under the
-   * new key, so renaming the current one would leave the name naming nothing.
-   * It is carried: the person renamed the train they were composing, not
-   * another one, and falling back to the first train the roster has would
-   * hand them a different train to compose (#445).
-   *
-   * A refusal changes the document not at all, so there is nothing to carry,
-   * and renaming any other train says nothing about which one is current.
+   * A train renamed. The chosen train is a name, so renaming it carries the
+   * choice with it: the person renamed the train they were composing, not
+   * another one (#445). A refusal changes the document not at all.
    */
   private renamed(was: string, name: string): void {
     if (this.stock === null) return;
+    const chosen = this.pointed() === was;
     const refused = this.stock.renameTrain(was, name);
-    if (refused === null && this.train === was) this.train = name;
+    if (refused === null && chosen) this.train = name;
     // The old name, because a refused rename is the row still drawn under it:
     // the field to write back is the one the edit was typed into (#444).
     this.did(refused, `train:${was}:name`);
   }
 
   /**
-   * The train every `+` names: the one that is current.
-   *
-   * `this.train` where the roster has that train, and the first train it has
-   * where it has not — `null` where it has none at all. The current train is
-   * a name, and what a roster has is the view's to keep up with rather than
-   * the name's: unmaking a train takes one away, and every read going through
-   * here is what makes *the `+` buttons name one train, and it is always a
-   * train there is* (ui/STOCK.md) hold for whatever else does (#416, #445).
+   * The train every `+` names: the one chosen, where the roster has it, and
+   * the first train it has where it has not — `null` where it has none at
+   * all (#416, #445).
    */
   private pointed(): string | null {
     const trains = this.stock?.roster.trains ?? {};
-    return this.train !== null && this.train in trains ? this.train : this.first();
+    if (this.train !== null && this.train in trains) return this.train;
+    return Object.keys(trains).sort()[0] ?? null;
   }
 
-  /** The train the left points at when nothing has said which: the first the
-   *  roster has, and `null` where it has none. */
-  private first(): string | null {
-    return Object.keys(this.stock?.roster.trains ?? {}).sort()[0] ?? null;
-  }
-
-  /** A car or a model put at the tail of the current train: the whole of
-   *  composing right from left. Named for what it does to the train rather
-   *  than for the list press, `append` being `HTMLElement`'s.
-   *
-   *  With no train to name, the `+` that would reach here is dead and says
-   *  *make a train up first*, so the guard below is a second answer and not
-   *  a press met with silence. */
+  /** A car or a model put at the tail of the chosen train. */
   private coupled(what: { car: string } | { model: string }): void {
     const train = this.pointed();
     if (train === null) return;
@@ -974,319 +1286,65 @@ export class TcStock extends LitElement {
   }
 
   /**
-   * The roster's Save, which is the loaded railroad's (`model/railroad.ts`):
-   * the corrected models and then the roster, and what the store said on the
-   * line under the trains.
-   *
-   * A save that changed a length names the loaded railroad again — `Railroad`
-   * does, not this — so the dispatcher fits trains with the new length and a
-   * train now longer than its block comes off and is listed (ADR-0071). Save
-   * is dead while such an edit waits for power off, and while its own write is
-   * in flight (#723), so the guards inside are a second answer and not a press
-   * met with silence.
+   * The one Save, which is the loaded railroad's (`model/railroad.ts`): each
+   * changed model, each changed photo, then the roster, and what the store
+   * said in the bar. *Saved* stands there for a moment once it has landed.
    */
   private save = async (): Promise<void> => {
     const railroad = this.railroad;
     if (railroad === undefined) return;
     this.trouble = null;
     await railroad.save(this.power, this.heard);
+    const stock = railroad.stock;
+    if (stock === null || stock.edits || railroad.stockTrouble !== null) return;
+    this.landed = true;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.landed = false;
+    }, SAVED_MS);
   };
 
-  /** An edit that cannot refuse. It still goes through `did`, so the screen
-   *  redraws and whatever the last refusal said is taken down. The presses
-   *  that reach here are on rows the two documents drew, so with no documents
-   *  there is no row and no press. */
-  private changed(edit: (stock: Stock) => void): void {
+  /** An edit that cannot refuse, through `did` all the same so the screen
+   *  redraws and the last refusal is taken down. */
+  private changed(edit: (stock: Stock) => void, field: string | null = null): void {
     if (this.stock === null) return;
     edit(this.stock);
-    this.did(null);
+    this.did(null, field);
   }
 
   /** What an edit answered: nothing, or the words to show, and the field it
-   *  was typed into where it was typed into one. Either way the screen
-   *  redraws — `Stock` keeps its identity across an edit, so Lit sees no
-   *  changed property.
-   *
-   *  A redraw is not by itself the field going back. A refusal changes the
-   *  document by construction not at all, so what a field is bound to is what
-   *  it was last rendered with and Lit's property part skips the write: a car
-   *  renamed to `a/b` was refused and went on showing `a/b`, a value the
-   *  roster has not got (#416). The field is named here so that the render
-   *  this edit asks for is the one that writes it back, and no other. */
+   *  was typed into where it was typed into one. A refusal changes the
+   *  document not at all, so the field is named here so that the render this
+   *  edit asks for writes the document's value back over it (#416). */
   private did(refused: string | null | undefined, field: string | null = null): void {
     this.trouble = refused ?? null;
     this.back = field;
     this.beat++;
+    this.landed = false;
     // What the last Save was refused with is about a roster that has moved
     // since, and the app reads what is unsaved off the railroad.
     this.railroad?.edited();
   }
 
-  /**
-   * What a document-backed field is bound to: the document's value, and on
-   * the render an edit typed into *that* field asked for, the document's
-   * value written over the DOM.
-   *
-   * `live` compares against the DOM rather than against the last binding, so
-   * it writes a refused edit back where an ordinary binding skips it. Binding
-   * every field with it did that on **every** render, and this view redraws
-   * for reasons that have nothing to do with the field being typed in: the
-   * app hands it `placed`, and every new status the session answers replaces
-   * the run state whole. Power going off then wrote the document's `122` over
-   * the `12` somebody was half way through typing (#444). So `live` is
-   * reached for by name: the field the edit was typed into, on the render
-   * that edit asked for.
-   */
+  /** What a document-backed field is bound to: the document's value, written
+   *  over the DOM on the render an edit typed into *that* field asked for,
+   *  and on no other — a frame about the railroad is not news about what
+   *  somebody is typing (#444). */
   private putting(field: string, held: string) {
     return this.back === field ? live(held) : held;
-  }
-
-  // --- writing a model ------------------------------------------------------
-
-  /**
-   * The dialog a product that does not exist yet is made in: name, length over
-   * buffers, kind, and what each DCC function does.
-   *
-   * It is a form, so it is Shoelace's the way the properties dialog is, where
-   * the rows behind it are a table and are the browser's own controls.
-   */
-  private dialog() {
-    const making = this.making;
-    if (making === null) return nothing;
-    const wrote = this.wrote !== null;
-    return html`
-      <look-dialog open label="New model" @sl-after-hide=${this.shut}>
-        <div class="field">
-          <label for="model">Name</label>
-          <input
-            id="model"
-            .value=${making.model}
-            ?disabled=${wrote}
-            @change=${(event: Event) => this.drafting({ model: value(event) })}
-          />
-        </div>
-        <div class="field">
-          <label for="kind">Kind</label>
-          <select
-            id="kind"
-            .value=${making.kind}
-            ?disabled=${wrote}
-            @change=${(event: Event) => this.drafting({ kind: value(event) })}
-          >
-            ${KINDS.map(
-              (kind) =>
-                html`<option value=${kind} ?selected=${kind === making.kind}>
-                  ${kind}
-                </option>`,
-            )}
-          </select>
-        </div>
-        <div class="field">
-          <label for="length">Length over buffers, mm</label>
-          <input
-            id="length"
-            class="length"
-            .value=${making.length}
-            ?disabled=${wrote}
-            @change=${(event: Event) => this.drafting({ length: value(event) })}
-          />
-        </div>
-        <div class="field">
-          <label>Functions</label>
-          <ul>
-            ${making.functions.map((fn, at) => this.functionRow(fn, at))}
-          </ul>
-          <button
-            class="add-function"
-            ?disabled=${wrote}
-            @click=${() =>
-              this.drafting({
-                functions: [...making.functions, { number: "", name: "" }],
-              })}
-          >
-            Add a function
-          </button>
-        </div>
-        <div class="field">
-          <label>Photo</label>
-          ${this.frame(this.wrote)}
-        </div>
-        ${this.refusal === null ? nothing : html`<p class="trouble">${this.refusal}</p>`}
-        <sl-button slot="footer" @click=${this.shut}>Cancel</sl-button>
-        <sl-button
-          slot="footer"
-          variant="primary"
-          class="create"
-          ?disabled=${this.wrote !== null}
-          @click=${this.create}
-        >
-          Create
-        </sl-button>
-      </look-dialog>
-    `;
-  }
-
-  private functionRow(fn: { number: string; name: string }, at: number) {
-    const making = this.making!;
-    const wrote = this.wrote !== null;
-    const changed = (part: { number?: string; name?: string }): void => {
-      this.drafting({
-        functions: making.functions.map((one, index) =>
-          index === at ? { ...one, ...part } : one,
-        ),
-      });
-    };
-    return html`
-      <li class="function">
-        <input
-          class="number"
-          .value=${fn.number}
-          placeholder="0"
-          aria-label="function number"
-          ?disabled=${wrote}
-          @change=${(event: Event) => changed({ number: value(event) })}
-        />
-        <input
-          class="name"
-          .value=${fn.name}
-          placeholder="headlights"
-          aria-label="function name"
-          ?disabled=${wrote}
-          @change=${(event: Event) => changed({ name: value(event) })}
-        />
-        <button
-          class="remove"
-          ?disabled=${wrote}
-          @click=${() =>
-            this.drafting({
-              functions: making.functions.filter((_, index) => index !== at),
-            })}
-        >
-          ×
-        </button>
-      </li>
-    `;
-  }
-
-  /** The dialog put away, and what it was refused with put away in the same
-   *  breath: a sentence about a dialog that is gone is about nothing (#446).
-   *  A picture taken in it goes the same way — nothing was told to keep it,
-   *  and the next product written is not the one it is of. */
-  private shut(): void {
-    this.making = null;
-    this.refusal = null;
-    this.shot = null;
-    this.wrote = null;
-  }
-
-  private drafting(part: Partial<Draft>): void {
-    this.making = { ...this.making!, ...part };
-  }
-
-  /**
-   * Write the model, then take it into the catalogue this roster is read
-   * against.
-   *
-   * It goes to the store now rather than with the roster because they are two
-   * documents on two routes: a roster naming a model the installation has not
-   * got is refused whole, so the product has to exist before anything refers
-   * to it (#392).
-   */
-  private create = async (): Promise<void> => {
-    // The dialog is drawn from `making`, so there is no dialog to press this
-    // in while it is `null` and nobody is waiting on the return.
-    const making = this.making;
-    if (making === null) return;
-    // The product is written, so there is nothing left to create: what is left
-    // is the picture, and it has its own Save. The press is dead with it, so
-    // nobody is waiting on this return (#638).
-    if (this.wrote !== null) return;
-    // A dialog that opened is a dialog that answers when its button is
-    // pressed. The button that opens it is dead without the documents, so the
-    // way here is the railroad moving under an open dialog, which takes the
-    // documents and leaves what somebody is writing (#565).
-    const stock = this.stock;
-    if (stock === null) {
-      this.refusal = this.unwritable();
-      return;
-    }
-    const refused = this.wrong(making, stock);
-    if (refused !== null) {
-      this.refusal = refused;
-      return;
-    }
-    const functions: Record<string, ModelFn> = {};
-    for (const fn of making.functions) functions[fn.number.trim()] = { name: fn.name.trim() };
-    const model: ModelDoc = {
-      model: making.model.trim(),
-      kind: making.kind,
-      length: Number(making.length),
-      ...(making.functions.length === 0 ? {} : { functions }),
-    };
-    try {
-      await saveModel(model);
-    } catch (trouble) {
-      this.refusal = said(trouble);
-      return;
-    }
-    stock.putModel(model);
-    // The product exists from here on, so the dialog is a dialog about a
-    // written model: its frame is drawn for it and Create is dead (#638).
-    this.wrote = model.model;
-    // The picture goes after the document and never with it: the store refuses
-    // a photo for a model it has not got, so the product has to exist first
-    // (#630). A photo that does not land leaves the model written — two
-    // writes, and this is the second — so the dialog stays open to say which
-    // of them is missing, with the picture still on it to save again.
-    const shot = this.shot;
-    if (shot?.phase === "took") {
-      try {
-        await savePhoto(model.model, shot.picture.jpeg);
-        this.fetched(model.model);
-      } catch (trouble) {
-        this.refusal =
-          `'${model.model}' is written, but its photo was not saved: ` +
-          said(trouble);
-        this.did(null);
-        return;
-      }
-    }
-    this.shut();
-    // The catalogue has a row it had not got, so this is an edit that cannot
-    // refuse: the screen redraws and what it last said is taken down.
-    this.did(null);
-  };
-
-  /** What is wrong with the dialog as it stands, in the words the store would
-   *  use, or `null` where nothing is. Asked before the `PUT` so that a name
-   *  with a slash in it is answered where it was typed, and so that a name the
-   *  catalogue already has never reaches a route that replaces a document
-   *  whole (#413). */
-  private wrong(making: Draft, stock: Stock): string | null {
-    const name = making.model.trim();
-    if (!isName(name)) return `'${name}' is not a name a model can have`;
-    if (stock.model(name) !== null) return `there is already a model '${name}'`;
-    const trouble = lengthTrouble(Number(making.length));
-    if (trouble !== null) return trouble;
-    for (const fn of making.functions) {
-      if (fn.number.trim() === "" || fn.name.trim() === "") {
-        return "a function is a DCC number and what it does on this product";
-      }
-    }
-    return null;
   }
 }
 
 /** What was typed into a control, whichever kind it is. */
 function value(event: Event): string {
-  return (event.target as HTMLInputElement | HTMLSelectElement).value;
+  return (event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).value;
 }
 
 /** A length as typed, `null` for a field left empty — which is a car reading
  *  its model's length again rather than a number this could not parse. */
 function millimetres(event: Event): number | null {
-  const said = value(event).trim();
-  return said === "" ? null : Number(said);
+  const typed = value(event).trim();
+  return typed === "" ? null : Number(typed);
 }
 
 declare global {

@@ -1,108 +1,809 @@
 import { css } from "lit";
 
 /**
- * The stock view (`tc-stock`): what can go in a train on the left, the trains
- * on the right (ui/STOCK.md).
+ * The stock view (`tc-stock`), as
+ * [stock-mockup.html](../../../docs/ui/images/stock-mockup.html) lays it out
+ * and in the throttle's visual style (ui/STOCK.md, #978): a bar across the
+ * top, and under it the list, `minmax(300px, 380px)`, beside the editor of the
+ * item chosen in it.
  *
  * **Not the shell's left-pane slot.** `--pane` is the width of the strip
  * beside a drawing surface — the editor's palette, the run view's roster
  * ([#169](https://github.com/rails49/control/issues/169)) — and this view has
- * no surface: it is two columns of documents, and the left one carries three
- * fields per row rather than a tile. So it declares its own width and leaves
- * `--pane` to the two views that share the rectangle.
+ * no surface, so it declares its own columns and leaves `--pane` alone.
  *
- * **Cars above, models below.** Cars are yours and are few; models are what
- * anything is made of, and ten identical hoppers are one row rather than ten
- * ([ADR-0061](../../../docs/adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
- * Each list scrolls on its own, so a long catalogue does not push the cars off
- * the top of the screen.
+ * **One column where the view is narrower than 760 px**, read off the view's
+ * own width with a container query rather than the window's: the list, and a
+ * pressed card replaces it with the editor, which then has a back button.
  *
- * A row is a grid rather than a flex line, so the addresses and the lengths
- * read down their columns; both are numbers and both are tabular. A control
- * the length guard has killed keeps its box and takes the hint colour, with
- * the reason beside it — a field that vanished while track power was on would
- * leave a person looking for it (ui/STOCK.md#the-length-guard).
+ * **Every photo is shown whole** (`object-fit: contain`) in a frame 10:3 wide:
+ * train cars are wide and low, and a crop would cut off the end that tells
+ * two of them apart.
  *
- * **A thumbnail starts every row**, a fixed column wide enough to tell two
- * products apart and small enough that the fields keep the width they had: a
- * photo answers *which one is that* faster than a name does, and the picture
- * itself is a dialog away (ui/STOCK.md#a-models-photo).
+ * A control the length guard has killed keeps its box and takes the hint
+ * colour, with the reason beside it — a field that vanished while track power
+ * was on would leave a person looking for it (ui/STOCK.md#the-length-guard).
  */
 export const stockStyles = css`
   :host {
-    display: grid;
-    grid-template-columns: minmax(20rem, 28rem) 1fr;
-    overflow: hidden;
-  }
-
-  section.parts {
-    display: grid;
-    grid-template-rows: 1fr 1fr;
-    border-right: 1px solid var(--rule);
-    overflow: hidden;
-  }
-
-  section.cars,
-  section.models,
-  section.trains {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
-    padding: 0.4rem;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button:focus-visible,
+  label.choose:focus-within {
+    outline: 2px solid var(--chosen);
+    outline-offset: 2px;
+  }
+
+  /* --- the bar --- */
+
+  .bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--body);
+  }
+
+  .bar h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .bar .railroad {
+    flex: 1;
+    min-width: 0;
+    color: var(--hint);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  .said {
+    min-width: 0;
+    color: var(--hint);
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .said.trouble {
+    color: var(--wrong);
+    font-weight: 600;
+  }
+
+  .said.waits {
+    color: var(--lit);
+    font-weight: 600;
+  }
+
+  .said.landed {
+    color: var(--chosen);
+    font-weight: 600;
+  }
+
+  button.save {
+    flex: none;
+    height: 40px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--chosen);
+    color: var(--body);
+    font-size: 15px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  button.save:disabled {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--hint);
+    cursor: default;
+  }
+
+  /* --- the two columns --- */
+
+  .cols {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+
+  section.list,
+  section.editor {
+    min-height: 0;
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    background: var(--body);
+  }
+
+  section.list {
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
-  section.cars {
-    border-bottom: 1px solid var(--rule);
+  section.editor {
+    position: relative;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
-  header.head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    margin: 0.3rem 0.2rem;
+  button.back {
+    display: none;
   }
 
-  h2 {
-    flex: 1;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  @container (max-width: 759px) {
+    .cols {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 0;
+      gap: 0;
+    }
+
+    section.list,
+    section.editor {
+      border: 0;
+      border-radius: 0;
+    }
+
+    .cols.editing section.list,
+    .cols:not(.editing) section.editor {
+      display: none;
+    }
+
+    button.back {
+      display: grid;
+    }
+
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    li.function {
+      grid-template-columns: 64px minmax(0, 1fr) 36px;
+    }
+
+    li.function .seg {
+      grid-column: 1 / -2;
+      grid-row: 2;
+    }
+  }
+
+  /* --- the list --- */
+
+  .tabs {
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 14px 14px 10px;
+    padding: 3px;
+    border-radius: 12px;
+    background: var(--rule);
+  }
+
+  button.tab {
+    height: 38px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
     color: var(--hint);
+    font-size: 14px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  button.tab[aria-selected="true"] {
+    background: var(--body);
+    color: var(--ink);
+  }
+
+  .count {
+    margin-left: 5px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 14px 10px;
+  }
+
+  .head p {
     margin: 0;
+    color: var(--hint);
+    font-size: 12.5px;
+  }
+
+  .cards {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 2px 14px 14px;
+  }
+
+  button.card {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 6px;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: var(--paper);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  button.card[aria-current="true"] {
+    border-color: var(--chosen);
+    box-shadow: 0 0 0 1.5px var(--chosen);
+    background: var(--body);
+  }
+
+  .frame,
+  .photo-frame {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 10 / 3;
+    overflow: hidden;
+    background: var(--rule);
+  }
+
+  .frame {
+    border-radius: 9px;
+  }
+
+  .frame img,
+  .photo-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--track);
+  }
+
+  .no-photo {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--hint);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .text .name {
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    color: var(--hint);
+    font-size: 12px;
+  }
+
+  .pill {
+    padding: 2px 6px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--body);
+    color: var(--ink);
+    font: 650 11.5px/1.2 ui-monospace, monospace;
+  }
+
+  /* --- the editor --- */
+
+  .ed-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--body);
+  }
+
+  .title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .eyebrow,
+  .label,
+  h3 {
+    margin: 0;
+    color: var(--hint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .ed-head h2 {
+    margin: 1px 0 0;
+    overflow: hidden;
+    font-size: 21px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  button.back {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    background: var(--paper);
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 760px;
+    padding: 18px 20px 28px;
+  }
+
+  .empty {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    padding: 40px;
+    color: var(--hint);
+    text-align: center;
+  }
+
+  .photo-frame {
+    border-radius: 16px;
+  }
+
+  .photo-frame.empty {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    border: 2px dashed var(--rule);
+    background: var(--paper);
+    color: var(--hint);
+  }
+
+  .photo-frame.hot {
+    border: 2px dashed var(--chosen);
+  }
+
+  .drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .drop b {
+    color: var(--ink);
+    font-size: 16px;
+  }
+
+  .wait {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--track) 45%, transparent);
+    color: var(--body);
+    font-weight: 650;
+  }
+
+  .photo-tools,
+  .row-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+  }
+
+  .photo-tools {
+    margin-top: -12px;
+  }
+
+  label.choose,
+  button.take,
+  button.new,
+  button.new-car,
+  button.add-function,
+  button.delete {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--paper);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  button.new,
+  button.new-car,
+  button.add-function {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  button.delete {
+    border-color: color-mix(in srgb, var(--wrong) 55%, transparent);
+    background: transparent;
+    color: var(--wrong);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  input.file {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px 16px;
+  }
+
+  .wide {
+    grid-column: 1 / -1;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  li.function input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--paper);
+    font-size: 15px;
+  }
+
+  .field input.name {
+    font-size: 18px;
+    font-weight: 650;
+  }
+
+  .field textarea {
+    height: auto;
+    min-height: 96px;
+    padding: 10px 12px;
+    line-height: 1.45;
+    resize: vertical;
+  }
+
+  input:disabled {
+    color: var(--hint);
+    border-style: dashed;
+    cursor: not-allowed;
+  }
+
+  input.length,
+  input.addr,
+  input.number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .seg {
+    display: flex;
+    padding: 3px;
+    border-radius: 11px;
+    background: var(--rule);
+  }
+
+  .seg button {
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--hint);
+    font-size: 13.5px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .seg button[aria-pressed="true"] {
+    background: var(--body);
+    color: var(--ink);
+  }
+
+  .seg.mode button {
+    height: 32px;
+    font-size: 12.5px;
+  }
+
+  .sec {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .sec h3 {
+    color: var(--ink);
+    font-size: 16px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .sec-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  button.switch {
+    position: relative;
+    flex: none;
+    width: 50px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--rule);
+    cursor: pointer;
+  }
+
+  button.switch i {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--body);
+    transition: transform 120ms;
+  }
+
+  button.switch[aria-checked="true"] {
+    background: var(--chosen);
+  }
+
+  button.switch[aria-checked="true"] i {
+    transform: translateX(20px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button.switch i {
+      transition: none;
+    }
   }
 
   ul,
   ol {
-    flex: 1;
     margin: 0;
     padding: 0;
     list-style: none;
-    overflow-y: auto;
   }
 
-  li + li {
+  ul.functions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  li.function {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr) minmax(170px, 210px) 36px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  span.number {
+    position: relative;
+  }
+
+  span.number input {
+    padding-left: 24px;
+    font-family: ui-monospace, monospace;
+  }
+
+  span.number i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 10px;
+    display: grid;
+    place-items: center;
+    color: var(--hint);
+    font: 600 14px ui-monospace, monospace;
+    pointer-events: none;
+  }
+
+  li.function button.remove {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--hint);
+    cursor: pointer;
+  }
+
+  ul.uses {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+  }
+
+  .hint {
+    margin: 0;
+    color: var(--hint);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  /* Why a control is dead, said where the control is. */
+  .why {
+    color: var(--hint);
+    font-size: 12px;
+  }
+
+  /* What the store refused, or what this refused before the store had to. */
+  .trouble {
+    margin: 0;
+    color: var(--wrong);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* --- the car's and the train's controls, until #979 and #980 --- */
+
+  ul.rows > li + li {
     border-top: 1px solid var(--rule);
   }
 
-  /* One car and one model read as the same row: the photo, what it is, then
-     the address, the camera and the length, then the two presses. The thumbnail is the first column on
-     both because a car's photo is its model's, so the two lists read down one
-     edge (ADR-0061). */
-  li.car,
-  li.product {
+  li.car {
     display: grid;
-    grid-template-columns: 3.2rem 1fr 5rem 8rem 5rem auto auto;
+    grid-template-columns: minmax(0, 1fr) 5rem 8rem 5rem auto;
     column-gap: 0.4rem;
     align-items: center;
-    padding: 0.25rem 0.2rem;
+    padding: 0.25rem 0;
   }
 
   li.entry {
     display: grid;
-    grid-template-columns: 1fr 5rem 8rem auto auto;
+    grid-template-columns: minmax(0, 1fr) 5rem 8rem auto auto;
     column-gap: 0.4rem;
     align-items: center;
-    padding: 0.2rem 0.2rem;
+    padding: 0.2rem 0;
+  }
+
+  li.addable {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 0.25rem 0;
+  }
+
+  li.car input,
+  li.entry input,
+  li.train input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0.2rem 0.3rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+  }
+
+  li.car > button,
+  li.entry > button,
+  li.train button,
+  li.addable button {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+    cursor: pointer;
+  }
+
+  button.turn[aria-pressed="true"] {
+    background: var(--rule);
+  }
+
+  li.car .why {
+    grid-column: 1 / -1;
+  }
+
+  li.train > header {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    column-gap: 0.4rem;
+    align-items: center;
+  }
+
+  li.train ol {
+    margin-top: 0.4rem;
+  }
+
+  .derived {
+    grid-column: 1 / -1;
+    color: var(--hint);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
 
   .what {
@@ -119,183 +820,7 @@ export const stockStyles = css`
   }
 
   .of {
-    font-size: 0.7rem;
     color: var(--hint);
-  }
-
-  input,
-  select {
-    width: 100%;
-    min-width: 0;
-    padding: 0.15rem 0.25rem;
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    background: var(--paper);
-    color: var(--ink);
-    font: inherit;
-  }
-
-  input.addr,
-  input.length {
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-
-  input:disabled {
-    color: var(--hint);
-    cursor: not-allowed;
-  }
-
-  /* Why a control is dead, said where the control is. */
-  .why {
-    grid-column: 1 / -1;
-    font-size: 0.7rem;
-    color: var(--hint);
-  }
-
-  button {
-    padding: 0.1rem 0.35rem;
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    background: var(--paper);
-    color: var(--ink);
-    font: inherit;
-    cursor: pointer;
-  }
-
-  button:disabled {
-    color: var(--hint);
-    cursor: not-allowed;
-  }
-
-  button.turn[aria-pressed="true"] {
-    background: var(--rule);
-  }
-
-  li.train {
-    padding: 0.35rem 0.2rem;
-  }
-
-  /* The train a press on the left is about. One is current at a time, the way
-     one palette tile is armed at a time. */
-  li.train.current {
-    background: var(--rule);
-  }
-
-  li.train > header {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    column-gap: 0.4rem;
-    align-items: center;
-  }
-
-  .derived {
-    grid-column: 1 / -1;
-    font-size: 0.7rem;
-    color: var(--hint);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .hint {
-    margin: 0.6rem 0.2rem 0;
-    font-size: 0.7rem;
-    line-height: 1.6;
-    color: var(--hint);
-  }
-
-  /* What the store refused, or what this refused before the store had to. */
-  .trouble {
-    margin: 0.3rem 0.2rem;
-    font-size: 0.75rem;
-    color: var(--wrong);
-  }
-
-  .field {
-    display: block;
-    margin-bottom: 0.6rem;
-  }
-
-  .field label {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--hint);
-  }
-
-  li.function {
-    display: grid;
-    grid-template-columns: 4rem 1fr auto;
-    column-gap: 0.4rem;
-    align-items: center;
-    padding: 0.15rem 0;
-  }
-
-  /* A model's photo. The thumbnail is a press, so it is a button and not an
-     image with a handler on it: what it opens is a dialog, and the keyboard
-     reaches it the way it reaches the + beside it. */
-  button.thumb {
-    width: 3.2rem;
-    height: 1.9rem;
-    padding: 0;
-    overflow: hidden;
-    font-size: 0.55rem;
-    line-height: 1;
-    color: var(--hint);
-  }
-
-  button.thumb img,
-  .picture img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  /* The frame the photo is shown in, at a fixed shape whether there is a
-     picture in it, none, or a camera being waited on: a dialog whose height
-     moved under the presses would move the press being aimed at. */
-  .picture {
-    aspect-ratio: 4 / 3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    overflow: hidden;
-    font-size: 0.8rem;
-    color: var(--hint);
-    text-align: center;
-  }
-
-  .picture.waiting {
-    border-style: dashed;
-  }
-
-  /* A picture nothing has been told to keep, marked so it is not mistaken for
-     the photo the model has. */
-  .picture.unsaved {
-    outline: 2px dashed var(--ink);
-    outline-offset: 2px;
-  }
-
-  .presses {
-    display: flex;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
-  }
-
-  .unkept {
-    margin: 0.3rem 0 0;
-    font-size: 0.75rem;
-    color: var(--hint);
-  }
-
-  /* Why there is no picture, or what the store said about keeping one. Not
-     the dialog's trouble line: that one is the New model dialog's own refusal,
-     and a camera that answered something other than a picture is no refusal of
-     the product being written (#446). */
-  .no-picture {
-    margin: 0.3rem 0 0;
-    font-size: 0.75rem;
-    color: var(--wrong);
+    font-size: 12px;
   }
 `;

@@ -157,8 +157,8 @@ src/
     tc-clock.ts    the station clock on the throttle's cab, in wall time
     wake.ts        the screen kept awake while any of this page's throttles
                    holds a train
-    tc-stock.ts    the stock view: cars and models on the left, the trains
-                   composed from them on the right
+    tc-stock.ts    the stock view: a bar with the one Save, the list of
+                   trains, cars or models, and the editor of the one chosen
     dismissal.ts   the overlay a menu drops over the page, worn by all three
                    menu systems: the press outside that dismisses, and the
                    right-click that is handed on to what is underneath
