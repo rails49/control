@@ -24,7 +24,15 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tc49.layout.__main__ import SILENCE_ENV, main, retained, serve, silence
+from tc49.layout.__main__ import (
+    CLOCK,
+    OWNED,
+    SILENCE_ENV,
+    main,
+    retained,
+    serve,
+    silence,
+)
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
@@ -347,6 +355,36 @@ def test_a_layout_built_on_a_railroad_says_once_a_second_that_it_is_up(
     witness.close()
 
 
+def test_a_layout_built_on_a_railroad_says_the_fast_clock_once_a_second(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """Every page draws the time it is sent and reads no wall clock of its own
+    (ADR-0090): a time of day in whole seconds, and the speed-up, which is 1
+    on a railroad with no start time of its own. Once a second on the
+    monotonic clock, as `alive_confirmed` is, and not once a turn."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, CLOCK) != []), "no clock came"
+
+    began = len(rows(heard, CLOCK))
+    listening(witness, 3.5)
+    said = rows(heard, CLOCK)[began:]
+
+    assert 3 <= len(said) <= 5, f"{len(said)} in 3.5 s, where once a second is 3 or 4"
+    assert all(set(payload) == {"at", "time", "speed_up"} for payload in said)
+    assert all(payload["speed_up"] == 1 for payload in said)
+    assert all(isinstance(payload["time"], int) for payload in said)
+    assert all(0 <= payload["time"] < 24 * 60 * 60 for payload in said)
+    witness.close()
+
+
+def test_the_fast_clock_is_cleared_with_the_other_layout_rows() -> None:
+    """A railroad loaded starts on a broker holding nothing of the last one
+    (ADR-0060), the clock included: the next build starts it again."""
+    assert CLOCK in OWNED
+
+
 def test_a_layout_standing_with_no_railroad_says_nothing(
     broker: Broker, store: Store
 ) -> None:
@@ -361,6 +399,7 @@ def test_a_layout_standing_with_no_railroad_says_nothing(
         assert until(lambda: any("standing" in line for line in said)), "never stood"
         listening(witness, 2.5)
         assert rows(heard, ALIVE_CONFIRMED) == [], "it said it was up on no railroad"
+        assert rows(heard, CLOCK) == [], "it said the time on no railroad"
         assert app.running, "the app stopped on its own"
     finally:
         app.stop()
