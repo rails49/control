@@ -15,12 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from tc49.dispatcher.__main__ import serve
+from tc49.dispatcher.__main__ import reread_roster, serve
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
+from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
@@ -256,6 +257,52 @@ def test_it_answers_a_gesture_it_finds_on_the_broker(
     ), "the picture never carried the placement"
     hand.close()
     witness.close()
+
+
+def test_a_train_made_after_it_came_up_is_placed(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """A train made in the stock view while the app runs is on the store's
+    roster and not on the one the app was built from: the placement reads the
+    roster again and is answered (ADR-0091, decision 1)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, DISPUTED) != []), "it never came up"
+
+    roster = root / "layouts" / f"{RAILROAD}.roster.yaml"
+    text = roster.read_text().replace(
+        "cars:\n", "cars:\n  railcar_car: { model: bench-600 }\n", 1
+    )
+    roster.write_text(text + "  railcar: { cars: [{ car: railcar_car }] }\n")
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(PLACEMENT_WANTED, {"train": "railcar", "block": "yard_e"})
+
+    assert drained(witness, lambda: rows(heard, PLACED) != []), "the drag was dropped"
+    assert rows(heard, PLACED)[-1] == {"train": "railcar", "block": "yard_e"}
+    hand.close()
+    witness.close()
+
+
+def test_the_roster_read_again_is_the_stores(store: Store, root: Path) -> None:
+    store.start()
+    documents = Documents(store.url, log=quiet)
+
+    assert reread_roster(documents, RAILROAD, quiet)() == AssetStore(root).roster(
+        RAILROAD
+    )
+
+
+def test_a_store_that_does_not_answer_reads_no_roster_and_says_so(
+    store: Store,
+) -> None:
+    """One attempt and no wait: the bus loop asks this on its own thread."""
+    said: list[str] = []
+    documents = Documents(store.url, log=said.append)
+
+    assert reread_roster(documents, RAILROAD, said.append)() is None
+    assert len(said) == 1 and "not read again" in said[0]
 
 
 @pytest.fixture

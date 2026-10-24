@@ -134,7 +134,14 @@ def serve(
         # may go (#165, ui/PANEL.md). Claiming a whole route up front is a
         # measurement baseline, not the behaviour to hand an operator on a
         # shared railroad.
-        Dispatcher(bus, layout, roster, {}, Incremental(layout, ROUTES))
+        Dispatcher(
+            bus,
+            layout,
+            roster,
+            {},
+            Incremental(layout, ROUTES),
+            reread=reread_roster(documents, loaded.name, log),
+        )
         # After the app is built and not before: the row is retained, so
         # subscribing here is handed whatever it holds, and nothing this app
         # does on the way up moves — a gesture published in the instant
@@ -165,6 +172,24 @@ def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
     stock that runs on it. What this app reads, which is the whole of what it
     says when a railroad is loaded under it (`lib.loading.taken`)."""
     return documents.layout(railroad), documents.roster(railroad)
+
+
+def reread_roster(
+    documents: Documents, railroad: str, log: Callable[[str], None]
+) -> Callable[[], Roster | None]:
+    """How the dispatcher built on `railroad` reads its roster again, for a
+    placement naming a train it has not got (ADR-0091, decision 1). One
+    attempt, on the bus loop's own thread: a store that does not answer, or a
+    roster it refuses, is None and the placement is dropped as it was."""
+
+    def read() -> Roster | None:
+        try:
+            return documents.roster(railroad, once=True)
+        except (ConnectionError, FileNotFoundError, TypeError, ValueError) as no:
+            log(f"roster of '{railroad}' not read again: {no}")
+            return None
+
+    return read
 
 
 def main() -> None:
