@@ -548,7 +548,7 @@ def test_the_committed_catalogue_is_what_the_library_railroads_need() -> None:
     # The synthetic stock is hauled, so a train of it derives `freight` rather
     # than `light engine`. The real locomotives beside it are the exception
     # and are `locomotive` (#317).
-    bench = [model for model in catalogue.values() if model.name.startswith("bench-")]
+    bench = [model for model in catalogue.values() if model.model.startswith("bench-")]
     assert all(model.kind == "freight" for model in bench)
 
 
