@@ -184,8 +184,13 @@ export class TcDriving extends LitElement {
   /** The drag on the track under way, `null` while there is none. */
   private drag: Drag | null = null;
 
-  /** The momentary functions whose button is held now, by name. */
-  private held = new Set<string>();
+  /** The momentary functions whose button is held now: the train of each,
+   *  by the function's name. */
+  private held = new Map<string, string>();
+
+  /** The root this panel was drawn in, where an off it says as it is removed
+   *  still reaches the page: the panel itself is no longer in it then. */
+  private home: Node | null = null;
 
   @query(".track") private track!: HTMLElement | null;
 
@@ -222,11 +227,26 @@ export class TcDriving extends LitElement {
     super.update(changed);
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.home = this.getRootNode();
+    document.addEventListener("visibilitychange", this.hiding);
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    document.removeEventListener("visibilitychange", this.hiding);
     this.unwatch();
     this.follow(null);
+    this.lettingAll();
+    this.home = null;
   }
+
+  /** The page hidden: no key or pointer coming up reaches it, so every hold
+   *  ends now. */
+  private readonly hiding = (): void => {
+    if (document.visibilityState === "hidden") this.lettingAll();
+  };
 
   override render() {
     const cab = this.cab;
@@ -442,7 +462,10 @@ export class TcDriving extends LitElement {
    * as it comes up, is cancelled or is lost — the button captures it, so a
    * finger sliding off still ends the hold — and Space or Enter held on it
    * does the same, the key's repeat ignored
-   * ([#981](https://github.com/rails49/control/issues/981)). Either way the
+   * ([#981](https://github.com/rails49/control/issues/981)). A hold also
+   * ends as the button loses focus, the page is hidden or the panel is
+   * removed, and its end asks for off over dead rails too
+   * ([#994](https://github.com/rails49/control/issues/994)). Either way the
    * button shows what `state/functions` says, `aria-pressed` where it is on
    * — it changes when `layout` says it switched it and not when it was
    * pressed ([#856](https://github.com/rails49/control/issues/856)). Live
@@ -475,6 +498,7 @@ export class TcDriving extends LitElement {
                   event.preventDefault();
                   this.letting(cab.train, one.name);
                 }}
+                @blur=${() => this.letting(cab.train, one.name)}
               >
                 ${one.name}
               </button>
@@ -645,20 +669,37 @@ export class TcDriving extends LitElement {
    *  the hold remembered so that only its end asks for off. */
   private holding(train: string, name: string): void {
     if (!this.live || this.cab?.train !== train || this.held.has(name)) return;
-    this.held.add(name);
+    this.held.set(name, train);
     this.switching(train, name, true);
   }
 
   /** A momentary function's button let go of: one `function_wanted` for off,
    *  once for each hold however many of its ends arrive — a pointer up is
-   *  followed by the capture's loss. */
+   *  followed by the capture's loss, a blur by the key coming up. Unguarded,
+   *  where the start is guarded: over dead rails, or for a train this
+   *  throttle no longer holds, the off still goes, and `layout` takes it at
+   *  any power and drops it where the train is not this throttle's (#994). */
   private letting(train: string, name: string): void {
-    if (!this.held.delete(name)) return;
-    this.switching(train, name, false);
+    if (this.held.get(name) !== train) return;
+    this.held.delete(name);
+    this.say<FunctionWanted>("function-wanted", {
+      train,
+      throttle: this.throttle,
+      function: name,
+      on: false,
+    });
   }
 
+  /** Every hold on the panel let go of, as `letting` lets go of one. */
+  private lettingAll(): void {
+    for (const [name, train] of [...this.held]) this.letting(train, name);
+  }
+
+  /** An event for the page. A panel being removed is out of the page
+   *  already, so what it says then is said from the root it was drawn in. */
   private say<T>(name: string, detail: T): void {
-    this.dispatchEvent(
+    const from = this.isConnected ? this : this.home;
+    from?.dispatchEvent(
       new CustomEvent<T>(name, { detail, bubbles: true, composed: true }),
     );
   }

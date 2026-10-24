@@ -1684,6 +1684,81 @@ describe("what a person can switch", () => {
     expect(switched()).toEqual([]);
   });
 
+  /** The band's stop pressed while the horn sounds: the off goes out over
+   *  dead rails too, or the horn sounds again when power comes back (#994).
+   *  `layout` takes it at any power. */
+  it("lets a momentary function go over rails gone dead under the hold", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    const horn = button(shell, "horn");
+
+    pointer(horn, "pointerdown");
+    await said(shell, POWER, { power: "off" });
+    pointer(horn, "pointerup");
+    pointer(horn, "lostpointercapture");
+    await settled(shell);
+
+    expect(asks()).toEqual([true, false]);
+  });
+
+  /** Focus moved away before the key came up: the keyup never reaches the
+   *  button, so the blur ends the hold, and the keyup after it asks nothing
+   *  more. */
+  it("lets a momentary function go when its button loses focus", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    const horn = button(shell, "horn");
+
+    key(horn, "keydown", " ");
+    horn.dispatchEvent(new FocusEvent("blur"));
+    await settled(shell);
+    expect(asks()).toEqual([true, false]);
+
+    key(horn, "keyup", " ");
+    await settled(shell);
+    expect(asks()).toEqual([true, false]);
+  });
+
+  /** A page hidden — another app, a phone locked — hears no key or pointer
+   *  come up. */
+  it("lets a momentary function go when the page is hidden", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    const horn = button(shell, "horn");
+
+    key(horn, "keydown", " ");
+    Object.defineProperty(document, "visibilityState", {
+      value: "hidden",
+      configurable: true,
+    });
+    try {
+      document.dispatchEvent(new Event("visibilitychange"));
+    } finally {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
+    await settled(shell);
+
+    expect(asks()).toEqual([true, false]);
+  });
+
+  /** The train given back under the hold: the panel goes, and its hold with
+   *  it. `layout` drops the off where this throttle no longer holds the
+   *  train. */
+  it("lets a momentary function go when the panel is removed", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+
+    pointer(button(shell, "horn"), "pointerdown");
+    await said(shell, TAKEN, { taken: {} });
+    expect(columns(shell)).toEqual([]);
+
+    expect(asks()).toEqual([true, false]);
+  });
+
   /** Each pressed, and not read off `disabled`: a press that writes nothing
    *  is the claim. A button let go of under the pointer — the train gone to
    *  another throttle or to none — is pressed where the person's finger
