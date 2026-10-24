@@ -19,6 +19,7 @@ import "../src/ui/tc-roster.js";
 import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { RosterRow } from "../src/model/panel.js";
+import { photoUrl } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
 import { running, settled, surface } from "./support/shell.js";
@@ -65,8 +66,8 @@ afterEach(() => {
 describe("what the pane lists", () => {
   it("gives each train its name, its length and the block it stands in", async () => {
     const roster = await pane([
-      { train: "goods", block: "a", length: 400, placed: true },
-      { train: "express", block: "b", length: 1100, placed: true },
+      { train: "goods", block: "a", length: 400, placed: true, locomotive: null },
+      { train: "express", block: "b", length: 1100, placed: true, locomotive: null },
     ]);
     expect(rows(roster)).toEqual([
       ["goods", "400", "a"],
@@ -79,8 +80,8 @@ describe("what the pane lists", () => {
    *  reshuffling it under the reader. */
   it("keeps the order it was handed", async () => {
     const roster = await pane([
-      { train: "z", block: "a", length: 1, placed: true },
-      { train: "a", block: "b", length: 2, placed: true },
+      { train: "z", block: "a", length: 1, placed: true, locomotive: null },
+      { train: "a", block: "b", length: 2, placed: true, locomotive: null },
     ]);
     expect(rows(roster).map(([name]) => name)).toEqual(["z", "a"]);
   });
@@ -89,7 +90,7 @@ describe("what the pane lists", () => {
    *  same, holding the transit that is taking it out of the last one. */
   it("says a train that stands in no block is crossing a transit", async () => {
     const roster = await pane([
-      { train: "goods", block: null, length: 400, placed: true },
+      { train: "goods", block: null, length: 400, placed: true, locomotive: null },
     ]);
     expect(rows(roster)).toEqual([["goods", "400", "crossing a transit"]]);
   });
@@ -99,7 +100,7 @@ describe("what the pane lists", () => {
    *  length zero. */
   it("leaves the length blank where nothing names one", async () => {
     const roster = await pane([
-      { train: "goods", block: "a", length: null, placed: true },
+      { train: "goods", block: "a", length: null, placed: true, locomotive: null },
     ]);
     expect(rows(roster)).toEqual([["goods", "", "a"]]);
   });
@@ -109,9 +110,41 @@ describe("what the pane lists", () => {
    *  the row is what there is to drag onto a block. */
   it("says a train that is not placed is off the layout", async () => {
     const roster = await pane([
-      { train: "shunter", block: null, length: 200, placed: false },
+      { train: "shunter", block: null, length: 200, placed: false, locomotive: null },
     ]);
     expect(rows(roster)).toEqual([["shunter", "200", "off the layout"]]);
+  });
+
+  /** The train drawn as its first locomotive, as the throttle's picker draws
+   *  it: the model's photo route, which the store answers (#1012). */
+  it("shows the photo of a train's first locomotive", async () => {
+    const roster = await pane([
+      { train: "goods", block: "a", length: 400, placed: true, locomotive: "BR 218" },
+    ]);
+    const photo = roster.renderRoot.querySelector("li img")!;
+    expect(photo.getAttribute("src")).toBe(photoUrl("BR 218"));
+    expect(photo.getAttribute("draggable")).toBe("false");
+  });
+
+  /** A train with no locomotive has no picture, and its row keeps the slot
+   *  so the rows stay one height. */
+  it("shows no picture for a train with no locomotive", async () => {
+    const roster = await pane([
+      { train: "rake", block: "a", length: 300, placed: true, locomotive: null },
+    ]);
+    expect(roster.renderRoot.querySelector("li img")).toBeNull();
+    expect(roster.renderRoot.querySelector("li .photo")).not.toBeNull();
+  });
+
+  /** A photo that does not load is no picture either, not a broken one. */
+  it("drops a photo that does not load", async () => {
+    const roster = await pane([
+      { train: "goods", block: "a", length: 400, placed: true, locomotive: "BR 218" },
+    ]);
+    roster.renderRoot.querySelector("li img")!.dispatchEvent(new Event("error"));
+    await roster.updateComplete;
+    expect(roster.renderRoot.querySelector("li img")).toBeNull();
+    expect(roster.renderRoot.querySelector("li .photo")).not.toBeNull();
   });
 
   /** A railroad with no roster and a page with no session look the same from
@@ -259,6 +292,31 @@ describe("its drags", () => {
     }
     await settled(shell);
   }
+
+  /** The photo is part of the row: a press on it picks the train up as a
+   *  press on the name does (#1012). */
+  it("places a train whose photo was dragged onto a block", async () => {
+    const shell = await joined();
+    laid(shell);
+    const photo = row(shell, "goods").querySelector("img")!;
+    expect(photo).not.toBeNull();
+    for (const name of ["pointerdown", "pointerup"] as const) {
+      photo.dispatchEvent(
+        new PointerEvent(name, {
+          bubbles: true,
+          composed: true,
+          clientX: MIDDLE.b.x,
+          clientY: MIDDLE.b.y,
+        }),
+      );
+    }
+    await settled(shell);
+
+    expect(written()).toContainEqual({
+      topic: "tc49/dispatch/placement_wanted",
+      payload: { train: "goods", block: "b" },
+    });
+  });
 
   it("places a train dragged out of the pane onto a block", async () => {
     const shell = await held();

@@ -7,9 +7,12 @@ import { css } from "lit";
  * too, so the width is the shell's (`--pane`) and not declared here
  * ([#169](https://github.com/rails49/control/issues/169)).
  *
- * A row is a name, where the train is, and how long it is: three columns, so
- * the blocks read down the pane rather than sitting wherever the name before
- * them ended. The length is right-aligned and tabular, being the one number.
+ * A row is the photo of the train's first locomotive, its name, where it is,
+ * and how long it is. The photo sits in a slot of its own down the left, the
+ * same size whether or not there is a picture in it, so every row is one
+ * height (#1012). The blocks read down the pane rather than sitting wherever
+ * the name before them ended. The length is right-aligned and tabular, being
+ * the one number.
  *
  * A row is also something to pick up — a drag onto a block places the train
  * ([#170](https://github.com/rails49/control/issues/170)) — so it takes the
@@ -39,7 +42,7 @@ export const rosterStyles = css`
 
   li {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 3.2rem 1fr auto;
     column-gap: 0.5rem;
     align-items: baseline;
     padding: 0.25rem 0.2rem;
@@ -66,6 +69,17 @@ export const rosterStyles = css`
     color: var(--hint);
   }
 
+  /* The locomotive's photo, or an empty slot of the same size. */
+  .photo {
+    grid-row: 1 / span 2;
+    align-self: center;
+    display: block;
+    width: 3.2rem;
+    height: 1.8rem;
+    object-fit: contain;
+    -webkit-user-drag: none;
+  }
+
   .name {
     overflow: hidden;
     white-space: nowrap;
@@ -80,7 +94,7 @@ export const rosterStyles = css`
   /* Where the train is, under its name: the block it stands in, or a phrase
      for a train that stands in none. */
   .where {
-    grid-column: 1 / -1;
+    grid-column: 2 / -1;
     font-size: 0.7rem;
     color: var(--hint);
   }
