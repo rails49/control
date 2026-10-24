@@ -47,7 +47,7 @@ import {
 } from "./support/session.js";
 import { FakeLock } from "./support/wake.js";
 import { STALL_MS } from "../src/model/picture.js";
-import { photoUrl, pictureUrl, RETRY_MS } from "../src/model/store.js";
+import { photoUrl, pictureUrl, RETRY_MS, type Fn } from "../src/model/store.js";
 import { drivingStyles, TRACK_PAD_PX } from "../src/ui/tc-driving.styles.js";
 
 beforeEach(brokering);
@@ -1339,13 +1339,19 @@ describe("what a person can switch", () => {
   const FUNCTIONS = "tc49/layout/state/functions";
   const FUNCTION_WANTED = "tc49/layout/function_wanted";
 
-  /** The toy roster with `goods` declaring these functions, by name. */
-  function declaring(...names: string[]): void {
+  /** The toy roster with `goods` declaring these functions, by name, or by
+   *  name and mode as the trains route gives them. */
+  function declaring(...declared: (string | Fn)[]): void {
     serving({
       drawings: ["toy"],
       rosterOf: () => ({
         ...STOCK,
-        goods: { ...STOCK.goods, functions: names.map((name) => ({ name })) },
+        goods: {
+          ...STOCK.goods,
+          functions: declared.map((one) =>
+            typeof one === "string" ? { name: one } : one,
+          ),
+        },
       }),
       read: stored,
       review: () => Promise.resolve(DERIVES),
@@ -1483,6 +1489,132 @@ describe("what a person can switch", () => {
     button(shell, "headlights").click();
     await settled(shell);
     expect(switched()).toHaveLength(1);
+  });
+
+  /** The `on` of each `function_wanted` the view wrote, in order. */
+  function asks(): boolean[] {
+    return switched().map(
+      (one) => (one as { payload: { on: boolean } }).payload.on,
+    );
+  }
+
+  function pointer(target: Element, type: string, pointerId = 1): void {
+    target.dispatchEvent(new PointerEvent(type, { pointerId, bubbles: true }));
+  }
+
+  function key(target: Element, type: string, key: string, repeat = false): void {
+    target.dispatchEvent(new KeyboardEvent(type, { key, repeat, bubbles: true }));
+  }
+
+  /** A horn: on while the finger is down, off when it lifts — and the
+   *  click that follows the lift is no second press (#981). */
+  it("holds a momentary function on while its button is held", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    const horn = button(shell, "horn");
+
+    pointer(horn, "pointerdown");
+    await settled(shell);
+    expect(switched()).toEqual([
+      {
+        topic: FUNCTION_WANTED,
+        payload: { train: "goods", throttle: mine(), function: "horn", on: true },
+      },
+    ]);
+
+    pointer(horn, "pointerup");
+    pointer(horn, "lostpointercapture");
+    horn.click();
+    await settled(shell);
+    expect(asks()).toEqual([true, false]);
+  });
+
+  /** The button captures the pointer, so a finger sliding off ends the hold
+   *  by losing the capture, and a cancelled touch ends it too. */
+  it("lets a momentary function go on a pointer cancel or a lost capture", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    const horn = button(shell, "horn");
+
+    pointer(horn, "pointerdown");
+    pointer(horn, "pointercancel");
+    pointer(horn, "pointerdown", 2);
+    pointer(horn, "lostpointercapture", 2);
+    await settled(shell);
+
+    expect(asks()).toEqual([true, false, true, false]);
+  });
+
+  /** Space or Enter held on the focused button, the key's repeat ignored. */
+  it("holds a momentary function on while Space or Enter is held", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    const horn = button(shell, "horn");
+
+    key(horn, "keydown", " ");
+    key(horn, "keydown", " ", true);
+    key(horn, "keydown", " ", true);
+    key(horn, "keyup", " ");
+    key(horn, "keydown", "Enter");
+    key(horn, "keyup", "Enter");
+    key(horn, "keydown", "a");
+    await settled(shell);
+
+    expect(asks()).toEqual([true, false, true, false]);
+  });
+
+  /** It draws what `state/functions` says, as a latching button does. */
+  it("draws a momentary button by state/functions and not by the press", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+
+    pointer(button(shell, "horn"), "pointerdown");
+    await settled(shell);
+    expect(button(shell, "horn").getAttribute("aria-pressed")).toBe("false");
+
+    await said(shell, FUNCTIONS, { functions: { goods: { horn: true } } });
+    expect(button(shell, "horn").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  /** `latching` said or nothing said: one press, one ask, the pointer's
+   *  down and up asking nothing of their own. */
+  it("latches a function whose mode is latching or absent", async () => {
+    declaring({ name: "headlights", mode: "latching" }, "vacuum");
+    const shell = await driving();
+    await held(shell);
+
+    for (const name of ["headlights", "vacuum"]) {
+      const one = button(shell, name);
+      pointer(one, "pointerdown");
+      pointer(one, "pointerup");
+      one.click();
+    }
+    await settled(shell);
+
+    expect(
+      switched().map((one) => (one as { payload: { function: string } }).payload.function),
+    ).toEqual(["headlights", "vacuum"]);
+    expect(asks()).toEqual([true, true]);
+  });
+
+  it("holds nothing on a momentary button over dead rails", async () => {
+    declaring({ name: "horn", mode: "momentary" });
+    const shell = await driving();
+    await held(shell);
+    await said(shell, POWER, { power: "off" });
+    const horn = button(shell, "horn");
+
+    pointer(horn, "pointerdown");
+    pointer(horn, "pointerup");
+    key(horn, "keydown", " ");
+    key(horn, "keyup", " ");
+    await settled(shell);
+
+    expect(switched()).toEqual([]);
   });
 
   /** Each pressed, and not read off `disabled`: a press that writes nothing
