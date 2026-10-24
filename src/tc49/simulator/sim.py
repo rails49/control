@@ -61,6 +61,12 @@ wall clock, polls for commands each period, and never terminates on
 quiescence. The dispatcher cannot tell the modes apart: ADR-0009 stands,
 and the same run leaves the same trace.
 
+It says the **fast clock** as `layout` does, on `tc49/layout/state/clock`,
+when it is built with one (`lib.clock_row`): read off the run clock and said
+once a second of it, which is a real second live and a simulated one in
+batch, so a replay stays byte-identical (ADR-0090, decision 1). It is no
+event on the queue, so it never holds a batch run open.
+
 Where each train stands is held in memory and goes with the process. On a
 real railroad the steel is the persistence — the trains are simply still
 there in the morning — and this binding stands in for the steel, so where
@@ -75,11 +81,17 @@ from heapq import heapify, heappop, heappush
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.clock_row import FastClockRow
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, transit_ends
 from tc49.lib.loading import BUILT
 from tc49.lib.payload import Command, command, named_train, placement
 from tc49.lib.power import TrackPower
+
+CLOCK_S = 1.0
+"""How often the fast clock is said, in seconds of run clock: once a real
+second live, as `layout` says it, and once a simulated second in batch, so
+the two runs say the same rows at the same stamps (ADR-0090, decision 1)."""
 
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
@@ -96,6 +108,7 @@ class Simulator:
         transit_s: float = 30.0,
         clear_s: float = 30.0,
         built: bool = True,
+        fast: FastClockRow | None = None,
     ) -> None:
         """`layout`: the track this binding stands in for; what resolves a
         move's transit to the block its train must be standing in.
@@ -116,6 +129,10 @@ class Simulator:
         `built`: whether `layout` is what the railroad's drawing derives to,
         said on `tc49/layout/state/railroad` as the layout interface says it
         (ADR-0085, decision 4).
+
+        `fast`: the fast clock, read off `clock`, said once each `CLOCK_S` of
+        it from the run's start (ADR-0090). A run given none says none, which
+        is the research harness's: its traces are what they were.
         """
         self._bus = bus
         self._layout = layout
@@ -124,6 +141,9 @@ class Simulator:
         self._clear_s = clear_s
         self._position = dict(position or {})
         self._events: list[_Event] = []
+        self._fast = fast
+        # The run clock's next reading at which the fast clock is said.
+        self._beat = clock.now
         self._seq = 0
         self._rolling: set[str] = set()  # trains between blocks, mid-move
         # The moves granted while the supply is off, one per train, each put
@@ -373,16 +393,26 @@ class Simulator:
 
         It stops too where every queued event is waiting on a supply that is
         off: nothing can fire, and a batch run never presses `off`, so that
-        case is only for safety."""
+        case is only for safety.
+
+        The fast clock, where there is one, is said at each whole `CLOCK_S`
+        of run clock up to the last event, ahead of an event due at the same
+        reading, as the live loop says it."""
+        self._say_clock()
         self._bus.drain()  # the startup cascade: the whole timetable goes in
-        for _ in range(event_limit):
-            if not self._events or self._supply != ON:
-                return
+        fired = 0
+        while self._events and self._supply == ON:
+            if self._fast is not None and self._beat <= self._events[0][0]:
+                self._clock.advance(self._beat)
+                self._say_clock()
+                continue
+            if fired == event_limit:
+                raise RuntimeError(f"no quiescence within {event_limit} events")
+            fired += 1
             event = heappop(self._events)
             self._clock.advance(event[0])
             self._fire(event)
             self._bus.drain()
-        raise RuntimeError(f"no quiescence within {event_limit} events")
 
     def run_live(
         self,
@@ -401,14 +431,22 @@ class Simulator:
         While the supply is off the scheduled events wait: a turn is the
         whole period, and nothing fires until a press brings the power back
         and moves them later by the time it was gone. A drain leaves the
-        supply on, so they fire through it."""
+        supply on, so they fire through it.
+
+        A wait is cut to the fast clock's next beat as well, where there is a
+        clock, so it is said on the run clock's seconds and a live run's rows
+        are a batch run's."""
+        self._say_clock()
         self._bus.drain()  # the startup cascade: standing locks reach the trace
         while not stop():
             step = period_s
             if self._events and self._supply == ON:
                 step = min(step, self._events[0][0] - self._clock.now)
+            if self._fast is not None:
+                step = min(step, self._beat - self._clock.now)
             sleep(max(step, 0.0))
             self._clock.advance(self._clock.now + max(step, 0.0))
+            self._say_clock()
             while (
                 self._supply == ON
                 and self._events
@@ -417,3 +455,17 @@ class Simulator:
                 self._fire(heappop(self._events))
                 self._bus.drain()
             self._bus.drain()
+
+    def _say_clock(self) -> None:
+        """The fast clock said where a beat is due by the run clock, once
+        however many were passed, and the next one set a `CLOCK_S` on from
+        the one due, so the beats keep to the run's own seconds. The clock is
+        no event: it runs whatever track power and the run are doing, and a
+        batch run ends at quiescence without waiting on it (ADR-0090,
+        decision 5)."""
+        if self._fast is None or self._beat > self._clock.now:
+            return
+        self._fast.say()
+        self._bus.drain()
+        while self._beat <= self._clock.now:
+            self._beat += CLOCK_S
