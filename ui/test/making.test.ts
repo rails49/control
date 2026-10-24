@@ -860,7 +860,7 @@ describe("the car editor", () => {
     owned();
     const shell = await opened();
     await tab(shell, "cars");
-    await pressed(shell, ".car-editor button.model");
+    await pressed(shell, ".car-editor button.open-model");
     expect(part(shell, ".ed-head h2").textContent).toBe("Re 460");
 
     await tab(shell, "cars");
@@ -916,6 +916,19 @@ describe("the list", () => {
     expect(
       parts(shell, "button.card.car .facts span").map((one) => one.textContent),
     ).toEqual(["arnold-ce68", "3"]);
+  });
+
+  /** A rule for another button must not reach a card: `button.model` did,
+   *  and the card lost its grid and its photo spilled over the next (#1003). */
+  it("lays out every card as a grid", async () => {
+    const shell = await opened();
+    await ore(shell);
+    for (const which of ["trains", "cars", "models"] as const) {
+      await tab(shell, which);
+      for (const card of parts(shell, "button.card")) {
+        expect(getComputedStyle(card).display).toBe("grid");
+      }
+    }
   });
 
   /** One column where the view is narrower than 760 px: a card pressed

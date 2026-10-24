@@ -37,8 +37,9 @@ frame 10:3 wide, the name, and a line of facts. A model: kind, scale, length,
 *decoder*. A car: its model's name, its address, *camera*. A train: how many
 cars, its length, its kind, its priority. A car's card shows its model's photo
 and a train's its first locomotive's. **Every photo is shown whole**
-(`object-fit: contain`): train cars are wide and low, and a crop cuts off the
-end that tells two apart.
+(`object-fit: contain`) on white: train cars are wide and low, and a crop cuts
+off the end that tells two apart. Product photos are shot on white, so the
+space beside or above the photo matches it in either theme.
 
 **Cars are few because they are yours.** A locomotive you own, with its
 address, written once and never restated. **Models are what anything is made
