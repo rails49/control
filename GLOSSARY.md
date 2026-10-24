@@ -180,16 +180,25 @@ _Avoid_: switch (a point), lever
 ### Stock
 
 **Model**:
-What a product is, independent of any railroad that owns one: a length, a kind,
-and the meaning of each numbered function. Two railroads owning the same item
-share one model ([LAYOUT.md](docs/store/LAYOUT.md#catalogue-schema)).
+What a product is, independent of any railroad that owns one: a name, a
+scale, a length, a kind, whether it has a decoder and what its functions are,
+and optionally a photo and notes. Two railroads owning the same item share one
+model ([LAYOUT.md](docs/store/LAYOUT.md#catalogue-schema)).
 _Avoid_: type (reads as kind), class, product
 
 **Car**:
-One item a railroad owns: a model with zero or more fields overridden, and its
-own address where it has a decoder. A locomotive is a car whose model's kind
+One item a railroad owns: a model with zero or more fields overridden, its own
+address where it has a decoder, and its own camera where it carries one. No
+two cars on one railroad share either. A locomotive is a car whose model's kind
 says so ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: vehicle, item, wagon, rolling stock (the mass noun is stock)
+
+**Function**:
+Something a decoder turns on and off, numbered on the decoder and named per
+model, such as a horn or the headlights. It is **latching**, on at
+one press and off at the next, or **momentary**, on only while the throttle's
+button is held. The stock view calls them *toggle* and *hold*.
+_Avoid_: feature, effect, output
 
 **Camera car**:
 A car that carries a camera. A throttle holding a train the camera car is in
