@@ -17,10 +17,13 @@ as `layout` reads it: the store says which railroad was loaded last
 (`/loaded`), this binding starts on that one — nothing on the command line
 names a railroad, and a box that records none stands — and each railroad it
 is built on is written back to the record before the build (ADR-0072,
-decision 5). **One document and not two**, where
+decision 5). **The drawing and the clock, and no roster**, where
 `layout` reads a roster as well: an address is what a roster answers with and
 this binding sends no command to anything, so the track alone is what it
-stands in for. Neither the drain
+stands in for. The clock is the railroad's start time and speed-up,
+`layouts/<layout>.clock.yaml`, read and kept as `layout` reads and keeps it
+(`lib/clock_row.py`), and the fast clock it starts is said off the run clock
+(ADR-0090). Neither the drain
 period nor the two delays is a flag — nothing outside this process has an
 opinion about how often it takes what the broker's network thread left
 waiting, and what a transit costs is this binding's own stand-in for travel
@@ -73,10 +76,13 @@ import contextlib
 import signal
 import sys
 import threading
+import time
 from collections.abc import Callable, Sequence
 
 from tc49.lib.clock import Clock
+from tc49.lib.clock_row import Keeping, kept_by, loaded
 from tc49.lib.documents import Documents
+from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
@@ -99,9 +105,14 @@ divided by a speed, and the railroad it stands in for is the one thing that
 could say otherwise. The suite shortens them, a test that waited out a real
 transit spending half a minute on one move."""
 
-OWNED = ("tc49/layout/state/railroad", "tc49/layout/state/power")
+OWNED = (
+    "tc49/layout/state/railroad",
+    "tc49/layout/state/power",
+    "tc49/layout/state/clock",
+)
 """The retained rows this binding of the layout interface writes: which
-railroad it is standing in for, and the supply each answered press set. The block events it publishes as trains move are events and
+railroad it is standing in for, the supply each answered press set, and the
+fast clock. The block events it publishes as trains move are events and
 carry no retained value to drop (ADR-0060)."""
 
 
@@ -135,14 +146,20 @@ def serve(
     """
     if not connected(bus, stop, log):
         return
-    binding = _Binding(bus, documents, stop, period_s, transit_s, clear_s)
+    binding = _Binding(bus, documents, stop, period_s, transit_s, clear_s, log)
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
+type _Read = tuple[Layout, KeptClock | None]
+"""What a railroad is simulated from: its layout, and the clock it keeps,
+None where it keeps none."""
+
+
 class _Binding:
-    """What this binding hands the rebuild loop: one document read, and a
-    `Simulator` built on it. This binding's steel is the drawing it was built
-    from, so another railroad is another simulator (ADR-0030)."""
+    """What this binding hands the rebuild loop: two documents read, the
+    drawing and the clock, and a `Simulator` built on them. This binding's
+    steel is the drawing it was built from, so another railroad is another
+    simulator (ADR-0030)."""
 
     owned: Sequence[str] = OWNED
 
@@ -154,6 +171,7 @@ class _Binding:
         period_s: float,
         transit_s: float,
         clear_s: float,
+        log: Callable[[str], None],
     ) -> None:
         self._bus = bus
         self._stop = stop
@@ -161,34 +179,56 @@ class _Binding:
         self._transit_s = transit_s
         self._clear_s = clear_s
         self._documents = documents
+        self._log = log
+        self._keeping = Keeping(documents, log)
 
-    def read(self, railroad: str) -> Layout:
-        """The drawing alone: this binding sends no command, so it reads no
-        roster."""
-        return self._documents.layout(railroad)
+    def read(self, railroad: str) -> _Read:
+        """The drawing and the clock the railroad keeps: this binding sends
+        no command, so it reads no roster."""
+        return (
+            self._documents.layout(railroad),
+            kept_by(self._documents, railroad, self._log),
+        )
 
-    def nothing(self, railroad: str) -> Layout:
+    def nothing(self, railroad: str) -> _Read:
         """What this binding stands in for where `railroad`'s drawing is not
         a valid drawing and there is no build to keep: no track under its
-        name, the layout interface's own answer (ADR-0085, decision 4)."""
-        return Layout(railroad, {}, {}, frozenset(), {})
+        name, the layout interface's own answer (ADR-0085, decision 4). Its
+        clock is the railroad's all the same."""
+        return (
+            Layout(railroad, {}, {}, frozenset(), {}),
+            kept_by(self._documents, railroad, self._log),
+        )
 
-    def layout(self, read: Layout) -> Layout:
-        return read
+    def layout(self, read: _Read) -> Layout:
+        return read[0]
 
-    def build(self, read: Layout, position: dict[str, str], built: bool) -> Running:
+    def build(self, read: _Read, position: dict[str, str], built: bool) -> Running:
         """The simulator on its own clock, starting at zero, which `run_live`
         is the only thing to advance. The steel stands where it stood under
         the same name, a train longer than its block included: that is where
-        the steel has it (ADR-0071)."""
+        the steel has it (ADR-0071).
+
+        The fast clock is started as `layout` starts it, at the start time and
+        speed-up the railroad keeps or at the box's time of day at 1, and run
+        on the run clock from there; what a person sets is kept with the
+        railroad as `layout` keeps it (ADR-0090)."""
+        layout, kept = read
+        clock = Clock()
+
+        def keep(changed: KeptClock) -> None:
+            self._keeping.keep(layout.name, changed)
+
+        fast = loaded(self._bus, kept, lambda: clock.now, time.localtime(), keep)
         simulator = Simulator(
             self._bus,
-            read,
-            Clock(),
+            layout,
+            clock,
             position,
             transit_s=self._transit_s,
             clear_s=self._clear_s,
             built=built,
+            fast=fast,
         )
         return _Running(simulator, self._stop, self._period_s)
 
