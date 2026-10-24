@@ -20,9 +20,9 @@
  * (`tc49.lib.roster.Train`), which is what the tests pin.
  *
  * It is a module in `model/` with a test because none of it is the DOM
- * (ui/README.md): what promotes an entry to a car, what a name is minted as,
- * what holds a thing that somebody asked to remove, and why a length may not
- * be corrected are all rules, and a rule belongs where it can be driven from
+ * (ui/README.md): what a model put in a train goes in as, what a name is
+ * minted as, what holds a thing that somebody asked to remove, and why a
+ * length may not be corrected are all rules, and a rule belongs where it can be driven from
  * plain values.
  */
 
@@ -277,28 +277,11 @@ export function trainFunctions(
     if (one === null) continue;
     for (const fn of Object.values(one.functions)) {
       if (!byName.has(fn.name)) {
-        byName.set(fn.name, { name: fn.name });
+        byName.set(fn.name, { name: fn.name, mode: fn.mode ?? LATCHING });
       }
     }
   }
   return [...byName.values()];
-}
-
-/**
- * The name a promoted entry is filed under: the model's, with the lowest
- * suffix nothing has taken — `arnold-ce68-1` until a person calls it
- * `krokodil-a`.
- *
- * Minted rather than asked for, because nothing should have to classify an
- * item before adding it: filling in an address is the whole gesture, and the
- * name is what the roster then needs to refer to it by.
- */
-export function mint(model: string, taken: Iterable<string>): string {
-  const already = new Set(taken);
-  for (let n = 1; ; n++) {
-    const name = `${model}-${n}`;
-    if (!already.has(name)) return name;
-  }
 }
 
 /** What names a car, in words: the trains whose entries do. Empty where
@@ -422,15 +405,17 @@ export interface ModelRow {
   held: string | null;
 }
 
-/** One place in a train: what stands there and which way round, with the
- *  address offered whatever its kind — a powered van is a real thing, so the
- *  field is offered and never assumed (ADR-0061, `layout/interface.py`). */
+/** One place in a train: what stands there and which way round, and what
+ *  its tile says of it. */
 export interface EntryRow {
   /** The car it names, `null` where the entry is anonymous. */
   car: string | null;
   /** What it is, however it was named; `null` where the documents have not
    *  got it. */
   model: string | null;
+  /** What a person reads it as: the car's name, or for a model entry the
+   *  model's. */
+  name: string;
   addr: string | null;
   /** The camera of the car it names; an anonymous entry carries none. */
   camera: string | null;
@@ -456,6 +441,17 @@ export interface TrainRow {
    *  first entry converts it (#414). */
   stated: boolean;
 }
+
+/** What a model put in a train went in as (`Stock.addModel`): a model
+ *  entry, a car made for it whose address is to be asked, the one car of it
+ *  the railroad has, or nothing yet, the railroad having several to choose
+ *  from — or nothing at all, where there is no such train or model. */
+export type Added =
+  | { as: "model" }
+  | { as: "made"; car: string }
+  | { as: "only"; car: string }
+  | { as: "which" }
+  | { as: "nothing" };
 
 /**
  * The stock screen's session: the roster being edited, the catalogue it is
@@ -619,8 +615,8 @@ export class Stock {
       );
     if (empty !== undefined) {
       return (
-        `train '${empty[0]}' has nothing in it — press + beside a car or a` +
-        ` model, or remove it`
+        `train '${empty[0]}' has nothing in it — press Add to put a car or a` +
+        ` model in it, or unmake it`
       );
     }
     for (const key of this.rows.keys()) {
@@ -707,10 +703,12 @@ export class Stock {
 
   private entry(entry: Coupled): EntryRow {
     const whole = stands(entry, this.doc, this.models);
+    const product = entry.model === undefined ? undefined : this.models[entry.model];
     return {
       car: entry.car ?? null,
       model: whole?.model ?? entry.model ?? null,
       addr: whole?.addr ?? null,
+      name: entry.car ?? (product === undefined ? (entry.model ?? "—") : modelName(product)),
       camera: entry.car === undefined ? null : (this.doc.cars?.[entry.car]?.camera ?? null),
       length: whole?.length ?? null,
       reverse: entry.orientation === REVERSE,
@@ -723,15 +721,23 @@ export class Stock {
    *  right from left starts with. */
   addTrain(name: string): string | null {
     if (name.trim() === "") return "A train needs a name.";
-    if (this.doc.trains[name] !== undefined) return `there is already a train '${name}'`;
+    if (this.doc.trains[name] !== undefined) return `There is already a train '${name}'.`;
     this.write({ trains: { ...this.doc.trains, [name]: { cars: [] } } });
     return null;
+  }
+
+  /** New train: *New train*, or *New train (2)* where that is taken, with
+   *  nothing in it yet. The name it was made under. */
+  newTrain(): string {
+    const name = untaken("New train", Object.keys(this.doc.trains));
+    this.addTrain(name);
+    return name;
   }
 
   renameTrain(was: string, name: string): string | null {
     if (name === was) return null;
     if (name.trim() === "") return "A train needs a name.";
-    if (this.doc.trains[name] !== undefined) return `there is already a train '${name}'`;
+    if (this.doc.trains[name] !== undefined) return `There is already a train '${name}'.`;
     const train = this.doc.trains[was];
     if (train === undefined) return null;
     const trains: Record<string, RosterTrain> = {};
@@ -739,6 +745,25 @@ export class Stock {
       trains[key === was ? name : key] = one;
     }
     this.write({ trains });
+    return null;
+  }
+
+  /** A train's priority, 1 the highest; empty takes the key off, which is
+   *  the lowest. Anything but a whole number from 1 is refused. */
+  trainPriority(train: string, typed: string): string | null {
+    const made = this.doc.trains[train];
+    if (made === undefined) return null;
+    const wanted = typed.trim();
+    const { priority: _was, ...rest } = made;
+    if (wanted === "") {
+      if (made.priority !== undefined) this.write({ trains: { ...this.doc.trains, [train]: rest } });
+      return null;
+    }
+    if (!/^\d+$/.test(wanted) || Number(wanted) < 1) {
+      return `'${wanted}' is not a priority. Use a whole number: 1 is highest.`;
+    }
+    if (made.priority === Number(wanted)) return null;
+    this.write({ trains: { ...this.doc.trains, [train]: { ...rest, priority: Number(wanted) } } });
     return null;
   }
 
@@ -751,18 +776,86 @@ export class Stock {
   }
 
   /**
-   * Put something at the tail of a train: a car from the list above, or a
-   * model from the list below, which gives an anonymous item.
+   * Put something at the tail of a train: a car, or a model, which gives an
+   * anonymous item. **One item cannot stand in a train twice**, so a car the
+   * train already has is refused.
    *
    * The first entry on a train that **states its length** converts it: the
    * stated number goes and the length is derived from then on (#414).
    */
-  append(train: string, what: { car: string } | { model: string }): void {
+  append(train: string, what: { car: string } | { model: string }): string | null {
+    const made = this.doc.trains[train];
+    if (made === undefined) return null;
+    if ("car" in what && (made.cars ?? []).some((entry) => entry.car === what.car)) {
+      return `${what.car} is already in ${train}. One item cannot stand in a train twice.`;
+    }
     this.inTrain(train, (cars) => [...cars, what]);
+    return null;
+  }
+
+  /**
+   * A model put in a train, as the picker puts one (#980).
+   *
+   * **A model without a decoder goes in as a model entry** (ADR-0061). **One
+   * with a decoder goes in as a car**, its address belonging to one item:
+   * where the railroad has no car of it the train does not already hold, one
+   * is made (`newCar`) and its address is the next thing to ask; where it has
+   * exactly one car of it, that car goes in; where it has more, nothing goes
+   * in yet and the cars are the person's to choose from (`carsOf`).
+   */
+  addModel(train: string, key: string): Added {
+    const at = this.keyOf(key);
+    const model = this.models[at];
+    if (model === undefined || this.doc.trains[train] === undefined) return { as: "nothing" };
+    if (!hasDecoder(model)) {
+      this.append(train, { model: at });
+      return { as: "model" };
+    }
+    const cars = this.carsOf(train, at);
+    const free = cars.filter((one) => !one.inTrain);
+    if (free.length === 0) {
+      const car = this.newCar(at)!;
+      this.append(train, { car });
+      return { as: "made", car };
+    }
+    if (cars.length === 1) {
+      this.append(train, { car: free[0]!.car });
+      return { as: "only", car: free[0]!.car };
+    }
+    return { as: "which" };
+  }
+
+  /** Every car of a model, by name, and whether the train already holds it:
+   *  what *Which <model>?* lists. */
+  carsOf(train: string, key: string): { car: string; inTrain: boolean }[] {
+    const at = this.keyOf(key);
+    const held = new Set(
+      (this.doc.trains[train]?.cars ?? []).flatMap((entry) =>
+        entry.car === undefined ? [] : [entry.car],
+      ),
+    );
+    return Object.entries(this.doc.cars ?? {})
+      .filter(([, car]) => car.model === at)
+      .map(([car]) => car)
+      .sort(byName)
+      .map((car) => ({ car, inTrain: held.has(car) }));
   }
 
   removeEntry(train: string, index: number): void {
     this.inTrain(train, (cars) => cars.filter((_, at) => at !== index));
+  }
+
+  /** The entry at `from` taken out and put back at `to`, which is where a
+   *  tile dragged along the strip is dropped. */
+  moveEntry(train: string, from: number, to: number): void {
+    const cars = this.doc.trains[train]?.cars ?? [];
+    if (from === to || cars[from] === undefined || to < 0 || to >= cars.length) return;
+    this.inTrain(train, (all) => {
+      const moved = [...all];
+      const [one] = moved.splice(from, 1);
+      moved.splice(to, 0, one!);
+      return moved;
+    });
   }
 
   /** Which way round the item at one place is coupled. `forward` is the
@@ -776,76 +869,6 @@ export class Stock {
         return entry.orientation === REVERSE ? rest : { ...rest, orientation: REVERSE };
       }),
     );
-  }
-
-  /**
-   * An address typed against one place in a train.
-   *
-   * **This is what promotes an anonymous entry to a car**: an address is the
-   * physical identity, so having one is exactly what puts an item on `cars`
-   * (ADR-0061). The name is minted from the model and is the person's to
-   * change afterwards; nothing asked them to classify the item before they
-   * added it.
-   *
-   * An entry that already names a car has that car's address set instead, and
-   * clearing it leaves the car — a car with neither an address nor an override
-   * is still legal, and a person who named one meant to.
-   */
-  address(train: string, index: number, addr: string): string | null {
-    const entry = this.doc.trains[train]?.cars?.[index];
-    if (entry === undefined) return null;
-    const wanted = addr.trim();
-    if (entry.car !== undefined) return this.carAddress(entry.car, wanted);
-    if (wanted === "") return null;
-    const trouble = this.addressTrouble(wanted, null);
-    if (trouble !== null) return trouble;
-    this.promote(train, index, { addr: String(Number(wanted)) });
-    return null;
-  }
-
-  /**
-   * A camera typed against one place in a train: where the camera riding in
-   * that item answers on the LAN (ADR-0082).
-   *
-   * It promotes an anonymous entry to a car exactly as an address does — a
-   * camera is as much the item's own as a decoder is — and the new car has
-   * the camera and no address. An entry that names a car has that car's
-   * camera set instead.
-   */
-  camera(train: string, index: number, camera: string): string | null {
-    const entry = this.doc.trains[train]?.cars?.[index];
-    if (entry === undefined) return null;
-    const wanted = camera.trim();
-    if (entry.car !== undefined) return this.carCamera(entry.car, wanted);
-    if (wanted === "") return null;
-    const trouble = this.cameraTrouble(wanted, null);
-    if (trouble !== null) return trouble;
-    this.promote(train, index, { camera: wanted });
-    return null;
-  }
-
-  /** An anonymous entry made a car of its own, filed under a name minted from
-   *  its model and carrying what was typed against it. */
-  private promote(train: string, index: number, own: Partial<CarDoc>): void {
-    const model = this.doc.trains[train]!.cars![index]!.model;
-    if (model === undefined) return;
-    const product = this.models[model];
-    const name = mint(
-      product === undefined ? model : modelName(product),
-      Object.keys(this.doc.cars ?? {}),
-    );
-    this.write({
-      cars: { ...this.doc.cars, [name]: { model, ...own } },
-      trains: {
-        ...this.doc.trains,
-        [train]: {
-          ...this.doc.trains[train]!,
-          cars: this.doc.trains[train]!.cars!.map((one, at) =>
-            at === index ? promoted(one, name) : one,
-          ),
-        },
-      },
-    });
   }
 
   // --- cars -----------------------------------------------------------------
@@ -1420,16 +1443,6 @@ export class Stock {
  *  scheme, port, path or login, how the camera is spoken to being the
  *  `camera` app's (ADR-0082). */
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
-
-/** The promoted entry: the car it now names, keeping which way round it was
- *  coupled. Written out rather than spread over the old one, so the saved
- *  document never names both a car and a model — the store refuses one that
- *  does (`store/stock.py`). */
-function promoted(entry: Coupled, car: string): Coupled {
-  return entry.orientation === undefined
-    ? { car }
-    : { car, orientation: entry.orientation };
-}
 
 /** Names in the order a person reads a list: case aside. */
 function byName(one: string, other: string): number {

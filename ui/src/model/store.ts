@@ -250,6 +250,10 @@ export interface TrainDoc {
  *  ADR-0063). */
 export interface Fn {
   name: string;
+  /** `latching` or `momentary`, as the catalogue says the function answers
+   *  its button; always on the store's answer since #977, and absent from an
+   *  older store's, read as `latching`. */
+  mode?: string;
 }
 
 export async function readTrains(railroad: string): Promise<TrainsDoc> {
