@@ -320,8 +320,17 @@ for is latching ([#981](https://github.com/rails49/control/issues/981)):
   down on the button, and `on: false` at its `pointerup`, `pointercancel` or
   `lostpointercapture`. The button captures the pointer, so a finger sliding
   off still ends the hold. Space or Enter held on the focused button does the
-  same with its key down and up, the key's repeat ignored. Each hold sends
-  one off, however many of its ends arrive.
+  same with its key down and up, the key's repeat ignored. A hold also ends
+  as the button loses focus (`blur`), as the page is hidden
+  (`visibilitychange` to `hidden`, every hold on the panel) and as the panel
+  is removed (every hold on the panel), since no key or pointer coming up
+  reaches it then. Each hold sends one off, however many of its ends arrive,
+  and sends it over dead rails too and whatever the panel holds by then:
+  `layout` takes it at any power and drops it where this throttle no longer
+  holds the train (BUS.md, `function_wanted`). A horn held as the band's stop
+  is pressed is let go of, and does not sound again when power comes back
+  ([#994](https://github.com/rails49/control/issues/994)). Only the start of
+  a hold is refused where a press is.
 
 A momentary button looks the same as a latching one, apart from its pressed
 state, which is `state/functions`'s as every button's is.
@@ -343,7 +352,7 @@ to drive*, or *no broker answering — is the bus running?* with no session
 answering
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
 ADR-0078). The cards, *Take train* and Release publish nothing then, like
-every control on the cab: they are drawn dead with `aria-disabled` and stay
+every control on the cab, the end of a momentary function's hold apart: they are drawn dead with `aria-disabled` and stay
 pressable, so the press reaches the guard that sends nothing. Reading what each train is and what it faces goes on
 working: reading is not gesturing.
 
@@ -525,7 +534,10 @@ opposite of what the button shows while the button waits for
 `state/functions`, that a press on a train held elsewhere or by nobody, with
 power off or with no broker writes nothing, and that
 with the rails dead every press leaves nothing on the socket at all — checked
-by pressing them, not by trusting a disabled attribute.
+by pressing them, not by trusting a disabled attribute. A momentary function
+held sends one `on: false` when the pointer goes up after the rails went dead,
+when its button loses focus with the key still down, when the page is hidden
+and when the panel is removed.
 With `ResizeObserver` stood in for to report the view's size, it checks that
 at 758 px there are two selectors, a card in the second writing `take_wanted` under
 slot 1's id and the first's card for that train then faded, *held by another
