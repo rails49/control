@@ -458,6 +458,71 @@ describe("a row naming no railroad", () => {
   });
 });
 
+/** The fast clock (ADR-0090): read off `state/clock` while a session is
+ *  joined and the broker answers, and set with `clock_wanted`. */
+describe("the fast clock", () => {
+  const STATE_CLOCK = "tc49/layout/state/clock";
+  const CLOCK_WANTED = "tc49/layout/clock_wanted";
+
+  it("reads the clock off state/clock, panel model or none", () => {
+    const stood = standing();
+    stood.answering = false;
+    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.opens();
+    expect(stood.session.clock).toBeNull();
+
+    stood.broker.says(STATE_CLOCK, { at: 1, time: 36_000, speed_up: 8 });
+
+    expect(stood.session.clock).toEqual({ time: 36_000, speedUp: 8 });
+  });
+
+  it("keeps the same object across a row that says the same time", () => {
+    const stood = joined();
+    stood.broker.says(STATE_CLOCK, { at: 1, time: 60, speed_up: 1 });
+    const clock = stood.session.clock;
+
+    stood.broker.says(STATE_CLOCK, { at: 2, time: 60, speed_up: 1 });
+    expect(stood.session.clock).toBe(clock);
+
+    stood.broker.says(STATE_CLOCK, { at: 3, time: 61, speed_up: 1 });
+    expect(stood.session.clock).toEqual({ time: 61, speedUp: 1 });
+  });
+
+  it("has no clock with no railroad loaded or the broker gone", () => {
+    const stood = joined();
+    stood.broker.says(STATE_CLOCK, { at: 1, time: 60, speed_up: 1 });
+    stood.broker.says(RAILROAD, { name: "" });
+    expect(stood.session.clock).toBeNull();
+
+    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(STATE_CLOCK, { at: 2, time: 61, speed_up: 1 });
+    stood.broker.closes();
+    expect(stood.session.clock).toBeNull();
+  });
+
+  it("forgets the last railroad's clock when another is named", () => {
+    const stood = joined();
+    stood.broker.says(STATE_CLOCK, { at: 1, time: 60, speed_up: 1 });
+
+    stood.broker.says(RAILROAD, { name: "other" });
+
+    expect(stood.session.clock).toBeNull();
+  });
+
+  it("asks for only what was changed, and nothing for no change", () => {
+    const stood = joined();
+
+    stood.session.pressClock({ speedUp: 4 });
+    stood.session.pressClock({ time: 3600, speedUp: 1.5 });
+    stood.session.pressClock({});
+
+    expect(written(stood)).toEqual([
+      { topic: CLOCK_WANTED, payload: { speed_up: 4 } },
+      { topic: CLOCK_WANTED, payload: { time: 3600, speed_up: 1.5 } },
+    ]);
+  });
+});
+
 describe("what it answers", () => {
   /** The app redraws only where one of the two is a different object, so a
    *  frame that moves neither must leave both as they were. */
