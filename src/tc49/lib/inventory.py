@@ -108,6 +108,11 @@ TOPICS: dict[str, Topic] = {
     # `layout`, which comes up `manual` (ADR-0079).
     "tc49/layout/driving_wanted": Topic(("driving",), browser=True),
     "tc49/layout/state/driving": Topic((AT, "driving")),
+    # The fast clock, once a real second while a railroad is loaded:
+    # `time` in whole fast-clock seconds since midnight, `speed_up` the fast
+    # seconds per real second (ADR-0090). Nothing in the control path reads
+    # it (ADR-0044).
+    "tc49/layout/state/clock": Topic((AT, "time", "speed_up")),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),

@@ -50,6 +50,7 @@ POWER_WANTED = "tc49/layout/power_wanted"
 POWER = "tc49/layout/state/power"
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 RAILROAD = "tc49/layout/state/railroad"
+CLOCK = "tc49/layout/state/clock"
 TEXT = "tc49/ui/state/text"
 TOGGLE = "tc49/ui/state/toggle"
 BUTTON = "tc49/ui/button"
@@ -263,6 +264,13 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         FUNCTION_WANTED,
     }
     assert not any(is_state_topic(topic) for topic in INBOUND)
+
+
+def test_layout_states_the_fast_clock() -> None:
+    """The time of day and the speed-up, `layout`'s state and no page's
+    (ADR-0090)."""
+    assert TOPICS[CLOCK].fields == (AT, "time", "speed_up")
+    assert CLOCK not in INBOUND
 
 
 def test_no_state_row_is_browser_writable() -> None:
