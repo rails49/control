@@ -406,10 +406,20 @@ list, in its order, run where the lock table or the waiting set changes
 _Avoid_: grant phase (said of a beat), boundary, tick (formerly)
 
 **Fast clock**:
-The railroad's scaled operating time: the wall clock with a start time and a
-multiplier, both railroad configuration. Nothing in the control path reads it
-([BUS.md](docs/BUS.md#time)).
-_Avoid_: scale time, sim time, run clock (the trace's elapsed seconds)
+The railroad's operating time of day. It runs at its speed-up from a start
+time, both kept with the railroad, begins at the start time each time the
+railroad is loaded, and wraps at midnight. There is one for the railroad, every
+page shows the same one, and it keeps running whatever track power and the run
+are doing. Nothing in the control path reads it
+([ADR-0090](docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
+_Avoid_: scale time, sim time, run clock (the trace's elapsed seconds), session
+clock (the elapsed time the band showed before)
+
+**Speed-up**:
+How many fast-clock seconds pass in one real second: at 8, an hour of the
+railroad's day takes 7.5 minutes
+([ADR-0090](docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
+_Avoid_: multiplier, rate, scale
 
 ### Bus
 
