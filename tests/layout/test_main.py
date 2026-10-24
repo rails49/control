@@ -26,8 +26,10 @@ import yaml
 
 from tc49.layout.__main__ import (
     CLOCK,
+    CLOCK_WANTED,
     OWNED,
     SILENCE_ENV,
+    FastClockRow,
     main,
     retained,
     serve,
@@ -46,8 +48,10 @@ from tc49.layout.interface import (
     WANTED_TRACK,
     WANTED_TRACTION,
 )
-from tc49.lib.bus import Payload
+from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.fast_clock import FastClock
 from tc49.lib.loading import BUILT, RAILROAD_WANTED
 from tc49.lib.mqtt import MqttBus
 from tc49.store import AssetStore
@@ -377,6 +381,84 @@ def test_a_layout_built_on_a_railroad_says_the_fast_clock_once_a_second(
     assert all(isinstance(payload["time"], int) for payload in said)
     assert all(0 <= payload["time"] < 24 * 60 * 60 for payload in said)
     witness.close()
+
+
+def test_a_layout_built_on_a_railroad_takes_the_clock_a_person_sets(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """A person sets the clock from any page (ADR-0090, decision 2), and every
+    page is told at once rather than at the next beat."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, CLOCK) != []), "no clock came"
+
+    witness.publish(CLOCK_WANTED, {"time": 8 * 3600, "speed_up": 8})
+    assert drained(
+        witness, lambda: any(row["speed_up"] == 8 for row in rows(heard, CLOCK))
+    ), "the clock was never set"
+    said = next(row for row in rows(heard, CLOCK) if row["speed_up"] == 8)
+    assert 8 * 3600 <= said["time"] < 8 * 3600 + 8 * 2
+    witness.close()
+
+
+class Monotonic:
+    """A real clock a test moves by hand."""
+
+    def __init__(self) -> None:
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def clocked() -> tuple[InProcessBus, Monotonic, Callable[[], None], list[Payload]]:
+    """The fast clock's row on a bus, started at 07:00 at a speed-up of 1,
+    the beat that says it, and what it says."""
+    bus = InProcessBus(Clock())
+    monotonic = Monotonic()
+    said: list[Payload] = []
+    bus.subscribe(CLOCK, lambda _topic, payload: said.append(payload))
+    row = FastClockRow(bus, FastClock(7 * 3600, 1.0, monotonic.now), monotonic)
+
+    def beat() -> None:
+        row.say()
+        bus.drain()
+
+    beat()
+    return bus, monotonic, beat, said
+
+
+def test_a_new_time_is_said_at_once_and_counted_on_from() -> None:
+    bus, monotonic, beat, said = clocked()
+    monotonic.now += 10
+    bus.publish(CLOCK_WANTED, {"time": 9 * 3600})
+    bus.drain()
+    monotonic.now += 5
+    beat()
+    assert [row["time"] for row in said] == [7 * 3600, 9 * 3600, 9 * 3600 + 5]
+    assert said[-1]["speed_up"] == 1
+
+
+def test_a_new_speed_up_runs_from_where_the_clock_stood() -> None:
+    bus, monotonic, beat, said = clocked()
+    monotonic.now += 60
+    bus.publish(CLOCK_WANTED, {"speed_up": 8})
+    bus.drain()
+    monotonic.now += 1
+    beat()
+    assert [row["time"] for row in said[1:]] == [7 * 3600 + 60, 7 * 3600 + 68]
+    assert said[-1]["speed_up"] == 8
+
+
+def test_a_clock_gesture_that_cannot_be_read_says_nothing() -> None:
+    """Dropped as any malformed gesture is (ADR-0034): no row, and the clock
+    runs on as it was."""
+    bus, _, _, said = clocked()
+    for payload in ({}, {"time": 86400}, {"speed_up": 0}, {"time": 1, "speed_up": -1}):
+        bus.publish(CLOCK_WANTED, payload)
+    bus.drain()
+    assert len(said) == 1
 
 
 def test_the_fast_clock_is_cleared_with_the_other_layout_rows() -> None:
