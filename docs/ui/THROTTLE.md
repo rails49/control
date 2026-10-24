@@ -25,9 +25,11 @@ Terminology follows [GLOSSARY.md](../../GLOSSARY.md), **Throttle** and
 The view is **a row of throttles**
 ([#966](https://github.com/rails49/control/issues/966)). Each throttle is a
 panel the size of a phone screen with its own throttle id, and holds at most
-one train. A panel is **the train picker while its throttle holds no train**
-([#853](https://github.com/rails49/control/issues/853)), and **that train's
-driving controls** while it holds one. A train is not picked without being
+one train. A panel is **the train selector while its throttle holds no train**
+([#853](https://github.com/rails49/control/issues/853),
+[#967](https://github.com/rails49/control/issues/967)), and **that train's
+driving controls** while it holds one, with the selector opened over the whole
+panel by pressing the train's picture. A train is not picked without being
 taken: a panel drives the train `tc49/layout/state/taken` names its throttle
 for.
 
@@ -51,35 +53,53 @@ from the end, until the list is the count long. A panel holding a train is
 never dropped: it wraps onto a further row. **Nothing is released because the
 view narrowed**, and a resize publishes nothing.
 
-**The picker** is headed *Take a train*, with one card for each train the
-railroad has placed (`tc49/dispatch/state/allocation`), by name. Placement is the whole of the rule: a train off the layout
-has nothing for a throttle to move
+**The selector** is headed *Choose a train*, with *<n> trains on the layout*
+under it, and one card for each train the railroad has placed
+(`tc49/dispatch/state/allocation`), by name. Placement is the whole of the
+rule: a train off the layout has nothing for a throttle to move
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), and putting one on
 is the run view's pane. Nothing else about the layout appears here — no
 drawing, no route, no block colours. With no train placed it says *no train is
-on the layout — place one in the run view*.
+on the layout — place one in the run view*. While the panel holds a train the
+header has a 40 px close button (✕) on the right, which closes the selector and
+writes nothing; a panel holding none always shows the selector, and has none.
 
-A card shows a thumbnail, the train's name, and where it stands: its block, or
-*crossing a transit*. The thumbnail is the model photo of the train's first
-locomotive, from the catalogue (`/catalogue/<model>/photo`), by the model the
-roster route names (`locomotive`, `GET /rosters/<railroad>/trains`); the
-train's name stands in its place where the train has no locomotive, the roster
-does not have it, or the photo does not load. The cards are a grid, two across
-on a 390 px phone and more where the view is wider, and every press on them is
-at least 44 px high.
+A card shows a 16:9 thumbnail, the train's name, and where it stands: *at
+<block>*, or *crossing a transit*. The thumbnail is the model photo of the
+train's first locomotive, from the catalogue (`/catalogue/<model>/photo`), by
+the model the roster route names (`locomotive`, `GET
+/rosters/<railroad>/trains`); the train's name stands in its place where the
+train has no locomotive, the roster does not have it, or the photo does not
+load. The cards are a grid two across, and **every card is a press**:
 
-- **A train no throttle holds** has **Take**.
+- **The panel's own train** is outlined and says *driving here*. Pressing it
+  closes the selector.
+- **A train no throttle holds**: pressing it takes it — where the panel holds a
+  train, `take_wanted` with `null` for that train first, then the take, in
+  that order (a throttle holds one train, ADR-0089).
 - **A train another throttle holds**, another panel on this page and another
-  tab on the same device included, is drawn faded and says *held by another
-  throttle*. It has no Take, because `layout` would drop one, and has **Force
-  release**.
+  tab on the same device included, is faded and says *held by another
+  throttle*. Pressing it asks first, in a dialog inside the panel: *Take
+  <name>?* — *Another throttle is driving this train. Taking it releases it
+  there first. In manual driving the train stops before it is yours.* —
+  with *Cancel*, which writes nothing, and *Take train*, which writes
+  `take_wanted` with `null` for the train and then the take, in that order.
+  There is no Force release: confirming a take is the same release frame.
+
+The selector's bottom row is one full-width, 48 px **Release <name>**, which
+writes `take_wanted` with `null` for the panel's train, and is disabled while
+the panel holds none. **The selector closes when `state/taken` names the
+panel's throttle for the train chosen in it**, never on the press: if a third
+throttle takes the train between the release and the take, `layout` drops the
+take and the selector stays open.
 
 **A panel's driving controls**, laid out as arrangement A at every width
 ([#852](https://github.com/rails49/control/issues/852)), for that train only:
 
 - **At the top, what the train is reading**: its name, the aspect, the block
-  it stands in or *crossing a transit*, the blocks ahead, and Release.
-- **Below that, the train's picture**, with nothing laid over it but *LIVE*:
+  it stands in or *crossing a transit*, and the blocks ahead.
+- **Below that, the train's picture**, with nothing laid over it but *LIVE*,
+  and pressing it opens the selector:
   the same photo as its card, or its name — the thumbnail — and, where the
   train carries a camera, the camera car's live picture in its place once a
   frame comes (below), the whole frame shown
@@ -148,7 +168,7 @@ writes nothing and the train keeps the person's speed until the move ends, or
 the grant's speed where the train stands (ADR-0081, ADR-0083); in `automatic`
 with no move outstanding, `0.0`.
 
-**Taking a train** — Take on its card — publishes one `take_wanted` naming the
+**Taking a train** — its card pressed — publishes one `take_wanted` naming the
 train and the id of the panel it was pressed in. The gesture names who should hold the train rather than asking
 for a change, so a second take by the throttle already holding it is not a
 race, and `layout` counts it as hearing from that throttle.
@@ -156,19 +176,20 @@ race, and `layout` counts it as hearing from that throttle.
 **The train reads as taken when the state topic says so**, never on the
 gesture. `layout` holds who holds each train and publishes `state/taken`, and a
 view that marked a train taken on its own press would show a person holding a
-train `layout` never handed them (ADR-0035). So the panel's picker stays after
-Take until `state/taken` names the panel's throttle for the train, and a take
-`layout` drops changes nothing on screen. The driving controls show while
-`state/taken` names the panel's throttle for the train and at no other time:
-after Release the panel goes back to the picker once the row no longer names
-it. `throttle_alive` follows the same row: each tick sends one frame for each
+train `layout` never handed them (ADR-0035). So the panel's selector stays
+after the press until `state/taken` names the panel's throttle for the train,
+and a take `layout` drops changes nothing on screen. The driving controls show
+while `state/taken` names the panel's throttle for the train and at no other
+time: after Release the panel shows the selector alone once the row no longer
+names it. `throttle_alive` follows the same row: each tick sends one frame for each
 of this page's ids `state/taken` names for a train on the layout, and none
 while it names none, or the broker goes.
 
-**A train another throttle holds** cannot be taken from here. Its **Force
-release** publishes `take_wanted` with `null` — the same frame as a release,
-which frees the train whoever holds it. Once `state/taken` no longer names a
-throttle for it, it is a free card with Take.
+**A train another throttle holds** is taken only once a person confirms it.
+*Take train* publishes `take_wanted` with `null` — the same frame as a
+release, which frees the train whoever holds it — and then the take. `layout`'s
+rule that a take of a held train is dropped stays, which is why the release
+goes first.
 
 The release writes **one frame and no speed of its own**. `layout` decides what
 a release is worth on the rails — `0.0` in `manual`; in `automatic` mid-move,
@@ -272,19 +293,20 @@ nothing.
 **Everything is dead while the rails are not live.** With
 `tc49/layout/state/power` anything but `on`, or with no session answering, no
 gesture can be sent from this view and the reason stands where the controls
-are, on the picker and on the cab, as `STILL` in `ui/src/model/throttle.ts` has them: *the railroad is
+are, on the selector, as a line under its header, and on the cab, as `STILL` in `ui/src/model/throttle.ts` has them: *the railroad is
 draining — switch it on to drive* and *the track has no power — switch it on
 to drive*, or *no broker answering — is the bus running?* with no session
 answering
 ([ADR-0041](../adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),
-ADR-0078). Take and Force release publish nothing then, like every
-control on the cab. Reading what each train is and what it faces goes on
+ADR-0078). The cards, *Take train* and Release publish nothing then, like
+every control on the cab: they are drawn dead with `aria-disabled` and stay
+pressable, so the press reaches the guard that sends nothing. Reading what each train is and what it faces goes on
 working: reading is not gesturing.
 
 **Each panel acts on its own train.** STOP publishes `throttle_wanted`
 `{train, speed: 0, throttle}` for that panel's train under its id only, Release
 `take_wanted` `{train, throttle: null}` for it only, and the slider, the
-reverser and Turn around act on it only. The panel goes back to the picker when
+reverser and Turn around act on it only. The panel shows the selector alone when
 `state/taken` no longer names its throttle for the train. There is no STOP for
 every held train at once: the band's power is the railroad's stop.
 
@@ -303,13 +325,17 @@ is not on the layout are all somewhere else.
 ## Implementation
 
 `ui/src/ui/tc-throttle.ts`, a Lit component in the shape the other views take,
-with its styles beside it, which lays out the panels, each holding the picker
-in `ui/src/ui/tc-train-picker.ts` or one `ui/src/ui/tc-driving.ts` — owning its
-own train's slider and reverser — with the clock in `ui/src/ui/tc-clock.ts`.
-The app hands the view the session's `throttleFor`, and each panel hands its
-id to what it holds. The picker sends `take-wanted` `{train, throttle}`,
-carried to the session's `pressTake`, and `release-wanted`, the train its
-detail, carried to `pressRelease`; the slider sends `throttle-wanted` `{train,
+with its styles beside it, which lays out the panels, each holding the
+selector in `ui/src/ui/tc-train-picker.ts` or one `ui/src/ui/tc-driving.ts` —
+owning its own train's slider and reverser — with the clock in
+`ui/src/ui/tc-clock.ts`, and the selector over it while it is open. The app
+hands the view the session's `throttleFor`, and each panel hands its id to
+what it holds. The picture sends `selector-wanted` and the close button
+`selector-closed`, both to the panel and neither to the app; the panel notes
+the train of each `take-wanted` its selector sends, and closes the selector
+once `state/taken` names its throttle for that train. The selector sends
+`take-wanted` `{train, throttle}`, carried to the session's `pressTake`, and
+`release-wanted`, the train its detail, carried to `pressRelease`; the slider sends `throttle-wanted` `{train,
 speed, throttle}`, carried to `pressThrottle`, and a function button
 `function-wanted` `{train, throttle, function, on}`, carried to
 `pressFunction`. Neither works anything out: every train offered, the id of the
@@ -343,7 +369,7 @@ names an id this page minted for a train on the layout (`Session.ours`) — and
 while it does it holds one screen wake lock
 (`navigator.wakeLock.request("screen")`) for any number of throttles: `ui/src/ui/wake.ts`, told by the app on every render and let
 go of as the app leaves the page. Holding ending, however it ends — released
-here or by Force release elsewhere, released by `layout` once its silence runs
+here or by a take confirmed elsewhere, released by `layout` once its silence runs
 out, the train taken off the layout, another railroad loaded, or the broker
 gone — releases the lock, and a lock that arrives after holding ended is
 released as it arrives. The browser drops the lock while the page is hidden,
@@ -355,7 +381,7 @@ What is this view's own is what belongs to the person at it: where they have
 put each train's slider and reverser, and which panel slots are shown. None is
 on the bus — nothing publishes a throttle's position back — so each slider is
 what its panel shows and, signed, what it last sent. When the run takes a train
-off the layout its panel goes back to the picker: there is nothing left for a
+off the layout its panel shows the selector alone: there is nothing left for a
 slider to move.
 
 **The camera car's picture** is read with `fetch` from the `camera` app's
@@ -411,11 +437,17 @@ this page's, an id the row drops going quiet while the other goes on, and
 stopping when it names none or the broker goes.
 `ui/test/throttle.test.ts` mounts the app in this view and drives the
 controls, which is the only place the questions this page is about can be
-asked: that the picker has a card per placed train and no list, with the
-locomotive's photo or the train's name, that Take writes one `take_wanted` and
-not two, that the picker stays until `state/taken` names the panel's throttle, that a
-train another throttle holds is faded with no Take and is force released with
-`null`, that the
+asked: that the selector has a card per placed train and no list, with the
+locomotive's photo or the train's name, that a card writes one `take_wanted`
+and not two, that the selector stays until `state/taken` names the panel's
+throttle, that a train another throttle holds is faded with no Force release
+and opens a dialog that writes nothing, *Cancel* nothing and *Take train*
+`null` then the take, that the picture opens the selector with a close button
+that writes nothing, that the panel's own card closes it, that a free card in a
+panel holding a train writes `null` for that train then the take, that the
+selector closes only when `state/taken` names the panel's id for the train and
+stays open when a third throttle has it, that Release writes one `null` and is
+disabled with no train, that the
 slider drives a held train with no move outstanding and runs from 0, that the
 reverser signs it, is dead off 0, sends nothing when switched and is Forward
 on every take, that the slider goes to rest when a granted move ends and when
@@ -430,7 +462,7 @@ sending nothing for `STALL_MS` takes the picture away until `RETRY_MS` on a
 fake clock asks again under a new `try`, but not once the train is released,
 that a release, taking another train, the train leaving the layout and the run
 view each abort the read and leave no picture, that releasing writes
-`null` and goes back to the picker, that a train with no
+`null` and shows the selector alone, that a train with no
 functions shows no button and no `>>`, one or two show with no `>>` and three
 show two and `>>`, which opens the third, that a press on a held train, with
 or without a move granted, writes one `function_wanted` asking for the
@@ -440,9 +472,9 @@ power off or with no broker writes nothing, and that
 with the rails dead every press leaves nothing on the socket at all — checked
 by pressing them, not by trusting a disabled attribute.
 With `ResizeObserver` stood in for to report the view's size, it checks that
-at 758 px there are two pickers, Take in the second writing `take_wanted` under
+at 758 px there are two selectors, a card in the second writing `take_wanted` under
 slot 1's id and the first's card for that train then faded, *held by another
-throttle*; that each panel is as tall as the view less the margin; that
+throttle* and opening the dialog when pressed; that each panel is as tall as the view less the margin; that
 narrowing 758 → 390 px with only the second holding leaves that one and writes
 nothing, and with both holding keeps both, one below the other; that widening
 again adds an empty panel under another id; that every panel holding a train
