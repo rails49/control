@@ -168,6 +168,7 @@ interface (ADR-0030).
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from tc49.lib.bus import Bus, Payload
@@ -362,6 +363,7 @@ class LayoutInterface:
         throttle_silence_s: float = THROTTLE_SILENCE_S,
         position: dict[str, str] | None = None,
         built: bool = True,
+        reread: Callable[[], Roster | None] | None = None,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -402,10 +404,18 @@ class LayoutInterface:
         valid drawing and `layout` is nothing under its name: the railroad
         stays named, nothing is built from it, and this app still answers the
         power (ADR-0085, decision 4).
+
+        `reread`: the loaded railroad's roster read again, once and without
+        waiting on a store that does not answer, None where it cannot be read
+        (ADR-0091, decision 2). A take naming a train this app was not built
+        with asks it, a train made in the stock view since the last build
+        being on the store's roster and nowhere else. The simulator binding
+        passes none.
         """
         self._bus = bus
         self._layout = layout
         self._roster = roster
+        self._reread = reread
         self._clock = clock
         self._settling_s = settling_s
         self._throttle_silence_s = throttle_silence_s
@@ -954,6 +964,9 @@ class LayoutInterface:
 
         `throttle: null` releases the train whoever holds it, which is the
         force release a panel makes (`_let_go`).
+
+        A take of a train the roster lacks reads the roster again first
+        (`_learn`), so a train made since the last build can be driven.
         """
         wanted = wanted_take(payload)
         if wanted is None:
@@ -961,6 +974,8 @@ class LayoutInterface:
         if wanted.throttle is None:
             self._let_go(wanted.train)
             return
+        if wanted.train not in self._roster.trains:
+            self._learn()
         holder = self._taken.get(wanted.train)
         if holder is not None and holder != wanted.throttle:
             _log.info(
@@ -979,6 +994,22 @@ class LayoutInterface:
         if flight is not None:
             block, crossing = flight
             self._crossing[block] = replace(crossing, driving=False)
+
+    def _learn(self) -> None:
+        """The trains the store's roster has and this app lacks, added with
+        their cars, addresses and functions (ADR-0091, decision 2). A train it
+        already has keeps its entry until the next build (ADR-0071). A store
+        that does not answer adds nothing, and the take is applied as it
+        would have been."""
+        if self._reread is None:
+            return
+        read = self._reread()
+        if read is None:
+            return
+        trains = dict(self._roster.trains)
+        for name, train in read.trains.items():
+            trains.setdefault(name, train)
+        self._roster = replace(self._roster, trains=trains)
 
     def _on_throttle_alive(self, topic: str, payload: Payload) -> None:
         """A throttle saying it is still there, once a second while it holds a
