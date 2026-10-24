@@ -362,12 +362,13 @@ start: '06:30'   # "HH:MM", quoted: YAML reads a bare 12:30 as a number
 speed_up: 8      # fast-clock seconds per real second, greater than 0
 ```
 
-Both fields, and nothing else. `layout` writes it when a person sets the
-clock: a new time becomes `start`, rounded down to the minute, and the
-speed-up is the one the clock runs at. It is never written as the clock runs.
-A railroad with no clock document starts at the box's wall time of day at a
-speed-up of 1, and nothing is written until somebody sets it. One that does
-not read is said in `layout`'s log and treated as none. Copy carries it with
+Both fields, and nothing else. `layout`, or the simulator in its place,
+writes it when a person sets the clock (`tc49.lib.clock_row`): a new time
+becomes `start`, rounded down to the minute, and the speed-up is the one the
+clock runs at. It is never written as the clock runs. A railroad with no clock
+document starts at the box's wall time of day at a speed-up of 1, and nothing
+is written until somebody sets it. One that does not read is said in the log
+of whichever of the two loaded it and treated as none. Copy carries it with
 the drawing, roster and script.
 
 ## Scenario schema

@@ -1194,9 +1194,10 @@ stops when nothing is scheduled, nothing pending and no train rolling
 ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)); live mode sleeps the same
 spans and never terminates. That stop rule is the simulator's pacing rather than
 part of the bus contract, and a hardware adapter never terminates at all.
-It says the fast clock as `layout` does, read off its run clock once a second
-of it in either mode, and the clock is no event: a batch run stops without
-waiting on it
+It says the fast clock as `layout` does, when it is given one, read off its
+run clock once a second of it, and the clock is no event. A batch run
+(`bench`) gives it none, so it publishes no clock and stops without waiting on
+one
 ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 
 Sensor events report moves only. Initial occupancy is never published: the
