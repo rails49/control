@@ -367,15 +367,6 @@ export const stockStyles = css`
     text-transform: uppercase;
   }
 
-  .ed-head h2 {
-    margin: 1px 0 0;
-    overflow: hidden;
-    font-size: 21px;
-    font-weight: 700;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
   button.back {
     flex: none;
     width: 40px;

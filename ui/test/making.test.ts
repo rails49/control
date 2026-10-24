@@ -421,7 +421,7 @@ describe("the model editor", () => {
         decoder: false,
       },
     });
-    expect(part(shell, ".ed-head h2").textContent).toBe("Ae 6/6");
+    expect(model(shell, "input.name").value).toBe("Ae 6/6");
   });
 
   it("refuses a name another model has, and puts the field back", async () => {
@@ -861,14 +861,16 @@ describe("the car editor", () => {
     const shell = await opened();
     await tab(shell, "cars");
     await pressed(shell, ".car-editor button.open-model");
-    expect(part(shell, ".ed-head h2").textContent).toBe("Re 460");
+    expect(model(shell, "input.name").value).toBe("Re 460");
 
     await tab(shell, "cars");
     await pressed(shell, ".car-editor .in-trains button");
     expect(part(shell, "button.tab[aria-selected='true']").dataset.tab).toBe(
       "trains",
     );
-    expect(part(shell, ".ed-head h2").textContent).toBe("IC");
+    expect(
+      (part(shell, ".train-editor input.name") as HTMLInputElement).value,
+    ).toBe("IC");
   });
 });
 
@@ -929,6 +931,18 @@ describe("the list", () => {
         expect(getComputedStyle(card).display).toBe("grid");
       }
     }
+  });
+
+  /** The Name field is the one place an item's name appears (#1004). */
+  it("heads each editor with its kind and not its name", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const heads: string[] = [];
+    for (const which of ["trains", "cars", "models"] as const) {
+      await tab(shell, which);
+      heads.push(part(shell, ".ed-head .title").textContent!.trim());
+    }
+    expect(heads).toEqual(["Train", "Car", "Model"]);
   });
 
   /** One column where the view is narrower than 760 px: a card pressed

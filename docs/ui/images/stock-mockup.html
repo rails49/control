@@ -147,7 +147,6 @@ button:focus-visible, a:focus-visible, label.btn:focus-within { outline: 2px sol
 .ed-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .eh-t { flex: 1; min-width: 0; }
 .eyebrow { margin: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.ed-head h2 { margin: 1px 0 0; overflow: hidden; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; text-overflow: ellipsis; }
 .back { flex: none; width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; cursor: pointer; }
 .back svg { width: 18px; height: 18px; }
 .ed-body { display: flex; flex-direction: column; gap: 22px; max-width: 760px; padding: 18px 20px 28px; }
@@ -581,8 +580,8 @@ class App {
   }
   errFor(f) { return this.err && this.err.f === f ? `<p class="err">${esc(this.err.msg)}</p>` : ""; }
   bad(f) { return this.err && this.err.f === f ? " bad" : ""; }
-  head(eyebrow, title, back, actions) {
-    return `<header class="ed-head">${back}<div class="eh-t"><p class="eyebrow">${eyebrow}</p><h2>${esc(title) || "Unnamed"}</h2></div>${actions}</header>`;
+  head(eyebrow, back, actions) {
+    return `<header class="ed-head">${back}<div class="eh-t"><p class="eyebrow">${eyebrow}</p></div>${actions}</header>`;
   }
   lengthGuard() { return S.power ? `<p class="hint warn">Track power is on. Turn it off to correct a length.</p>` : ""; }
 
@@ -607,7 +606,7 @@ class App {
     const pz = m.photo
       ? `<div class="pz" data-drop="${k}">${photoHTML(m.photo)}${this.taking === k ? '<span class="wait">Taking a picture…</span>' : ""}</div>`
       : `<div class="pz empty" data-drop="${k}"><div class="drop">${I.image}<b>Drop a picture here</b><span>or choose a file, or take one with the photo camera</span></div>${this.taking === k ? '<span class="wait">Taking a picture…</span>' : ""}</div>`;
-    return this.head("Model", m.name, back, `<button class="btn small" type="button" data-act="newcar" data-k="${k}">${I.plus}New car</button>`) +
+    return this.head("Model", back, `<button class="btn small" type="button" data-act="newcar" data-k="${k}">${I.plus}New car</button>`) +
       `<div class="ed-body">${pz}<div class="pz-tools"><label class="btn" for="${id}-file">${I.image}Choose file…<input class="file" id="${id}-file" type="file" accept="image/*" data-k="${k}"></label>` +
       `<button class="btn" type="button" data-act="take" data-k="${k}"${this.taking ? " disabled" : ""}>${I.camera}${m.photo ? "Retake photo" : "Take photo"}</button><span class="hint">${info}</span></div>` +
       `<div class="grid2"><label class="fld wide"><span class="lab">Name</span><input class="in name-in${this.bad("m.name")}" id="${id}-m-name" data-f="m.name" value="${esc(m.name)}" placeholder="Ae 6/6">${this.errFor("m.name")}</label>` +
@@ -635,7 +634,7 @@ class App {
       ? `<div class="fld"><span class="lab">Functions, this car's own</span>${this.fnTable(c.fns, "c")}<button class="link" type="button" data-act="cfnmodel">Use the model's functions again</button></div>`
       : `<div class="fld"><span class="lab">Functions, from the model</span><div class="chips">${m.fns.map((f) => `<span class="fchip${f.mode === "momentary" ? " m" : ""}"><code>F${f.n}</code>${esc(f.name)}${f.mode === "momentary" ? "<em>hold</em>" : ""}</span>`).join("") || '<span class="hint">None</span>'}</div>` +
         `<button class="link" type="button" data-act="cfnown">This car's decoder is different: give it its own functions</button></div>`;
-    return this.head("Car", c.name, back, `<button class="btn small danger" type="button" data-act="rmcar"${trains.length ? ` disabled title="In train ${esc(trains[0][1].name)}. Take it out of the train first."` : ""}>${I.trash}Remove</button>`) +
+    return this.head("Car", back, `<button class="btn small danger" type="button" data-act="rmcar"${trains.length ? ` disabled title="In train ${esc(trains[0][1].name)}. Take it out of the train first."` : ""}>${I.trash}Remove</button>`) +
       `<div class="ed-body"><div class="pz">${photoHTML(m.photo)}<span class="chip">${I.image}Photo of the model</span></div>` +
       `<div class="grid2"><label class="fld wide"><span class="lab">Name</span><input class="in name-in${this.bad("c.name")}" id="${id}-c-name" data-f="c.name" value="${esc(c.name)}">${this.errFor("c.name")}</label>` +
       `<div class="fld"><span class="lab">Model</span><button class="btn" type="button" data-act="open" data-tab="models" data-k="${c.model}">${I.car}${esc(m.name)}</button></div>${addr}` +
@@ -658,7 +657,7 @@ class App {
         `<span class="ta"><button class="flip" type="button" data-act="flip" data-i="${i}" aria-pressed="${!!e.rev}">${I.flip}${e.rev ? "Reversed" : "Forward"}</button>` +
         `<button class="x" type="button" data-act="rment" data-i="${i}" aria-label="Take ${esc(entryName(e))} out">${I.close}</button></span></div>`;
     }).join("");
-    return this.head("Train", t.name, back, `<button class="btn small danger" type="button" data-act="unmake">${I.trash}Unmake</button>`) +
+    return this.head("Train", back, `<button class="btn small danger" type="button" data-act="unmake">${I.trash}Unmake</button>`) +
       `<div class="ed-body"><div class="pz">${photoHTML(trainPhoto(t))}<span class="chip">${I.image}${trainPhoto(t) ? "Photo of the first locomotive" : "No locomotive with a photo"}</span></div>` +
       `<div class="grid2"><label class="fld"><span class="lab">Name</span><input class="in name-in${this.bad("t.name")}" id="${id}-t-name" data-f="t.name" value="${esc(t.name)}">${this.errFor("t.name")}</label>` +
       `<label class="fld"><span class="lab">Priority</span><input class="in num" type="number" min="1" id="${id}-t-priority" data-f="t.priority" value="${t.priority ?? ""}" placeholder="lowest"><span class="hint">1 is highest. Empty is lowest.</span></label></div>` +
@@ -831,8 +830,6 @@ class App {
     }[f.dataset.f];
     if (!set) return;
     set(); touched();
-    const h2 = this.$ed.querySelector(".ed-head h2");
-    if (f.dataset.f.endsWith(".name") && h2 && !f.dataset.f.includes("fn")) h2.textContent = v || "Unnamed";
     notify(this);
   }
   commit(f) {

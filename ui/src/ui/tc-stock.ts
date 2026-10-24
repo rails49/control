@@ -591,8 +591,9 @@ export class TcStock extends LitElement {
   }
 
   /** The editor's head: the back button where the list is not beside it,
-   *  what it edits, and its own press at the right. */
-  private head(eyebrow: string, title: string, press: unknown = nothing) {
+   *  what kind of item it edits, and its own press at the right. The name is
+   *  in the Name field below and nowhere else. */
+  private head(eyebrow: string, press: unknown = nothing) {
     return html`
       <header class="ed-head">
         <button
@@ -606,7 +607,6 @@ export class TcStock extends LitElement {
         </button>
         <div class="title">
           <p class="eyebrow">${eyebrow}</p>
-          <h2>${title}</h2>
         </div>
         ${press}
       </header>
@@ -643,7 +643,6 @@ export class TcStock extends LitElement {
     return html`
       ${this.head(
         "Model",
-        row.name,
         html`<button class="new-car" @click=${() => this.carOf(key)}>
           New car
         </button>`,
@@ -1140,7 +1139,6 @@ export class TcStock extends LitElement {
     return html`
       ${this.head(
         "Car",
-        name,
         html`<button
           class="remove-car"
           title=${
@@ -1481,7 +1479,6 @@ export class TcStock extends LitElement {
     return html`
       ${this.head(
         "Train",
-        name,
         html`${train.placed ? html`<span class="pill placed">on the layout</span>` : nothing}
           <button
             class="unmake"
