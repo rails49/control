@@ -49,43 +49,34 @@ A **train** is a name and an ordered list of entries, each with a
 forward/reverse toggle (`lib/roster.py`, `Coupled`). Its **length, kind and
 functions are derived and never authored**
 ([ADR-0045](../adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)):
-they are shown under the name and are not offered for editing. They are
+they are shown under the cars and are not offered for editing. They are
 derived *here* as well as by the store, because a train being made up has not
 been saved and so has no `/rosters/<railroad>/trains` answer to read; the two
 derivations say the same thing, and `ui/test/composing.test.ts` pins them
 together.
 
-**The train's editor is its older controls** until
-[#980](https://github.com/rails49/control/issues/980) draws its own: a train's
-name, unmake, derived line and entries, with every car and model listed under
-it beside a `+` that puts it at the tail.
-
 ## What it does
 
-**Adding a model entry** to a train gives an **anonymous item**: the entry
-names the model, and there is nothing else to say about it.
-
-**Filling in an address or a camera promotes it to a car** in the Cars list,
-named from the model with a suffix you can edit — `arnold-ce68-1` until you
-call it `krokodil-a`. Nothing asks you to classify an item before you add it:
-an address is the physical identity, and having one is exactly what puts an
-item on `cars` (ADR-0061). A camera riding in the item is as much its own, so
-it promotes the entry the same way, and the new car has the camera and no
-address. Two locomotives of one product get two cars and two
-addresses, written once, and neither is restated the next time a rake is made
-up.
+**A model without a decoder goes in as a model entry**: an **anonymous
+item**, the entry naming the model and there being nothing else to say about
+it (ADR-0061). **A model with a decoder goes in as a car**, because its address
+belongs to one item: the picker makes the car or picks the one there is (the
+train editor, below). An address is the physical identity, and having one is
+exactly what puts an item on `cars`. Two locomotives of one product get two
+cars and two addresses, written once, and neither is restated the next time a
+rake is made up.
 
 **A car can exist in no train**: a locomotive you own and have not made up a
 rake for. Unmaking a train leaves its cars on the roster — composing a train
 and owning the stock are two things.
 
-**The `+` buttons name one train, and it is always a train there is.** They
-are in the train's editor, and put a car or a model at the tail of the train
-**chosen** — the card last pressed, or the train last made up. Unmaking that
-train chooses the first train left; unmaking the last leaves nothing to add to,
-and the editor says *Nothing here yet. Press New train.* **Renaming that train
-carries the choice with it**: you renamed the train you were composing, not
-another one ([#416](https://github.com/rails49/control/issues/416)).
+**The picker fills one train, and it is always a train there is**: the train
+**chosen** — the card last pressed, or the train last made up — whose editor
+is shown. Unmaking that train chooses the first train left; unmaking the last
+leaves nothing to add to, and the editor says *Nothing here yet. Press New
+train.* **Renaming that train carries the choice with it**: you renamed the
+train you were composing, not another one
+([#416](https://github.com/rails49/control/issues/416)).
 
 Which train is chosen is held as a **name**, and a name is not a hold on the
 train: the roster can stop having it. So it is resolved against the roster
@@ -100,16 +91,15 @@ percent-encodes the train. An empty name is refused: *A car needs a name.*,
 *A train needs a name.*
 
 **Kind never implies an address.** A powered van is a real thing
-(`layout/interface.py`), so the address field is offered on every entry and
-never assumed from what the model is.
+(`layout/interface.py`), so a car whose model has no decoder is still offered
+an address (*Fitted one to this car?*), and none is assumed from what the
+model is.
 
-**A car's camera sits under its address**, in the car editor and on each
-entry row: where the camera riding in that car answers on the LAN, a host name or an
+**A car's camera sits under its address**, in the car editor: where the camera riding in that car answers on the LAN, a host name or an
 IPv4 address with no scheme, port, path or login — how the camera is spoken to
 is the `camera` app's
 ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
-On an entry naming a car it sets that car's camera. Emptying the field takes
-the camera off and keeps the car. Anything else is refused with *'cam:8080' is
+Emptying the field takes the camera off and keeps the car. Anything else is refused with *'cam:8080' is
 not a camera address — write the camera's host name or IP address*, and a
 camera another car carries with *car 'van-1' already carries camera 'cam-1'*:
 one camera in two cars would put one picture on two trains, which the store
@@ -132,7 +122,7 @@ the next Save ([#723](https://github.com/rails49/control/issues/723)).
 **A train with nothing in it cannot be saved.** Making one up and pressing
 Save is the order of work this screen invites, so the screen refuses that save
 itself, before the `PUT`, naming the train: *train 'ore' has nothing in it —
-press + beside a car or a model, or remove it*. The store refuses the same
+press Add to put a car or a model in it, or unmake it*. The store refuses the same
 document — an empty `cars` list names no cars (`lib/stock.py`) — so a roster
 it takes is always one `/rosters/<railroad>/trains` can answer, and the roster
 on disk is unchanged either way. Save stays enabled: there is still something
@@ -149,7 +139,7 @@ store keeps that shape legal for a person's own older file and answers it as
 written (`lib/stock.py`, `_train`). The train is drawn as a row with that
 length, nothing in it, no kind and no functions — the derivations answer for
 what is not there, as `tc49.lib.roster.Train` does for the same document — and
-a note in the row says it states its length and names no cars. **Composing it
+a note above its strip says it states its length and names no cars. **Composing it
 converts it**: the first thing put in it drops the stated number, and the
 length is the sum of its cars from then on, a train saying one of the two and
 never both. Saving the roster unedited keeps the stated length as it was
@@ -197,7 +187,9 @@ A refusal on one field leaves an edit standing in another alone for the same
 reason: what was not typed there was not refused.
 
 **Refusals name what holds a thing.** A car a train is made of cannot be
-removed: its Remove is dead, its title naming the train. A model's editor says what uses
+removed: its Remove is dead, its title naming the train. A car already in a
+train is greyed in that train's picker: one item cannot stand in a train
+twice. A model's editor says what uses
 it — the cars that are one, then the trains whose entries do — read there
 rather than run into, and its Delete is dead while anything does.
 
@@ -302,6 +294,59 @@ the train first.*
 *Address for <car>* — *<model> has a decoder. Type the address programmed into
 this car's decoder.* — with **Later**, which leaves it with none, and **Set
 address**, refused in the field's words with the question left standing.
+
+## The train editor
+
+From the top, as the mockup draws it
+([#980](https://github.com/rails49/control/issues/980)).
+
+**The picture**: the first locomotive's model photo, marked *Photo of the first
+locomotive*, or *No locomotive with a photo*.
+
+**Name**: any characters. Refused when empty — *A train needs a name.* — or
+when another train has it — *There is already a train 'IC 721'.* — and the
+field is put back.
+
+**Priority**: a whole number, 1 the highest, empty meaning the lowest: *1 is
+highest. Empty is lowest.* Anything else is refused and put back: *'0' is not a
+priority. Use a whole number: 1 is highest.*
+
+**Cars**, labelled *← Head* and *Tail*: one tile per entry, head first, in a
+row that scrolls sideways. A tile has the model's photo, mirrored where the
+entry is reversed; the car's name or, for a model entry, the model's; a line
+saying its address, *no address* or *by model*, *camera* where the car carries
+one, and its length. **Forward / Reversed** flips the entry's `orientation`
+(`reverse` written, `forward` the key taken off) and **×** takes the entry out.
+**Tiles are dragged to reorder**, with HTML drag and drop, which iPadOS has: a
+tile dropped on another takes its place. A last tile, **Add**, opens the
+picker.
+
+**What follows from the cars**: length, kind and functions, derived as above;
+a momentary function's chip says *hold*.
+
+**Unmake**, at the top right: the train goes and its cars stay on the roster.
+
+**New train** makes *New train* (*New train (2)* where that is taken), chooses
+it, and opens the picker.
+
+### The picker
+
+*Add to <train>*, with two tabs, **Cars** and **Models**.
+
+- **A car** goes in as itself, at the tail. A car already in this train is
+  greyed, its title saying so.
+- **A model without a decoder** goes in as a model entry.
+- **A model with a decoder goes in as a car**:
+  - where the railroad has no car of it that is not already in this train, a
+    car is made, named after the model as New car names one, and its address
+    is asked for at once, as New car asks;
+  - where it has exactly one, that car goes in, and the view says *Added
+    <car>, your only <model>.* for a moment;
+  - where it has several, *Which <model>?* lists them, those already in this
+    train greyed, and the one pressed goes in.
+
+Placing the train is the run view's
+([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).
 
 ## Saving
 
@@ -524,7 +569,7 @@ minted name and refusal is `ui/src/model/stock.ts`'s answer, which holds the
 two documents and every edit to either and knows nothing about the DOM.
 
 The fields are the browser's own `input`, `select` and `textarea`, and the
-questions Delete and a new car's address ask are look's `look-dialog`, the way the properties dialog
+questions Delete and a new car's address ask, and the picker, are look's `look-dialog`, the way the properties dialog
 is. The view's layout, the bar, the tabs and the cards follow the mockup; its
 colours are the app's palette.
 
@@ -560,8 +605,9 @@ rather than something to remember
 ## Tests
 
 Split the way the app's suites are split. `ui/test/composing.test.ts` drives
-the model with no DOM — promotion and the name it mints, the derived length,
-kind and functions, two locomotives of one product, what holds a car or a
+the model with no DOM — what a model put in a train goes in as, New train's
+names, a car refused a second place in a train, an entry moved, a priority,
+the derived length, kind and functions, what holds a car or a
 model, the length guard, and the model editor's rules: New model's names, the
 key minted from a name and kept, a name refused, the decoder and its function
 rows with their mode, a number listed twice stopping Save, a photo held for
@@ -582,7 +628,14 @@ a second car of a decoder model asked for its address and refusing the first
 car's, an address refused and put back, a camera address set, refused and
 emptied, a length override written and removed by emptying it, the car's own
 functions written and removed, its notes reaching the roster document, Remove
-dead while a train holds the car, and its links to its model and its trains; a car named
+dead while a train holds the car, and its links to its model and its trains;
+the train editor — New train and New train (2) with the picker open, a name
+refused, a priority written, the tiles' words, a decoder model added to a
+train becoming a new car with its address asked for, the same model added
+again reusing that car, a choice offered where there are two, a car refused a
+second place in one train, a model without a decoder added as a model entry,
+reorder by drag changing the order in the saved roster, flip writing
+`orientation: reverse`, the *hold* chip and Unmake; a car named
 `Re 4/4 II` and a train named `S 1/S 2` saved; a train made up of a locomotive
 and three hoppers, the document that reaches `PUT /rosters/<railroad>` with one
 car entry and three model entries, the guard killing a field while track power
