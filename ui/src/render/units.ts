@@ -88,7 +88,7 @@ export const BLOCK = {
    *  label (#922). */
   endA: {
     x: (SPAN - BODY.w) / 2 + 0.2,
-    y: (1 + BODY.h) / 2 - 0.18,
+    y: (1 + BODY.h) / 2 - 0.21,
     size: 0.3,
   },
 };

@@ -434,3 +434,15 @@ describe("the run view's left pane", () => {
     expect(block).toMatch(/overflow-y:\s*auto/);
   });
 });
+
+/**
+ * A block's A (#985). `middle` centres the x-height on the A's point, and a
+ * capital rises above it: wherever the A's top faced the edge beside it — a
+ * horizontal block's A along the top, a vertical one's on the left — it all
+ * but touched that edge, while the other placements left a clear gap.
+ */
+describe("a block's A", () => {
+  it("is centred on its point by the em box, not the x-height", () => {
+    expect(rule(symbols.cssText, ".end-a")).toMatch(/dominant-baseline:\s*central/);
+  });
+});

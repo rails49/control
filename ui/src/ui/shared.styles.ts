@@ -117,12 +117,14 @@ export const symbols = css`
   }
 
   /* The A marking a block's A side, in the track's colour and smaller than the
-     label, so it does not read as part of the name. */
+     label, so it does not read as part of the name. Centred by the em box,
+     whose middle is a capital's in system-ui: centred by the x-height, the A
+     rose toward its top and all but touched an edge it faced (#985). */
   .end-a {
     font-family: system-ui, sans-serif;
     fill: var(--track);
     text-anchor: middle;
-    dominant-baseline: middle;
+    dominant-baseline: central;
     pointer-events: none;
   }
 
