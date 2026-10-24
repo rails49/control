@@ -293,7 +293,9 @@ export function carHolders(name: string, roster: RosterDoc): string[] {
 /** The trains whose entries name a car, by name. */
 export function carTrains(name: string, roster: RosterDoc): string[] {
   return Object.entries(roster.trains)
-    .filter(([, train]) => (train.cars ?? []).some((entry) => entry.car === name))
+    .filter(([, train]) =>
+      (train.cars ?? []).some((entry) => entry.car === name),
+    )
     .map(([train]) => train);
 }
 
@@ -306,7 +308,9 @@ export function modelHolders(name: string, roster: RosterDoc): string[] {
     .filter(([, car]) => car.model === name)
     .map(([car]) => `car '${car}'`);
   const trains = Object.entries(roster.trains)
-    .filter(([, train]) => (train.cars ?? []).some((entry) => entry.model === name))
+    .filter(([, train]) =>
+      (train.cars ?? []).some((entry) => entry.model === name),
+    )
     .map(([train]) => `train '${train}'`);
   return [...cars, ...trains];
 }
@@ -343,15 +347,20 @@ export function heldBy(what: string, holders: string[]): string {
  * is the only thing on this page that has any; a second browser editing stock
  * during a run is not covered, and the store enforces none of it (ADR-0071).
  */
-export function lengthHeld(power: Power | null, heard: boolean = true): string | null {
-  if (trackLive(power)) return "track power is on — turn it off to correct a length";
+export function lengthHeld(
+  power: Power | null,
+  heard: boolean = true,
+): string | null {
+  if (trackLive(power))
+    return "track power is on — turn it off to correct a length";
   return heard
     ? null
     : "the layout has not said whether the track has power, so a length cannot be corrected";
 }
 
 /** What the roster's Save says while a length edit waits for power off. */
-export const LENGTH_WAITS = "a length has changed — turn track power off to save";
+export const LENGTH_WAITS =
+  "a length has changed — turn track power off to save";
 
 /** What the roster's Save says while a length edit waits for the row naming
  *  the railroad to be heard again, and with it whether the track has power. */
@@ -611,7 +620,8 @@ export class Stock {
     const empty = Object.entries(this.doc.trains)
       .sort(([one], [other]) => (one < other ? -1 : 1))
       .find(
-        ([, train]) => train.length === undefined && (train.cars ?? []).length === 0,
+        ([, train]) =>
+          train.length === undefined && (train.cars ?? []).length === 0,
       );
     if (empty !== undefined) {
       return (
@@ -703,13 +713,19 @@ export class Stock {
 
   private entry(entry: Coupled): EntryRow {
     const whole = stands(entry, this.doc, this.models);
-    const product = entry.model === undefined ? undefined : this.models[entry.model];
+    const product =
+      entry.model === undefined ? undefined : this.models[entry.model];
     return {
       car: entry.car ?? null,
       model: whole?.model ?? entry.model ?? null,
       addr: whole?.addr ?? null,
-      name: entry.car ?? (product === undefined ? (entry.model ?? "—") : modelName(product)),
-      camera: entry.car === undefined ? null : (this.doc.cars?.[entry.car]?.camera ?? null),
+      name:
+        entry.car ??
+        (product === undefined ? (entry.model ?? "—") : modelName(product)),
+      camera:
+        entry.car === undefined
+          ? null
+          : (this.doc.cars?.[entry.car]?.camera ?? null),
       length: whole?.length ?? null,
       reverse: entry.orientation === REVERSE,
     };
@@ -721,7 +737,8 @@ export class Stock {
    *  right from left starts with. */
   addTrain(name: string): string | null {
     if (name.trim() === "") return "A train needs a name.";
-    if (this.doc.trains[name] !== undefined) return `There is already a train '${name}'.`;
+    if (this.doc.trains[name] !== undefined)
+      return `There is already a train '${name}'.`;
     this.write({ trains: { ...this.doc.trains, [name]: { cars: [] } } });
     return null;
   }
@@ -737,7 +754,8 @@ export class Stock {
   renameTrain(was: string, name: string): string | null {
     if (name === was) return null;
     if (name.trim() === "") return "A train needs a name.";
-    if (this.doc.trains[name] !== undefined) return `There is already a train '${name}'.`;
+    if (this.doc.trains[name] !== undefined)
+      return `There is already a train '${name}'.`;
     const train = this.doc.trains[was];
     if (train === undefined) return null;
     const trains: Record<string, RosterTrain> = {};
@@ -756,14 +774,20 @@ export class Stock {
     const wanted = typed.trim();
     const { priority: _was, ...rest } = made;
     if (wanted === "") {
-      if (made.priority !== undefined) this.write({ trains: { ...this.doc.trains, [train]: rest } });
+      if (made.priority !== undefined)
+        this.write({ trains: { ...this.doc.trains, [train]: rest } });
       return null;
     }
     if (!/^\d+$/.test(wanted) || Number(wanted) < 1) {
       return `'${wanted}' is not a priority. Use a whole number: 1 is highest.`;
     }
     if (made.priority === Number(wanted)) return null;
-    this.write({ trains: { ...this.doc.trains, [train]: { ...rest, priority: Number(wanted) } } });
+    this.write({
+      trains: {
+        ...this.doc.trains,
+        [train]: { ...rest, priority: Number(wanted) },
+      },
+    });
     return null;
   }
 
@@ -783,10 +807,16 @@ export class Stock {
    * The first entry on a train that **states its length** converts it: the
    * stated number goes and the length is derived from then on (#414).
    */
-  append(train: string, what: { car: string } | { model: string }): string | null {
+  append(
+    train: string,
+    what: { car: string } | { model: string },
+  ): string | null {
     const made = this.doc.trains[train];
     if (made === undefined) return null;
-    if ("car" in what && (made.cars ?? []).some((entry) => entry.car === what.car)) {
+    if (
+      "car" in what &&
+      (made.cars ?? []).some((entry) => entry.car === what.car)
+    ) {
       return `${what.car} is already in ${train}. One item cannot stand in a train twice.`;
     }
     this.inTrain(train, (cars) => [...cars, what]);
@@ -806,7 +836,8 @@ export class Stock {
   addModel(train: string, key: string): Added {
     const at = this.keyOf(key);
     const model = this.models[at];
-    if (model === undefined || this.doc.trains[train] === undefined) return { as: "nothing" };
+    if (model === undefined || this.doc.trains[train] === undefined)
+      return { as: "nothing" };
     if (!hasDecoder(model)) {
       this.append(train, { model: at });
       return { as: "model" };
@@ -841,6 +872,38 @@ export class Stock {
       .map((car) => ({ car, inTrain: held.has(car) }));
   }
 
+  /**
+   * The model entry at `at` given an address, as its tile's *Give it an
+   * address* gives one (#993): a car of its model made as `newCar` makes one
+   * and put in the entry's place, the same way round. A model entry of a
+   * model with a decoder cannot be driven, there being no address to send to.
+   * One roster edit, so one unsaved change. `null`, and nothing written,
+   * where `at` is not a model entry or its model has no decoder.
+   */
+  carFor(train: string, at: number): string | null {
+    const made = this.doc.trains[train];
+    const entry = made?.cars?.[at];
+    if (made === undefined || entry?.model === undefined) return null;
+    const model = this.models[entry.model];
+    if (model === undefined || !hasDecoder(model)) return null;
+    const car = untaken(modelName(model), Object.keys(this.doc.cars ?? {}));
+    const placed: Coupled =
+      entry.orientation === undefined
+        ? { car }
+        : { car, orientation: entry.orientation };
+    this.write({
+      cars: { ...this.doc.cars, [car]: { model: entry.model } },
+      trains: {
+        ...this.doc.trains,
+        [train]: {
+          ...made,
+          cars: made.cars!.map((one, here) => (here === at ? placed : one)),
+        },
+      },
+    });
+    return car;
+  }
+
   removeEntry(train: string, index: number): void {
     this.inTrain(train, (cars) => cars.filter((_, at) => at !== index));
   }
@@ -849,7 +912,8 @@ export class Stock {
    *  tile dragged along the strip is dropped. */
   moveEntry(train: string, from: number, to: number): void {
     const cars = this.doc.trains[train]?.cars ?? [];
-    if (from === to || cars[from] === undefined || to < 0 || to >= cars.length) return;
+    if (from === to || cars[from] === undefined || to < 0 || to >= cars.length)
+      return;
     this.inTrain(train, (all) => {
       const moved = [...all];
       const [one] = moved.splice(from, 1);
@@ -866,7 +930,9 @@ export class Stock {
       cars.map((entry, at) => {
         if (at !== index) return entry;
         const { orientation: _was, ...rest } = entry;
-        return entry.orientation === REVERSE ? rest : { ...rest, orientation: REVERSE };
+        return entry.orientation === REVERSE
+          ? rest
+          : { ...rest, orientation: REVERSE };
       }),
     );
   }
@@ -876,7 +942,8 @@ export class Stock {
   renameCar(was: string, name: string): string | null {
     if (name === was) return null;
     if (name.trim() === "") return "A car needs a name.";
-    if (this.doc.cars?.[name] !== undefined) return `There is already a car '${name}'.`;
+    if (this.doc.cars?.[name] !== undefined)
+      return `There is already a car '${name}'.`;
     const car = this.doc.cars?.[was];
     if (car === undefined) return null;
     const cars: Record<string, CarDoc> = {};
@@ -908,7 +975,12 @@ export class Stock {
     }
     const trouble = this.addressTrouble(wanted, name);
     if (trouble !== null) return trouble;
-    this.write({ cars: { ...this.doc.cars, [name]: { ...car, addr: String(Number(wanted)) } } });
+    this.write({
+      cars: {
+        ...this.doc.cars,
+        [name]: { ...car, addr: String(Number(wanted)) },
+      },
+    });
     return null;
   }
 
@@ -926,7 +998,9 @@ export class Stock {
     }
     const trouble = this.cameraTrouble(wanted, name);
     if (trouble !== null) return trouble;
-    this.write({ cars: { ...this.doc.cars, [name]: { ...car, camera: wanted } } });
+    this.write({
+      cars: { ...this.doc.cars, [name]: { ...car, camera: wanted } },
+    });
     return null;
   }
 
@@ -979,7 +1053,12 @@ export class Stock {
     const car = this.doc.cars?.[name];
     if (car === undefined || (car.notes ?? "") === notes) return;
     const { notes: _was, ...rest } = car;
-    this.write({ cars: { ...this.doc.cars, [name]: notes === "" ? rest : { ...rest, notes } } });
+    this.write({
+      cars: {
+        ...this.doc.cars,
+        [name]: notes === "" ? rest : { ...rest, notes },
+      },
+    });
   }
 
   /** *This car's decoder is different*: its model's functions copied onto the
@@ -987,7 +1066,10 @@ export class Stock {
   ownFunctions(name: string): void {
     const car = this.doc.cars?.[name];
     if (car === undefined || "functions" in car) return;
-    this.setRows({ car: name }, this.functionRows(car.model).map((row) => ({ ...row })));
+    this.setRows(
+      { car: name },
+      this.functionRows(car.model).map((row) => ({ ...row })),
+    );
   }
 
   /** *Use the model's functions again*: the car's own taken off. */
@@ -1052,7 +1134,14 @@ export class Stock {
     );
     this.models = {
       ...this.models,
-      [key]: { model: key, name, kind: "passenger", scale: "H0", length: 200, decoder: false },
+      [key]: {
+        model: key,
+        name,
+        kind: "passenger",
+        scale: "H0",
+        length: 200,
+        decoder: false,
+      },
     };
     this.fresh.add(key);
     this.changed.add(key);
@@ -1134,7 +1223,9 @@ export class Stock {
     this.putModel({ ...model, decoder: on });
     this.setRows(
       at,
-      on && rows.length === 0 ? [{ number: "0", name: "Headlights", mode: LATCHING }] : rows,
+      on && rows.length === 0
+        ? [{ number: "0", name: "Headlights", mode: LATCHING }]
+        : rows,
     );
   }
 
@@ -1155,7 +1246,11 @@ export class Stock {
     if (held !== undefined) return held;
     return Object.entries(functions)
       .sort(([one], [other]) => Number(one) - Number(other))
-      .map(([number, fn]) => ({ number, name: fn.name, mode: fn.mode ?? LATCHING }));
+      .map(([number, fn]) => ({
+        number,
+        name: fn.name,
+        mode: fn.mode ?? LATCHING,
+      }));
   }
 
   /** A function row added, on the lowest number not in use. */
@@ -1164,7 +1259,10 @@ export class Stock {
     const used = new Set(rows.map((row) => row.number));
     let number = 0;
     while (used.has(String(number))) number++;
-    this.setRows(key, [...rows, { number: String(number), name: "", mode: LATCHING }]);
+    this.setRows(key, [
+      ...rows,
+      { number: String(number), name: "", mode: LATCHING },
+    ]);
   }
 
   removeFunction(key: FnOwner, at: number): void {
@@ -1284,7 +1382,9 @@ export class Stock {
   private setRow(key: FnOwner, at: number, part: Partial<FnRow>): void {
     this.setRows(
       key,
-      this.functionRows(key).map((row, index) => (index === at ? { ...row, ...part } : row)),
+      this.functionRows(key).map((row, index) =>
+        index === at ? { ...row, ...part } : row,
+      ),
     );
   }
 
@@ -1296,7 +1396,9 @@ export class Stock {
     const functions: Record<string, ModelFn> = {};
     for (const row of rows) {
       functions[row.number] =
-        row.mode === LATCHING ? { name: row.name } : { name: row.name, mode: row.mode };
+        row.mode === LATCHING
+          ? { name: row.name }
+          : { name: row.name, mode: row.mode };
     }
     if (typeof key !== "string") {
       // A car's own stay its own with every row removed: `functions: {}` is a
@@ -1304,7 +1406,9 @@ export class Stock {
       const car = this.doc.cars?.[key.car];
       if (car === undefined) return;
       this.carRows.set(key.car, rows);
-      this.write({ cars: { ...this.doc.cars, [key.car]: { ...car, functions } } });
+      this.write({
+        cars: { ...this.doc.cars, [key.car]: { ...car, functions } },
+      });
       return;
     }
     const at = this.keyOf(key);
@@ -1319,13 +1423,17 @@ export class Stock {
   private rekey(was: string, key: string): void {
     const models: Record<string, ModelDoc> = {};
     for (const [at, model] of Object.entries(this.models)) {
-      models[at === was ? key : at] = at === was ? { ...model, model: key } : model;
+      models[at === was ? key : at] =
+        at === was ? { ...model, model: key } : model;
     }
     this.models = models;
     for (const held of [this.changed, this.fresh]) {
       if (held.delete(was)) held.add(key);
     }
-    for (const held of [this.rows, this.pending, this.written] as Map<string, unknown>[]) {
+    for (const held of [this.rows, this.pending, this.written] as Map<
+      string,
+      unknown
+    >[]) {
       if (held.has(was)) {
         held.set(key, held.get(was));
         held.delete(was);
@@ -1351,7 +1459,11 @@ export class Stock {
     // The same document under the key it will be read by, and no edit: it
     // counts as the document it replaces, so `kept` reads it as that one.
     const count = this.countOf.get(this.doc) ?? this.edited;
-    this.doc = { ...this.doc, ...(this.doc.cars === undefined ? {} : { cars }), trains };
+    this.doc = {
+      ...this.doc,
+      ...(this.doc.cars === undefined ? {} : { cars }),
+      trains,
+    };
     this.countOf.set(this.doc, count);
   }
 
@@ -1381,7 +1493,9 @@ export class Stock {
     if (made.length !== undefined) {
       if (cars.length === 0) return;
       const { length: _stated, ...rest } = made;
-      this.write({ trains: { ...this.doc.trains, [train]: { ...rest, cars } } });
+      this.write({
+        trains: { ...this.doc.trains, [train]: { ...rest, cars } },
+      });
       return;
     }
     this.write({ trains: { ...this.doc.trains, [train]: { ...made, cars } } });
