@@ -93,6 +93,8 @@ src/
     picture.ts   the camera car's live picture: its stream read frame by frame
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
+    photo.ts     a picture file made a model's photo: decoded, and written
+                 again as a JPEG at most 1600 px wide
     railroad.ts  the loaded railroad's documents: read when the row names
                  it, read again until the store answers, the drawing's save
                  and the roster's Save, and naming the railroad again when

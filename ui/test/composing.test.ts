@@ -19,6 +19,7 @@ import {
   LIGHT_ENGINE,
   lengthHeld,
   MIXED,
+  keyFor,
   merged,
   mint,
   Stock,
@@ -206,11 +207,11 @@ describe("making up a train", () => {
     expect(screen.edits).toBe(true);
   });
 
-  it("refuses a name the store would refuse, and a second train of one name", () => {
+  it("takes a name of any characters, and refuses a second train of one name", () => {
     const screen = stock();
-    expect(screen.addTrain("a/b")).toMatch("not a name");
+    expect(screen.addTrain("S 1/S 2")).toBeNull();
     expect(screen.addTrain("ore")).toMatch("already a train");
-    expect(Object.keys(screen.roster.trains)).toEqual(["ore"]);
+    expect(Object.keys(screen.roster.trains)).toEqual(["ore", "S 1/S 2"]);
   });
 
   it("adds a model entry as an anonymous item", () => {
@@ -795,17 +796,187 @@ describe("an edit made during a Save", () => {
   });
 });
 
-/** A dialog labelled New model with a Create button touches nothing that
- *  exists: `PUT /catalogue/<name>` replaces the document whole, so a name in
- *  use would rewrite that product for every railroad in the installation and
- *  step around the length guard its row keeps (#413). */
-describe("writing a model", () => {
-  it("stops a name the catalogue already has, and names it", () => {
-    expect(stock().stopsMaking("hopper")).toBe("there is already a model 'hopper'");
+/** The model editor's rules: a model is made here and written by Save, under
+ *  a key minted from its name at that write (#978). */
+describe("making a model", () => {
+  it("is New model, then New model (2), and owed a write", () => {
+    const screen = stock();
+    const one = screen.newModel();
+    const two = screen.newModel();
+    expect(screen.model(one)).toMatchObject({ name: "New model", decoder: false });
+    expect(screen.model(two)!.name).toBe("New model (2)");
+    expect(screen.isFresh(one)).toBe(true);
+    expect(screen.corrections.map((model) => model.name)).toEqual([
+      "New model",
+      "New model (2)",
+    ]);
+    expect(screen.unsaved).toBe(2);
   });
 
-  it("stops nothing where the catalogue has no such name", () => {
-    expect(stock().stopsMaking("flat")).toBeNull();
+  it("is filed under a key minted from its name, and keeps it", () => {
+    const screen = stock();
+    const made = screen.newModel();
+    expect(screen.renameModel(made, "Ae 6/6")).toBeNull();
+    screen.append("ore", { model: made });
+
+    screen.mintKeys();
+
+    expect(screen.keyOf(made)).toBe("ae-6-6");
+    expect(screen.model(made)).toMatchObject({ model: "ae-6-6", name: "Ae 6/6" });
+    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ model: "ae-6-6" });
+    screen.renameModel(made, "Ae 6/6 II");
+    screen.mintKeys();
+    expect(screen.keyOf(made)).toBe("ae-6-6");
+  });
+
+  it("mints past a key another model has", () => {
+    const screen = stock();
+    const made = screen.newModel();
+    screen.renameModel(made, "Hopper");
+    screen.mintKeys();
+    expect(screen.keyOf(made)).toBe("hopper-2");
+  });
+
+  it("is written once, and fresh no longer", () => {
+    const screen = stock();
+    const made = screen.newModel();
+    screen.mintKeys();
+    screen.landed(screen.corrections[0]!);
+    expect(screen.isFresh(made)).toBe(false);
+    expect(screen.corrections).toEqual([]);
+  });
+});
+
+describe("a model's key", () => {
+  it("drops accents, lower-cases and joins every other run with -", () => {
+    expect(keyFor("Ae 6/6", [])).toBe("ae-6-6");
+    expect(keyFor("  Ćrème Brûlée! ", [])).toBe("creme-brulee");
+    expect(keyFor("/// ", [])).toBe("model");
+    expect(keyFor("Ae 6/6", ["ae-6-6", "ae-6-6-2"])).toBe("ae-6-6-3");
+  });
+});
+
+describe("a model's name", () => {
+  it("is the key where the document states none", () => {
+    expect(stock().model("hopper")!.name).toBeUndefined();
+    expect(stock().modelRows().find((row) => row.model === "hopper")!.name).toBe("hopper");
+  });
+
+  it("refuses empty, and a name another model has", () => {
+    const screen = stock();
+    expect(screen.renameModel("coach", " ")).toBe("A model needs a name.");
+    expect(screen.renameModel("coach", "hopper")).toBe("There is already a model 'hopper'.");
+    expect(screen.edits).toBe(false);
+  });
+
+  it("takes any characters", () => {
+    const screen = stock();
+    expect(screen.renameModel("coach", "EW IV B/2")).toBeNull();
+    expect(screen.corrections).toEqual([{ ...CATALOGUE["coach"]!, name: "EW IV B/2" }]);
+  });
+});
+
+describe("a model's decoder and functions", () => {
+  it("reads a decoder where functions are listed and none where none are", () => {
+    const rows = Object.fromEntries(stock().modelRows().map((row) => [row.model, row.decoder]));
+    expect(rows).toMatchObject({ "arnold-ce68": true, hopper: false });
+  });
+
+  it("gets F0 Headlights when the decoder goes on, and loses its functions off", () => {
+    const screen = stock();
+    screen.modelDecoder("hopper", true);
+    expect(screen.model("hopper")).toMatchObject({
+      decoder: true,
+      functions: { "0": { name: "Headlights" } },
+    });
+    screen.modelDecoder("hopper", false);
+    expect(screen.model("hopper")!.decoder).toBe(false);
+    expect(screen.model("hopper")!.functions).toBeUndefined();
+    expect(screen.functionRows("hopper")).toEqual([]);
+  });
+
+  it("adds a function on the lowest number not in use, latching", () => {
+    const screen = stock();
+    screen.addFunction("arnold-ce68");
+    expect(screen.functionRows("arnold-ce68")).toEqual([
+      { number: "0", name: "headlights", mode: "latching" },
+      { number: "1", name: "", mode: "latching" },
+    ]);
+  });
+
+  it("writes a momentary function's mode, and none for a latching one", () => {
+    const screen = stock();
+    screen.addFunction("arnold-ce68");
+    screen.functionName("arnold-ce68", 1, " Horn ");
+    screen.functionMode("arnold-ce68", 1, "momentary");
+    expect(screen.model("arnold-ce68")!.functions).toEqual({
+      "0": { name: "headlights" },
+      "1": { name: "Horn", mode: "momentary" },
+    });
+  });
+
+  it("stops Save while a number is listed twice, and says which", () => {
+    const screen = stock();
+    screen.addFunction("arnold-ce68");
+    screen.functionName("arnold-ce68", 1, "Horn");
+    expect(screen.functionNumber("arnold-ce68", 1, "0")).toBeNull();
+    expect(screen.stopsSaving()).toBe("F0 is listed twice. One number names one function.");
+    screen.functionNumber("arnold-ce68", 1, "2");
+    expect(screen.stopsSaving()).toBeNull();
+  });
+
+  it("stops Save for a function with no name", () => {
+    const screen = stock();
+    screen.addFunction("arnold-ce68");
+    expect(screen.stopsSaving()).toBe("F1 needs a name.");
+  });
+
+  it("refuses a number no decoder has", () => {
+    const screen = stock();
+    expect(screen.functionNumber("arnold-ce68", 0, "69")).toBe("A function number is 0 to 68.");
+    expect(screen.functionNumber("arnold-ce68", 0, "x")).toBe("A function number is 0 to 68.");
+    expect(screen.edits).toBe(false);
+  });
+});
+
+describe("a model's photo and notes", () => {
+  const PICTURE = { jpeg: new Uint8Array([1]), shown: "data:," };
+
+  it("holds a photo for the next Save, and counts the write once landed", () => {
+    const screen = stock();
+    screen.setPhoto("hopper", PICTURE);
+    expect(screen.photos).toEqual([["hopper", PICTURE]]);
+    expect(screen.edits).toBe(true);
+    screen.photoLanded("hopper", PICTURE);
+    expect(screen.photos).toEqual([]);
+    expect(screen.photoVersion("hopper")).toBe(1);
+  });
+
+  it("writes notes, and takes the key off where they are emptied", () => {
+    const screen = stock();
+    screen.modelNotes("hopper", "brown");
+    expect(screen.model("hopper")!.notes).toBe("brown");
+    screen.modelNotes("hopper", "");
+    expect("notes" in screen.model("hopper")!).toBe(false);
+  });
+});
+
+describe("a car made from a model", () => {
+  it("is named after the model and has no address", () => {
+    const screen = stock();
+    expect(screen.newCar("hopper")).toBe("hopper");
+    expect(screen.newCar("hopper")).toBe("hopper (2)");
+    expect(screen.roster.cars!["hopper (2)"]).toEqual({ model: "hopper" });
+  });
+});
+
+describe("a model dropped", () => {
+  it("goes from the catalogue and owes no write", () => {
+    const screen = stock();
+    const made = screen.newModel();
+    screen.dropModel(made);
+    expect(screen.model(made)).toBeNull();
+    expect(screen.corrections).toEqual([]);
   });
 });
 

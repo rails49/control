@@ -1272,9 +1272,9 @@ describe("the current train", () => {
   it("is left as it was where a rename is refused for the name itself", async () => {
     const shell = await pair();
 
-    await typed(shell, named(shell, 1), "a/b");
+    await typed(shell, named(shell, 1), " ");
 
-    expect(trouble(shell)).toBe("'a/b' is not a name a train can have");
+    expect(trouble(shell)).toBe("A train needs a name.");
     expect(current(shell)).toBe("shunt");
     expect(plus(shell).title).toBe("add to 'shunt'");
   });
@@ -1302,9 +1302,9 @@ describe("a refused edit", () => {
     await ore(shell);
     const field = () => parts(shell, "li.car input.name")[0] as HTMLInputElement;
 
-    await typed(shell, field(), "a/b");
+    await typed(shell, field(), "");
 
-    expect(trouble(shell)).toBe("'a/b' is not a name a car can have");
+    expect(trouble(shell)).toBe("A car needs a name.");
     expect(field().value).toBe("arnold-ce68-1");
   });
 
@@ -1386,9 +1386,9 @@ describe("an edit standing in a field", () => {
     const length = () => parts(shell, "li.product input.length")[0] as HTMLInputElement;
     typing(length(), "12");
 
-    await typed(shell, name(), "a/b");
+    await typed(shell, name(), "");
 
-    expect(trouble(shell)).toBe("'a/b' is not a name a car can have");
+    expect(trouble(shell)).toBe("A car needs a name.");
     expect(name().value).toBe("arnold-ce68-1");
     expect(length().value).toBe("12");
   });

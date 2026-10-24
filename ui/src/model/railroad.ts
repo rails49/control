@@ -47,6 +47,7 @@ import {
   RETRY_MS,
   said,
   saveModel,
+  savePhoto,
   saveRoster,
   Unanswered,
   type ModelDoc,
@@ -63,10 +64,18 @@ export interface StockStore {
   readCatalogue(): Promise<Record<string, ModelDoc>>;
   saveRoster(roster: RosterDoc): Promise<void>;
   saveModel(model: ModelDoc): Promise<void>;
+  savePhoto(model: string, jpeg: Uint8Array<ArrayBuffer>): Promise<void>;
 }
 
 /** The store as it is over HTTP. */
-const live: StockStore = { readTrains, readRoster, readCatalogue, saveRoster, saveModel };
+const live: StockStore = {
+  readTrains,
+  readRoster,
+  readCatalogue,
+  saveRoster,
+  saveModel,
+  savePhoto,
+};
 
 /** The three reads a railroad arriving makes, each landing on its own. */
 type Read = "drawing" | "stock" | "trains";
@@ -206,10 +215,13 @@ export class Railroad {
   }
 
   /**
-   * The roster, whole, with any model whose length was corrected written
-   * first, each in turn (#718). A `PUT` is the whole document, so a car left
-   * out is a car removed (#388); a refusal stops the Save where it happened,
-   * what was written staying written and the rest waiting for the next Save.
+   * The roster, whole, with each changed model written first and then each
+   * changed photo, each in turn (#718, #978): the store refuses a roster
+   * naming a model it has not got, and a photo of one. A model made on the
+   * page is given its key first (`Stock.mintKeys`). A `PUT` is the whole
+   * document, so a car left out is a car removed (#388); a refusal stops the
+   * Save where it happened, what was written staying written and the rest
+   * waiting for the next Save.
    *
    * It answers whether a length reached the store, and where one did names
    * the railroad it saved for again, before answering, so the dispatcher fits
@@ -236,6 +248,7 @@ export class Railroad {
     const railroad = this.last;
     const turn = this.turn;
     const lengths = stock.lengthEdits;
+    stock.mintKeys();
     const written = stock.roster;
     let reached = false;
     let landed = false;
@@ -246,7 +259,13 @@ export class Railroad {
       for (const model of stock.corrections) {
         await this.store.saveModel(model);
         stock.landed(model);
-        reached = true;
+        // A model written moves a train's length only where one was
+        // corrected; a name or a note is nothing the dispatcher fits.
+        if (lengths) reached = true;
+      }
+      for (const [model, picture] of stock.photos) {
+        await this.store.savePhoto(model, picture.jpeg);
+        stock.photoLanded(model, picture);
       }
       await this.store.saveRoster(written);
       stock.kept(written);
