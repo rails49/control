@@ -130,7 +130,7 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /rosters/<name>/trains its trains, each with its length, functions,
                                 whether it carries a camera and its
                                 first locomotive's model
-    GET  /catalogue             the models the installation knows, by name
+    GET  /catalogue             the models the installation knows, by key
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
     GET  /catalogue/<name>/photo that model's photo, as the JPEG it is
