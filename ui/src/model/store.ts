@@ -186,8 +186,8 @@ export async function saveDrawing(drawing: Drawing, leaving = false): Promise<vo
 }
 
 /**
- * Every document of railroad `from` — drawing, roster and script, those that
- * exist — written again under `to`: what the settings dialog's Copy loaded
+ * Every document of railroad `from` — drawing, roster, script and clock, those
+ * that exist — written again under `to`: what the settings dialog's Copy loaded
  * as… asks for, so the copy has stock to place and a script to run from the
  * start (#729, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
