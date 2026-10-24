@@ -90,6 +90,8 @@ src/
     session.ts   the page's one broker connection: the railroad the row
                  names, the panel model it feeds, the presses, the OFF drain
     throttle.ts  what the throttle draws for each train there is to drive
+    clock.ts     the fast clock: state/clock read, a time of day worded, and
+                 what a person types to set it
     picture.ts   the camera car's live picture: its stream read frame by frame
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
@@ -154,7 +156,9 @@ src/
     tc-driving.ts  one held train's driving controls: drive it, give it back
     tc-train-picker.ts  a throttle's train selector: a card per train, the
                    confirmation, Release
-    tc-clock.ts    the station clock on the throttle's cab, in wall time
+    tc-clock.ts    the station clock on the throttle's cab, drawing the
+                   fast clock it is handed
+    tc-band-clock.ts  the fast clock on the band, and the dialog that sets it
     wake.ts        the screen kept awake while any of this page's throttles
                    holds a train
     tc-stock.ts    the stock view: a bar with the one Save, the list of

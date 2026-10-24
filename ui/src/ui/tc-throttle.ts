@@ -74,6 +74,11 @@ export class TcThrottle extends LitElement {
    *  holds no connection to the camera app. */
   @property({ type: Boolean }) current = false;
 
+  /** The fast clock's time of day, fast seconds since midnight, as
+   *  `state/clock` last said it; `null` with no railroad loaded or the
+   *  broker not answering (ADR-0090). The station clock draws it. */
+  @property({ attribute: false }) clock: number | null = null;
+
   /** The loaded railroad's name, which the camera app's route is under;
    *  `null` or `""` while none is loaded. */
   @property() railroad: string | null = null;
@@ -208,6 +213,7 @@ export class TcThrottle extends LitElement {
               .linked=${this.linked}
               .current=${this.current}
               .railroad=${this.railroad}
+              .clock=${this.clock}
               @selector-wanted=${() => this.opening(slot, true)}
             ></tc-driving>
             ${this.open.has(slot) ? selector(true) : nothing}`}
