@@ -638,7 +638,7 @@ export class Stock {
         length: model.length,
         decoder: hasDecoder(model),
         holders: modelHolders(model.model, this.doc),
-        held: lengthHeld(power, heard),
+        held: this.fresh.has(model.model) ? null : lengthHeld(power, heard),
       }));
   }
 
@@ -1001,7 +1001,11 @@ export class Stock {
 
   /** Correcting a product's length changes every item of that product, which
    *  is the whole reason the length lives here as well as on the car. Refused
-   *  while track power is on or draining. Written on the roster's Save. */
+   *  while track power is on or draining. Written on the roster's Save.
+   *
+   *  A model made here and not yet written is none of that: no train the
+   *  dispatcher fits is made of it, so its length is neither held nor a
+   *  length edit — only typed. */
   modelLength(
     name: string,
     mm: number,
@@ -1011,12 +1015,13 @@ export class Stock {
     const at = this.keyOf(name);
     const model = this.models[at];
     if (model === undefined) return null;
-    const held = lengthHeld(power, heard);
+    const fresh = this.fresh.has(at);
+    const held = fresh ? null : lengthHeld(power, heard);
     if (held !== null) return held;
     const trouble = lengthTrouble(mm);
     if (trouble !== null) return trouble;
     this.change(at, { length: mm });
-    this.lengthAt = this.edited;
+    if (!fresh) this.lengthAt = this.edited;
     return null;
   }
 
@@ -1088,16 +1093,23 @@ export class Stock {
    *  a number listed twice, or a function with no name. Either stops Save —
    *  the store would refuse the document (`lib/stock.py`). */
   functionTrouble(key: string): string | null {
-    const rows = this.functionRows(key);
+    const twice = this.listedTwice(key);
+    if (twice !== null) return twice;
+    const unnamed = this.functionRows(key).find((row) => row.name === "");
+    return unnamed === undefined ? null : `F${unnamed.number} needs a name.`;
+  }
+
+  /** A function number listed twice on a model, said as the editor says it
+   *  under the rows while it stands, or `null` where none is. */
+  listedTwice(key: string): string | null {
     const seen = new Set<string>();
-    for (const row of rows) {
+    for (const row of this.functionRows(key)) {
       if (seen.has(row.number)) {
         return `F${row.number} is listed twice. One number names one function.`;
       }
       seen.add(row.number);
     }
-    const unnamed = rows.find((row) => row.name === "");
-    return unnamed === undefined ? null : `F${unnamed.number} needs a name.`;
+    return null;
   }
 
   /** A car of this model, named after it as New model names a model: no

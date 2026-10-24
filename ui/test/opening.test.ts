@@ -159,9 +159,7 @@ describe("the row naming no railroad", () => {
     await loads(shell, "");
 
     expect(stocking(shell).railroad!.name).toBe("");
-    const making = stocking(shell).renderRoot.querySelector<HTMLButtonElement>(
-      "button.new-model",
-    )!;
+    const making = stocking(shell).renderRoot.querySelector<HTMLButtonElement>("button.new")!;
     expect(making.disabled).toBe(true);
     expect(making.title).toBe("load a railroad first");
   });
@@ -207,11 +205,11 @@ describe("the roster across a look at another view", () => {
     return await opened("stock");
   }
 
-  /** Compose: the `+` beside a model, which appends it to the current train
-   *  and is the whole of composing right from left. */
+  /** Compose: the `+` beside a model in the train's editor, which appends it
+   *  to the train chosen. */
   async function composed(shell: TcApp): Promise<void> {
     stocking(shell)
-      .renderRoot.querySelector<HTMLElement>("li.product button.add")!
+      .renderRoot.querySelector<HTMLElement>("li.addable.product button.add")!
       .click();
     await settled(shell);
   }
@@ -271,8 +269,8 @@ describe("the store not answering for the railroad the row names", () => {
       run: canvas === null ? null : canvas.drawing.drawing,
       roster: [...pane.querySelectorAll("span.name")].map((one) => one.textContent!.trim()),
       stock: [
-        ...stocking(shell).renderRoot.querySelectorAll<HTMLInputElement>("li.train input.name"),
-      ].map((one) => one.value),
+        ...stocking(shell).renderRoot.querySelectorAll("button.card.train .name"),
+      ].map((one) => one.textContent!.trim()),
     };
   }
 

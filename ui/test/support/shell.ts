@@ -94,6 +94,9 @@ export interface Answers {
    *  is the bytes it arrived as, that route being the only one whose body is
    *  not JSON (`sent`, docs/SYSTEM.md). */
   saved: { path: string; body: unknown }[];
+  /** Every `DELETE` the store has taken, by path, in the order they arrived
+   *  (#976). One it refuses (`refuses`) is not recorded: it deleted nothing. */
+  deleted: string[];
   /** What `/drawings/<name>` answers with. */
   read: (name: string) => Drawing;
   /** What `/review` answers with. */
@@ -196,6 +199,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     documentOf: (railroad) => ({ roster: railroad, trains: {} }),
     catalogue: {},
     saved: [],
+    deleted: [],
     read: (name) => {
       throw new Error(`no drawing '${name}'`);
     },
@@ -247,6 +251,16 @@ export function serving(answers: Partial<Answers> = {}): Answers {
       };
       const holding = store.held(path);
       return holding === null ? Promise.resolve(written()) : holding.then(written);
+    }
+    if (method === "DELETE") {
+      if (between !== null) return Promise.resolve(interposed(between));
+      const refusal = store.refuses(path);
+      if (refusal !== null) return Promise.resolve(refused(refusal));
+      store.deleted.push(path);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ deleted: path }),
+      } as unknown as Response);
     }
     if (between !== null) return Promise.resolve(interposed(between));
     return answered(store, path).then(
