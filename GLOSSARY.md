@@ -270,14 +270,13 @@ train no throttle has taken. The railroad comes up `manual`
 _Avoid_: hand control, taken over, mode (alone), auto
 
 **Throttle**:
-The control a person drives a train with: a view of the UI whose commands ride
-the bus as gestures that take a train, keep it held, turn its speed and switch
-its functions. At most
-one throttle holds a train, and drives it at any time, granted move or not; a
-throttle may hold several trains, each under its one id.
+The control a person drives one train with: a panel of the throttle view whose
+commands ride the bus as gestures that take a train, keep it held, turn its
+speed and switch its functions. A throttle holds at most one train, and at most
+one throttle holds a train, which it drives at any time, granted move or not.
 Released, the train stops in manual driving mode; in automatic it keeps its
 speed until its move ends, and is driven on if it stands
-([THROTTLE.md](docs/ui/THROTTLE.md)).
+([THROTTLE.md](docs/ui/THROTTLE.md), ADR-0089).
 _Avoid_: cab, controller, regulator, traction (what a decoder does with a
 speed), driver (an app)
 
