@@ -31,6 +31,10 @@ the item chosen in it. Where the view is narrower than 760 px — its own width,
 read with a container query — it is one column: the list, and pressing a card
 stands the editor in its place, with a back button.
 
+**The editor's head** says what kind of item it edits — *Model*, *Car* or
+*Train* — with its own press at the right. It does not repeat the item's name:
+the Name field below is the one place the name appears.
+
 **The list** has three tabs, **Trains · Cars · Models**, each with its count, a
 *New train* / *New car* / *New model* button, and one card per item: a photo
 frame 10:3 wide, the name, and a line of facts. A model: kind, scale, length,
