@@ -11,6 +11,7 @@ from tc49.lib.layout import Point
 from tc49.lib.payload import (
     Alignment,
     Chosen,
+    ClockSet,
     Command,
     Gesture,
     Grant,
@@ -48,6 +49,7 @@ from tc49.lib.payload import (
     stamp,
     supply,
     taken,
+    wanted_clock,
     wanted_driving,
     wanted_function,
     wanted_power,
@@ -334,6 +336,41 @@ def test_a_driving_gesture_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert wanted_driving(payload) is None, payload
+
+
+def test_a_clock_gesture_reads_as_the_time_and_speed_up_it_asks_for() -> None:
+    """A time of day, a speed-up, or both (ADR-0090, decision 2); a field
+    left out leaves that part of the clock as it is."""
+    assert wanted_clock({"time": 0}) == ClockSet(time=0, speed_up=None)
+    assert wanted_clock({"time": 86399}) == ClockSet(time=86399, speed_up=None)
+    assert wanted_clock({"speed_up": 8}) == ClockSet(time=None, speed_up=8.0)
+    assert wanted_clock({"speed_up": 0.5}) == ClockSet(time=None, speed_up=0.5)
+    assert wanted_clock({"time": 3600, "speed_up": 4}) == ClockSet(3600, 4.0)
+
+
+def test_a_clock_gesture_that_cannot_be_read_is_dropped() -> None:
+    """Neither field, or either out of range, and the whole gesture goes: a
+    good time beside a bad speed-up is not half taken."""
+    refused: list[object] = [
+        "08:00",  # not an object at all
+        {},  # neither field
+        {"time": None},
+        {"time": -1},  # before midnight
+        {"time": 86400},  # midnight again, which is 0
+        {"time": 3600.5},  # not whole seconds
+        {"time": "3600"},  # not a number
+        {"time": True},  # a bool is not an integer here
+        {"speed_up": 0},  # not greater than 0
+        {"speed_up": -2},
+        {"speed_up": float("nan")},
+        {"speed_up": float("inf")},
+        {"speed_up": "8"},
+        {"speed_up": True},
+        {"time": 3600, "speed_up": 0},  # one bad field fails both
+        {"time": 86400, "speed_up": 8},
+    ]
+    for payload in refused:
+        assert wanted_clock(payload) is None, payload
 
 
 def test_the_wanted_supply_reads_as_the_value_it_asks_for() -> None:
