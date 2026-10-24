@@ -507,7 +507,8 @@ def _trains(roster: Roster) -> dict[str, Any]:
     the route says a train carries one and still carries no address of any
     kind, the picture reaching a view through the `camera` app (ADR-0082).
     The first locomotive's model is a view's: a model name is not a decoder
-    detail. Written out rather than `asdict`, which would put every field of
+    detail. Each function's mode is a view's too: the throttle holds a
+    momentary one on only while its button is (#977). Written out rather than `asdict`, which would put every field of
     the document on this face the day one is added — and would drop all of
     these, which a train derives.
     """
@@ -516,7 +517,10 @@ def _trains(roster: Roster) -> dict[str, Any]:
         "trains": {
             name: {
                 "length": train.length,
-                "functions": [{"name": function.name} for function in train.functions],
+                "functions": [
+                    {"name": function.name, "mode": function.mode}
+                    for function in train.functions
+                ],
                 "camera": train.camera is not None,
                 "locomotive": train.locomotive,
             }
