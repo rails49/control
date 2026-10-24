@@ -1815,7 +1815,14 @@ export class TcStock extends LitElement {
     if (picking === null || this.stock === null) return;
     const refused = this.stock.append(picking.train, { car });
     if (refused === null) this.picking = null;
+    this.follow(picking.train);
     this.did(refused);
+  }
+
+  /** The chosen train kept chosen where putting a locomotive in it gave it
+   *  that locomotive's name (`Stock.trainNow`). */
+  private follow(train: string): void {
+    if (this.train === train) this.train = this.stock!.trainNow(train);
   }
 
   /**
@@ -1833,6 +1840,7 @@ export class TcStock extends LitElement {
       return;
     }
     this.picking = null;
+    this.follow(picking.train);
     if (added.as === "made") {
       this.asked = added.car;
       this.refusal = null;

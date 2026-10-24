@@ -1011,6 +1011,23 @@ describe("making up a train", () => {
     ).toBe("New train (2)");
   });
 
+  /** New train's name gives way to its first locomotive's, and the train
+   *  stays chosen under it (#1005). */
+  it("names New train after the first locomotive put in it, and keeps it chosen", async () => {
+    const shell = await opened();
+    await product(shell, "arnold-ce68", "locomotive", "122");
+    await pressed(shell, ".model-editor button.switch");
+    await train(shell, "a");
+    await pressed(shell, "button.new");
+    await add(shell, "models", "arnold-ce68");
+    await answered(shell, "3");
+
+    expect(cards(shell)).toEqual(["a", "arnold-ce68"]);
+    expect(
+      (part(shell, ".train-editor input.name") as HTMLInputElement).value,
+    ).toBe("arnold-ce68");
+  });
+
   it("refuses a name another train has, and puts the field back", async () => {
     const shell = await opened();
     await train(shell, "ore");

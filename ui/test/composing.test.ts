@@ -225,6 +225,40 @@ describe("making up a train", () => {
     expect(screen.roster.trains["New train (2)"]).toEqual({ cars: [] });
   });
 
+  /** A train New train named takes its first locomotive's name as that
+   *  locomotive goes in, in the same edit (#1005). */
+  it("names a new train after the first locomotive put in it", () => {
+    const screen = stock();
+    const made = screen.newTrain();
+    screen.append(made, { model: "hopper" });
+    expect(screen.trainNow(made)).toBe("New train");
+    const unsaved = screen.unsaved;
+    expect(screen.append(made, { car: "krokodil-a" })).toBeNull();
+    expect(screen.unsaved).toBe(unsaved + 1);
+    expect(screen.trainNow(made)).toBe("krokodil-a");
+    expect(Object.keys(screen.roster.trains)).toEqual(["ore", "krokodil-a"]);
+    expect(screen.roster.trains["krokodil-a"]!.cars).toEqual([
+      { model: "hopper" },
+      { car: "krokodil-a" },
+    ]);
+  });
+
+  it("adds (2) where another train has the locomotive's name", () => {
+    const screen = stock();
+    screen.addTrain("krokodil-a");
+    const made = screen.newTrain();
+    screen.append(made, { car: "krokodil-a" });
+    expect(screen.trainNow(made)).toBe("krokodil-a (2)");
+  });
+
+  it("keeps a name typed by hand when a locomotive goes in", () => {
+    const screen = stock();
+    screen.renameTrain(screen.newTrain(), "Gotthard");
+    screen.append("Gotthard", { car: "krokodil-a" });
+    expect(screen.trainNow("Gotthard")).toBe("Gotthard");
+    expect(Object.keys(screen.roster.trains)).toEqual(["ore", "Gotthard"]);
+  });
+
   /** One item cannot stand in a train twice. */
   it("refuses a car the train already has", () => {
     const screen = stock();
