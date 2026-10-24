@@ -78,29 +78,22 @@ export const drivingStyles = css`
     border-bottom: 1px solid var(--rule);
   }
 
+  /* The picture is the press that opens the train selector. */
   .view {
     position: relative;
+    display: block;
+    width: 100%;
     min-height: 6rem;
-  }
-
-  .stands {
-    color: var(--hint);
-  }
-
-  .bar button.release {
-    padding: 0.25rem 0.9rem;
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    background: var(--body);
+    padding: 0;
+    border: 0;
+    background: none;
     color: inherit;
     font: inherit;
     cursor: pointer;
   }
 
-  .bar button.release {
-    margin-left: auto;
-    border-color: var(--chosen);
-    color: var(--chosen);
+  .stands {
+    color: var(--hint);
   }
 
   .below {

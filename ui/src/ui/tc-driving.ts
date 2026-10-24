@@ -9,7 +9,10 @@
  * (ADR-0089), and each owns its own train's slider and reverser: they are the
  * person's and not the bus's, so they live with the pointer that moves them.
  * Every press names this panel's train and its throttle id and no other, and
- * goes to the app as an event, exactly as the band's power presses do.
+ * goes to the app as an event, exactly as the band's power presses do. The
+ * picture is the press that opens the panel's train selector
+ * (`tc-train-picker`), which gives the train back and takes another:
+ * `selector-wanted`, to the panel and not the app (#967).
  *
  * **The speed is in the train's frame.** The slider runs 0 to 1 and the
  * reverser gives it its sign: Forward nose first, `+`, Reverse tail first,
@@ -32,8 +35,7 @@ import { drivingStyles } from "./tc-driving.styles.js";
 /** The slider moved: the train it is about, the speed it now asks for,
  *  signed by the reverser, and the panel's throttle id. The view writes
  *  nothing itself — the session is the app's, and the app carries the press
- *  there as it carries the band's (ADR-0074's path, ui/THROTTLE.md). A
- *  release carries the train alone, as `release-wanted`. */
+ *  there as it carries the band's (ADR-0074's path, ui/THROTTLE.md). */
 export interface ThrottleWanted {
   train: string;
   speed: number;
@@ -190,11 +192,15 @@ export class TcDriving extends LitElement {
           <h2>${cab.train}</h2>
           ${this.signal(cab)}
           <span class="stands">${cab.block ?? "crossing a transit"}</span>
-          ${this.road(cab)} ${this.holding(cab)}
+          ${this.road(cab)}
         </div>
-        <div class="view">
+        <button
+          class="view"
+          aria-label="Choose a train"
+          @click=${() => this.say<null>("selector-wanted", null)}
+        >
           ${this.frame === null ? this.thumbnail(cab) : this.picture()}
-        </div>
+        </button>
       </section>
       ${still === null ? nothing : html`<p class="still">${still}</p>`}
       <section class="below">
@@ -213,7 +219,7 @@ export class TcDriving extends LitElement {
   private thumbnail(cab: Cab) {
     const model = cab.locomotive;
     if (model === null || this.unseen.has(model)) {
-      return html`<div class="thumbnail name">${cab.train}</div>`;
+      return html`<span class="thumbnail name">${cab.train}</span>`;
     }
     return html`<img
       class="thumbnail"
@@ -296,19 +302,6 @@ export class TcDriving extends LitElement {
     this.retry = null;
     this.failed = false;
     this.attempt = 0;
-  }
-
-  /** Release: the train given back, the same `null` take a Force release
-   *  is (BUS.md, `take_wanted`). The view goes back to the picker once
-   *  `state/taken` no longer names this throttle for it. */
-  private holding(cab: Cab) {
-    return html`<button
-      class="release"
-      ?disabled=${!this.live}
-      @click=${() => this.releasing(cab.train)}
-    >
-      Release
-    </button>`;
   }
 
   /**
@@ -470,14 +463,6 @@ export class TcDriving extends LitElement {
   }
 
   // --- what goes on the bus -------------------------------------------------
-
-  /** Give the train back. `layout` writes the speed a release implies, so
-   *  this sends no zero of its own — one gesture per press. */
-  private releasing(train: string): void {
-    if (!this.live) return;
-    this.slider = 0;
-    this.say<string>("release-wanted", train);
-  }
 
   /** The reverser switched: nothing on the bus (ADR-0084). */
   private reversing(reverse: boolean): void {
