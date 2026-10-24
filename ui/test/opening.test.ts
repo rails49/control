@@ -205,19 +205,23 @@ describe("the roster across a look at another view", () => {
     return await opened("stock");
   }
 
-  /** Compose: the `+` beside a model in the train's editor, which appends it
-   *  to the train chosen. */
+  /** Compose: Add on the train's strip, then the model in the picker's
+   *  Models tab, which appends it to the train chosen. */
   async function composed(shell: TcApp): Promise<void> {
-    stocking(shell)
-      .renderRoot.querySelector<HTMLElement>("li.addable.product button.add")!
-      .click();
-    await settled(shell);
+    for (const selector of [
+      ".train-editor button.add-tile",
+      'look-dialog.picker button.tab[data-tab="models"]',
+      "look-dialog.picker button.card.model",
+    ]) {
+      stocking(shell).renderRoot.querySelector<HTMLElement>(selector)!.click();
+      await settled(shell);
+    }
   }
 
   /** How many places the current train has, which is what an appended entry
    *  moves and what a reloaded roster puts back. */
   function entries(shell: TcApp): number {
-    return stocking(shell).renderRoot.querySelectorAll("li.entry").length;
+    return stocking(shell).renderRoot.querySelectorAll(".train-editor .tile").length;
   }
 
   it("keeps the rake being composed", async () => {

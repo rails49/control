@@ -27,6 +27,7 @@ import { css } from "lit";
 export const stockStyles = css`
   :host {
     container-type: inline-size;
+    position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -745,7 +746,8 @@ export const stockStyles = css`
   }
 
   button.model,
-  button.remove-car {
+  button.remove-car,
+  button.unmake {
     display: inline-flex;
     align-items: center;
     height: 44px;
@@ -758,7 +760,8 @@ export const stockStyles = css`
     cursor: pointer;
   }
 
-  button.remove-car {
+  button.remove-car,
+  button.unmake {
     height: 32px;
     padding: 0 10px;
     font-size: 13px;
@@ -836,85 +839,199 @@ export const stockStyles = css`
     font-variant-numeric: tabular-nums;
   }
 
-  /* --- the train's controls, until #980 --- */
+  /* --- the train editor: the cars as a strip of tiles, head first --- */
 
-  ul.rows > li + li {
-    border-top: 1px solid var(--rule);
+  .ends {
+    display: flex;
+    justify-content: space-between;
+    color: var(--hint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
-  li.entry {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 5rem 8rem auto auto;
-    column-gap: 0.4rem;
-    align-items: center;
-    padding: 0.2rem 0;
+  .strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 2px 2px 10px;
   }
 
-  li.addable {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    padding: 0.25rem 0;
+  .tile {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    width: 200px;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: var(--paper);
+    cursor: grab;
   }
 
-  li.entry input,
-  li.train input {
+  .tile.over {
+    border-color: var(--chosen);
+    box-shadow: 0 0 0 1.5px var(--chosen);
+  }
+
+  .tile.dragging {
+    opacity: 0.4;
+  }
+
+  .tph {
+    position: relative;
+    display: block;
     width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    padding: 0.2rem 0.3rem;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    background: var(--paper);
-  }
-
-  li.entry > button,
-  li.train button,
-  li.addable button {
-    padding: 0.1rem 0.45rem;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    background: var(--paper);
-    cursor: pointer;
-  }
-
-  button.turn[aria-pressed="true"] {
+    aspect-ratio: 10 / 3;
+    overflow: hidden;
     background: var(--rule);
   }
 
-  li.train > header {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    column-gap: 0.4rem;
-    align-items: center;
+  .tph img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--track);
   }
 
-  li.train ol {
-    margin-top: 0.4rem;
+  /* A reversed entry: its nose points toward the tail. */
+  .tile.rev .tph img {
+    transform: scaleX(-1);
   }
 
-  .derived {
-    grid-column: 1 / -1;
-    color: var(--hint);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
+  .tb {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 10px 4px;
   }
 
-  .what {
+  .tn {
     overflow: hidden;
+    font-size: 14px;
+    font-weight: 700;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 
-  /* An item with nothing of its own: named by its model where it is used, and
-     drawn as the product rather than as a thing with a name. */
-  .what.anonymous {
-    color: var(--hint);
-    font-style: italic;
-  }
-
-  .of {
+  .tm {
     color: var(--hint);
     font-size: 12px;
+  }
+
+  .ta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 4px 6px 6px;
+  }
+
+  button.flip {
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--body);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tile.rev button.flip {
+    border-color: color-mix(in srgb, var(--chosen) 50%, transparent);
+    color: var(--chosen);
+  }
+
+  button.out {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--hint);
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  button.out:hover {
+    color: var(--wrong);
+  }
+
+  button.add-tile {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 140px;
+    min-height: 130px;
+    border: 2px dashed var(--rule);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--chosen);
+    font-size: 14px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  button.add-tile span {
+    font-size: 24px;
+  }
+
+  .derived {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 16px;
+    align-items: baseline;
+    margin: 0;
+  }
+
+  .derived dt {
+    color: var(--hint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .derived dd {
+    margin: 0;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The picker's two tabs, and a car it will not put in greyed. */
+  .tabs.two {
+    margin: 0 0 10px;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cards.offered {
+    padding: 2px;
+  }
+
+  button.card:disabled {
+    opacity: 0.45;
+  }
+
+  /* What the picker did, said at the foot of the view for a moment. */
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    z-index: 30;
+    transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 14px;
+    font-weight: 600;
   }
 `;
