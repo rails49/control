@@ -70,7 +70,6 @@ function written(): unknown[] {
   );
 }
 const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
-const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
 
 /** The dispatcher's picture with `goods` standing in `a`. */
 const PICTURE = { trains: { goods: "a" }, locks: { a: "goods" }, requests: [] };
@@ -1046,43 +1045,6 @@ describe("driving it", () => {
   });
 });
 
-describe("turning it round", () => {
-  it("publishes reversal_wanted while the slider is at rest", async () => {
-    const shell = await driving();
-    await held(shell);
-
-    await pressed(shell, "button.turn");
-
-    expect(written().at(-1)).toEqual({
-      topic: REVERSAL_WANTED,
-      payload: { train: "goods" },
-    });
-  });
-
-  /** Flipping the facing under a moving train would reverse it on the spot,
-   *  so the control is offered only at zero, and not while the move it is
-   *  making is still in flight: a train stopped on the transit stands
-   *  between two blocks. */
-  it("is dead while the train is moving", async () => {
-    const shell = await driving();
-    await taken(shell);
-    await moved(shell, 0.5);
-
-    expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(true);
-
-    await pressed(shell, "button.stop");
-    expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(true);
-
-    await said(shell, "tc49/layout/block_occupied", { block: "b" });
-    await said(shell, ALLOCATION, {
-      trains: { goods: "b" },
-      locks: { b: "goods" },
-      requests: [],
-    });
-    expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(false);
-  });
-});
-
 describe("giving it back", () => {
   /** Back to the picker once `state/taken` no longer names this throttle,
    *  and not before: the release is `layout`'s to answer. */
@@ -1385,7 +1347,6 @@ describe("with the rails dead", () => {
 
     (await release(shell)).click();
     part<HTMLButtonElement>(shell, "button.stop")!.click();
-    part<HTMLButtonElement>(shell, "button.turn")!.click();
     part<HTMLButtonElement>(shell, "button.reverse")!.click();
     await moved(shell, 0.7);
     await settled(shell);

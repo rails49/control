@@ -70,9 +70,6 @@ function drive(model: Panel, stock = {}) {
     noses: model.noses(),
     aspects: model.aspects(),
     ahead: model.ahead(),
-    inFlight: new Set(
-      placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
-    ),
     stock,
   });
 }
@@ -255,13 +252,12 @@ describe("the road in front", () => {
 });
 
 describe("a request in flight", () => {
-  /** The same pre-judgement the run view's menu makes, and for the reason it
-   *  makes it: the request departs the end the facing named when it was
-   *  composed (#295). */
-  it("is marked on the train, from submission until it is answered", () => {
+  /** Turning a train round is the scheduler's, composed in the run view's
+   *  menu, which reads a request in flight off the run's picture itself: a
+   *  throttle has no Turn around, so a cab does not carry it (#968). */
+  it("is not a cab's", () => {
     const model = panel();
     standing(model);
-    expect(drive(model)[0]).toMatchObject({ inFlight: false });
     feed(model, {
       event: "request_submitted",
       id: "r1",
@@ -269,9 +265,7 @@ describe("a request in flight", () => {
       depart: "a.B",
       dest: ["b.A"],
     });
-    expect(drive(model)[0]).toMatchObject({ inFlight: true });
-    feed(model, { event: "request_completed", id: "r1" });
-    expect(drive(model)[0]).toMatchObject({ inFlight: false });
+    expect(drive(model)[0]).not.toHaveProperty("inFlight");
   });
 });
 
