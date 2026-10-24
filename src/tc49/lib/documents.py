@@ -23,7 +23,8 @@ nothing listening, a connection refused or dropped, a reply that is not JSON —
 and the 5xx it sends when it cannot answer a request it should have.
 
 Standard library only: this is what an app is built on, and it fetches four
-documents per build and nothing between (SYSTEM.md, "read once per build").
+documents per build, and between builds only the roster a running app reads
+once again for a train it has not got (SYSTEM.md, "read once per build").
 The writes are the layout binding's: its record of which railroad it loaded
 (`put_loaded`, ADR-0072 decision 5), and the railroad's clock when a person
 sets it (`put_clock`, ADR-0090 decision 3).
@@ -88,19 +89,25 @@ class Documents:
         whoever holds it."""
         return Layout.from_document(self._get("layouts", name))
 
-    def roster(self, name: str) -> Roster:
+    def roster(self, name: str, *, once: bool = False) -> Roster:
         """The stock `name` owns, merged onto the installation's catalogue.
 
         Two documents because a car is only complete against a model, and the
         catalogue belongs to the installation rather than to the railroad
         (ADR-0045): the same pair the store puts together for a caller that
         can import it.
-        """
-        return validate_roster(self._get("rosters", name), self.catalogue())
 
-    def catalogue(self) -> dict[str, Model]:
+        `once` is the read a running app makes for a train it has not got
+        (ADR-0091): one attempt each, and a store that does not answer is a
+        `ConnectionError` rather than a wait its bus loop would sit through.
+        """
+        return validate_roster(
+            self._get("rosters", name, once=once), self.catalogue(once=once)
+        )
+
+    def catalogue(self, *, once: bool = False) -> dict[str, Model]:
         """The models the installation knows, by name."""
-        models = self._get("catalogue").get("models")
+        models = self._get("catalogue", once=once).get("models")
         if not isinstance(models, dict):
             raise TypeError(f"{self._base}/catalogue: no models in the reply")
         return {
@@ -137,27 +144,31 @@ class Documents:
         railroad before the store is up still has to say which."""
         self._put("loaded", body={"railroad": name})
 
-    def _get(self, *path: str) -> dict[str, Any]:
-        """One document, waited for until the store answers."""
-        return self._asked(path, None)
+    def _get(self, *path: str, once: bool = False) -> dict[str, Any]:
+        """One document, waited for until the store answers — or, `once`,
+        asked for one time."""
+        return self._asked(path, None, once)
 
     def _put(self, *path: str, body: dict[str, Any]) -> dict[str, Any]:
         """`body` put there, and the store's answer waited for."""
         return self._asked(path, body)
 
     def _asked(
-        self, path: tuple[str, ...], body: dict[str, Any] | None
+        self, path: tuple[str, ...], body: dict[str, Any] | None, once: bool = False
     ) -> dict[str, Any]:
-        """The store's answer at `path`, retried while it does not answer.
-        The route is given a level at a time and each is escaped: a name is
-        one level, so a railroad called `a/b` is a name the store does not
-        have rather than a route of its own."""
+        """The store's answer at `path`, retried while it does not answer,
+        and `once` raised as a `ConnectionError` instead. The route is given
+        a level at a time and each is escaped: a name is one level, so a
+        railroad called `a/b` is a name the store does not have rather than a
+        route of its own."""
         where = self._base + "".join(f"/{quote(level, safe='')}" for level in path)
         backoff = self._first_backoff_s
         while True:
             try:
                 return _fetch(where, self._timeout_s, body)
             except _Unanswered as away:
+                if once:
+                    raise ConnectionError(f"{where}: {away}") from None
                 self._log(f"{where}: {away}, retrying in {backoff:.1f}s")
                 time.sleep(backoff)
                 backoff = min(backoff * 2, self._max_backoff_s)
