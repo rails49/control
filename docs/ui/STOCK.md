@@ -17,13 +17,32 @@ not put a train on it: the flow the app exists for stopped one step short.
 
 ## The screen
 
-Two columns. On the left, what can go in a train: **cars above, models below**.
-On the right, the **trains**. You compose right from left.
+As [stock-mockup.html](images/stock-mockup.html) lays it out, in the
+throttle's visual style ([#978](https://github.com/rails49/control/issues/978)).
 
-**Cars are above because they are yours and they are few.** A locomotive you
-own, with its address, written once and never restated. **Models are below
-because they are what anything is made of**, and ten identical hoppers are one
-row rather than ten
+**A bar across the top**: *Stock*, the loaded railroad's name, what is unsaved,
+and the one **Save**. It says *Everything is saved*, *<n> unsaved changes*,
+*Saved* for a moment after a Save lands, or the refusal standing: a field's,
+Save's own (the length guard, a train with nothing in it, nothing loaded), or
+the store's.
+
+**Two columns below it**: the list, `minmax(300px, 380px)`, and the editor of
+the item chosen in it. Where the view is narrower than 760 px — its own width,
+read with a container query — it is one column: the list, and pressing a card
+stands the editor in its place, with a back button.
+
+**The list** has three tabs, **Trains · Cars · Models**, each with its count, a
+*New train* / *New car* / *New model* button, and one card per item: a photo
+frame 10:3 wide, the name, and a line of facts. A model: kind, scale, length,
+*decoder*. A car: its model's name, its address, *camera*. A train: how many
+cars, its length, its kind, its priority. A car's card shows its model's photo
+and a train's its first locomotive's. **Every photo is shown whole**
+(`object-fit: contain`): train cars are wide and low, and a crop cuts off the
+end that tells two apart.
+
+**Cars are few because they are yours.** A locomotive you own, with its
+address, written once and never restated. **Models are what anything is made
+of**, and ten identical hoppers are one card rather than ten
 ([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
 
 A **train** is a name and an ordered list of entries, each with a
@@ -36,12 +55,19 @@ been saved and so has no `/rosters/<railroad>/trains` answer to read; the two
 derivations say the same thing, and `ui/test/composing.test.ts` pins them
 together.
 
+**The car's and the train's editors are their older controls** until
+[#979](https://github.com/rails49/control/issues/979) and
+[#980](https://github.com/rails49/control/issues/980) draw theirs: a car's
+name, address, camera and length with its remove, and a train's name, unmake,
+derived line and entries, with every car and model listed under it beside a
+`+` that puts it at the tail.
+
 ## What it does
 
 **Adding a model entry** to a train gives an **anonymous item**: the entry
 names the model, and there is nothing else to say about it.
 
-**Filling in an address or a camera promotes it to a car** in the list above,
+**Filling in an address or a camera promotes it to a car** in the Cars list,
 named from the model with a suffix you can edit — `arnold-ce68-1` until you
 call it `krokodil-a`. Nothing asks you to classify an item before you add it:
 an address is the physical identity, and having one is exactly what puts an
@@ -55,24 +81,25 @@ up.
 rake for. Unmaking a train leaves its cars on the roster — composing a train
 and owning the stock are two things.
 
-**The `+` buttons name one train, and it is always a train there is.** A press
-on the left puts a car or a model at the tail of the **current** train — the
-row drawn as current, which is the one you last made up or clicked. Unmaking
-that train hands the current row to the first train left, the pick reading the
-documents makes; unmaking the last one leaves no target at all, and the `+`
-buttons are dead with *make a train up first*, as they are before any train
-exists. **Renaming that train carries the current row with it**: you renamed
-the train you were composing, not another one. The `×` does not select the row
-it removes: it used to, and every `+` was then left naming a train that was
-gone, doing nothing and saying nothing when pressed
-([#416](https://github.com/rails49/control/issues/416)).
+**The `+` buttons name one train, and it is always a train there is.** They
+are in the train's editor, and put a car or a model at the tail of the train
+**chosen** — the card last pressed, or the train last made up. Unmaking that
+train chooses the first train left; unmaking the last leaves nothing to add to,
+and the editor says *Nothing here yet. Press New train.* **Renaming that train
+carries the choice with it**: you renamed the train you were composing, not
+another one ([#416](https://github.com/rails49/control/issues/416)).
 
-Which train is current is held as a **name**, and a name is not a hold on the
+Which train is chosen is held as a **name**, and a name is not a hold on the
 train: the roster can stop having it. So it is resolved against the roster
 wherever it is read and falls back to the first train there — one rule, rather
-than a move written at each press that can take the train away. Written that
-second way it covered unmaking and not renaming, and the sentence above did
-not hold ([#445](https://github.com/rails49/control/issues/445)).
+than a move written at each press that can take the train away
+([#445](https://github.com/rails49/control/issues/445)).
+
+**Names take any character** — `Ae 6/6`, `Re 4/4 II`, `S 1/S 2` — a model's, a
+car's and a train's alike. None is a topic level or a path unencoded: a
+model's key is minted and hidden (below), and `GET /picture/<railroad>/<train>`
+percent-encodes the train. An empty name is refused: *A car needs a name.*,
+*A train needs a name.*
 
 **Kind never implies an address.** A powered van is a real thing
 (`layout/interface.py`), so the address field is offered on every entry and
@@ -91,22 +118,6 @@ one camera in two cars would put one picture on two trains, which the store
 refuses as well (`lib/stock.py`). It reaches the store on Save, in the whole
 `PUT /rosters/<railroad>`, and the length guard does not hold it: it moves
 nothing the dispatcher fits.
-
-**A product that does not exist yet is created in the same dialog** — name,
-length over buffers, kind, functions. The catalogue is a real document with
-its own route underneath and never a place you navigate to for its own sake. It
-is written the moment it is made, ahead of the roster, because a roster naming
-a model the installation has not got is refused whole (`lib/stock.py`).
-
-**New model makes a product and never changes one.** The dialog refuses a name
-the catalogue already has — *there is already a model 'hopper'* — said beside
-the button as the dialog's other refusals are, and sends no `PUT`.
-`PUT /catalogue/<name>` replaces the document whole, so Create under a name in
-use would rewrite that product's kind, length and functions for every railroad
-in the installation, saying nothing, and would step around the length guard
-below: a train's derived length would move under the dispatcher.
-**Changing an existing product is done on its row**, behind that guard
-([#413](https://github.com/rails49/control/issues/413)).
 
 **Composing a train and placing it are two actions**
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)): a rake is durable
@@ -173,8 +184,8 @@ drawing.
 
 **A refused edit puts the field back.** A refusal changes the document by
 construction not at all, so the field is written back to what the document
-holds while the words say why: rename a car to `a/b` and the name goes back to
-the one the roster has. It used to keep the typed value, so the screen
+holds while the words say why: rename a model to one another model has and the
+name goes back to the one it had. It used to keep the typed value, so the screen
 displayed a name, an address or a length nothing had (#416).
 
 **The field an edit was typed into, and no other.** The write-back is the
@@ -188,11 +199,9 @@ A refusal on one field leaves an edit standing in another alone for the same
 reason: what was not typed there was not refused.
 
 **Refusals name what holds a thing.** A car a train is made of cannot be
-removed, and the message says which train. A model's row says what names it —
-the cars that are one, then the trains whose entries do — for the same reason,
-read on the row rather than run into: the store's catalogue face has **no
-DELETE for any document** and an unused model costs nothing
-(`store/server.py`), so this screen offers no way to remove a model at all.
+removed, and the message says which train. A model's editor says what uses
+it — the cars that are one, then the trains whose entries do — read there
+rather than run into, and its Delete is dead while anything does.
 
 **No session.** Like the editor, this is a document view, and the bus carries
 nothing about what a railroad owns
@@ -201,115 +210,122 @@ nothing about what a railroad owns
 and saved by the loaded railroad (`ui/src/model/railroad.ts`), which every view
 shares, so no view can hold a railroad the row no longer names
 ([#758](https://github.com/rails49/control/issues/758)). What this screen
-writes itself is a new model and a photo.
+sends itself is a model's `DELETE` and a picture asked of the camera.
+
+## The model editor
+
+From the top, as the mockup draws it.
+
+**The photo**, in a frame 10:3 wide, below.
+
+**Name**: any characters. Refused when empty — *A model needs a name.* — or
+when another model has it — *There is already a model 'Ae 6/6'.* — and the
+field is put back. The store refuses a second model of one name too
+(`AssetStore.put_model`). A document that states no name reads as its key.
+
+**Kind**: Locomotive · Passenger · Freight · Special. **Scale**: a select of Z,
+N, TT, H0, S, 0, 1, G (`lib.roster.SCALES`). **Length over buffers**, under
+the length guard below. **Notes**: a textarea; emptied, the key goes from the
+document.
+
+**Decoder**: a switch. Turning it on with no functions adds F0 *Headlights*;
+turning it off drops the functions, a function being a bit on a decoder and
+the store refusing functions on a model without one (`lib/stock.py`).
+**Functions**, while it is on: one row each — the number F0–F68, the name,
+**Toggle · Hold** (`latching` · `momentary`, GLOSSARY.md **Function**) and a
+remove. *Add a function* takes the lowest number not in use. A number listed
+twice says *F2 is listed twice. One number names one function.* under the rows,
+and Save is refused while it stands; so is a function with no name, *F1 needs
+a name.* A latching function's document says nothing about its mode, absent
+reading as latching.
+
+**Used by**: the loaded railroad's cars of this model, then its trains with
+entries naming it. **Delete model** is dead while the list is not empty.
+Pressed, it asks *Delete <name>? Its photo goes with it. A backup can bring it
+back.* and sends `DELETE /catalogue/<model>` at once
+([#976](https://github.com/rails49/control/issues/976)). The store reads every
+railroad's roster for it, so a model no car or train here uses can still be
+refused for a railroad that is not loaded: that refusal is said under the
+button in the store's words, and the model stays. A model made here and not
+yet saved goes from the page alone; the store has never had it.
+
+**New car**, at the top right, makes a car of this model, named after it —
+*Ae 6/6*, then *Ae 6/6 (2)* — with no address, and shows it in the Cars list.
+The Cars list's own New car asks which model first.
+
+## Saving
+
+**One Save**: each changed model's document with `PUT /catalogue/<model>`, then
+each changed photo with `PUT /catalogue/<model>/photo` under `image/jpeg`,
+then the roster with `PUT /rosters/<railroad>`. That is the order the store
+takes them in: it refuses a photo of a model it has not got, and a roster
+naming one, whole (`lib/stock.py`, [#630](https://github.com/rails49/control/issues/630)).
+A refusal stops the Save where it happened, as
+[#718](https://github.com/rails49/control/issues/718) has it: what was written
+stays written, and what was not is still an edit for the next Save.
+
+**A new model is written by Save**, no longer the moment it is made. *New
+model* adds *New model* — *New model (2)* where that is taken — to the list,
+chosen, with its name selected to be typed over: a passenger car in H0, 200 mm,
+with no decoder. It is put in trains and given cars like any other before it is
+saved, and the roster that names it is written after it.
+
+**Its key is minted at that first write** from its name and never changes:
+lower-cased, accents dropped (NFKD), every run of characters other than
+`a–z0–9` turned into `-`, `-` trimmed from both ends, `model` if nothing is
+left, then `-2`, `-3` … until no model has it. `Ae 6/6` is `ae-6-6`. The key
+is the file's name and what every car names; it is never shown
+([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). Until that
+write the model is held under a key no document can have, and the roster's
+references move with it when it is minted.
 
 ## A model's photo
 
-**Every row on the left starts with a thumbnail of the model's photo** — an
-`<img>` on `GET /catalogue/<name>/photo`, which is where one model's picture
-hangs below its document
+**Every card shows a photo** — an `<img>` on `GET /catalogue/<model>/photo`,
+where one model's picture hangs below its document
 ([#630](https://github.com/rails49/control/issues/630)). Where that answers
-anything but `200` the thumbnail is an empty box reading *no photo*: nothing on
-a model's document says whether there is one, the photo existing exactly where
-the file does, so an image that did not load is the whole of how this screen
-learns there is none to draw. **A car shows its model's photo.** The picture
-says what the product looks like, and ten identical hoppers have one between
-them
+anything but `200` the frame reads *No photo*: nothing on a model's document
+says whether there is one, so an image that did not load is the whole of how
+this screen learns there is none. **A car shows its model's photo**, and a
+train its first locomotive's: the picture says what the product looks like,
+and ten identical hoppers have one between them
 ([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
-A photo answers *which one is that* faster than a name does, which is why it is
-on the row and not a screen away ([#628](https://github.com/rails49/control/issues/628)).
 
-**Pressing the thumbnail opens a dialog titled `Photo — <model>`**: the photo
-large, or *no photo*, and a **Take photo** press — **Retake photo** where the
-model has one. A car's thumbnail opens the model's dialog, titled for the
-model, so a person pressing a car sees whose picture they are looking at.
+**In the model editor, dropping an image file on the frame, at any time, makes
+it the model's photo**; with none, the frame says *Drop a picture here*. Under
+it, **Choose file…** — the browser's own `<input type="file"
+accept="image/*">` — and **Take photo**, **Retake photo** where the model has
+one.
 
-**Take photo fetches `GET /camera/snapshot`.** That route is a **photo camera's
-and the store never answers it**: the responder is not code of this repository,
-and on a box its own stack claims `/camera`, while in development vite proxies
-the prefix to the port a photo camera listens on
-([SYSTEM.md](../SYSTEM.md), [DEPLOY.md](../DEPLOY.md),
-[#629](https://github.com/rails49/control/issues/629)). While the camera is
-being waited on the frame reads *taking a picture…* and the press is dead,
-there being nothing to press twice. On `200` the dialog shows the picture
-marked *not saved yet*, with **Save**, **Retake** and **Cancel**. Save sends
-the camera's own bytes with `PUT /catalogue/<name>/photo` under `image/jpeg`,
-byte for byte — nothing here scales or crops a picture — and the thumbnail then
-asks for `?v=<n>`, because the bytes at that URL have changed and the browser
-is holding the ones from before. The store drops a query string, so that is the
-same route and not another one (#630).
+**A dropped or chosen file is decoded by the browser and written again as a
+JPEG at most 1600 px wide, quality 0.88, never cropped**, by `toJpeg` in
+`ui/src/model/photo.ts`: a phone's photo is several megabytes and a frame
+shows a fraction of that, and the store keeps a JPEG and nothing else. A file
+that is not an image: *That file is not a picture.* One the browser cannot
+decode — HEIC on most desktops: *This browser cannot read that picture. Try a
+JPEG or PNG.* Either is said under the frame and changes nothing.
 
-**Save is dead from the press until its own `PUT` answers.** One picture has at
-most one write of it in flight: a second press would send bytes the store
-already has and bring back a second answer about a picture the first has
-already spoken for — and where the first was refused and the second landed, the
-answer the screen kept was the refusal, beside a picture the store had
-([#655](https://github.com/rails49/control/issues/655)). A Save the store
-refuses is a write that did not happen, so Save is live again with the refusal
-beside the picture. **Retake and Cancel stay live** while that write goes on:
-the picture can be taken again or put away under it, and a picture taken next
-has its own Save live — the write still in flight is the earlier picture's, and
-what its answer may touch is #651's.
+**Take photo fetches `GET /camera/snapshot`** and keeps the camera's bytes as
+they are. That route is a **photo camera's and the store never answers it**:
+on a box its own stack claims `/camera`, while in development vite proxies the
+prefix to the port a photo camera listens on ([SYSTEM.md](../SYSTEM.md),
+[DEPLOY.md](../DEPLOY.md), [#629](https://github.com/rails49/control/issues/629)).
+While the camera is waited on the frame reads *Taking a picture…* and the press
+is dead. **Any status but `200` means no picture** — there is nothing else for
+a caller to read out of it — and is said under the frame as *no picture:*
+followed by the status and its text, or by what the fetch said, with the press
+live again: a camera plugged in a minute later is a picture a minute later.
 
-**A Save whose answer comes back after its dialog has gone leaves the picture
-in the frame alone.** The `PUT` can still be in flight when the dialog is put
-away, and a picture taken in a dialog opened since is not the one that Save is
-about: it stays where it is, marked *not saved yet* with its own Save live,
-whether that write lands or the store refuses it — a refusal of a Save nobody
-is waiting for is a sentence about nothing, and it is not about the picture it
-would be written beside
-([#446](https://github.com/rails49/control/issues/446)). The write itself
-stands either way, so a Save that lands still takes the thumbnail to `?v=<n>`:
-the model has its photo whoever is still watching
-([#651](https://github.com/rails49/control/issues/651)).
-
-**Any other answer from the camera, and a fetch that rejected, say so and
-offer to try again**: *no picture:* followed by the status and its text, or by
-what the fetch said. A `200` carries the picture and **any other status means
-no picture** — there is nothing else for a caller to read out of it (#629) — so
-there is nothing to interpret and nothing to retry automatically. **The press
-is never dead for want of a camera**: a box with none answers something, and a
-camera plugged in a minute later is a picture a minute later.
-
-**The New model dialog has the same Take photo, Retake and Cancel**, and no
-Save until the product exists: a picture taken there is written with the `PUT`
-**right after Create succeeds**, because the store refuses a photo for a model
-it has not got — a file beside a document that is not there is a photo of
-nothing (#630). So the two writes go in that order and never together. If that
-second one fails **the model stays created** and the dialog's refusal line says
-so — *'hopper' is written, but its photo was not saved: …*. That line is the
-dialog's own refusal; what the camera said sits beside the picture and is not
-one ([#446](https://github.com/rails49/control/issues/446)).
-
-**Once Create has written the model the dialog is a dialog about that model**,
-so its frame is drawn for it and the picture nobody kept gets the **Save** a
-photo dialog's has: the same bytes to `PUT /catalogue/hopper/photo` under
-`image/jpeg`. **Create is dead from the write on** — one dialog writes one
-model, and a second press reached the duplicate-name check and answered
-*there is already a model 'hopper'* about the write this very dialog had just
-made ([#638](https://github.com/rails49/control/issues/638)).
-
-**Name, Kind, Length and the function rows are dead with it** — the rows'
-number and name, the × that takes a row away, and Add a function. Create is the
-only thing that reads what any of them holds, so an edit typed there cannot be
-saved, and a name typed over the written one while Save goes on sending the
-picture to `PUT /catalogue/hopper/photo` says nothing about which model that
-picture is of. Editing a written model is the model row's own business, not
-this dialog's. Take photo, Retake and Cancel stay live, and Cancel still
-discards a picture nothing kept
-([#644](https://github.com/rails49/control/issues/644)). Save is dead while its
-own `PUT` is in flight here as anywhere else, and a second press on it was how
-the dialog was left standing with both writes done (#655).
-
-**A Save that lands puts the dialog away.** Both of its writes are done, so it
-has nothing left to say: it goes the way a Create whose photo landed first time
-takes it, and the catalogue row is drawn with the photo the model now has. A
-Save the store refuses leaves the dialog where it was — the store's wording
-beside the picture, and the picture still there to save again (#644).
+**A photo chosen, dropped or taken is the page's until Save writes it**, shown
+in the frame and on the card meanwhile and counted among the unsaved changes.
+Once written the card asks for `?v=<n>`, because the bytes at that URL have
+changed and the browser is holding the ones from before; the store drops a
+query string, so it is the same route (#630). A photo the store refuses stays
+on the page for the next Save.
 
 **A photo is the model's and never the car's.** An item with a photo of its own
 would be a second kind of picture to keep, and what a person is telling apart
-on this screen is products (#628).
+on this screen is products ([#628](https://github.com/rails49/control/issues/628)).
 
 ## The length guard
 
@@ -350,16 +366,22 @@ that lands after it has gone owes the request: it is sent once the broker is bac
 same railroad and power reads off, and dropped if the row names another
 railroad or none (#803).
 
-A **model** corrected on its row is written by that Save too, with
-`PUT /catalogue/<name>`, before the roster: each corrected model once, with its
-latest length, then the roster
+A **model** corrected in its editor is written by that Save too, with
+`PUT /catalogue/<model>`, before the roster: each changed model once, as it
+then stands, then the roster
 ([#718](https://github.com/rails49/control/issues/718)). A refusal stops the
-Save where it happened and is said beside Save. A model already written stays
+Save where it happened and is said in the bar. A model already written stays
 written; what was not written is still an edit, and the next Save writes it. If
 a model was written before the refusal, the railroad is named again all the
 same: power is off, and the dispatcher must not go on fitting trains by a length
 the store no longer holds. A model correction names the railroad again whether
-or not the loaded roster uses that model.
+or not the loaded roster uses that model; a model written for its name, notes
+or functions alone names nothing, moving no length.
+
+**A model made here and not yet saved is outside the guard.** No train the
+dispatcher fits is made of a model the store has not got, so its length is
+editable with power on and is no length edit: making a product during a run
+does not hold the Save.
 
 This is a **UI guard in one browser**. `tc-app.ts` holds the run state — track
 power, and which trains the session says are placed — and passes it down, the
@@ -371,25 +393,19 @@ is not covered, and the store enforces none of it (ADR-0071).
 This view is one of the app's views of the loaded railroad (ADR-0038), and
 nothing is loaded until the broker names a railroad
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-Until then there is no roster and no catalogue, and **the two presses that
-write are dead with the reason on them**: *load a railroad first* where none
-has been named, and *the roster and the catalogue are not read yet* where one
-has and its read has not landed — which of the three ways that read failed
-being the line under the Trains heading's to say, below. It is the answer Save
-already gave, and the one the `+` buttons give with no train made up.
+Until then there is no roster and no catalogue, and **the presses that write
+are dead with the reason on them** — the New buttons and Save: *load a
+railroad first* where none has been named, and *the roster and the catalogue
+are not read yet* where one has and its read has not landed. The bar says the
+same, or which of the three ways that read failed, below.
 
-New model was the press left open. On a box with an empty store the button was
-live, the dialog opened, every field took input, and **Create did nothing at
-all**: no document written, no refusal shown, and no request out of the
-browser ([#565](https://github.com/rails49/control/issues/565)). So **a press
-on this screen either does what it says or says why it cannot**. The guard
-inside Create sets the dialog's refusal rather than returning — a dialog that
-opened is a dialog that answers when its button is pressed, and the way in is
-still there: the broker moves the railroad while the dialog is open, and the
-screen forgets the documents and keeps what somebody is writing. New train
-says its reason before it asks for a name rather than after; a prompt
-cancelled or left empty stays a person's own no, as it is everywhere in the
-app.
+New model was once the press left open: on a box with an empty store its
+dialog opened, every field took input, and Create did nothing at all — no
+document written, no refusal shown, no request out of the browser
+([#565](https://github.com/rails49/control/issues/565)). So **a press on this
+screen either does what it says or says why it cannot**. New train says its
+reason before it asks for a name rather than after; a prompt cancelled or left
+empty stays a person's own no, as it is everywhere in the app.
 
 ## When the store does not answer with a document
 
@@ -419,17 +435,10 @@ was being composed: a roster edited for the railroad that was open goes when
 another is loaded, the app having asked about it first (#415). A Save still in
 flight then writes its answer onto nothing the new railroad shows (#758).
 
-**A failed Create leaves the dialog open**, with the message beside the button
-— *PUT /catalogue/hopper answered 404* — so the product is still written down
-and there to write again once the store is reachable.
-
-**The dialog's refusal is the dialog's own**, and the line under the Trains
-heading is the screen's. The two are unrelated surfaces, so a refusal about a
-name in the dialog is said beside the Create button and nowhere else, and it
-goes when the dialog does — dismissed, cancelled, or shut by a Create that
-landed. They were one state, which said *there is already a model 'hopper'*
-twice at once and then left it standing under a list the sentence was never
-about ([#446](https://github.com/rails49/control/issues/446)).
+**A Save that did not land leaves everything it did not write**, with the
+message in the bar — *PUT /catalogue/hopper answered 404* — so a model made
+here, its photo and the roster naming it are all still there to write again
+once the store is reachable.
 
 ## The run view beside it
 
@@ -464,25 +473,30 @@ with its styles beside it. It works nothing out: every length, kind, function,
 minted name and refusal is `ui/src/model/stock.ts`'s answer, which holds the
 two documents and every edit to either and knows nothing about the DOM.
 
-The rows are the browser's own `input` and `select` and the new-model dialog is
-look's `look-dialog`, the way the properties dialog is: a dense grid of three
-fields per row is a table, and a form is a form.
+The fields are the browser's own `input`, `select` and `textarea`, and the
+question Delete asks is look's `look-dialog`, the way the properties dialog
+is. The view's layout, the bar, the tabs and the cards follow the mockup; its
+colours are the app's palette.
 
-The photo's three calls are `ui/src/model/store.ts`'s, beside the routes the
-rest of this screen reads: where a model's photo is, saving one, and taking a
-picture. The last of those is not a store call and is the only call in the app
-that is not, which is why what it does with a status is its own: a `200` is the
-picture and anything else is none. A picture waiting to be saved is held as a
-`data:` URL rather than an object URL — an object URL is a handle that has to
-be given back, and a dialog where three pictures are taken and one is kept
-would leak the other two. In development `ui/vite.config.ts` proxies `/camera`
+`ui/src/model/stock.ts` holds the edits Save writes: each changed model, each
+photo waiting, and the function rows a document keyed by number cannot hold
+while a number is listed twice. `ui/src/model/railroad.ts` mints the keys and
+writes them in the store's order. A model's `DELETE` is `ui/src/model/store.ts`'s,
+beside the routes the rest of this screen reads, as are where a model's photo
+is, saving one, and taking a picture. The last of those is not a store call and
+is the only call in the app that is not, which is why what it does with a
+status is its own: a `200` is the picture and anything else is none.
+`ui/src/model/photo.ts` is the one conversion of a picture file into the JPEG
+the store keeps. A picture waiting to be saved is held as a `data:` URL rather
+than an object URL — an object URL is a handle that has to be given back, and
+a model whose picture is chosen three times would leak two. In development `ui/vite.config.ts` proxies `/camera`
 to a photo camera the way it proxies the store's prefixes, so the page fetches both on its own
 origin.
 
 The view is not in the shell's left-pane slot. `--pane` is the width of the
 strip beside a drawing surface — the editor's palette, the run view's roster
 ([#169](https://github.com/rails49/control/issues/169)) — and this view has no
-surface, so it declares its own two columns and leaves `--pane` alone. It puts
+surface, so it declares its own columns and leaves `--pane` alone. It puts
 no commands on the rail either: `RAIL.stock` is empty, there being no viewport
 to move, and a `Save` there would be a second Save meaning something other than
 the one beside it. The views are the whole of this view's rail
@@ -498,45 +512,45 @@ rather than something to remember
 Split the way the app's suites are split. `ui/test/composing.test.ts` drives
 the model with no DOM — promotion and the name it mints, the derived length,
 kind and functions, two locomotives of one product, what holds a car or a
-model, and the length guard. `ui/test/making.test.ts` mounts the app in this
-view against a store with no `catalogue/` and no roster — and, for the older
-shape, against one answering a train that states its length — and drives the
-controls: a model written the moment it is made, the dialog refusing a name the
-catalogue already has, a train made up of a locomotive and three hoppers, the document that reaches
-`PUT /rosters/<railroad>` with one car entry and three model entries, the guard
-killing a field while track power is on, the roster's Save waiting for power
-off when a length changed and then naming the railroad again, a corrected
-model written before the roster and kept for the next Save where it is refused,
-the run view showing a
-train made up here without a reload, the row an older roster's train draws and
-the first entry converting it, the current train moving when the one it named
-is unmade and carried when that one is renamed, the dialog's refusal staying
-out of the trains and going with the dialog, the field a refusal puts back, the edit standing in a field that a
-frame about the railroad leaves alone, the two presses that write being dead
-with nothing loaded and Create saying why where the documents go from under an
-open dialog (#565), and the three ways a call to the
-store fails as this screen shows them. The words themselves are
+model, the length guard, and the model editor's rules: New model's names, the
+key minted from a name and kept, a name refused, the decoder and its function
+rows with their mode, a number listed twice stopping Save, a photo held for
+Save. `ui/test/railroad.test.ts` has Save write a model made here, its photo
+and the roster, in that order and under the key minted.
+
+`ui/test/making.test.ts` mounts the app in this view against a store with no
+`catalogue/` and no roster — and, for the older shape, against one answering a
+train that states its length — and drives the controls: the bar's words, a
+model written by Save and not before, a model named `Ae 6/6` saved under
+`ae-6-6`, a duplicate name refused and put back, the decoder switch and the
+function rows reaching the document with `mode`, a duplicate function number
+refusing Save, Delete dead while the model is used, asking and sending
+`DELETE` where it is not, and the store's refusal under it; a car named
+`Re 4/4 II` and a train named `S 1/S 2` saved; a train made up of a locomotive
+and three hoppers, the document that reaches `PUT /rosters/<railroad>` with one
+car entry and three model entries, the guard killing a field while track power
+is on, Save waiting for power off when a length changed and then naming the
+railroad again, a corrected model written before the roster and kept for the
+next Save where it is refused, the run view showing a train made up here
+without a reload, the row an older roster's train draws and the first entry
+converting it, the chosen train moving when the one it named is unmade and
+carried when that one is renamed, the field a refusal puts back, the edit
+standing in a field that a frame about the railroad leaves alone, the presses
+that write being dead with nothing loaded (#565), and the three ways a call to
+the store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
 
-`ui/test/photos.test.ts` mounts the same app against a camera: the thumbnail a
-model row and a car row carry and the dialog a car's opens, the frame while the
-camera is being waited on and the dead press with it, the picture a `200` brings
-and the bytes Save sends, the `?v=<n>` the thumbnail then asks for, what a `502`
-reads as, and a product written with a picture reaching the store as the
-document and then the photo — including the model standing written where the
-second of those did not land, the Save that then sends the same bytes, and
-Create dead from the write on (#638) — with every control that edits the draft
-dead beside it, the dialog put away when that Save lands, and the dialog left
-standing where the store refuses it (#644). Two of them hold a Save's `PUT` in
-flight, put the dialog away under it and take a fresh picture, so that what the
-answer lands on is a picture it is not about — once landing and once refused
-(#651). Three more hold one under the press that made it: Save dead with
-Retake and Cancel live beside it and a second press sending nothing, Save live
-again where that write was refused and sending on the press after, and the same
-in the New model dialog, where the write that lands is the one that puts the
-dialog away (#655). What the camera answers is the shell's
-(`ui/test/support/shell.ts`, `camera`), that route being a photo camera's and
-no app of this repository's, and a write held in flight is the shell's too (`held`).
+`ui/test/photos.test.ts` mounts the same app against a camera, with
+`toJpeg` replaced: the photo route a model's, a car's and a train's card show,
+*No photo* where it did not load, a dropped and a chosen file reaching
+`PUT /catalogue/<model>/photo` as the conversion's output under `image/jpeg`
+on Save, a file that is no picture and one the browser cannot read refused in
+words, the frame while the camera is waited on and the dead press with it, the
+camera's own bytes on Save, what a `502` reads as, a model made with a photo
+written as the document, the photo and the roster under the key minted, and a
+photo the store refused kept for the next Save. What the camera answers is the
+shell's (`ui/test/support/shell.ts`, `camera`), that route being a photo
+camera's and no app of this repository's.
 
 The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
 the drawing's: it is the app's question about the app's railroad, and what the
