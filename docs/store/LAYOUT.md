@@ -176,13 +176,17 @@ connections:
 ## Catalogue schema
 
 ```yaml
-model: sbb-re460
+model: sbb-ae66           # the key: the file's name, what cars name; never shown
+name: Ae 6/6              # what a person reads, any characters; absent reads as the key
+scale: H0                 # Z | N | TT | H0 | S | 0 | 1 | G, a string; optional
 kind: locomotive          # locomotive | passenger | freight | special
-length: 220               # mm, the same units as a block
+length: 230               # mm, the same units as a block
+decoder: true             # optional; absent reads as true where functions are listed
+notes: |                  # optional, free text
+  Märklin 39364, SBB green.
 functions:                # function number -> what it does on this product
-  "0": { name: headlights }
-  "2": { name: horn }
-  "5": { name: vacuum }
+  "0": { name: Headlights }                  # mode absent reads as latching
+  "2": { name: Horn, mode: momentary }
 ```
 
 - **One file per model, and the catalogue is the installation's**, not the
@@ -190,6 +194,21 @@ functions:                # function number -> what it does on this product
   is a resource the store serves, diffable the way a drawing is and edited
   rarely. The file names itself, and that name is what every car refers to it
   by, so a `model:` that disagrees with the path is refused.
+- **`model` is the key and `name` is what a person reads.** The key is minted
+  once, when the model is created, and never changes on a rename, so no car
+  has to be rewritten. The name may hold any character, `Ae 6/6` included,
+  and is a non-empty string after trimming; absent, the key is the name, so a
+  file written before names existed still reads. A `PUT` giving a name
+  another model in the catalogue already has is refused:
+  `there is already a model 'Ae 6/6'`.
+- **`scale` is one of eight strings.** YAML reads `scale: 0` as an integer,
+  so a number is refused with `scale must be a string — write scale: "0"`,
+  as a function number written as an integer is.
+- **`decoder` is a boolean**, and a model with none lists no functions:
+  `decoder: false` beside a `functions:` is refused. Absent, it reads as true
+  where functions are listed and false where none are.
+- **`notes` is free text**, the model's: what the product is, as opposed to a
+  car's notes, which are the item's.
 - **A model's photo is a second file, and the only one here that is not a
   document.** The picture is kept as `catalogue/<model>.jpg` beside the YAML,
   the bytes as the camera took them and re-encoded by nothing. The document
@@ -212,6 +231,10 @@ functions:                # function number -> what it does on this product
   that would be a different row. A `values:` an older file still states is an
   unknown key like any other here and is ignored, so no catalogue has to be
   rewritten to be read.
+- **A function is latching or momentary**: on at one press and off at the
+  next, or on only while the throttle's button is held (GLOSSARY.md,
+  **Function**). `mode` absent reads as `latching`; anything but the two
+  words is refused.
 - **The function number is written as a string**, because YAML integer keys
   and JSON object keys do not agree. It is refused with that message rather
   than silently coerced.
@@ -228,6 +251,7 @@ cars:
   re460_2: { model: sbb-re460, addr: "461" }
   ic_1:    { model: sbb-ic2000 }
   ic_2:    { model: sbb-ic2000, length: 285 }   # an override
+  ic_3:    { model: sbb-ic2000, notes: "chipped buffer" }
   cam_1:   { model: sbb-ic2000, camera: "192.168.178.58" }
 
 trains:
@@ -273,6 +297,8 @@ trains:
   is ignored, so an entry naming a model carries no camera. A train's camera
   is its first camera car's, head first, and `GET /rosters/<name>/trains`
   says only whether it has one — never where it answers.
+- **`notes` on a car are the item's own**, a string, and not an override of
+  the model's: both are kept, and the merge replaces neither with the other.
 - **`cars:` holds identified stock**, and a train's entry names **either a car
   or a model** ([ADR-0061](../adr/0061-stock-with-nothing-of-its-own-is-named-by-its-model.md)).
   An item earns a name where there is something to say about it — an address,
