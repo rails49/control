@@ -449,6 +449,29 @@ describe("a train another throttle holds", () => {
     });
     expect(asked(shell, "confirmed")).toBeNull();
   });
+
+  /** A throttle holds one train (ADR-0089): the panel's own train is given
+   *  back before the chosen one is released there and taken here. */
+  it("releases the panel's own train first, on Take train", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, BOTH);
+    await held(shell, "shunter");
+    await said(shell, TAKEN, {
+      taken: { shunter: mine(), goods: "another-page" },
+    });
+    const before = written().length;
+    await choosing(shell);
+
+    await taking(shell, "goods");
+    asked(shell, "confirmed")!.click();
+    await settled(shell);
+
+    expect(written().slice(before)).toEqual([
+      { topic: TAKE_WANTED, payload: { train: "shunter", throttle: null } },
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: null } },
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: mine() } },
+    ]);
+  });
 });
 
 /** The selector opened from the picture of the train a panel holds (#967). */

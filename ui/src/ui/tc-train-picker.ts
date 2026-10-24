@@ -203,12 +203,16 @@ export class TcTrainPicker extends LitElement {
     }
   }
 
-  /** *Take train*: released where it is held, then taken here, in that
-   *  order. `layout` drops the take if a third throttle took the train in
-   *  between, and the selector then stays open. */
+  /** *Take train*: the panel's train given back first where it holds one —
+   *  a throttle holds one train (ADR-0089) — then this one released where it
+   *  is held and taken here, in that order. `layout` drops the take if a
+   *  third throttle took the train in between, and the selector then stays
+   *  open. */
   private seizing(train: string): void {
     if (this.still !== null) return;
     this.asking = null;
+    const mine = this.mine;
+    if (mine !== undefined) this.say<string>("release-wanted", mine.train);
     this.say<string>("release-wanted", train);
     this.say<TakeWanted>("take-wanted", { train, throttle: this.throttle });
   }
