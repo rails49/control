@@ -1171,7 +1171,7 @@ export class TcStock extends LitElement {
           <div class="field">
             <span class="label">Model</span>
             <button
-              class="model"
+              class="open-model"
               @click=${() => this.opened("models", car.model)}
             >
               ${car.modelName}${car.kind === null ? " — no such model" : ""}

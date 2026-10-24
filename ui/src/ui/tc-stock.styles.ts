@@ -16,9 +16,9 @@ import { css } from "lit";
  * own width with a container query rather than the window's: the list, and a
  * pressed card replaces it with the editor, which then has a back button.
  *
- * **Every photo is shown whole** (`object-fit: contain`) in a frame 10:3 wide:
- * train cars are wide and low, and a crop would cut off the end that tells
- * two of them apart.
+ * **Every photo is shown whole** (`object-fit: contain`) on white in a frame
+ * 10:3 wide: train cars are wide and low, and a crop would cut off the end
+ * that tells two of them apart.
  *
  * A control the length guard has killed keeps its box and takes the hint
  * colour, with the reason beside it — a field that vanished while track power
@@ -288,7 +288,7 @@ export const stockStyles = css`
     width: 100%;
     height: 100%;
     object-fit: contain;
-    background: var(--track);
+    background: #fff;
   }
 
   .no-photo {
@@ -749,7 +749,7 @@ export const stockStyles = css`
     font-weight: 650;
   }
 
-  button.model,
+  button.open-model,
   button.remove-car,
   button.unmake {
     display: inline-flex;
@@ -898,7 +898,7 @@ export const stockStyles = css`
     width: 100%;
     height: 100%;
     object-fit: contain;
-    background: var(--track);
+    background: #fff;
   }
 
   /* A reversed entry: its nose points toward the tail. */
