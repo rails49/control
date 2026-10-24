@@ -99,11 +99,16 @@ function bar(shell: TcApp): string {
 /** A page from something in front of the store on the paths `which` picks
  *  out, as a stale route table puts one in front of a store that is up. */
 function between(which: (path: string) => boolean): void {
-  store.intercepted = (path) => (which(path) ? { status: 404, statusText: "" } : null);
+  store.intercepted = (path) =>
+    which(path) ? { status: 404, statusText: "" } : null;
 }
 
 /** Type into a control and leave it, which is when an edit is taken. */
-async function typed(shell: TcApp, field: HTMLElement, value: string): Promise<void> {
+async function typed(
+  shell: TcApp,
+  field: HTMLElement,
+  value: string,
+): Promise<void> {
   (field as HTMLInputElement).value = value;
   field.dispatchEvent(new Event("change"));
   await settled(shell);
@@ -121,13 +126,18 @@ async function pressed(shell: TcApp, selector: string, at = 0): Promise<void> {
 }
 
 /** One of the three lists shown, by its tab. */
-async function tab(shell: TcApp, which: "trains" | "cars" | "models"): Promise<void> {
+async function tab(
+  shell: TcApp,
+  which: "trains" | "cars" | "models",
+): Promise<void> {
   await pressed(shell, `button.tab[data-tab="${which}"]`);
 }
 
 /** The cards the list shown draws, by name. */
 function cards(shell: TcApp): string[] {
-  return parts(shell, "button.card .name").map((one) => one.textContent!.trim());
+  return parts(shell, "button.card .name").map((one) =>
+    one.textContent!.trim(),
+  );
 }
 
 /** Make a product in the model editor, which is where one is made: New
@@ -180,7 +190,11 @@ function offered(shell: TcApp): string[] {
 
 /** Add on the chosen train's strip, then one card of the picker's Cars or
  *  Models tab, by the name it shows. */
-async function add(shell: TcApp, list: "cars" | "models", name: string): Promise<void> {
+async function add(
+  shell: TcApp,
+  list: "cars" | "models",
+  name: string,
+): Promise<void> {
   await tab(shell, "trains");
   await pressed(shell, ".train-editor button.add-tile");
   await pressed(shell, `look-dialog.picker button.tab[data-tab="${list}"]`);
@@ -192,12 +206,18 @@ async function add(shell: TcApp, list: "cars" | "models", name: string): Promise
 /** The chosen train's tiles, by the name each shows. */
 async function tiles(shell: TcApp): Promise<string[]> {
   await tab(shell, "trains");
-  return parts(shell, ".train-editor .tile .tn").map((one) => one.textContent!.trim());
+  return parts(shell, ".train-editor .tile .tn").map((one) =>
+    one.textContent!.trim(),
+  );
 }
 
 /** A field of the car chosen, the first in the list unless `at` says
  *  another. */
-async function car(shell: TcApp, field: string, at = 0): Promise<HTMLInputElement> {
+async function car(
+  shell: TcApp,
+  field: string,
+  at = 0,
+): Promise<HTMLInputElement> {
   await tab(shell, "cars");
   if (at > 0) await pressed(shell, "button.card.car", at);
   return part(shell, `.car-editor .${field}`) as HTMLInputElement;
@@ -205,7 +225,9 @@ async function car(shell: TcApp, field: string, at = 0): Promise<HTMLInputElemen
 
 /** The roster the screen last wrote, as the store was given it. */
 function written(): RosterDoc | undefined {
-  const put = store.saved.filter((one) => one.path.startsWith("/rosters/")).at(-1);
+  const put = store.saved
+    .filter((one) => one.path.startsWith("/rosters/"))
+    .at(-1);
   return put?.body as RosterDoc | undefined;
 }
 
@@ -336,7 +358,10 @@ describe("a fresh box", () => {
 
     await saved(shell);
 
-    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper", "/rosters/toy"]);
+    expect(store.saved.map((one) => one.path)).toEqual([
+      "/catalogue/hopper",
+      "/rosters/toy",
+    ]);
     expect(store.saved[0]!.body).toEqual({
       model: "hopper",
       name: "hopper",
@@ -354,7 +379,12 @@ describe("the model editor", () => {
    *  empty roster. */
   function catalogued(): void {
     store.catalogue = {
-      coach: { model: "coach", name: "EW IV B", kind: "passenger", length: 280 },
+      coach: {
+        model: "coach",
+        name: "EW IV B",
+        kind: "passenger",
+        length: 280,
+      },
     };
   }
 
@@ -365,11 +395,13 @@ describe("the model editor", () => {
     await pressed(shell, "button.new");
 
     expect(cards(shell)).toEqual(["New model", "New model (2)"]);
-    expect(part(shell, "button.card.model[aria-current='true'] .name").textContent).toBe(
-      "New model (2)",
-    );
+    expect(
+      part(shell, "button.card.model[aria-current='true'] .name").textContent,
+    ).toBe("New model (2)");
     expect(model(shell, "input.name").value).toBe("New model (2)");
-    expect(part(shell, "button.tab[data-tab='models'] .count").textContent).toBe("2");
+    expect(
+      part(shell, "button.tab[data-tab='models'] .count").textContent,
+    ).toBe("2");
   });
 
   it("saves a model named Ae 6/6 under the key ae-6-6", async () => {
@@ -418,7 +450,11 @@ describe("the model editor", () => {
     const shell = await opened();
     await tab(shell, "models");
     await typed(shell, model(shell, "select.scale"), "N");
-    await typed(shell, part(shell, ".model-editor textarea.notes"), "Second class, green.");
+    await typed(
+      shell,
+      part(shell, ".model-editor textarea.notes"),
+      "Second class, green.",
+    );
     await pressed(shell, `.model-editor .seg.kind button[data-kind="special"]`);
 
     await saved(shell);
@@ -457,21 +493,37 @@ describe("the model editor", () => {
       const shell = await opened();
       await decoded(shell);
 
-      expect(part(shell, "button.switch").getAttribute("aria-checked")).toBe("true");
-      expect(rows(shell)).toHaveLength(1);
-      expect((rows(shell)[0]!.querySelector("input.number") as HTMLInputElement).value).toBe("0");
-      expect((rows(shell)[0]!.querySelector("input.fn-name") as HTMLInputElement).value).toBe(
-        "Headlights",
+      expect(part(shell, "button.switch").getAttribute("aria-checked")).toBe(
+        "true",
       );
-      expect(part(shell, "button.card.model .pill").textContent).toBe("decoder");
+      expect(rows(shell)).toHaveLength(1);
+      expect(
+        (rows(shell)[0]!.querySelector("input.number") as HTMLInputElement)
+          .value,
+      ).toBe("0");
+      expect(
+        (rows(shell)[0]!.querySelector("input.fn-name") as HTMLInputElement)
+          .value,
+      ).toBe("Headlights");
+      expect(part(shell, "button.card.model .pill").textContent).toBe(
+        "decoder",
+      );
     });
 
     it("reaches the document with each function's mode", async () => {
       const shell = await opened();
       await decoded(shell);
       await pressed(shell, ".model-editor button.add-function");
-      await typed(shell, rows(shell)[1]!.querySelector("input.fn-name")!, "Horn");
-      await pressed(shell, `.model-editor li.function button[data-mode="momentary"]`, 1);
+      await typed(
+        shell,
+        rows(shell)[1]!.querySelector("input.fn-name")!,
+        "Horn",
+      );
+      await pressed(
+        shell,
+        `.model-editor li.function button[data-mode="momentary"]`,
+        1,
+      );
 
       await saved(shell);
 
@@ -499,7 +551,11 @@ describe("the model editor", () => {
       const shell = await opened();
       await decoded(shell);
       await pressed(shell, ".model-editor button.add-function");
-      await typed(shell, rows(shell)[1]!.querySelector("input.fn-name")!, "Horn");
+      await typed(
+        shell,
+        rows(shell)[1]!.querySelector("input.fn-name")!,
+        "Horn",
+      );
       await typed(shell, rows(shell)[1]!.querySelector("input.number")!, "0");
 
       const twice = "F0 is listed twice. One number names one function.";
@@ -517,12 +573,13 @@ describe("the model editor", () => {
       await ore(shell);
       await chosen(shell, "hopper");
 
-      expect((part(shell, ".model-editor button.delete") as HTMLButtonElement).disabled).toBe(
-        true,
-      );
-      expect(parts(shell, ".model-editor ul.uses li").map((one) => one.textContent)).toEqual([
-        "train 'ore'",
-      ]);
+      expect(
+        (part(shell, ".model-editor button.delete") as HTMLButtonElement)
+          .disabled,
+      ).toBe(true);
+      expect(
+        parts(shell, ".model-editor ul.uses li").map((one) => one.textContent),
+      ).toEqual(["train 'ore'"]);
     });
 
     it("asks first, then sends DELETE and takes the model off the list", async () => {
@@ -542,20 +599,25 @@ describe("the model editor", () => {
 
       expect(store.deleted).toEqual(["/catalogue/coach"]);
       expect(cards(shell)).toEqual([]);
-      expect(screen(shell).renderRoot.querySelector("look-dialog.delete")).toBeNull();
+      expect(
+        screen(shell).renderRoot.querySelector("look-dialog.delete"),
+      ).toBeNull();
     });
 
     it("says the store's refusal under the button, and keeps the model", async () => {
       catalogued();
       const words = "model 'EW IV B' is used by railroad 'otira': car 'ew-1'";
-      store.refuses = (path) => (path === "/catalogue/coach" ? { status: 400, error: words } : null);
+      store.refuses = (path) =>
+        path === "/catalogue/coach" ? { status: 400, error: words } : null;
       const shell = await opened();
       await tab(shell, "models");
       await pressed(shell, ".model-editor button.delete");
 
       await pressed(shell, "look-dialog.delete .confirm");
 
-      expect(part(shell, ".model-editor .delete-trouble").textContent).toBe(words);
+      expect(part(shell, ".model-editor .delete-trouble").textContent).toBe(
+        words,
+      );
       expect(cards(shell)).toEqual(["EW IV B"]);
     });
 
@@ -577,7 +639,9 @@ describe("the model editor", () => {
 
     await pressed(shell, ".ed-head button.new-car");
 
-    expect(part(shell, "button.tab[aria-selected='true']").dataset.tab).toBe("cars");
+    expect(part(shell, "button.tab[aria-selected='true']").dataset.tab).toBe(
+      "cars",
+    );
     expect(cards(shell)).toEqual(["EW IV B"]);
     await saved(shell);
     expect(written()!.cars).toEqual({ "EW IV B": { model: "coach" } });
@@ -598,9 +662,17 @@ describe("the car editor", () => {
         length: 189,
         decoder: true,
         notes: "Roco 73283.",
-        functions: { "0": { name: "Headlights" }, "2": { name: "Horn", mode: "momentary" } },
+        functions: {
+          "0": { name: "Headlights" },
+          "2": { name: "Horn", mode: "momentary" },
+        },
       },
-      coach: { model: "coach", name: "EW IV B", kind: "passenger", length: 300 },
+      coach: {
+        model: "coach",
+        name: "EW IV B",
+        kind: "passenger",
+        length: 300,
+      },
     };
     store.documentOf = () => ({
       roster: "toy",
@@ -611,7 +683,9 @@ describe("the car editor", () => {
 
   /** The address question a new car of a decoder model asks. */
   function question(shell: TcApp): HTMLElement | null {
-    return screen(shell).renderRoot.querySelector<HTMLElement>("look-dialog.address");
+    return screen(shell).renderRoot.querySelector<HTMLElement>(
+      "look-dialog.address",
+    );
   }
 
   it("asks a second car of a decoder model for its address, refusing the first car's", async () => {
@@ -641,8 +715,12 @@ describe("the car editor", () => {
     await pressed(shell, ".ed-head button.new-car");
 
     expect(question(shell)).toBeNull();
-    expect(screen(shell).renderRoot.querySelector(".car-editor input.addr")).toBeNull();
-    expect(part(shell, ".car-editor .field p.hint").textContent).toBe("EW IV B has no decoder.");
+    expect(
+      screen(shell).renderRoot.querySelector(".car-editor input.addr"),
+    ).toBeNull();
+    expect(part(shell, ".car-editor .field p.hint").textContent).toBe(
+      "EW IV B has no decoder.",
+    );
 
     await pressed(shell, ".car-editor button.fitted");
     await typed(shell, await car(shell, "addr"), "7");
@@ -656,7 +734,9 @@ describe("the car editor", () => {
 
     await typed(shell, await car(shell, "addr"), "abc");
 
-    expect(trouble(shell)).toBe("'abc' is not a DCC address. Use a number from 1 to 10239.");
+    expect(trouble(shell)).toBe(
+      "'abc' is not a DCC address. Use a number from 1 to 10239.",
+    );
     expect((await car(shell, "addr")).value).toBe("460");
   });
 
@@ -687,7 +767,10 @@ describe("the car editor", () => {
 
     await typed(shell, await car(shell, "camera"), "");
     await saved(shell);
-    expect(written()!.cars!["Re 460 001"]).toEqual({ model: "re460", addr: "460" });
+    expect(written()!.cars!["Re 460 001"]).toEqual({
+      model: "re460",
+      addr: "460",
+    });
   });
 
   it("writes a length override to the car, and removes it when emptied", async () => {
@@ -708,10 +791,9 @@ describe("the car editor", () => {
     owned();
     const shell = await opened();
     await tab(shell, "cars");
-    expect(parts(shell, ".car-editor .fchip").map((chip) => chip.textContent)).toEqual([
-      "F0Headlights",
-      "F2Hornhold",
-    ]);
+    expect(
+      parts(shell, ".car-editor .fchip").map((chip) => chip.textContent),
+    ).toEqual(["F0Headlights", "F2Hornhold"]);
 
     await pressed(shell, ".car-editor button.own-functions");
     await pressed(shell, ".car-editor button.add-function");
@@ -722,7 +804,9 @@ describe("the car editor", () => {
       "1": { name: "Smoke" },
       "2": { name: "Horn", mode: "momentary" },
     });
-    expect(store.saved.filter((one) => one.path.startsWith("/catalogue/"))).toEqual([]);
+    expect(
+      store.saved.filter((one) => one.path.startsWith("/catalogue/")),
+    ).toEqual([]);
 
     await pressed(shell, ".car-editor button.model-functions");
     await saved(shell);
@@ -733,7 +817,9 @@ describe("the car editor", () => {
     owned();
     const shell = await opened();
     await tab(shell, "cars");
-    expect(part(shell, ".car-editor .model-notes").textContent).toBe("Roco 73283.");
+    expect(part(shell, ".car-editor .model-notes").textContent).toBe(
+      "Roco 73283.",
+    );
 
     await typed(shell, part(shell, ".car-editor textarea.notes"), "Weathered.");
     await saved(shell);
@@ -745,11 +831,18 @@ describe("the car editor", () => {
     owned();
     const shell = await opened();
     await tab(shell, "cars");
-    const remove = part(shell, ".ed-head button.remove-car") as HTMLButtonElement;
+    const remove = part(
+      shell,
+      ".ed-head button.remove-car",
+    ) as HTMLButtonElement;
 
     expect(remove.disabled).toBe(true);
     expect(remove.title).toBe("In train IC. Take it out of the train first.");
-    expect(parts(shell, ".car-editor .in-trains button").map((one) => one.textContent!.trim())).toEqual(["IC"]);
+    expect(
+      parts(shell, ".car-editor .in-trains button").map((one) =>
+        one.textContent!.trim(),
+      ),
+    ).toEqual(["IC"]);
   });
 
   it("removes a car no train holds", async () => {
@@ -772,7 +865,9 @@ describe("the car editor", () => {
 
     await tab(shell, "cars");
     await pressed(shell, ".car-editor .in-trains button");
-    expect(part(shell, "button.tab[aria-selected='true']").dataset.tab).toBe("trains");
+    expect(part(shell, "button.tab[aria-selected='true']").dataset.tab).toBe(
+      "trains",
+    );
     expect(part(shell, ".ed-head h2").textContent).toBe("IC");
   });
 });
@@ -791,29 +886,36 @@ describe("a name of any characters", () => {
 
     expect(Object.keys(written()!.cars!)).toEqual(["Re 4/4 II"]);
     expect(Object.keys(written()!.trains)).toEqual(["S 1/S 2"]);
-    expect(written()!.trains["S 1/S 2"]!.cars![0]).toEqual({ car: "Re 4/4 II" });
+    expect(written()!.trains["S 1/S 2"]!.cars![0]).toEqual({
+      car: "Re 4/4 II",
+    });
   });
 });
 
 describe("the list", () => {
+  it("says how a car is made where there is none", async () => {
+    const shell = await opened();
+    await tab(shell, "cars");
+    expect(part(shell, ".cards").textContent!.trim()).toBe(
+      "no cars yet — press New car on a model to make one",
+    );
+  });
+
   it("counts each list on its tab, and draws a card's facts", async () => {
     const shell = await opened();
     await ore(shell);
 
-    expect(parts(shell, "button.tab .count").map((one) => one.textContent)).toEqual([
-      "1",
-      "1",
-      "2",
-    ]);
+    expect(
+      parts(shell, "button.tab .count").map((one) => one.textContent),
+    ).toEqual(["1", "1", "2"]);
     await tab(shell, "trains");
-    expect(part(shell, "button.card.train .facts").textContent!.replace(/\s+/g, " ")).toMatch(
-      "4 cars422 mmfreight",
-    );
+    expect(
+      part(shell, "button.card.train .facts").textContent!.replace(/\s+/g, " "),
+    ).toMatch("4 cars422 mmfreight");
     await tab(shell, "cars");
-    expect(parts(shell, "button.card.car .facts span").map((one) => one.textContent)).toEqual([
-      "arnold-ce68",
-      "3",
-    ]);
+    expect(
+      parts(shell, "button.card.car .facts span").map((one) => one.textContent),
+    ).toEqual(["arnold-ce68", "3"]);
   });
 
   /** One column where the view is narrower than 760 px: a card pressed
@@ -867,15 +969,19 @@ describe("making up a train", () => {
     await tab(shell, "trains");
     await pressed(shell, "button.new");
 
-    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Add to New train");
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe(
+      "Add to New train",
+    );
     await away(shell);
     await pressed(shell, "button.new");
 
     expect(cards(shell)).toEqual(["New train", "New train (2)"]);
-    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Add to New train (2)");
-    expect((part(shell, ".train-editor input.name") as HTMLInputElement).value).toBe(
-      "New train (2)",
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe(
+      "Add to New train (2)",
     );
+    expect(
+      (part(shell, ".train-editor input.name") as HTMLInputElement).value,
+    ).toBe("New train (2)");
   });
 
   it("refuses a name another train has, and puts the field back", async () => {
@@ -886,7 +992,9 @@ describe("making up a train", () => {
     await typed(shell, part(shell, ".train-editor input.name"), "ore");
 
     expect(trouble(shell)).toBe("There is already a train 'ore'.");
-    expect((part(shell, ".train-editor input.name") as HTMLInputElement).value).toBe("shunt");
+    expect(
+      (part(shell, ".train-editor input.name") as HTMLInputElement).value,
+    ).toBe("shunt");
   });
 
   it("writes a priority, and takes it off when emptied", async () => {
@@ -907,8 +1015,15 @@ describe("making up a train", () => {
     const shell = await opened();
     await ore(shell);
 
-    expect(await tiles(shell)).toEqual(["arnold-ce68", "hopper", "hopper", "hopper"]);
-    expect(parts(shell, ".tile .tm").map((one) => one.textContent!.trim())).toEqual([
+    expect(await tiles(shell)).toEqual([
+      "arnold-ce68",
+      "hopper",
+      "hopper",
+      "hopper",
+    ]);
+    expect(
+      parts(shell, ".tile .tm").map((one) => one.textContent!.trim()),
+    ).toEqual([
       "address 3 · 122 mm",
       "by model · 100 mm",
       "by model · 100 mm",
@@ -929,10 +1044,14 @@ describe("making up a train", () => {
 
     await add(shell, "models", "Re 460");
 
-    expect(part(shell, "look-dialog.address").getAttribute("label")).toBe("Address for Re 460");
+    expect(part(shell, "look-dialog.address").getAttribute("label")).toBe(
+      "Address for Re 460",
+    );
     await answered(shell, "460");
     await saved(shell);
-    expect(written()!.cars).toEqual({ "Re 460": { model: "re-460", addr: "460" } });
+    expect(written()!.cars).toEqual({
+      "Re 460": { model: "re-460", addr: "460" },
+    });
     expect(written()!.trains.IC!.cars).toEqual([{ car: "Re 460" }]);
   });
 
@@ -943,8 +1062,12 @@ describe("making up a train", () => {
 
     await add(shell, "models", "arnold-ce68");
 
-    expect(screen(shell).renderRoot.querySelector("look-dialog.address")).toBeNull();
-    expect(part(shell, ".toast").textContent).toBe("Added arnold-ce68, your only arnold-ce68.");
+    expect(
+      screen(shell).renderRoot.querySelector("look-dialog.address"),
+    ).toBeNull();
+    expect(part(shell, ".toast").textContent).toBe(
+      "Added arnold-ce68, your only arnold-ce68.",
+    );
     expect(await tiles(shell)).toEqual(["arnold-ce68"]);
     await saved(shell);
     expect(Object.keys(written()!.cars!)).toEqual(["arnold-ce68"]);
@@ -963,9 +1086,56 @@ describe("making up a train", () => {
 
     await add(shell, "models", "arnold-ce68");
 
-    expect(screen(shell).renderRoot.querySelector("look-dialog.picker")).toBeNull();
-    expect(part(shell, ".toast").textContent).toBe("Added arnold-ce68 (2), your only arnold-ce68.");
+    expect(
+      screen(shell).renderRoot.querySelector("look-dialog.picker"),
+    ).toBeNull();
+    expect(part(shell, ".toast").textContent).toBe(
+      "Added arnold-ce68 (2), your only arnold-ce68.",
+    );
     expect((await tiles(shell))[4]).toBe("arnold-ce68 (2)");
+  });
+
+  /** A model entry of a decoder model has no address to be driven by: its
+   *  tile gives it one by making it a car in its place (#993). */
+  it("gives a decoder model's entry an address from its tile, as a car in its place", async () => {
+    store.catalogue = {
+      "re-460": {
+        model: "re-460",
+        name: "Re 460",
+        kind: "locomotive",
+        length: 189,
+        decoder: true,
+      },
+      hopper: { model: "hopper", kind: "freight", length: 100 },
+    };
+    store.documentOf = (railroad) => ({
+      roster: railroad,
+      trains: { IC: { cars: [{ model: "hopper" }, { model: "re-460" }] } },
+    });
+    const shell = await opened();
+    await pressed(shell, "button.card.train");
+
+    const tiles = parts(shell, ".train-editor .tile");
+    expect(
+      tiles.map((one) => one.querySelector("button.address") !== null),
+    ).toEqual([false, true]);
+    expect(tiles[1]!.querySelector("button.address")!.textContent!.trim()).toBe(
+      "Give it an address",
+    );
+    await pressed(shell, ".tile button.address");
+
+    expect(part(shell, "look-dialog.address").getAttribute("label")).toBe(
+      "Address for Re 460",
+    );
+    await answered(shell, "7");
+    await saved(shell);
+    expect(written()!.cars).toEqual({
+      "Re 460": { model: "re-460", addr: "7" },
+    });
+    expect(written()!.trains.IC!.cars).toEqual([
+      { model: "hopper" },
+      { car: "Re 460" },
+    ]);
   });
 
   it("asks which car where two are free, greying the one in the train", async () => {
@@ -981,13 +1151,24 @@ describe("making up a train", () => {
 
     await add(shell, "models", "arnold-ce68");
 
-    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe("Which arnold-ce68?");
-    expect(offered(shell)).toEqual(["arnold-ce68", "arnold-ce68 (2)", "arnold-ce68 (3)"]);
-    const choices = parts(shell, "look-dialog.picker button.card") as HTMLButtonElement[];
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe(
+      "Which arnold-ce68?",
+    );
+    expect(offered(shell)).toEqual([
+      "arnold-ce68",
+      "arnold-ce68 (2)",
+      "arnold-ce68 (3)",
+    ]);
+    const choices = parts(
+      shell,
+      "look-dialog.picker button.card",
+    ) as HTMLButtonElement[];
     expect(choices.map((one) => one.disabled)).toEqual([true, false, false]);
     await pressed(shell, "look-dialog.picker button.card", 2);
 
-    expect(screen(shell).renderRoot.querySelector("look-dialog.picker")).toBeNull();
+    expect(
+      screen(shell).renderRoot.querySelector("look-dialog.picker"),
+    ).toBeNull();
     expect((await tiles(shell))[4]).toBe("arnold-ce68 (3)");
   });
 
@@ -998,12 +1179,20 @@ describe("making up a train", () => {
     await tab(shell, "trains");
     await pressed(shell, ".train-editor button.add-tile");
 
-    const car = part(shell, "look-dialog.picker button.card.car") as HTMLButtonElement;
+    const car = part(
+      shell,
+      "look-dialog.picker button.card.car",
+    ) as HTMLButtonElement;
     expect(car.disabled).toBe(true);
     expect(car.title).toBe("arnold-ce68 is already in ore.");
     car.click();
     await settled(shell);
-    expect(await tiles(shell)).toEqual(["arnold-ce68", "hopper", "hopper", "hopper"]);
+    expect(await tiles(shell)).toEqual([
+      "arnold-ce68",
+      "hopper",
+      "hopper",
+      "hopper",
+    ]);
   });
 
   it("adds a model without a decoder as a model entry", async () => {
@@ -1032,7 +1221,12 @@ describe("making up a train", () => {
     strip[3]!.dispatchEvent(new Event("drop", { cancelable: true }));
     await settled(shell);
 
-    expect(await tiles(shell)).toEqual(["hopper", "hopper", "hopper", "arnold-ce68"]);
+    expect(await tiles(shell)).toEqual([
+      "hopper",
+      "hopper",
+      "hopper",
+      "arnold-ce68",
+    ]);
     await saved(shell);
     expect(written()!.trains.ore!.cars).toEqual([
       { model: "hopper" },
@@ -1048,12 +1242,9 @@ describe("making up a train", () => {
     await tab(shell, "trains");
 
     await pressed(shell, ".tile button.flip", 1);
-    expect(parts(shell, ".tile button.flip").map((one) => one.textContent!.trim())).toEqual([
-      "Forward",
-      "Reversed",
-      "Forward",
-      "Forward",
-    ]);
+    expect(
+      parts(shell, ".tile button.flip").map((one) => one.textContent!.trim()),
+    ).toEqual(["Forward", "Reversed", "Forward", "Forward"]);
     expect(parts(shell, ".tile")[1]!.classList.contains("rev")).toBe(true);
     await pressed(shell, ".tile button.out", 3);
     await saved(shell);
@@ -1074,7 +1265,10 @@ describe("making up a train", () => {
         kind: "locomotive",
         length: 189,
         decoder: true,
-        functions: { "0": { name: "Headlights" }, "2": { name: "Horn", mode: "momentary" } },
+        functions: {
+          "0": { name: "Headlights" },
+          "2": { name: "Horn", mode: "momentary" },
+        },
       },
     };
     store.documentOf = () => ({
@@ -1086,9 +1280,13 @@ describe("making up a train", () => {
     await tab(shell, "trains");
 
     expect(
-      parts(shell, ".train-editor dd.functions .fchip").map((one) => one.textContent!.trim()),
+      parts(shell, ".train-editor dd.functions .fchip").map((one) =>
+        one.textContent!.trim(),
+      ),
     ).toEqual(["Headlights", "Hornhold"]);
-    expect(part(shell, ".train-editor .fchip.hold em").textContent).toBe("hold");
+    expect(part(shell, ".train-editor .fchip.hold em").textContent).toBe(
+      "hold",
+    );
   });
 
   it("unmakes the train, and leaves its cars on the roster", async () => {
@@ -1126,7 +1324,6 @@ describe("making up a train", () => {
     expect(written()!.trains.ore!.cars).toEqual([{ model: "hopper" }]);
     expect(trouble(shell)).toBeNull();
   });
-
 });
 
 /** A camera is the item's own as an address is, and Save carries it in the
@@ -1143,7 +1340,9 @@ describe("a car's camera", () => {
 
     await typed(shell, await car(shell, "camera"), "");
     await saved(shell);
-    expect(written()!.cars).toEqual({ "arnold-ce68": { model: "arnold-ce68", addr: "3" } });
+    expect(written()!.cars).toEqual({
+      "arnold-ce68": { model: "arnold-ce68", addr: "3" },
+    });
   });
 
   it("puts a malformed camera back to the roster's, says why, and saves none", async () => {
@@ -1173,7 +1372,9 @@ const UNHEARD_WAITS =
 
 /** What the page has asked for on `railroad_wanted`. */
 function wants(): unknown[] {
-  return published().filter((one) => (one as { topic: string }).topic === RAILROAD_WANTED);
+  return published().filter(
+    (one) => (one as { topic: string }).topic === RAILROAD_WANTED,
+  );
 }
 
 /** The length field of one model, chosen in the Models list by name. */
@@ -1184,7 +1385,9 @@ async function length(shell: TcApp, name: string): Promise<HTMLInputElement> {
 
 /** Whether each model's length field is dead and what it says, each model
  *  chosen in turn. */
-async function lengths(shell: TcApp): Promise<{ disabled: boolean; title: string }[]> {
+async function lengths(
+  shell: TcApp,
+): Promise<{ disabled: boolean; title: string }[]> {
   const said = [];
   for (const name of ["arnold-ce68", "hopper"]) {
     const field = await length(shell, name);
@@ -1194,7 +1397,10 @@ async function lengths(shell: TcApp): Promise<{ disabled: boolean; title: string
 }
 
 /** The ore train saved and standing in block `a`, with track power as given. */
-async function placed(shell: TcApp, power: "on" | "draining" | "off"): Promise<void> {
+async function placed(
+  shell: TcApp,
+  power: "on" | "draining" | "off",
+): Promise<void> {
   await ore(shell);
   await saved(shell);
   store.rosterOf = () => ({ ore: { length: 422 } });
@@ -1233,9 +1439,7 @@ describe("the length guard", () => {
   it("leaves length editing alone with power off and the train placed", async () => {
     const shell = await opened();
     await placed(shell, "off");
-    expect((await car(shell, "length")).disabled).toBe(
-      false,
-    );
+    expect((await car(shell, "length")).disabled).toBe(false);
     expect(parts(shell, ".why")).toHaveLength(0);
     for (const model of await lengths(shell)) {
       expect(model.disabled).toBe(false);
@@ -1257,9 +1461,7 @@ describe("the length guard", () => {
   it("leaves length editing alone with nothing placed", async () => {
     const shell = await opened();
     await ore(shell);
-    expect((await car(shell, "length")).disabled).toBe(
-      false,
-    );
+    expect((await car(shell, "length")).disabled).toBe(false);
     expect(parts(shell, ".why")).toHaveLength(0);
   });
 
@@ -1268,9 +1470,14 @@ describe("the length guard", () => {
    *  be running without it (#804). The hold lifts once the row is heard again
    *  with power off; nothing is latched. */
   describe("with the broker gone", () => {
-    async function every(shell: TcApp): Promise<{ disabled: boolean; title: string }[]> {
+    async function every(
+      shell: TcApp,
+    ): Promise<{ disabled: boolean; title: string }[]> {
       const field = await car(shell, "length");
-      return [{ disabled: field.disabled, title: field.title }, ...(await lengths(shell))];
+      return [
+        { disabled: field.disabled, title: field.title },
+        ...(await lengths(shell)),
+      ];
     }
 
     it("holds every length, refuses one typed, and saves no length edit", async () => {
@@ -1365,7 +1572,9 @@ describe("the roster's Save with a length corrected", () => {
     await saved(shell);
 
     expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
-    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+    expect(wants()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+    ]);
     expect(saving(shell).disabled).toBe(true);
   });
 
@@ -1380,7 +1589,9 @@ describe("the roster's Save with a length corrected", () => {
     await typed(shell, await car(shell, "length"), "150");
     let answer: () => void = () => {};
     store.held = (path) =>
-      path.startsWith("/rosters/") ? new Promise<void>((resolve) => (answer = resolve)) : null;
+      path.startsWith("/rosters/")
+        ? new Promise<void>((resolve) => (answer = resolve))
+        : null;
 
     await saved(shell);
     Broker.last!.closes();
@@ -1394,7 +1605,9 @@ describe("the roster's Save with a length corrected", () => {
     Broker.last!.opens();
     await settled(shell);
 
-    expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+    expect(wants()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+    ]);
   });
 
   /** A model's length corrected on its row is written on Save, before the
@@ -1425,7 +1638,9 @@ describe("the roster's Save with a length corrected", () => {
         kind: "freight",
         length: 110,
       });
-      expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+      expect(wants()).toEqual([
+        { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+      ]);
       expect(saving(shell).disabled).toBe(true);
     });
 
@@ -1455,7 +1670,9 @@ describe("the roster's Save with a length corrected", () => {
 
       expect(paths()).toEqual(["/catalogue/hopper"]);
       expect(trouble(shell)).not.toBeNull();
-      expect(wants()).toEqual([{ topic: RAILROAD_WANTED, payload: { railroad: "toy" } }]);
+      expect(wants()).toEqual([
+        { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+      ]);
       expect(saving(shell).disabled).toBe(false);
 
       store.intercepted = () => null;
@@ -1559,7 +1776,10 @@ describe("the roster's Save in flight", () => {
     await saved(shell);
     await answer();
 
-    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper", "/rosters/toy"]);
+    expect(store.saved.map((one) => one.path)).toEqual([
+      "/catalogue/hopper",
+      "/rosters/toy",
+    ]);
     expect(saving(shell).disabled).toBe(true);
   });
 
@@ -1639,7 +1859,11 @@ describe("a roster written the old way", () => {
     expect(trouble(shell)).toBeNull();
     expect(cards(shell)).toEqual(["goods"]);
     expect(part(shell, ".derived").textContent).toMatch("400 mm");
-    expect(part(shell, ".train-editor p.hint.stated").textContent!.replace(/\s+/g, " ").trim()).toBe(
+    expect(
+      part(shell, ".train-editor p.hint.stated")
+        .textContent!.replace(/\s+/g, " ")
+        .trim(),
+    ).toBe(
       "states its length and names no cars — press Add to fill it in, and the stated 400 mm goes",
     );
   });
@@ -1650,14 +1874,18 @@ describe("a roster written the old way", () => {
    *  says it goes, before the press that takes it (#448). */
   it("says what the stated length costs before it is given up", async () => {
     const shell = await older();
-    expect(part(shell, ".train-editor p.hint.stated").textContent).toMatch("400 mm goes");
+    expect(part(shell, ".train-editor p.hint.stated").textContent).toMatch(
+      "400 mm goes",
+    );
 
     await add(shell, "cars", "krokodil-a");
     await pressed(shell, ".tile button.out");
 
     // The conversion is not undone: the train is the ordinary shape now, so
     // the note is gone and the stated number is not on the editor.
-    expect(screen(shell).renderRoot.querySelector(".train-editor p.hint.stated")).toBeNull();
+    expect(
+      screen(shell).renderRoot.querySelector(".train-editor p.hint.stated"),
+    ).toBeNull();
     expect(part(shell, ".derived").textContent).not.toMatch("400 mm");
     await saved(shell);
     expect(written()).toBeUndefined();
@@ -1686,7 +1914,9 @@ describe("a roster written the old way", () => {
     await typed(shell, await car(shell, "name"), "krokodil");
     await saved(shell);
     expect(written()!.trains.goods).toEqual({ length: 400 });
-    expect(written()!.cars).toEqual({ krokodil: { model: "arnold-ce68", addr: "3" } });
+    expect(written()!.cars).toEqual({
+      krokodil: { model: "arnold-ce68", addr: "3" },
+    });
   });
 });
 
@@ -1706,9 +1936,9 @@ describe("the run view and the screen beside it", () => {
         .renderRoot.querySelector("tc-roster")!
         .renderRoot.querySelectorAll("li"),
     ];
-    expect(rows.map((row) => row.querySelector(".name")!.textContent!.trim())).toEqual([
-      "ore",
-    ]);
+    expect(
+      rows.map((row) => row.querySelector(".name")!.textContent!.trim()),
+    ).toEqual(["ore"]);
     expect(rows[0]!.querySelector(".length")!.textContent!.trim()).toBe("422");
   });
 
@@ -1716,7 +1946,9 @@ describe("the run view and the screen beside it", () => {
     const shell = await opened();
     store.rosterOf = () => ({ ore: { length: 422 } });
     const rows = () =>
-      running(shell).renderRoot.querySelector("tc-roster")!.renderRoot.querySelectorAll("li");
+      running(shell)
+        .renderRoot.querySelector("tc-roster")!
+        .renderRoot.querySelectorAll("li");
     expect(rows()).toHaveLength(0);
 
     await shows(shell, "run");
@@ -1741,7 +1973,9 @@ describe("a store that does not answer with a document", () => {
     vi.useFakeTimers();
     try {
       between((path) => path === "/catalogue");
-      store.catalogue = { hopper: { model: "hopper", kind: "freight", length: 100 } };
+      store.catalogue = {
+        hopper: { model: "hopper", kind: "freight", length: 100 },
+      };
       const shell = await opened();
       await tab(shell, "models");
 
@@ -1770,10 +2004,14 @@ describe("a store that does not answer with a document", () => {
       const shell = await opened();
       await tab(shell, "models");
 
-      expect(trouble(shell)).toBe("the store is not answering — run `tc49 serve`");
+      expect(trouble(shell)).toBe(
+        "the store is not answering — run `tc49 serve`",
+      );
 
       store.documentOf = (railroad) => ({ roster: railroad, trains: {} });
-      store.catalogue = { hopper: { model: "hopper", kind: "freight", length: 100 } };
+      store.catalogue = {
+        hopper: { model: "hopper", kind: "freight", length: 100 },
+      };
       await vi.advanceTimersByTimeAsync(RETRY_MS);
       await settled(shell);
 
@@ -1800,7 +2038,10 @@ describe("a store that does not answer with a document", () => {
 
     store.intercepted = () => null;
     await saved(shell);
-    expect(store.saved.map((one) => one.path)).toEqual(["/catalogue/hopper", "/rosters/toy"]);
+    expect(store.saved.map((one) => one.path)).toEqual([
+      "/catalogue/hopper",
+      "/rosters/toy",
+    ]);
   });
 });
 
@@ -1825,7 +2066,9 @@ describe("the chosen train", () => {
 
   /** What the chosen train is called, as its editor's name field says. */
   function current(shell: TcApp): string | null {
-    const field = screen(shell).renderRoot.querySelector(".train-editor input.name");
+    const field = screen(shell).renderRoot.querySelector(
+      ".train-editor input.name",
+    );
     return field === null ? null : (field as HTMLInputElement).value;
   }
 
@@ -1847,7 +2090,9 @@ describe("the chosen train", () => {
     await pressed(shell, ".ed-head button.unmake");
 
     expect(cards(shell)).toEqual([]);
-    expect(screen(shell).renderRoot.querySelector("button.add-tile")).toBeNull();
+    expect(
+      screen(shell).renderRoot.querySelector("button.add-tile"),
+    ).toBeNull();
     expect(part(shell, ".editor .empty").textContent!.trim()).toBe(
       "Nothing here yet. Press New train.",
     );
@@ -1863,7 +2108,9 @@ describe("the chosen train", () => {
     expect(current(shell)).toBe("shunt-2");
     await add(shell, "models", "hopper");
     expect(await tiles(shell)).toEqual(["hopper"]);
-    expect(screen(shell).railroad!.stock!.roster.trains["shunt-2"]!.cars).toHaveLength(1);
+    expect(
+      screen(shell).railroad!.stock!.roster.trains["shunt-2"]!.cars,
+    ).toHaveLength(1);
   });
 
   /** A refusal changes the document by construction not at all, so there is
@@ -1892,7 +2139,9 @@ describe("the chosen train", () => {
     await pressed(shell, "button.card.train", 0);
 
     expect(current(shell)).toBe("ore");
-    expect(part(shell, "button.card.train[aria-current='true'] .name").textContent).toBe("ore");
+    expect(
+      part(shell, "button.card.train[aria-current='true'] .name").textContent,
+    ).toBe("ore");
   });
 });
 
@@ -1976,7 +2225,9 @@ describe("an edit standing in a field", () => {
 
     await power(shell);
 
-    expect((part(shell, ".train-editor input.name") as HTMLInputElement).value).toBe("ore up");
+    expect(
+      (part(shell, ".train-editor input.name") as HTMLInputElement).value,
+    ).toBe("ore up");
   });
 
   /** A refusal is about the field it was typed in. What stands in another

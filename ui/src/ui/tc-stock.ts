@@ -43,6 +43,7 @@ import "@shoelace-style/shoelace/dist/components/button/button.js";
 
 import { isPicture, NOT_A_PICTURE, toJpeg } from "../model/photo.js";
 import {
+  hasDecoder,
   KINDS,
   LATCHING,
   modelName,
@@ -197,8 +198,11 @@ export class TcStock extends LitElement {
 
   /** The picker, open on a train: which tab it shows, and the model whose
    *  cars *Which <model>?* lists where it is asking that. */
-  @state() private picking: { train: string; tab: "cars" | "models"; model: string | null } | null =
-    null;
+  @state() private picking: {
+    train: string;
+    tab: "cars" | "models";
+    model: string | null;
+  } | null = null;
 
   /** What the picker did that is worth a word — *Added <car>, your only
    *  <model>.* — standing at the foot of the view for a moment. */
@@ -300,10 +304,12 @@ export class TcStock extends LitElement {
         <button
           class="save"
           title=${waits ?? this.unwritable() ?? nothing}
-          ?disabled=${stock === null ||
-          this.railroad?.saving === true ||
-          !stock.edits ||
-          waits !== null}
+          ?disabled=${
+            stock === null ||
+            this.railroad?.saving === true ||
+            !stock.edits ||
+            waits !== null
+          }
           @click=${this.save}
         >
           Save
@@ -318,12 +324,16 @@ export class TcStock extends LitElement {
     const stock = this.stock;
     const trouble = this.trouble ?? this.railroad?.stockTrouble ?? null;
     if (trouble !== null) return { words: trouble, tone: "trouble" };
-    if (stock === null) return { words: this.unwritable() ?? "", tone: "trouble" };
+    if (stock === null)
+      return { words: this.unwritable() ?? "", tone: "trouble" };
     const waits = stock.waitsForPower(this.power, this.heard);
     if (waits !== null) return { words: waits, tone: "waits" };
     const unsaved = stock.unsaved;
     if (unsaved > 0) {
-      return { words: `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}`, tone: "" };
+      return {
+        words: `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}`,
+        tone: "",
+      };
     }
     if (this.landed) return { words: "Saved", tone: "landed" };
     return { words: "Everything is saved", tone: "" };
@@ -375,21 +385,26 @@ export class TcStock extends LitElement {
     const stock = this.stock;
     if (this.tab === "models") {
       const models = stock?.modelRows(this.power, this.heard) ?? [];
-      if (models.length === 0) return this.none("no models yet — a train is made of them");
+      if (models.length === 0)
+        return this.none("no models yet — a train is made of them");
       const chosen = this.chosenModel();
-      return models.map((model) => this.modelCard(model, model.model === chosen));
+      return models.map((model) =>
+        this.modelCard(model, model.model === chosen),
+      );
     }
     if (this.tab === "cars") {
       const cars = stock?.cars(this.power, this.heard) ?? [];
       if (cars.length === 0) {
-        return this.none("no cars yet — a model entry becomes one when you give it an address");
+        return this.none("no cars yet — press New car on a model to make one");
       }
       const chosen = this.chosenCar();
       return cars.map((car) => this.carCard(car, car.name === chosen));
     }
     const trains = stock?.trains(this.placed) ?? [];
     if (trains.length === 0) {
-      return this.none("no trains yet — press New train, then Add to put cars in it");
+      return this.none(
+        "no trains yet — press New train, then Add to put cars in it",
+      );
     }
     const chosen = this.pointed();
     return trains.map((train) => this.trainCard(train, train.train === chosen));
@@ -430,16 +445,21 @@ export class TcStock extends LitElement {
 
   /** A model's facts: kind, scale, length, and *decoder* where it has one. */
   private modelFacts(model: ModelRow) {
-    return html`<span>${KIND[model.kind] ?? model.kind}</span>${model.scale === null
-        ? nothing
-        : html`<span>${model.scale}</span>`}<span>${model.length} mm</span>${model.decoder
-        ? html`<span class="pill">decoder</span>`
-        : nothing}`;
+    return html`<span>${KIND[model.kind] ?? model.kind}</span>${
+        model.scale === null ? nothing : html`<span>${model.scale}</span>`
+      }<span>${model.length} mm</span>${
+        model.decoder ? html`<span class="pill">decoder</span>` : nothing
+      }`;
   }
 
   private modelCard(model: ModelRow, chosen: boolean) {
-    return this.card("model", model.model, model.name, this.modelFacts(model), chosen, () =>
-      this.chose("models", model.model),
+    return this.card(
+      "model",
+      model.model,
+      model.name,
+      this.modelFacts(model),
+      chosen,
+      () => this.chose("models", model.model),
     );
   }
 
@@ -458,12 +478,15 @@ export class TcStock extends LitElement {
   }
 
   private carFacts(car: CarRow) {
-    return html`<span>${car.modelName}${car.kind === null ? " — no such model" : ""}</span>${car.addr ===
-      null
-        ? nothing
-        : html`<span class="pill">${car.addr}</span>`}${car.camera === null
-        ? nothing
-        : html`<span class="pill">camera</span>`}`;
+    return html`<span
+        >${car.modelName}${car.kind === null ? " — no such model" : ""}</span
+      >${
+        car.addr === null
+          ? nothing
+          : html`<span class="pill">${car.addr}</span>`
+      }${
+        car.camera === null ? nothing : html`<span class="pill">camera</span>`
+      }`;
   }
 
   /** A train's facts: how many cars, its length, its kind, its priority. Its
@@ -474,13 +497,13 @@ export class TcStock extends LitElement {
       "train",
       train.locomotive,
       train.train,
-      html`<span>${count} ${count === 1 ? "car" : "cars"}</span><span
-          >${train.length === null ? "—" : `${train.length} mm`}</span
-        ><span>${train.kind ?? "—"}</span>${train.priority === null
-          ? nothing
-          : html`<span class="pill">P${train.priority}</span>`}${train.placed
-          ? html`<span>on the layout</span>`
-          : nothing}`,
+      html`<span>${count} ${count === 1 ? "car" : "cars"}</span
+        ><span>${train.length === null ? "—" : `${train.length} mm`}</span
+        ><span>${train.kind ?? "—"}</span>${
+          train.priority === null
+            ? nothing
+            : html`<span class="pill">P${train.priority}</span>`
+        }${train.placed ? html`<span>on the layout</span>` : nothing}`,
       chosen,
       () => this.chose("trains", train.train),
     );
@@ -509,7 +532,8 @@ export class TcStock extends LitElement {
     if (pending !== null) return html`<img src=${pending.shown} alt="" />`;
     const key = stock.keyOf(model);
     const version = stock.photoVersion(key);
-    if (stock.isFresh(key) || this.absent.get(key) === version) return this.noPhoto();
+    if (stock.isFresh(key) || this.absent.get(key) === version)
+      return this.noPhoto();
     return html`<img
       src=${photoUrl(key, version)}
       alt=""
@@ -533,7 +557,9 @@ export class TcStock extends LitElement {
     if (stock === null) return false;
     if (stock.photo(model) !== null) return true;
     const key = stock.keyOf(model);
-    return !stock.isFresh(key) && this.absent.get(key) !== stock.photoVersion(key);
+    return (
+      !stock.isFresh(key) && this.absent.get(key) !== stock.photoVersion(key)
+    );
   }
 
   // --- the editor -----------------------------------------------------------
@@ -542,11 +568,15 @@ export class TcStock extends LitElement {
     const stock = this.stock;
     if (this.tab === "models") {
       const model = this.chosenModel();
-      return model === null || stock === null ? this.nothingHere() : this.modelEditor(model);
+      return model === null || stock === null
+        ? this.nothingHere()
+        : this.modelEditor(model);
     }
     if (this.tab === "cars") {
       const name = this.chosenCar();
-      const car = stock?.cars(this.power, this.heard).find((one) => one.name === name);
+      const car = stock
+        ?.cars(this.power, this.heard)
+        .find((one) => one.name === name);
       return car === undefined ? this.nothingHere() : this.carEditor(car);
     }
     const name = this.pointed();
@@ -555,7 +585,9 @@ export class TcStock extends LitElement {
   }
 
   private nothingHere() {
-    return html`<div class="empty">Nothing here yet. Press ${NEW[this.tab]}.</div>`;
+    return html`<div class="empty">
+      Nothing here yet. Press ${NEW[this.tab]}.
+    </div>`;
   }
 
   /** The editor's head: the back button where the list is not beside it,
@@ -585,7 +617,8 @@ export class TcStock extends LitElement {
   private chosenModel(): string | null {
     const stock = this.stock;
     if (stock === null) return null;
-    if (this.model !== null && stock.model(this.model) !== null) return stock.keyOf(this.model);
+    if (this.model !== null && stock.model(this.model) !== null)
+      return stock.keyOf(this.model);
     return stock.modelRows()[0]?.model ?? null;
   }
 
@@ -604,12 +637,16 @@ export class TcStock extends LitElement {
   private modelEditor(key: string) {
     const stock = this.stock!;
     const model = stock.model(key)!;
-    const row = stock.modelRows(this.power, this.heard).find((one) => one.model === key)!;
+    const row = stock
+      .modelRows(this.power, this.heard)
+      .find((one) => one.model === key)!;
     return html`
       ${this.head(
         "Model",
         row.name,
-        html`<button class="new-car" @click=${() => this.carOf(key)}>New car</button>`,
+        html`<button class="new-car" @click=${() => this.carOf(key)}>
+          New car
+        </button>`,
       )}
       <div class="body model-editor">
         ${this.photoFrame(key)}
@@ -621,7 +658,10 @@ export class TcStock extends LitElement {
               .value=${this.putting(`model:${key}:name`, row.name)}
               placeholder="Ae 6/6"
               @change=${(event: Event) =>
-                this.did(stock.renameModel(key, value(event)), `model:${key}:name`)}
+                this.did(
+                  stock.renameModel(key, value(event)),
+                  `model:${key}:name`,
+                )}
             />
           </label>
           <div class="field wide">
@@ -647,12 +687,17 @@ export class TcStock extends LitElement {
               @change=${(event: Event) =>
                 this.changed((one) => one.modelScale(key, value(event)))}
             >
-              ${model.scale === undefined
-                ? html`<option value="" selected>—</option>`
-                : nothing}
+              ${
+                model.scale === undefined
+                  ? html`<option value="" selected>—</option>`
+                  : nothing
+              }
               ${SCALES.map(
                 (scale) =>
-                  html`<option value=${scale} ?selected=${model.scale === scale}>
+                  html`<option
+                    value=${scale}
+                    ?selected=${model.scale === scale}
+                  >
                     ${scale}
                   </option>`,
               )}
@@ -668,7 +713,12 @@ export class TcStock extends LitElement {
               ?disabled=${row.held !== null}
               @change=${(event: Event) =>
                 this.did(
-                  stock.modelLength(key, millimetres(event) ?? 0, this.power, this.heard),
+                  stock.modelLength(
+                    key,
+                    millimetres(event) ?? 0,
+                    this.power,
+                    this.heard,
+                  ),
                   `model:${key}:length`,
                 )}
             />
@@ -683,7 +733,10 @@ export class TcStock extends LitElement {
             placeholder="Manufacturer, catalogue number, colour, when you bought it…"
             .value=${this.putting(`model:${key}:notes`, model.notes ?? "")}
             @change=${(event: Event) =>
-              this.changed((one) => one.modelNotes(key, value(event)), `model:${key}:notes`)}
+              this.changed(
+                (one) => one.modelNotes(key, value(event)),
+                `model:${key}:notes`,
+              )}
           ></textarea>
         </label>
         ${this.decoder(key, row.decoder)} ${this.usedBy(key, row)}
@@ -717,12 +770,14 @@ export class TcStock extends LitElement {
           if (file !== undefined) void this.picked(key, file);
         }}
       >
-        ${has
-          ? this.photo(key)
-          : html`<div class="drop">
-              <b>Drop a picture here</b>
-              <span>or choose a file, or take one with the photo camera</span>
-            </div>`}
+        ${
+          has
+            ? this.photo(key)
+            : html`<div class="drop">
+                <b>Drop a picture here</b>
+                <span>or choose a file, or take one with the photo camera</span>
+              </div>`
+        }
         ${taking ? html`<span class="wait">Taking a picture…</span>` : nothing}
       </div>
       <div class="photo-tools">
@@ -739,13 +794,19 @@ export class TcStock extends LitElement {
             }}
           />
         </label>
-        <button class="take" ?disabled=${taking} @click=${() => void this.takes(key)}>
+        <button
+          class="take"
+          ?disabled=${taking}
+          @click=${() => void this.takes(key)}
+        >
           ${has ? "Retake photo" : "Take photo"}
         </button>
       </div>
-      ${this.shot?.model === key
-        ? html`<p class="trouble photo-trouble">${this.shot.words}</p>`
-        : nothing}
+      ${
+        this.shot?.model === key
+          ? html`<p class="trouble photo-trouble">${this.shot.words}</p>`
+          : nothing
+      }
     `;
   }
 
@@ -766,7 +827,8 @@ export class TcStock extends LitElement {
       this.shot = null;
       this.did(null);
     } catch (trouble) {
-      if (this.stock === stock) this.shot = { model: key, words: said(trouble) };
+      if (this.stock === stock)
+        this.shot = { model: key, words: said(trouble) };
     }
   }
 
@@ -789,7 +851,8 @@ export class TcStock extends LitElement {
         this.did(null);
       }
     } catch (trouble) {
-      if (this.stock === stock) this.shot = { model: key, words: `no picture: ${said(trouble)}` };
+      if (this.stock === stock)
+        this.shot = { model: key, words: `no picture: ${said(trouble)}` };
     } finally {
       this.taking = null;
     }
@@ -803,9 +866,11 @@ export class TcStock extends LitElement {
           <div>
             <h3>Decoder</h3>
             <p class="hint">
-              ${on
-                ? "Each car of this model gets its own address."
-                : "This product has no decoder."}
+              ${
+                on
+                  ? "Each car of this model gets its own address."
+                  : "This product has no decoder."
+              }
             </p>
           </div>
           <button
@@ -887,7 +952,10 @@ export class TcStock extends LitElement {
       </ul>
       ${twice === null ? nothing : html`<p class="trouble twice">${twice}</p>`}
       <div class="row-end">
-        <button class="add-function" @click=${() => this.changed((one) => one.addFunction(key))}>
+        <button
+          class="add-function"
+          @click=${() => this.changed((one) => one.addFunction(key))}
+        >
           Add a function
         </button>
         <span class="hint">
@@ -907,11 +975,13 @@ export class TcStock extends LitElement {
     return html`
       <section class="sec used">
         <h3>Used by</h3>
-        ${used
-          ? html`<ul class="uses">
-              ${row.holders.map((holder) => html`<li>${holder}</li>`)}
-            </ul>`
-          : html`<p class="hint">Nothing uses this model.</p>`}
+        ${
+          used
+            ? html`<ul class="uses">
+                ${row.holders.map((holder) => html`<li>${holder}</li>`)}
+              </ul>`
+            : html`<p class="hint">Nothing uses this model.</p>`
+        }
         <div class="row-end">
           <button
             class="delete"
@@ -924,14 +994,18 @@ export class TcStock extends LitElement {
             Delete model
           </button>
           <span class="hint">
-            ${used
-              ? "A model in use cannot be deleted. Take it out of everything above first."
-              : "Its photo goes with it."}
+            ${
+              used
+                ? "A model in use cannot be deleted. Take it out of everything above first."
+                : "Its photo goes with it."
+            }
           </span>
         </div>
-        ${this.kept?.model === key
-          ? html`<p class="trouble delete-trouble">${this.kept.words}</p>`
-          : nothing}
+        ${
+          this.kept?.model === key
+            ? html`<p class="trouble delete-trouble">${this.kept.words}</p>`
+            : nothing
+        }
       </section>
     `;
   }
@@ -953,7 +1027,11 @@ export class TcStock extends LitElement {
         }}
       >
         <p>Its photo goes with it. A backup can bring it back.</p>
-        <sl-button slot="footer" class="cancel" @click=${() => (this.asking = null)}>
+        <sl-button
+          slot="footer"
+          class="cancel"
+          @click=${() => (this.asking = null)}
+        >
           Cancel
         </sl-button>
         <sl-button
@@ -984,13 +1062,15 @@ export class TcStock extends LitElement {
       try {
         await deleteModel(at);
       } catch (trouble) {
-        if (this.stock === stock) this.kept = { model: at, words: said(trouble) };
+        if (this.stock === stock)
+          this.kept = { model: at, words: said(trouble) };
         return;
       }
     }
     if (this.stock !== stock) return;
     stock.dropModel(at);
-    if (this.model !== null && stock.keyOf(this.model) === at) this.model = null;
+    if (this.model !== null && stock.keyOf(this.model) === at)
+      this.model = null;
     this.did(null);
   };
 
@@ -1005,7 +1085,9 @@ export class TcStock extends LitElement {
     this.car = name;
     this.editing = true;
     this.refusal = null;
-    this.asked = stock.cars().find((one) => one.name === name)?.decoder ? name : null;
+    this.asked = stock.cars().find((one) => one.name === name)?.decoder
+      ? name
+      : null;
     this.did(null);
   }
 
@@ -1024,13 +1106,20 @@ export class TcStock extends LitElement {
         }}
       >
         <div class="cards">
-          ${models.length === 0
-            ? this.none("no models yet — make one in the Models list first")
-            : models.map((model) =>
-                this.card("model", model.model, model.name, this.modelFacts(model), false, () =>
-                  this.carOf(model.model),
-                ),
-              )}
+          ${
+            models.length === 0
+              ? this.none("no models yet — make one in the Models list first")
+              : models.map((model) =>
+                  this.card(
+                    "model",
+                    model.model,
+                    model.name,
+                    this.modelFacts(model),
+                    false,
+                    () => this.carOf(model.model),
+                  ),
+                )
+          }
         </div>
       </look-dialog>
     `;
@@ -1054,9 +1143,11 @@ export class TcStock extends LitElement {
         name,
         html`<button
           class="remove-car"
-          title=${inTrain === undefined
-            ? "Take this car off the roster"
-            : `In train ${inTrain}. Take it out of the train first.`}
+          title=${
+            inTrain === undefined
+              ? "Take this car off the roster"
+              : `In train ${inTrain}. Take it out of the train first.`
+          }
           ?disabled=${inTrain !== undefined}
           @click=${() => this.did(this.stock?.removeCar(name))}
         >
@@ -1079,7 +1170,10 @@ export class TcStock extends LitElement {
           </label>
           <div class="field">
             <span class="label">Model</span>
-            <button class="model" @click=${() => this.opened("models", car.model)}>
+            <button
+              class="model"
+              @click=${() => this.opened("models", car.model)}
+            >
               ${car.modelName}${car.kind === null ? " — no such model" : ""}
             </button>
           </div>
@@ -1091,18 +1185,23 @@ export class TcStock extends LitElement {
               .value=${this.putting(`car:${name}:camera`, car.camera ?? "")}
               placeholder="cam-1.local or 192.168.1.40"
               @change=${(event: Event) =>
-                this.did(this.stock?.carCamera(name, value(event)), `car:${name}:camera`)}
+                this.did(
+                  this.stock?.carCamera(name, value(event)),
+                  `car:${name}:camera`,
+                )}
             />
             <span class="hint">
-              Host name or IP address of the camera riding in this car. Empty if it carries
-              none.
+              Host name or IP address of the camera riding in this car. Empty if
+              it carries none.
             </span>
           </label>
         </div>
         <section class="sec different">
           <div>
             <h3>Different from the model</h3>
-            <p class="hint">Leave a field empty and the car takes the model's.</p>
+            <p class="hint">
+              Leave a field empty and the car takes the model's.
+            </p>
           </div>
           <label class="field">
             <span class="label">Length over buffers, mm</span>
@@ -1115,50 +1214,69 @@ export class TcStock extends LitElement {
               ?disabled=${car.held !== null}
               @change=${(event: Event) =>
                 this.did(
-                  this.stock?.carLength(name, millimetres(event), this.power, this.heard),
+                  this.stock?.carLength(
+                    name,
+                    millimetres(event),
+                    this.power,
+                    this.heard,
+                  ),
                   `car:${name}:length`,
                 )}
             />
-            ${car.held === null
-              ? html`<span class="hint">
-                  ${car.modelLength === null
-                    ? ""
-                    : car.own
-                      ? `The model says ${car.modelLength} mm.`
-                      : `The model's ${car.modelLength} mm.`}
-                </span>`
-              : html`<span class="why">${car.held}</span>`}
+            ${
+              car.held === null
+                ? html`<span class="hint">
+                    ${
+                      car.modelLength === null
+                        ? ""
+                        : car.own
+                          ? `The model says ${car.modelLength} mm.`
+                          : `The model's ${car.modelLength} mm.`
+                    }
+                  </span>`
+                : html`<span class="why">${car.held}</span>`
+            }
           </label>
           ${car.decoder || car.addr !== null ? this.carFunctions(car) : nothing}
           <div class="field">
             <span class="label">Notes</span>
-            ${car.modelNotes === null
-              ? nothing
-              : html`<p class="quote model-notes">${car.modelNotes}</p>`}
+            ${
+              car.modelNotes === null
+                ? nothing
+                : html`<p class="quote model-notes">${car.modelNotes}</p>`
+            }
             <textarea
               class="notes"
               rows="3"
               placeholder="What is particular to this car…"
               .value=${this.putting(`car:${name}:notes`, car.notes ?? "")}
               @change=${(event: Event) =>
-                this.changed((one) => one.carNotes(name, value(event)), `car:${name}:notes`)}
+                this.changed(
+                  (one) => one.carNotes(name, value(event)),
+                  `car:${name}:notes`,
+                )}
             ></textarea>
           </div>
         </section>
         <section class="sec in-trains">
           <h3>In trains</h3>
-          ${car.trains.length === 0
-            ? html`<p class="hint">In no train yet.</p>`
-            : html`<ul class="uses">
-                ${car.trains.map(
-                  (train) =>
-                    html`<li>
-                      <button class="link train" @click=${() => this.opened("trains", train)}>
-                        ${train}
-                      </button>
-                    </li>`,
-                )}
-              </ul>`}
+          ${
+            car.trains.length === 0
+              ? html`<p class="hint">In no train yet.</p>`
+              : html`<ul class="uses">
+                  ${car.trains.map(
+                    (train) =>
+                      html`<li>
+                        <button
+                          class="link train"
+                          @click=${() => this.opened("trains", train)}
+                        >
+                          ${train}
+                        </button>
+                      </li>`,
+                  )}
+                </ul>`
+          }
         </section>
       </div>
     `;
@@ -1189,12 +1307,17 @@ export class TcStock extends LitElement {
           .value=${this.putting(`car:${name}:addr`, car.addr ?? "")}
           placeholder="the number in its decoder"
           @change=${(event: Event) =>
-            this.did(this.stock?.carAddress(name, value(event)), `car:${name}:addr`)}
+            this.did(
+              this.stock?.carAddress(name, value(event)),
+              `car:${name}:addr`,
+            )}
         />
         <span class="hint">
-          ${car.decoder
-            ? "The number programmed into this car's decoder. No two cars share one."
-            : `${car.modelName} has no decoder; this car has one fitted.`}
+          ${
+            car.decoder
+              ? "The number programmed into this car's decoder. No two cars share one."
+              : `${car.modelName} has no decoder; this car has one fitted.`
+          }
         </span>
       </label>
     `;
@@ -1204,7 +1327,9 @@ export class TcStock extends LitElement {
   private async fitted(name: string): Promise<void> {
     this.fitting = name;
     await this.updateComplete;
-    this.renderRoot.querySelector<HTMLInputElement>(".car-editor input.addr")?.focus();
+    this.renderRoot
+      .querySelector<HTMLInputElement>(".car-editor input.addr")
+      ?.focus();
   }
 
   /** The model's functions as chips, and the press that gives the car its
@@ -1227,21 +1352,25 @@ export class TcStock extends LitElement {
         </div>
       `;
     }
-    const rows = stock.model(car.model) === null ? [] : stock.functionRows(car.model);
+    const rows =
+      stock.model(car.model) === null ? [] : stock.functionRows(car.model);
     return html`
       <div class="field">
         <span class="label">Functions, from the model</span>
         <div class="chips">
-          ${rows.length === 0
-            ? html`<span class="hint">None</span>`
-            : rows.map(
-                (row) =>
-                  html`<span class=${`fchip ${row.mode === MOMENTARY ? "hold" : ""}`}
-                    ><code>F${row.number}</code>${row.name}${row.mode === MOMENTARY
-                      ? html`<em>hold</em>`
-                      : nothing}</span
-                  >`,
-              )}
+          ${
+            rows.length === 0
+              ? html`<span class="hint">None</span>`
+              : rows.map(
+                  (row) =>
+                    html`<span
+                      class=${`fchip ${row.mode === MOMENTARY ? "hold" : ""}`}
+                      ><code>F${row.number}</code>${row.name}${
+                        row.mode === MOMENTARY ? html`<em>hold</em>` : nothing
+                      }</span
+                    >`,
+                )
+          }
         </div>
         <button
           class="link own-functions"
@@ -1261,7 +1390,10 @@ export class TcStock extends LitElement {
   private addressing() {
     const stock = this.stock;
     const name = this.asked;
-    const car = name === null ? undefined : stock?.cars().find((one) => one.name === name);
+    const car =
+      name === null
+        ? undefined
+        : stock?.cars().find((one) => one.name === name);
     if (stock === null || name === null || car === undefined) return nothing;
     return html`
       <look-dialog
@@ -1273,7 +1405,10 @@ export class TcStock extends LitElement {
           this.refusal = null;
         }}
       >
-        <p>${car.modelName} has a decoder. Type the address programmed into this car's decoder.</p>
+        <p>
+          ${car.modelName} has a decoder. Type the address programmed into this
+          car's decoder.
+        </p>
         <input class="ask-addr" inputmode="numeric" placeholder="e.g. 460" />
         ${this.refusal === null ? nothing : html`<p class="trouble">${this.refusal}</p>`}
         <sl-button
@@ -1286,7 +1421,12 @@ export class TcStock extends LitElement {
         >
           Later
         </sl-button>
-        <sl-button slot="footer" variant="primary" class="set" @click=${() => this.setAddress(name)}>
+        <sl-button
+          slot="footer"
+          variant="primary"
+          class="set"
+          @click=${() => this.setAddress(name)}
+        >
           Set address
         </sl-button>
       </look-dialog>
@@ -1296,9 +1436,12 @@ export class TcStock extends LitElement {
   /** *Set address*: the one typed, or nothing where none was, and the
    *  question gone; a refusal stays in the question. */
   private setAddress(name: string): void {
-    const field = this.renderRoot.querySelector<HTMLInputElement>("look-dialog.address input");
+    const field = this.renderRoot.querySelector<HTMLInputElement>(
+      "look-dialog.address input",
+    );
     const typed = field?.value.trim() ?? "";
-    const refused = typed === "" ? null : (this.stock?.carAddress(name, typed) ?? null);
+    const refused =
+      typed === "" ? null : (this.stock?.carAddress(name, typed) ?? null);
     if (refused !== null) {
       this.refusal = refused;
       return;
@@ -1333,7 +1476,8 @@ export class TcStock extends LitElement {
    */
   private trainEditor(train: TrainRow) {
     const name = train.train;
-    const pictured = train.locomotive !== null && this.hasPhoto(train.locomotive);
+    const pictured =
+      train.locomotive !== null && this.hasPhoto(train.locomotive);
     return html`
       ${this.head(
         "Train",
@@ -1384,12 +1528,14 @@ export class TcStock extends LitElement {
             <h3>Cars</h3>
             <span class="hint">Drag to reorder.</span>
           </div>
-          ${train.stated
-            ? html`<p class="hint stated">
-                states its length and names no cars — press Add to fill it in, and the
-                stated ${train.length} mm goes
-              </p>`
-            : nothing}
+          ${
+            train.stated
+              ? html`<p class="hint stated">
+                  states its length and names no cars — press Add to fill it in,
+                  and the stated ${train.length} mm goes
+                </p>`
+              : nothing
+          }
           <div class="ends"><span>← Head</span><span>Tail</span></div>
           <div class="strip">
             ${train.entries.map((entry, at) => this.tile(name, entry, at))}
@@ -1407,23 +1553,30 @@ export class TcStock extends LitElement {
           <h3>What follows from the cars</h3>
           <dl class="derived">
             <dt>Length</dt>
-            <dd class="length">${train.length === null ? "—" : `${train.length} mm`}</dd>
+            <dd class="length">
+              ${train.length === null ? "—" : `${train.length} mm`}
+            </dd>
             <dt>Kind</dt>
             <dd class="kind">${train.kind ?? "—"}</dd>
             <dt>Functions</dt>
             <dd class="functions">
-              ${train.functions.length === 0
-                ? html`<span class="hint">None</span>`
-                : html`<span class="chips">
-                    ${train.functions.map(
-                      (fn) =>
-                        html`<span class=${`fchip ${fn.mode === MOMENTARY ? "hold" : ""}`}
-                          >${fn.name}${fn.mode === MOMENTARY
-                            ? html`<em>hold</em>`
-                            : nothing}</span
-                        >`,
-                    )}
-                  </span>`}
+              ${
+                train.functions.length === 0
+                  ? html`<span class="hint">None</span>`
+                  : html`<span class="chips">
+                      ${train.functions.map(
+                        (fn) =>
+                          html`<span
+                            class=${`fchip ${fn.mode === MOMENTARY ? "hold" : ""}`}
+                            >${fn.name}${
+                              fn.mode === MOMENTARY
+                                ? html`<em>hold</em>`
+                                : nothing
+                            }</span
+                          >`,
+                      )}
+                    </span>`
+              }
             </dd>
           </dl>
         </section>
@@ -1434,12 +1587,17 @@ export class TcStock extends LitElement {
   /**
    * One entry as a tile: its model's photo, mirrored where the entry is
    * reversed; the car's name or the model's; its address, *no address* or
-   * *by model*, *camera*, and its length; Forward / Reversed and the ×.
-   * Dragged along the strip with HTML drag and drop, which iPadOS has.
+   * *by model*, *camera*, and its length; Forward / Reversed and the ×, and
+   * *Give it an address* on a model entry of a model with a decoder, which
+   * cannot be driven without one (#993). Dragged along the strip with HTML drag and drop, which iPadOS has.
    */
   private tile(train: string, entry: TrainRow["entries"][number], at: number) {
     const facts = [
-      entry.car === null ? "by model" : entry.addr === null ? "no address" : `address ${entry.addr}`,
+      entry.car === null
+        ? "by model"
+        : entry.addr === null
+          ? "no address"
+          : `address ${entry.addr}`,
       ...(entry.camera === null ? [] : ["camera"]),
       entry.length === null ? "—" : `${entry.length} mm`,
     ].join(" · ");
@@ -1449,6 +1607,12 @@ export class TcStock extends LitElement {
       this.dragged === at ? "dragging" : "",
       this.over === at && this.dragged !== at ? "over" : "",
     ].join(" ");
+    const model =
+      entry.car === null && entry.model !== null
+        ? this.stock?.model(entry.model)
+        : null;
+    const addressable =
+      model !== null && model !== undefined && hasDecoder(model);
     return html`
       <div
         class=${classes}
@@ -1481,7 +1645,9 @@ export class TcStock extends LitElement {
           this.over = null;
         }}
       >
-        <span class="tph">${entry.model === null ? this.noPhoto() : this.photo(entry.model)}</span>
+        <span class="tph"
+          >${entry.model === null ? this.noPhoto() : this.photo(entry.model)}</span
+        >
         <span class="tb">
           <span class="tn">${entry.name}</span>
           <span class="tm">${facts}</span>
@@ -1494,6 +1660,16 @@ export class TcStock extends LitElement {
           >
             ${entry.reverse ? "Reversed" : "Forward"}
           </button>
+          ${
+            addressable
+              ? html`<button
+                  class="address"
+                  @click=${() => this.addressed(train, at)}
+                >
+                  Give it an address
+                </button>`
+              : nothing
+          }
           <button
             class="out"
             aria-label=${`Take ${entry.name} out`}
@@ -1506,6 +1682,16 @@ export class TcStock extends LitElement {
     `;
   }
 
+  /** *Give it an address* on a tile: a car of the entry's model in its
+   *  place, asked for its address at once as New car asks it. */
+  private addressed(train: string, at: number): void {
+    const car = this.stock?.carFor(train, at) ?? null;
+    if (car === null) return;
+    this.asked = car;
+    this.refusal = null;
+    this.did(null);
+  }
+
   /**
    * *Add to <train>*, with a Cars tab and a Models tab, or *Which <model>?*
    * where a model with a decoder has several cars. A car already in the
@@ -1514,7 +1700,11 @@ export class TcStock extends LitElement {
   private picker() {
     const stock = this.stock;
     const picking = this.picking;
-    if (stock === null || picking === null || stock.roster.trains[picking.train] === undefined) {
+    if (
+      stock === null ||
+      picking === null ||
+      stock.roster.trains[picking.train] === undefined
+    ) {
       return nothing;
     }
     const train = picking.train;
@@ -1536,7 +1726,9 @@ export class TcStock extends LitElement {
       );
     const which = picking.model === null ? null : stock.model(picking.model);
     if (which !== null && picking.model !== null) {
-      const named = new Set(stock.carsOf(train, picking.model).map((one) => one.car));
+      const named = new Set(
+        stock.carsOf(train, picking.model).map((one) => one.car),
+      );
       return html`
         <look-dialog
           open
@@ -1544,8 +1736,12 @@ export class TcStock extends LitElement {
           label=${`Which ${modelName(which)}?`}
           @sl-after-hide=${() => this.closePicker()}
         >
-          <p class="hint">You own more than one. A car already in this train is greyed.</p>
-          <div class="cards offered">${cars.filter((one) => named.has(one.name)).map(car)}</div>
+          <p class="hint">
+            You own more than one. A car already in this train is greyed.
+          </p>
+          <div class="cards offered">
+            ${cars.filter((one) => named.has(one.name)).map(car)}
+          </div>
         </look-dialog>
       `;
     }
@@ -1580,22 +1776,33 @@ export class TcStock extends LitElement {
           )}
         </div>
         <p class="hint">
-          ${picking.tab === "cars"
-            ? "A car already in this train is greyed."
-            : "A model with a decoder goes in as its car, made for it if there is none."}
+          ${
+            picking.tab === "cars"
+              ? "A car already in this train is greyed."
+              : "A model with a decoder goes in as its car, made for it if there is none."
+          }
         </p>
         <div class="cards offered">
-          ${picking.tab === "cars"
-            ? cars.length === 0
-              ? this.none("no cars yet — a model with a decoder becomes one when it is added")
-              : cars.map(car)
-            : models.length === 0
-              ? this.none("no models yet — make one in the Models list first")
-              : models.map((model) =>
-                  this.card("model", model.model, model.name, this.modelFacts(model), false, () =>
-                    this.pickedModel(model.model),
-                  ),
-                )}
+          ${
+            picking.tab === "cars"
+              ? cars.length === 0
+                ? this.none(
+                    "no cars yet — a model with a decoder becomes one when it is added",
+                  )
+                : cars.map(car)
+              : models.length === 0
+                ? this.none("no models yet — make one in the Models list first")
+                : models.map((model) =>
+                    this.card(
+                      "model",
+                      model.model,
+                      model.name,
+                      this.modelFacts(model),
+                      false,
+                      () => this.pickedModel(model.model),
+                    ),
+                  )
+          }
         </div>
       </look-dialog>
     `;
@@ -1636,7 +1843,9 @@ export class TcStock extends LitElement {
     this.did(null);
     if (added.as === "only") {
       const model = stock.model(key);
-      this.tell(`Added ${added.car}, your only ${model === null ? key : modelName(model)}.`);
+      this.tell(
+        `Added ${added.car}, your only ${model === null ? key : modelName(model)}.`,
+      );
     }
   }
 
@@ -1681,7 +1890,9 @@ export class TcStock extends LitElement {
     this.editing = true;
     this.did(null);
     await this.updateComplete;
-    this.renderRoot.querySelector<HTMLInputElement>(".model-editor input.name")?.select();
+    this.renderRoot
+      .querySelector<HTMLInputElement>(".model-editor input.name")
+      ?.select();
   }
 
   /** *New train* in the list, chosen, with the picker open on it. */
@@ -1740,7 +1951,10 @@ export class TcStock extends LitElement {
 
   /** An edit that cannot refuse, through `did` all the same so the screen
    *  redraws and the last refusal is taken down. */
-  private changed(edit: (stock: Stock) => void, field: string | null = null): void {
+  private changed(
+    edit: (stock: Stock) => void,
+    field: string | null = null,
+  ): void {
     if (this.stock === null) return;
     edit(this.stock);
     this.did(null, field);
@@ -1750,7 +1964,10 @@ export class TcStock extends LitElement {
    *  was typed into where it was typed into one. A refusal changes the
    *  document not at all, so the field is named here so that the render this
    *  edit asks for writes the document's value back over it (#416). */
-  private did(refused: string | null | undefined, field: string | null = null): void {
+  private did(
+    refused: string | null | undefined,
+    field: string | null = null,
+  ): void {
     this.trouble = refused ?? null;
     this.back = field;
     this.beat++;
@@ -1771,7 +1988,9 @@ export class TcStock extends LitElement {
 
 /** What was typed into a control, whichever kind it is. */
 function value(event: Event): string {
-  return (event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).value;
+  return (
+    event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+  ).value;
 }
 
 /** A length as typed, `null` for a field left empty — which is a car reading

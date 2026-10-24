@@ -332,7 +332,9 @@ export const stockStyles = css`
     border-radius: 6px;
     background: var(--body);
     color: var(--ink);
-    font: 650 11.5px/1.2 ui-monospace, monospace;
+    font:
+      650 11.5px/1.2 ui-monospace,
+      monospace;
   }
 
   /* --- the editor --- */
@@ -686,7 +688,9 @@ export const stockStyles = css`
     display: grid;
     place-items: center;
     color: var(--hint);
-    font: 600 14px ui-monospace, monospace;
+    font:
+      600 14px ui-monospace,
+      monospace;
     pointer-events: none;
   }
 
@@ -924,6 +928,8 @@ export const stockStyles = css`
 
   .ta {
     display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
     align-items: center;
     justify-content: space-between;
     padding: 2px 4px 6px 6px;
@@ -935,6 +941,18 @@ export const stockStyles = css`
     border: 1px solid var(--rule);
     border-radius: 8px;
     background: var(--body);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  button.address {
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid color-mix(in srgb, var(--chosen) 50%, transparent);
+    border-radius: 8px;
+    background: var(--body);
+    color: var(--chosen);
     font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
