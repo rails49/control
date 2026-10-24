@@ -48,15 +48,20 @@ decision 4, [#886](https://github.com/rails49/control/issues/886)).
 **The railroad's roster is listed in the left pane.** The shell has one
 left-pane slot and each view fills it: the editor's palette, this view's
 `tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is
-a train's name, its length, and where the run has it — the block it stands in,
-*crossing a transit* where it stands in none (on the layout all the same), or
-*off the layout*. Ordered by name, so the list does
+the photo of a train's first locomotive, its name, its length, and where the
+run has it — the block it stands in, *crossing a transit* where it stands in
+none (on the layout all the same), or *off the layout*. The photo is the one
+the throttle's train picker shows
+([#1012](https://github.com/rails49/control/issues/1012)); a train with no
+locomotive, or one whose photo does not load, has an empty slot of the same
+size, so every row is one height, and a press on the photo picks the train up
+as a press on its name does. Ordered by name, so the list does
 not reshuffle as the railroad moves.
 
 A railroad's **roster** is every train it owns, whether on the layout or off
 it ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), so the pane is
-fed from two places: `GET /rosters/<railroad>/trains` for what there is and how long
-each train is, and `tc49/dispatch/state/allocation` for which of them the run
+fed from two places: `GET /rosters/<railroad>/trains` for what there is, how long
+each train is and the model of its first locomotive, and `tc49/dispatch/state/allocation` for which of them the run
 has. Two sources because they are two things — the store serves the railroad's
 assets, the bus carries the run
 ([ADR-0010](../adr/0010-asset-store-serves-coarse-read-only-documents.md)) —

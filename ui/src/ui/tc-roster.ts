@@ -1,7 +1,8 @@
 /**
- * The roster pane: the trains the railroad owns, name, length and where each
- * of them is ([#169](https://github.com/rails49/control/issues/169),
- * [#170](https://github.com/rails49/control/issues/170)).
+ * The roster pane: the trains the railroad owns, photo, name, length and
+ * where each of them is ([#169](https://github.com/rails49/control/issues/169),
+ * [#170](https://github.com/rails49/control/issues/170),
+ * [#1012](https://github.com/rails49/control/issues/1012)).
  *
  * It fills the shell's left-pane slot in the run view, where the editor puts
  * its palette
@@ -26,6 +27,7 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import type { RosterRow } from "../model/panel.js";
+import { photoUrl } from "../model/store.js";
 import { rosterStyles } from "./tc-roster.styles.js";
 
 /** A row picked up, and where the pointer was when it was let go. Client
@@ -53,6 +55,9 @@ export class TcRoster extends LitElement {
    *  drag is here: where it lands is the view's. */
   @state() private held: string | null = null;
 
+  /** The models whose photo did not load, drawn as no picture. */
+  @state() private unseen: ReadonlySet<string> = new Set();
+
   /** Whether a row may be picked up at all: there is a session to send the
    *  placement to, which is the whole of the rule. */
   private get pickable(): boolean {
@@ -72,12 +77,12 @@ export class TcRoster extends LitElement {
     `;
   }
 
-  /** One train: its name, its length, and where the run has it. A train
+  /** One train: its photo, its name, its length, and where the run has it. A train
    *  between two blocks stands in none and is on the layout all the same, so
    *  the cell says what it is doing rather than naming a block it has left,
    *  beside `off the layout` for a train that is not placed (GLOSSARY.md,
    *  **Placed** and **Transit**). */
-  private row({ train, block, length, placed }: RosterRow) {
+  private row({ train, block, length, locomotive, placed }: RosterRow) {
     return html`
       <li
         class=${[
@@ -91,6 +96,7 @@ export class TcRoster extends LitElement {
         @pointerup=${(event: PointerEvent) => this.drop(event, train)}
         @pointercancel=${() => (this.held = null)}
       >
+        ${this.photo(locomotive)}
         <span class="name" title=${train}>${train}</span>
         <span class="length">${length === null ? nothing : length}</span>
         <span class="where">
@@ -98,6 +104,24 @@ export class TcRoster extends LitElement {
         </span>
       </li>
     `;
+  }
+
+  /** The photo of the train's first locomotive, as the throttle's picker
+   *  draws it, or an empty slot of the same size where the train has none or
+   *  the photo does not load, so every row is one height. The browser's own
+   *  image drag is off: a press on the photo picks the train up, as a press
+   *  anywhere on the row does. */
+  private photo(model: string | null) {
+    if (model === null || this.unseen.has(model)) {
+      return html`<span class="photo"></span>`;
+    }
+    return html`<img
+      class="photo"
+      src=${photoUrl(model)}
+      alt=""
+      draggable="false"
+      @error=${() => (this.unseen = new Set([...this.unseen, model]))}
+    />`;
   }
 
   /** A press on a row takes hold of the train. The row captures the pointer,
