@@ -1,0 +1,963 @@
+<title>Stock Mockup</title>
+<style>
+/* Layout: the stock view under the app's band and rail; a list of trains, cars or models on the left, the chosen one's editor on the right; a gallery of device frames under #frames. */
+:root {
+  --band: #1d4ed8;
+  --band-ink: #ffffff;
+  --rail: #064e3b;
+  --rail-group: #059669;
+  --power-on: #4ade80;
+  --stop: #ef4444;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface-2: #f3f5f9;
+  --well: #e4e9f1;
+  --ink: #0f172a;
+  --muted: #5d6779;
+  --line: #d8dee8;
+  --accent: #2563eb;
+  --on-accent: #ffffff;
+  --accent-soft: #dbe7ff;
+  --accent-ink: #1e3a8a;
+  --danger: #dc2626;
+  --danger-soft: #fde8e8;
+  --warn: #b45309;
+  --scrim: rgba(15, 23, 42, 0.42);
+  --shadow: 0 1px 2px rgb(15 23 42 / 0.05), 0 10px 30px -14px rgb(15 23 42 / 0.25);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #090e1a;
+    --surface: #111829;
+    --surface-2: #172036;
+    --well: #0b1222;
+    --ink: #e7ebf3;
+    --muted: #8c97ad;
+    --line: #232e47;
+    --accent: #5b9dff;
+    --on-accent: #04122e;
+    --accent-soft: #1d3a7a;
+    --accent-ink: #dce8ff;
+    --danger: #f87171;
+    --danger-soft: #3a1717;
+    --warn: #fbbf24;
+    --scrim: rgba(0, 0, 0, 0.6);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.7);
+  }
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #090e1a;
+  --surface: #111829;
+  --surface-2: #172036;
+  --well: #0b1222;
+  --ink: #e7ebf3;
+  --muted: #8c97ad;
+  --line: #232e47;
+  --accent: #5b9dff;
+  --on-accent: #04122e;
+  --accent-soft: #1d3a7a;
+  --accent-ink: #dce8ff;
+  --danger: #f87171;
+  --danger-soft: #3a1717;
+  --warn: #fbbf24;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.7);
+}
+
+body { background: var(--bg); color: var(--ink); font-family: var(--font); }
+html:not(.mode-frames), html:not(.mode-frames) body, html:not(.mode-frames) #root { height: 100%; overflow: hidden; }
+button, input, textarea { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.live { height: 100%; }
+
+/* ---------- app chrome (look) ---------- */
+.app { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+.band { flex: none; height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--band); color: var(--band-ink); }
+.mark { flex: none; width: 34px; height: 34px; border-radius: 7px; background: #fff; color: var(--band); display: grid; place-items: center; font: 800 15px var(--font); letter-spacing: -0.03em; }
+.name { display: flex; gap: 8px; min-width: 0; font-size: 20px; font-weight: 650; white-space: nowrap; overflow: hidden; }
+.app.narrow .name .ui { display: none; }
+.spacer { flex: 1; }
+.items { display: flex; align-items: center; gap: 4px; }
+.bp { width: 36px; height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--band-ink); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.bp svg { width: 20px; height: 20px; }
+.bp.pw { background: rgba(255, 255, 255, 0.15); color: rgba(255, 255, 255, 0.55); }
+.bp.pw.on { color: var(--power-on); }
+.bp.ss svg { width: 25px; height: 25px; }
+.body { flex: 1; min-height: 0; display: flex; }
+.app.strip .body { flex-direction: column; }
+.rail { flex: none; display: flex; flex-direction: column; padding: 8px 6px; background: var(--rail); }
+.app.strip .rail { flex-direction: row; padding: 6px 8px; }
+.grp { display: flex; flex-direction: column; gap: 3px; padding: 3px; border-radius: 7px; background: rgba(0, 0, 0, 0.25); }
+.app.strip .grp { flex-direction: row; }
+.vb { width: 44px; height: 44px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #fff; display: grid; place-items: center; opacity: 0.8; cursor: pointer; }
+.vb svg { width: 22px; height: 22px; }
+.vb[aria-current="page"] { background: var(--rail-group); opacity: 1; }
+
+/* ---------- the stock view ---------- */
+.view { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.bar { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.bar h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.bar .rr { color: var(--muted); font: 500 13px var(--mono); }
+.bs { min-width: 0; color: var(--muted); font-size: 13px; text-align: right; }
+.bs.warn { color: var(--warn); font-weight: 600; }
+.bs.bad { color: var(--danger); font-weight: 600; }
+.bs.ok { color: var(--accent); font-weight: 600; }
+.save { flex: none; height: 40px; padding: 0 20px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 650; cursor: pointer; }
+.save:disabled { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); cursor: default; }
+
+.cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 16px; padding: 16px; }
+.lib, .ed { min-height: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
+.lib { display: flex; flex-direction: column; overflow: hidden; }
+.ed { position: relative; overflow-y: auto; overscroll-behavior: contain; }
+.view.stack .cols { grid-template-columns: minmax(0, 1fr); padding: 0; gap: 0; }
+.view.stack .lib, .view.stack .ed { border: 0; border-radius: 0; box-shadow: none; }
+
+.tabs { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); margin: 14px 14px 10px; padding: 3px; border-radius: 12px; background: var(--well); }
+.tab { height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 650; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.tab .n { margin-left: 5px; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.lib-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px 10px; }
+.lib-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.cards { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 2px 14px 14px; }
+
+.rc { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: 12px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); text-align: left; cursor: pointer; }
+.rc[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); background: var(--surface); }
+.rc:disabled { opacity: 0.45; cursor: not-allowed; }
+.rth { position: relative; display: block; width: 100%; aspect-ratio: 10 / 3; overflow: hidden; border-radius: 9px; background: var(--well); }
+.rtx { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rn { overflow: hidden; font-size: 15px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+.rs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 12px; }
+.pill { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: 650 11.5px/1.2 var(--mono); }
+.pill svg { width: 11px; height: 11px; vertical-align: -1px; }
+
+/* photos: wide, shown whole */
+.photo { display: block; width: 100%; height: 100%; }
+.rth img, .pz img, .tph img { display: block; width: 100%; height: 100%; object-fit: contain; background: #0b1020; }
+.noimg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.noimg svg { width: 22px; height: 22px; }
+
+/* ---------- editor ---------- */
+.ed-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.eh-t { flex: 1; min-width: 0; }
+.eyebrow { margin: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.ed-head h2 { margin: 1px 0 0; overflow: hidden; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; text-overflow: ellipsis; }
+.back { flex: none; width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; cursor: pointer; }
+.back svg { width: 18px; height: 18px; }
+.ed-body { display: flex; flex-direction: column; gap: 22px; max-width: 760px; padding: 18px 20px 28px; }
+.ed-empty { display: grid; place-items: center; height: 100%; padding: 40px; color: var(--muted); text-align: center; }
+
+.pz { position: relative; width: 100%; aspect-ratio: 10 / 3; overflow: hidden; border-radius: 16px; background: var(--well); }
+.pz.empty { display: grid; place-items: center; border: 2px dashed var(--line); background: var(--surface-2); color: var(--muted); }
+.pz.empty .drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px; font-size: 14px; text-align: center; }
+.pz.empty .drop svg { width: 34px; height: 34px; }
+.pz.empty b { color: var(--ink); font-size: 16px; }
+.pz.hot { border: 2px dashed var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.pz.hot::after { content: "Drop to use this picture"; position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--accent-soft) 85%, transparent); color: var(--accent-ink); font-size: 16px; font-weight: 700; }
+.pz .wait { position: absolute; inset: 0; display: grid; place-items: center; background: var(--scrim); color: #fff; font-weight: 650; }
+.chip { position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 7px; background: rgb(0 0 0 / 0.55); color: #fff; font: 650 12px/1 var(--font); }
+.chip svg { width: 13px; height: 13px; }
+.pz-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: -12px; }
+.btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn svg { width: 16px; height: 16px; }
+.btn.small { height: 32px; padding: 0 10px; font-size: 13px; }
+.btn.danger { border-color: color-mix(in srgb, var(--danger) 55%, transparent); background: transparent; color: var(--danger); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.link { padding: 0; border: 0; background: none; color: var(--accent); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.hint { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.hint.warn { color: var(--warn); }
+.err { margin: 0; color: var(--danger); font-size: 13px; font-weight: 600; }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 16px; }
+.wide { grid-column: 1 / -1; }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lab { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.in { width: 100%; box-sizing: border-box; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); font-size: 15px; }
+.in:focus { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.in:disabled { color: var(--muted); background: var(--well); border-style: dashed; }
+.in.bad { border-color: var(--danger); }
+.in.num { font-variant-numeric: tabular-nums; }
+.in.mono { font-family: var(--mono); }
+textarea.in { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.45; resize: vertical; }
+.unit { position: relative; display: block; }
+.unit .in { padding-right: 44px; }
+.unit i { position: absolute; top: 0; right: 12px; bottom: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; font-style: normal; pointer-events: none; }
+.name-in { font-size: 18px; font-weight: 650; }
+
+.seg { display: flex; padding: 3px; border-radius: 11px; background: var(--well); }
+.seg button { flex: 1; min-width: 0; height: 38px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.seg.tiny button { height: 32px; font-size: 12.5px; }
+
+.sec { display: flex; flex-direction: column; gap: 12px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sec h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.switch { position: relative; flex: none; width: 50px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: var(--line); cursor: pointer; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); transition: transform 120ms; }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"] i { transform: translateX(20px); }
+@media (prefers-reduced-motion: reduce) { .switch i { transition: none; } }
+
+.fns { display: flex; flex-direction: column; gap: 8px; }
+.fn-row { display: grid; grid-template-columns: 74px minmax(0, 1fr) minmax(170px, 210px) 36px; align-items: center; gap: 8px; }
+.fn-head { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.fno { position: relative; }
+.fno .in { padding-left: 24px; font-family: var(--mono); }
+.fno i { position: absolute; top: 0; bottom: 0; left: 10px; display: grid; place-items: center; color: var(--muted); font: 600 14px var(--mono); font-style: normal; pointer-events: none; }
+.x { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.x svg { width: 16px; height: 16px; }
+.x:hover { background: var(--surface-2); color: var(--danger); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fchip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); font-size: 13px; }
+.fchip code { color: var(--muted); font: 600 12px var(--mono); }
+.fchip.m { border-style: dashed; }
+.fchip em { color: var(--muted); font-size: 11.5px; font-style: normal; }
+.quote { margin: 0; padding: 10px 12px; border-left: 3px solid var(--line); background: var(--surface-2); border-radius: 0 10px 10px 0; color: var(--muted); font-size: 13.5px; line-height: 1.45; white-space: pre-line; }
+.uses { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.uses li { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.uses li svg { width: 15px; height: 15px; color: var(--muted); }
+.row-end { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* the train as a strip of cars, head first */
+.ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px; overscroll-behavior-x: contain; }
+.tile { flex: none; display: flex; flex-direction: column; width: 200px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); cursor: grab; }
+.tile.over { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
+.tile.dragging { opacity: 0.4; }
+.tph { position: relative; display: block; width: 100%; aspect-ratio: 10 / 3; overflow: hidden; background: var(--well); }
+.tile.rev .tph .photo, .tile.rev .tph img { transform: scaleX(-1); }
+.tb { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 4px; }
+.tn { overflow: hidden; font-size: 14px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+.tm { color: var(--muted); font-size: 12px; }
+.ta { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 6px 6px; }
+.flip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.flip svg { width: 14px; height: 14px; }
+.tile.rev .flip { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--accent-soft); color: var(--accent-ink); }
+.add-tile { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 140px; min-height: 130px; border: 2px dashed var(--line); border-radius: 14px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 650; cursor: pointer; }
+.add-tile svg { width: 24px; height: 24px; }
+.derived { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: baseline; margin: 0; }
+.derived dt { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.derived dd { margin: 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* overlays inside the app */
+.ov { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: var(--scrim); }
+.dlg { display: flex; flex-direction: column; gap: 14px; width: min(100%, 420px); max-height: 100%; box-sizing: border-box; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.5); }
+.dlg.big { width: min(100%, 560px); }
+.dlg h3 { margin: 0; font-size: 18px; }
+.dlg p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.dlg .cards { flex: 1 1 auto; padding: 2px; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dlg .tabs { margin: 0; grid-template-columns: 1fr 1fr; }
+.btns { display: flex; gap: 10px; }
+.btns button { flex: 1; height: 46px; border-radius: 12px; font-size: 15px; font-weight: 650; cursor: pointer; }
+.cancel { border: 1px solid var(--line); background: var(--surface-2); }
+.ok { border: 0; background: var(--accent); color: var(--on-accent); }
+.ok.danger { background: var(--danger); color: #fff; }
+.toast { position: absolute; left: 50%; bottom: 18px; z-index: 30; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border-radius: 12px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 600; box-shadow: var(--shadow); }
+
+@media (max-width: 520px) {
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+.view.stack .fn-row { grid-template-columns: 64px minmax(0, 1fr) 36px; }
+.view.stack .fn-row .seg { grid-column: 1 / -2; grid-row: 2; }
+.view.stack .fn-head { display: none; }
+.view.stack .grid2 { grid-template-columns: minmax(0, 1fr); }
+
+/* ---------- gallery (#frames) ---------- */
+.gallery { max-width: 1560px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; }
+.g-head h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.02em; text-wrap: balance; }
+.g-head p { max-width: 70ch; margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+.g-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.g-seg { display: inline-flex; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.g-seg button { padding: 8px 14px; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 650; cursor: pointer; }
+.g-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+.g-link { color: var(--accent); font-weight: 650; text-decoration: none; }
+.g-frames { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 32px 28px; margin-top: 26px; }
+.frame { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin: 0; }
+.dev { padding: 9px; border-radius: 26px; background: #0b0d12; box-shadow: 0 18px 40px -22px rgb(0 0 0 / 0.55), inset 0 0 0 1px #2a2f3a; }
+.frame.phone .dev { border-radius: 34px; }
+.frame.desk .dev { border-radius: 12px; }
+.clip { position: relative; overflow: hidden; border-radius: 17px; }
+.frame.phone .clip { border-radius: 26px; }
+.frame.desk .clip { border-radius: 4px; }
+.screen { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.frame figcaption { color: var(--muted); font-size: 13px; }
+.frame figcaption b { margin-right: 6px; color: var(--ink); font-weight: 650; }
+</style>
+
+<div id="root"></div>
+
+<script>
+const KINDS = [["locomotive", "Locomotive"], ["passenger", "Passenger"], ["freight", "Freight"], ["special", "Special"]];
+const KIND = Object.fromEntries(KINDS);
+const TABS = [["trains", "Trains"], ["cars", "Cars"], ["models", "Models"]];
+const SCALES = ["Z", "N", "TT", "H0", "S", "0", "1", "G"];
+
+/* ---------- the railroad's stock, made up ---------- */
+let S;
+function resetState() {
+  const fn = (n, name, mode = "latching") => ({ n, name, mode });
+  S = {
+    power: false, edits: 0, lengthEdited: false, seq: 100, saved: 0,
+    models: {
+      m1: { name: "Ae 6/6", kind: "locomotive", scale: "H0", length: 230, decoder: true,
+        notes: "Märklin 39364, SBB green, 11401 \"Uri\".\nSound decoder, bought 2021.",
+        photo: { gen: { kind: "locomotive", body: "#1f6b3a", stripe: "#e5e7eb" } },
+        fns: [fn(0, "Headlights"), fn(1, "Sound"), fn(2, "Horn", "momentary"), fn(3, "Brake squeal", "momentary"), fn(4, "Cab light")] },
+      m2: { name: "Re 460", kind: "locomotive", scale: "H0", length: 220, decoder: true, notes: "Roco 73282, red with the white stripe.",
+        photo: { gen: { kind: "locomotive", body: "#c8102e", stripe: "#f8fafc" } },
+        fns: [fn(0, "Headlights"), fn(2, "Horn", "momentary"), fn(5, "Shunting light")] },
+      m3: { name: "IC 2000 Bt", kind: "passenger", scale: "H0", length: 285, decoder: true, notes: "Driving trailer. Coach lighting on F0.",
+        photo: { gen: { kind: "passenger", body: "#f1f5f9", stripe: "#c8102e" } },
+        fns: [fn(0, "Coach lighting"), fn(2, "Horn", "momentary")] },
+      m4: { name: "EW IV B", kind: "passenger", scale: "H0", length: 280, decoder: false, notes: "Second class, green.",
+        photo: { gen: { kind: "passenger", body: "#2f6f4e", stripe: "#e5e7eb" } }, fns: [] },
+      m5: { name: "Hbis-tt", kind: "freight", scale: "H0", length: 160, decoder: false, notes: "Covered wagon with sliding walls, brown.",
+        photo: { gen: { kind: "freight", body: "#7c3a22", stripe: "#5b2a18" } }, fns: [] },
+      m6: { name: "Res flat car", kind: "freight", scale: "H0", length: 190, decoder: false, notes: "",
+        photo: null, fns: [] },
+      m7: { name: "Track cleaner", kind: "special", scale: "H0", length: 120, decoder: true, notes: "LUX vacuum car.",
+        photo: null, fns: [fn(1, "Vacuum")] },
+    },
+    cars: {
+      c1: { name: "Ae 6/6 11401", model: "m1", addr: "6", notes: "Weathered." },
+      c2: { name: "Re 460 001", model: "m2", addr: "460" },
+      c3: { name: "Re 460 017", model: "m2", addr: "461", length: 222, notes: "Older run, longer buffers." },
+      c4: { name: "IC Bt 50 85", model: "m3", addr: "2001" },
+      c5: { name: "Camera car", model: "m6", camera: "cam-1.local", notes: "Camera looks forward." },
+    },
+    trains: {
+      t1: { name: "IC 721", priority: 2, entries: [{ car: "c2" }, { model: "m4" }, { model: "m4" }, { model: "m4" }, { car: "c4", rev: true }] },
+      t2: { name: "Gotthard freight", entries: [{ car: "c1" }, { car: "c5" }, { model: "m5" }, { model: "m5" }, { model: "m5" }] },
+      t3: { name: "Light engine 017", entries: [{ car: "c3" }] },
+    },
+    elsewhere: { m1: ["a car on railroad station-2"] },
+  };
+}
+
+/* ---------- what is derived ---------- */
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const modelOf = (e) => S.models[e.car ? S.cars[e.car].model : e.model];
+const entryName = (e) => e.car ? S.cars[e.car].name : modelOf(e).name;
+const entryLength = (e) => (e.car && S.cars[e.car].length) || modelOf(e).length;
+const trainLength = (t) => t.entries.reduce((n, e) => n + entryLength(e), 0);
+function trainKind(t) {
+  const hauled = new Set(t.entries.map((e) => modelOf(e).kind).filter((k) => k !== "locomotive"));
+  return hauled.size === 0 ? "light engine" : hauled.size === 1 ? [...hauled][0] : "mixed";
+}
+const carFns = (c) => c.fns || S.models[c.model].fns;
+function trainFns(t) {
+  const seen = new Map();
+  for (const e of t.entries) {
+    const c = e.car && S.cars[e.car];
+    if (!c || !c.addr) continue;
+    for (const f of carFns(c)) if (f.name && !seen.has(f.name)) seen.set(f.name, f);
+  }
+  return [...seen.values()];
+}
+function trainPhoto(t) {
+  const e = t.entries.find((x) => modelOf(x).kind === "locomotive");
+  return e ? modelOf(e).photo : null;
+}
+const trainsWithCar = (ck) => Object.entries(S.trains).filter(([, t]) => t.entries.some((e) => e.car === ck));
+function usesOfModel(mk) {
+  const out = [];
+  for (const c of Object.values(S.cars)) if (c.model === mk) out.push({ icon: "car", text: `Car ${c.name}` });
+  for (const t of Object.values(S.trains)) {
+    const n = t.entries.filter((e) => e.model === mk).length;
+    if (n) out.push({ icon: "train", text: `Train ${t.name}, ${n} × by model` });
+  }
+  for (const s of S.elsewhere[mk] || []) out.push({ icon: "rail", text: s[0].toUpperCase() + s.slice(1) });
+  return out;
+}
+function uniqueName(base, taken) {
+  if (!taken.includes(base)) return base;
+  let i = 2;
+  while (taken.includes(`${base} (${i})`)) i++;
+  return `${base} (${i})`;
+}
+function touched() { S.edits++; }
+
+/* ---------- drawings ---------- */
+const I = {
+  bolt: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 1.5 4 11h5l-1 7.5L16 9h-5z" fill="currentColor"/></svg>',
+  person: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="6" r="3.4" fill="currentColor"/><path d="M3.5 18c.6-4 3.2-6 6.5-6s5.9 2 6.5 6z" fill="currentColor"/></svg>',
+  stopsign: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.7 1.5h6.6l4.7 4.7v6.6l-4.7 4.7H6.7L2 12.8V6.2z" fill="var(--stop)" stroke="#fff" stroke-width="1.2"/><rect x="5.5" y="8.8" width="9" height="2.4" rx=".6" fill="#fff"/></svg>',
+  help: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.6 7.6a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="14.6" r="1.05" fill="currentColor"/></svg>',
+  run: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 14h16M6 14l4-7h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="14" r="1.9" fill="currentColor"/></svg>',
+  edit: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  stock: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="16" r="1.5" fill="currentColor"/><circle cx="14" cy="16" r="1.5" fill="currentColor"/><path d="M5.5 9h3M11.5 9h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  throttle: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.2 14.5a7.5 7.5 0 1 1 13.6 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10 12.5l3.6-4.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="10" cy="12.5" r="1.6" fill="currentColor"/></svg>',
+  plus: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  back: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  trash: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13M8 5.5V3.5h4v2M5.5 5.5l.8 11h7.4l.8-11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  image: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="8.2" r="1.5" fill="currentColor"/><path d="M3 14.5l4.5-4 3 2.6 2.5-2 4 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  camera: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6.5h3l1.5-2h5l1.5 2h3v9H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10" cy="10.8" r="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  flip: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7h12l-3-3M17 13H5l3 3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  car: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="16" r="1.5" fill="currentColor"/><circle cx="14" cy="16" r="1.5" fill="currentColor"/></svg>',
+  train: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="6" width="7.5" height="7" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="6" width="7.5" height="7" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 10.5h2" stroke="currentColor" stroke-width="1.6"/></svg>',
+  rail: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 2v16M14 2v16M4 5h12M4 10h12M4 15h12" stroke="currentColor" stroke-width="1.5"/></svg>',
+};
+function gearSVG() {
+  const p = [];
+  for (let k = 0; k < 32; k++) {
+    const a = (k / 32) * Math.PI * 2, r = Math.floor((k + 1) / 2) % 2 ? 8.6 : 6.6;
+    p.push(`${(10 + r * Math.cos(a)).toFixed(2)} ${(10 + r * Math.sin(a)).toFixed(2)}`);
+  }
+  return `<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M${p.join("L")}Z M12.6 10a2.6 2.6 0 1 0-5.2 0a2.6 2.6 0 1 0 5.2 0Z"/></svg>`;
+}
+
+/* A side view standing in for a photo, as wide as a car is long. */
+let uid = 0;
+function sideSVG(p) {
+  const i = ++uid;
+  const bogie = (cx) => `<rect x="${cx - 26}" y="86" width="52" height="7" rx="2" fill="#374151"/>` +
+    [-13, 13].map((o) => `<circle cx="${cx + o}" cy="94" r="6.5" fill="#111827" stroke="#6b7280" stroke-width="1.4"/>`).join("");
+  const axle = (cx) => `<circle cx="${cx}" cy="94" r="7" fill="#111827" stroke="#6b7280" stroke-width="1.4"/>`;
+  let v;
+  if (p.kind === "locomotive") {
+    const body = "M30 86 L32 46 Q34 34 48 33 H352 Q366 34 368 46 L370 86 Z";
+    v = `<rect x="110" y="26" width="180" height="7" rx="2" fill="#6b7280"/><path d="M150 26 L175 10 L200 26 M165 10 H185" fill="none" stroke="#374151" stroke-width="2"/>` +
+      `<path d="${body}" fill="${p.body}"/><path d="${body}" fill="url(#sh${i})"/><rect x="32" y="70" width="336" height="5" fill="${p.stripe}"/>` +
+      `<path d="M36 50 Q37 40 48 39 H66 V56 H35Z" fill="#1f2937"/><path d="M364 50 Q363 40 352 39 H334 V56 H365Z" fill="#1f2937"/>` +
+      [96, 126, 256, 286].map((x) => `<rect x="${x}" y="40" width="18" height="11" rx="1.5" fill="#1f2937" opacity=".85"/>`).join("") +
+      [176, 184, 192, 200, 208, 216, 224].map((x) => `<line x1="${x}" y1="42" x2="${x}" y2="64" stroke="#000" stroke-opacity=".2" stroke-width="2"/>`).join("") +
+      `<rect x="40" y="84" width="320" height="4" fill="#1f2937"/>${bogie(92)}${bogie(200)}${bogie(308)}`;
+  } else if (p.kind === "passenger") {
+    const body = "M14 86 V40 Q14 31 25 31 H375 Q386 31 386 40 V86 Z";
+    const wins = [];
+    for (let x = 62; x < 330; x += 27) wins.push(`<rect x="${x}" y="42" width="20" height="16" rx="2" fill="#1f2937" opacity=".85"/>`);
+    v = `<path d="${body}" fill="${p.body}"/><path d="${body}" fill="url(#sh${i})"/><rect x="14" y="66" width="372" height="5" fill="${p.stripe}"/>` +
+      `${wins.join("")}<rect x="26" y="40" width="20" height="40" rx="2" fill="#000" opacity=".25"/><rect x="354" y="40" width="20" height="40" rx="2" fill="#000" opacity=".25"/>` +
+      `<rect x="24" y="84" width="352" height="4" fill="#1f2937"/>${bogie(78)}${bogie(322)}`;
+  } else if (p.kind === "freight") {
+    v = `<path d="M66 34 Q200 22 334 34 V82 H66Z" fill="${p.body}"/><path d="M66 34 Q200 22 334 34 V82 H66Z" fill="url(#sh${i})"/>` +
+      [96, 128, 160, 240, 272, 304].map((x) => `<line x1="${x}" y1="33" x2="${x}" y2="82" stroke="${p.stripe}" stroke-width="3"/>`).join("") +
+      `<rect x="178" y="36" width="44" height="44" fill="${p.stripe}" opacity=".7"/><rect x="58" y="82" width="284" height="6" fill="#1f2937"/>${axle(120)}${axle(280)}`;
+  } else {
+    v = `<rect x="70" y="40" width="120" height="38" rx="3" fill="#64748b"/><rect x="210" y="52" width="110" height="26" rx="3" fill="#d4a017"/>` +
+      `<rect x="56" y="78" width="288" height="9" fill="#1f2937"/>${axle(116)}${axle(284)}`;
+  }
+  return `<svg class="photo" viewBox="0 0 400 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>` +
+    `<linearGradient id="sk${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9d5e2"/><stop offset="1" stop-color="#eef2f6"/></linearGradient>` +
+    `<linearGradient id="sh${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient></defs>` +
+    `<rect width="400" height="120" fill="url(#sk${i})"/><rect y="100" width="400" height="20" fill="#9a9488"/><rect y="98" width="400" height="2.5" fill="#6b7280"/>${v}</svg>`;
+}
+function photoHTML(photo) {
+  if (!photo) return `<span class="noimg">${I.image}No photo</span>`;
+  if (photo.gen) return sideSVG(photo.gen);
+  return `<img src="${photo.url}" alt="">`;
+}
+
+/* A dropped or chosen file becomes a JPEG at most 1600 px wide, whole and uncropped. */
+function loadPicture(file, mk, app) {
+  if (!file || !file.type.startsWith("image/")) { app.say("That file is not a picture."); return; }
+  const r = new FileReader();
+  r.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1600 / img.naturalWidth), w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      S.models[mk].photo = { url: cv.toDataURL("image/jpeg", 0.88), w, h, from: file.name };
+      touched(); notify();
+    };
+    img.onerror = () => app.say("This browser cannot read that picture. Try a JPEG or PNG.");
+    img.src = r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+/* ---------- one app: band, rail, stock view ---------- */
+const apps = [];
+let seq = 0;
+function notify(src) {
+  for (const a of apps) { a.renderLib(); a.renderBar(); if (a !== src) a.renderEd(); a.renderOv(); }
+}
+
+class App {
+  constructor(host, init) {
+    this.id = "a" + ++seq;
+    this.tab = init.tab;
+    this.selOf = { trains: "t1", cars: "c1", models: "m1", ...init.sel };
+    this.showEd = init.showEd ?? true;
+    this.err = null; this.ov = null; this.addrOpen = {}; this.taking = null;
+    const el = (this.el = document.createElement("div"));
+    el.className = "app";
+    const views = [["Run", I.run], ["Edit", I.edit], ["Stock", I.stock], ["Throttle", I.throttle]]
+      .map(([n, ic]) => `<button class="vb" type="button" title="${n}" aria-label="${n}"${n === "Stock" ? ' aria-current="page"' : ""}>${ic}</button>`).join("");
+    el.innerHTML = `<header class="band"><span class="mark" aria-label="rails49">49</span><span class="name"><span class="ui">control</span><span>demo</span></span>
+      <span class="spacer"></span><span class="items">
+        <button class="bp" type="button" title="Driving: manual" aria-label="Driving: manual">${I.person}</button>
+        <button class="bp pw" type="button" data-act="power" title="Track power" aria-label="Track power">${I.bolt}</button>
+        <button class="bp ss" type="button" title="Stop" aria-label="Stop">${I.stopsign}</button>
+        <button class="bp" type="button" title="Settings" aria-label="Settings">${gearSVG()}</button>
+        <a class="bp" href="#frames" title="Mockup: every screen size" aria-label="Mockup: every screen size">${I.help}</a></span></header>
+      <div class="body"><nav class="rail" aria-label="Views"><div class="grp">${views}</div></nav>
+        <main class="view"><div class="bar"></div><div class="cols"><section class="lib" aria-label="Stock"></section><section class="ed" aria-label="Editor"></section></div></main></div>
+      <div class="ovh"></div><div class="toast" hidden></div>`;
+    host.append(el);
+    const q = (s) => el.querySelector(s);
+    Object.assign(this, { $view: q(".view"), $bar: q(".bar"), $lib: q(".lib"), $ed: q(".ed"), $ov: q(".ovh"), $toast: q(".toast"), $pw: q(".pw") });
+    this.wire();
+    this.ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight;
+      el.classList.toggle("strip", w <= 600 || h <= 640);
+      el.classList.toggle("narrow", w <= 480);
+      const stack = this.$view.clientWidth < 760;
+      if (stack !== this.stack) { this.stack = stack; this.renderAll(); }
+    });
+    this.ro.observe(el);
+    this.renderAll();
+  }
+
+  get sel() { return this.selOf[this.tab]; }
+  say(msg) {
+    this.$toast.textContent = msg; this.$toast.hidden = false;
+    clearTimeout(this.tt); this.tt = setTimeout(() => { this.$toast.hidden = true; }, 2600);
+  }
+  renderAll() { this.renderBar(); this.renderLib(); this.renderEd(); this.renderOv(); }
+
+  /* --- the bar: one Save for the catalogue and the roster --- */
+  renderBar() {
+    this.$pw.classList.toggle("on", S.power);
+    const empty = Object.values(S.trains).find((t) => !t.entries.length);
+    let msg, cls = "", dis = false;
+    if (!S.edits) { msg = Date.now() - S.saved < 2500 ? "Saved" : "Everything is saved"; cls = msg === "Saved" ? "ok" : ""; dis = true; }
+    else if (S.power && S.lengthEdited) { msg = "A length has changed. Turn track power off to save."; cls = "warn"; dis = true; }
+    else if (empty) { msg = `Train ${empty.name} has nothing in it. Add a car, or unmake it.`; cls = "bad"; dis = true; }
+    else msg = `${S.edits} unsaved ${S.edits === 1 ? "change" : "changes"}`;
+    this.$bar.innerHTML = `<h1>Stock</h1><span class="rr">demo</span><span class="spacer"></span><span class="bs ${cls}">${esc(msg)}</span>` +
+      `<button class="save" type="button" data-act="save"${dis ? " disabled" : ""}>Save</button>`;
+  }
+
+  /* --- the list --- */
+  renderLib() {
+    const tabs = TABS.map(([k, n]) => `<button class="tab" type="button" role="tab" data-act="tab" data-tab="${k}" aria-selected="${this.tab === k}">${n}<span class="n">${Object.keys(S[k]).length}</span></button>`).join("");
+    const lead = { trains: "Cars in order, head first.", cars: "What you own, with addresses.", models: "Products, shared by every railroad." }[this.tab];
+    const add = { trains: "New train", cars: "New car", models: "New model" }[this.tab];
+    const cards = Object.keys(S[this.tab]).map((k) => this.card(this.tab, k, this.sel === k ? ' aria-current="true"' : "", "sel")).join("");
+    this.$lib.innerHTML = `<div class="tabs" role="tablist">${tabs}</div><div class="lib-head"><p>${lead}</p>` +
+      `<button class="btn small" type="button" data-act="new">${I.plus}${add}</button></div><div class="cards">${cards}</div>`;
+    this.$view.classList.toggle("stack", !!this.stack);
+    this.$lib.hidden = this.stack && this.showEd;
+    this.$ed.hidden = this.stack && !this.showEd;
+  }
+  card(tab, k, extra, act, kind) {
+    let photo, name, sub;
+    if (tab === "models") {
+      const m = S.models[k];
+      photo = m.photo; name = m.name;
+      sub = `<span>${KIND[m.kind]}</span><span>${esc(m.scale)}</span><span>${m.length} mm</span>${m.decoder ? '<span class="pill">decoder</span>' : ""}`;
+    } else if (tab === "cars") {
+      const c = S.cars[k], m = S.models[c.model];
+      photo = m.photo; name = c.name;
+      sub = `<span>${esc(m.name)}</span>${c.addr ? `<span class="pill">${esc(c.addr)}</span>` : ""}${c.camera ? `<span class="pill">${I.camera} camera</span>` : ""}`;
+    } else {
+      const t = S.trains[k];
+      photo = trainPhoto(t); name = t.name;
+      sub = `<span>${t.entries.length} cars</span><span>${trainLength(t)} mm</span><span>${trainKind(t)}</span>${t.priority ? `<span class="pill">P${t.priority}</span>` : ""}`;
+    }
+    return `<button class="rc" type="button" data-act="${act}" data-k="${k}"${kind ? ` data-kind="${kind}"` : ""}${extra}><span class="rth">${photoHTML(photo)}</span>` +
+      `<span class="rtx"><span class="rn">${esc(name)}</span><span class="rs">${sub}</span></span></button>`;
+  }
+
+  /* --- the editor --- */
+  renderEd() {
+    const k = this.sel, back = this.stack ? `<button class="back" type="button" data-act="back" aria-label="Back to the list">${I.back}</button>` : "";
+    if (!k || !S[this.tab][k]) { this.$ed.innerHTML = `<div class="ed-empty">Nothing here yet. Press ${{ trains: "New train", cars: "New car", models: "New model" }[this.tab]}.</div>`; return; }
+    const scroll = this.$ed.scrollTop;
+    this.$ed.innerHTML = this.tab === "models" ? this.modelEd(k, back) : this.tab === "cars" ? this.carEd(k, back) : this.trainEd(k, back);
+    this.$ed.scrollTop = scroll;
+  }
+  errFor(f) { return this.err && this.err.f === f ? `<p class="err">${esc(this.err.msg)}</p>` : ""; }
+  bad(f) { return this.err && this.err.f === f ? " bad" : ""; }
+  head(eyebrow, title, back, actions) {
+    return `<header class="ed-head">${back}<div class="eh-t"><p class="eyebrow">${eyebrow}</p><h2>${esc(title) || "Unnamed"}</h2></div>${actions}</header>`;
+  }
+  lengthGuard() { return S.power ? `<p class="hint warn">Track power is on. Turn it off to correct a length.</p>` : ""; }
+
+  fnTable(fns, scope) {
+    const nums = fns.map((f) => f.n), dup = nums.find((n, i) => nums.indexOf(n) !== i);
+    const rows = fns.map((f, i) => `<div class="fn-row"><span class="fno"><i>F</i><input class="in num" type="number" min="0" max="68" id="${this.id}-${scope}fn-n-${i}" data-f="${scope}fn.n" data-i="${i}" value="${f.n}" aria-label="Function number"></span>` +
+      `<input class="in" id="${this.id}-${scope}fn-name-${i}" data-f="${scope}fn.name" data-i="${i}" value="${esc(f.name)}" placeholder="Horn, Headlights…" aria-label="Function name">` +
+      `<div class="seg tiny" role="group" aria-label="Toggle or hold">` +
+      ["latching", "momentary"].map((m) => `<button type="button" data-act="fnmode" data-scope="${scope}" data-i="${i}" data-mode="${m}" aria-pressed="${f.mode === m}">${m === "latching" ? "Toggle" : "Hold"}</button>`).join("") +
+      `</div><button class="x" type="button" data-act="fndel" data-scope="${scope}" data-i="${i}" aria-label="Remove F${f.n}">${I.close}</button></div>`).join("");
+    return `<div class="fns">${fns.length ? `<div class="fn-row fn-head"><span>No.</span><span>Name</span><span>Toggle / hold</span><span></span></div>` : ""}${rows}` +
+      `${dup !== undefined ? `<p class="err">F${dup} is listed twice. One number names one function.</p>` : ""}` +
+      `<div class="row-end"><button class="btn small" type="button" data-act="fnadd" data-scope="${scope}">${I.plus}Add a function</button>` +
+      `<span class="hint">Toggle: one press on, the next off, like lights. Hold: on only while the button is held down, like a horn.</span></div></div>`;
+  }
+
+  modelEd(k, back) {
+    const m = S.models[k], uses = usesOfModel(k), id = this.id;
+    const info = !m.photo ? "Side views fit best: train cars are wide and low."
+      : m.photo.gen ? "From the photo camera."
+      : `${esc(m.photo.from)}, saved as JPEG ${m.photo.w} × ${m.photo.h}.`;
+    const pz = m.photo
+      ? `<div class="pz" data-drop="${k}">${photoHTML(m.photo)}${this.taking === k ? '<span class="wait">Taking a picture…</span>' : ""}</div>`
+      : `<div class="pz empty" data-drop="${k}"><div class="drop">${I.image}<b>Drop a picture here</b><span>or choose a file, or take one with the photo camera</span></div>${this.taking === k ? '<span class="wait">Taking a picture…</span>' : ""}</div>`;
+    return this.head("Model", m.name, back, `<button class="btn small" type="button" data-act="newcar" data-k="${k}">${I.plus}New car</button>`) +
+      `<div class="ed-body">${pz}<div class="pz-tools"><label class="btn" for="${id}-file">${I.image}Choose file…<input class="file" id="${id}-file" type="file" accept="image/*" data-k="${k}"></label>` +
+      `<button class="btn" type="button" data-act="take" data-k="${k}"${this.taking ? " disabled" : ""}>${I.camera}${m.photo ? "Retake photo" : "Take photo"}</button><span class="hint">${info}</span></div>` +
+      `<div class="grid2"><label class="fld wide"><span class="lab">Name</span><input class="in name-in${this.bad("m.name")}" id="${id}-m-name" data-f="m.name" value="${esc(m.name)}" placeholder="Ae 6/6">${this.errFor("m.name")}</label>` +
+      `<div class="fld wide"><span class="lab">Kind</span><div class="seg" role="group" aria-label="Kind">` +
+      KINDS.map(([v, n]) => `<button type="button" data-act="kind" data-kind="${v}" aria-pressed="${m.kind === v}">${n}</button>`).join("") + `</div></div>` +
+      `<label class="fld"><span class="lab">Scale</span><select class="in" id="${id}-m-scale" data-f="m.scale">${SCALES.map((s) => `<option${m.scale === s ? " selected" : ""}>${s}</option>`).join("")}</select></label>` +
+      `<label class="fld"><span class="lab">Length over buffers</span><span class="unit"><input class="in num" type="number" min="1" id="${id}-m-length" data-f="m.length" value="${m.length}"${S.power ? " disabled" : ""}><i>mm</i></span>${this.lengthGuard()}</label></div>` +
+      `<label class="fld"><span class="lab">Notes</span><textarea class="in" id="${id}-m-notes" data-f="m.notes" rows="4" placeholder="Manufacturer, catalogue number, colour, when you bought it…">${esc(m.notes)}</textarea></label>` +
+      `<section class="sec"><div class="sec-head"><div><h3>Decoder</h3><p class="hint">${m.decoder ? "Each car of this model gets its own address." : "This product has no decoder."}</p></div>` +
+      `<button class="switch" type="button" role="switch" aria-checked="${m.decoder}" aria-label="Has a decoder" data-act="decoder"><i></i></button></div>` +
+      `${m.decoder ? this.fnTable(m.fns, "m") : ""}</section>` +
+      `<section class="sec"><h3>Used by</h3>${uses.length ? `<ul class="uses">${uses.map((u) => `<li>${I[u.icon]}${esc(u.text)}</li>`).join("")}</ul>` : '<p class="hint">Nothing uses this model.</p>'}` +
+      `<div class="row-end"><button class="btn danger" type="button" data-act="delmodel"${uses.length ? " disabled" : ""}>${I.trash}Delete model</button>` +
+      `<span class="hint">${uses.length ? "A model in use cannot be deleted. Take it out of everything above first." : "Its photo goes with it."}</span></div></section></div>`;
+  }
+
+  carEd(k, back) {
+    const c = S.cars[k], m = S.models[c.model], id = this.id, trains = trainsWithCar(k);
+    const showAddr = m.decoder || c.addr || this.addrOpen[k];
+    const addr = showAddr
+      ? `<label class="fld"><span class="lab">DCC address</span><input class="in num mono${this.bad("c.addr")}" inputmode="numeric" id="${id}-c-addr" data-f="c.addr" value="${esc(c.addr)}" placeholder="the number in its decoder">${this.errFor("c.addr")}` +
+        `<span class="hint">${m.decoder ? `The number programmed into this car's decoder. No two cars share one.` : `${esc(m.name)} has no decoder; this car has one fitted.`}</span></label>`
+      : `<div class="fld"><span class="lab">DCC address</span><p class="hint">${esc(m.name)} has no decoder.</p><button class="link" type="button" data-act="addaddr">Fitted one to this car? Give it an address</button></div>`;
+    const fns = !(m.decoder || c.addr) ? "" : c.fns
+      ? `<div class="fld"><span class="lab">Functions, this car's own</span>${this.fnTable(c.fns, "c")}<button class="link" type="button" data-act="cfnmodel">Use the model's functions again</button></div>`
+      : `<div class="fld"><span class="lab">Functions, from the model</span><div class="chips">${m.fns.map((f) => `<span class="fchip${f.mode === "momentary" ? " m" : ""}"><code>F${f.n}</code>${esc(f.name)}${f.mode === "momentary" ? "<em>hold</em>" : ""}</span>`).join("") || '<span class="hint">None</span>'}</div>` +
+        `<button class="link" type="button" data-act="cfnown">This car's decoder is different: give it its own functions</button></div>`;
+    return this.head("Car", c.name, back, `<button class="btn small danger" type="button" data-act="rmcar"${trains.length ? ` disabled title="In train ${esc(trains[0][1].name)}. Take it out of the train first."` : ""}>${I.trash}Remove</button>`) +
+      `<div class="ed-body"><div class="pz">${photoHTML(m.photo)}<span class="chip">${I.image}Photo of the model</span></div>` +
+      `<div class="grid2"><label class="fld wide"><span class="lab">Name</span><input class="in name-in${this.bad("c.name")}" id="${id}-c-name" data-f="c.name" value="${esc(c.name)}">${this.errFor("c.name")}</label>` +
+      `<div class="fld"><span class="lab">Model</span><button class="btn" type="button" data-act="open" data-tab="models" data-k="${c.model}">${I.car}${esc(m.name)}</button></div>${addr}` +
+      `<label class="fld wide"><span class="lab">Camera address</span><input class="in mono${this.bad("c.camera")}" id="${id}-c-camera" data-f="c.camera" value="${esc(c.camera)}" placeholder="cam-1.local or 192.168.1.40">${this.errFor("c.camera")}` +
+      `<span class="hint">Host name or IP address of the camera riding in this car. Empty if it carries none.</span></label></div>` +
+      `<section class="sec"><div><h3>Different from the model</h3><p class="hint">Leave a field empty and the car takes the model's.</p></div>` +
+      `<label class="fld"><span class="lab">Length over buffers</span><span class="unit"><input class="in num" type="number" min="1" id="${id}-c-length" data-f="c.length" value="${c.length ?? ""}" placeholder="${m.length}"${S.power ? " disabled" : ""}><i>mm</i></span>` +
+      `${S.power ? this.lengthGuard() : `<span class="hint">${c.length ? `The model says ${m.length} mm.` : `The model's ${m.length} mm.`}</span>`}</label>${fns}` +
+      `<div class="fld"><span class="lab">Notes</span>${m.notes ? `<p class="quote">${esc(m.notes)}</p>` : ""}<textarea class="in" id="${id}-c-notes" data-f="c.notes" rows="3" placeholder="What is particular to this car…">${esc(c.notes)}</textarea></div></section>` +
+      `<section class="sec"><h3>In trains</h3>${trains.length ? `<ul class="uses">${trains.map(([tk, t]) => `<li>${I.train}<button class="link" type="button" data-act="open" data-tab="trains" data-k="${tk}">${esc(t.name)}</button></li>`).join("")}</ul>` : '<p class="hint">In no train yet.</p>'}</section></div>`;
+  }
+
+  trainEd(k, back) {
+    const t = S.trains[k], id = this.id, fns = trainFns(t);
+    const tiles = t.entries.map((e, i) => {
+      const m = modelOf(e), c = e.car && S.cars[e.car];
+      const meta = c ? [c.addr ? `address ${esc(c.addr)}` : "no address", c.camera ? "camera" : ""].filter(Boolean).join(" · ") : "by model";
+      return `<div class="tile${e.rev ? " rev" : ""}" draggable="true" data-i="${i}"><span class="tph">${photoHTML(m.photo)}</span>` +
+        `<span class="tb"><span class="tn">${esc(entryName(e))}</span><span class="tm">${meta} · ${entryLength(e)} mm</span></span>` +
+        `<span class="ta"><button class="flip" type="button" data-act="flip" data-i="${i}" aria-pressed="${!!e.rev}">${I.flip}${e.rev ? "Reversed" : "Forward"}</button>` +
+        `<button class="x" type="button" data-act="rment" data-i="${i}" aria-label="Take ${esc(entryName(e))} out">${I.close}</button></span></div>`;
+    }).join("");
+    return this.head("Train", t.name, back, `<button class="btn small danger" type="button" data-act="unmake">${I.trash}Unmake</button>`) +
+      `<div class="ed-body"><div class="pz">${photoHTML(trainPhoto(t))}<span class="chip">${I.image}${trainPhoto(t) ? "Photo of the first locomotive" : "No locomotive with a photo"}</span></div>` +
+      `<div class="grid2"><label class="fld"><span class="lab">Name</span><input class="in name-in${this.bad("t.name")}" id="${id}-t-name" data-f="t.name" value="${esc(t.name)}">${this.errFor("t.name")}</label>` +
+      `<label class="fld"><span class="lab">Priority</span><input class="in num" type="number" min="1" id="${id}-t-priority" data-f="t.priority" value="${t.priority ?? ""}" placeholder="lowest"><span class="hint">1 is highest. Empty is lowest.</span></label></div>` +
+      `<section class="sec"><div class="sec-head"><h3>Cars</h3><span class="hint">Drag to reorder.</span></div><div class="ends"><span>← Head</span><span>Tail</span></div>` +
+      `<div class="strip">${tiles}<button class="add-tile" type="button" data-act="add">${I.plus}Add</button></div></section>` +
+      `<section class="sec"><h3>What follows from the cars</h3><dl class="derived"><dt>Length</dt><dd>${trainLength(t)} mm</dd><dt>Kind</dt><dd>${trainKind(t)}</dd>` +
+      `<dt>Functions</dt><dd>${fns.length ? `<span class="chips">${fns.map((f) => `<span class="fchip${f.mode === "momentary" ? " m" : ""}">${esc(f.name)}${f.mode === "momentary" ? "<em>hold</em>" : ""}</span>`).join("")}</span>` : '<span class="hint">None. No car in it has an address and functions.</span>'}</dd></dl></section></div>`;
+  }
+
+  /* --- overlays: the picker, the address, the delete --- */
+  renderOv() {
+    const o = this.ov;
+    if (!o) { this.$ov.innerHTML = ""; return; }
+    let html;
+    if (o.type === "pick") {
+      const t = o.t && S.trains[o.t];
+      const tabs = o.mode === "train" ? `<div class="tabs" role="tablist">${[["cars", "Cars"], ["models", "Models"]].map(([v, n]) => `<button class="tab" type="button" role="tab" data-act="ptab" data-tab="${v}" aria-selected="${o.tab === v}">${n}</button>`).join("")}</div>` : "";
+      let list;
+      if (o.mode === "which") list = Object.keys(S.cars).filter((ck) => S.cars[ck].model === o.model).map((ck) => this.card("cars", ck, t.entries.some((e) => e.car === ck) ? " disabled" : "", "pick", "car")).join("");
+      else if (o.mode === "train" && o.tab === "cars") list = Object.keys(S.cars).map((ck) => this.card("cars", ck, t.entries.some((e) => e.car === ck) ? " disabled" : "", "pick", "car")).join("");
+      else list = Object.keys(S.models).map((mk) => this.card("models", mk, "", "pick", "model")).join("");
+      const title = o.mode === "newcar" ? "New car of which model?" : o.mode === "which" ? `Which ${esc(S.models[o.model].name)}?` : `Add to ${esc(t.name)}`;
+      const lead = o.mode === "newcar" ? "The car starts as the model and can differ from it."
+        : o.mode === "which" ? "You own more than one. A car already in this train is greyed."
+        : o.tab === "cars" ? "A car already in this train is greyed." : "A model with a decoder goes in as its car, made for it if there is none.";
+      html = `<div class="dlg big" role="dialog" aria-modal="true"><div class="dlg-head"><h3>${title}</h3><button class="x" type="button" data-act="close" aria-label="Close">${I.close}</button></div>${tabs}<p>${lead}</p><div class="cards">${list}</div></div>`;
+    } else if (o.type === "addr") {
+      const c = S.cars[o.car], m = S.models[c.model];
+      html = `<div class="dlg" role="dialog" aria-modal="true"><h3>Address for ${esc(c.name)}</h3><p>${esc(m.name)} has a decoder. Type the address programmed into this car's decoder.</p>` +
+        `<input class="in num mono${this.bad("ask.addr")}" inputmode="numeric" id="${this.id}-ask-addr" data-f="ask.addr" placeholder="e.g. 460" value="${esc(o.value || "")}">${this.errFor("ask.addr")}` +
+        `<div class="btns"><button class="cancel" type="button" data-act="close">Later</button><button class="ok" type="button" data-act="askset">Set address</button></div></div>`;
+    } else {
+      const m = S.models[o.k];
+      html = `<div class="dlg" role="dialog" aria-modal="true"><h3>Delete ${esc(m.name)}?</h3><p>Nothing uses it on any railroad. Its photo goes with it. A backup can bring it back.</p>` +
+        `<div class="btns"><button class="cancel" type="button" data-act="close">Cancel</button><button class="ok danger" type="button" data-act="delyes">Delete</button></div></div>`;
+    }
+    const focus = document.activeElement && this.$ov.contains(document.activeElement) ? document.activeElement.id : null;
+    this.$ov.innerHTML = `<div class="ov">${html}</div>`;
+    if (focus) this.$ov.querySelector("#" + CSS.escape(focus))?.focus();
+  }
+
+  /* --- adding to a train: a model with a decoder goes in as its car --- */
+  createCar(mk) {
+    const k = "c" + ++S.seq;
+    S.cars[k] = { name: uniqueName(S.models[mk].name, Object.values(S.cars).map((c) => c.name)), model: mk };
+    return k;
+  }
+  addToTrain(tk, kind, k) {
+    const t = S.trains[tk];
+    if (kind === "car") { t.entries.push({ car: k }); this.ov = null; }
+    else if (!S.models[k].decoder) { t.entries.push({ model: k }); this.ov = null; }
+    else {
+      const free = Object.keys(S.cars).filter((ck) => S.cars[ck].model === k && !t.entries.some((e) => e.car === ck));
+      const all = Object.keys(S.cars).filter((ck) => S.cars[ck].model === k);
+      if (all.length > 1 && free.length) { this.ov = { type: "pick", mode: "which", t: tk, model: k }; this.renderOv(); return; }
+      if (free.length === 1) { t.entries.push({ car: free[0] }); this.ov = null; this.say(`Added ${S.cars[free[0]].name}, your only ${S.models[k].name}.`); }
+      else { const ck = this.createCar(k); t.entries.push({ car: ck }); this.ov = { type: "addr", car: ck }; }
+    }
+    touched(); notify();
+  }
+
+  /* --- presses --- */
+  act(a, d) {
+    const k = this.sel;
+    const scopeFns = (scope) => scope === "m" ? S.models[k].fns : S.cars[k].fns;
+    switch (a) {
+      case "power": S.power = !S.power; notify(); return;
+      case "save": S.edits = 0; S.lengthEdited = false; S.saved = Date.now(); notify(); setTimeout(() => apps.forEach((x) => x.renderBar()), 2600); return;
+      case "tab": this.tab = d.tab; this.err = null; this.renderAll(); return;
+      case "sel": this.selOf[this.tab] = d.k; this.showEd = true; this.err = null; this.renderAll(); return;
+      case "open": this.tab = d.tab; this.selOf[d.tab] = d.k; this.showEd = true; this.err = null; this.renderAll(); return;
+      case "back": this.showEd = false; this.renderAll(); return;
+      case "new":
+        if (this.tab === "models") {
+          const mk = "m" + ++S.seq;
+          S.models[mk] = { name: uniqueName("New model", Object.values(S.models).map((m) => m.name)), kind: "passenger", scale: "H0", length: 200, decoder: false, notes: "", photo: null, fns: [] };
+          this.selOf.models = mk; this.showEd = true; touched(); notify();
+          this.$ed.querySelector("[data-f='m.name']")?.select();
+        } else if (this.tab === "cars") { this.ov = { type: "pick", mode: "newcar" }; this.renderOv(); }
+        else {
+          const tk = "t" + ++S.seq;
+          S.trains[tk] = { name: uniqueName("New train", Object.values(S.trains).map((t) => t.name)), entries: [] };
+          this.selOf.trains = tk; this.showEd = true; this.ov = { type: "pick", mode: "train", t: tk, tab: "cars" }; touched(); notify();
+        }
+        return;
+      case "newcar": {
+        const ck = this.createCar(d.k);
+        this.tab = "cars"; this.selOf.cars = ck; this.showEd = true;
+        if (S.models[d.k].decoder) this.ov = { type: "addr", car: ck };
+        touched(); notify(); return;
+      }
+      case "pick":
+        if (this.ov.mode === "newcar") {
+          const ck = this.createCar(d.k);
+          this.selOf.cars = ck; this.showEd = true; this.ov = S.models[d.k].decoder ? { type: "addr", car: ck } : null;
+          touched(); notify();
+        } else this.addToTrain(this.ov.t, d.kind, d.k);
+        return;
+      case "ptab": this.ov.tab = d.tab; this.renderOv(); return;
+      case "close": this.ov = null; this.err = null; this.renderAll(); return;
+      case "askset": {
+        const f = this.$ov.querySelector("[data-f='ask.addr']"), why = this.addrRefusal(f.value.trim(), this.ov.car);
+        if (why) { this.err = { f: "ask.addr", msg: why }; this.ov.value = f.value; this.renderOv(); return; }
+        if (f.value.trim()) S.cars[this.ov.car].addr = f.value.trim();
+        this.ov = null; this.err = null; touched(); notify(); return;
+      }
+      case "kind": S.models[k].kind = d.kind; touched(); notify(); return;
+      case "decoder": {
+        const m = S.models[k];
+        m.decoder = !m.decoder;
+        if (m.decoder && !m.fns.length) m.fns = [{ n: 0, name: "Headlights", mode: "latching" }];
+        touched(); notify(); return;
+      }
+      case "fnadd": {
+        const fns = scopeFns(d.scope);
+        let n = 0;
+        while (fns.some((f) => f.n === n)) n++;
+        fns.push({ n, name: "", mode: "latching" });
+        touched(); notify();
+        this.$ed.querySelector(`[data-f='${d.scope}fn.name'][data-i='${fns.length - 1}']`)?.focus();
+        return;
+      }
+      case "fndel": scopeFns(d.scope).splice(+d.i, 1); touched(); notify(); return;
+      case "fnmode": scopeFns(d.scope)[+d.i].mode = d.mode; touched(); notify(); return;
+      case "take":
+        this.taking = d.k; this.renderEd();
+        setTimeout(() => {
+          const m = S.models[d.k], hues = ["#1f4e8c", "#0f766e", "#7c3a22", "#c8102e", "#4b5563"];
+          if (m) m.photo = { gen: { kind: m.kind, body: hues[Math.floor(Math.random() * hues.length)], stripe: "#e5e7eb" } };
+          this.taking = null; touched(); notify();
+        }, 900);
+        return;
+      case "delmodel": this.ov = { type: "del", k }; this.renderOv(); return;
+      case "delyes": delete S.models[this.ov.k]; this.selOf.models = Object.keys(S.models)[0]; this.ov = null; touched(); notify(); return;
+      case "addaddr": this.addrOpen[k] = true; this.renderEd(); this.$ed.querySelector("[data-f='c.addr']")?.focus(); return;
+      case "cfnown": S.cars[k].fns = S.models[S.cars[k].model].fns.map((f) => ({ ...f })); touched(); notify(); return;
+      case "cfnmodel": delete S.cars[k].fns; touched(); notify(); return;
+      case "rmcar": delete S.cars[k]; this.selOf.cars = Object.keys(S.cars)[0]; touched(); notify(); return;
+      case "flip": { const e = S.trains[k].entries[+d.i]; e.rev = !e.rev; touched(); notify(); return; }
+      case "rment": S.trains[k].entries.splice(+d.i, 1); touched(); notify(); return;
+      case "add": this.ov = { type: "pick", mode: "train", t: k, tab: "cars" }; this.renderOv(); return;
+      case "unmake": delete S.trains[k]; this.selOf.trains = Object.keys(S.trains)[0]; touched(); notify(); return;
+    }
+  }
+
+  addrRefusal(v, ck) {
+    if (!v) return null;
+    if (!/^[0-9]+$/.test(v) || +v < 1 || +v > 10239) return `'${v}' is not a DCC address. Use a number from 1 to 10239.`;
+    const other = Object.entries(S.cars).find(([k, c]) => k !== ck && c.addr === v);
+    return other ? `Car ${other[1].name} already has address ${v}.` : null;
+  }
+
+  /* --- typing: applied as typed; names, addresses and cameras checked when the field is left --- */
+  input(f) {
+    const k = this.sel, v = f.value, i = +f.dataset.i, num = parseInt(v, 10);
+    const set = {
+      "m.name": () => { S.models[k].name = v; },
+      "m.scale": () => { S.models[k].scale = v; },
+      "m.length": () => { if (num > 0) { S.models[k].length = num; S.lengthEdited = true; } },
+      "m.notes": () => { S.models[k].notes = v; },
+      "mfn.n": () => { if (num >= 0) S.models[k].fns[i].n = num; },
+      "mfn.name": () => { S.models[k].fns[i].name = v; },
+      "cfn.n": () => { if (num >= 0) S.cars[k].fns[i].n = num; },
+      "cfn.name": () => { S.cars[k].fns[i].name = v; },
+      "c.name": () => { S.cars[k].name = v; },
+      "c.length": () => { if (num > 0) S.cars[k].length = num; else delete S.cars[k].length; S.lengthEdited = true; },
+      "c.notes": () => { S.cars[k].notes = v; },
+      "t.name": () => { S.trains[k].name = v; },
+      "t.priority": () => { if (num > 0) S.trains[k].priority = num; else delete S.trains[k].priority; },
+    }[f.dataset.f];
+    if (!set) return;
+    set(); touched();
+    const h2 = this.$ed.querySelector(".ed-head h2");
+    if (f.dataset.f.endsWith(".name") && h2 && !f.dataset.f.includes("fn")) h2.textContent = v || "Unnamed";
+    notify(this);
+  }
+  commit(f) {
+    const k = this.sel, v = f.value.trim(), field = f.dataset.f;
+    const refuse = (msg, put) => { put(); this.err = { f: field, msg }; touched(); notify(); };
+    const names = (coll) => Object.entries(S[coll]).filter(([x]) => x !== k).map(([, o]) => o.name);
+    if (field === "m.name" || field === "c.name" || field === "t.name") {
+      const coll = { m: "models", c: "cars", t: "trains" }[field[0]], what = { m: "model", c: "car", t: "train" }[field[0]];
+      if (!v) return refuse(`A ${what} needs a name.`, () => { S[coll][k].name = this.was; });
+      if (names(coll).includes(v)) return refuse(`There is already a ${what} '${v}'.`, () => { S[coll][k].name = this.was; });
+    } else if (field === "c.addr") {
+      const why = this.addrRefusal(v, k);
+      if (why) return refuse(why, () => {});
+      if (v) S.cars[k].addr = v; else delete S.cars[k].addr;
+    } else if (field === "c.camera") {
+      if (v && !/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(v)) return refuse(`'${v}' is not a camera address. Write its host name or IP address, with no http:// or port.`, () => {});
+      const other = Object.entries(S.cars).find(([x, c]) => x !== k && c.camera === v);
+      if (v && other) return refuse(`Car ${other[1].name} already carries camera ${v}.`, () => {});
+      if (v) S.cars[k].camera = v; else delete S.cars[k].camera;
+    } else if (!field.includes("fn.n")) return;
+    // Redraw this editor only where something on it changes: a redraw on blur
+    // would swallow the press that caused the blur.
+    const redraw = this.err || field.includes("fn.n");
+    this.err = null; touched(); notify(redraw ? undefined : this);
+  }
+
+  wire() {
+    const el = this.el;
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-act]");
+      if (b && !b.disabled && el.contains(b)) this.act(b.dataset.act, b.dataset);
+    });
+    el.addEventListener("focusin", (e) => { if (e.target.dataset?.f) this.was = e.target.value; });
+    el.addEventListener("input", (e) => { if (e.target.dataset?.f) this.input(e.target); });
+    el.addEventListener("change", (e) => {
+      if (e.target.classList.contains("file")) loadPicture(e.target.files[0], e.target.dataset.k, this);
+      else if (e.target.dataset?.f && e.target.dataset.f !== "ask.addr") this.commit(e.target);
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.dataset?.f === "ask.addr") this.act("askset", {});
+    });
+    // A picture dropped on the photo, and a car dragged along the strip.
+    el.addEventListener("dragstart", (e) => {
+      const t = e.target.closest?.(".tile");
+      if (!t) return;
+      this.dragI = +t.dataset.i; t.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", t.dataset.i);
+    });
+    el.addEventListener("dragend", () => { this.dragI = null; el.querySelectorAll(".dragging, .over").forEach((x) => x.classList.remove("dragging", "over")); });
+    el.addEventListener("dragover", (e) => {
+      const pz = e.target.closest?.("[data-drop]"), t = e.target.closest?.(".tile");
+      if (pz && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); pz.classList.add("hot"); }
+      else if (t && this.dragI != null) { e.preventDefault(); el.querySelectorAll(".over").forEach((x) => x.classList.remove("over")); t.classList.add("over"); }
+    });
+    el.addEventListener("dragleave", (e) => { const pz = e.target.closest?.("[data-drop]"); if (pz && !pz.contains(e.relatedTarget)) pz.classList.remove("hot"); });
+    el.addEventListener("drop", (e) => {
+      const pz = e.target.closest?.("[data-drop]"), t = e.target.closest?.(".tile");
+      if (pz && e.dataTransfer.files.length) { e.preventDefault(); pz.classList.remove("hot"); loadPicture(e.dataTransfer.files[0], pz.dataset.drop, this); }
+      else if (t && this.dragI != null) {
+        e.preventDefault();
+        const list = S.trains[this.sel].entries, [moved] = list.splice(this.dragI, 1);
+        list.splice(+t.dataset.i, 0, moved);
+        this.dragI = null; touched(); notify();
+      }
+    });
+  }
+  destroy() { this.ro.disconnect(); }
+}
+
+/* ---------- live mode and the gallery ---------- */
+const FRAMES = [
+  { label: "Desktop", w: 1440, h: 900, cls: "desk", init: { tab: "models", sel: { models: "m1" } } },
+  { label: "iPad, landscape", w: 1180, h: 820, init: { tab: "trains", sel: { trains: "t1" } } },
+  { label: "iPad, portrait", w: 820, h: 1180, init: { tab: "cars", sel: { cars: "c3" } } },
+  { label: "Phone", w: 400, h: 860, cls: "phone", init: { tab: "trains", showEd: false } },
+];
+const root = document.getElementById("root");
+let fitFrames = null;
+
+function route() {
+  apps.forEach((a) => a.destroy());
+  apps.length = 0; resetState();
+  root.innerHTML = ""; fitFrames = null;
+  const frames = location.hash === "#frames";
+  document.documentElement.classList.toggle("mode-frames", frames);
+  if (!frames) {
+    const host = document.createElement("div");
+    host.className = "live";
+    root.append(host);
+    apps.push(new App(host, { tab: "models", sel: { models: "m1" } }));
+    return;
+  }
+  const g = document.createElement("div");
+  g.className = "gallery";
+  g.innerHTML = `<header class="g-head"><h1>Stock mockup</h1>
+    <p>A throwaway mockup of the stock view, with made-up stock. Every frame works: drop a picture on a model's photo, add a car to a train, drag cars along the strip, type an address another car has. The frames share one railroad, so an edit in one shows in the others. The band's power button switches the track on, which locks lengths.</p>
+    <div class="g-tools"><div class="g-seg" role="group" aria-label="Theme"><button type="button" data-th="" aria-pressed="true">System</button><button type="button" data-th="light" aria-pressed="false">Light</button><button type="button" data-th="dark" aria-pressed="false">Dark</button></div>
+    <a class="g-link" href="#live">Open full screen</a></div></header><div class="g-frames"></div>`;
+  root.append(g);
+  const fr = g.querySelector(".g-frames");
+  g.querySelectorAll(".g-seg button").forEach((b) => b.addEventListener("click", () => {
+    g.querySelectorAll(".g-seg button").forEach((o) => o.setAttribute("aria-pressed", o === b));
+    if (b.dataset.th) fr.dataset.theme = b.dataset.th; else delete fr.dataset.theme;
+  }));
+  const figs = FRAMES.map((F) => {
+    const fig = document.createElement("figure");
+    fig.className = "frame" + (F.cls ? " " + F.cls : "");
+    fig.innerHTML = `<div class="dev"><div class="clip"><div class="screen"></div></div></div><figcaption><b>${F.label}</b>${F.w} × ${F.h}</figcaption>`;
+    fr.append(fig);
+    const screen = fig.querySelector(".screen");
+    screen.style.width = F.w + "px"; screen.style.height = F.h + "px";
+    return { F, clip: fig.querySelector(".clip"), screen };
+  });
+  fitFrames = () => {
+    const avail = fr.clientWidth - 18;
+    for (const { F, clip, screen } of figs) {
+      const s = Math.min(1, 620 / F.h, avail / F.w);
+      clip.style.width = F.w * s + "px"; clip.style.height = F.h * s + "px";
+      screen.style.transform = `scale(${s})`;
+    }
+  };
+  fitFrames();
+  figs.forEach(({ F, screen }) => apps.push(new App(screen, F.init)));
+}
+addEventListener("hashchange", route);
+addEventListener("resize", () => fitFrames && fitFrames());
+route();
+</script>
