@@ -44,12 +44,17 @@ The loop is also where `layout` says it is up: `alive_confirmed`, once a
 second by the monotonic clock whatever the period, so that something off the
 box can cut track power when the box goes silent (#716). Standing and
 reloading are outside it and say nothing. The fast clock goes out at the same
-beat, `tc49/layout/state/clock`, started at each build from the box's wall
-time of day at a speed-up of 1 and run on the monotonic clock from there
-(ADR-0090): the wall clock is read once a build, here, and by nothing in
-`LayoutInterface`, which never learns what time it is (ADR-0044). A person
-sets it with `tc49/layout/clock_wanted`, taken in the drain like every other
-gesture and said at once rather than at the next beat (`FastClockRow`).
+beat, `tc49/layout/state/clock`, started at each build at the start time and
+speed-up the railroad keeps, `layouts/<layout>.clock.yaml`, and run on the
+monotonic clock from there (ADR-0090). A railroad that keeps none starts at
+the box's wall time of day at a speed-up of 1, and nothing is written: the
+wall clock is read once a build, here, and by nothing in `LayoutInterface`,
+which never learns what time it is (ADR-0044). A person sets it with
+`tc49/layout/clock_wanted`, taken in the drain like every other gesture, said
+at once rather than at the next beat, and kept with the railroad
+(`FastClockRow`). The store is written off the loop's thread (`_Keeping`): a
+store that does not answer is waited for, and the loop it would hold up is
+the one that says `alive_confirmed`.
 
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
@@ -61,6 +66,7 @@ wall time in the binding (ADR-0059, decision 1).
 import contextlib
 import math
 import os
+import queue
 import signal
 import sys
 import threading
@@ -77,7 +83,7 @@ from tc49.layout.interface import (
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
-from tc49.lib.fast_clock import FastClock, time_of_day
+from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
@@ -201,12 +207,17 @@ def serve(
     """
     if not connected(bus, stop, log):
         return
-    binding = _Binding(bus, documents, stop, period_s, throttle_silence_s)
+    binding = _Binding(bus, documents, stop, period_s, throttle_silence_s, log)
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
+type _Read = tuple[Layout, Roster, KeptClock | None]
+"""What a railroad is built from: its layout, its stock, and the clock it
+keeps, None where it keeps none."""
+
+
 class _Binding:
-    """What this app hands the rebuild loop: two documents read, the
+    """What this app hands the rebuild loop: three documents read, the
     traction rows waited for before each build (#333), and a
     `LayoutInterface` built on them."""
 
@@ -219,38 +230,58 @@ class _Binding:
         stop: threading.Event,
         period_s: float,
         throttle_silence_s: float,
+        log: Callable[[str], None],
     ) -> None:
         self._bus = bus
         self._documents = documents
         self._stop = stop
         self._period_s = period_s
         self._throttle_silence_s = throttle_silence_s
+        self._log = log
+        self._keeping = _Keeping(documents, log)
 
-    def read(self, railroad: str) -> tuple[Layout, Roster]:
-        """The pair the interface is built from: the railroad's topology and
-        the stock that runs on it."""
-        return self._documents.layout(railroad), self._documents.roster(railroad)
+    def read(self, railroad: str) -> _Read:
+        """What the interface is built from: the railroad's topology and the
+        stock that runs on it, and the clock it keeps."""
+        return (
+            self._documents.layout(railroad),
+            self._documents.roster(railroad),
+            self._kept(railroad),
+        )
 
-    def nothing(self, railroad: str) -> tuple[Layout, Roster]:
+    def nothing(self, railroad: str) -> _Read:
         """What this app runs on where `railroad`'s drawing is not a valid
         drawing and there is no build to keep: no block and no train under
         its name, so the row names it and the power is still answered
-        (ADR-0085, decision 4)."""
-        return Layout(railroad, {}, {}, frozenset(), {}), Roster(railroad, {})
+        (ADR-0085, decision 4). Its clock is the railroad's all the same."""
+        return (
+            Layout(railroad, {}, {}, frozenset(), {}),
+            Roster(railroad, {}),
+            self._kept(railroad),
+        )
 
-    def layout(self, read: tuple[Layout, Roster]) -> Layout:
+    def _kept(self, railroad: str) -> KeptClock | None:
+        """The clock `railroad` keeps, or None. One the store cannot read is
+        said and started as none would be, at the wall clock's time: a clock
+        is no reason not to build a railroad, and nothing in the control path
+        reads it (ADR-0044)."""
+        try:
+            return self._documents.clock(railroad)
+        except (ValueError, TypeError) as refused:
+            self._log(f"'{railroad}': {refused} — the clock starts at the box's time")
+            return None
+
+    def layout(self, read: _Read) -> Layout:
         return read[0]
 
-    def build(
-        self, read: tuple[Layout, Roster], position: dict[str, str], built: bool
-    ) -> Running:
+    def build(self, read: _Read, position: dict[str, str], built: bool) -> Running:
         """The traction rows seen, then the interface built on its own clock,
-        starting at zero, and the fast clock started at the box's time of
-        day: a railroad is loaded at its start time (ADR-0090, decision 4),
-        and one with no start time of its own starts at the wall clock's, at
-        a speed-up of 1."""
+        starting at zero, and the fast clock started: at the start time the
+        railroad keeps (ADR-0090, decision 4), or, where it keeps none, at
+        the box's time of day at a speed-up of 1, which is not written until
+        a person sets the clock."""
         retained(self._bus, self._stop)
-        layout, roster = read
+        layout, roster, kept = read
         clock = Clock()
         app = LayoutInterface(
             self._bus,
@@ -261,9 +292,54 @@ class _Binding:
             position=position,
             built=built,
         )
-        fast = FastClock(time_of_day(time.localtime()), 1.0, time.monotonic())
-        row = FastClockRow(self._bus, fast, time.monotonic)
+        if kept is None:
+            now = time_of_day(time.localtime())
+            fast = FastClock(now, 1.0, time.monotonic())
+            kept = KeptClock(start_of(now), 1.0)
+        else:
+            fast = kept.started(time.monotonic())
+
+        def keep(changed: KeptClock) -> None:
+            self._keeping.keep(layout.name, changed)
+
+        row = FastClockRow(self._bus, fast, kept, time.monotonic, keep)
         return _Running(self._bus, app, clock, row, self._stop, self._period_s)
+
+
+class _Keeping:
+    """A railroad's clock written to the store on a thread of its own, in the
+    order it was set (ADR-0090, decision 3).
+
+    `Documents` waits for a store that does not answer, as it does for the
+    loaded-railroad record; on the loop's thread that wait would hold up
+    `alive_confirmed`, and something off the box cuts track power when that
+    stops (#716). Setting the clock is not worth a dark railroad. The thread
+    starts at the first clock set and is a daemon: one still waiting when the
+    app stops loses that setting, as a store that never comes back would.
+    """
+
+    def __init__(self, documents: Documents, log: Callable[[str], None]) -> None:
+        self._documents = documents
+        self._log = log
+        self._waiting: queue.SimpleQueue[tuple[str, KeptClock]] = queue.SimpleQueue()
+        self._thread: threading.Thread | None = None
+
+    def keep(self, railroad: str, kept: KeptClock) -> None:
+        """Write `kept` as `railroad`'s clock, after any set before it."""
+        if self._thread is None:
+            self._thread = threading.Thread(
+                target=self._write, name="layout-clock", daemon=True
+            )
+            self._thread.start()
+        self._waiting.put((railroad, kept))
+
+    def _write(self) -> None:
+        while True:
+            railroad, kept = self._waiting.get()
+            try:
+                self._documents.put_clock(railroad, kept)
+            except (OSError, ValueError, TypeError) as refused:
+                self._log(f"'{railroad}': the clock was not kept: {refused}")
 
 
 class FastClockRow:
@@ -271,15 +347,27 @@ class FastClockRow:
     beat, and at once when a person sets it on `tc49/layout/clock_wanted`.
     The real seconds are read off `monotonic`.
 
+    `kept` is the start time and speed-up the railroad keeps, or would keep:
+    each setting is handed to `keep` with what it changed, a new time as the
+    start rounded down to the minute and a new speed-up as it is (ADR-0090,
+    decision 3). The clock as it runs is never kept.
+
     It subscribes as it is made, at each build: a reload forgets every
     subscription with the railroad it leaves."""
 
     def __init__(
-        self, bus: Bus, fast: FastClock, monotonic: Callable[[], float]
+        self,
+        bus: Bus,
+        fast: FastClock,
+        kept: KeptClock,
+        monotonic: Callable[[], float],
+        keep: Callable[[KeptClock], None],
     ) -> None:
         self._bus = bus
         self._fast = fast
+        self._kept = kept
         self._monotonic = monotonic
+        self._keep = keep
         bus.subscribe(CLOCK_WANTED, self._wanted)
 
     def say(self) -> None:
@@ -291,12 +379,17 @@ class FastClockRow:
         at once, the new speed-up run at from now, and every page told
         without waiting for the beat. Taken whatever track power and the run
         are doing, and one that cannot be read is dropped as any malformed
-        gesture is (ADR-0034)."""
+        gesture is (ADR-0034). Then kept with the railroad."""
         wanted = wanted_clock(payload)
         if wanted is None:
             return
         self._fast = self._fast.changed(self._monotonic(), wanted.time, wanted.speed_up)
         self.say()
+        self._kept = KeptClock(
+            self._kept.start if wanted.time is None else start_of(wanted.time),
+            self._fast.speed_up,
+        )
+        self._keep(self._kept)
 
 
 class _Running:
