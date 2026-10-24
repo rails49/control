@@ -132,9 +132,11 @@ because this is where payloads are read — the stamping lives where the
 binding publishes, in `lib.bus`.
 """
 
+import math
 from dataclasses import dataclass
 from typing import cast
 
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.inventory import (
     AT,
     CLEAR,
@@ -437,6 +439,50 @@ def wanted_driving(payload: object) -> str | None:
     if not isinstance(wanted, str) or wanted not in DRIVINGS:
         return None
     return wanted
+
+
+@dataclass(frozen=True)
+class ClockSet:
+    """What a person sets the fast clock to (ADR-0090, decision 2): a time of
+    day in whole seconds since midnight, a speed-up, or both. None leaves
+    that part of the clock as it is."""
+
+    time: int | None
+    speed_up: float | None
+
+
+def wanted_clock(payload: object) -> ClockSet | None:
+    """The setting a `clock_wanted` gesture asks for, or None where it asks
+    for none.
+
+    At least one of the two fields, and each one given in range, or the
+    gesture is dropped whole: a good time beside a bad speed-up is not half
+    taken. `time` is an integer, `0` to `DAY_S - 1`, and `speed_up` a finite
+    number greater than 0. A bool is neither, though Python counts it an
+    integer.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    if "time" not in fields and "speed_up" not in fields:
+        return None
+    time: int | None = None
+    if "time" in fields:
+        stated = fields["time"]
+        if isinstance(stated, bool) or not isinstance(stated, int):
+            return None
+        if not 0 <= stated < DAY_S:
+            return None
+        time = stated
+    speed_up: float | None = None
+    if "speed_up" in fields:
+        stated = fields["speed_up"]
+        if isinstance(stated, bool) or not isinstance(stated, (int, float)):
+            return None
+        if not math.isfinite(stated) or not stated > 0:
+            return None
+        speed_up = float(stated)
+    return ClockSet(time, speed_up)
 
 
 @dataclass(frozen=True)
