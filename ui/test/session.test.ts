@@ -15,7 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ALIVE_MS, HELD, LAST, Session, type Client } from "../src/model/session.js";
+import { ALIVE_MS, HELD, Session, type Client } from "../src/model/session.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
 
 const URL = "ws://localhost:5173/mqtt";
@@ -153,9 +153,9 @@ describe("the broker not answering", () => {
     stood.session.pressPower("draining");
     stood.session.pressDriving("automatic");
     stood.session.pressRailroad("toy");
-    stood.session.pressTake("goods");
+    stood.session.pressTake("goods", stood.session.throttleFor(0));
     stood.session.pressRelease("goods");
-    stood.session.pressThrottle("goods", 40);
+    stood.session.pressThrottle("goods", 40, stood.session.throttleFor(0));
     stood.session.pressReversal("goods");
 
     expect(written(stood)).toEqual([]);
@@ -172,7 +172,10 @@ describe("the broker not answering", () => {
  * and power reads off: `layout` drops the request otherwise (#803).
  */
 describe("a railroad press made while the broker has gone", () => {
-  const WANTED = { topic: "tc49/layout/railroad_wanted", payload: { railroad: "toy" } };
+  const WANTED = {
+    topic: "tc49/layout/railroad_wanted",
+    payload: { railroad: "toy" },
+  };
 
   /** Joined with power off, the broker gone, and `toy` pressed meanwhile. */
   function owing(): Stood {
@@ -252,7 +255,10 @@ describe("ON waiting for the build", () => {
     stood.broker.opens();
     stood.broker.says(STATE_POWER, { power: "off", at: 5 });
     let answer: (reached: boolean) => void = () => {};
-    stood.session.pressOnSaved("toy", new Promise<boolean>((resolve) => (answer = resolve)));
+    stood.session.pressOnSaved(
+      "toy",
+      new Promise<boolean>((resolve) => (answer = resolve)),
+    );
     return {
       ...stood,
       landed: async (reached) => {
@@ -317,14 +323,18 @@ describe("ON waiting for the build", () => {
     stood.session.pressPower("off");
     await stood.landed(true);
     stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
-    expect(written(stood)).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+    expect(written(stood)).toEqual([
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
   });
 
   it("sends nothing on after a power press during the build", async () => {
     const stood = await saved();
     stood.session.pressPower("off");
     stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
-    expect(written(stood)).toEqual([{ topic: POWER_WANTED, payload: { power: "off" } }]);
+    expect(written(stood)).toEqual([
+      { topic: POWER_WANTED, payload: { power: "off" } },
+    ]);
   });
 
   it("sends nothing where the row names another railroad first", async () => {
@@ -477,18 +487,23 @@ describe("what it answers", () => {
 });
 
 /**
- * The throttle's id and what rides on it
- * ([ADR-0079](../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)):
- * the page mints one when it opens, takes and releases with `take_wanted`,
- * names itself on every speed, and says `throttle_alive` once a second while
- * `state/taken` names it for a train.
+ * The throttles' ids and what rides on them
+ * ([ADR-0079](../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+ * [ADR-0089](../../docs/adr/0089-a-throttle-holds-one-train.md)): the page
+ * mints one per panel slot, takes and releases with `take_wanted`, names the
+ * panel's on every speed and function, and says `throttle_alive` once a
+ * second for each id `state/taken` names for a train.
  */
 describe("the throttle", () => {
   const TAKE_WANTED = "tc49/layout/take_wanted";
   const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
   const ALIVE = "tc49/layout/throttle_alive";
   const TAKEN = "tc49/layout/state/taken";
-  const PICTURE = { trains: { goods: "a" }, locks: { a: "goods" }, requests: [] };
+  const PICTURE = {
+    trains: { goods: "a" },
+    locks: { a: "goods" },
+    requests: [],
+  };
 
   afterEach(() => {
     vi.useRealTimers();
@@ -501,30 +516,55 @@ describe("the throttle", () => {
     return stood;
   }
 
-  /** How many `throttle_alive` frames have gone out, each checked to name
-   *  this page's throttle. */
-  function beats(stood: Stood): number {
-    const alive = written(stood).filter(
-      (frame) => (frame as { topic: string }).topic === ALIVE,
-    );
-    for (const frame of alive) {
-      expect(frame).toEqual({ topic: ALIVE, payload: { throttle: stood.session.throttle } });
-    }
-    return alive.length;
+  /** `placing`, with `shunter` standing in `b` beside `goods`. */
+  function both(): Stood {
+    const stood = powered();
+    stood.broker.says(ALLOCATION, {
+      trains: { goods: "a", shunter: "b" },
+      locks: { a: "goods", b: "shunter" },
+      requests: [],
+    });
+    return stood;
   }
 
-  it("mints a different non-empty id for each page", () => {
-    const one = standing().session.throttle;
-    const other = standing().session.throttle;
-    expect(one).not.toBe("");
-    expect(one).not.toBe(other);
+  /** How many `throttle_alive` frames have gone out naming `id`; every one
+   *  is checked to name one of this page's ids. */
+  function beats(stood: Stood, id: string): number {
+    const alive = written(stood).filter(
+      (frame) => (frame as { topic: string }).topic === ALIVE,
+    ) as { payload: { throttle: string } }[];
+    for (const frame of alive)
+      expect(stood.session.ours(frame.payload.throttle)).toBe(true);
+    return alive.filter((frame) => frame.payload.throttle === id).length;
+  }
+
+  it("mints one id per panel slot, kept for the life of the page", () => {
+    const { session } = standing();
+    const first = session.throttleFor(0);
+    expect(first).not.toBe("");
+    expect(session.throttleFor(0)).toBe(first);
+    expect(session.throttleFor(1)).not.toBe(first);
   });
 
-  it("takes a train under its own id", () => {
+  it("mints a different id for each page", () => {
+    expect(standing().session.throttleFor(0)).not.toBe(
+      standing().session.throttleFor(0),
+    );
+  });
+
+  it("knows its own ids from another page's", () => {
+    const { session } = standing();
+    expect(session.ours(session.throttleFor(1))).toBe(true);
+    expect(session.ours("elsewhere")).toBe(false);
+    expect(session.ours(null)).toBe(false);
+  });
+
+  it("takes a train under the id it was pressed with", () => {
     const stood = placing();
-    stood.session.pressTake("goods");
+    const id = stood.session.throttleFor(1);
+    stood.session.pressTake("goods", id);
     expect(written(stood)).toEqual([
-      { topic: TAKE_WANTED, payload: { train: "goods", throttle: stood.session.throttle } },
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: id } },
     ]);
   });
 
@@ -538,17 +578,18 @@ describe("the throttle", () => {
     ]);
   });
 
-  /** By name and under this page's id: which car and which number the name
+  /** By name and under the panel's id: which car and which number the name
    *  reaches is `layout`'s (#849). */
-  it("switches a function under its own id", () => {
+  it("switches a function under the id it was pressed with", () => {
     const stood = placing();
-    stood.session.pressFunction("goods", "headlights", true);
+    const id = stood.session.throttleFor(1);
+    stood.session.pressFunction("goods", id, "headlights", true);
     expect(written(stood)).toEqual([
       {
         topic: "tc49/layout/function_wanted",
         payload: {
           train: "goods",
-          throttle: stood.session.throttle,
+          throttle: id,
           function: "headlights",
           on: true,
         },
@@ -556,13 +597,14 @@ describe("the throttle", () => {
     ]);
   });
 
-  it("names itself on every speed", () => {
+  it("names the id it was pressed with on every speed", () => {
     const stood = placing();
-    stood.session.pressThrottle("goods", 0.4);
+    const id = stood.session.throttleFor(1);
+    stood.session.pressThrottle("goods", 0.4, id);
     expect(written(stood)).toEqual([
       {
         topic: THROTTLE_WANTED,
-        payload: { train: "goods", speed: 0.4, throttle: stood.session.throttle },
+        payload: { train: "goods", speed: 0.4, throttle: id },
       },
     ]);
   });
@@ -570,176 +612,95 @@ describe("the throttle", () => {
   it("says it is alive once a second while state/taken names it", () => {
     vi.useFakeTimers();
     const stood = placing();
-    stood.session.pressTake("goods");
+    const id = stood.session.throttleFor(0);
+    stood.session.pressTake("goods", id);
     vi.advanceTimersByTime(3 * ALIVE_MS);
     // Not on the press: `layout` has not handed it the train yet.
-    expect(beats(stood)).toBe(0);
+    expect(beats(stood, id)).toBe(0);
 
-    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    stood.broker.says(TAKEN, { taken: { goods: id } });
     vi.advanceTimersByTime(ALIVE_MS - 1);
-    expect(beats(stood)).toBe(0);
+    expect(beats(stood, id)).toBe(0);
     vi.advanceTimersByTime(1);
-    expect(beats(stood)).toBe(1);
+    expect(beats(stood, id)).toBe(1);
     vi.advanceTimersByTime(2 * ALIVE_MS);
-    expect(beats(stood)).toBe(3);
+    expect(beats(stood, id)).toBe(3);
 
     // A second row naming it again does not start a second beat.
-    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    stood.broker.says(TAKEN, { taken: { goods: id } });
     vi.advanceTimersByTime(ALIVE_MS);
-    expect(beats(stood)).toBe(4);
+    expect(beats(stood, id)).toBe(4);
   });
 
-  /** A tablet holds several trains under the one id, and the beat is the
-   *  throttle's, not each train's (#855). */
-  it("says it is alive once a second, not once per train, while it holds two", () => {
+  /** Two panels, each holding a train: one frame for each id on each tick,
+   *  and an id the row drops goes quiet while the other goes on (ADR-0089). */
+  it("says it is alive for each id state/taken names, and stops for one it drops", () => {
     vi.useFakeTimers();
-    const stood = powered();
-    stood.broker.says(ALLOCATION, {
-      trains: { goods: "a", shunter: "b" },
-      locks: { a: "goods", b: "shunter" },
-      requests: [],
-    });
-    const mine = stood.session.throttle;
-    stood.broker.says(TAKEN, { taken: { goods: mine, shunter: mine } });
-    vi.advanceTimersByTime(3 * ALIVE_MS);
-    expect(beats(stood)).toBe(3);
+    const stood = both();
+    const one = stood.session.throttleFor(0);
+    const other = stood.session.throttleFor(1);
+    stood.session.throttleFor(2);
+    stood.broker.says(TAKEN, { taken: { goods: one, shunter: other } });
+    vi.advanceTimersByTime(ALIVE_MS);
+    expect(
+      written(stood).filter(
+        (frame) => (frame as { topic: string }).topic === ALIVE,
+      ),
+    ).toHaveLength(2);
+    vi.advanceTimersByTime(2 * ALIVE_MS);
+    expect([beats(stood, one), beats(stood, other)]).toEqual([3, 3]);
+
+    stood.broker.says(TAKEN, { taken: { shunter: other } });
+    vi.advanceTimersByTime(2 * ALIVE_MS);
+    expect([beats(stood, one), beats(stood, other)]).toEqual([3, 5]);
   });
 
   it("stops once it holds nothing", () => {
     vi.useFakeTimers();
     const stood = placing();
-    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    const id = stood.session.throttleFor(0);
+    stood.broker.says(TAKEN, { taken: { goods: id } });
     vi.advanceTimersByTime(ALIVE_MS);
-    expect(beats(stood)).toBe(1);
+    expect(beats(stood, id)).toBe(1);
 
     stood.broker.says(TAKEN, { taken: {} });
     vi.advanceTimersByTime(5 * ALIVE_MS);
-    expect(beats(stood)).toBe(1);
+    expect(beats(stood, id)).toBe(1);
   });
 
   /** A train held by another throttle is that throttle's to keep alive. */
   it("says nothing for a train another throttle holds", () => {
     vi.useFakeTimers();
     const stood = placing();
+    stood.session.throttleFor(0);
     stood.broker.says(TAKEN, { taken: { goods: "elsewhere" } });
     vi.advanceTimersByTime(5 * ALIVE_MS);
-    expect(beats(stood)).toBe(0);
+    expect(beats(stood, "elsewhere")).toBe(0);
+    expect(written(stood)).toEqual([]);
   });
 
   it("stops when the broker goes", () => {
     vi.useFakeTimers();
     const stood = placing();
-    stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
+    const id = stood.session.throttleFor(0);
+    stood.broker.says(TAKEN, { taken: { goods: id } });
     stood.broker.closes();
     vi.advanceTimersByTime(5 * ALIVE_MS);
-    expect(beats(stood)).toBe(0);
+    expect(beats(stood, id)).toBe(0);
   });
 
-  /** The last train held, kept in the tab's `sessionStorage` for the
-   *  picker's Take back (ui/THROTTLE.md, #853). */
-  describe("the last train held", () => {
-    let stored: Map<string, string>;
-
-    beforeEach(() => {
-      stored = new Map();
-      vi.stubGlobal("sessionStorage", {
-        getItem: (key: string) => stored.get(key) ?? null,
-        setItem: (key: string, value: string) => void stored.set(key, value),
-      });
-    });
-
-    afterEach(() => {
-      vi.unstubAllGlobals();
-    });
-
-    it("is written under the railroad's key when state/taken names this throttle", () => {
-      const stood = placing();
-      expect(stored.size).toBe(0);
-      stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
-      expect([...stored]).toEqual([[`${LAST}toy`, "goods"]]);
-      expect(`${LAST}toy`).toBe("tc49.throttle.last.toy");
-    });
-
-    it("is not changed by a release, nor by another throttle taking the train", () => {
-      const stood = placing();
-      stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
-      stood.broker.says(TAKEN, { taken: {} });
-      stood.broker.says(TAKEN, { taken: { goods: "elsewhere" } });
-      expect(stored.get(`${LAST}toy`)).toBe("goods");
-    });
-
-    /** `placing`, with `shunter` standing in `b` beside `goods`. */
-    function both(): Stood {
-      const stood = powered();
-      stood.broker.says(ALLOCATION, {
-        trains: { goods: "a", shunter: "b" },
-        locks: { a: "goods", b: "shunter" },
-        requests: [],
-      });
-      return stood;
-    }
-
-    it("follows the most recent take while another train is still held", () => {
-      const stood = both();
-      const me = stood.session.throttle;
-      stood.broker.says(TAKEN, { taken: { shunter: me } });
-      stood.broker.says(TAKEN, { taken: { shunter: me, goods: me } });
-      stood.broker.says(TAKEN, { taken: { shunter: me } });
-      expect(stood.session.cabs[0]).toMatchObject({ train: "goods", last: true });
-      expect(stored.get("tc49.throttle.last.toy")).toBe("goods");
-    });
-
-    it("is not moved by a release of another held train", () => {
-      const stood = both();
-      const me = stood.session.throttle;
-      stood.broker.says(TAKEN, { taken: { goods: me } });
-      stood.broker.says(TAKEN, { taken: { goods: me, shunter: me } });
-      stood.broker.says(TAKEN, { taken: { shunter: me } });
-      expect(stored.get(`${LAST}toy`)).toBe("shunter");
-      expect(stood.session.cabs.find(({ train }) => train === "goods")).toMatchObject({
-        last: false,
-      });
-    });
-
-    it("is not moved by a reconnect's replay of the trains already held", () => {
-      const stood = both();
-      const me = stood.session.throttle;
-      stood.broker.says(TAKEN, { taken: { goods: me } });
-      stood.broker.says(TAKEN, { taken: { goods: me, shunter: me } });
-      stood.broker.closes();
-      stood.broker.opens();
-      expect(stood.session.status.joined).toBe(true);
-      expect(stood.session.cabs.every(({ taken }) => taken === "here")).toBe(true);
-      expect(stored.get(`${LAST}toy`)).toBe("shunter");
-    });
-
-    it("is the first by name where one row adds several", () => {
-      const stood = both();
-      const me = stood.session.throttle;
-      stood.broker.says(TAKEN, { taken: { shunter: me, goods: me } });
-      expect(stored.get(`${LAST}toy`)).toBe("goods");
-    });
-
-    it("is read back when a session joins the railroad", () => {
-      stored.set(`${LAST}toy`, "goods");
-      const stood = placing();
-      expect(stood.session.cabs[0]).toMatchObject({ train: "goods", last: true });
-    });
-
-    it("is kept for the life of the page where storage throws", () => {
-      vi.stubGlobal("sessionStorage", {
-        getItem: () => {
-          throw new Error("refused");
-        },
-        setItem: () => {
-          throw new Error("refused");
-        },
-      });
-      const stood = placing();
-      stood.broker.says(TAKEN, { taken: { goods: stood.session.throttle } });
-      stood.broker.says(TAKEN, { taken: {} });
-      expect(stood.session.cabs[0]).toMatchObject({ train: "goods", last: true });
-    });
+  /** Who holds a train is the id `state/taken` names; a cab compares it with
+   *  no panel's (ADR-0089). */
+  it("hands each cab the id state/taken names for its train", () => {
+    const stood = both();
+    const id = stood.session.throttleFor(0);
+    stood.broker.says(TAKEN, { taken: { goods: id, shunter: "elsewhere" } });
+    expect(
+      stood.session.cabs.map(({ train, holder }) => [train, holder]),
+    ).toEqual([
+      ["goods", id],
+      ["shunter", "elsewhere"],
+    ]);
   });
 });
 

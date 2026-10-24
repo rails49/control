@@ -1,12 +1,12 @@
 /**
- * The screen kept awake while this page's throttle holds a train
+ * The screen kept awake while any of this page's throttles holds a train
  * (ui/THROTTLE.md, [#854](https://github.com/rails49/control/issues/854)).
  *
  * `layout` releases a train whose throttle has been silent for its silence
  * (ADR-0079), and a phone left lying goes to sleep and stops saying
  * `throttle_alive`. So while the page holds a train — on the condition the
- * session's beat runs on, `state/taken` naming this throttle — it holds a
- * screen wake lock, one for any number of trains.
+ * session's beat runs on, `state/taken` naming an id this page minted — it
+ * holds a screen wake lock, one for any number of throttles.
  *
  * The browser drops the lock itself while the page is hidden, and may drop it
  * while the page is shown; it is asked for again when the page is next shown

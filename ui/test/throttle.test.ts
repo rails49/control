@@ -2,18 +2,18 @@
 
 /**
  * The throttle view, end to end through the app (ui/THROTTLE.md, #207): take a
- * train from the picker (#853), drive it, give it back, take it back, and the
- * gestures that ride the bus while you do.
+ * train from the picker (#853), drive it, give it back, and the gestures that
+ * ride the bus while you do, in a row of throttles each holding at most one
+ * train (ADR-0089).
  *
  * A DOM suite because none of it is a model's. What each train is, who holds
  * it and what it is reading are `cabs`'s answer, tested with no DOM in
  * `cabs.test.ts`; what only mounting the app can see is whether this view
- * asked — that taking a train writes one `take_wanted` under this page's
+ * asked — that taking a train writes one `take_wanted` under the panel's
  * throttle id, that the view waits for `state/taken` before it says a train is
  * taken, that a train another throttle holds cannot be taken and can be
- * force released, that the train last held comes back as Take back, that the number on
- * screen is the number that went out, and that nothing at all leaves the view
- * while the rails have no power.
+ * force released, that the number on screen is the number that went out, and
+ * that nothing at all leaves the view while the rails have no power.
  *
  * The session is the app's whichever view is current, so this joins the
  * same one every other suite does (`support/session.ts`).
@@ -25,7 +25,13 @@ import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcDriving } from "../src/ui/tc-driving.js";
 import type { TcTrainPicker } from "../src/ui/tc-train-picker.js";
-import { serving, settled, shows, throttling, type Answers } from "./support/shell.js";
+import {
+  serving,
+  settled,
+  shows,
+  throttling,
+  type Answers,
+} from "./support/shell.js";
 import {
   Broker,
   brokering,
@@ -44,10 +50,7 @@ import { drivingStyles } from "../src/ui/tc-driving.styles.js";
 
 beforeEach(brokering);
 
-afterEach(() => {
-  unbrokered();
-  sessionStorage.clear();
-});
+afterEach(unbrokered);
 
 const ALLOCATION = "tc49/dispatch/state/allocation";
 const POWER = "tc49/layout/state/power";
@@ -62,7 +65,9 @@ const ALIVE = "tc49/layout/throttle_alive";
  *  runs on a real clock here and is left out; its timing is
  *  `session.test.ts`'s, on a fake one. */
 function written(): unknown[] {
-  return everything().filter((one) => (one as { topic: string }).topic !== ALIVE);
+  return everything().filter(
+    (one) => (one as { topic: string }).topic !== ALIVE,
+  );
 }
 const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
@@ -82,7 +87,9 @@ async function driving(): Promise<TcApp> {
 /** The driving controls of each train the view shows, in the order it
  *  shows them. */
 function columns(shell: TcApp): TcDriving[] {
-  return [...throttling(shell).renderRoot.querySelectorAll<TcDriving>("tc-driving")];
+  return [
+    ...throttling(shell).renderRoot.querySelectorAll<TcDriving>("tc-driving"),
+  ];
 }
 
 /** One part of the view, by selector: the view's own, or else the first
@@ -99,7 +106,9 @@ function part<T extends Element>(shell: TcApp, selector: string): T | null {
 function parts<T extends Element>(shell: TcApp, selector: string): T[] {
   return [
     ...throttling(shell).renderRoot.querySelectorAll<T>(selector),
-    ...columns(shell).flatMap((one) => [...one.renderRoot.querySelectorAll<T>(selector)]),
+    ...columns(shell).flatMap((one) => [
+      ...one.renderRoot.querySelectorAll<T>(selector),
+    ]),
   ];
 }
 
@@ -115,9 +124,9 @@ function onPicker<T extends Element>(shell: TcApp, selector: string): T | null {
 
 /** The trains the picker has a card for, in the order it shows them. */
 function offered(shell: TcApp): string[] {
-  return [...(picker(shell)?.renderRoot.querySelectorAll(".card > span.name") ?? [])].map(
-    (one) => one.textContent!.trim(),
-  );
+  return [
+    ...(picker(shell)?.renderRoot.querySelectorAll(".card > span.name") ?? []),
+  ].map((one) => one.textContent!.trim());
 }
 
 /** One train's card. */
@@ -125,9 +134,16 @@ function card(shell: TcApp, train: string): HTMLElement | null {
   return onPicker<HTMLElement>(shell, `.card[data-train="${train}"]`);
 }
 
-/** The press on one train's card, by its class: `take`, `back` or `force`. */
-function press(shell: TcApp, train: string, kind: string): HTMLButtonElement | null {
-  return card(shell, train)?.querySelector<HTMLButtonElement>(`button.${kind}`) ?? null;
+/** The press on one train's card, by its class: `take` or `force`. */
+function press(
+  shell: TcApp,
+  train: string,
+  kind: string,
+): HTMLButtonElement | null {
+  return (
+    card(shell, train)?.querySelector<HTMLButtonElement>(`button.${kind}`) ??
+    null
+  );
 }
 
 /** Press Take on a train's card, the way a pointer does. */
@@ -161,17 +177,21 @@ async function moved(shell: TcApp, to: number): Promise<void> {
 
 /** Which way the reverser is pressed: the one press of the two that says so. */
 function reverser(shell: TcApp): "forward" | "reverse" {
-  const forward = part(shell, "button.forward")!.getAttribute("aria-pressed") === "true";
-  const reverse = part(shell, "button.reverse")!.getAttribute("aria-pressed") === "true";
+  const forward =
+    part(shell, "button.forward")!.getAttribute("aria-pressed") === "true";
+  const reverse =
+    part(shell, "button.reverse")!.getAttribute("aria-pressed") === "true";
   expect(forward).not.toBe(reverse);
   return forward ? "forward" : "reverse";
 }
 
-/** The throttle id this page named itself by, read off the first frame that
- *  carried it. */
+/** The throttle id the first panel named itself by, read off the first
+ *  frame that carried it. */
 function mine(): string {
   const frame = written().find(
-    (one) => typeof (one as { payload: { throttle?: unknown } }).payload.throttle === "string",
+    (one) =>
+      typeof (one as { payload: { throttle?: unknown } }).payload.throttle ===
+      "string",
   ) as { payload: { throttle: string } } | undefined;
   return frame!.payload.throttle;
 }
@@ -182,7 +202,15 @@ const GRANTED = {
   trains: { goods: "a" },
   crossing: { goods: "j.over" },
   locks: { a: "goods", "j.over": "goods", b: "goods" },
-  requests: [{ id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "j.over", "b"] }],
+  requests: [
+    {
+      id: "goods-1",
+      train: "goods",
+      depart: "a.B",
+      dest: ["b.A"],
+      route: ["a", "j.over", "b"],
+    },
+  ],
 };
 
 /** A train, taken and nothing granted: the gesture and `layout`'s answer. */
@@ -223,14 +251,16 @@ describe("the picker", () => {
 
   it("says where each train stands", async () => {
     const shell = await driving();
-    expect(card(shell, "goods")!.querySelector(".where")!.textContent!.trim()).toBe("a");
+    expect(
+      card(shell, "goods")!.querySelector(".where")!.textContent!.trim(),
+    ).toBe("a");
   });
 
   it("shows the photo of each train's first locomotive", async () => {
     const shell = await driving();
-    expect(card(shell, "goods")!.querySelector("img")!.getAttribute("src")).toBe(
-      "/catalogue/BR%20218/photo",
-    );
+    expect(
+      card(shell, "goods")!.querySelector("img")!.getAttribute("src"),
+    ).toBe("/catalogue/BR%20218/photo");
   });
 
   /** A model with no photo filed answers 404, and the name stands in, as it
@@ -239,12 +269,16 @@ describe("the picker", () => {
     const shell = await driving();
     await said(shell, ALLOCATION, BOTH);
 
-    card(shell, "goods")!.querySelector("img")!.dispatchEvent(new Event("error"));
+    card(shell, "goods")!
+      .querySelector("img")!
+      .dispatchEvent(new Event("error"));
     await settled(shell);
 
     for (const train of ["goods", "shunter"]) {
       expect(card(shell, train)!.querySelector("img")).toBeNull();
-      expect(card(shell, train)!.querySelector(".thumbnail")!.textContent!.trim()).toBe(train);
+      expect(
+        card(shell, train)!.querySelector(".thumbnail")!.textContent!.trim(),
+      ).toBe(train);
     }
   });
 
@@ -298,7 +332,8 @@ describe("taking a train", () => {
     expect(release(shell).textContent!.trim()).toBe("Release");
   });
 
-  /** Several at once are #855's; until then, the first by name. */
+  /** A throttle holds at most one train (ADR-0089); a row naming one id for
+   *  several, which `layout` does not write, drives the first by name. */
   it("drives the first by name where it holds several", async () => {
     const shell = await driving();
     await said(shell, ALLOCATION, BOTH);
@@ -316,7 +351,9 @@ describe("a train another throttle holds", () => {
     await said(shell, TAKEN, { taken: { goods: "another-page" } });
 
     expect(card(shell, "goods")!.classList.contains("faded")).toBe(true);
-    expect(card(shell, "goods")!.textContent).toContain("held by another throttle");
+    expect(card(shell, "goods")!.textContent).toContain(
+      "held by another throttle",
+    );
     expect(press(shell, "goods", "take")).toBeNull();
   });
 
@@ -340,103 +377,6 @@ describe("a train another throttle holds", () => {
   });
 });
 
-describe("taking it back", () => {
-  /** The train this throttle held, freed: by its Release here. */
-  async function heldThenFreed(shell: TcApp): Promise<void> {
-    await held(shell);
-    release(shell).click();
-    await settled(shell);
-    await said(shell, TAKEN, { taken: {} });
-  }
-
-  it("offers the last train first, as Take back, once nobody holds it", async () => {
-    const shell = await driving();
-    await said(shell, ALLOCATION, BOTH);
-    await held(shell, "shunter");
-    release(shell).click();
-    await settled(shell);
-    await said(shell, TAKEN, { taken: {} });
-    const before = written().length;
-
-    expect(offered(shell)).toEqual(["shunter", "goods"]);
-    expect(card(shell, "shunter")!.textContent).toContain("You held this one");
-    press(shell, "shunter", "back")!.click();
-    await settled(shell);
-
-    expect(written().slice(before)).toEqual([
-      { topic: TAKE_WANTED, payload: { train: "shunter", throttle: mine() } },
-    ]);
-  });
-
-  it("is an ordinary faded card while another throttle holds it", async () => {
-    const shell = await driving();
-    await heldThenFreed(shell);
-
-    await said(shell, TAKEN, { taken: { goods: "another-page" } });
-
-    expect(press(shell, "goods", "back")).toBeNull();
-    expect(card(shell, "goods")!.classList.contains("faded")).toBe(true);
-    expect(card(shell, "goods")!.textContent).not.toContain("You held this one");
-  });
-
-  it("has no card once the train is off the layout", async () => {
-    const shell = await driving();
-    await heldThenFreed(shell);
-
-    await said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] });
-
-    expect(offered(shell)).toEqual([]);
-  });
-
-  /** The same tab, a second app: `sessionStorage` carries the last train,
-   *  and the new page's id is not the old one, so the old hold reads as
-   *  another throttle's until it is freed. */
-  it("is found by a second app in the same tab, once the train is free", async () => {
-    const first = await driving();
-    await held(first);
-    const old = mine();
-    unbrokered();
-    brokering();
-
-    const shell = await driving();
-    await said(shell, TAKEN, { taken: { goods: old } });
-    expect(press(shell, "goods", "back")).toBeNull();
-
-    await said(shell, TAKEN, { taken: {} });
-    expect(press(shell, "goods", "back")).not.toBeNull();
-  });
-
-  it("is not found by a second app with sessionStorage cleared", async () => {
-    const first = await driving();
-    await held(first);
-    unbrokered();
-    brokering();
-    sessionStorage.clear();
-
-    const shell = await driving();
-    expect(press(shell, "goods", "back")).toBeNull();
-    expect(press(shell, "goods", "take")).not.toBeNull();
-  });
-
-  /** Storage that throws leaves Take back to the page's own memory. */
-  it("works for the life of the page where sessionStorage throws", async () => {
-    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("refused");
-    });
-    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("refused");
-    });
-    try {
-      const shell = await driving();
-      await heldThenFreed(shell);
-      expect(press(shell, "goods", "back")).not.toBeNull();
-    } finally {
-      getItem.mockRestore();
-      setItem.mockRestore();
-    }
-  });
-});
-
 describe("the slider", () => {
   /** A throttle drives the train it holds at any time, granted move or not
    *  (ADR-0081). */
@@ -449,7 +389,10 @@ describe("the slider", () => {
     await moved(shell, 0.35);
 
     expect(written().slice(before)).toEqual([
-      { topic: THROTTLE_WANTED, payload: { train: "goods", speed: 0.35, throttle: mine() } },
+      {
+        topic: THROTTLE_WANTED,
+        payload: { train: "goods", speed: 0.35, throttle: mine() },
+      },
     ]);
   });
 
@@ -487,7 +430,9 @@ describe("the slider", () => {
 
     await said(shell, ALLOCATION, {
       ...PICTURE,
-      requests: [{ id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"] }],
+      requests: [
+        { id: "goods-1", train: "goods", depart: "a.B", dest: ["b.A"] },
+      ],
     });
 
     expect(lever(shell)!.value).toBe("0.35");
@@ -541,8 +486,12 @@ describe("the reverser", () => {
     await held(shell);
     await moved(shell, 0.35);
 
-    expect(part<HTMLButtonElement>(shell, "button.forward")!.disabled).toBe(true);
-    expect(part<HTMLButtonElement>(shell, "button.reverse")!.disabled).toBe(true);
+    expect(part<HTMLButtonElement>(shell, "button.forward")!.disabled).toBe(
+      true,
+    );
+    expect(part<HTMLButtonElement>(shell, "button.reverse")!.disabled).toBe(
+      true,
+    );
   });
 
   /** The next slider input carries the new sign, and nothing before it. */
@@ -559,7 +508,10 @@ describe("the reverser", () => {
     expect(reverser(shell)).toBe("reverse");
     await moved(shell, 0.35);
     expect(written().slice(before)).toEqual([
-      { topic: THROTTLE_WANTED, payload: { train: "goods", speed: -0.35, throttle: mine() } },
+      {
+        topic: THROTTLE_WANTED,
+        payload: { train: "goods", speed: -0.35, throttle: mine() },
+      },
     ]);
   });
 
@@ -596,7 +548,9 @@ describe("the reverser", () => {
   it("picks the aspect shown: the facing end's for Forward, the other's for Reverse", async () => {
     const shell = await driving();
     await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
-    await said(shell, ASPECTS, { aspects: { "a.B": "caution", "a.A": "clear" } });
+    await said(shell, ASPECTS, {
+      aspects: { "a.B": "caution", "a.A": "clear" },
+    });
     await held(shell);
     expect(part(shell, ".aspect")!.textContent!.trim()).toBe("caution");
 
@@ -610,9 +564,9 @@ describe("the train's thumbnail", () => {
   it("is the photo of its first locomotive's model", async () => {
     const shell = await driving();
     await held(shell);
-    expect(part<HTMLImageElement>(shell, "img.thumbnail")!.getAttribute("src")).toBe(
-      photoUrl("BR 218"),
-    );
+    expect(
+      part<HTMLImageElement>(shell, "img.thumbnail")!.getAttribute("src"),
+    ).toBe(photoUrl("BR 218"));
   });
 
   /** A model with no photo filed answers 404, and the name stands in. */
@@ -651,7 +605,9 @@ class Feed {
     readonly path: string,
     signal: AbortSignal,
   ) {
-    this.body = new ReadableStream({ start: (sending) => (this.sending = sending) });
+    this.body = new ReadableStream({
+      start: (sending) => (this.sending = sending),
+    });
     signal.addEventListener("abort", () => {
       this.aborted = true;
       this.fail();
@@ -662,7 +618,9 @@ class Feed {
   send(): void {
     const jpeg = [0xff, 0xd8, 0xff, 0xd9];
     const head = `--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`;
-    this.sending.enqueue(new Uint8Array([...new TextEncoder().encode(head), ...jpeg, 13, 10]));
+    this.sending.enqueue(
+      new Uint8Array([...new TextEncoder().encode(head), ...jpeg, 13, 10]),
+    );
   }
 
   /** The closing boundary, and the body over. */
@@ -757,12 +715,19 @@ describe("the camera car's picture", () => {
     expect(live(shell)!.getAttribute("alt")).toBe("");
     expect(thumbnail(shell)).toBeNull();
     const view = part(shell, ".top .view")!;
-    expect([...view.children].map((one) => one.className)).toEqual(["picture", "live"]);
+    expect([...view.children].map((one) => one.className)).toEqual([
+      "picture",
+      "live",
+    ]);
     const rules = drivingStyles.cssText
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .match(/[^{}]*\.picture[^{}]*\{[^{}]*\}/g);
-    expect(rules?.some((rule) => /object-fit:\s*contain/.test(rule))).toBe(true);
-    expect(rules?.some((rule) => /position:\s*absolute/.test(rule))).toBe(false);
+    expect(rules?.some((rule) => /object-fit:\s*contain/.test(rule))).toBe(
+      true,
+    );
+    expect(rules?.some((rule) => /position:\s*absolute/.test(rule))).toBe(
+      false,
+    );
     expect(part(shell, ".top .live")!.textContent!.trim()).toBe("LIVE");
   });
 
@@ -814,20 +779,23 @@ describe("the camera car's picture", () => {
     ["the stream ends", () => feed().end()],
     ["the connection fails", () => feed().fail()],
     ["no frame comes for STALL_MS", () => vi.advanceTimersByTime(STALL_MS)],
-  ])("goes when %s, and is back after RETRY_MS with a new try", async (_, lose) => {
-    const shell = await watching();
+  ])(
+    "goes when %s, and is back after RETRY_MS with a new try",
+    async (_, lose) => {
+      const shell = await watching();
 
-    lose();
-    await settled(shell);
-    expect(live(shell)).toBeNull();
-    expect(thumbnail(shell)).not.toBeNull();
+      lose();
+      await settled(shell);
+      expect(live(shell)).toBeNull();
+      expect(thumbnail(shell)).not.toBeNull();
 
-    vi.advanceTimersByTime(RETRY_MS);
-    await settled(shell);
-    expect(feed().path).toBe("/picture/toy/goods?try=1");
-    await framed(shell);
-    expect(live(shell)).not.toBeNull();
-  });
+      vi.advanceTimersByTime(RETRY_MS);
+      await settled(shell);
+      expect(feed().path).toBe("/picture/toy/goods?try=1");
+      await framed(shell);
+      expect(live(shell)).not.toBeNull();
+    },
+  );
 
   it("is asked again after RETRY_MS where the camera app answers no stream", async () => {
     answers.picture = () => ({ status: 502 });
@@ -860,7 +828,10 @@ describe("the camera car's picture", () => {
   /** Each of these ends the page's read of the route: the picture goes,
    *  and nothing puts it back. */
   it.each([
-    ["state/taken drops the train", (shell: TcApp) => said(shell, TAKEN, { taken: {} })],
+    [
+      "state/taken drops the train",
+      (shell: TcApp) => said(shell, TAKEN, { taken: {} }),
+    ],
     [
       "another train is taken",
       async (shell: TcApp) => {
@@ -870,7 +841,8 @@ describe("the camera car's picture", () => {
     ],
     [
       "the train leaves state/allocation",
-      (shell: TcApp) => said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] }),
+      (shell: TcApp) =>
+        said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] }),
     ],
     ["the run view is shown", (shell: TcApp) => shows(shell, "run")],
   ])("is gone once %s", async (_, then) => {
@@ -889,7 +861,10 @@ describe("the camera car's picture", () => {
     const shell = await watching();
     await shows(shell, "run");
     await shows(shell, "throttle");
-    expect(feeds.map((one) => one.path)).toEqual(["/picture/toy/goods", "/picture/toy/goods"]);
+    expect(feeds.map((one) => one.path)).toEqual([
+      "/picture/toy/goods",
+      "/picture/toy/goods",
+    ]);
   });
 });
 
@@ -963,7 +938,11 @@ describe("turning it round", () => {
     expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(true);
 
     await said(shell, "tc49/layout/block_occupied", { block: "b" });
-    await said(shell, ALLOCATION, { trains: { goods: "b" }, locks: { b: "goods" }, requests: [] });
+    await said(shell, ALLOCATION, {
+      trains: { goods: "b" },
+      locks: { b: "goods" },
+      requests: [],
+    });
     expect(part<HTMLButtonElement>(shell, "button.turn")!.disabled).toBe(false);
   });
 });
@@ -971,7 +950,7 @@ describe("turning it round", () => {
 describe("giving it back", () => {
   /** Back to the picker once `state/taken` no longer names this throttle,
    *  and not before: the release is `layout`'s to answer. */
-  it("publishes take_wanted null and goes back to the picker, the train first as Take back", async () => {
+  it("publishes take_wanted null and goes back to the picker, the train free to take", async () => {
     const shell = await driving();
     await taken(shell);
     await moved(shell, 0.5);
@@ -987,8 +966,9 @@ describe("giving it back", () => {
     await said(shell, TAKEN, { taken: {} });
 
     expect(lever(shell)).toBeNull();
-    expect(offered(shell)[0]).toBe("goods");
-    expect(press(shell, "goods", "back")).not.toBeNull();
+    expect(offered(shell)).toEqual(["goods"]);
+    expect(press(shell, "goods", "take")).not.toBeNull();
+    expect(part(shell, ".mine")).toBeNull();
   });
 
   /** One gesture per press. `layout` writes the speed a release implies, so
@@ -1060,7 +1040,9 @@ describe("what a person can switch", () => {
   }
 
   function button(shell: TcApp, name: string): HTMLButtonElement {
-    return parts<HTMLButtonElement>(shell, "button.function").find((one) => one.textContent!.trim() === name)!;
+    return parts<HTMLButtonElement>(shell, "button.function").find(
+      (one) => one.textContent!.trim() === name,
+    )!;
   }
 
   function more(shell: TcApp): HTMLButtonElement | null {
@@ -1069,7 +1051,9 @@ describe("what a person can switch", () => {
 
   /** The `function_wanted` frames the view's presses wrote. */
   function switched(): unknown[] {
-    return written().filter((one) => (one as { topic: string }).topic === FUNCTION_WANTED);
+    return written().filter(
+      (one) => (one as { topic: string }).topic === FUNCTION_WANTED,
+    );
   }
 
   /** By the names the catalogue gives them and by no number: which DCC
@@ -1144,7 +1128,9 @@ describe("what a person can switch", () => {
   it("asks for on from an off button, and reads on only once state/functions says so", async () => {
     const shell = await driving();
     await held(shell);
-    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("false");
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
 
     button(shell, "headlights").click();
     await settled(shell);
@@ -1152,13 +1138,24 @@ describe("what a person can switch", () => {
     expect(switched()).toEqual([
       {
         topic: FUNCTION_WANTED,
-        payload: { train: "goods", throttle: mine(), function: "headlights", on: true },
+        payload: {
+          train: "goods",
+          throttle: mine(),
+          function: "headlights",
+          on: true,
+        },
       },
     ]);
-    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("false");
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
 
-    await said(shell, FUNCTIONS, { functions: { goods: { headlights: true } } });
-    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("true");
+    await said(shell, FUNCTIONS, {
+      functions: { goods: { headlights: true } },
+    });
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
   });
 
   it("asks for off from an on button", async () => {
@@ -1172,7 +1169,12 @@ describe("what a person can switch", () => {
     expect(switched()).toEqual([
       {
         topic: FUNCTION_WANTED,
-        payload: { train: "goods", throttle: mine(), function: "vacuum", on: false },
+        payload: {
+          train: "goods",
+          throttle: mine(),
+          function: "vacuum",
+          on: false,
+        },
       },
     ]);
   });
@@ -1207,7 +1209,9 @@ describe("what a person can switch", () => {
   it("writes nothing with the power off, and shows the state all the same", async () => {
     const shell = await driving();
     await held(shell);
-    await said(shell, FUNCTIONS, { functions: { goods: { headlights: true } } });
+    await said(shell, FUNCTIONS, {
+      functions: { goods: { headlights: true } },
+    });
     await said(shell, POWER, { power: "off" });
 
     button(shell, "headlights").click();
@@ -1215,7 +1219,9 @@ describe("what a person can switch", () => {
     await settled(shell);
 
     expect(switched()).toEqual([]);
-    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe("true");
+    expect(button(shell, "headlights").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
   });
 
   it("writes nothing with no broker answering", async () => {
@@ -1260,8 +1266,8 @@ describe("with the rails dead", () => {
     expect(release(shell).disabled).toBe(true);
   });
 
-  /** On the picker: Take, Take back and Force release publish nothing, and
-   *  the reason is on screen. */
+  /** On the picker: Take and Force release publish nothing, and the reason
+   *  is on screen. */
   it("takes nothing from the picker, and says why", async () => {
     const shell = await driving();
     await said(shell, ALLOCATION, {
@@ -1277,7 +1283,7 @@ describe("with the rails dead", () => {
     const before = written().length;
 
     for (const [train, kind] of [
-      ["shunter", "back"],
+      ["shunter", "take"],
       ["goods", "force"],
     ] as const) {
       expect(press(shell, train, kind)!.disabled).toBe(true);
@@ -1308,20 +1314,23 @@ describe("with the rails dead", () => {
 });
 
 /**
- * A tablet drives several trains side by side (#855): one column of driving
- * controls per train this page holds, as many across as the view's own width
- * fits (`columns`), and a take column on the right with the page's one clock
- * and the trains to take. All of it under the page's one throttle id.
+ * A row of throttles (ADR-0089): each a phone-sized panel with its own
+ * throttle id and at most one train, as many across as the view's own width
+ * fits (`panels`). A panel holding a train that no longer fits wraps; an
+ * empty one is dropped.
  *
  * The width is the view's, read with a `ResizeObserver`, so the observer is
  * stood in for and told the width a test wants.
  */
-describe("side by side", () => {
+describe("a row of throttles", () => {
   /** The observers the page has made, each with what it watches. */
   const watching: { report: ResizeObserverCallback; targets: Element[] }[] = [];
 
   class Watcher {
-    private readonly entry: { report: ResizeObserverCallback; targets: Element[] };
+    private readonly entry: {
+      report: ResizeObserverCallback;
+      targets: Element[];
+    };
     constructor(report: ResizeObserverCallback) {
       this.entry = { report, targets: [] };
       watching.push(this.entry);
@@ -1343,7 +1352,10 @@ describe("side by side", () => {
     const view = throttling(shell);
     for (const { report, targets } of watching) {
       if (!targets.includes(view)) continue;
-      const entry = { target: view, contentRect: { width } } as unknown as ResizeObserverEntry;
+      const entry = {
+        target: view,
+        contentRect: { width, height: 700 },
+      } as unknown as ResizeObserverEntry;
       report([entry], {} as ResizeObserver);
     }
     await settled(shell);
@@ -1355,14 +1367,6 @@ describe("side by side", () => {
   });
 
   afterEach(() => {
-    // Every frame these tests saw that names a throttle names this page's
-    // one: there is no id per column.
-    const ids = new Set(
-      written()
-        .map((one) => (one as { payload: { throttle?: unknown } }).payload.throttle)
-        .filter((id) => typeof id === "string"),
-    );
-    expect(ids.size).toBeLessThanOrEqual(1);
     vi.unstubAllGlobals();
   });
 
@@ -1374,227 +1378,208 @@ describe("side by side", () => {
     requests: [],
   };
 
-  /** The app at `width`, holding `trains` in the order `state/taken` first
-   *  named this page for each. */
-  async function holding(width: number, ...trains: string[]): Promise<TcApp> {
-    const shell = await driving();
-    await said(shell, ALLOCATION, THREE);
-    await wide(shell, width);
-    await taking(shell, trains[0]!);
-    const taken: Record<string, string> = {};
-    for (const train of trains) {
-      taken[train] = mine();
-      await said(shell, TAKEN, { taken: { ...taken } });
-    }
-    return shell;
+  /** The panels, in the order shown. */
+  function panels(shell: TcApp): HTMLElement[] {
+    return [
+      ...throttling(shell).renderRoot.querySelectorAll<HTMLElement>(
+        "section.panel",
+      ),
+    ];
   }
 
-  /** The trains the view has driving controls for, in the order shown. */
-  function driven(shell: TcApp): string[] {
-    return columns(shell).map((one) => one.cab!.train);
-  }
-
-  /** One train's driving controls. */
-  function column(shell: TcApp, train: string): TcDriving {
-    return columns(shell).find((one) => one.cab?.train === train)!;
-  }
-
-  function within<T extends Element>(shell: TcApp, train: string, selector: string): T {
-    return column(shell, train).renderRoot.querySelector<T>(selector)!;
-  }
-
-  /** The take column, `null` where the view has none. */
-  function take(shell: TcApp): HTMLElement | null {
-    return throttling(shell).renderRoot.querySelector<HTMLElement>("aside.take");
-  }
-
-  /** The trains the take column offers, in its order. */
-  function listed(shell: TcApp): string[] {
-    const list = take(shell)?.querySelector<TcTrainPicker>("tc-train-picker");
-    return [...(list?.renderRoot.querySelectorAll(".card > span.name") ?? [])].map(
-      (one) => one.textContent!.trim(),
+  /** What each panel shows: its train's name, or `picker`. */
+  function shown(shell: TcApp): string[] {
+    return panels(shell).map(
+      (one) =>
+        one.querySelector<TcDriving>("tc-driving")?.cab?.train ?? "picker",
     );
   }
 
-  /** How many clocks the whole view draws. */
-  function clocks(shell: TcApp): number {
-    return parts(shell, "tc-clock").length;
+  /** One panel's picker. */
+  function pickerIn(panel: HTMLElement): TcTrainPicker {
+    return panel.querySelector<TcTrainPicker>("tc-train-picker")!;
   }
 
-  const FULL = "no room for another train — release one";
+  /** One train's card in one panel's picker. */
+  function cardIn(panel: HTMLElement, train: string): HTMLElement {
+    return pickerIn(panel).renderRoot.querySelector<HTMLElement>(
+      `.card[data-train="${train}"]`,
+    )!;
+  }
 
-  it("draws a column per train held, in the order taken, and one clock", async () => {
-    const shell = await holding(1180, "goods", "coal");
-    expect(driven(shell)).toEqual(["goods", "coal"]);
-    expect(clocks(shell)).toBe(1);
-    expect(take(shell)!.querySelector("tc-clock")).not.toBeNull();
-    expect(take(shell)!.textContent).toContain("Take another train");
-  });
-
-  /** Not by name: `shunter` comes before `goods` only because it was taken
-   *  first. */
-  it("keeps the order state/taken first named this page for each", async () => {
-    const shell = await holding(1180, "shunter", "goods");
-    expect(driven(shell)).toEqual(["shunter", "goods"]);
-  });
-
-  /** The issue's 1180 px is two columns, which two trains fill: the list is
-   *  read where there is room for it. */
-  it("lists the other placed trains in the take column, as compact rows", async () => {
-    const shell = await holding(1920, "goods", "coal");
-    expect(listed(shell)).toEqual(["shunter"]);
-    expect(take(shell)!.querySelector("tc-train-picker")!.hasAttribute("compact")).toBe(true);
-  });
-
-  it("STOP in one column stops that column's train only", async () => {
-    const shell = await holding(1180, "goods", "coal");
+  /** Take pressed on `train` in panel `at`, and the id it named. */
+  async function takeIn(
+    shell: TcApp,
+    at: number,
+    train: string,
+  ): Promise<string> {
     const before = written().length;
-
-    within<HTMLButtonElement>(shell, "coal", "button.stop").click();
+    cardIn(panels(shell)[at]!, train)
+      .querySelector<HTMLButtonElement>("button.take")!
+      .click();
     await settled(shell);
+    const frame = written().slice(before)[0] as {
+      payload: { throttle: string };
+    };
+    return frame.payload.throttle;
+  }
 
-    expect(written().slice(before)).toEqual([
-      { topic: THROTTLE_WANTED, payload: { train: "coal", speed: 0, throttle: mine() } },
+  /** The app at `width` with `THREE` placed. */
+  async function laid(width: number): Promise<TcApp> {
+    const shell = await driving();
+    await said(shell, ALLOCATION, THREE);
+    await wide(shell, width);
+    return shell;
+  }
+
+  it("at 758 px is two pickers, each taking under its own throttle id", async () => {
+    const shell = await laid(758);
+    expect(shown(shell)).toEqual(["picker", "picker"]);
+    expect(panels(shell).map((one) => one.style.width)).toEqual([
+      "361px",
+      "361px",
     ]);
-  });
 
-  it("moving one column's lever drives its train only", async () => {
-    const shell = await holding(1180, "goods", "coal");
-    const lever = (train: string) => within<HTMLInputElement>(shell, train, "input.speed");
-    lever("goods").value = "0.3";
-    lever("goods").dispatchEvent(new Event("input", { bubbles: true }));
-    await settled(shell);
     const before = written().length;
-
-    lever("coal").value = "0.6";
-    lever("coal").dispatchEvent(new Event("input", { bubbles: true }));
-    await settled(shell);
-
+    const second = await takeIn(shell, 1, "goods");
     expect(written().slice(before)).toEqual([
-      { topic: THROTTLE_WANTED, payload: { train: "coal", speed: 0.6, throttle: mine() } },
+      { topic: TAKE_WANTED, payload: { train: "goods", throttle: second } },
     ]);
-    expect(within(shell, "goods", ".reading").textContent!.trim()).toBe("30 %");
-    expect(within(shell, "coal", ".reading").textContent!.trim()).toBe("60 %");
+    const first = await takeIn(shell, 0, "shunter");
+    expect(first).not.toBe(second);
+
+    await said(shell, TAKEN, { taken: { goods: second } });
+
+    expect(shown(shell)).toEqual(["picker", "goods"]);
+    const held = cardIn(panels(shell)[0]!, "goods");
+    expect(held.classList.contains("faded")).toBe(true);
+    expect(held.textContent).toContain("held by another throttle");
+    expect(held.querySelector("button.take")).toBeNull();
   });
 
-  it("Release in one column gives that train back, and its column goes once taken back", async () => {
-    const shell = await holding(1180, "goods", "coal");
-    const before = written().length;
-
-    within<HTMLButtonElement>(shell, "goods", "button.release").click();
-    await settled(shell);
-
-    expect(written().slice(before)).toEqual([
-      { topic: TAKE_WANTED, payload: { train: "goods", throttle: null } },
-    ]);
-    expect(driven(shell)).toEqual(["goods", "coal"]);
-
-    await said(shell, TAKEN, { taken: { coal: mine() } });
-
-    expect(driven(shell)).toEqual(["coal"]);
-    expect(listed(shell)).toContain("goods");
+  it("at 390 px is one panel, exactly 390 px wide", async () => {
+    const shell = await laid(390);
+    expect(panels(shell)).toHaveLength(1);
+    expect(panels(shell)[0]!.style.width).toBe("390px");
+    expect(
+      throttling(shell).renderRoot.querySelector("main.single"),
+    ).not.toBeNull();
   });
 
-  it("says there is no room, and offers no Take, once the columns are full", async () => {
-    const shell = await holding(1180, "goods", "coal");
-    expect(take(shell)!.textContent).toContain(FULL);
-    expect(take(shell)!.querySelector("tc-train-picker")).toBeNull();
-    expect(listed(shell)).toEqual([]);
+  /** The panel is the size of a phone held upright: the view's height,
+   *  clamped. */
+  it("is as tall as the view, less the margin side by side", async () => {
+    const shell = await laid(758);
+    expect(panels(shell)[0]!.style.height).toBe("684px");
+    await wide(shell, 390);
+    expect(panels(shell)[0]!.style.height).toBe("700px");
   });
 
-  it("at 820 px holding one, says there is no room", async () => {
-    const shell = await holding(820, "goods");
-    expect(take(shell)!.textContent).toContain(FULL);
-  });
-
-  /** A phone: no take column, and the train's own controls carry the clock. */
-  it("at 390 px holding one, has no take column", async () => {
-    const shell = await holding(390, "goods");
-    expect(take(shell)).toBeNull();
-    expect(driven(shell)).toEqual(["goods"]);
-    expect(clocks(shell)).toBe(1);
-    expect(within(shell, "goods", "tc-clock")).not.toBeNull();
-  });
-
-  /** Nothing is released or hidden because the view narrowed. */
-  it("narrowing to a phone publishes nothing and shows both, one below the other", async () => {
-    const shell = await holding(1180, "goods", "coal");
+  /** Nothing is released because the view narrowed: the empty panel goes,
+   *  the holding one stays. */
+  it("narrowing 758 → 390 px keeps the panel holding a train, and publishes nothing", async () => {
+    const shell = await laid(758);
+    const second = await takeIn(shell, 1, "goods");
+    await said(shell, TAKEN, { taken: { goods: second } });
+    const driven = panels(shell)[1]!.querySelector("tc-driving");
     const before = written().length;
 
     await wide(shell, 390);
 
+    expect(shown(shell)).toEqual(["goods"]);
+    expect(panels(shell)[0]!.querySelector("tc-driving")).toBe(driven);
     expect(written().length).toBe(before);
-    expect(driven(shell)).toEqual(["goods", "coal"]);
-    expect(take(shell)).toBeNull();
-    expect(throttling(shell).renderRoot.querySelector("main.stacked")).not.toBeNull();
-    // The first train's controls carry the clock, the others do not.
-    expect(clocks(shell)).toBe(1);
-    expect(within(shell, "goods", "tc-clock")).not.toBeNull();
   });
 
-  /** Where one train's controls stand: its slider and its reverser. */
-  function positions(shell: TcApp, train: string): { slider: string; reverse: boolean } {
-    return {
-      slider: within<HTMLInputElement>(shell, train, "input.speed").value,
-      reverse: within(shell, train, "button.reverse").getAttribute("aria-pressed") === "true",
-    };
-  }
+  it("narrowing 758 → 390 px with both holding keeps both, one below the other", async () => {
+    const shell = await laid(758);
+    const first = await takeIn(shell, 0, "shunter");
+    const second = await takeIn(shell, 1, "goods");
+    await said(shell, TAKEN, { taken: { shunter: first, goods: second } });
+    const before = written().length;
 
-  /** Reverse pressed, then the slider moved: a train running tail first. */
-  async function running(shell: TcApp, train: string, speed: number, reverse: boolean) {
-    if (reverse) within<HTMLButtonElement>(shell, train, "button.reverse").click();
+    await wide(shell, 390);
+
+    expect(shown(shell)).toEqual(["shunter", "goods"]);
+    expect(
+      throttling(shell).renderRoot.querySelector("main.single"),
+    ).not.toBeNull();
+    expect(written().length).toBe(before);
+  });
+
+  /** Widening again adds the lowest slots not shown, and so the ids they
+   *  were minted under. */
+  it("widening again adds an empty panel beside the one held", async () => {
+    const shell = await laid(758);
+    const second = await takeIn(shell, 1, "goods");
+    await said(shell, TAKEN, { taken: { goods: second } });
+    await wide(shell, 390);
+
+    await wide(shell, 758);
+
+    expect(shown(shell)).toEqual(["goods", "picker"]);
+    expect(await takeIn(shell, 1, "coal")).not.toBe(second);
+  });
+
+  /** Every panel holding a train has its own clock. */
+  it("gives each panel holding a train its own clock", async () => {
+    const shell = await laid(1118);
+    const first = await takeIn(shell, 0, "shunter");
+    const second = await takeIn(shell, 1, "goods");
+    await said(shell, TAKEN, { taken: { shunter: first, goods: second } });
+    expect(parts(shell, "tc-clock")).toHaveLength(2);
+  });
+
+  it("drives each panel's train under its own id", async () => {
+    const shell = await laid(758);
+    const first = await takeIn(shell, 0, "shunter");
+    const second = await takeIn(shell, 1, "goods");
+    await said(shell, TAKEN, { taken: { shunter: first, goods: second } });
+    const controls = (at: number) =>
+      panels(shell)[at]!.querySelector<TcDriving>("tc-driving")!;
+    const before = written().length;
+
+    controls(1)
+      .renderRoot.querySelector<HTMLButtonElement>("button.stop")!
+      .click();
     await settled(shell);
-    const lever = within<HTMLInputElement>(shell, train, "input.speed");
-    lever.value = String(speed);
-    lever.dispatchEvent(new Event("input", { bubbles: true }));
-    await settled(shell);
-  }
+
+    expect(written().slice(before)).toEqual([
+      {
+        topic: THROTTLE_WANTED,
+        payload: { train: "goods", speed: 0, throttle: second },
+      },
+    ]);
+  });
 
   /** A rotated phone keeps the train's controls where they were: recreated,
    *  they would show Forward under a train running tail first (#876). */
   it("keeps a train's controls, slider and reverser through a width change", async () => {
-    const shell = await holding(390, "goods");
-    await running(shell, "goods", 0.5, true);
+    const shell = await laid(390);
+    const id = await takeIn(shell, 0, "goods");
+    await said(shell, TAKEN, { taken: { goods: id } });
+    const same = columns(shell)[0]!;
+    same.renderRoot.querySelector<HTMLButtonElement>("button.reverse")!.click();
+    await settled(shell);
+    const speed =
+      same.renderRoot.querySelector<HTMLInputElement>("input.speed")!;
+    speed.value = "0.5";
+    speed.dispatchEvent(new Event("input", { bubbles: true }));
+    await settled(shell);
     const before = written().length;
-    const same = column(shell, "goods");
 
-    await wide(shell, 844);
-    expect(take(shell)).not.toBeNull();
-    expect(column(shell, "goods")).toBe(same);
-    expect(positions(shell, "goods")).toEqual({ slider: "0.5", reverse: true });
-
+    await wide(shell, 1118);
+    expect(columns(shell)[0]).toBe(same);
     await wide(shell, 390);
-    expect(take(shell)).toBeNull();
-    expect(column(shell, "goods")).toBe(same);
-    expect(positions(shell, "goods")).toEqual({ slider: "0.5", reverse: true });
+    expect(columns(shell)[0]).toBe(same);
+
+    expect(speed.value).toBe("0.5");
+    expect(
+      same.renderRoot
+        .querySelector("button.reverse")!
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(written().length).toBe(before);
-  });
-
-  it("keeps each train's positions on its own column through a phone and back", async () => {
-    const shell = await holding(1180, "goods", "coal");
-    await running(shell, "goods", 0.3, true);
-    await running(shell, "coal", 0.6, false);
-
-    await wide(shell, 390);
-    await wide(shell, 1180);
-
-    expect(driven(shell)).toEqual(["goods", "coal"]);
-    expect(positions(shell, "goods")).toEqual({ slider: "0.3", reverse: true });
-    expect(positions(shell, "coal")).toEqual({ slider: "0.6", reverse: false });
-  });
-
-  it("puts trains beyond the columns that fit on a further row", async () => {
-    const shell = await holding(820, "goods", "coal");
-    expect(driven(shell)).toEqual(["goods", "coal"]);
-    const trains = throttling(shell).renderRoot.querySelector<HTMLElement>(".trains")!;
-    expect(trains.style.getPropertyValue("--columns")).toBe("1");
-  });
-
-  it("is the picker, full width, while it holds no train", async () => {
-    const shell = await driving();
-    await wide(shell, 1920);
-    expect(take(shell)).toBeNull();
-    expect(picker(shell)!.hasAttribute("compact")).toBe(false);
   });
 });
 
@@ -1605,7 +1590,10 @@ describe("the screen kept awake", () => {
 
   function woken(): void {
     lock = new FakeLock();
-    Object.defineProperty(navigator, "wakeLock", { value: lock, configurable: true });
+    Object.defineProperty(navigator, "wakeLock", {
+      value: lock,
+      configurable: true,
+    });
   }
 
   afterEach(() => {
@@ -1657,7 +1645,13 @@ describe("the screen kept awake", () => {
     return written().map((one) => {
       const frame = one as { topic: string; payload: Record<string, unknown> };
       return "throttle" in frame.payload
-        ? { ...frame, payload: { ...frame.payload, throttle: frame.payload.throttle && "mine" } }
+        ? {
+            ...frame,
+            payload: {
+              ...frame.payload,
+              throttle: frame.payload.throttle && "mine",
+            },
+          }
         : frame;
     });
   }

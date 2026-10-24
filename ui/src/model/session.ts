@@ -246,9 +246,6 @@ export class Session {
    *  names no railroad, and its rows are kept whichever one is joined. */
   widgetRows: ReadonlyMap<string, string> = new Map();
 
-  /** This page's throttle id, minted when the session is made and kept for
-   *  the life of the page: every take, speed and alive frame names it. */
-  readonly throttle = minted();
 
   /** The railroad the broker says it runs, `null` while it has not said —
    *  before the connection lands, and again after it has gone (#371). */
@@ -299,24 +296,12 @@ export class Session {
    *  every frame, so what one frame's answer is compared against is its
    *  text. */
   private saidCabs = "[]";
-  /** The timer saying `throttle_alive`, `null` while this throttle holds no
-   *  train. */
+  /** The timer saying `throttle_alive`, `null` while no throttle of this
+   *  page holds a train. */
   private alive: ReturnType<typeof setInterval> | null = null;
-  /** The train `state/taken` most recently named this throttle for on the
-   *  joined railroad, `null` where it has named it for none: the picker's
-   *  Take back. Kept whatever ended the hold. */
-  private last: string | null = null;
-  /** The trains the last `state/taken` row this session saw named this
-   *  throttle for, and the railroad that row was on: what tells a take from
-   *  a train already held, so a reconnect's replay of the same row moves
-   *  nothing. Empty on joining another railroad. */
-  private mine: { railroad: string | null; trains: ReadonlySet<string> } = {
-    railroad: null,
-    trains: new Set(),
-  };
-  /** The last trains as this page has kept them, by railroad: what is read
-   *  back where `sessionStorage` throws, for the life of the page. */
-  private readonly kept = new Map<string, string>();
+  /** This page's throttle ids, by the panel slot each was minted for, in
+   *  the order they were minted (`throttleFor`). */
+  private readonly throttles = new Map<number, string>();
 
   constructor(
     private readonly url: string,
@@ -486,8 +471,6 @@ export class Session {
     }
     this.leave();
     this.session = railroad;
-    this.last = recalled(railroad) ?? this.kept.get(railroad) ?? null;
-    if (this.mine.railroad !== railroad) this.mine = { railroad, trains: new Set() };
     this.held = early ?? [];
     this.settle();
     this.hooks.named(railroad);
@@ -550,11 +533,9 @@ export class Session {
     this.hooks.notify();
   }
 
-  /** One event applied to the model, the last train following a
-   *  `state/taken` row. */
+  /** One event applied to the model. */
   private applied(event: TraceEvent): void {
     this.panel!.apply(event);
-    if (event.event === "taken") this.remember();
   }
 
   // --- the presses ----------------------------------------------------------
@@ -659,14 +640,14 @@ export class Session {
   }
 
   /**
-   * Take a train in this throttle: one `take_wanted` naming the train and
-   * this page's id
-   * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+   * Take a train in a throttle: one `take_wanted` naming the train and the
+   * id of the panel it was pressed in (`throttleFor`,
+   * [ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
    * `layout` answers by publishing `state/taken`, and the throttle reads who
    * holds the train off that rather than off its own press (ADR-0035).
    */
-  pressTake(train: string): void {
-    this.send(takeWanted(train, this.throttle));
+  pressTake(train: string, throttle: string): void {
+    this.send(takeWanted(train, throttle));
   }
 
   /** Release a train: one `take_wanted` with `null`, which releases it
@@ -676,20 +657,20 @@ export class Session {
     this.send(takeWanted(train, null));
   }
 
-  /** A function button pressed: one `function_wanted` naming the train, this
-   *  page's id, the function by its catalogue name and whether to switch it
+  /** A function button pressed: one `function_wanted` naming the train, the
+   *  panel's throttle id, the function by its catalogue name and whether to switch it
    *  on. `layout` answers on `state/functions`, which the button reads, and
    *  drops a press from a throttle not holding the train (#849). */
-  pressFunction(train: string, fn: string, on: boolean): void {
-    this.send(functionWanted(train, this.throttle, fn, on));
+  pressFunction(train: string, throttle: string, fn: string, on: boolean): void {
+    this.send(functionWanted(train, throttle, fn, on));
   }
 
   /** The throttle turned: one `throttle_wanted` carrying the number the lever
-   *  shows and this page's id. One signed speed for the train — which
+   *  shows and the panel's throttle id. One signed speed for the train — which
    *  locomotive it reaches, and which way round that one stands, is
    *  `layout`'s (GLOSSARY.md, **Throttle**). */
-  pressThrottle(train: string, speed: number): void {
-    this.send(throttleWanted(train, speed, this.throttle));
+  pressThrottle(train: string, speed: number, throttle: string): void {
+    this.send(throttleWanted(train, speed, throttle));
   }
 
   /** Turn a train round where it stands, from the throttle: the same
@@ -722,6 +703,28 @@ export class Session {
   }
 
   // --- what it answers ------------------------------------------------------
+
+  /**
+   * The throttle id of the throttle view's panel `slot`: minted on the first
+   * call for that slot and kept for the life of the page, so every take,
+   * speed, function and alive frame from one panel names the same id and
+   * each panel's differs (ADR-0089). A train held by the panel beside it is
+   * held by another throttle.
+   */
+  throttleFor(slot: number): string {
+    let id = this.throttles.get(slot);
+    if (id === undefined) {
+      id = minted();
+      this.throttles.set(slot, id);
+    }
+    return id;
+  }
+
+  /** Whether `throttle` is one this page minted: what tells the app a train
+   *  is held here, for the screen's wake lock. */
+  ours(throttle: string | null): boolean {
+    return throttle !== null && [...this.throttles.values()].includes(throttle);
+  }
 
   /** The trains the railroad owns, as far as a view shows them: none with no
    *  session joined, as `leave` makes it, a page that has left a session
@@ -794,48 +797,29 @@ export class Session {
       this.saidCabs = written;
       this.cabs = driving;
     }
-    this.beat(driving.some(({ taken }) => taken === "here"));
+    this.beat(this.holding.length > 0);
   }
 
-  /** `throttle_alive` once every `ALIVE_MS` while `state/taken` names this
-   *  throttle for a train on the layout, and silence otherwise. Started on
-   *  the row and not on the press: `layout` counts the take itself as hearing
-   *  from this throttle. */
+  /** This page's throttle ids that `state/taken` names for a train on the
+   *  layout, in the order they were minted, each once. */
+  private get holding(): string[] {
+    const named = new Set(this.cabs.map(({ holder }) => holder));
+    return [...this.throttles.values()].filter((id) => named.has(id));
+  }
+
+  /** `throttle_alive` once every `ALIVE_MS` for each of this page's ids that
+   *  `state/taken` names for a train on the layout, and silence while it
+   *  names none. Started on the row and not on the press: `layout` counts
+   *  the take itself as hearing from that throttle. Each tick reads the ids
+   *  afresh, so an id the row drops goes quiet and the others go on. */
   private beat(holding: boolean): void {
     if (holding && this.alive === null) {
-      this.alive = setInterval(() => this.send(throttleAlive(this.throttle)), ALIVE_MS);
+      this.alive = setInterval(() => {
+        for (const id of this.holding) this.send(throttleAlive(id));
+      }, ALIVE_MS);
     } else if (!holding && this.alive !== null) {
       clearInterval(this.alive);
       this.alive = null;
-    }
-  }
-
-  /** The last train moved on, where a `state/taken` row names this throttle
-   *  for a train the previous row it saw on this railroad did not: the first
-   *  such by name, where it adds several. A row that adds none — a Release,
-   *  the timeout, a force release from elsewhere, a reconnect's replay of the
-   *  trains already held — leaves it where it was. */
-  private remember(): void {
-    const railroad = this.session;
-    const model = this.panel;
-    if (railroad === null || model === null) return;
-    const trains = new Set(
-      [...model.taken()]
-        .filter(([, throttle]) => throttle === this.throttle)
-        .map(([train]) => train),
-    );
-    const before = this.mine.railroad === railroad ? this.mine.trains : new Set<string>();
-    this.mine = { railroad, trains };
-    const added = [...trains]
-      .filter((train) => !before.has(train))
-      .sort((one, other) => one.localeCompare(other));
-    if (added.length === 0) return;
-    this.last = added[0]!;
-    this.kept.set(railroad, this.last);
-    try {
-      globalThis.sessionStorage.setItem(LAST + railroad, this.last);
-    } catch {
-      // Storage refused, or there is none: the page keeps it in `kept`.
     }
   }
 
@@ -862,8 +846,7 @@ export class Session {
    * Worked out here because everything it is made of is here — the run's
    * picture, which throttle `layout` says holds each train, the moves
    * granted, the scheduler's facing, the dispatcher's aspects and the
-   * railroad's roster, and the last train this throttle held, which only
-   * this page knows. Where a person has put the slider is theirs, and lives
+   * railroad's roster. Where a person has put the slider is theirs, and lives
    * in the view with the pointer.
    */
   private get driving(): Cab[] {
@@ -873,7 +856,6 @@ export class Session {
     return cabs({
       placed,
       taken: model.taken(),
-      throttle: this.throttle,
       functions: model.functions(),
       granted: model.granted(),
       noses: model.noses(),
@@ -883,23 +865,7 @@ export class Session {
         placed.filter(({ train }) => model.inFlight(train)).map(({ train }) => train),
       ),
       stock: this.owned,
-      last: this.last,
     });
-  }
-}
-
-/** Where the last train a throttle held is kept, per railroad: the tab's
- *  `sessionStorage`, so a second app in the same tab finds it, and nothing
- *  outlives the tab (ui/THROTTLE.md). */
-export const LAST = "tc49.throttle.last.";
-
-/** The last train kept for `railroad` in `sessionStorage`, `undefined`
- *  where storage throws — refused, or a world with none. */
-function recalled(railroad: string): string | null | undefined {
-  try {
-    return globalThis.sessionStorage.getItem(LAST + railroad);
-  } catch {
-    return undefined;
   }
 }
 

@@ -2,16 +2,14 @@
  * One train's driving controls on the throttle view (ui/THROTTLE.md), laid
  * out as arrangement A ([#852](https://github.com/rails49/control/issues/852)):
  * what the train is reading at the top, its picture whole below that, the
- * reverser, its functions, Turn around and — where the view asks for it — the
- * clock below on the left, and the speed, the slider and STOP below on the
- * right, where a right thumb is.
+ * reverser, its functions, Turn around and the clock below on the left, and
+ * the speed, the slider and STOP below on the right, where a right thumb is.
  *
- * `tc-throttle` draws one for each train this page's throttle holds
- * ([#855](https://github.com/rails49/control/issues/855)), and each owns its
- * own train's slider and reverser: they are the person's and not the bus's,
- * so they live with the pointer that moves them. Every press names this
- * column's train and no other, and goes to the app as an event, exactly as
- * the band's power presses do.
+ * `tc-throttle` draws one in each panel whose throttle holds a train
+ * (ADR-0089), and each owns its own train's slider and reverser: they are the
+ * person's and not the bus's, so they live with the pointer that moves them.
+ * Every press names this panel's train and its throttle id and no other, and
+ * goes to the app as an event, exactly as the band's power presses do.
  *
  * **The speed is in the train's frame.** The slider runs 0 to 1 and the
  * reverser gives it its sign: Forward nose first, `+`, Reverse tail first,
@@ -31,21 +29,23 @@ import type { Power } from "../model/trace.js";
 import "./tc-clock.js";
 import { drivingStyles } from "./tc-driving.styles.js";
 
-/** The slider moved: the train it is about, and the speed it now asks for,
- *  signed by the reverser. The view writes nothing itself — the session is
- *  the app's, and the app carries the press there as it carries the band's
- *  (ADR-0074's path, ui/THROTTLE.md). A take and a release carry the train
- *  alone, as `take-wanted` and `release-wanted`. */
+/** The slider moved: the train it is about, the speed it now asks for,
+ *  signed by the reverser, and the panel's throttle id. The view writes
+ *  nothing itself — the session is the app's, and the app carries the press
+ *  there as it carries the band's (ADR-0074's path, ui/THROTTLE.md). A
+ *  release carries the train alone, as `release-wanted`. */
 export interface ThrottleWanted {
   train: string;
   speed: number;
+  throttle: string;
 }
 
-/** A function button pressed: the train, the function by its catalogue
- *  name, and `on` the opposite of what the button shows — the one the app
- *  carries to `Session.pressFunction`. */
+/** A function button pressed: the train, the panel's throttle id, the
+ *  function by its catalogue name, and `on` the opposite of what the button
+ *  shows — the one the app carries to `Session.pressFunction`. */
 export interface FunctionWanted {
   train: string;
+  throttle: string;
   function: string;
   on: boolean;
 }
@@ -63,10 +63,14 @@ const STEP = 0.05;
 export class TcDriving extends LitElement {
   static override styles = drivingStyles;
 
-  /** The train this column drives, as the session last answered for it:
-   *  one `state/taken` names this throttle for. Read afresh on every frame —
-   *  the bus moves under a person holding a slider. */
+  /** The train this panel drives, as the session last answered for it:
+   *  one `state/taken` names this panel's throttle for. Read afresh on every
+   *  frame — the bus moves under a person holding a slider. */
   @property({ attribute: false }) cab: Cab | null = null;
+
+  /** The id of the panel's throttle (`Session.throttleFor`), which every
+   *  speed and function press names. */
+  @property() throttle = "";
 
   /** Whether a train may move at all, `null` while no session is joined or
    *  before the layout has said (ADR-0041). The controls are dead while it
@@ -86,12 +90,8 @@ export class TcDriving extends LitElement {
    *  `null` or `""` while none is loaded. */
   @property() railroad: string | null = null;
 
-  /** Whether this column draws the page's one clock. The view has one, and
-   *  says which of its parts carries it. */
-  @property({ type: Boolean }) clock = false;
-
   /** Where the slider stands, as the person left it: 0 through 1. It is the
-   *  column's own and not the bus's — nothing publishes a throttle's position
+   *  panel's own and not the bus's — nothing publishes a throttle's position
    *  back — so it is what this shows and, signed, what it last sent. */
   @state() private slider = 0;
 
@@ -133,7 +133,7 @@ export class TcDriving extends LitElement {
     if (!changed.has("cab")) return;
     const cab = this.cab;
     const was = changed.get("cab") as Cab | null | undefined;
-    // A column is drawn afresh for each take, so its train does not change
+    // A panel draws these afresh for each take, so its train does not change
     // under it; were it to, the slider starts at rest and the reverser at
     // Forward, a position carried over being a speed this one was never
     // driven at.
@@ -200,7 +200,7 @@ export class TcDriving extends LitElement {
       <section class="below">
         <div class="left">
           ${this.reverser()} ${this.functions(cab)} ${this.turn(cab)}
-          ${this.clock ? html`<tc-clock></tc-clock>` : nothing}
+          <tc-clock></tc-clock>
         </div>
         <div class="right">${this.driving(cab)}</div>
       </section>
@@ -225,7 +225,8 @@ export class TcDriving extends LitElement {
 
   /**
    * The camera car's live picture, in the thumbnail's place, while all three
-   * hold: this view is current, this throttle holds the train, and the train
+   * hold: this view is current, `state/taken` names this panel's throttle
+   * for the train, and the train
    * carries a camera. Otherwise the page holds no connection to the camera
    * app (ui/THROTTLE.md). A stream that fails, ends or stalls takes it away
    * (`model/picture.ts`), and the thumbnail shows until it is asked for again
@@ -260,11 +261,18 @@ export class TcDriving extends LitElement {
 
   /** The camera app's route for the train held, `null` where the picture is
    *  not to be drawn. Track power does not matter: a train standing dark is
-   *  still worth seeing. A column taken out of the page still updates, so
-   *  it asks for nothing. */
+   *  still worth seeing. Controls taken out of the page still update, so
+   *  they ask for nothing. */
   private get watched(): string | null {
     const cab = this.cab;
-    if (!this.isConnected || !this.current || cab === null || !cab.camera || !this.railroad) {
+    if (
+      !this.isConnected ||
+      !this.current ||
+      cab === null ||
+      cab.holder !== this.throttle ||
+      !cab.camera ||
+      !this.railroad
+    ) {
       return null;
     }
     return pictureUrl(this.railroad, cab.train, this.attempt);
@@ -487,6 +495,7 @@ export class TcDriving extends LitElement {
     this.say<ThrottleWanted>("throttle-wanted", {
       train,
       speed: this.reverse && speed !== 0 ? -speed : speed,
+      throttle: this.throttle,
     });
   }
 
@@ -494,7 +503,12 @@ export class TcDriving extends LitElement {
    *  what the button shows. The button waits for `state/functions`. */
   private switching(train: string, name: string, on: boolean): void {
     if (!this.live || this.cab?.train !== train) return;
-    this.say<FunctionWanted>("function-wanted", { train, function: name, on });
+    this.say<FunctionWanted>("function-wanted", {
+      train,
+      throttle: this.throttle,
+      function: name,
+      on,
+    });
   }
 
   /** Turn the train round where it stands: the same `reversal_wanted` the run

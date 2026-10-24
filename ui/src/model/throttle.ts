@@ -13,18 +13,15 @@
  *
  * It holds no slider position: that is the person's, and it lives in the
  * component with the pointer that moves it. Nor is a train chosen without
- * being taken — the one driven is the one `state/taken` names this throttle
- * for.
+ * being taken — the one a panel drives is the one `state/taken` names that
+ * panel's throttle for. Which throttle that is, is the panel's to compare: a
+ * cab names the holder's id and no more (ADR-0089).
  */
 
 import type { Aspect } from "../render/artwork.js";
 import { blockOf, endOf, type Ahead, type EndRef, type Placed } from "./panel.js";
 import type { Fn, TrainDoc } from "./store.js";
 import type { Power } from "./trace.js";
-
-/** Who holds a train, as this page sees it: this throttle, another one, or
- *  none (`null`). */
-export type Holder = "here" | "elsewhere" | null;
 
 /** One thing a person can switch on a train: its catalogue name, and whether
  *  `state/functions` says it is on. Never what the person last pressed — a
@@ -37,7 +34,7 @@ export interface CabFunction {
 /**
  * One train, as a throttle shows it.
  *
- * `taken` is `layout`'s word and never the view's: a train is taken when
+ * `holder` is `layout`'s word and never the view's: a train is taken when
  * `state/taken` names a throttle for it and not when somebody pressed for it
  * (ui/THROTTLE.md).
  */
@@ -46,7 +43,10 @@ export interface Cab {
   /** The block it stands in, `null` while it is crossing a transit and
    *  stands in none — on the layout all the same (GLOSSARY.md, **Placed**). */
   block: string | null;
-  taken: Holder;
+  /** The id of the throttle `state/taken` names for it, `null` where it
+   *  names none. Which panel that is, if any, each panel works out by
+   *  comparing it with its own id (ADR-0089). */
+  holder: string | null;
   /** Whether it has a move outstanding: granted and not yet at the sensor it
    *  ends at. The slider drives the train with or without one (ADR-0081), and
    *  goes to rest when one ends, which is where `layout` writes `0.0`. */
@@ -83,9 +83,6 @@ export interface Cab {
    *  `state/functions` has it. Empty where its cars declare none, which is
    *  most of the stock a railroad owns. */
   functions: readonly CabFunction[];
-  /** Whether it is the train this throttle last held, standing free on the
-   *  layout: the one the picker offers first, as Take back (ui/THROTTLE.md). */
-  last: boolean;
 }
 
 /** What the throttle is worked out from: the run's picture, which throttle
@@ -97,8 +94,6 @@ export interface Driving {
   placed: readonly Placed[];
   /** train → the id of the throttle holding it (`state/taken`). */
   taken: ReadonlyMap<string, string>;
-  /** This page's throttle id, which says which of those is this one. */
-  throttle: string;
   /** train → function name → on (`state/functions`); a name it does not
    *  give is off. */
   functions: ReadonlyMap<string, ReadonlyMap<string, boolean>>;
@@ -110,10 +105,6 @@ export interface Driving {
   /** The trains with a request in flight, as the run's picture has it. */
   inFlight: ReadonlySet<string>;
   stock: Record<string, TrainDoc>;
-  /** The train `state/taken` most recently named this throttle for, `null`
-   *  where it has named it for none. The session keeps it; this only puts
-   *  its cab first. */
-  last: string | null;
 }
 
 /**
@@ -128,16 +119,11 @@ export interface Driving {
  * A train the picture has and the roster does not still gets a cab, with
  * nothing to switch: it is on the layout, and a view that hid it would hide
  * the thing the operator can see — the same rule the roster pane keeps.
- *
- * One train goes ahead of the order: the last one this throttle held, while
- * it is placed and no throttle holds it, marked `last` — the picker's Take
- * back. Held by anybody, it takes its place by name like the others.
  */
 export function cabs(driving: Driving): Cab[] {
   const {
     placed,
     taken,
-    throttle,
     functions,
     granted,
     noses,
@@ -145,17 +131,15 @@ export function cabs(driving: Driving): Cab[] {
     ahead,
     inFlight,
     stock,
-    last,
   } = driving;
-  const all: Cab[] = [...placed]
+  return [...placed]
     .sort((one, other) => one.train.localeCompare(other.train))
     .map(({ train, block }) => {
       const nose = noses.get(train) ?? null;
-      const holder = taken.get(train);
       return {
         train,
         block,
-        taken: holder === undefined ? null : holder === throttle ? "here" : "elsewhere",
+        holder: taken.get(train) ?? null,
         granted: granted.has(train),
         nose,
         aspect: (nose === null ? undefined : aspects.get(nose)) ?? null,
@@ -165,10 +149,8 @@ export function cabs(driving: Driving): Cab[] {
         functions: switches(stock[train]?.functions ?? [], functions.get(train)),
         locomotive: stock[train]?.locomotive ?? null,
         camera: stock[train]?.camera === true,
-        last: train === last && holder === undefined,
       };
     });
-  return [...all.filter((cab) => cab.last), ...all.filter((cab) => !cab.last)];
 }
 
 /** A train's functions by name, each on where `state/functions` says so for
@@ -211,22 +193,54 @@ export function driveRefusal(linked: boolean, power: Power | null): string | nul
   return STILL[power];
 }
 
-/** The narrowest a train's column of driving controls is drawn, in CSS
- *  pixels: arrangement A with its slider upright beside it. */
-export const COLUMN_PX = 360;
+/** The widest a throttle's panel is drawn, in CSS pixels: a phone held
+ *  upright. A view no wider is one panel exactly its width. */
+export const PANEL_PX = 440;
 
-/** The width of the take column, the clock and the trains to take. */
-export const TAKE_PX = 260;
+/** The narrowest a panel is drawn side by side with another. */
+const NARROWEST_PX = 360;
 
-/** The gap between columns. */
-export const GAP_PX = 14;
+/** The gap between panels side by side. */
+const GAP_PX = 20;
+
+/** The margin round a row of panels, on each side. */
+const MARGIN_PX = 8;
+
+/** How a throttle view `width` pixels wide lays out its panels: how many
+ *  stand side by side, how wide each is, and whether it is `single` — a
+ *  phone, one panel the view's whole width with no margin and no gap. */
+export interface Panels {
+  count: number;
+  width: number;
+  single: boolean;
+}
 
 /**
- * How many trains' columns fit side by side beside the take column in a view
- * `width` pixels wide, never fewer than none (ui/THROTTLE.md,
- * [#855](https://github.com/rails49/control/issues/855)). None is a phone:
- * no take column, and each held train's controls one below the other.
+ * How many throttles a view `width` pixels wide shows side by side, and how
+ * wide each is (ui/THROTTLE.md, ADR-0089). Each panel is the size of a phone
+ * screen: no wider than `PANEL_PX`, and no narrower than 360 px beside
+ * another. Side by side the row has an 8 px margin, 20 px between panels, and
+ * is centred.
  */
-export function columns(width: number): number {
-  return Math.max(0, Math.floor((width - TAKE_PX) / (COLUMN_PX + GAP_PX)));
+export function panels(width: number): Panels {
+  if (width <= PANEL_PX) return { count: 1, width, single: true };
+  const content = width - 2 * MARGIN_PX;
+  const count = Math.max(1, Math.floor((content + GAP_PX) / (NARROWEST_PX + GAP_PX)));
+  return {
+    count,
+    width: Math.min(PANEL_PX, Math.floor((content - GAP_PX * (count - 1)) / count)),
+    single: false,
+  };
+}
+
+/** The shortest and tallest a panel is drawn, in CSS pixels. */
+const SHORTEST_PX = 560;
+const TALLEST_PX = 834;
+
+/** How tall a panel is in a view `height` pixels tall: the view's height,
+ *  less the row's margin top and bottom where it is not `single`, clamped
+ *  to 560–834 px. A view too short for it scrolls. */
+export function panelHeight(height: number, single: boolean): number {
+  const room = single ? height : height - 2 * MARGIN_PX;
+  return Math.min(TALLEST_PX, Math.max(SHORTEST_PX, room));
 }
