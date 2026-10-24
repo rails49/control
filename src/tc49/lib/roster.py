@@ -82,7 +82,7 @@ class Model:
     written by anything but a person, a note in the YAML is lost.
     """
 
-    name: str
+    model: str
     kind: str
     length: int
     functions: dict[str, Function] = field(default_factory=dict[str, Function])

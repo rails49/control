@@ -130,7 +130,7 @@ def _car(doc: Any, catalogue: Mapping[str, Model], where: str) -> Car:
     if model is None:
         raise ValueError(f"{where}: names unknown model {named!r}")
     return Car(
-        model.name,
+        model.model,
         _kind(spec["kind"], where) if "kind" in spec else model.kind,
         check_length(spec["length"], where) if "length" in spec else model.length,
         (
@@ -251,7 +251,7 @@ def _anonymous(model: Model) -> Car:
     two entries apart (ADR-0061).
     """
     return Car(
-        model.name,
+        model.model,
         model.kind,
         model.length,
         model.functions,
