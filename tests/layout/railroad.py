@@ -8,6 +8,7 @@ railroad that has some, with two ways through one connection and a point
 shared between them the way a real crossover shares one.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from tc49.layout import LayoutInterface
@@ -173,6 +174,7 @@ def wired(
     driving: str = AUTOMATIC,
     throttle_silence_s: float = THROTTLE_SILENCE_S,
     allocated: dict[str, str] | None = None,
+    reread: Callable[[], Roster | None] | None = None,
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
@@ -181,6 +183,9 @@ def wired(
     `allocated`: where the dispatcher's retained allocation says each train
     stands, held on the bus before the app is built, as a broker that
     outlived the last `layout` holds it (#960).
+
+    `reread`: how the app reads the roster again for a train `stock()` lacks,
+    the store's answer as `__main__` hands it over (ADR-0091, decision 2).
 
     Switched to `automatic` unless `driving` says otherwise. The app comes up
     `manual` (ADR-0079), where it writes no traction for a train no throttle
@@ -194,7 +199,13 @@ def wired(
     if allocated is not None:
         bus.publish(ALLOCATION, {"trains": allocated, "crossing": {}})
     app = LayoutInterface(
-        bus, railroad(), stock(), clock, settling_s, throttle_silence_s
+        bus,
+        railroad(),
+        stock(),
+        clock,
+        settling_s,
+        throttle_silence_s,
+        reread=reread,
     )
     bus.drain()
     if driving == AUTOMATIC:

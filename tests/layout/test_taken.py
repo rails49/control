@@ -20,6 +20,7 @@ from tc49.layout.interface import THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import MANUAL
+from tc49.lib.roster import Coupled, Roster, Train
 from tests.layout.railroad import (
     DEVICE_TRACK,
     POWER_WANTED,
@@ -35,6 +36,7 @@ from tests.layout.railroad import (
     faces,
     gives,
     heard,
+    loco,
     move,
     reads,
     settle,
@@ -429,3 +431,85 @@ def test_silence_releases_every_train_of_that_throttle_and_no_other() -> None:
         {"single": "t-1", "topped": "t-2"},
         {"topped": "t-2"},
     ]
+
+
+def test_a_take_of_a_train_made_since_the_build_drives_its_car() -> None:
+    """A train made in the stock view after the last build is on the store's
+    roster and nowhere else; the take reads the roster again, so the lever
+    reaches the car's address (ADR-0091, decision 2)."""
+    asked: list[None] = []
+
+    def reread() -> Roster | None:
+        asked.append(None)
+        return Roster("bench", {"railcar": Train((Coupled(loco("7")),))})
+
+    bus, _app, _clock = wired(driving=MANUAL, reread=reread)
+    energised(bus)
+    stand(bus, "railcar", "up_w")
+    faces(bus, railcar="up_w.A-to-B")
+    written = commanded(bus)
+    takes(bus, "railcar")
+    turns(bus, "railcar", 0.4)
+
+    assert speeds(written) == [("7", 0.4)]
+    assert len(asked) == 1
+
+
+def test_a_take_of_a_train_it_has_reads_no_roster() -> None:
+    """Only a train the interface lacks costs a store read: one it was built
+    with keeps its entry until the next build (ADR-0071)."""
+    asked: list[None] = []
+
+    def reread() -> Roster | None:
+        asked.append(None)
+        return Roster("bench", {"single": Train((Coupled(loco("9")),))})
+
+    bus, _app, _clock = wired(driving=MANUAL, reread=reread)
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    written = commanded(bus)
+    takes(bus, "single")
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", 0.4)]
+    assert asked == []
+
+
+def test_a_train_read_again_keeps_the_entry_of_one_it_has() -> None:
+    """The answer adds the trains the interface lacks and nothing else: a
+    train it has, changed in the store since, drives as it was built."""
+    store = Roster(
+        "bench",
+        {
+            "single": Train((Coupled(loco("9")),)),
+            "railcar": Train((Coupled(loco("7")),)),
+        },
+    )
+    bus, _app, _clock = wired(driving=MANUAL, reread=lambda: store)
+    energised(bus)
+    stand(bus, "railcar", "up_w")
+    stand(bus, "single", "up_e")
+    faces(bus, railcar="up_w.A-to-B", single="up_e.A-to-B")
+    takes(bus, "railcar")
+    written = commanded(bus)
+    takes(bus, "single")
+    turns(bus, "single", 0.4)
+
+    assert speeds(written) == [("3", 0.4)]
+
+
+def test_a_store_that_does_not_answer_applies_the_take_as_before() -> None:
+    """None is a store that did not answer: the roster stays as it was, the
+    take is held all the same, and the lever has no wheels to turn."""
+    bus, _app, _clock = wired(driving=MANUAL, reread=lambda: None)
+    energised(bus)
+    stand(bus, "railcar", "up_w")
+    faces(bus, railcar="up_w.A-to-B")
+    said = heard(bus, TAKEN)
+    written = commanded(bus)
+    takes(bus, "railcar")
+    turns(bus, "railcar", 0.4)
+
+    assert held_by(said)[-1] == {"railcar": "t-1"}
+    assert speeds(written) == []
