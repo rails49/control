@@ -93,36 +93,58 @@ panel's throttle for the train chosen in it**, never on the press: if a third
 throttle takes the train between the release and the take, `layout` drops the
 take and the selector stays open.
 
-**A panel's driving controls**, laid out as arrangement A at every width
-([#852](https://github.com/rails49/control/issues/852)), for that train only:
+**A panel's driving controls**, for that train only, laid out as
+[throttle-mockup.html](images/throttle-mockup.html) draws them, the same
+layout at every panel width, 360–440 px
+([#968](https://github.com/rails49/control/issues/968), ADR-0089):
 
-- **At the top, what the train is reading**: its name, the aspect, the block
-  it stands in or *crossing a transit*, and the blocks ahead.
-- **Below that, the train's picture**, with nothing laid over it but *LIVE*,
-  and pressing it opens the selector:
-  the same photo as its card, or its name — the thumbnail — and, where the
-  train carries a camera, the camera car's live picture in its place once a
-  frame comes (below), the whole frame shown
-  ([#956](https://github.com/rails49/control/issues/956)).
-- **Below, on the left**: the reverser, the train's functions, Turn around and
-  the clock.
-- **Below, on the right**: the speed, the slider and STOP, where a right thumb
+- **At the top, the train's picture**: the panel's full width, 16:9, with no
+  margin on any side, and pressing it opens the selector. It is the camera car's
+  live picture once a frame has come (below), otherwise the first
+  locomotive's photo — the same as its card — otherwise a train icon with the
+  train's name under it, each shown whole
+  ([#956](https://github.com/rails49/control/issues/956)). Laid over it: the
+  train's name in a small dark chip at the bottom left (not on the icon,
+  which has it already), *LIVE* at the top left while the camera picture
+  shows, and a *Trains* chip at the top right saying the picture opens the
+  selector.
+- **Below it, two columns**: the left `minmax(0, 1fr)`, the right
+  `clamp(104px, 30%, 136px)`, with a 12 px gap and padding.
+- **Left, at the top**: the clock in the first row, the blocks in the second,
+  and the signal beside both. Under them **the functions**.
+- **Right**: the speed, the reverser's way under it, the slider filling the
+  height left, and one 64 px button under the slider, where a right thumb
   holding a phone is.
 
-**The aspect at the end the reverser points the train to**, from
-`tc49/dispatch/state/aspects`: for Forward the end its facing names
+**The blocks** are three rows, each a small upper-case label and a block name
+in a monospace pill: *at* the block the train stands in, or *crossing a
+transit* while it stands in none; *next* the first block of its committed
+route past the one it stands in; *to* the last, the same block as *next* where
+there is one. *Next* and *to* wear the two colours a route is lit in on the run
+view: green where the dispatcher holds the lock and the train may move, cyan
+where the route is chosen and the claim has not been made yet. With no route
+ahead both read *—*. Neither colour is derived here; both are read off the
+same ledger the picture is lit from ([PANEL.md](PANEL.md)).
+
+**The signal** is a vertical three-lamp head, 50 × 156 px: green at the top,
+red in the middle, amber at the bottom, the Swiss order ([EDITOR.md](EDITOR.md)).
+*Stop* lights red, *caution* green and amber, *clear* green, and no aspect
+lights nothing. The aspect is the one at the end the reverser points the train
+to, from `tc49/dispatch/state/aspects`: for Forward the end its facing names
 (`tc49/schedule/state/facing`, GLOSSARY.md, **Facing**), for Reverse the
 block's other end. A person driving by hand reads the signal, and this is
 where they read it — the view derives no aspect, exactly as the panel derives
 none ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-The blocks the train's committed route has past the one it stands in wear the
-two colours a route is lit in on the run view: green where the dispatcher
-holds the lock and the train may move, cyan where the route is chosen and the
-claim has not been made yet. Neither is derived here either; both are read off
-the same ledger the picture is lit from ([PANEL.md](PANEL.md)).
+The housing is near-black and its rim follows the theme; the lamps keep their
+colours in either.
 
-**The speed** as a whole percentage of the train's maximum, with no sign, and
-under it *at rest*, *nose first* or *tail first*.
+**The speed** as a whole percentage of the train's maximum, 36 px, with no
+sign, and under it ▶ *Forward* or ◀ *Reverse*, the way the reverser is set.
+
+**The theme** is the page's: every colour comes from the palette and follows
+the system's light or dark setting. The clock and the signal are pictures of
+things on a railroad and keep their own colours; what is laid over the train's
+picture is light on a dark chip in either.
 
 **The clock**, `tc-clock`: the browser's local wall time as a station clock —
 a white face, twelve black bars, black hour and minute hands and a red second
@@ -201,18 +223,29 @@ railroad drives it.
 are live, granted move or not
 ([ADR-0081](../adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)):
 a person at a platform can back a train up a few centimetres without asking
-for a move. It runs from 0 at the bottom to 1 at the top in steps of 0.05, and
-dragging it does not scroll the page. Leaving the block is the person's
-responsibility; nothing stops a held train at its block's ends.
+for a move. It runs from 0 at the bottom to 1 at the top in steps of 0.01, with
+21 tick marks every 5 % that get longer toward the top, those at or below the
+value in the accent colour. It is not a native range: **dragging moves the
+value by the distance the finger travels** over the track's usable height, so
+a touch moves nothing and does not jump the value, and the drag does not
+scroll the page. The arrow keys move it 0.01, PageUp and PageDown 0.1. Leaving
+the block is the person's responsibility; nothing stops a held train at its
+block's ends.
 
-**The reverser** is two presses, Forward and Reverse, both shown and the
-current one pressed (GLOSSARY.md, **Reverser**). Forward drives the train nose
-first, Reverse tail first; it turns neither the facing nor any car. It is live
-under the slider's conditions **and only with the slider at 0**
-([ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)): a flip
-at speed reverses a rolling train, and behind a long one cars can leave the
-rails. Switching it sends nothing; the next slider input carries the new
-sign. It is Forward on every take.
+**The button under the slider** is the stop and the reverser, by where the
+slider stands, since the reverser moves only with the slider at 0
+([ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md)):
+
+- **Above 0**, a white square on red: the stop. One press puts the slider to 0
+  and publishes `0`, and leaves the reverser where it is, because it is the
+  control a person reaches for when something is wrong and sliding back
+  through every speed between is not that.
+- **At 0**, ▶ with the reverser at Forward and ◀ at Reverse: a press flips the
+  reverser (GLOSSARY.md, **Reverser**) and sends nothing; the next slider
+  input carries the new sign. Forward drives the train nose first, Reverse
+  tail first; it turns neither the facing nor any car. A flip at speed would
+  reverse a rolling train, and behind a long one cars can leave the rails,
+  which is why it is offered only here. It is Forward on every take.
 
 **The speed is one signed number for the train.** Each slider input publishes
 one `tc49/layout/throttle_wanted` `{train, speed}`: the slider's value, signed
@@ -243,20 +276,10 @@ slider where it was.
 What is on screen is what went on the bus: the slider publishes the value it
 is now showing, and the percentage above it is that value.
 
-**STOP is one gesture.** It puts the slider to 0 and publishes `0`, and leaves
-the reverser where it is, because it is the control a person reaches for when
-something is wrong and sliding back through every speed between is not that.
-
-**Turn it round.** A control publishing `tc49/schedule/reversal_wanted`,
-`{train}` — the same gesture the run view's right-click menu writes — offered
-**only while the slider is at zero**: flipping the facing under a moving train
-would reverse it on the spot. It is greyed while that train has a request in
-flight, which is the run view's own rule about the same flip and is here for
-the same reason: the request departs the end the facing named when it was
-composed, so a flip under it leaves the train pointing one way and leaving the
-other ([#295](https://github.com/rails49/control/issues/295)). After a flip the
-same reverser drives the train the other way physically, which is the point
-of working in the train's frame.
+**The throttle does not turn a train round.** Facing is the scheduler's, set
+where requests are composed, in the run view's menu
+(`tc49/schedule/reversal_wanted`, ADR-0089). The same reverser drives a train
+the other way physically, which is the point of working in the train's frame.
 
 **The functions** of the train's own cars, by the names the catalogue gives
 them and by no number, from `GET /rosters/<railroad>/trains` — a train's functions
@@ -266,9 +289,9 @@ one bit on the wire, so there is no value list to draw a chooser from
 ([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)). A train whose cars declare none shows none,
 which is most of the stock a railroad owns.
 
-The first two always show. With three or more, a `>>` follows them; pressing
-it shows the rest below, in the same order, and pressing it again hides them.
-It is closed whenever a train is taken.
+All of them show, two across, every button at least 50 px high, in the left
+column under the blocks; where they do not fit, the function area scrolls and
+nothing else does.
 
 **Each button shows what `layout` says**: on or off is read from
 `tc49/layout/state/functions`, which maps train to function name to boolean
@@ -293,7 +316,10 @@ nothing.
 **Everything is dead while the rails are not live.** With
 `tc49/layout/state/power` anything but `on`, or with no session answering, no
 gesture can be sent from this view and the reason stands where the controls
-are, on the selector, as a line under its header, and on the cab, as `STILL` in `ui/src/model/throttle.ts` has them: *the railroad is
+are, on the selector, as a line under its header, and on the driving controls,
+in a box over the bottom of the area below the picture, with the functions and
+the slider column dimmed and the blocks, the clock and the signal still
+readable, as `STILL` in `ui/src/model/throttle.ts` has them: *the railroad is
 draining — switch it on to drive* and *the track has no power — switch it on
 to drive*, or *no broker answering — is the bus running?* with no session
 answering
@@ -303,11 +329,11 @@ every control on the cab: they are drawn dead with `aria-disabled` and stay
 pressable, so the press reaches the guard that sends nothing. Reading what each train is and what it faces goes on
 working: reading is not gesturing.
 
-**Each panel acts on its own train.** STOP publishes `throttle_wanted`
+**Each panel acts on its own train.** The stop publishes `throttle_wanted`
 `{train, speed: 0, throttle}` for that panel's train under its id only, Release
-`take_wanted` `{train, throttle: null}` for it only, and the slider, the
-reverser and Turn around act on it only. The panel shows the selector alone when
-`state/taken` no longer names its throttle for the train. There is no STOP for
+`take_wanted` `{train, throttle: null}` for it only, and the slider and the
+reverser act on it only. The panel shows the selector alone when
+`state/taken` no longer names its throttle for the train. There is no stop for
 every held train at once: the band's power is the railroad's stop.
 
 ## What it is not
@@ -387,7 +413,7 @@ slider to move.
 **The camera car's picture** is read with `fetch` from the `camera` app's
 `GET /picture/<railroad>/<train>`, the loaded railroad's name and the train's
 each URL-encoded, and each JPEG in the stream is drawn as an
-`<img class="picture">` with a *LIVE* mark on it
+`<img class="picture">` with a *LIVE* chip on it
 ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md),
 [#857](https://github.com/rails49/control/issues/857),
 `ui/src/model/picture.ts`). It is read while all three hold: this view is the
@@ -448,13 +474,22 @@ panel holding a train writes `null` for that train then the take, that the
 selector closes only when `state/taken` names the panel's id for the train and
 stays open when a third throttle has it, that Release writes one `null` and is
 disabled with no train, that the
-slider drives a held train with no move outstanding and runs from 0, that the
-reverser signs it, is dead off 0, sends nothing when switched and is Forward
-on every take, that the slider goes to rest when a granted move ends and when
-power reads off and stays put on a frame that ends no move, that the speed
-reads as a percentage and which end leads, that STOP publishes zero and leaves
-the reverser, that the aspect shown follows the reverser, that the picture is
-the first locomotive's photo with the name standing in, that a train held
+slider drives a held train with no move outstanding and runs from 0, that a
+drag moves it by the distance dragged in steps of 0.01 and a touch publishes
+nothing, that it stops at 0 and 1 and moves 0.01 on the arrows and 0.1 on
+PageUp and PageDown, that it goes to rest when a granted move ends and when
+power reads off and stays put on a frame that ends no move, that 21 marks
+light up to the value, that the speed reads as a percentage and which way the
+reverser is set, that the button under the slider publishes 0 above 0 and
+leaves the reverser and at 0 flips the reverser, publishes nothing and signs
+the next slider input the other way, and is Forward on every take, that the
+signal has green, red and amber from the top and lights `aspect` at Forward
+and `tailAspect` at Reverse and nothing with no aspect, that *at*, *next* and
+*to* read `C2`, `CE2`, `A2` for a cab in `C2` with `CE2, X, A2` ahead, *at*
+reads *crossing a transit* with no block and *next* and *to* *—* with nothing
+ahead, that the picture is the first locomotive's photo with the name over it
+and *Trains*, and the icon with the name under it and no name chip where it
+has none, that there is no Turn around and no `pressReversal`, that a train held
 here with a camera shows each frame of the camera car's picture in its place once
 one comes, and asks for none for a train with no camera, held elsewhere or held
 by nobody, that the stream ending, failing, answering other than 200 or
@@ -463,8 +498,7 @@ fake clock asks again under a new `try`, but not once the train is released,
 that a release, taking another train, the train leaving the layout and the run
 view each abort the read and leave no picture, that releasing writes
 `null` and shows the selector alone, that a train with no
-functions shows no button and no `>>`, one or two show with no `>>` and three
-show two and `>>`, which opens the third, that a press on a held train, with
+functions shows no button, and five show all five with no `>>`, that a press on a held train, with
 or without a move granted, writes one `function_wanted` asking for the
 opposite of what the button shows while the button waits for
 `state/functions`, that a press on a train held elsewhere or by nobody, with
@@ -478,7 +512,7 @@ throttle* and opening the dialog when pressed; that each panel is as tall as the
 narrowing 758 → 390 px with only the second holding leaves that one and writes
 nothing, and with both holding keeps both, one below the other; that widening
 again adds an empty panel under another id; that every panel holding a train
-has its own clock and STOP names its own id; that a train's controls, slider
+has its own clock and its slider names its own id; that a train's controls, slider
 and reverser survive a width change; and that at 390 px there is one panel,
 exactly 390 px wide.
 `ui/test/columns.test.ts` checks `panels(width)` at 360, 440, 758, 1118 and
