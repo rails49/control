@@ -150,8 +150,8 @@ src/
                    its own id, as many as its width fits; the session stays
                    the app's
     tc-driving.ts  one held train's driving controls: drive it, give it back
-    tc-train-picker.ts  a throttle's train picker: a card per train, Take and
-                   Force release
+    tc-train-picker.ts  a throttle's train selector: a card per train, the
+                   confirmation, Release
     tc-clock.ts    the station clock on the throttle's cab, in wall time
     wake.ts        the screen kept awake while any of this page's throttles
                    holds a train
