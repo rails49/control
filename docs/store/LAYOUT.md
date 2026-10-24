@@ -209,6 +209,11 @@ functions:                # function number -> what it does on this product
   where functions are listed and false where none are.
 - **`notes` is free text**, the model's: what the product is, as opposed to a
   car's notes, which are the item's.
+- **A model no roster uses can be deleted**, with its photo:
+  `DELETE /catalogue/<model>`. One a car or a train entry in any railroad's
+  roster names is refused, naming each place:
+  `model 'Ae 6/6' is used by railroad 'demo': car 'Ae 6/6 11401'; railroad 'station-2': train 'IC 721'`
+  ([#976](https://github.com/rails49/control/issues/976)).
 - **A model's photo is a second file, and the only one here that is not a
   document.** The picture is kept as `catalogue/<model>.jpg` beside the YAML,
   the bytes as the camera took them and re-encoded by nothing. The document
