@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from tc49.dispatcher.__main__ import reread_roster, serve
+from tc49.dispatcher.__main__ import serve
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
 from tc49.lib.bus import Payload
-from tc49.lib.documents import Documents
+from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
 from tc49.store import AssetStore
