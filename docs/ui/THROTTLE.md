@@ -303,13 +303,26 @@ not give for the train reads off, and so does every function before the row
 is heard or where its payload cannot be read. A button that is on has
 `aria-pressed="true"`.
 
-**A press asks**: one `tc49/layout/function_wanted` `{train, throttle,
-function, on}` naming the panel's throttle id, the function's name, and `on`
-the opposite of what the button shows. The button changes only when
-`state/functions` does. `layout` writes the device row,
-`tc49/layout/state/wanted/function/<addr>/<number>`, of the first car in the
-train's order that has an address and declares the name (BUS.md, *Device
-vocabulary*). Every function latches: one press on, the next off.
+**A press asks**: a `tc49/layout/function_wanted` `{train, throttle,
+function, on}` naming the panel's throttle id and the function's name. The
+button changes only when `state/functions` does. `layout` writes the device
+row, `tc49/layout/state/wanted/function/<addr>/<number>`, of the first car in
+the train's order that has an address and declares the name (BUS.md, *Device
+vocabulary*). What a press asks for is the function's mode, as
+`GET /rosters/<railroad>/trains` gives it, and a function it gives no mode
+for is latching ([#981](https://github.com/rails49/control/issues/981)):
+
+- **A latching function**: one press sends one `function_wanted` with `on`
+  the opposite of what the button shows — one press on, the next off.
+- **A momentary function**, such as a horn: `on: true` as the pointer goes
+  down on the button, and `on: false` at its `pointerup`, `pointercancel` or
+  `lostpointercapture`. The button captures the pointer, so a finger sliding
+  off still ends the hold. Space or Enter held on the focused button does the
+  same with its key down and up, the key's repeat ignored. Each hold sends
+  one off, however many of its ends arrive.
+
+A momentary button looks the same as a latching one, apart from its pressed
+state, which is `state/functions`'s as every button's is.
 
 The buttons are live while `state/taken` names the panel's throttle for the train
 and nothing below refuses a gesture, whether or not a move is outstanding.
