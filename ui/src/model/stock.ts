@@ -45,6 +45,10 @@ export const KINDS = ["locomotive", "passenger", "freight", "special"] as const;
 
 const LOCOMOTIVE = "locomotive";
 
+/** What New train names a train, and the names it can have given one. */
+const NEW_TRAIN = "New train";
+const MADE_UP = /^New train( \(\d+\))?$/;
+
 /** The two kinds only a train has: several sorts hauled, and none at all. */
 export const MIXED = "mixed";
 export const LIGHT_ENGINE = "light engine";
@@ -504,6 +508,9 @@ export class Stock {
   /** The key a `FRESH` key was minted as, so a screen holding the old one
    *  still finds the model. */
   private minted = new Map<string, string>();
+  /** The name a train New train named was given after its first locomotive,
+   *  by the name New train gave it, so a screen holding the old one follows. */
+  private retitled = new Map<string, string>();
   /** The function rows of each model the editor has drawn, by key: what the
    *  model's `functions` are written from (`FnRow`). */
   private rows = new Map<string, FnRow[]>();
@@ -746,9 +753,15 @@ export class Stock {
   /** New train: *New train*, or *New train (2)* where that is taken, with
    *  nothing in it yet. The name it was made under. */
   newTrain(): string {
-    const name = untaken("New train", Object.keys(this.doc.trains));
+    const name = untaken(NEW_TRAIN, Object.keys(this.doc.trains));
     this.addTrain(name);
     return name;
+  }
+
+  /** A train's name now: the one `append` gave it after its first
+   *  locomotive, or `name` where it gave none. */
+  trainNow(name: string): string {
+    return this.retitled.get(name) ?? name;
   }
 
   renameTrain(was: string, name: string): string | null {
@@ -758,12 +771,39 @@ export class Stock {
       return `There is already a train '${name}'.`;
     const train = this.doc.trains[was];
     if (train === undefined) return null;
+    this.write({ trains: this.rekeyed(was, name, train) });
+    return null;
+  }
+
+  /** Every train, `was` under the name `now` and as `made`, in the order the
+   *  document has them. */
+  private rekeyed(
+    was: string,
+    now: string,
+    made: RosterTrain,
+  ): Record<string, RosterTrain> {
     const trains: Record<string, RosterTrain> = {};
     for (const [key, one] of Object.entries(this.doc.trains)) {
-      trains[key === was ? name : key] = one;
+      if (key === was) trains[now] = made;
+      else trains[key] = one;
     }
-    this.write({ trains });
-    return null;
+    return trains;
+  }
+
+  /**
+   * The name a train is to have with `cars` in it. A train still under the
+   * name New train gave it takes its first locomotive's name, *(2)* added
+   * where another train has that one. Any other name was typed by hand and
+   * stays.
+   */
+  private named(train: string, cars: Coupled[]): string {
+    if (!MADE_UP.test(train)) return train;
+    const first = cars.find(
+      (entry) => stands(entry, this.doc, this.models)?.kind === LOCOMOTIVE,
+    );
+    if (first === undefined) return train;
+    const others = Object.keys(this.doc.trains).filter((one) => one !== train);
+    return untaken(this.entry(first).name, others);
   }
 
   /** A train's priority, 1 the highest; empty takes the key off, which is
@@ -806,6 +846,10 @@ export class Stock {
    *
    * The first entry on a train that **states its length** converts it: the
    * stated number goes and the length is derived from then on (#414).
+   *
+   * A train still under the name New train gave it is renamed after its
+   * first locomotive in the same edit (`named`, #1005); `trainNow` says the
+   * name it has.
    */
   append(
     train: string,
@@ -819,7 +863,9 @@ export class Stock {
     ) {
       return `${what.car} is already in ${train}. One item cannot stand in a train twice.`;
     }
-    this.inTrain(train, (cars) => [...cars, what]);
+    const as = this.named(train, [...(made.cars ?? []), what]);
+    if (as !== train) this.retitled.set(train, as);
+    this.inTrain(train, (cars) => [...cars, what], as);
     return null;
   }
 
@@ -1484,21 +1530,24 @@ export class Stock {
    * store refusing one that says both, so the first entry on a train that
    * stated its length drops the stated number and the train becomes the
    * ordinary shape (#414). An edit that leaves such a train with no entries
-   * leaves it as it was: there was nothing in it to change.
+   * leaves it as it was: there was nothing in it to change. The train is
+   * written under the name `as`.
    */
-  private inTrain(train: string, change: (cars: Coupled[]) => Coupled[]): void {
+  private inTrain(
+    train: string,
+    change: (cars: Coupled[]) => Coupled[],
+    as: string = train,
+  ): void {
     const made = this.doc.trains[train];
     if (made === undefined) return;
     const cars = change(made.cars ?? []);
     if (made.length !== undefined) {
       if (cars.length === 0) return;
       const { length: _stated, ...rest } = made;
-      this.write({
-        trains: { ...this.doc.trains, [train]: { ...rest, cars } },
-      });
+      this.write({ trains: this.rekeyed(train, as, { ...rest, cars }) });
       return;
     }
-    this.write({ trains: { ...this.doc.trains, [train]: { ...made, cars } } });
+    this.write({ trains: this.rekeyed(train, as, { ...made, cars }) });
   }
 
   /** Every train's entries with one car's name changed, so a rename does not

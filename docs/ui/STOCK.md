@@ -340,7 +340,11 @@ a momentary function's chip says *hold*.
 **Unmake**, at the top right: the train goes and its cars stay on the roster.
 
 **New train** makes *New train* (*New train (2)* where that is taken), chooses
-it, and opens the picker.
+it, and opens the picker. When the first locomotive goes in, a train still
+under that name takes the locomotive's name, *(2)* added where another train
+has it, in the same edit and still chosen
+([#1005](https://github.com/rails49/control/issues/1005)). A name typed by hand
+stays.
 
 ### The picker
 
