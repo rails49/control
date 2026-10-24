@@ -147,10 +147,14 @@ the system's light or dark setting. The clock and the signal are pictures of
 things on a railroad and keep their own colours; what is laid over the train's
 picture is light on a dark chip in either.
 
-**The clock**, `tc-clock`: the browser's local wall time as a station clock —
+**The clock**, `tc-clock`: the railroad's fast clock as a station clock —
 a white face, twelve black bars, black hour and minute hands and a red second
-hand, redrawn once a second. Every panel holding a train has one. It stays wall time
-until the railroad has a fast clock.
+hand. Every panel holding a train has one. It draws what
+`tc49/layout/state/clock` last said and reads no clock of the browser's, so
+it moves when the row does, once a real second, its second hand stepping by
+the speed-up. With no railroad loaded or no broker answering it draws its face
+with no hands
+([ADR-0090](../adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 
 **Nothing about hardware.** No address, no decoder step, no command station,
 no function number. The UI reaches the bus and the store and there is no other
