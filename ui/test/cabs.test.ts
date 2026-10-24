@@ -316,8 +316,30 @@ describe("what a person can switch", () => {
       },
     };
     expect(drive(model, stock)[0]!.functions).toEqual([
-      { name: "headlights", on: false },
-      { name: "vacuum", on: false },
+      { name: "headlights", mode: "latching", on: false },
+      { name: "vacuum", mode: "latching", on: false },
+    ]);
+  });
+
+  /** The trains route gives every function its mode since #977; an older
+   *  store's leaves it out, and that latches. */
+  it("carries each function's mode, latching where the route says none", () => {
+    const model = panel();
+    standing(model);
+    const stock = {
+      t1: {
+        length: 400,
+        functions: [
+          { name: "horn", mode: "momentary" },
+          { name: "headlights", mode: "latching" },
+          { name: "vacuum" },
+        ],
+      },
+    };
+    expect(drive(model, stock)[0]!.functions.map(({ name, mode }) => [name, mode])).toEqual([
+      ["horn", "momentary"],
+      ["headlights", "latching"],
+      ["vacuum", "latching"],
     ]);
   });
 

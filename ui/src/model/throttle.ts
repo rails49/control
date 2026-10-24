@@ -23,11 +23,17 @@ import { blockOf, endOf, type Ahead, type EndRef, type Placed } from "./panel.js
 import type { Fn, TrainDoc } from "./store.js";
 import type { Power } from "./trace.js";
 
-/** One thing a person can switch on a train: its catalogue name, and whether
- *  `state/functions` says it is on. Never what the person last pressed — a
- *  button changes when `layout` says it switched it (ui/THROTTLE.md). */
+/** One thing a person can switch on a train: its catalogue name, how its
+ *  button answers, and whether `state/functions` says it is on. Never what
+ *  the person last pressed — a button changes when `layout` says it switched
+ *  it (ui/THROTTLE.md). */
 export interface CabFunction {
   name: string;
+  /** `latching`, on at one press and off at the next, or `momentary`, on
+   *  only while its button is held, like a horn (GLOSSARY.md, **Function**).
+   *  Whatever the trains route says that is not `momentary` — `latching`, or
+   *  nothing from a store older than #977 — latches. */
+  mode: "latching" | "momentary";
   on: boolean;
 }
 
@@ -142,13 +148,17 @@ export function cabs(driving: Driving): Cab[] {
     });
 }
 
-/** A train's functions by name, each on where `state/functions` says so for
- *  it and off everywhere else. */
+/** A train's functions by name, each with its mode, and on where
+ *  `state/functions` says so for it and off everywhere else. */
 function switches(
   declared: readonly Fn[],
   on: ReadonlyMap<string, boolean> | undefined,
 ): CabFunction[] {
-  return declared.map(({ name }) => ({ name, on: on?.get(name) === true }));
+  return declared.map(({ name, mode }) => ({
+    name,
+    mode: mode === "momentary" ? "momentary" : "latching",
+    on: on?.get(name) === true,
+  }));
 }
 
 /** The other end of the block a nose is at: `a.A` for `a.B`. A block has
