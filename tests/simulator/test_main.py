@@ -27,11 +27,13 @@ from pathlib import Path
 import pytest
 
 from tc49.lib.bus import Payload
+from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
 from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
-from tc49.simulator.__main__ import serve
+from tc49.simulator.__main__ import OWNED, serve
+from tc49.store import AssetStore
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, settle
+from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS
 from tests.ports import free_port
 
@@ -282,3 +284,74 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
     assert app.running, "the app stopped on its own"
     hand.close()
     witness.close()
+
+
+def test_it_says_the_fast_clock_once_a_second(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """As `layout` says it (ADR-0090, decision 1), timed off the run clock,
+    which live is a real second: a railroad that keeps no start time of its
+    own runs at a speed-up of 1."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, CLOCK) != []), "no clock came"
+
+    began = len(rows(heard, CLOCK))
+    deadline = time.monotonic() + 3.5
+    while time.monotonic() < deadline:
+        witness.drain()
+        time.sleep(0.01)
+    said = rows(heard, CLOCK)[began:]
+
+    assert 3 <= len(said) <= 5, f"{len(said)} in 3.5 s, where once a second is 3 or 4"
+    assert all(set(payload) == {"at", "time", "speed_up"} for payload in said)
+    assert all(payload["speed_up"] == 1 for payload in said)
+    assert all(0 <= payload["time"] < 24 * 60 * 60 for payload in said)
+    witness.close()
+
+
+def test_it_starts_the_clock_at_the_start_time_the_railroad_keeps(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Read off the railroad's clock document as `layout` reads it (ADR-0090,
+    decision 4)."""
+    (root / "layouts" / f"{RAILROAD_NAME}.clock.yaml").write_text(
+        "start: '03:15'\nspeed_up: 4\n"
+    )
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, CLOCK) != []), "no clock came"
+    said = rows(heard, CLOCK)[0]
+    assert said["speed_up"] == 4
+    assert 3 * 3600 + 15 * 60 <= said["time"] < 3 * 3600 + 15 * 60 + 4 * 5
+    witness.close()
+
+
+def test_it_takes_the_clock_a_person_sets_and_keeps_it(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Said at once and written to the railroad's clock document, as `layout`
+    takes it (ADR-0090, decisions 2 and 3)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, CLOCK) != []), "no clock came"
+
+    witness.publish(CLOCK_WANTED, {"time": 8 * 3600 + 30 * 60 + 12, "speed_up": 8})
+    assert drained(
+        witness, lambda: any(row["speed_up"] == 8 for row in rows(heard, CLOCK))
+    ), "the clock was never set"
+    path = root / "layouts" / f"{RAILROAD_NAME}.clock.yaml"
+    assert until(
+        lambda: path.exists() and "08:30" in path.read_text()
+    ), "the clock was never kept"
+    assert AssetStore(root).clock(RAILROAD_NAME) == {"start": "08:30", "speed_up": 8.0}
+    witness.close()
+
+
+def test_the_fast_clock_is_cleared_with_the_other_rows_it_owns() -> None:
+    """A railroad loaded starts on a broker holding nothing of the last one
+    (ADR-0060), the clock included: the next build starts it again."""
+    assert CLOCK in OWNED
