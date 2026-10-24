@@ -80,7 +80,10 @@ describe("what a train derives to", () => {
   });
 
   it("has no length where an entry names something the documents have not", () => {
-    const roster: RosterDoc = { roster: "oval", trains: { ore: { cars: [{ model: "flat" }] } } };
+    const roster: RosterDoc = {
+      roster: "oval",
+      trains: { ore: { cars: [{ model: "flat" }] } },
+    };
     expect(trainLength(roster.trains.ore!, roster, CATALOGUE)).toBeNull();
   });
 
@@ -109,7 +112,9 @@ describe("what a train derives to", () => {
       cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
       trains: { light: { cars: [{ car: "krokodil-a" }] } },
     };
-    expect(trainKind(roster.trains.light!, roster, CATALOGUE)).toBe(LIGHT_ENGINE);
+    expect(trainKind(roster.trains.light!, roster, CATALOGUE)).toBe(
+      LIGHT_ENGINE,
+    );
   });
 
   /** In the train's frame: a set with a locomotive at each end has one
@@ -174,7 +179,11 @@ describe("a train that states its length and names no cars", () => {
     const screen = stock(OLDER);
     screen.append("goods", { model: "hopper" });
     expect(screen.roster.trains.goods).toEqual({ cars: [{ model: "hopper" }] });
-    expect(screen.trains()[0]).toMatchObject({ length: 100, kind: "freight", stated: false });
+    expect(screen.trains()[0]).toMatchObject({
+      length: 100,
+      kind: "freight",
+      stated: false,
+    });
   });
 
   it("keeps its stated length through a rename of a car", () => {
@@ -229,12 +238,9 @@ describe("making up a train", () => {
   it("moves an entry to where it is dropped", () => {
     const screen = stock();
     screen.moveEntry("ore", 0, 3);
-    expect(screen.roster.trains.ore!.cars!.map((one) => one.car ?? one.model)).toEqual([
-      "hopper",
-      "hopper",
-      "hopper",
-      "krokodil-a",
-    ]);
+    expect(
+      screen.roster.trains.ore!.cars!.map((one) => one.car ?? one.model),
+    ).toEqual(["hopper", "hopper", "hopper", "krokodil-a"]);
     screen.moveEntry("ore", 3, 0);
     expect(screen.roster.trains.ore!.cars![0]).toEqual({ car: "krokodil-a" });
   });
@@ -283,10 +289,12 @@ describe("making up a train", () => {
   it("stops the save for a train naming neither cars nor a length", () => {
     const words =
       "train 'goods' has nothing in it — press Add to put a car or a model in it, or unmake it";
-    expect(stock({ roster: "oval", trains: { goods: {} } }).stopsSaving()).toBe(words);
-    expect(stock({ roster: "oval", trains: { goods: { cars: [] } } }).stopsSaving()).toBe(
+    expect(stock({ roster: "oval", trains: { goods: {} } }).stopsSaving()).toBe(
       words,
     );
+    expect(
+      stock({ roster: "oval", trains: { goods: { cars: [] } } }).stopsSaving(),
+    ).toBe(words);
     // The older shape states its length and names no cars, and goes on saving.
     expect(stock(OLDER).stopsSaving()).toBeNull();
   });
@@ -300,7 +308,9 @@ describe("making up a train", () => {
     const screen = stock();
     screen.removeTrain("ore");
     expect(screen.roster.trains).toEqual({});
-    expect(screen.roster.cars).toEqual({ "krokodil-a": { model: "arnold-ce68", addr: "3" } });
+    expect(screen.roster.cars).toEqual({
+      "krokodil-a": { model: "arnold-ce68", addr: "3" },
+    });
   });
 });
 
@@ -315,16 +325,26 @@ describe("a model put in a train", () => {
 
   it("makes a car of a decoder model the railroad has none of to spare", () => {
     const screen = stock();
-    expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "made", car: "arnold-ce68" });
-    expect(screen.roster.cars!["arnold-ce68"]).toEqual({ model: "arnold-ce68" });
-    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ car: "arnold-ce68" });
+    expect(screen.addModel("ore", "arnold-ce68")).toEqual({
+      as: "made",
+      car: "arnold-ce68",
+    });
+    expect(screen.roster.cars!["arnold-ce68"]).toEqual({
+      model: "arnold-ce68",
+    });
+    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({
+      car: "arnold-ce68",
+    });
   });
 
   it("puts in the one car of it the railroad has", () => {
     const screen = stock(EMPTY);
     screen.addTrain("light");
     screen.newCar("arnold-ce68");
-    expect(screen.addModel("light", "arnold-ce68")).toEqual({ as: "only", car: "arnold-ce68" });
+    expect(screen.addModel("light", "arnold-ce68")).toEqual({
+      as: "only",
+      car: "arnold-ce68",
+    });
     expect(screen.roster.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
   });
 
@@ -333,8 +353,13 @@ describe("a model put in a train", () => {
   it("puts in the one car of it the train does not already hold", () => {
     const screen = stock();
     screen.newCar("arnold-ce68");
-    expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "only", car: "arnold-ce68" });
-    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ car: "arnold-ce68" });
+    expect(screen.addModel("ore", "arnold-ce68")).toEqual({
+      as: "only",
+      car: "arnold-ce68",
+    });
+    expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({
+      car: "arnold-ce68",
+    });
   });
 
   it("puts in nothing yet where there are several, and lists them", () => {
@@ -366,25 +391,42 @@ describe("filling in a camera", () => {
   it("clears a camera without taking the car off the roster", () => {
     const screen = stock({
       ...OVAL,
-      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "192.168.178.58" } },
+      cars: {
+        "krokodil-a": {
+          model: "arnold-ce68",
+          addr: "3",
+          camera: "192.168.178.58",
+        },
+      },
     });
     expect(screen.carCamera("krokodil-a", "  ")).toBeNull();
-    expect(screen.roster.cars!["krokodil-a"]).toEqual({ model: "arnold-ce68", addr: "3" });
+    expect(screen.roster.cars!["krokodil-a"]).toEqual({
+      model: "arnold-ce68",
+      addr: "3",
+    });
   });
 
   /** How the camera is spoken to is the `camera` app's (ADR-0082): the
    *  roster holds where it answers and nothing else, as `lib/stock.py` has. */
-  it.each(["http://cam", "cam:8080", "cam/stream", "admin@cam", "-cam", "cam.", "two words"])(
-    "refuses %j, which is not a camera address",
-    (typed) => {
-      const screen = stock();
-      expect(screen.carCamera("krokodil-a", typed)).toBe(
-        `'${typed}' is not a camera address — write the camera's host name or IP address`,
-      );
-      expect(screen.roster.cars!["krokodil-a"]).toEqual({ model: "arnold-ce68", addr: "3" });
-      expect(screen.edits).toBe(false);
-    },
-  );
+  it.each([
+    "http://cam",
+    "cam:8080",
+    "cam/stream",
+    "admin@cam",
+    "-cam",
+    "cam.",
+    "two words",
+  ])("refuses %j, which is not a camera address", (typed) => {
+    const screen = stock();
+    expect(screen.carCamera("krokodil-a", typed)).toBe(
+      `'${typed}' is not a camera address — write the camera's host name or IP address`,
+    );
+    expect(screen.roster.cars!["krokodil-a"]).toEqual({
+      model: "arnold-ce68",
+      addr: "3",
+    });
+    expect(screen.edits).toBe(false);
+  });
 
   /** One camera rides in one car: two naming it would put one picture on two
    *  trains. The store refuses it; this says which car has it. */
@@ -402,9 +444,6 @@ describe("filling in a camera", () => {
     expect(screen.roster.cars!["van-1"]).toEqual({ model: "van" });
     expect(screen.carCamera("krokodil-a", "cam-1")).toBeNull();
   });
-
-
-
 });
 
 describe("a car of one's own", () => {
@@ -440,7 +479,9 @@ describe("a car of one's own", () => {
   it("refuses a name another car has, in the editor's words", () => {
     const screen = stock();
     screen.newCar("hopper");
-    expect(screen.renameCar("hopper", "krokodil-a")).toBe("There is already a car 'krokodil-a'.");
+    expect(screen.renameCar("hopper", "krokodil-a")).toBe(
+      "There is already a car 'krokodil-a'.",
+    );
   });
 
   /** A DCC address is 1 to 10239, the long addresses' top; anything else is
@@ -449,8 +490,12 @@ describe("a car of one's own", () => {
     const screen = stock();
     const refused = "'abc' is not a DCC address. Use a number from 1 to 10239.";
     expect(screen.carAddress("krokodil-a", "abc")).toBe(refused);
-    expect(screen.carAddress("krokodil-a", "0")).toMatch("'0' is not a DCC address");
-    expect(screen.carAddress("krokodil-a", "10240")).toMatch("'10240' is not a DCC address");
+    expect(screen.carAddress("krokodil-a", "0")).toMatch(
+      "'0' is not a DCC address",
+    );
+    expect(screen.carAddress("krokodil-a", "10240")).toMatch(
+      "'10240' is not a DCC address",
+    );
     expect(screen.roster.cars!["krokodil-a"]!.addr).toBe("3");
     expect(screen.edits).toBe(false);
   });
@@ -458,7 +503,9 @@ describe("a car of one's own", () => {
   it("refuses an address another car has, naming that car", () => {
     const screen = stock();
     const name = screen.newCar("arnold-ce68")!;
-    expect(screen.carAddress(name, "3")).toBe("Car krokodil-a already has address 3.");
+    expect(screen.carAddress(name, "3")).toBe(
+      "Car krokodil-a already has address 3.",
+    );
     expect(screen.carAddress(name, "10239")).toBeNull();
     expect(screen.roster.cars![name]!.addr).toBe("10239");
   });
@@ -494,7 +541,9 @@ describe("a car's own functions", () => {
     expect(screen.functionRows({ car: "krokodil-a" })).toEqual([
       { number: "0", name: "headlights", mode: "latching" },
     ]);
-    expect(screen.roster.cars!["krokodil-a"]!.functions).toEqual({ "0": { name: "headlights" } });
+    expect(screen.roster.cars!["krokodil-a"]!.functions).toEqual({
+      "0": { name: "headlights" },
+    });
     expect(screen.cars()[0]!.ownFunctions).toBe(true);
   });
 
@@ -509,7 +558,9 @@ describe("a car's own functions", () => {
       "0": { name: "headlights" },
       "1": { name: "Horn", mode: "momentary" },
     });
-    expect(screen.model("arnold-ce68")!.functions).toEqual({ "0": { name: "headlights" } });
+    expect(screen.model("arnold-ce68")!.functions).toEqual({
+      "0": { name: "headlights" },
+    });
     expect(screen.corrections).toEqual([]);
   });
 
@@ -562,7 +613,9 @@ describe("a car merged onto its model", () => {
   });
 
   it("takes what it corrects", () => {
-    expect(merged({ model: "van", kind: "special", length: 95 }, CATALOGUE)).toMatchObject({
+    expect(
+      merged({ model: "van", kind: "special", length: 95 }, CATALOGUE),
+    ).toMatchObject({
       kind: "special",
       length: 95,
     });
@@ -591,7 +644,9 @@ describe("a car merged onto its model", () => {
 describe("a refusal names what holds the thing", () => {
   it("keeps a car a train is made of, and says which train", () => {
     const screen = stock();
-    expect(screen.removeCar("krokodil-a")).toBe("car 'krokodil-a' is held by train 'ore'");
+    expect(screen.removeCar("krokodil-a")).toBe(
+      "car 'krokodil-a' is held by train 'ore'",
+    );
     expect(screen.roster.cars!["krokodil-a"]).toBeDefined();
   });
 
@@ -607,7 +662,9 @@ describe("a refusal names what holds the thing", () => {
    *  model is read rather than run into. */
   it("says what names a model: the cars that are one, then the trains", () => {
     const screen = stock();
-    const rows = Object.fromEntries(screen.modelRows().map((row) => [row.model, row.holders]));
+    const rows = Object.fromEntries(
+      screen.modelRows().map((row) => [row.model, row.holders]),
+    );
     expect(rows["arnold-ce68"]).toEqual(["car 'krokodil-a'"]);
     expect(rows["hopper"]).toEqual(["train 'ore'"]);
     expect(rows["coach"]).toEqual([]);
@@ -626,7 +683,9 @@ describe("the length guard", () => {
     for (const power of ["on", "draining"] as const) {
       const screen = stock();
       expect(screen.cars(power)[0]!.held).toBe(WORDS);
-      expect(screen.modelRows(power).every((row) => row.held === WORDS)).toBe(true);
+      expect(screen.modelRows(power).every((row) => row.held === WORDS)).toBe(
+        true,
+      );
       expect(screen.carLength("krokodil-a", 130, power)).toBe(WORDS);
       expect(screen.modelLength("hopper", 110, power)).toBe(WORDS);
       expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
@@ -642,7 +701,9 @@ describe("the length guard", () => {
     for (const power of ["off", null] as const) {
       const screen = stock();
       expect(screen.cars(power)[0]!.held).toBeNull();
-      expect(screen.modelRows(power).every((row) => row.held === null)).toBe(true);
+      expect(screen.modelRows(power).every((row) => row.held === null)).toBe(
+        true,
+      );
       expect(screen.modelLength("hopper", 110, power)).toBeNull();
       expect(screen.catalogue["hopper"]!.length).toBe(110);
     }
@@ -666,9 +727,9 @@ describe("the length guard", () => {
       for (const power of ["off", null] as const) {
         const screen = stock();
         expect(screen.cars(power, false)[0]!.held).toBe(UNHEARD);
-        expect(screen.modelRows(power, false).every((row) => row.held === UNHEARD)).toBe(
-          true,
-        );
+        expect(
+          screen.modelRows(power, false).every((row) => row.held === UNHEARD),
+        ).toBe(true);
         expect(screen.carLength("krokodil-a", 130, power, false)).toBe(UNHEARD);
         expect(screen.modelLength("hopper", 110, power, false)).toBe(UNHEARD);
         expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
@@ -706,16 +767,18 @@ describe("a length edit in the roster", () => {
     const screen = stock();
     screen.modelLength("hopper", 110, "off");
     expect(screen.edits).toBe(true);
-    expect(screen.corrections).toEqual([{ ...screen.catalogue["hopper"]!, length: 110 }]);
+    expect(screen.corrections).toEqual([
+      { ...screen.catalogue["hopper"]!, length: 110 },
+    ]);
   });
 
   it("holds one correction per model, with the latest length", () => {
     const screen = stock();
     screen.modelLength("hopper", 110, "off");
     screen.modelLength("hopper", 120, "off");
-    expect(screen.corrections.map((model) => [model.model, model.length])).toEqual([
-      ["hopper", 120],
-    ]);
+    expect(
+      screen.corrections.map((model) => [model.model, model.length]),
+    ).toEqual([["hopper", 120]]);
   });
 
   it("drops a correction once it is written, and keeps the roster's edits", () => {
@@ -749,7 +812,9 @@ describe("a length edit in the roster", () => {
   it("is not recorded by any other edit, or by a refused length", () => {
     const screen = stock();
     screen.carAddress("krokodil-a", "7");
-    expect(screen.carLength("krokodil-a", 0, "off")).toMatch("positive whole number");
+    expect(screen.carLength("krokodil-a", 0, "off")).toMatch(
+      "positive whole number",
+    );
     expect(screen.edits).toBe(true);
     expect(screen.lengthEdits).toBe(false);
   });
@@ -877,7 +942,10 @@ describe("making a model", () => {
     const screen = stock();
     const one = screen.newModel();
     const two = screen.newModel();
-    expect(screen.model(one)).toMatchObject({ name: "New model", decoder: false });
+    expect(screen.model(one)).toMatchObject({
+      name: "New model",
+      decoder: false,
+    });
     expect(screen.model(two)!.name).toBe("New model (2)");
     expect(screen.isFresh(one)).toBe(true);
     expect(screen.corrections.map((model) => model.name)).toEqual([
@@ -896,7 +964,10 @@ describe("making a model", () => {
     screen.mintKeys();
 
     expect(screen.keyOf(made)).toBe("ae-6-6");
-    expect(screen.model(made)).toMatchObject({ model: "ae-6-6", name: "Ae 6/6" });
+    expect(screen.model(made)).toMatchObject({
+      model: "ae-6-6",
+      name: "Ae 6/6",
+    });
     expect(screen.roster.trains.ore!.cars!.at(-1)).toEqual({ model: "ae-6-6" });
     screen.renameModel(made, "Ae 6/6 II");
     screen.mintKeys();
@@ -918,7 +989,9 @@ describe("making a model", () => {
     const made = screen.newModel();
     expect(screen.modelLength(made, 230, "on")).toBeNull();
     expect(screen.lengthEdits).toBe(false);
-    expect(screen.modelRows("on").find((row) => row.model === made)!.held).toBeNull();
+    expect(
+      screen.modelRows("on").find((row) => row.model === made)!.held,
+    ).toBeNull();
   });
 
   it("is written once, and fresh no longer", () => {
@@ -943,26 +1016,38 @@ describe("a model's key", () => {
 describe("a model's name", () => {
   it("is the key where the document states none", () => {
     expect(stock().model("hopper")!.name).toBeUndefined();
-    expect(stock().modelRows().find((row) => row.model === "hopper")!.name).toBe("hopper");
+    expect(
+      stock()
+        .modelRows()
+        .find((row) => row.model === "hopper")!.name,
+    ).toBe("hopper");
   });
 
   it("refuses empty, and a name another model has", () => {
     const screen = stock();
     expect(screen.renameModel("coach", " ")).toBe("A model needs a name.");
-    expect(screen.renameModel("coach", "hopper")).toBe("There is already a model 'hopper'.");
+    expect(screen.renameModel("coach", "hopper")).toBe(
+      "There is already a model 'hopper'.",
+    );
     expect(screen.edits).toBe(false);
   });
 
   it("takes any characters", () => {
     const screen = stock();
     expect(screen.renameModel("coach", "EW IV B/2")).toBeNull();
-    expect(screen.corrections).toEqual([{ ...CATALOGUE["coach"]!, name: "EW IV B/2" }]);
+    expect(screen.corrections).toEqual([
+      { ...CATALOGUE["coach"]!, name: "EW IV B/2" },
+    ]);
   });
 });
 
 describe("a model's decoder and functions", () => {
   it("reads a decoder where functions are listed and none where none are", () => {
-    const rows = Object.fromEntries(stock().modelRows().map((row) => [row.model, row.decoder]));
+    const rows = Object.fromEntries(
+      stock()
+        .modelRows()
+        .map((row) => [row.model, row.decoder]),
+    );
     expect(rows).toMatchObject({ "arnold-ce68": true, hopper: false });
   });
 
@@ -1004,7 +1089,9 @@ describe("a model's decoder and functions", () => {
     screen.addFunction("arnold-ce68");
     screen.functionName("arnold-ce68", 1, "Horn");
     expect(screen.functionNumber("arnold-ce68", 1, "0")).toBeNull();
-    expect(screen.stopsSaving()).toBe("F0 is listed twice. One number names one function.");
+    expect(screen.stopsSaving()).toBe(
+      "F0 is listed twice. One number names one function.",
+    );
     screen.functionNumber("arnold-ce68", 1, "2");
     expect(screen.stopsSaving()).toBeNull();
   });
@@ -1017,8 +1104,12 @@ describe("a model's decoder and functions", () => {
 
   it("refuses a number no decoder has", () => {
     const screen = stock();
-    expect(screen.functionNumber("arnold-ce68", 0, "69")).toBe("A function number is 0 to 68.");
-    expect(screen.functionNumber("arnold-ce68", 0, "x")).toBe("A function number is 0 to 68.");
+    expect(screen.functionNumber("arnold-ce68", 0, "69")).toBe(
+      "A function number is 0 to 68.",
+    );
+    expect(screen.functionNumber("arnold-ce68", 0, "x")).toBe(
+      "A function number is 0 to 68.",
+    );
     expect(screen.edits).toBe(false);
   });
 });
@@ -1069,7 +1160,10 @@ describe("what the lists draw", () => {
     const screen = stock({
       roster: "oval",
       cars: { b: { model: "hopper" }, a: { model: "hopper" } },
-      trains: { z: { cars: [{ model: "hopper" }] }, m: { cars: [{ model: "coach" }] } },
+      trains: {
+        z: { cars: [{ model: "hopper" }] },
+        m: { cars: [{ model: "coach" }] },
+      },
     });
     expect(screen.cars().map((one) => one.name)).toEqual(["a", "b"]);
     expect(screen.trains().map((one) => one.train)).toEqual(["m", "z"]);
@@ -1083,7 +1177,12 @@ describe("what the lists draw", () => {
 
   it("draws a train with what it derives to and where the run has it", () => {
     const [row] = stock().trains(["ore"]);
-    expect(row).toMatchObject({ train: "ore", length: 422, kind: "freight", placed: true });
+    expect(row).toMatchObject({
+      train: "ore",
+      length: 422,
+      kind: "freight",
+      placed: true,
+    });
     expect(row!.entries.map((one) => one.model)).toEqual([
       "arnold-ce68",
       "hopper",
@@ -1092,5 +1191,56 @@ describe("what the lists draw", () => {
     ]);
     expect(row!.entries[0]).toMatchObject({ car: "krokodil-a", addr: "3" });
     expect(row!.entries[1]).toMatchObject({ car: null, addr: null });
+  });
+});
+
+/** A model entry of a model with a decoder cannot be driven, having no
+ *  address; it is given one by becoming a car in its place (#993). */
+describe("a decoder model's entry given an address", () => {
+  const HELD: RosterDoc = {
+    roster: "oval",
+    cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
+    trains: {
+      ore: {
+        cars: [
+          { car: "krokodil-a" },
+          { model: "arnold-ce68", orientation: "reverse" },
+          { model: "hopper" },
+        ],
+      },
+    },
+  };
+
+  it("becomes a car in the entry's place, still reversed, in one edit", () => {
+    const screen = stock(HELD);
+    expect(screen.carFor("ore", 1)).toBe("arnold-ce68");
+    expect(screen.roster.cars!["arnold-ce68"]).toEqual({
+      model: "arnold-ce68",
+    });
+    expect(screen.roster.trains.ore!.cars).toEqual([
+      { car: "krokodil-a" },
+      { car: "arnold-ce68", orientation: "reverse" },
+      { model: "hopper" },
+    ]);
+    expect(screen.unsaved).toBe(1);
+  });
+
+  it("states no orientation where the entry stated none", () => {
+    const screen = stock({
+      roster: "oval",
+      trains: { light: { cars: [{ model: "arnold-ce68" }] } },
+    });
+    expect(screen.carFor("light", 0)).toBe("arnold-ce68");
+    expect(screen.roster.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
+  });
+
+  it("writes nothing for a car entry or a model without a decoder", () => {
+    const screen = stock(HELD);
+    expect(screen.carFor("ore", 0)).toBeNull();
+    expect(screen.carFor("ore", 2)).toBeNull();
+    expect(screen.carFor("ore", 7)).toBeNull();
+    expect(screen.carFor("goods", 0)).toBeNull();
+    expect(screen.roster).toEqual(HELD);
+    expect(screen.unsaved).toBe(0);
   });
 });
