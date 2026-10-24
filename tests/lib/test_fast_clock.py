@@ -5,7 +5,14 @@ import time
 
 import pytest
 
-from tc49.lib.fast_clock import DAY_S, FastClock, time_of_day
+from tc49.lib.fast_clock import (
+    DAY_S,
+    FastClock,
+    KeptClock,
+    kept_clock,
+    start_of,
+    time_of_day,
+)
 
 
 def test_it_reads_its_start_before_any_time_has_passed() -> None:
@@ -80,3 +87,49 @@ def test_both_are_taken_together() -> None:
 def test_nothing_asked_changes_nothing() -> None:
     clock = FastClock(start=3600, speed_up=4.0, since=0.0)
     assert clock.changed(10.0).time(20.0) == clock.time(20.0)
+
+
+def test_a_kept_clock_reads_its_start_as_hours_and_minutes() -> None:
+    kept = kept_clock({"start": "06:45", "speed_up": 8})
+    assert kept == KeptClock(start=(6 * 60 + 45) * 60, speed_up=8.0)
+
+
+def test_a_kept_clock_is_written_as_the_document_it_was_read_from() -> None:
+    doc = {"start": "23:05", "speed_up": 2.5}
+    assert kept_clock(doc).document() == doc
+
+
+def test_a_railroad_is_loaded_at_its_start_time() -> None:
+    clock = KeptClock(start=6 * 3600, speed_up=4.0).started(50.0)
+    assert clock.time(50.0) == 6 * 3600
+    assert clock.time(51.0) == 6 * 3600 + 4
+
+
+@pytest.mark.parametrize(
+    "doc",
+    [
+        None,
+        {"start": "06:00"},
+        {"speed_up": 1},
+        {"start": "06:00", "speed_up": 1, "date": "monday"},
+        {"start": 750, "speed_up": 1},
+        {"start": "6:00", "speed_up": 1},
+        {"start": "24:00", "speed_up": 1},
+        {"start": "06:60", "speed_up": 1},
+        {"start": "06:00:30", "speed_up": 1},
+        {"start": "06:00", "speed_up": 0},
+        {"start": "06:00", "speed_up": -2},
+        {"start": "06:00", "speed_up": float("nan")},
+        {"start": "06:00", "speed_up": float("inf")},
+        {"start": "06:00", "speed_up": True},
+        {"start": "06:00", "speed_up": "8"},
+    ],
+)
+def test_a_kept_clock_that_is_not_one_is_refused(doc: object) -> None:
+    with pytest.raises(ValueError):
+        kept_clock(doc)
+
+
+def test_a_new_time_is_kept_as_a_start_rounded_down_to_the_minute() -> None:
+    assert start_of(8 * 3600 + 59) == 8 * 3600
+    assert start_of(8 * 3600) == 8 * 3600
