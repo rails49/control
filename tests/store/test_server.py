@@ -120,7 +120,7 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
         "trains": {
             "ore": {
                 "length": 722,
-                "functions": [{"name": "lights"}],
+                "functions": [{"name": "lights", "mode": "latching"}],
                 "camera": False,
                 "locomotive": "arnold-ce68",
             }
@@ -224,7 +224,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
     trains = handle(store, backup, "GET", "/rosters/oval/trains", None)[1]["trains"]
     assert trains["ore"] == {
         "length": 722,
-        "functions": [{"name": "lights"}],
+        "functions": [{"name": "lights", "mode": "latching"}],
         "camera": True,
         "locomotive": "arnold-ce68",
     }
@@ -305,14 +305,17 @@ def test_the_run_views_answer_is_the_trains_below_the_document(
 def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -> None:
     """What a person driving the train can switch, by the names the catalogue
     gives them and by no number: the throttle view's whole source for its
-    buttons (ui/THROTTLE.md). The library railroads' bench cars declare none,
-    so this railroad owns a model that does."""
+    buttons (ui/THROTTLE.md). Each carries its mode, latching where the model
+    does not say, so the throttle keeps a momentary one on only while held
+    (#977). The library railroads' bench cars declare none, so this railroad
+    owns a model that does."""
     catalogued(tmp_path)
     (tmp_path / "catalogue" / "re460.yaml").write_text(
         "model: re460\nkind: locomotive\nlength: 220\n"
         "functions:\n"
         "  '0': {name: headlights}\n"
-        "  '5': {name: vacuum, values: ['off', low, high]}\n"
+        "  '2': {name: horn, mode: momentary}\n"
+        "  '5': {name: vacuum, mode: latching, values: ['off', low, high]}\n"
     )
     (tmp_path / "layouts").mkdir()
     (tmp_path / "layouts" / "shed.roster.yaml").write_text(
@@ -326,10 +329,43 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
     assert status == 200
     assert body["trains"]["light_1"] == {
         "length": 220,
-        "functions": [{"name": "headlights"}, {"name": "vacuum"}],
+        "functions": [
+            {"name": "headlights", "mode": "latching"},
+            {"name": "horn", "mode": "momentary"},
+            {"name": "vacuum", "mode": "latching"},
+        ],
         "camera": False,
         "locomotive": "re460",
     }
+
+
+def test_a_car_with_functions_of_its_own_serves_their_modes(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A car listing its own functions gives its own modes, and the first car
+    declaring a name is the one that stands, mode and all (ADR-0045, #977)."""
+    catalogued(tmp_path)
+    (tmp_path / "catalogue" / "re460.yaml").write_text(
+        "model: re460\nkind: locomotive\nlength: 220\n"
+        "functions:\n  '2': {name: horn}\n"
+    )
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "shed.roster.yaml").write_text(
+        "roster: shed\n"
+        "cars:\n"
+        "  re460_1:\n"
+        "    model: re460\n"
+        "    functions: {'2': {name: horn, mode: momentary}}\n"
+        "  re460_2: {model: re460}\n"
+        "trains:\n  pair: {cars: [{car: re460_1}, {car: re460_2}]}\n"
+    )
+    status, body = handle(
+        AssetStore(tmp_path), backup, "GET", "/rosters/shed/trains", None
+    )
+    assert status == 200
+    assert body["trains"]["pair"]["functions"] == [
+        {"name": "horn", "mode": "momentary"}
+    ]
 
 
 def test_a_trains_first_locomotive_is_served_by_its_model(
