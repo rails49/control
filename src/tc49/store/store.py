@@ -28,6 +28,11 @@ not YAML: the text a translator loads to speak to that railroad's command
 station (ADR-0043). It is kept and never read — nothing here parses, compiles
 or runs it, so what the text means stays the translator's.
 
+The **clock** is the railroad's too: the start time and the speed-up its fast
+clock is loaded at, `layouts/<railroad>.clock.yaml`, written by the layout
+binding when a person sets the clock (ADR-0090, decision 3). Its shape is
+`tc49.lib.fast_clock`'s, which `layout` reads it with.
+
 The **catalogue** is the installation's and belongs to no railroad, a model
 being what a product is (ADR-0045); a roster is read against it, since a car
 names a model and is complete only once merged onto one. Both stock documents
@@ -49,6 +54,7 @@ from typing import Any, cast
 import yaml
 
 from tc49.lib import stock
+from tc49.lib.fast_clock import kept_clock
 from tc49.lib.layout import (
     Layout,
 )
@@ -279,16 +285,44 @@ class AssetStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(text.encode())
 
+    def clock(self, name: str) -> dict[str, Any]:
+        """One railroad's clock document: the start time and the speed-up its
+        fast clock is loaded at (ADR-0090, decision 3), checked and answered
+        as written.
+
+        A railroad with no clock file raises `FileNotFoundError`, where a
+        roster answers empty: a railroad that keeps no clock starts at the
+        box's wall time of day, which is not a document this store could
+        answer with (ADR-0090, decision 4).
+        """
+        doc = self._read(self._clock_path(name))
+        kept_clock(doc)
+        return cast(dict[str, Any], doc)
+
+    def put_clock(self, doc: dict[str, Any], name: str) -> None:
+        """Create or replace one railroad's clock, checked before anything is
+        written.
+
+        Dumped rather than merged like a drawing: the layout binding writes it
+        and nobody's prose is in it, and a dump quotes `start`, which the
+        merge would write as a bare `12:30` that YAML 1.1 reads back as a
+        number (`kept_clock`).
+        """
+        kept_clock(doc)
+        path = self._clock_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(doc, sort_keys=False))
+
     def copy(self, source: str, to: str) -> None:
         """Copy railroad `source`'s documents under the name `to`: its drawing,
-        its roster where it has one, and its script where it has one, each
-        naming itself `to` (ADR-0072).
+        and its roster, its script and its clock where it has them, each
+        drawing and roster naming itself `to` (ADR-0072, ADR-0090).
 
         Every document is read and validated before anything is written, so a
         refusal leaves the store as it was. A `source` with no drawing raises
-        `FileNotFoundError`, and a `to` any of whose three files exists raises
-        `FileExistsError` — a roster or a script alone is somebody's railroad
-        already, and a copy laid over it would mix two.
+        `FileNotFoundError`, and a `to` any of whose four files exists raises
+        `FileExistsError` — a roster, a script or a clock alone is somebody's
+        railroad already, and a copy laid over it would mix two.
 
         Scenarios are the harness's and the catalogue is every railroad's, so
         neither is copied. Each document's file is taken as it is before the
@@ -300,7 +334,13 @@ class AssetStore:
             self.roster_document(source) if self._roster_path(source).exists() else None
         )
         script = self.script(source) if self._script_path(source).exists() else None
-        taken = (self._drawing_path(to), self._roster_path(to), self._script_path(to))
+        clock = self.clock(source) if self._clock_path(source).exists() else None
+        taken = (
+            self._drawing_path(to),
+            self._roster_path(to),
+            self._script_path(to),
+            self._clock_path(to),
+        )
         if any(path.exists() for path in taken):
             raise FileExistsError(f"'{to}' is already a railroad")
         shutil.copyfile(self._drawing_path(source), self._drawing_path(to))
@@ -310,6 +350,8 @@ class AssetStore:
             self.put_roster({**roster, "roster": to}, to)
         if script is not None:
             self.put_script(script, to)
+        if clock is not None:
+            self.put_clock(clock, to)
 
     def loaded(self) -> str:
         """The railroad the layout binding last loaded, and `""` where
@@ -533,6 +575,9 @@ class AssetStore:
 
     def _script_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.script.py"
+
+    def _clock_path(self, name: str) -> Path:
+        return self._root / "layouts" / f"{name}.clock.yaml"
 
     def _scenario_path(self, name: str) -> Path:
         layout, _, scenario = name.partition("/")

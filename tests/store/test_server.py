@@ -346,8 +346,7 @@ def test_a_car_with_functions_of_its_own_serves_their_modes(
     declaring a name is the one that stands, mode and all (ADR-0045, #977)."""
     catalogued(tmp_path)
     (tmp_path / "catalogue" / "re460.yaml").write_text(
-        "model: re460\nkind: locomotive\nlength: 220\n"
-        "functions:\n  '2': {name: horn}\n"
+        "model: re460\nkind: locomotive\nlength: 220\nfunctions:\n  '2': {name: horn}\n"
     )
     (tmp_path / "layouts").mkdir()
     (tmp_path / "layouts" / "shed.roster.yaml").write_text(
@@ -1189,12 +1188,64 @@ def test_a_name_with_a_slash_in_it_is_no_script_route(
     assert handle(store, backup, "GET", "/scripts/crossover-yard/meet", None)[0] == 404
 
 
+CLOCK = {"start": "12:30", "speed_up": 8}
+"""A railroad's kept clock, at a time YAML 1.1 reads as a number unquoted."""
+
+
+def test_a_clock_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The route is the document, as a roster's is, and the file it lands in
+    reads back as the time it was (ADR-0090, decision 3)."""
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/clocks/shed", CLOCK) == (
+        200,
+        {"saved": "shed"},
+    )
+    assert handle(store, backup, "GET", "/clocks/shed", None) == (200, CLOCK)
+    assert (tmp_path / "layouts" / "shed.clock.yaml").exists()
+
+
+def test_a_railroad_with_no_clock_is_not_found(
+    store: AssetStore, backup: Backup
+) -> None:
+    """A railroad that keeps no clock starts at the box's wall time, which is
+    no document the store could answer with (ADR-0090, decision 4)."""
+    status, body = handle(store, backup, "GET", "/clocks/crossover-yard", None)
+    assert status == 404
+    assert "crossover-yard" in body["error"]
+
+
+def test_a_clock_that_is_not_one_is_refused_and_writes_nothing(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    for body in (
+        None,
+        {"start": "12:30"},
+        {"start": 750, "speed_up": 8},
+        {"start": "12:30", "speed_up": 0},
+    ):
+        assert handle(store, backup, "PUT", "/clocks/shed", body)[0] == 400
+    assert not (tmp_path / "layouts").exists()
+
+
+def test_a_hand_written_clock_that_is_not_one_is_a_bad_request(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Unquoted, `12:30` is the number 750 to the store's reader."""
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "shed.clock.yaml").write_text("start: 12:30\nspeed_up: 8\n")
+    status, body = handle(AssetStore(tmp_path), backup, "GET", "/clocks/shed", None)
+    assert status == 400
+    assert "HH:MM" in body["error"]
+
+
 def test_a_railroad_is_copied_with_its_roster_and_script(
     store: AssetStore, tmp_path: Path, backup: Backup
 ) -> None:
     """Every document the railroad has, each naming itself by the new name,
     and the drawing keeping the prose it was written with (ADR-0072)."""
     store.put_script(SCRIPT, "reversing-loops-v0")
+    store.put_clock(CLOCK, "reversing-loops-v0")
     assert handle(
         store, backup, "POST", "/railroads/reversing-loops-v0/copy", {"to": "b"}
     ) == (200, {"copied": "b"})
@@ -1217,6 +1268,7 @@ def test_a_railroad_is_copied_with_its_roster_and_script(
         200,
         {"script": "b", "text": SCRIPT},
     )
+    assert handle(store, backup, "GET", "/clocks/b", None) == (200, CLOCK)
 
 
 def test_a_railroad_with_only_a_drawing_copies_only_the_drawing(
@@ -1235,11 +1287,17 @@ def test_a_railroad_with_only_a_drawing_copies_only_the_drawing(
     assert store.drawing("b")["drawing"] == "b"
     assert not (tmp_path / "layouts" / "b.roster.yaml").exists()
     assert not (tmp_path / "layouts" / "b.script.py").exists()
+    assert not (tmp_path / "layouts" / "b.clock.yaml").exists()
 
 
 @pytest.mark.parametrize(
     "taken",
-    ["facing-pair.drawing.yaml", "facing-pair.roster.yaml", "facing-pair.script.py"],
+    [
+        "facing-pair.drawing.yaml",
+        "facing-pair.roster.yaml",
+        "facing-pair.script.py",
+        "facing-pair.clock.yaml",
+    ],
 )
 def test_a_copy_onto_a_name_taken_by_any_document_is_a_conflict(
     store: AssetStore, tmp_path: Path, backup: Backup, taken: str
@@ -1252,6 +1310,8 @@ def test_a_copy_onto_a_name_taken_by_any_document_is_a_conflict(
             (layouts / name).unlink()
     if taken.endswith(".py"):
         store.put_script(SCRIPT, "facing-pair")
+    if taken.endswith(".clock.yaml"):
+        store.put_clock(CLOCK, "facing-pair")
     before = {path.name: path.read_bytes() for path in layouts.glob("facing-pair.*")}
 
     status, body = handle(
@@ -1950,6 +2010,20 @@ def test_saving_a_script_arms_the_idle_timer(
     driven.switch(True)
     doc = {"script": "facing-pair-2", "text": SCRIPT}
     assert handle(store, driven, "PUT", "/scripts/facing-pair-2", doc)[0] == 200
+    assert [call for call in driving.calls if call[0] == "commit"] == []
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[0] for call in driving.calls if call[0] == "commit"] == ["commit"]
+
+
+def test_saving_a_clock_arms_the_idle_timer(
+    store: AssetStore, driven: Backup, driving: FakeGit, clock: list[float]
+) -> None:
+    """A clock set is a document of the store that moved, and the only write
+    the fast clock makes: the backup saves nothing while it runs (ADR-0090)."""
+    driven.switch(True)
+    assert handle(store, driven, "PUT", "/clocks/facing-pair-2", CLOCK)[0] == 200
     assert [call for call in driving.calls if call[0] == "commit"] == []
 
     clock[0] += 20.0
