@@ -232,3 +232,21 @@ def _reason(answered: urllib.error.HTTPError) -> str:
         return f"{answered.code} {answered.reason}"
     said = cast(dict[str, Any], body).get("error") if isinstance(body, dict) else None
     return said if isinstance(said, str) else f"{answered.code} {answered.reason}"
+
+
+def reread_roster(
+    documents: Documents, railroad: str, log: Callable[[str], None]
+) -> Callable[[], Roster | None]:
+    """How the dispatcher built on `railroad` reads its roster again, for a
+    placement naming a train it has not got (ADR-0091, decision 1). One
+    attempt, on the bus loop's own thread: a store that does not answer, or a
+    roster it refuses, is None and the placement is dropped as it was."""
+
+    def read() -> Roster | None:
+        try:
+            return documents.roster(railroad, once=True)
+        except (ConnectionError, FileNotFoundError, TypeError, ValueError) as no:
+            log(f"roster of '{railroad}' not read again: {no}")
+            return None
+
+    return read

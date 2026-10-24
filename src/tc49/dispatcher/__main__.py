@@ -45,7 +45,7 @@ from collections.abc import Callable
 
 from tc49.dispatcher.dispatch import ALLOCATION, Dispatcher
 from tc49.dispatcher.locking import Incremental
-from tc49.lib.documents import Documents
+from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Loaded, dropped, named, standing, taken
 from tc49.lib.mqtt import MqttBus, address
@@ -172,24 +172,6 @@ def _documents(documents: Documents, railroad: str) -> tuple[Layout, Roster]:
     stock that runs on it. What this app reads, which is the whole of what it
     says when a railroad is loaded under it (`lib.loading.taken`)."""
     return documents.layout(railroad), documents.roster(railroad)
-
-
-def reread_roster(
-    documents: Documents, railroad: str, log: Callable[[str], None]
-) -> Callable[[], Roster | None]:
-    """How the dispatcher built on `railroad` reads its roster again, for a
-    placement naming a train it has not got (ADR-0091, decision 1). One
-    attempt, on the bus loop's own thread: a store that does not answer, or a
-    roster it refuses, is None and the placement is dropped as it was."""
-
-    def read() -> Roster | None:
-        try:
-            return documents.roster(railroad, once=True)
-        except (ConnectionError, FileNotFoundError, TypeError, ValueError) as no:
-            log(f"roster of '{railroad}' not read again: {no}")
-            return None
-
-    return read
 
 
 def main() -> None:
