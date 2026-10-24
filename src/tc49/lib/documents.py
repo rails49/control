@@ -24,8 +24,9 @@ and the 5xx it sends when it cannot answer a request it should have.
 
 Standard library only: this is what an app is built on, and it fetches three
 documents per build and nothing between (SYSTEM.md, "read once per build").
-The one write is the layout binding's record of which railroad it loaded
-(`put_loaded`, ADR-0072 decision 5).
+The writes are the layout binding's: its record of which railroad it loaded
+(`put_loaded`, ADR-0072 decision 5), and the railroad's clock when a person
+sets it (`put_clock`, ADR-0090 decision 3).
 """
 
 import json
@@ -37,6 +38,7 @@ from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import quote
 
+from tc49.lib.fast_clock import KeptClock, kept_clock
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Model, Roster
 from tc49.lib.stock import validate_model, validate_roster
@@ -105,6 +107,20 @@ class Documents:
             name: validate_model(doc, name)
             for name, doc in cast(dict[str, Any], models).items()
         }
+
+    def clock(self, name: str) -> KeptClock | None:
+        """The start time and speed-up railroad `name` keeps, or None where
+        it keeps none and so starts at the box's wall time (ADR-0090,
+        decision 4). One the store cannot read is a `ValueError`."""
+        try:
+            return kept_clock(self._get("clocks", name))
+        except FileNotFoundError:
+            return None
+
+    def put_clock(self, name: str, kept: KeptClock) -> None:
+        """Keep `kept` as railroad `name`'s clock, written as `put_loaded`
+        writes the record: waited for until the store answers."""
+        self._put("clocks", name, body=kept.document())
 
     def loaded(self) -> str:
         """The railroad the store records as loaded, and `""` where it records

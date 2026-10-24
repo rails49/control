@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from tc49.lib.documents import Documents
+from tc49.lib.fast_clock import KeptClock
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
@@ -119,6 +120,22 @@ def test_the_loaded_railroad_is_what_was_put(url: str) -> None:
 def test_a_loaded_record_the_store_refuses_is_raised(url: str) -> None:
     with pytest.raises(ValueError, match="railroad"):
         client(url).put_loaded("")
+
+
+def test_the_clock_a_railroad_keeps_is_what_was_put(url: str) -> None:
+    """None where it keeps none, which starts it at the box's wall time
+    (ADR-0090, decision 4)."""
+    documents = client(url)
+    assert documents.clock(RAILROAD) is None
+    kept = KeptClock(start=(12 * 60 + 30) * 60, speed_up=8.0)
+    documents.put_clock(RAILROAD, kept)
+    assert documents.clock(RAILROAD) == kept
+
+
+def test_a_kept_clock_the_store_cannot_read_is_raised(url: str, root: Path) -> None:
+    (root / "layouts" / f"{RAILROAD}.clock.yaml").write_text("start: 12:30\n")
+    with pytest.raises(ValueError, match="clock"):
+        client(url).clock(RAILROAD)
 
 
 def test_it_returns_once_the_store_comes_up_after_it_was_asked(root: Path) -> None:
