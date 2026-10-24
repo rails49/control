@@ -228,12 +228,14 @@ are live, granted move or not
 a person at a platform can back a train up a few centimetres without asking
 for a move. It runs from 0 at the bottom to 1 at the top in steps of 0.01, with
 21 tick marks every 5 % that get longer toward the top, those at or below the
-value in the accent colour. It is not a native range: **dragging moves the
-value by the distance the finger travels** over the track's usable height, so
-a touch moves nothing and does not jump the value, and the drag does not
-scroll the page. The arrow keys move it 0.01, PageUp and PageDown 0.1. Leaving
-the block is the person's responsibility; nothing stops a held train at its
-block's ends.
+value in the accent colour. **Dragging the blue handle moves the value by the
+distance the finger travels** over the track's usable height, so a touch on
+the handle moves nothing. **A press anywhere else on the grey puts the handle
+under the finger** and publishes that value, and a drag from there follows
+the finger (#996); a press above or below the handle's travel is 1 or 0. No
+drag scrolls the page. The arrow keys move it 0.01, PageUp and PageDown 0.1.
+Leaving the block is the person's responsibility; nothing stops a held train
+at its block's ends.
 
 **The button under the slider** is the stop and the reverser, by where the
 slider stands, since the reverser moves only with the slider at 0
@@ -479,8 +481,10 @@ selector closes only when `state/taken` names the panel's id for the train and
 stays open when a third throttle has it, that Release writes one `null` and is
 disabled with no train, that the
 slider drives a held train with no move outstanding and runs from 0, that a
-drag moves it by the distance dragged in steps of 0.01 and a touch publishes
-nothing, that it stops at 0 and 1 and moves 0.01 on the arrows and 0.1 on
+drag of the handle moves it by the distance dragged in steps of 0.01 and a
+touch on it publishes nothing, that a press on the grey publishes the value
+there, a drag from it follows the finger, and above and below the travel is 1
+and 0, that it stops at 0 and 1 and moves 0.01 on the arrows and 0.1 on
 PageUp and PageDown, that it goes to rest when a granted move ends and when
 power reads off and stays put on a frame that ends no move, that 21 marks
 light up to the value, that the speed reads as a percentage and which way the

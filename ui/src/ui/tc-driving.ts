@@ -461,8 +461,10 @@ export class TcDriving extends LitElement {
    * sign — which way the reverser is set is said under it. The slider runs
    * 0 at the bottom to 1 at the top in hundredths and is live whenever this
    * throttle holds the train over live rails, granted move or not (ADR-0081).
-   * A drag moves it by the distance the pointer travels over the track's
-   * usable height, so a touch does not jump it; the arrow keys move it a
+   * A drag on the thumb moves it by the distance the pointer travels over
+   * the track's usable height, so a touch on the thumb does not move it; a
+   * press anywhere else on the track puts it under the pointer, and a drag
+   * from there follows the pointer (#996). The arrow keys move it a
    * hundredth and PageUp and PageDown a tenth.
    *
    * The button is two presses by where the slider is. Above 0 it is the
@@ -490,7 +492,7 @@ export class TcDriving extends LitElement {
         aria-valuetext=${`${percent} % ${way}`}
         aria-disabled=${String(!this.live)}
         style=${`--value: ${this.slider}`}
-        @pointerdown=${(event: PointerEvent) => this.grab(event)}
+        @pointerdown=${(event: PointerEvent) => this.grab(cab.train, event)}
         @pointermove=${(event: PointerEvent) => this.dragging(cab.train, event)}
         @pointerup=${() => (this.drag = null)}
         @pointercancel=${() => (this.drag = null)}
@@ -519,18 +521,20 @@ export class TcDriving extends LitElement {
 
   // --- what goes on the bus -------------------------------------------------
 
-  /** A pointer down on the track: the drag starts from where the slider
-   *  stands, and nothing moves until the pointer does. */
-  private grab(event: PointerEvent): void {
+  /** A pointer down on the track. On the thumb, the drag starts from where
+   *  the slider stands and nothing moves until the pointer does; anywhere
+   *  else, the slider goes to the pointer first, 0 below its travel and 1
+   *  above it, and the drag starts from there. */
+  private grab(train: string, event: PointerEvent): void {
     const track = this.track;
     if (!this.live || track === null) return;
     track.setPointerCapture?.(event.pointerId);
-    this.drag = {
-      pointer: event.pointerId,
-      y: event.clientY,
-      from: this.slider,
-      span: track.getBoundingClientRect().height - 2 * TRACK_PAD_PX,
-    };
+    const box = track.getBoundingClientRect();
+    const span = box.height - 2 * TRACK_PAD_PX;
+    if (span > 0 && !(event.target as Element).closest(".thumb")) {
+      this.slide(train, (box.bottom - TRACK_PAD_PX - event.clientY) / span);
+    }
+    this.drag = { pointer: event.pointerId, y: event.clientY, from: this.slider, span };
   }
 
   /** The pointer moved over the track: the slider by the distance it went

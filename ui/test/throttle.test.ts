@@ -187,18 +187,40 @@ function standing(track: HTMLElement): number {
 const TRACK = 200;
 const TRACK_HEIGHT = TRACK + 2 * TRACK_PAD_PX;
 
-/** Drag a track by `dy` pixels upward, the way a finger does: down, moved,
- *  up. A drag of 0 is a touch. */
+/** Drag a track's thumb by `dy` pixels upward, the way a finger does: down
+ *  on the thumb, moved, up. A drag of 0 is a touch. */
 async function dragged(
   shell: TcApp,
   track: HTMLElement,
   dy: number,
   pointerId = 1,
 ): Promise<void> {
+  const at = TRACK_PAD_PX + (1 - standing(track)) * TRACK;
+  await pointed(shell, track, track.querySelector(".thumb")!, at, dy, pointerId);
+}
+
+/** Press a track's grey at `at` pixels from its top, and drag it `dy`
+ *  pixels upward from there: down, moved, up. */
+async function pressedAt(
+  shell: TcApp,
+  track: HTMLElement,
+  at: number,
+  dy = 0,
+): Promise<void> {
+  await pointed(shell, track, track, at, dy);
+}
+
+async function pointed(
+  shell: TcApp,
+  track: HTMLElement,
+  on: Element,
+  at: number,
+  dy: number,
+  pointerId = 1,
+): Promise<void> {
   track.getBoundingClientRect = () =>
     ({ height: TRACK_HEIGHT, width: 100, top: 0, left: 0, right: 100, bottom: TRACK_HEIGHT, x: 0, y: 0 }) as DOMRect;
-  const at = 300;
-  track.dispatchEvent(new PointerEvent("pointerdown", { clientY: at, pointerId, bubbles: true }));
+  on.dispatchEvent(new PointerEvent("pointerdown", { clientY: at, pointerId, bubbles: true }));
   if (dy !== 0) {
     track.dispatchEvent(new PointerEvent("pointermove", { clientY: at - dy, pointerId, bubbles: true }));
   }
@@ -598,11 +620,10 @@ describe("the slider", () => {
     expect(standing(lever(shell)!)).toBe(0);
   });
 
-  /** A native range jumps to where it is touched; this one moves by the
-   *  distance the finger travels over the track's usable height, so a
-   *  touch moves nothing and a drag moves the value by as much, in
-   *  hundredths. */
-  it("moves by the distance dragged, in steps of 0.01, and not on a touch", async () => {
+  /** Dragged by its thumb it moves by the distance the finger travels over
+   *  the track's usable height, so a touch on the thumb moves nothing and a
+   *  drag moves the value by as much, in hundredths. */
+  it("moves by the distance its thumb is dragged, in steps of 0.01, and not on a touch", async () => {
     const shell = await driving();
     await held(shell);
     const track = lever(shell)!;
@@ -626,6 +647,52 @@ describe("the slider", () => {
         .slice(before)
         .map((one) => (one as { payload: { speed: number } }).payload.speed),
     ).toEqual([0.01, 0.02, 0.37, 0.27]);
+  });
+
+  /** A press on the grey goes to the finger at once (#996). */
+  it("goes to where its grey is pressed", async () => {
+    const shell = await driving();
+    await held(shell);
+    const track = lever(shell)!;
+    const before = written().length;
+
+    await pressedAt(shell, track, TRACK_PAD_PX + 0.4 * TRACK);
+
+    expect(standing(track)).toBe(0.6);
+    expect(written().slice(before)).toEqual([
+      {
+        topic: THROTTLE_WANTED,
+        payload: { train: "goods", speed: 0.6, throttle: mine() },
+      },
+    ]);
+  });
+
+  /** A drag from the grey follows the finger from where it went down. */
+  it("follows a drag from where its grey is pressed", async () => {
+    const shell = await driving();
+    await held(shell);
+    const track = lever(shell)!;
+    const before = written().length;
+
+    await pressedAt(shell, track, TRACK_PAD_PX + 0.4 * TRACK, 0.2 * TRACK);
+
+    expect(standing(track)).toBe(0.8);
+    expect(
+      written()
+        .slice(before)
+        .map((one) => (one as { payload: { speed: number } }).payload.speed),
+    ).toEqual([0.6, 0.8]);
+  });
+
+  /** The pads above and below the thumb's travel are 1 and 0. */
+  it("is 1 pressed above its travel and 0 below it", async () => {
+    const shell = await driving();
+    await held(shell);
+    const track = lever(shell)!;
+    await pressedAt(shell, track, 4);
+    expect(standing(track)).toBe(1);
+    await pressedAt(shell, track, TRACK_HEIGHT - 4);
+    expect(standing(track)).toBe(0);
   });
 
   /** Held at the ends: a drag past the top is full speed, and back past the
