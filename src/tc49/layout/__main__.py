@@ -47,7 +47,9 @@ reloading are outside it and say nothing. The fast clock goes out at the same
 beat, `tc49/layout/state/clock`, started at each build from the box's wall
 time of day at a speed-up of 1 and run on the monotonic clock from there
 (ADR-0090): the wall clock is read once a build, here, and by nothing in
-`LayoutInterface`, which never learns what time it is (ADR-0044).
+`LayoutInterface`, which never learns what time it is (ADR-0044). A person
+sets it with `tc49/layout/clock_wanted`, taken in the drain like every other
+gesture and said at once rather than at the next beat (`FastClockRow`).
 
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
@@ -72,12 +74,14 @@ from tc49.layout.interface import (
     WANTED_TRACTION,
     LayoutInterface,
 )
+from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, time_of_day
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
+from tc49.lib.payload import wanted_clock
 from tc49.lib.roster import Roster
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 
@@ -117,6 +121,10 @@ rate, which the drain period must not move."""
 
 CLOCK = "tc49/layout/state/clock"
 """The fast clock, said at the beat `alive_confirmed` is (ADR-0090)."""
+
+CLOCK_WANTED = "tc49/layout/clock_wanted"
+"""A person setting the fast clock: a time of day, a speed-up, or both
+(ADR-0090, decision 2)."""
 
 TRACTION = f"{WANTED_TRACTION}/#"
 """Every traction row, which is what has to be on the broker's way here before
@@ -254,7 +262,41 @@ class _Binding:
             built=built,
         )
         fast = FastClock(time_of_day(time.localtime()), 1.0, time.monotonic())
-        return _Running(self._bus, app, clock, fast, self._stop, self._period_s)
+        row = FastClockRow(self._bus, fast, time.monotonic)
+        return _Running(self._bus, app, clock, row, self._stop, self._period_s)
+
+
+class FastClockRow:
+    """The fast clock as `layout` holds it for one build and says it: once a
+    beat, and at once when a person sets it on `tc49/layout/clock_wanted`.
+    The real seconds are read off `monotonic`.
+
+    It subscribes as it is made, at each build: a reload forgets every
+    subscription with the railroad it leaves."""
+
+    def __init__(
+        self, bus: Bus, fast: FastClock, monotonic: Callable[[], float]
+    ) -> None:
+        self._bus = bus
+        self._fast = fast
+        self._monotonic = monotonic
+        bus.subscribe(CLOCK_WANTED, self._wanted)
+
+    def say(self) -> None:
+        """What the clock reads now, on `tc49/layout/state/clock`."""
+        self._bus.publish(CLOCK, self._fast.row(self._monotonic()))
+
+    def _wanted(self, topic: str, payload: Payload) -> None:
+        """A person set the clock (ADR-0090, decision 2): the new time taken
+        at once, the new speed-up run at from now, and every page told
+        without waiting for the beat. Taken whatever track power and the run
+        are doing, and one that cannot be read is dropped as any malformed
+        gesture is (ADR-0034)."""
+        wanted = wanted_clock(payload)
+        if wanted is None:
+            return
+        self._fast = self._fast.changed(self._monotonic(), wanted.time, wanted.speed_up)
+        self.say()
 
 
 class _Running:
@@ -267,7 +309,7 @@ class _Running:
         bus: MqttBus,
         app: LayoutInterface,
         clock: Clock,
-        fast: FastClock,
+        fast: FastClockRow,
         stop: threading.Event,
         period_s: float,
     ) -> None:
@@ -296,7 +338,7 @@ class _Running:
             # cut then changes nothing (#716).
             if self._alive is None or now - self._alive >= ALIVE_S:
                 self._bus.publish(ALIVE_CONFIRMED, {})
-                self._bus.publish(CLOCK, self._fast.row(now))
+                self._fast.say()
                 self._alive = now
             self._app.settle()
             self._bus.drain()
