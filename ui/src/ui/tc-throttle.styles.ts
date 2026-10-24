@@ -2,7 +2,7 @@ import { css } from "lit";
 
 /**
  * The throttle view (`tc-throttle`): a row of throttles, each a panel the
- * size of a phone screen holding the train picker, whose styles are its own
+ * size of a phone screen holding the train selector, whose styles are its own
  * (`tc-train-picker.styles.ts`), or one train's driving controls, whose styles
  * are theirs (`tc-driving.styles.ts`), laid out here (ui/THROTTLE.md,
  * ADR-0089).
@@ -40,6 +40,7 @@ export const throttleStyles = css`
   }
 
   .panel {
+    position: relative;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -57,6 +58,15 @@ export const throttleStyles = css`
   }
 
   .panel > tc-train-picker {
-    padding: 0;
+    flex: 1;
+  }
+
+  /* The selector opened from the picture, over the whole panel and the
+     driving controls kept beneath it. */
+  .panel > tc-train-picker.over {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 0.8rem 1rem;
   }
 `;
