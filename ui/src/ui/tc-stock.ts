@@ -34,8 +34,8 @@
  * (ui/STOCK.md#the-length-guard,
  * [ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
  *
- * The car's and the train's editors are the controls each had before the
- * view was rebuilt, in the editor column, until #979 and #980 draw theirs.
+ * The train's editor is the controls it had before the view was rebuilt, in
+ * the editor column, until #980 draws its own.
  */
 
 import { LitElement, html, nothing } from "lit";
@@ -53,6 +53,7 @@ import {
   Stock,
   type CarRow,
   type EntryRow,
+  type FnOwner,
   type ModelRow,
   type TrainRow,
 } from "../model/stock.js";
@@ -186,6 +187,15 @@ export class TcStock extends LitElement {
   /** Whether the New car chooser on the Cars list is open. */
   @state() private choosing = false;
 
+  /** The car whose address is being asked for, made just now of a model with
+   *  a decoder, and what the answer was refused with. */
+  @state() private asked: string | null = null;
+  @state() private refusal: string | null = null;
+
+  /** The car whose address field *Fitted one to this car?* has shown though
+   *  its model has no decoder. */
+  @state() private fitting: string | null = null;
+
   /** The photo version at which each model's photo did not load, by key:
    *  the route answering anything but 200, which is the whole of how this
    *  screen learns there is none (docs/SYSTEM.md). A photo written since is
@@ -229,6 +239,9 @@ export class TcStock extends LitElement {
     this.kept = null;
     this.asking = null;
     this.choosing = false;
+    this.asked = null;
+    this.refusal = null;
+    this.fitting = null;
   }
 
   override updated(): void {
@@ -250,7 +263,7 @@ export class TcStock extends LitElement {
         <section class="list" aria-label="Stock">${this.list()}</section>
         <section class="editor" aria-label="Editor">${this.editor()}</section>
       </div>
-      ${this.deleting()} ${this.chooser()}
+      ${this.deleting()} ${this.chooser()} ${this.addressing()}
     `;
   }
 
@@ -784,9 +797,11 @@ export class TcStock extends LitElement {
   }
 
   /** One row per function: its number, its name, Toggle or Hold, and a
-   *  remove. A number listed twice is said under the rows while it stands. */
-  private functions(key: string) {
+   *  remove. A number listed twice is said under the rows while it stands.
+   *  A model's, or a car's own, which are edited the same way. */
+  private functions(key: FnOwner) {
     const stock = this.stock!;
+    const id = typeof key === "string" ? key : `car:${key.car}`;
     const rows = stock.functionRows(key);
     const twice = stock.listedTwice(key);
     return html`
@@ -800,11 +815,11 @@ export class TcStock extends LitElement {
                   class="number"
                   inputmode="numeric"
                   aria-label="function number"
-                  .value=${this.putting(`fn:${key}:${at}:number`, row.number)}
+                  .value=${this.putting(`fn:${id}:${at}:number`, row.number)}
                   @change=${(event: Event) =>
                     this.did(
                       stock.functionNumber(key, at, value(event)),
-                      `fn:${key}:${at}:number`,
+                      `fn:${id}:${at}:number`,
                     )}
                 />
               </span>
@@ -812,11 +827,11 @@ export class TcStock extends LitElement {
                 class="fn-name"
                 aria-label="function name"
                 placeholder="Horn, Headlights…"
-                .value=${this.putting(`fn:${key}:${at}:name`, row.name)}
+                .value=${this.putting(`fn:${id}:${at}:name`, row.name)}
                 @change=${(event: Event) =>
                   this.changed(
                     (one) => one.functionName(key, at, value(event)),
-                    `fn:${key}:${at}:name`,
+                    `fn:${id}:${at}:name`,
                   )}
               />
               <div class="seg mode" role="group" aria-label="Toggle or hold">
@@ -952,14 +967,18 @@ export class TcStock extends LitElement {
     this.did(null);
   };
 
-  /** A car of this model, chosen in the Cars list. */
+  /** A car of this model, chosen in the Cars list, and asked for its
+   *  address at once where the model has a decoder. */
   private carOf(key: string): void {
-    const name = this.stock?.newCar(key) ?? null;
-    if (name === null) return;
+    const stock = this.stock;
+    const name = stock?.newCar(key) ?? null;
+    if (stock === null || name === null) return;
     this.choosing = false;
     this.tab = "cars";
     this.car = name;
     this.editing = true;
+    this.refusal = null;
+    this.asked = stock.cars().find((one) => one.name === name)?.decoder ? name : null;
     this.did(null);
   }
 
@@ -990,74 +1009,290 @@ export class TcStock extends LitElement {
     `;
   }
 
-  // --- the car's editor, until #979 -----------------------------------------
+  // --- the car's editor -----------------------------------------------------
 
-  /** The car's controls as they were: its name, address, camera and length,
-   *  and the remove. */
+  /**
+   * The car editor, from the top as the mockup draws it: its model's photo,
+   * its name, its model, its address and camera, what is different from the
+   * model — length, functions, notes — and the trains holding it, with Remove
+   * at the top right, dead while a train does. Every edit is the roster's to
+   * hold and Save's to write.
+   */
   private carEditor(car: CarRow) {
+    const name = car.name;
+    const inTrain = car.trains[0];
     return html`
-      ${this.head("Car", car.name)}
-      <div class="body">
-        <div class="photo-frame">${this.photo(car.kind === null ? null : car.model)}</div>
-        <ul class="rows">
-          ${this.carRow(car)}
-        </ul>
+      ${this.head(
+        "Car",
+        name,
+        html`<button
+          class="remove-car"
+          title=${inTrain === undefined
+            ? "Take this car off the roster"
+            : `In train ${inTrain}. Take it out of the train first.`}
+          ?disabled=${inTrain !== undefined}
+          @click=${() => this.did(this.stock?.removeCar(name))}
+        >
+          Remove
+        </button>`,
+      )}
+      <div class="body car-editor">
+        <div class="photo-frame">
+          ${this.photo(car.kind === null ? null : car.model)}
+          <span class="chip">Photo of the model</span>
+        </div>
+        <div class="grid">
+          <label class="field wide">
+            <span class="label">Name</span>
+            <input
+              class="name"
+              .value=${this.putting(`car:${name}:name`, name)}
+              @change=${(event: Event) => this.renamedCar(name, value(event))}
+            />
+          </label>
+          <div class="field">
+            <span class="label">Model</span>
+            <button class="model" @click=${() => this.opened("models", car.model)}>
+              ${car.modelName}${car.kind === null ? " — no such model" : ""}
+            </button>
+          </div>
+          ${this.address(car)}
+          <label class="field wide">
+            <span class="label">Camera address</span>
+            <input
+              class="camera"
+              .value=${this.putting(`car:${name}:camera`, car.camera ?? "")}
+              placeholder="cam-1.local or 192.168.1.40"
+              @change=${(event: Event) =>
+                this.did(this.stock?.carCamera(name, value(event)), `car:${name}:camera`)}
+            />
+            <span class="hint">
+              Host name or IP address of the camera riding in this car. Empty if it carries
+              none.
+            </span>
+          </label>
+        </div>
+        <section class="sec different">
+          <div>
+            <h3>Different from the model</h3>
+            <p class="hint">Leave a field empty and the car takes the model's.</p>
+          </div>
+          <label class="field">
+            <span class="label">Length over buffers, mm</span>
+            <input
+              class="length"
+              inputmode="numeric"
+              .value=${this.putting(`car:${name}:length`, car.own ? String(car.length) : "")}
+              placeholder=${car.modelLength === null ? "" : String(car.modelLength)}
+              title=${car.held ?? "millimetres over buffers, where this car is not its model's length"}
+              ?disabled=${car.held !== null}
+              @change=${(event: Event) =>
+                this.did(
+                  this.stock?.carLength(name, millimetres(event), this.power, this.heard),
+                  `car:${name}:length`,
+                )}
+            />
+            ${car.held === null
+              ? html`<span class="hint">
+                  ${car.modelLength === null
+                    ? ""
+                    : car.own
+                      ? `The model says ${car.modelLength} mm.`
+                      : `The model's ${car.modelLength} mm.`}
+                </span>`
+              : html`<span class="why">${car.held}</span>`}
+          </label>
+          ${car.decoder || car.addr !== null ? this.carFunctions(car) : nothing}
+          <div class="field">
+            <span class="label">Notes</span>
+            ${car.modelNotes === null
+              ? nothing
+              : html`<p class="quote model-notes">${car.modelNotes}</p>`}
+            <textarea
+              class="notes"
+              rows="3"
+              placeholder="What is particular to this car…"
+              .value=${this.putting(`car:${name}:notes`, car.notes ?? "")}
+              @change=${(event: Event) =>
+                this.changed((one) => one.carNotes(name, value(event)), `car:${name}:notes`)}
+            ></textarea>
+          </div>
+        </section>
+        <section class="sec in-trains">
+          <h3>In trains</h3>
+          ${car.trains.length === 0
+            ? html`<p class="hint">In no train yet.</p>`
+            : html`<ul class="uses">
+                ${car.trains.map(
+                  (train) =>
+                    html`<li>
+                      <button class="link train" @click=${() => this.opened("trains", train)}>
+                        ${train}
+                      </button>
+                    </li>`,
+                )}
+              </ul>`}
+        </section>
       </div>
     `;
   }
 
-  private carRow(car: CarRow) {
+  /** The DCC address, where the model has a decoder, the car has an address
+   *  or the person has said one was fitted; otherwise that the model has none
+   *  and the link that shows the field. Committed when the field is left. */
+  private address(car: CarRow) {
+    const name = car.name;
+    if (!car.decoder && car.addr === null && this.fitting !== name) {
+      return html`
+        <div class="field">
+          <span class="label">DCC address</span>
+          <p class="hint">${car.modelName} has no decoder.</p>
+          <button class="link fitted" @click=${() => void this.fitted(name)}>
+            Fitted one to this car? Give it an address
+          </button>
+        </div>
+      `;
+    }
     return html`
-      <li class="car">
-        <span class="what">
-          <input
-            class="name"
-            .value=${this.putting(`car:${car.name}:name`, car.name)}
-            aria-label="car name"
-            @change=${(event: Event) =>
-              this.did(this.stock?.renameCar(car.name, value(event)), `car:${car.name}:name`)}
-          />
-          <span class="of">${car.modelName}${car.kind === null ? " — no such model" : ""}</span>
-        </span>
+      <label class="field">
+        <span class="label">DCC address</span>
         <input
           class="addr"
-          .value=${this.putting(`car:${car.name}:addr`, car.addr ?? "")}
-          placeholder="address"
-          aria-label="address"
+          inputmode="numeric"
+          .value=${this.putting(`car:${name}:addr`, car.addr ?? "")}
+          placeholder="the number in its decoder"
           @change=${(event: Event) =>
-            this.did(this.stock?.carAddress(car.name, value(event)), `car:${car.name}:addr`)}
+            this.did(this.stock?.carAddress(name, value(event)), `car:${name}:addr`)}
         />
-        <input
-          class="camera"
-          .value=${this.putting(`car:${car.name}:camera`, car.camera ?? "")}
-          placeholder="camera"
-          aria-label="camera"
-          @change=${(event: Event) =>
-            this.did(this.stock?.carCamera(car.name, value(event)), `car:${car.name}:camera`)}
-        />
-        <input
-          class="length"
-          .value=${this.putting(`car:${car.name}:length`, car.own ? String(car.length) : "")}
-          placeholder=${car.length === null ? "" : String(car.length)}
-          aria-label="length"
-          title=${car.held ?? "millimetres over buffers, where this item is not its model's length"}
-          ?disabled=${car.held !== null}
-          @change=${(event: Event) =>
-            this.did(
-              this.stock?.carLength(car.name, millimetres(event), this.power, this.heard),
-              `car:${car.name}:length`,
-            )}
-        />
-        <button
-          class="remove"
-          title="remove from the roster"
-          @click=${() => this.did(this.stock?.removeCar(car.name))}
-        >
-          ×
-        </button>
-        ${car.held === null ? nothing : html`<span class="why">${car.held}</span>`}
-      </li>
+        <span class="hint">
+          ${car.decoder
+            ? "The number programmed into this car's decoder. No two cars share one."
+            : `${car.modelName} has no decoder; this car has one fitted.`}
+        </span>
+      </label>
     `;
+  }
+
+  /** *Fitted one to this car?*: the address field shown, and focused. */
+  private async fitted(name: string): Promise<void> {
+    this.fitting = name;
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLInputElement>(".car-editor input.addr")?.focus();
+  }
+
+  /** The model's functions as chips, and the press that gives the car its
+   *  own; or the car's own as function rows, and the press that takes them
+   *  off. */
+  private carFunctions(car: CarRow) {
+    const stock = this.stock!;
+    const name = car.name;
+    if (car.ownFunctions) {
+      return html`
+        <div class="field own-functions">
+          <span class="label">Functions, this car's own</span>
+          ${this.functions({ car: name })}
+          <button
+            class="link model-functions"
+            @click=${() => this.changed((one) => one.modelFunctions(name))}
+          >
+            Use the model's functions again
+          </button>
+        </div>
+      `;
+    }
+    const rows = stock.model(car.model) === null ? [] : stock.functionRows(car.model);
+    return html`
+      <div class="field">
+        <span class="label">Functions, from the model</span>
+        <div class="chips">
+          ${rows.length === 0
+            ? html`<span class="hint">None</span>`
+            : rows.map(
+                (row) =>
+                  html`<span class=${`fchip ${row.mode === MOMENTARY ? "hold" : ""}`}
+                    ><code>F${row.number}</code>${row.name}${row.mode === MOMENTARY
+                      ? html`<em>hold</em>`
+                      : nothing}</span
+                  >`,
+              )}
+        </div>
+        <button
+          class="link own-functions"
+          @click=${() => this.changed((one) => one.ownFunctions(name))}
+        >
+          This car's decoder is different: give it its own functions
+        </button>
+      </div>
+    `;
+  }
+
+  /**
+   * The question a new car of a decoder model asks at once: the address
+   * programmed into its decoder, refused as the field refuses it. *Later*
+   * leaves the car with none.
+   */
+  private addressing() {
+    const stock = this.stock;
+    const name = this.asked;
+    const car = name === null ? undefined : stock?.cars().find((one) => one.name === name);
+    if (stock === null || name === null || car === undefined) return nothing;
+    return html`
+      <look-dialog
+        open
+        class="address"
+        label=${`Address for ${name}`}
+        @sl-after-hide=${() => {
+          this.asked = null;
+          this.refusal = null;
+        }}
+      >
+        <p>${car.modelName} has a decoder. Type the address programmed into this car's decoder.</p>
+        <input class="ask-addr" inputmode="numeric" placeholder="e.g. 460" />
+        ${this.refusal === null ? nothing : html`<p class="trouble">${this.refusal}</p>`}
+        <sl-button
+          slot="footer"
+          class="later"
+          @click=${() => {
+            this.asked = null;
+            this.refusal = null;
+          }}
+        >
+          Later
+        </sl-button>
+        <sl-button slot="footer" variant="primary" class="set" @click=${() => this.setAddress(name)}>
+          Set address
+        </sl-button>
+      </look-dialog>
+    `;
+  }
+
+  /** *Set address*: the one typed, or nothing where none was, and the
+   *  question gone; a refusal stays in the question. */
+  private setAddress(name: string): void {
+    const field = this.renderRoot.querySelector<HTMLInputElement>("look-dialog.address input");
+    const typed = field?.value.trim() ?? "";
+    const refused = typed === "" ? null : (this.stock?.carAddress(name, typed) ?? null);
+    if (refused !== null) {
+      this.refusal = refused;
+      return;
+    }
+    this.asked = null;
+    this.refusal = null;
+    this.did(null);
+  }
+
+  /** A car renamed, carrying the choice and what was asked about it. */
+  private renamedCar(was: string, name: string): void {
+    const refused = this.stock?.renameCar(was, name) ?? null;
+    if (refused === null && this.car === was) this.car = name;
+    if (refused === null && this.fitting === was) this.fitting = name;
+    this.did(refused, `car:${was}:name`);
+  }
+
+  /** A model or a train the car editor links to, opened in its own list. */
+  private opened(tab: Tab, key: string): void {
+    this.tab = tab;
+    this.chose(tab, key);
   }
 
   // --- the train's editor, until #980 ---------------------------------------

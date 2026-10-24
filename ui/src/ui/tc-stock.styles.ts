@@ -728,18 +728,118 @@ export const stockStyles = css`
     font-weight: 600;
   }
 
-  /* --- the car's and the train's controls, until #979 and #980 --- */
+  /* --- the car editor --- */
+
+  /* What the photo on a car's editor is: its model's, a car having none of
+     its own. */
+  .chip {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    padding: 5px 9px;
+    border-radius: 7px;
+    background: rgb(0 0 0 / 0.55);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  button.model,
+  button.remove-car {
+    display: inline-flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--paper);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  button.remove-car {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 13px;
+    border-color: color-mix(in srgb, var(--wrong) 55%, transparent);
+    background: transparent;
+    color: var(--wrong);
+  }
+
+  button.link {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--chosen);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .fchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 9px;
+    font-size: 13px;
+  }
+
+  .fchip code {
+    color: var(--hint);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* A momentary function: on only while held. */
+  .fchip.hold {
+    border-style: dashed;
+  }
+
+  .fchip em {
+    color: var(--hint);
+    font-size: 11.5px;
+    font-style: normal;
+  }
+
+  /* The model's notes, above the car's own and not editable here. */
+  .quote {
+    margin: 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--rule);
+    border-radius: 0 10px 10px 0;
+    color: var(--hint);
+    font-size: 13.5px;
+    line-height: 1.45;
+    white-space: pre-line;
+  }
+
+  input.ask-addr {
+    width: 100%;
+    box-sizing: border-box;
+    height: 44px;
+    margin: 8px 0;
+    padding: 0 12px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- the train's controls, until #980 --- */
 
   ul.rows > li + li {
     border-top: 1px solid var(--rule);
-  }
-
-  li.car {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 5rem 8rem 5rem auto;
-    column-gap: 0.4rem;
-    align-items: center;
-    padding: 0.25rem 0;
   }
 
   li.entry {
@@ -757,7 +857,6 @@ export const stockStyles = css`
     padding: 0.25rem 0;
   }
 
-  li.car input,
   li.entry input,
   li.train input {
     width: 100%;
@@ -769,7 +868,6 @@ export const stockStyles = css`
     background: var(--paper);
   }
 
-  li.car > button,
   li.entry > button,
   li.train button,
   li.addable button {
@@ -782,10 +880,6 @@ export const stockStyles = css`
 
   button.turn[aria-pressed="true"] {
     background: var(--rule);
-  }
-
-  li.car .why {
-    grid-column: 1 / -1;
   }
 
   li.train > header {

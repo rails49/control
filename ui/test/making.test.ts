@@ -181,7 +181,7 @@ async function entry(shell: TcApp, field: string, at = 0): Promise<HTMLInputElem
 async function car(shell: TcApp, field: string, at = 0): Promise<HTMLInputElement> {
   await tab(shell, "cars");
   if (at > 0) await pressed(shell, "button.card.car", at);
-  return part(shell, `li.car input.${field}`) as HTMLInputElement;
+  return part(shell, `.car-editor .${field}`) as HTMLInputElement;
 }
 
 /** The roster the screen last wrote, as the store was given it. */
@@ -558,6 +558,199 @@ describe("the model editor", () => {
   });
 });
 
+/** The car editor (#979): what a car is beyond its model, each edit held for
+ *  the one Save. */
+describe("the car editor", () => {
+  /** A catalogue with a locomotive that has a decoder and a coach that has
+   *  none, and a roster with a Re 460 on address 460 in a train. */
+  function owned(): void {
+    store.catalogue = {
+      re460: {
+        model: "re460",
+        name: "Re 460",
+        kind: "locomotive",
+        length: 189,
+        decoder: true,
+        notes: "Roco 73283.",
+        functions: { "0": { name: "Headlights" }, "2": { name: "Horn", mode: "momentary" } },
+      },
+      coach: { model: "coach", name: "EW IV B", kind: "passenger", length: 300 },
+    };
+    store.documentOf = () => ({
+      roster: "toy",
+      cars: { "Re 460 001": { model: "re460", addr: "460" } },
+      trains: { IC: { cars: [{ car: "Re 460 001" }, { model: "coach" }] } },
+    });
+  }
+
+  /** The address question a new car of a decoder model asks. */
+  function question(shell: TcApp): HTMLElement | null {
+    return screen(shell).renderRoot.querySelector<HTMLElement>("look-dialog.address");
+  }
+
+  it("asks a second car of a decoder model for its address, refusing the first car's", async () => {
+    owned();
+    const shell = await opened();
+    await chosen(shell, "Re 460");
+    await pressed(shell, ".ed-head button.new-car");
+
+    expect(question(shell)!.getAttribute("label")).toBe("Address for Re 460");
+    typing(part(shell, "look-dialog.address input"), "460");
+    await pressed(shell, "look-dialog.address .set");
+    expect(part(shell, "look-dialog.address .trouble").textContent).toBe(
+      "Car Re 460 001 already has address 460.",
+    );
+
+    typing(part(shell, "look-dialog.address input"), "461");
+    await pressed(shell, "look-dialog.address .set");
+    expect(question(shell)).toBeNull();
+    await saved(shell);
+    expect(written()!.cars!["Re 460"]).toEqual({ model: "re460", addr: "461" });
+  });
+
+  it("asks a car of a model with no decoder nothing, and shows no address field", async () => {
+    owned();
+    const shell = await opened();
+    await chosen(shell, "EW IV B");
+    await pressed(shell, ".ed-head button.new-car");
+
+    expect(question(shell)).toBeNull();
+    expect(screen(shell).renderRoot.querySelector(".car-editor input.addr")).toBeNull();
+    expect(part(shell, ".car-editor .field p.hint").textContent).toBe("EW IV B has no decoder.");
+
+    await pressed(shell, ".car-editor button.fitted");
+    await typed(shell, await car(shell, "addr"), "7");
+    await saved(shell);
+    expect(written()!.cars!["EW IV B"]).toEqual({ model: "coach", addr: "7" });
+  });
+
+  it("refuses an address that is none, and puts the field back", async () => {
+    owned();
+    const shell = await opened();
+
+    await typed(shell, await car(shell, "addr"), "abc");
+
+    expect(trouble(shell)).toBe("'abc' is not a DCC address. Use a number from 1 to 10239.");
+    expect((await car(shell, "addr")).value).toBe("460");
+  });
+
+  it("refuses a name another car has, and puts the field back", async () => {
+    owned();
+    const shell = await opened();
+    await chosen(shell, "Re 460");
+    await pressed(shell, ".ed-head button.new-car");
+    await pressed(shell, "look-dialog.address .later");
+
+    await typed(shell, await car(shell, "name"), "Re 460 001");
+
+    expect(trouble(shell)).toBe("There is already a car 'Re 460 001'.");
+    expect((await car(shell, "name")).value).toBe("Re 460");
+  });
+
+  it("sets a camera address, refuses one, and empties it", async () => {
+    owned();
+    const shell = await opened();
+    await typed(shell, await car(shell, "camera"), "cam-1.local");
+    await typed(shell, await car(shell, "camera"), "http://cam-1");
+    expect(trouble(shell)).toBe(
+      "'http://cam-1' is not a camera address — write the camera's host name or IP address",
+    );
+    expect((await car(shell, "camera")).value).toBe("cam-1.local");
+    await saved(shell);
+    expect(written()!.cars!["Re 460 001"]!.camera).toBe("cam-1.local");
+
+    await typed(shell, await car(shell, "camera"), "");
+    await saved(shell);
+    expect(written()!.cars!["Re 460 001"]).toEqual({ model: "re460", addr: "460" });
+  });
+
+  it("writes a length override to the car, and removes it when emptied", async () => {
+    owned();
+    const shell = await opened();
+    expect((await car(shell, "length")).placeholder).toBe("189");
+
+    await typed(shell, await car(shell, "length"), "190");
+    await saved(shell);
+    expect(written()!.cars!["Re 460 001"]!.length).toBe(190);
+
+    await typed(shell, await car(shell, "length"), "");
+    await saved(shell);
+    expect("length" in written()!.cars!["Re 460 001"]!).toBe(false);
+  });
+
+  it("shows the model's functions, writes the car's own and removes them", async () => {
+    owned();
+    const shell = await opened();
+    await tab(shell, "cars");
+    expect(parts(shell, ".car-editor .fchip").map((chip) => chip.textContent)).toEqual([
+      "F0Headlights",
+      "F2Hornhold",
+    ]);
+
+    await pressed(shell, ".car-editor button.own-functions");
+    await pressed(shell, ".car-editor button.add-function");
+    await typed(shell, parts(shell, ".car-editor input.fn-name")[2]!, "Smoke");
+    await saved(shell);
+    expect(written()!.cars!["Re 460 001"]!.functions).toEqual({
+      "0": { name: "Headlights" },
+      "1": { name: "Smoke" },
+      "2": { name: "Horn", mode: "momentary" },
+    });
+    expect(store.saved.filter((one) => one.path.startsWith("/catalogue/"))).toEqual([]);
+
+    await pressed(shell, ".car-editor button.model-functions");
+    await saved(shell);
+    expect("functions" in written()!.cars!["Re 460 001"]!).toBe(false);
+  });
+
+  it("writes the car's own notes beside the model's", async () => {
+    owned();
+    const shell = await opened();
+    await tab(shell, "cars");
+    expect(part(shell, ".car-editor .model-notes").textContent).toBe("Roco 73283.");
+
+    await typed(shell, part(shell, ".car-editor textarea.notes"), "Weathered.");
+    await saved(shell);
+
+    expect(written()!.cars!["Re 460 001"]!.notes).toBe("Weathered.");
+  });
+
+  it("leaves Remove dead while a train holds the car, its title naming the train", async () => {
+    owned();
+    const shell = await opened();
+    await tab(shell, "cars");
+    const remove = part(shell, ".ed-head button.remove-car") as HTMLButtonElement;
+
+    expect(remove.disabled).toBe(true);
+    expect(remove.title).toBe("In train IC. Take it out of the train first.");
+    expect(parts(shell, ".car-editor .in-trains button").map((one) => one.textContent!.trim())).toEqual(["IC"]);
+  });
+
+  it("removes a car no train holds", async () => {
+    owned();
+    const shell = await opened();
+    await chosen(shell, "EW IV B");
+    await pressed(shell, ".ed-head button.new-car");
+
+    await pressed(shell, ".ed-head button.remove-car");
+
+    expect(cards(shell)).toEqual(["Re 460 001"]);
+  });
+
+  it("opens its model in the Models list, and its train in the Trains list", async () => {
+    owned();
+    const shell = await opened();
+    await tab(shell, "cars");
+    await pressed(shell, ".car-editor button.model");
+    expect(part(shell, ".ed-head h2").textContent).toBe("Re 460");
+
+    await tab(shell, "cars");
+    await pressed(shell, ".car-editor .in-trains button");
+    expect(part(shell, "button.tab[aria-selected='true']").dataset.tab).toBe("trains");
+    expect(part(shell, ".ed-head h2").textContent).toBe("IC");
+  });
+});
+
 /** Car and train names take any character, as model names do: no topic level
  *  or path carries one unencoded (#978). */
 describe("a name of any characters", () => {
@@ -701,14 +894,6 @@ describe("making up a train", () => {
     expect(trouble(shell)).toBeNull();
   });
 
-  it("says what holds a car somebody asked to remove, and keeps it", async () => {
-    const shell = await opened();
-    await ore(shell);
-    await tab(shell, "cars");
-    await pressed(shell, "li.car button.remove");
-    expect(trouble(shell)).toBe("car 'arnold-ce68-1' is held by train 'ore'");
-    expect(cards(shell)).toEqual(["arnold-ce68-1"]);
-  });
 });
 
 /** A camera is the item's own as an address is, and Save carries it in the
