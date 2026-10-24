@@ -107,6 +107,10 @@ const SQUARE = svg`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5"
 const SWAP = svg`<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7h12l-3-3M17 13H5l3 3" fill="none"
     stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 
+/** The keys that hold a focused momentary button, as they press any
+ *  button. */
+const HOLD_KEYS: ReadonlySet<string> = new Set([" ", "Enter"]);
+
 /** A drag on the track under way: where the pointer went down, the value it
  *  stood at then, and the pixels the whole of its travel spans. */
 interface Drag {
@@ -179,6 +183,9 @@ export class TcDriving extends LitElement {
 
   /** The drag on the track under way, `null` while there is none. */
   private drag: Drag | null = null;
+
+  /** The momentary functions whose button is held now, by name. */
+  private held = new Set<string>();
 
   @query(".track") private track!: HTMLElement | null;
 
@@ -430,26 +437,58 @@ export class TcDriving extends LitElement {
    * train whose cars declare none shows none, which is most of the stock a
    * railroad owns.
    *
-   * Each latches: a press asks for the opposite of what the button shows,
-   * and the button shows what `state/functions` says, `aria-pressed` where it
-   * is on — it changes when `layout` says it switched it and not when it was
+   * A latching one asks, at a press, for the opposite of what the button
+   * shows. A momentary one asks for on as the pointer goes down and for off
+   * as it comes up, is cancelled or is lost — the button captures it, so a
+   * finger sliding off still ends the hold — and Space or Enter held on it
+   * does the same, the key's repeat ignored
+   * ([#981](https://github.com/rails49/control/issues/981)). Either way the
+   * button shows what `state/functions` says, `aria-pressed` where it is on
+   * — it changes when `layout` says it switched it and not when it was
    * pressed ([#856](https://github.com/rails49/control/issues/856)). Live
    * whenever this throttle holds the train over live rails, granted move or
    * not, and otherwise drawn with their state and dead.
    */
   private functions(cab: Cab) {
     return html`<div class="functions">
-      ${cab.functions.map(
-        (one) => html`
-          <button
-            class="function"
-            aria-pressed=${one.on}
-            ?disabled=${!this.live}
-            @click=${() => this.switching(cab.train, one.name, !one.on)}
-          >
-            ${one.name}
-          </button>
-        `,
+      ${cab.functions.map((one) =>
+        one.mode === "momentary"
+          ? html`
+              <button
+                class="function"
+                aria-pressed=${one.on}
+                ?disabled=${!this.live}
+                @pointerdown=${(event: PointerEvent) => {
+                  (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+                  this.holding(cab.train, one.name);
+                }}
+                @pointerup=${() => this.letting(cab.train, one.name)}
+                @pointercancel=${() => this.letting(cab.train, one.name)}
+                @lostpointercapture=${() => this.letting(cab.train, one.name)}
+                @keydown=${(event: KeyboardEvent) => {
+                  if (!HOLD_KEYS.has(event.key)) return;
+                  event.preventDefault();
+                  if (!event.repeat) this.holding(cab.train, one.name);
+                }}
+                @keyup=${(event: KeyboardEvent) => {
+                  if (!HOLD_KEYS.has(event.key)) return;
+                  event.preventDefault();
+                  this.letting(cab.train, one.name);
+                }}
+              >
+                ${one.name}
+              </button>
+            `
+          : html`
+              <button
+                class="function"
+                aria-pressed=${one.on}
+                ?disabled=${!this.live}
+                @click=${() => this.switching(cab.train, one.name, !one.on)}
+              >
+                ${one.name}
+              </button>
+            `,
       )}
     </div>`;
   }
@@ -596,6 +635,22 @@ export class TcDriving extends LitElement {
       function: name,
       on,
     });
+  }
+
+  /** A momentary function's button held: one `function_wanted` for on, and
+   *  the hold remembered so that only its end asks for off. */
+  private holding(train: string, name: string): void {
+    if (!this.live || this.cab?.train !== train || this.held.has(name)) return;
+    this.held.add(name);
+    this.switching(train, name, true);
+  }
+
+  /** A momentary function's button let go of: one `function_wanted` for off,
+   *  once for each hold however many of its ends arrive — a pointer up is
+   *  followed by the capture's loss. */
+  private letting(train: string, name: string): void {
+    if (!this.held.delete(name)) return;
+    this.switching(train, name, false);
   }
 
   private say<T>(name: string, detail: T): void {
