@@ -88,6 +88,7 @@ import type { TcEditor } from "./tc-editor.js";
 import type { TcPanel } from "./tc-panel.js";
 import type { TcStock } from "./tc-stock.js";
 import type { FunctionWanted, ThrottleWanted } from "./tc-driving.js";
+import type { TakeWanted } from "./tc-train-picker.js";
 import { editable } from "./tc-properties.js";
 
 /** One press of the zoom-out button, and the reciprocal for zoom in. A quarter
@@ -188,8 +189,9 @@ export class TcApp extends LitElement {
   private sessionStart = 0;
   private sessionTimer: ReturnType<typeof setInterval> | undefined;
 
-  /** The screen kept awake while this page's throttle holds a train, on the
-   *  condition the session's `throttle_alive` runs on (`ui/wake.ts`, #854). */
+  /** The screen kept awake while any of this page's throttles holds a
+   *  train, on the condition the session's `throttle_alive` runs on
+   *  (`ui/wake.ts`, #854). */
   private wake: Wake | null = null;
 
   override connectedCallback(): void {
@@ -241,6 +243,12 @@ export class TcApp extends LitElement {
    *  out (`model/throttle.ts`). The throttle is a view of this app like the
    *  others and has no session: what it draws comes down here and its
    *  gestures go back the way the band's do (ui/THROTTLE.md). */
+  /** The throttle id of the throttle view's panel `slot`, the session's
+   *  (`Session.throttleFor`): one function for the life of the page, handed
+   *  to the view. */
+  private readonly throttleFor = (slot: number): string =>
+    this.session?.throttleFor(slot) ?? "";
+
   private get cabs(): readonly Cab[] {
     return this.session?.cabs ?? [];
   }
@@ -304,7 +312,7 @@ export class TcApp extends LitElement {
       this.sessionTimer = undefined;
       this.sessionS = null;
     }
-    this.wake?.hold(this.cabs.some((cab) => cab.taken === "here"));
+    this.wake?.hold(this.cabs.some((cab) => this.session?.ours(cab.holder) === true));
   }
 
   override render() {
@@ -354,19 +362,30 @@ export class TcApp extends LitElement {
       <tc-throttle
         class=${this.view === "throttle" ? "" : "off"}
         .cabs=${this.cabs}
+        .throttleFor=${this.throttleFor}
         .power=${this.status.power}
         .linked=${this.status.linked}
         .current=${this.view === "throttle"}
         .railroad=${this.status.railroad}
-        @take-wanted=${(event: CustomEvent<string>) => this.session?.pressTake(event.detail)}
+        @take-wanted=${(event: CustomEvent<TakeWanted>) =>
+          this.session?.pressTake(event.detail.train, event.detail.throttle)}
         @release-wanted=${(event: CustomEvent<string>) =>
           this.session?.pressRelease(event.detail)}
         @throttle-wanted=${(event: CustomEvent<ThrottleWanted>) =>
-          this.session?.pressThrottle(event.detail.train, event.detail.speed)}
+          this.session?.pressThrottle(
+            event.detail.train,
+            event.detail.speed,
+            event.detail.throttle,
+          )}
         @reversal-wanted=${(event: CustomEvent<string>) =>
           this.session?.pressReversal(event.detail)}
         @function-wanted=${(event: CustomEvent<FunctionWanted>) =>
-          this.session?.pressFunction(event.detail.train, event.detail.function, event.detail.on)}
+          this.session?.pressFunction(
+            event.detail.train,
+            event.detail.throttle,
+            event.detail.function,
+            event.detail.on,
+          )}
       ></tc-throttle>
 
       <tc-stock

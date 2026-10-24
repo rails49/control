@@ -1,26 +1,27 @@
 /**
- * The throttle view (ui/THROTTLE.md): take a train, drive it, give it
- * back ([#207](https://github.com/rails49/control/issues/207)). While this
- * page's throttle holds no train it is the train picker (`tc-train-picker`,
- * [#853](https://github.com/rails49/control/issues/853)); while it holds
- * some it is their driving controls (`tc-driving`, arrangement A,
- * [#852](https://github.com/rails49/control/issues/852)), one column for each
- * train ([#855](https://github.com/rails49/control/issues/855)).
+ * The throttle view (ui/THROTTLE.md): take a train, drive it, give it back
+ * ([#207](https://github.com/rails49/control/issues/207)). It is a row of
+ * throttles ([ADR-0089](../../../docs/adr/0089-a-throttle-holds-one-train.md)):
+ * each a panel the size of a phone screen with its own throttle id, holding at
+ * most one train. A panel whose throttle holds no train is the train picker
+ * (`tc-train-picker`, [#853](https://github.com/rails49/control/issues/853));
+ * one whose throttle holds a train is that train's driving controls
+ * (`tc-driving`, arrangement A,
+ * [#852](https://github.com/rails49/control/issues/852)), clock and all.
  *
- * Where the view is wide enough (`columns`, by its own width and not the
- * window's), the columns stand side by side and a take column on the right
- * carries the page's one clock and the trains to take; held trains beyond
- * the columns that fit go on a further row. On a phone there is no take
- * column, and the trains' controls stand one below the other, the first
- * carrying the clock. Narrowing the view releases nothing and hides nothing.
- * Every train is held under the page's one throttle id.
+ * How many panels stand side by side, and how wide each is, is `panels` by
+ * the view's own width and not the window's: one exactly the view's width on
+ * a phone, as many as fit on a tablet. A panel holding a train that no
+ * longer fits wraps onto a further row; an empty one is dropped. Narrowing the
+ * view releases nothing.
  *
  * A view of this app beside the run view and the editor
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)),
  * and a person's actions on it ride the bus as gestures the inventory marks
  * browser-writable — `tc49/layout/take_wanted`,
- * `tc49/layout/throttle_wanted` and `tc49/layout/function_wanted`, each naming this page's throttle id, which
- * the session mints and keeps alive on `tc49/layout/throttle_alive`
+ * `tc49/layout/throttle_wanted` and `tc49/layout/function_wanted`, each
+ * naming the panel's throttle id, which the session mints per panel slot
+ * (`throttleFor`) and keeps alive on `tc49/layout/throttle_alive`
  * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
  * It reaches no command station, shows no
  * decoder step and names no hardware address: the UI reaches the bus and the
@@ -32,13 +33,12 @@
  * them to the session, exactly as the band's power presses do.
  */
 
-import { LitElement, html, nothing } from "lit";
+import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 
-import { columns, type Cab } from "../model/throttle.js";
+import { panelHeight, panels, type Cab } from "../model/throttle.js";
 import type { Power } from "../model/trace.js";
-import "./tc-clock.js";
 import "./tc-driving.js";
 import "./tc-train-picker.js";
 import { throttleStyles } from "./tc-throttle.styles.js";
@@ -50,6 +50,10 @@ export class TcThrottle extends LitElement {
   /** The trains there are to drive, in the order they are offered: the ones
    *  the railroad has placed (`model/throttle.ts`). */
   @property({ attribute: false }) cabs: readonly Cab[] = [];
+
+  /** The throttle id of panel slot `slot`, the same for the life of the
+   *  page (`Session.throttleFor`): the app hands the session's in. */
+  @property({ attribute: false }) throttleFor: (slot: number) => string = () => "";
 
   /** Whether a train may move at all, `null` while no session is joined or
    *  before the layout has said (ADR-0041). The view is dead while it is
@@ -69,18 +73,23 @@ export class TcThrottle extends LitElement {
    *  `null` or `""` while none is loaded. */
   @property() railroad: string | null = null;
 
-  /** The view's own width in CSS pixels, as its `ResizeObserver` last
-   *  said; 0 until it has, which lays it out as a phone. */
+  /** The view's own width and height in CSS pixels, as its `ResizeObserver`
+   *  last said; 0 until it has, which lays it out as a phone. */
   @state() private width = 0;
+  @state() private height = 0;
 
-  /** The trains this throttle holds, in the order `state/taken` first named
-   *  it for each: the order of the columns, kept for the life of the page. A
-   *  train newly held goes after the others, and one given back leaves the
-   *  others where they were. */
-  private order: readonly string[] = [];
+  /** The panel slots shown, in the order shown, kept for the life of the
+   *  page: each slot is one throttle id. */
+  private slots: number[] = [];
+
+  /** How many panels `slots` was last fitted to, 0 before the first. */
+  private fitted = 0;
 
   private watch = new ResizeObserver((entries) => {
-    for (const entry of entries) this.width = entry.contentRect.width;
+    for (const entry of entries) {
+      this.width = entry.contentRect.width;
+      this.height = entry.contentRect.height || 0;
+    }
   });
 
   override connectedCallback(): void {
@@ -93,73 +102,76 @@ export class TcThrottle extends LitElement {
     super.disconnectedCallback();
   }
 
-  override willUpdate(changed: Map<string, unknown>): void {
-    if (!changed.has("cabs")) return;
-    const here = this.cabs.filter((cab) => cab.taken === "here").map((cab) => cab.train);
-    this.order = [
-      ...this.order.filter((train) => here.includes(train)),
-      ...here.filter((train) => !this.order.includes(train)),
-    ];
+  /**
+   * The slots fitted to the panels that now fit, where that count moved.
+   * More: the lowest slots not shown go on the end. Fewer: panels holding no
+   * train go, from the end, until the count is met — a panel holding a train
+   * is never dropped and wraps onto a further row instead. Nothing is
+   * published either way.
+   */
+  override willUpdate(): void {
+    const count = panels(this.width).count;
+    if (count === this.fitted) return;
+    this.fitted = count;
+    const slots = [...this.slots];
+    for (let slot = 0; slots.length < count; slot++) {
+      if (!slots.includes(slot)) slots.push(slot);
+    }
+    for (let at = slots.length - 1; at >= 0 && slots.length > count; at--) {
+      if (this.held(slots[at]!) === undefined) slots.splice(at, 1);
+    }
+    this.slots = slots;
   }
 
   override render() {
-    const held = this.held;
-    if (held.length === 0) {
-      return html`<tc-train-picker
-        .cabs=${this.cabs}
-        .power=${this.power}
-        .linked=${this.linked}
-      ></tc-train-picker>`;
-    }
-    // One structure at every width, its layout by class alone: crossing
-    // the stacked/side line keeps each train's `tc-driving`, and with it the
+    const laid = panels(this.width);
+    const height = panelHeight(this.height, laid.single);
+    // Keyed by slot: a width change keeps each panel, and with it the
     // slider and reverser under a train that may be running (#876).
-    const fit = columns(this.width);
-    const stacked = fit === 0;
-    return html`<main class=${stacked ? "stacked" : "side"}>
-      <div class="trains" style=${`--columns: ${Math.max(fit, 1)}`}>
-        ${repeat(
-          held,
-          (cab) => cab.train,
-          (cab, index) => this.column(cab, stacked && index === 0),
-        )}
-      </div>
-      ${stacked
-        ? nothing
-        : html`<aside class="take">
-            <tc-clock></tc-clock>
-            <h2>Take another train</h2>
-            ${held.length >= fit
-              ? html`<p class="hint">no room for another train — release one</p>`
-              : html`<tc-train-picker
-                  compact
-                  .cabs=${this.cabs}
-                  .power=${this.power}
-                  .linked=${this.linked}
-                ></tc-train-picker>`}
-          </aside>`}
+    return html`<main
+      class=${laid.single ? "single" : "row"}
+      style=${`--count: ${laid.count}`}
+    >
+      ${repeat(
+        this.slots,
+        (slot) => slot,
+        (slot) => this.panel(slot, laid.width, height),
+      )}
     </main>`;
   }
 
-  /** One train's driving controls, the clock among them only where the view
-   *  has no take column to carry it. */
-  private column(cab: Cab, clock: boolean) {
-    return html`<tc-driving
-      .cab=${cab}
-      .power=${this.power}
-      .linked=${this.linked}
-      .current=${this.current}
-      .railroad=${this.railroad}
-      ?clock=${clock}
-    ></tc-driving>`;
+  /** One throttle: its train's driving controls, or the picker while it
+   *  holds none. `width` is 0 before the view has been measured, and the
+   *  panel then takes the width it is given. */
+  private panel(slot: number, width: number, height: number) {
+    const throttle = this.throttleFor(slot);
+    const cab = this.held(slot);
+    const size = `${width > 0 ? `width: ${width}px; ` : ""}height: ${height}px`;
+    return html`<section class="panel" data-slot=${slot} style=${size}>
+      ${cab === undefined
+        ? html`<tc-train-picker
+            .cabs=${this.cabs}
+            .throttle=${throttle}
+            .power=${this.power}
+            .linked=${this.linked}
+          ></tc-train-picker>`
+        : html`<tc-driving
+            .cab=${cab}
+            .throttle=${throttle}
+            .power=${this.power}
+            .linked=${this.linked}
+            .current=${this.current}
+            .railroad=${this.railroad}
+          ></tc-driving>`}
+    </section>`;
   }
 
-  /** The cabs of the trains this throttle holds, in the columns' order. Read
-   *  afresh: the bus moves under a person holding a slider. */
-  private get held(): Cab[] {
-    return this.order
-      .map((train) => this.cabs.find((cab) => cab.train === train))
-      .filter((cab): cab is Cab => cab !== undefined);
+  /** The cab of the train `state/taken` names slot `slot`'s throttle for,
+   *  the first by name where it names it for several. Read afresh: the bus
+   *  moves under a person holding a slider. */
+  private held(slot: number): Cab | undefined {
+    const throttle = this.throttleFor(slot);
+    return this.cabs.find((cab) => cab.holder === throttle);
   }
 }
 

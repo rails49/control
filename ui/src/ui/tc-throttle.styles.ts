@@ -1,18 +1,18 @@
 import { css } from "lit";
 
 /**
- * The throttle view (`tc-throttle`): the train picker while this throttle
- * holds no train, whose styles are its own (`tc-train-picker.styles.ts`), and
- * the driving controls of each train it holds, whose styles are theirs
- * (`tc-driving.styles.ts`), laid out here (ui/THROTTLE.md,
- * [#855](https://github.com/rails49/control/issues/855)).
+ * The throttle view (`tc-throttle`): a row of throttles, each a panel the
+ * size of a phone screen holding the train picker, whose styles are its own
+ * (`tc-train-picker.styles.ts`), or one train's driving controls, whose styles
+ * are theirs (`tc-driving.styles.ts`), laid out here (ui/THROTTLE.md,
+ * ADR-0089).
  *
- * Side by side, a train's column is at least 360 px, the take column 260 px
- * and the gap 14 px — the numbers `columns` (`model/throttle.ts`) counts
- * with, the count handed in as `--columns`. Stacked, on a phone, the trains'
- * controls stand one below the other in the same `.trains`: the two layouts
- * differ by class alone, so a width change keeps each train's controls. A
- * view too short for them scrolls.
+ * Each panel's width and height are set on it, from `panels` and
+ * `panelHeight` (`model/throttle.ts`), and the number across is handed in as
+ * `--count`. Side by side, the row has the 8 px margin and the 20 px gap
+ * `panels` counts with, and is centred; `single`, on a phone, the panel is the
+ * view's whole width with neither. Panels are top-aligned, those beyond the
+ * count wrap onto a further row, and a view too short for them scrolls.
  */
 export const throttleStyles = css`
   :host {
@@ -21,60 +21,42 @@ export const throttleStyles = css`
   }
 
   main {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-    padding: 0.8rem 1rem;
-    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(var(--count), auto);
+    align-content: start;
+    align-items: start;
+    justify-content: center;
+    overflow: auto;
     min-height: 0;
   }
 
-  main.stacked .trains {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
+  main.row {
+    padding: 8px;
+    gap: 20px;
   }
 
-  main.stacked tc-driving + tc-driving {
-    padding-top: 0.8rem;
+  main.single {
+    grid-template-columns: 100%;
+  }
+
+  .panel {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 0.8rem 1rem;
+    overflow-y: auto;
+  }
+
+  main.row .panel {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+
+  main.single .panel + .panel {
     border-top: 1px solid var(--rule);
   }
 
-  main.side {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 14px;
-  }
-
-  main.side .trains {
-    flex: 1;
-    display: grid;
-    grid-template-columns: repeat(var(--columns), minmax(360px, 1fr));
-    gap: 14px;
-  }
-
-  aside.take {
-    flex: 0 0 260px;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.6rem;
-  }
-
-  aside.take h2 {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--ink);
-  }
-
-  aside.take tc-train-picker {
+  .panel > tc-train-picker {
     padding: 0;
-  }
-
-  .hint {
-    margin: 0;
-    font-size: 0.7rem;
-    line-height: 1.6;
-    color: var(--hint);
   }
 `;
