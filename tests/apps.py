@@ -190,7 +190,11 @@ APPS = (
         "simulator",
         store=True,
         answers=True,
-        rows=("tc49/layout/state/railroad", "tc49/layout/state/power"),
+        rows=(
+            "tc49/layout/state/railroad",
+            "tc49/layout/state/power",
+            "tc49/layout/state/clock",
+        ),
     ),
 )
 """The apps that come up on a broker, and the rows each opens with.

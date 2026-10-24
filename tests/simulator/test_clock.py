@@ -156,3 +156,30 @@ def test_a_simulator_given_no_clock_says_none() -> None:
     simulator.run_live(1.0, sleep=lambda _s: None, stop=lambda: next(turns, -1) < 0)
     simulator.run()
     assert said == []
+
+
+def test_a_live_run_given_a_real_clock_keeps_to_it_where_a_turn_runs_long() -> None:
+    """Deployed, a turn costs more than the wait it asked for, and a run clock
+    advanced by the waits alone would fall behind: the clock is said once a
+    *real* second (ADR-0090, decision 1), so the loop catches the run clock up
+    to the real one, and says the clock once however many beats were
+    passed."""
+    _bus, simulator, said = build()
+    real = 0.0
+
+    def sleep(seconds: float) -> None:
+        nonlocal real
+        real += 2 * seconds  # every turn takes twice what it waits
+
+    turns = iter(range(2))
+    simulator.run_live(
+        1000.0,
+        sleep=sleep,
+        stop=lambda: next(turns, -1) < 0,
+        monotonic=lambda: real,
+    )
+    assert [(at, what) for at, leaf_, what in said if leaf_ == "clock"] == [
+        (0.0, SEVEN),
+        (2.0, SEVEN + 2),
+        (4.0, SEVEN + 4),
+    ]

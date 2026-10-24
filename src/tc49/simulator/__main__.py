@@ -249,7 +249,12 @@ class _Running:
         return self._simulator.position
 
     def run(self, until: Callable[[], bool]) -> None:
-        self._simulator.run_live(self._period_s, sleep=_waiting(self._stop), stop=until)
+        self._simulator.run_live(
+            self._period_s,
+            sleep=_waiting(self._stop),
+            stop=until,
+            monotonic=time.monotonic,
+        )
 
 
 def _waiting(stop: threading.Event) -> Callable[[float], None]:

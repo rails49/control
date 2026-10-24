@@ -419,6 +419,7 @@ class Simulator:
         period_s: float,
         sleep: Callable[[float], None] = time.sleep,
         stop: Callable[[], bool] = lambda: False,
+        monotonic: Callable[[], float] | None = None,
     ) -> None:
         """The live loop: the same queue with the waits slept on a wall
         clock, cut to the next scheduled event so a sensor fires at the time
@@ -435,7 +436,15 @@ class Simulator:
 
         A wait is cut to the fast clock's next beat as well, where there is a
         clock, so it is said on the run clock's seconds and a live run's rows
-        are a batch run's."""
+        are a batch run's.
+
+        `monotonic` is a real clock, which the deployed process passes: a
+        turn costs more than the wait it asked for, so after each wait the
+        run clock is caught up to the real seconds since this loop began,
+        and the fast clock is said once a real second rather than once a
+        second of waits. Without one, which is the suite's, the run clock
+        advances by the waits alone and a live run is a batch run."""
+        began = None if monotonic is None else monotonic() - self._clock.now
         self._say_clock()
         self._bus.drain()  # the startup cascade: standing locks reach the trace
         while not stop():
@@ -445,7 +454,10 @@ class Simulator:
             if self._fast is not None:
                 step = min(step, self._beat - self._clock.now)
             sleep(max(step, 0.0))
-            self._clock.advance(self._clock.now + max(step, 0.0))
+            to = self._clock.now + max(step, 0.0)
+            if monotonic is not None and began is not None:
+                to = max(to, monotonic() - began)
+            self._clock.advance(to)
             self._say_clock()
             while (
                 self._supply == ON
