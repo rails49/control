@@ -25,8 +25,9 @@ Where a field's *values* are a closed set the contract names, they live here
 too, beside the field they belong to: ``run``, ``mode``, ``driving``,
 ``power``, the
 supply, ``occupancy``, ``position``, ``aspect``, the ``grant_refused``
-``reason`` and ``link``. The ``request_rejected`` and ``request_cancelled``
-reasons are ``tc49.lib.rejection`` and ``tc49.lib.cancellation``. What an
+``reason`` and ``link``. The ``request_rejected`` and ``placement_refused``
+reasons are ``tc49.lib.rejection``, and the ``request_cancelled`` reasons
+``tc49.lib.cancellation``. What an
 **enum** is, and which way an unreadable one falls, is BUS.md, payload
 schemas.
 
@@ -145,6 +146,7 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/lock_granted": Topic(("train", "resources")),
     "tc49/dispatch/lock_released": Topic(("train", "resources")),
     "tc49/dispatch/train_placed": Topic(("train", "block")),
+    "tc49/dispatch/placement_refused": Topic(("train", "block", "reason")),
     "tc49/dispatch/train_removed": Topic(("train",)),
     # True while any train is crossing, and what `layout` reads to
     # end a drain (ADR-0078).

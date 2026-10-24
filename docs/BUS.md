@@ -335,6 +335,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/lock_granted` | event | dispatcher | resources claimed for a train |
 | `tc49/dispatch/lock_released` | event | dispatcher | resources released |
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
+| `tc49/dispatch/placement_refused` | event | dispatcher | a placement not accepted, and why ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)) |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
 | `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
@@ -435,6 +436,7 @@ Each set has one home:
 | `link` | `inventory`, `Link` |
 | `reason` on `grant_refused` | `inventory`, `Refusal` |
 | `reason` on `request_rejected`, and on `request_admitted`'s `pruned` | `rejection` |
+| `reason` on `placement_refused` | `rejection`, `PlacementRefusal` |
 | `reason` on `request_cancelled` | `cancellation` |
 
 The closed set goes wherever the field goes: `power` is an enum on
@@ -460,8 +462,8 @@ what a drop would cost:
   `off`.
 - An unreadable `state/moving` reads as `true`, so it never ends a drain:
   cutting the supply under a train strands it.
-- The reasons on `request_rejected`, `request_cancelled` and `grant_refused`
-  are read only for what a person is shown. The UI shows a reason it has no
+- The reasons on `request_rejected`, `request_cancelled`, `grant_refused`
+  and `placement_refused` are read only for what a person is shown. The UI shows a reason it has no
   words for as it came.
 
 #### `layout`
@@ -782,8 +784,10 @@ payload is read defensively, and one that fails the read is dropped.
   `null` is a positive statement
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A block is
   accepted at any power where it is **free**: no train placed there, no lock
-  on it, and on no active train's remaining route (`DispatchState.free()`);
-  a block that is not free is dropped. `null` is accepted at any power
+  on it, and on no active train's remaining route (`DispatchState.free()`).
+  A placement not accepted is answered on `placement_refused`, below; one
+  that cannot be read as a placement names no train and is dropped with no
+  answer. `null` is accepted at any power
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
   [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
   With power `on`, a block reading occupied that nothing claims is an
@@ -850,6 +854,13 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;
   `resources`: list of blocks and transits.
 - `tc49/dispatch/train_placed` — `train`; `block`.
+- `tc49/dispatch/placement_refused` — `train`: the train the
+  `placement_wanted` named; `block`: the block it named, or `null` for a
+  removal; `reason`: enum `unknown_train` (on neither the dispatcher's roster
+  nor the store's, read again), `unknown_block`, `not_free`, `no_fit` — the
+  set is `tc49.lib.rejection.PlacementRefusal`, and the UI's copy of it is
+  generated. It names what the gesture named and so carries no id
+  ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
 - `tc49/dispatch/train_removed` — `train`.
 - `tc49/dispatch/state/moving` — `moving`: boolean, true while any train is
   crossing and false otherwise: from the grant of a move until the sensor says

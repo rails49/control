@@ -27,9 +27,9 @@ chain can leave. So a train's next request waits, here, until the one before
 it has been answered, which is what a person who wanted it run that way would
 do: watch the train arrive, then drag it again.
 
-A gesture the dispatcher cannot act on is **dropped in silence** (ADR-0034),
-which is right for a person and wrong for a document: a placement it refused
-would leave that train off the layout and every request for it answered
+A placement the dispatcher cannot act on is **refused** (ADR-0091), which is
+right for a person and wrong for a document: a placement it refused would
+leave that train off the layout and every request for it answered
 `no_origin`, a run silently unlike the one the file describes. So a replay
 raises where a placement was not taken. It is the harness, and a fixture that
 cannot be stood up is a broken fixture rather than a run to report on.

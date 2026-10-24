@@ -9,9 +9,11 @@ into the new block; it never reads the gesture.
 
 Placing at any power, into a block that is **free** — no lock on it and on no
 active train's route — and that the train fits; taking a train off at any
-power too (ADR-0069, `test_remove_running`). Anything else is dropped, in
-silence and to the trace: a gesture carries no id and there is nothing to
-address an answer to (ADR-0034).
+power too (ADR-0069, `test_remove_running`). Anything else is refused on
+`tc49/dispatch/placement_refused`, naming the train, the block and why
+(ADR-0091, decision 3): the answer names what the gesture named, so it needs
+no id (ADR-0034). A gesture that cannot be read as a placement names no train,
+and is still dropped with no answer.
 """
 
 from collections.abc import Callable
@@ -25,6 +27,7 @@ from tc49.dispatcher import Dispatcher, FullRoute, Incremental
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import OFF, ON
+from tc49.lib.rejection import PlacementRefusal
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import TrainSpec
 from tests.harness import events, load, minted, power, press, stock, ticks
@@ -77,6 +80,18 @@ def removals(assembly: Assembly) -> list[dict[str, Any]]:
 
 def last(assembly: Assembly, leaf: str) -> dict[str, Any]:
     return events(assembly.trace, leaf)[-1]
+
+
+def refusals(assembly: Assembly) -> list[tuple[str, str | None, str]]:
+    """Every `placement_refused`, as train, block and reason."""
+    return [
+        (line["train"], line["block"], line["reason"])
+        for line in events(assembly.trace, "placement_refused")
+    ]
+
+
+def locks(assembly: Assembly) -> dict[str, str]:
+    return dict(last(assembly, "allocation")["locks"])
 
 
 def placements(assembly: Assembly) -> list[dict[str, Any]]:
@@ -157,7 +172,7 @@ def test_a_placement_into_a_free_block_is_accepted_while_on() -> None:
     assert last(on, "allocation")["trains"]["freight_1"] == "up_w"
 
 
-def test_a_placement_into_a_block_another_route_claims_is_dropped_while_on() -> None:
+def test_a_placement_into_a_block_another_route_claims_is_refused_while_on() -> None:
     """The other half: a block on another train's route is not free, locked
     yet or not, and standing a train there would put it in front of a train
     the dispatcher is sending through. Under `Incremental` the route runs on
@@ -174,27 +189,36 @@ def test_a_placement_into_a_block_another_route_claims_is_dropped_while_on() -> 
     place(on, "shunter", ahead[0])
 
     assert placements(on) == []
+    assert refusals(on) == [("shunter", ahead[0], PlacementRefusal.NOT_FREE)]
     assert last(on, "allocation")["trains"].get("shunter") is None
 
 
-def test_a_placement_into_an_occupied_block_is_dropped(off: Assembly) -> None:
+def test_a_placement_into_an_occupied_block_is_refused(off: Assembly) -> None:
     """Two trains in one block is two holders of one lock, and the second
     would stand in a block nothing holds for it."""
+    before = locks(off)
+
     place(off, "freight_1", "dn_e")
 
     assert placements(off) == []
-    assert last(off, "allocation")["locks"]["dn_e"] == "leviathan"
+    assert refusals(off) == [("freight_1", "dn_e", PlacementRefusal.NOT_FREE)]
+    assert locks(off) == before
+    assert before["dn_e"] == "leviathan"
 
 
-def test_a_placement_into_a_block_the_train_does_not_fit_in_is_dropped(
+def test_a_placement_into_a_block_the_train_does_not_fit_in_is_refused(
     off: Assembly,
 ) -> None:
     """The same fit the admission check applies to an arrival end, asked of
     a placement: the operator cannot report a train into a block it is longer
     than."""
+    before = locks(off)
+
     place(off, "leviathan", "yard_e")
 
     assert placements(off) == []
+    assert refusals(off) == [("leviathan", "yard_e", PlacementRefusal.NO_FIT)]
+    assert locks(off) == before
     assert last(off, "allocation")["trains"]["leviathan"] == "dn_e"
 
 
@@ -376,19 +400,38 @@ def test_a_gesture_that_cannot_be_read_at_all_is_dropped(
 
     assert placements(off) == []
     assert removals(off) == []
+    assert refusals(off) == []
     assert last(off, "allocation")["trains"]["freight_1"] == "yard_w"
 
 
-def test_a_placement_naming_stock_or_track_the_railroad_lacks_is_dropped(
+def test_a_placement_naming_stock_the_railroad_lacks_is_refused(
     off: Assembly,
 ) -> None:
-    """Dropped rather than answered: unlike a request, a gesture has no id an
-    answer could be addressed to (ADR-0034)."""
+    """Answered with what the gesture named, which is how a reader matches
+    the answer to its drag with no id (ADR-0091, decision 3)."""
+    before = locks(off)
+
     place(off, "ghost", "up_w")
+
+    assert placements(off) == []
+    assert refusals(off) == [("ghost", "up_w", PlacementRefusal.UNKNOWN_TRAIN)]
+    assert locks(off) == before
+
+
+def test_a_placement_naming_track_the_railroad_lacks_is_refused(
+    off: Assembly,
+) -> None:
+    before = locks(off)
+
     place(off, "freight_1", "siding_9")
     place(off, "freight_1", "up_w.A")  # an end is not a block
 
     assert placements(off) == []
+    assert refusals(off) == [
+        ("freight_1", "siding_9", PlacementRefusal.UNKNOWN_BLOCK),
+        ("freight_1", "up_w.A", PlacementRefusal.UNKNOWN_BLOCK),
+    ]
+    assert locks(off) == before
 
 
 def test_the_released_run_departs_from_where_the_train_was_put(
@@ -537,6 +580,7 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     place(assembly, "shunter", target)
 
     assert placements(assembly) == []
+    assert refusals(assembly) == [("shunter", target, PlacementRefusal.NOT_FREE)]
     assert last(assembly, "allocation")["trains"]["shunter"] == "dn_e"
 
 
@@ -658,14 +702,18 @@ def test_a_removal_cancels_the_request_in_flight_and_then_lifts_the_train(
     ]
 
 
-def test_a_removal_naming_stock_the_railroad_lacks_is_dropped(
+def test_a_removal_naming_stock_the_railroad_lacks_is_refused(
     off: Assembly,
 ) -> None:
-    """Dropped rather than answered, a gesture having no id an answer could
-    be addressed to (ADR-0034)."""
+    """The removal is the same gesture, so it is refused the same way, its
+    `null` block carried back as it came."""
+    before = locks(off)
+
     remove(off, "ghost")
 
     assert removals(off) == []
+    assert refusals(off) == [("ghost", None, PlacementRefusal.UNKNOWN_TRAIN)]
+    assert locks(off) == before
 
 
 def test_removing_a_train_that_is_already_off_the_layout_says_nothing(
@@ -673,12 +721,13 @@ def test_removing_a_train_that_is_already_off_the_layout_says_nothing(
 ) -> None:
     """The gesture asks for the state the train is in. There is no fact to
     announce, and announcing one would put a second removal in the trace and
-    on every view."""
+    on every view. Nor is it refused: what it asked for holds."""
     remove(off, "freight_1")
 
     remove(off, "freight_1")
 
     assert len(removals(off)) == 1
+    assert refusals(off) == []
 
 
 def test_a_request_for_a_train_just_taken_off_the_layout_is_answered(
@@ -819,7 +868,9 @@ def test_a_train_made_after_the_build_is_placed_from_the_roster_read_again() -> 
     assert placed == [{"train": "railcar_3", "block": "yard_w"}]
 
 
-def test_a_train_the_store_lacks_too_is_dropped() -> None:
+def test_a_train_the_store_lacks_too_is_refused_as_unknown() -> None:
+    """`unknown_train` is said only after the read: the store not answering
+    and the store not having it are refused alike (ADR-0091, decision 3)."""
     reads: list[None] = []
 
     def reread() -> Roster | None:
@@ -827,11 +878,18 @@ def test_a_train_the_store_lacks_too_is_dropped() -> None:
         return None if len(reads) == 1 else stock(freight_1=1100)
 
     bus, placed = built(stock(freight_1=1100), reread)
+    refused: list[Payload] = []
+    bus.subscribe(
+        "tc49/dispatch/placement_refused", lambda _, payload: refused.append(payload)
+    )
     put(bus, "ghost", "yard_w")
     put(bus, "ghost", "yard_w")
 
     assert len(reads) == 2
     assert placed == []
+    assert refused == 2 * [
+        {"train": "ghost", "block": "yard_w", "reason": "unknown_train"}
+    ]
 
 
 def test_a_train_the_dispatcher_has_keeps_the_length_it_was_built_with() -> None:
