@@ -407,7 +407,15 @@ the pane**, are the two directions of one gesture: `tc49/dispatch/placement_want
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)). Putting a
 locomotive on the track and lifting it off are the same act with a different
 destination, so there is one leaf and one answer — `train_placed` or
-`train_removed`, which the picture follows.
+`train_removed`, which the picture follows, or `placement_refused` for one the
+dispatcher does not accept
+([ADR-0091](../adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
+The roster pane says the refusal under that train's row, in place of where it
+is: *not on the roster*, *`<block>` is not on the drawing*, *`<block>` is not
+free* or *too long for `<block>`*, from a wording table keyed by the generated
+`PlacementRefusal`, so it is total. The line goes when the train is placed or
+removed, or when its row is picked up again
+([#1011](https://github.com/rails49/control/issues/1011)).
 
 Placing is **live at any power**, and **only onto a free block**: no train
 standing there, no other train's lock on it, and on no other train's

@@ -860,7 +860,9 @@ payload is read defensively, and one that fails the read is dropped.
   nor the store's, read again), `unknown_block`, `not_free`, `no_fit` — the
   set is `tc49.lib.rejection.PlacementRefusal`, and the UI's copy of it is
   generated. It names what the gesture named and so carries no id
-  ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
+  ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)). Read by the run
+  view's roster pane, which says it under the train's row
+  ([#1011](https://github.com/rails49/control/issues/1011)).
 - `tc49/dispatch/train_removed` — `train`.
 - `tc49/dispatch/state/moving` — `moving`: boolean, true while any train is
   crossing and false otherwise: from the grant of a move until the sensor says

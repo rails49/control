@@ -147,6 +147,23 @@ describe("what the pane lists", () => {
     expect(roster.renderRoot.querySelector("li .photo")).not.toBeNull();
   });
 
+  /** Why the last placement was refused is said where the train is, which
+   *  is where a person looks after letting go of the row (#1011). */
+  it("says why a train's placement was refused in place of where it is", async () => {
+    const roster = await pane([
+      {
+        train: "goods",
+        block: null,
+        length: 400,
+        placed: false,
+        locomotive: null,
+        refused: "b is not free",
+      },
+    ]);
+    expect(rows(roster)).toEqual([["goods", "400", "b is not free"]]);
+    expect(roster.renderRoot.querySelector(".where.refused")).not.toBeNull();
+  });
+
   /** A railroad with no roster and a page with no session look the same from
    *  here: nothing has been named. */
   it("says so when it is handed no trains at all", async () => {
@@ -155,6 +172,85 @@ describe("what the pane lists", () => {
     expect(roster.renderRoot.querySelector(".hint")!.textContent!.trim()).toBe(
       "no trains on the roster",
     );
+  });
+});
+
+/**
+ * Why a placement was refused (ADR-0091 decision 3, #1011). The dispatcher
+ * answers a placement it does not accept on `placement_refused`, and the pane
+ * says it under that train's row until the train is placed or removed, or the
+ * row is picked up to try again.
+ */
+describe("why a placement was refused", () => {
+  beforeEach(brokering);
+
+  afterEach(unbrokered);
+
+  /** What the pane says where `train` is. */
+  function where(shell: TcApp, train: string): string {
+    return rows(paneOf(shell)).find(([name]) => name === train)![2]!;
+  }
+
+  it("says the refusal under that train's row", async () => {
+    const shell = await joined();
+
+    await said(shell, "tc49/dispatch/placement_refused", {
+      train: "shunter",
+      block: "b",
+      reason: "not_free",
+    });
+
+    expect(where(shell, "shunter")).toBe("b is not free");
+    expect(where(shell, "goods")).toBe("off the layout");
+  });
+
+  it("drops the line once the train is placed", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/placement_refused", {
+      train: "shunter",
+      block: "b",
+      reason: "no_fit",
+    });
+
+    await said(shell, "tc49/dispatch/train_placed", { train: "shunter", block: "a" });
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { shunter: "a" },
+      locks: { a: "shunter" },
+      requests: [],
+    });
+
+    expect(where(shell, "shunter")).toBe("a");
+  });
+
+  it("drops the line once the train is removed", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/placement_refused", {
+      train: "goods",
+      block: "b",
+      reason: "unknown_block",
+    });
+
+    await said(shell, "tc49/dispatch/train_removed", { train: "goods" });
+
+    expect(where(shell, "goods")).toBe("off the layout");
+  });
+
+  it("drops the line when the row is picked up again", async () => {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/placement_refused", {
+      train: "shunter",
+      block: null,
+      reason: "unknown_train",
+    });
+    expect(where(shell, "shunter")).toBe("not on the roster");
+
+    const index = paneOf(shell).trains.findIndex((one) => one.train === "shunter");
+    [...paneOf(shell).renderRoot.querySelectorAll("li")][index]!.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, composed: true }),
+    );
+    await settled(shell);
+
+    expect(where(shell, "shunter")).toBe("off the layout");
   });
 });
 
