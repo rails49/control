@@ -36,8 +36,12 @@ steps referencing the issue. `scripts/check.sh` is the gate; `--fast` skips
 pytest, the one slow check. Land with
 `scripts/land.sh --title … --body "Closes #<n> …"` run in the background: it
 pushes, opens the PR, rebase-merges it once `ci` is green and deletes the
-branch. Rebase merge keeps the history linear. Keep mechanical moves in their
-own commit so renames stay legible in the diff.
+branch. Rebase merge keeps the history linear. Once it prints `merged:`,
+remove the worktree with `ExitWorktree` (`action: remove`,
+`discard_changes: true`): `land.sh` leaves it at `origin/main`, ahead of this
+checkout's `main`, so its commits look unmerged and quitting would ask about
+it. Keep mechanical moves in their own commit so renames stay legible in the
+diff.
 
 ## Agent skills
 
