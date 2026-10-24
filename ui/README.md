@@ -146,15 +146,15 @@ src/
                    layout or off it, a row to drag out of and back to
     tc-requests.ts the request list under the roster: a cancel on each, a
                    drag to reorder the waiting ones
-    tc-throttle.ts the throttle view: the picker, or a column per held train
-                   side by side as its width fits, with a take column; the
-                   session stays the app's
+    tc-throttle.ts the throttle view: a row of throttles, each a panel with
+                   its own id, as many as its width fits; the session stays
+                   the app's
     tc-driving.ts  one held train's driving controls: drive it, give it back
-    tc-train-picker.ts  the throttle's train picker: a card per train, Take,
-                   Force release and Take back
+    tc-train-picker.ts  a throttle's train picker: a card per train, Take and
+                   Force release
     tc-clock.ts    the station clock on the throttle's cab, in wall time
-    wake.ts        the screen kept awake while this page's throttle holds a
-                   train
+    wake.ts        the screen kept awake while any of this page's throttles
+                   holds a train
     tc-stock.ts    the stock view: cars and models on the left, the trains
                    composed from them on the right
     dismissal.ts   the overlay a menu drops over the page, worn by all three
