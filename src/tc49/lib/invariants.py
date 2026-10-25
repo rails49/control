@@ -903,6 +903,9 @@ class Record:
         self.priced: dict[str, float] = {}  # aspect -> the speed its moves ran at
         self.aligned: set[str] = set()  # transits an `align` named, not yet driven
         self.commanded: dict[str, Command] = {}  # train -> a `move` not yet driven
+        # train -> the transit and block of a `move` withdrawn before it came,
+        # which `layout` drops when it does (#1080)
+        self.withdrawn: dict[str, tuple[str, str]] = {}
         self.started: dict[str, _Started] = {}  # train -> the move driven, until in
         self.signs: dict[str, float] = {}  # addr -> its last nonzero speed, until 0
         self.resting: set[str] = set()  # addrs owed a 0 since `layout` came up
@@ -946,6 +949,7 @@ class Record:
                 self.moves.pop(train, None)
                 self.placing.pop(train, None)
                 self.commanded.pop(train, None)
+                self.withdrawn.pop(train, None)
                 self.started.pop(train, None)
                 self.keeps.discard(train)
                 for addr, _orientation in _addresses(self.roster, train):
@@ -968,18 +972,23 @@ class Record:
         elif topic == MOVE_WITHDRAWN:
             # `layout` took back a cancelled request's move nothing had
             # driven, so it ends on that answer and not on its readings
-            # (#1068).
+            # (#1068). One taken back before its `move` came drops that
+            # `move` when it does, as `layout` drops it (#1080).
             withdrawn = withdrawal(payload)
             move = None if withdrawn is None else self.moves.get(withdrawn.train)
             if (
                 withdrawn is not None
                 and move is not None
                 and move.transit == withdrawn.transit
+                and move.into == withdrawn.into
                 and move.id in self.cancelled
             ):
-                del self.moves[withdrawn.train]
-                self.commanded.pop(withdrawn.train, None)
-                self.started.pop(withdrawn.train, None)
+                train = withdrawn.train
+                del self.moves[train]
+                commanded = self.commanded.pop(train, None)
+                if commanded is None or commanded.transit_id != withdrawn.transit:
+                    self.withdrawn[train] = (withdrawn.transit, withdrawn.into)
+                self.started.pop(train, None)
         elif topic == CANCEL_WANTED:
             rid = readable_id(payload)
             if any(move.id == rid for move in self.moves.values()):
@@ -1115,6 +1124,8 @@ class Record:
 
     def _placed(self, payload: object) -> None:
         placed = placement(payload)
+        if placed is not None:
+            self.withdrawn.pop(placed.train, None)
         if placed is None or placed.block is None:
             return
         train, block = placed.train, placed.block
@@ -1194,6 +1205,9 @@ class Record:
     def _commanded(self, payload: object) -> None:
         commanded = command(payload)
         if commanded is None:
+            return
+        withdrawn = self.withdrawn.pop(commanded.train, None)
+        if withdrawn == (commanded.transit_id, commanded.into):
             return
         self.resting.clear()
         granted = self.granted.pop(commanded.train, None)
