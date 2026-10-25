@@ -910,16 +910,20 @@ cannot do on its own word is take a move back: a turnout usually has no
 detector, and a train stopped halfway across the points reads like one that
 never left. So where one is outstanding the request is marked, granted
 nothing further, and `layout` is asked for the move back on
-`tc49/layout/withdraw_wanted`. `layout`, which writes every speed a train is
+`tc49/layout/withdraw_wanted`, naming the train, the transit and the block
+the move enters. `layout`, which writes every speed a train is
 given, takes it back only where nothing has driven the train: it is not
 running now, was not running when the move was acted on — a decoder keeps the
-last speed it was given — and has been written none but `0.0` since. It says
-so on `tc49/layout/move_withdrawn`; the request
+last speed it was given — and has been written none but `0.0` since. A move
+it has not seen yet counts as carried out where the train already stands in
+the block the move enters, and is otherwise taken back and its late `move`
+dropped. It says so on `tc49/layout/move_withdrawn`; the request
 then retires as `request_cancelled` at once, keeping the block the train never
 left. Otherwise it retires when `block_vacated` says the move it was already
 making is over
 ([#1068](https://github.com/rails49/control/issues/1068),
-[#1076](https://github.com/rails49/control/issues/1076)). A cancelled id
+[#1076](https://github.com/rails49/control/issues/1076),
+[#1080](https://github.com/rails49/control/issues/1080)). A cancelled id
 stays used for the session; no id ever resumes
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
 

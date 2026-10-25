@@ -624,8 +624,10 @@ what a drop would cost:
   holds the geometry and the way round the locomotive stands
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 - `tc49/layout/withdraw_wanted` — `train`; `transit`: qualified,
-  `<connection>.<transit>`, the transit the train's outstanding move crosses.
-  Not browser-writable. The dispatcher publishes it when a `cancel_wanted`
+  `<connection>.<transit>`, the transit the train's outstanding move crosses;
+  `into`: the block that move enters, as `move` names it. A transit names the
+  way and not the direction, so `into` is what tells a move back over a
+  transit from the one that just crossed it. Not browser-writable. The dispatcher publishes it when a `cancel_wanted`
   lands on a request with a move outstanding, in either driving mode, and
   `layout` answers it. A train is driven if it was running when the move
   was acted on — the last speed `layout` wrote on some addressed car not
@@ -633,20 +635,26 @@ what a drop would cost:
   to any of its addressed cars since, from the move or from a throttle. No
   withdrawal is taken while the train is running, whatever state the move is
   in. Otherwise a move `layout` holds for an `align`, a facing or the power
-  has not been acted on and is taken back, and one acted on is taken back
+  has not been acted on and is taken back where its `into` matches too, and
+  one acted on is taken back
   where the train has not been driven: the train is put back in the block it
   stood in and, unless a throttle holds it, told `0.0`. A move not there yet
   is answered at once and the train's next `move` dropped if it names that
-  transit; a `train_placed` or `train_removed` clears that. Dropped, with no
-  answer, where the train is running, where it has been driven since the
-  move was acted on, where the move has arrived, and where the last move
-  `layout` acted on for the train already crossed that transit. The simulator answers none: it drives every move at once
+  transit and `into`; a `train_placed` or `train_removed` clears that.
+  Dropped, with no answer, where the train is running, where it has been
+  driven since the move was acted on, where the move has arrived, and where
+  the train already stands in the block the move enters. A frame without a
+  string `into` is unreadable and dropped. The simulator answers none: it
+  drives every move at once
   ([#1068](https://github.com/rails49/control/issues/1068),
-  [#1076](https://github.com/rails49/control/issues/1076)).
-- `tc49/layout/move_withdrawn` — `train`, `transit`: as asked. Published
-  once per withdrawal taken, and read by the dispatcher, which drops one not
-  naming the transit of a cancelled request's outstanding move
-  ([#1068](https://github.com/rails49/control/issues/1068)).
+  [#1076](https://github.com/rails49/control/issues/1076),
+  [#1080](https://github.com/rails49/control/issues/1080)).
+- `tc49/layout/move_withdrawn` — `train`, `transit`, `into`: as asked.
+  Published once per withdrawal taken, and read by the dispatcher, which
+  drops one not naming the transit and `into` of a cancelled request's
+  outstanding move
+  ([#1068](https://github.com/rails49/control/issues/1068),
+  [#1080](https://github.com/rails49/control/issues/1080)).
 - `tc49/layout/throttle_wanted` — browser-writable — `train`; `speed`: a
   number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
   stop, signed for which way the train runs along its own length — positive
