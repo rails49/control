@@ -838,7 +838,11 @@ placement **cancels** it first
 ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)),
 so `request_cancelled` precedes `train_placed` or `train_removed` and both of
 those always describe a train with no request. The reason says which direction
-the gesture pointed — `displaced` into a block, `removed` off the layout.
+the gesture pointed — `displaced` into a block, `removed` off the layout. The
+block is judged before the cancellation, as the cancellation would leave the
+railroad, so a placement that is refused changes nothing: the requests stand,
+and so does a move in progress
+([#1062](https://github.com/rails49/control/issues/1062)).
 
 A placement **does not defer** where a move is outstanding, as a
 `cancel_wanted` does: the person is answering the move the sensors may never
