@@ -1,4 +1,4 @@
-"""The four properties of ARCHITECTURE.md, over the real assembly.
+"""The five properties of ARCHITECTURE.md, over the real assembly.
 
 Every generated case wires scheduler, dispatcher, driver and simulator on
 one in-process bus and interacts only by publishing and observing events, so
@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 import yaml
 from hypothesis import given, note, settings
+from hypothesis import strategies as st
 
 from tc49.dispatcher import FullRoute, Incremental
 from tc49.dispatcher.dispatch import Request, State, broken, effective_departure
@@ -21,6 +22,7 @@ from tc49.lib.bus import Payload
 from tc49.store import AssetStore
 from tests.generate import fixture_yaml, scenarios
 from tests.harness import ASSETS, Assembly, build, events, run
+from tests.interleaving import InterleavingBus
 
 K = 2  # the default candidate budget; the k axis is swept by `tc49 sweep`
 TICK_LIMIT = 100  # a backstop against live-lock, never the normal stop
@@ -193,6 +195,50 @@ def test_traces_are_byte_identical_across_runs(
         first = run(layout, roster, scenario, strategy, K, TICK_LIMIT)
         second = run(layout, roster, scenario, strategy, K, TICK_LIMIT)
         assert first == second
+
+
+@given(scenarios(), st.data())
+@EXAMPLES
+def test_the_rules_hold_in_any_order_mqtt_delivers(
+    case: tuple[dict[str, Any], Any, Any, Any], data: st.DataObject
+) -> None:
+    """Property 5. The assembly on a bus that keeps only the order BUS.md
+    promises ("Order from one publisher") and draws every other: what one app
+    sends on one topic to one subscriber stays in order, and nothing else
+    does. The lock table's rules hold after every message the dispatcher is
+    handed, `safe()` after every grant, and quiescence is still a permanent
+    obstacle. A drawn index of 0 is the oldest message, so a counterexample
+    shrinks to the fewest delivered out of order (#1043)."""
+    doc, layout, roster, scenario = case
+    note(fixture_yaml(doc))
+    built: list[Assembly] = []
+
+    def after(subscriber: object, topic: str, payload: Payload) -> None:
+        if built and subscriber is built[0].dispatcher:
+            assert broken(built[0].dispatcher.state) == [], f"after {topic} {payload}"
+
+    def choose(n: int) -> int:
+        return data.draw(st.integers(0, n - 1))
+
+    assembly = build(
+        layout,
+        roster,
+        scenario,
+        Incremental,
+        K,
+        make_bus=lambda clock: InterleavingBus(clock, choose, after),
+    )
+    built.append(assembly)
+
+    def check(topic: str, payload: Payload) -> None:
+        assert safe(
+            *safety_view(assembly.dispatcher.state)
+        ), f"unsafe state after granting {payload}"
+
+    assembly.bus.subscribe("tc49/dispatch/move_granted", check)
+    assembly.simulator.run(TICK_LIMIT)
+    assert broken(assembly.dispatcher.state) == []
+    assert_quiescence_is_a_permanent_obstacle(assembly)
 
 
 @given(scenarios())
