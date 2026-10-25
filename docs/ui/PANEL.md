@@ -129,6 +129,17 @@ colour, and loses the arrow
 [#897](https://github.com/rails49/control/issues/897)). A train the run has
 taken off is named nowhere, though the blocks it reads occupied in stay held.
 
+**A block shows its train's photo in place of the name** where there is one:
+the model photo of the train's first locomotive, the one the roster pane
+shows, read from the same `GET /rosters/<railroad>/trains`
+([#1018](https://github.com/rails49/control/issues/1018)). It is centred and
+fitted whole inside the rectangle and turns with the block as the name does.
+A train with no locomotive, or one whose photo does not load, shows the name
+as before. Resting the pointer on the block shows the name, and so does a
+tap, for 3 s: a press released within the slop a click on a point allows,
+which picks nothing up. A press that moves further picks the train up, as a
+press on the name does.
+
 **What the detectors dispute is marked on the block it is about.** While the
 run is held the dispatcher compares its placement against the occupancy the
 layout has reported and publishes the two contradictions on
