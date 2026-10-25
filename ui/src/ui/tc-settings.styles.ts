@@ -1,11 +1,12 @@
 import { css } from "lit";
 
 /**
- * The settings dialog (`tc-settings`): three tabs, each laid out as below.
+ * The settings dialog (`tc-settings`): three tabs, the Backup tab drawn by
+ * `tc-backup` and the other two laid out as below.
  *
  * A railroad is a row that acts where it is pressed, unlike a backup in
- * `tc-backup`, which is chosen and then restored from the footer: loading
- * one asks the bus and the row answers, so there is nothing to confirm. The
+ * `tc-backup`, which is chosen and then restored from the press beneath the
+ * list: loading one asks the bus and the row answers, so there is nothing to confirm. The
  * tick says which is loaded and the row under the pointer says which would
  * be asked for. A refusal reads as a hint beneath the list, as `tc-backup`
  * reads its own. The name field and the two presses that make a railroad sit
@@ -88,18 +89,6 @@ export const settingsStyles = css`
   }
 
   .wrong {
-    color: var(--unfinished);
-  }
-
-  .backup {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
-
-  /* What backup says without being asked: the band note's words, in the
-     weight a thing missing reads in. */
-  .note {
     color: var(--unfinished);
   }
 

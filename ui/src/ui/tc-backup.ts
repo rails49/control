@@ -1,12 +1,15 @@
 /**
- * The backup dialog: whether this store is being kept anywhere, the press that
- * keeps it now, and the backups there are to come back to (#321).
+ * The settings dialog's Backup tab: whether this store is being kept
+ * anywhere, the press that keeps it now, and the backups there are to come
+ * back to (#321, #1075).
  *
- * One dialog for all of it, because the questions are one question. A person
+ * One tab for all of it, because the questions are one question. A person
  * opening it either wants to know that their railroad is safe, to make it safe
  * this minute, or to get yesterday's drawing back, and each of those is
  * answered by the same three lines: where the store is, what backup has not
- * got, and what git last said.
+ * got, and what git last said. It is drawn in the tab and not in a dialog of
+ * its own: `tc-settings` holds it in its `backup` slot, and the band's backup
+ * note opens Settings on it.
  *
  * **It decides nothing.** Every rule is the store's — what a commit is called,
  * whether a restore is refused, what a missing remote means — and this draws
@@ -19,7 +22,7 @@
  * Track power on does not refuse it: pressed with power on, Restore asks for
  * the drain on `power-wanted`, says "stopping trains…" with the stop sign
  * beside it, and restores once `tc49/layout/state/power` reads `off`;
- * closing the dialog abandons the wait and leaves power as it is
+ * closing Settings abandons the wait and leaves power as it is
  * ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
  * decision 5). Trains on the layout do not hold it back: the rebuild keeps
  * the ones that still fit and lists the rest as unfit (#710, ADR-0071).
@@ -29,7 +32,7 @@
  * **A store that is no repository is offered the way in.** That is the
  * ordinary state of a fresh installation, and nothing here runs `git init`: a
  * program that made a repository behind somebody's back would be owning git
- * rather than driving it. What the dialog does instead is show the key the
+ * rather than driving it. What the tab does instead is show the key the
  * store made for itself and take the address of an empty repository the
  * person made on github.com, which the store clones (#355). The key is the
  * public half; pasting it in the wrong place loses nothing.
@@ -62,7 +65,7 @@ function days(since: number): string {
 export class TcBackup extends LitElement {
   static override styles = [lookTheme, backupStyles];
 
-  /** What the app knows about backup, `null` while the dialog is shut. The
+  /** What the app knows about backup, `null` while Settings is shut. The
    *  same shape the properties dialog takes: closed is nothing to draw. */
   @property({ attribute: false }) backing: Backing | null = null;
 
@@ -104,12 +107,12 @@ export class TcBackup extends LitElement {
   /** The restore held for a dead track (`model/settings.ts`). */
   private readonly drain = new Drain();
 
-  /** Whether `drain` holds the restore, the dialog saying "stopping
+  /** Whether `drain` holds the restore, the tab saying "stopping
    *  trains…" and Restore dead until it acts or the wait is given up. */
   @state() private stopping = false;
 
   override willUpdate(changed: Map<string, unknown>): void {
-    if (changed.has("backing") && this.backing === null) this.drain.abandon();
+    if (changed.has("backing") && this.backing === null) this.shut();
     if (changed.has("power")) this.drain.heard(this.power);
     this.stopping = this.drain.waiting;
   }
@@ -120,59 +123,57 @@ export class TcBackup extends LitElement {
     const stands = backing.stands;
     const refused = restoreRefusal(this.railroad, this.power, this.chosen(stands));
     return html`
-      <look-dialog open label="Backup" @sl-after-hide=${this.close}>
-        ${stands === null
-          ? html`<p class="hint">asking the store…</p>`
-          : html`
-              <p class="root">${stands.root}</p>
-              ${stands.remote === null
-                ? nothing
-                : html`<p class="hint">the copy goes to ${stands.remote}</p>`}
-              ${this.needs(stands.needs)}
-              ${stands.repository
-                ? html`${this.waiting(stands.outstanding)} ${this.copy(stands.copy)}
-                    <details class="move">
-                      <summary>back up to another repository</summary>
-                      ${this.adopt(stands.key, backing.busy)}
-                    </details>`
-                : this.adopt(stands.key, backing.busy)}
-              ${this.key(stands.key, stands.repository, backing.busy)} ${this.said()}
-              <div class="presses">
-                <sl-button
-                  variant="primary"
-                  ?disabled=${backing.busy}
-                  @click=${() => void backing.now()}
-                >
-                  Back up now
-                </sl-button>
-                <sl-button
-                  ?disabled=${backing.busy}
-                  @click=${() => void backing.automatic(!stands.automatic)}
-                >
-                  ${stands.automatic
-                    ? "Turn automatic backup off"
-                    : "Turn automatic backup on"}
-                </sl-button>
-              </div>
-              <h3>Backups</h3>
-              ${this.backups(stands.backups)}
-            `}
-        ${backing.trouble === null
-          ? nothing
-          : html`<p class="wrong">${backing.trouble}</p>`}
-        ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
-        ${refused === null ? this.discard(backing.busy) : nothing}
-        ${this.stopping ? this.stoppingTrains() : nothing}
-        <sl-button slot="footer" @click=${this.close}>Close</sl-button>
+      ${stands === null
+        ? html`<p class="hint">asking the store…</p>`
+        : html`
+            <p class="root">${stands.root}</p>
+            ${stands.remote === null
+              ? nothing
+              : html`<p class="hint">the copy goes to ${stands.remote}</p>`}
+            ${this.needs(stands.needs)}
+            ${stands.repository
+              ? html`${this.waiting(stands.outstanding)} ${this.copy(stands.copy)}
+                  <details class="move">
+                    <summary>back up to another repository</summary>
+                    ${this.adopt(stands.key, backing.busy)}
+                  </details>`
+              : this.adopt(stands.key, backing.busy)}
+            ${this.key(stands.key, stands.repository, backing.busy)} ${this.said()}
+            <div class="presses">
+              <sl-button
+                variant="primary"
+                ?disabled=${backing.busy}
+                @click=${() => void backing.now()}
+              >
+                Back up now
+              </sl-button>
+              <sl-button
+                ?disabled=${backing.busy}
+                @click=${() => void backing.automatic(!stands.automatic)}
+              >
+                ${stands.automatic
+                  ? "Turn automatic backup off"
+                  : "Turn automatic backup on"}
+              </sl-button>
+            </div>
+            <h3>Backups</h3>
+            ${this.backups(stands.backups)}
+          `}
+      ${backing.trouble === null
+        ? nothing
+        : html`<p class="wrong">${backing.trouble}</p>`}
+      ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
+      ${refused === null ? this.discard(backing.busy) : nothing}
+      ${this.stopping ? this.stoppingTrains() : nothing}
+      <div class="restore">
         <sl-button
-          slot="footer"
           variant="warning"
           ?disabled=${this.picked === null || backing.busy || refused !== null || this.stopping}
           @click=${() => this.asked()}
         >
           Restore
         </sl-button>
-      </look-dialog>
+      </div>
     `;
   }
 
@@ -308,7 +309,7 @@ export class TcBackup extends LitElement {
   /**
    * How the copy on the other machine stands.
    *
-   * The one thing in this dialog that is not about a press somebody just made.
+   * The one thing in this tab that is not about a press somebody just made.
    * `Back up now` answers with the commit, which is the backup and is made at
    * once; the copy off this machine is the next tick's and may not have
    * happened yet, so what it did last time is the honest thing to draw
@@ -412,7 +413,7 @@ export class TcBackup extends LitElement {
       </sl-button>`;
   }
 
-  /** What the dialog says while the restore waits for the track to go dead,
+  /** What the tab says while the restore waits for the track to go dead,
    *  and the stop sign beside it: `off` at once, a drain having no time
    *  limit. */
   private stoppingTrains() {
@@ -458,24 +459,22 @@ export class TcBackup extends LitElement {
     );
   }
 
-  /** Shut it. What was picked goes with it: the next time this opens, the
-   *  history may be another one — a restore of its own is in it. */
   private powerWanted(power: Power): void {
     this.dispatchEvent(
       new CustomEvent<Power>("power-wanted", { detail: power, bubbles: true, composed: true }),
     );
   }
 
-  private close(): void {
+  /** Settings shut: the wait given up and power left as it is, and what was
+   *  picked goes with it — the next time this opens, the history may be
+   *  another one, a restore of its own being in it. */
+  private shut(): void {
     this.drain.abandon();
     this.stopping = false;
     this.picked = null;
     this.address = "";
     this.renewing = false;
     this.discarding = false;
-    this.dispatchEvent(
-      new CustomEvent<void>("backup-closed", { bubbles: true, composed: true }),
-    );
   }
 }
 

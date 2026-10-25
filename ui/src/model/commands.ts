@@ -76,9 +76,9 @@ export interface Standing {
 }
 
 /**
- * What backup says from outside its own dialog: the note in the band and the
- * words beside `Settings ▸ Backup…` both read it, so the two never disagree
- * (#688, #733).
+ * What backup says from outside `Settings ▸ Backup`: the note in the band
+ * reads it, and a press on the note opens Settings on that tab (#688, #733,
+ * #1075).
  *
  * Six values, and the first that holds is the one:
  *
@@ -100,8 +100,8 @@ export interface Standing {
  */
 export type BackupStanding = "quiet" | "inside" | "unset" | "behind" | "blocked" | "off";
 
-/** What each standing says, in the words the note and the settings dialog
- *  both wear; `null` where it says nothing. */
+/** What each standing says, in the words the note wears; `null` where it
+ *  says nothing. */
 export function backupWords(standing: BackupStanding): string | null {
   switch (standing) {
     case "unset":

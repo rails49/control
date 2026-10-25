@@ -350,9 +350,8 @@ describe("the view", () => {
 });
 
 /**
- * What backup says without being opened (#321): the band's note and the words
- * beside `Settings ▸ Backup…` both wear these, so the two never disagree
- * (#688, #733).
+ * What backup says without being opened (#321): the band's note wears these,
+ * and a press on it opens Settings on its Backup tab (#688, #733, #1075).
  */
 describe("what backup says without being opened", () => {
   it("says nothing where there is nothing to say", () => {

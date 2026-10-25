@@ -3,7 +3,8 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Three tabs, the dialog opening on the first each time (#899). **Railroad**
+ * Three tabs, the dialog opening on the one `tab` names each time — Railroad
+ * from the gear, Backup from the band's backup note (#899, #1075). **Railroad**
  * lists what the store holds, the loaded one ticked, and a press on another
  * asks for it: it publishes `railroad_wanted` through
  * the app and stops there, and the tick moves when the layout's row names the
@@ -18,9 +19,10 @@
  * drawing under the name — no roster and no script, a railroad with neither
  * being an ordinary one — and **Copy loaded as…** has the store copy every
  * document of the loaded railroad under it (#729); each then asks for what
- * it wrote, the same way a press on the list does. **Backup** is the one
- * press that opens `tc-backup`, wearing the band note's words where backup
- * has something to say. **Shutdown** turns the box off (#745), and is drawn only
+ * it wrote, the same way a press on the list does. **Backup** is a slot the
+ * app fills with `tc-backup`, which draws itself in the tab rather than in a
+ * dialog of its own: being sent from one dialog to another is a step that
+ * does nothing. **Shutdown** turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
  * once more before anything is sent, and then says to unplug the box once its
@@ -32,7 +34,9 @@
  * with power on, ask for the drain on `power-wanted`, say "stopping trains…"
  * with the stop sign beside it, and act once `tc49/layout/state/power` reads
  * `off` (`Drain`). The stop sign asks for `off` at once, a drain having no
- * time limit. Closing the dialog abandons the wait and leaves power as it is.
+ * time limit. Closing the dialog abandons the wait and leaves power as it is,
+ * and a restore's wait in the Backup tab with it: the app hands `tc-backup`
+ * no `backing` while the dialog is shut.
  *
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
@@ -116,9 +120,9 @@ export class TcSettings extends LitElement {
    *  railroad, as `RunStatus.allocated` has it. */
   @property({ attribute: false }) allocated = false;
 
-  /** What backup has to say without being asked, in the band note's words,
-   *  `null` where it says nothing (`model/commands.ts`). */
-  @property({ attribute: false }) backup: string | null = null;
+  /** The tab shown when the dialog opens: Railroad from the gear, Backup
+   *  from the band's backup note. */
+  @property() tab: "railroad" | "backup" = "railroad";
 
   /** The name typed for a railroad to make, as typed. */
   @state() private name = "";
@@ -191,21 +195,17 @@ export class TcSettings extends LitElement {
 
   override render() {
     if (!this.open) return nothing;
-    // Closed draws nothing, so each opening makes the tabs afresh, Railroad
-    // the one shown.
+    // Closed draws nothing, so each opening makes the tabs afresh, `tab` the
+    // one shown.
+    const backup = this.tab === "backup";
     return html`
       <look-dialog open label="Settings" @sl-after-hide=${this.close}>
         <sl-tab-group>
-          <sl-tab slot="nav" panel="railroad" active>Railroad</sl-tab>
-          <sl-tab slot="nav" panel="backup">Backup</sl-tab>
+          <sl-tab slot="nav" panel="railroad" ?active=${!backup}>Railroad</sl-tab>
+          <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
           ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
-          <sl-tab-panel name="railroad" active>${this.railroads()}</sl-tab-panel>
-          <sl-tab-panel name="backup">
-            <div class="backup">
-              <sl-button @click=${() => this.say("backup-wanted")}>Backup…</sl-button>
-              ${this.backup === null ? nothing : html`<span class="note">${this.backup}</span>`}
-            </div>
-          </sl-tab-panel>
+          <sl-tab-panel name="railroad" ?active=${!backup}>${this.railroads()}</sl-tab-panel>
+          <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
           ${this.canTurnOff
             ? html`<sl-tab-panel name="shutdown">
                 <div class="shutdown">${this.shutdown()}</div>
@@ -550,11 +550,9 @@ export class TcSettings extends LitElement {
 
   private close(): void {
     this.abandoned();
-    this.say("settings-closed");
-  }
-
-  private say(what: "backup-wanted" | "settings-closed"): void {
-    this.dispatchEvent(new CustomEvent<void>(what, { bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent<void>("settings-closed", { bubbles: true, composed: true }),
+    );
   }
 }
 
