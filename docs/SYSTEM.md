@@ -1084,9 +1084,11 @@ locomotive stands, and both are facts this side of the boundary. The first of
 the two is the train's **facing**, which is the scheduler's state and the one
 thing the interface reads that is neither a command nor a device row
 ([ADR-0052](adr/0052-layout-reads-facing-and-composes-the-sign-of-a-speed.md)):
-a `move` for a train whose facing it has not seen is dropped rather than
-guessed at, and a train whose cars carry no address is carried out with
-nothing to publish.
+a `move` for a train whose facing it has not seen is held until its facing
+arrives, never guessed at
+([ADR-0095](adr/0095-layout-holds-a-move-until-its-facing-names-the-block-the-train-departs.md)),
+and a train whose cars carry no address is carried out with nothing to
+publish.
 
 One **obligation** comes with them: the layout interface must not act on a
 `move` before the `align` that names the same transit. The two commands have
