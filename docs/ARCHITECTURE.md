@@ -325,8 +325,8 @@ tests/
                test_occupancy  test_traction  test_mode  test_throttle
                test_railroad  test_main
   camera/      test_face  test_stream  test_main
-  system/      test_skeleton  test_properties  test_safety_conditions
-               test_app_boundaries  test_cold_start  test_reload
+  system/      test_skeleton  test_properties  test_gestures_and_readings
+               test_safety_conditions  test_app_boundaries  test_cold_start  test_reload
                test_compose
 ```
 
@@ -441,6 +441,17 @@ Four properties:
    function of its inputs — fixed transit delays, no RNG, one delivery order —
    and that arrival order picks only among grants that were all safe
    ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+
+`test_gestures_and_readings` draws what the four properties do not: a
+person's gestures, and detector readings no train caused, at any moment of a
+live run. It is a Hypothesis state machine over `assemble_live` with a drawn
+case's trains standing, and each step is one of a drag, a cancel, a reorder, a
+point thrown, a power press, a placement, a dropout under a standing train, a
+reading in any block (ADR-0048), or one turn of the live loop; ids are drawn
+from those the scheduler minted plus one nobody did. After every message the
+bus delivers the lock table's rules hold (`broken()` is empty), and after
+every grant `safe()` does. It checks only what holds after each message, not
+that a request ever ends.
 
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the
