@@ -316,6 +316,15 @@ whatever the power, and forgets any move of that train in flight: its later
 readings write no speed for it, and the block behind reads clear on its own
 detectors like any other.
 
+### Placement
+
+The dispatcher cancels a train's requests before it accepts a placement, so on
+`train_placed` this app forgets every move of that train's it holds: the one
+in flight and any waiting on an `align`, a facing or the power
+([#1061](https://github.com/rails49/control/issues/1061)). A train no throttle
+holds that is running is written `0.0`, since a decoder lifted running keeps
+its last speed. A train a throttle holds keeps the person's speed.
+
 ## Who drives, and a person's throttle
 
 The railroad has one **driving mode**, `manual` or `automatic`, and at most one
