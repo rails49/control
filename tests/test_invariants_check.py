@@ -1,22 +1,37 @@
-"""Tests of `tests/invariants.py`: when each invariant is asserted (ADR-0096)."""
+"""Tests of `tests/invariants.py`: when each invariant is asserted, and the
+history invariants on which bus (ADR-0096)."""
 
 import pytest
 
 from tc49.dispatcher import FullRoute, Incremental
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.invariants import ALLOCATION, ASPECTS, MOVING, POWER
+from tc49.lib.invariants import (
+    ALLOCATION,
+    ASPECTS,
+    BLOCK_OCCUPIED,
+    MOVING,
+    POWER,
+    POWER_WANTED,
+    ROUTE_CHOSEN,
+)
 from tests.generate import LAYOUTS, ROSTERS
 from tests.harness import StrategyFactory
+from tests.interleaving import InterleavingBus
 from tests.invariants import checked
 
 MEET = "single-track-meet"
 
 
-def bus(strategy: StrategyFactory = Incremental) -> InProcessBus:
+def bus(
+    strategy: StrategyFactory = Incremental, interleaving: bool = False
+) -> InProcessBus:
     """A bus being checked, which already says nothing is moving: a missing
-    `moving` row reads as true (`payload.moving`)."""
-    watched = InProcessBus(Clock())
+    `moving` row reads as true (`payload.moving`). `interleaving` makes it an
+    `InterleavingBus` delivering in the order things were queued."""
+    watched = (
+        InterleavingBus(Clock(), lambda n: 0) if interleaving else InProcessBus(Clock())
+    )
     watched.publish(MOVING, {"moving": False})
     checked(watched, LAYOUTS[MEET], ROSTERS[MEET], strategy)
     watched.drain()
@@ -63,3 +78,45 @@ def test_two_blocks_ahead_is_not_asked_of_full_route() -> None:
     held.publish(ALLOCATION, picture)
     with pytest.raises(AssertionError, match="ADR-0026"):
         held.drain()
+
+
+def test_a_history_invariant_fails_at_the_message_that_breaks_it() -> None:
+    watched = bus()
+    watched.publish(ASPECTS, {"aspects": {}})
+    watched.publish(POWER, {"power": "on"})
+    watched.publish(ROUTE_CHOSEN, {"id": "r1", "route": ["west_1"]})
+    watched.publish(ROUTE_CHOSEN, {"id": "r1", "route": ["w_main"]})
+    with pytest.raises(
+        AssertionError, match="(?s)at tc49/dispatch/route_chosen.*ADR-0002"
+    ):
+        watched.drain()
+
+
+def test_a_history_invariant_on_one_apps_topics_is_checked_under_interleaving() -> None:
+    watched = bus(interleaving=True)
+    watched.publish(ROUTE_CHOSEN, {"id": "r1", "route": ["west_1"]})
+    with pytest.raises(AssertionError, match="ADR-0002"):
+        watched.publish(ROUTE_CHOSEN, {"id": "r1", "route": ["w_main"]})
+
+
+def test_a_rule_that_something_follows_waits_for_nothing_left_to_deliver() -> None:
+    watched = bus()
+    watched.publish(ASPECTS, {"aspects": {}})
+    watched.publish(POWER, {"power": "on"})
+    watched.drain()
+    # Nothing claims w_main: the drain asked in the same delivery holds.
+    watched.publish(BLOCK_OCCUPIED, {"block": "w_main"})
+    watched.publish(POWER_WANTED, {"power": "draining"})
+    watched.drain()
+    watched.publish(POWER, {"power": "on"})
+    watched.publish(BLOCK_OCCUPIED, {"block": "loop_up"})
+    with pytest.raises(AssertionError, match="(?s)nothing left to deliver.*ADR-0048"):
+        watched.drain()
+
+
+def test_a_cross_app_history_invariant_is_not_checked_under_interleaving() -> None:
+    watched = bus(interleaving=True)
+    watched.publish(ASPECTS, {"aspects": {}})
+    watched.publish(POWER, {"power": "on"})
+    watched.publish(BLOCK_OCCUPIED, {"block": "loop_up"})
+    watched.drain()
