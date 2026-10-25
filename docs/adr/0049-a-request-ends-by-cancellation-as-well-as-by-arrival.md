@@ -1,5 +1,7 @@
 # A request ends by cancellation as well as by arrival
 
+*Amended by [#1068](https://github.com/rails49/control/issues/1068): a move already sent is taken back where `layout` has driven nothing since it acted on it, on `tc49/layout/withdraw_wanted`, and the cancel ends on its `move_withdrawn` rather than waiting for the sensors.*
+
 Resolves [#244](https://github.com/rails49/control/issues/244);
 [#271](https://github.com/rails49/control/issues/271) executes it. It
 supersedes [#237](https://github.com/rails49/control/issues/237), whose case

@@ -306,6 +306,8 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/power` | state | layout | on, draining or off: whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/align` | command | any | throw these points, and authorise the transit it names, if any |
 | `tc49/layout/move` | command | any | take the train across, this fast |
+| `tc49/layout/withdraw_wanted` | event | any | take back this move, if nothing has driven the train since it was acted on ([#1068](https://github.com/rails49/control/issues/1068)) |
+| `tc49/layout/move_withdrawn` | event | layout | the move was taken back: the train never left its block ([#1068](https://github.com/rails49/control/issues/1068)) |
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
 | `tc49/layout/driving_wanted` | event | any (browser) | switch the railroad's driving mode ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/state/driving` | state | layout | manual or automatic: who drives the trains ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
@@ -351,7 +353,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
 | Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors |
 | Trace tap | `tc49/#` |
 
@@ -621,6 +623,26 @@ what a drop would cost:
   which way the train goes along the track is the layout interface's, which
   holds the geometry and the way round the locomotive stands
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+- `tc49/layout/withdraw_wanted` — `train`; `transit`: qualified,
+  `<connection>.<transit>`, the transit the train's outstanding move crosses.
+  Not browser-writable. The dispatcher publishes it when a `cancel_wanted`
+  lands on a request with a move outstanding, in either driving mode, and
+  `layout` answers it. A move `layout` holds for an `align`, a facing or the
+  power has not been acted on and is taken back. One acted on is taken back
+  where `layout` has written no non-zero speed to any of the train's
+  addressed cars since, from the move or from a throttle: the train is put
+  back in the block it stood in and, unless a throttle holds it, told
+  `0.0`. A move not there yet is answered at once and the train's next
+  `move` dropped if it names that transit; a `train_placed` or
+  `train_removed` clears that. Dropped, with no answer, where the train has
+  been driven since the move was acted on, where the move has arrived, and
+  where the last move `layout` acted on for the train already crossed that
+  transit. The simulator answers none: it drives every move at once
+  ([#1068](https://github.com/rails49/control/issues/1068)).
+- `tc49/layout/move_withdrawn` — `train`, `transit`: as asked. Published
+  once per withdrawal taken, and read by the dispatcher, which drops one not
+  naming the transit of a cancelled request's outstanding move
+  ([#1068](https://github.com/rails49/control/issues/1068)).
 - `tc49/layout/throttle_wanted` — browser-writable — `train`; `speed`: a
   number in −1.0 … 1.0, the fraction of that train's maximum, `0.0` being
   stop, signed for which way the train runs along its own length — positive
@@ -799,10 +821,14 @@ payload is read defensively, and one that fails the read is dropped.
   With power `on`, a block reading occupied that nothing claims is an
   unexplained reading as before, so the drag comes before the cars go down.
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
-  end. A request waiting is cancelled at once. One underway is cancelled when
-  the move it has outstanding ends at its sensor, and no further move is
-  granted
-  ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
+  end. A request waiting is cancelled at once, and so is one underway with no
+  move outstanding. One with a move outstanding is granted nothing further
+  and asks `layout` for the move back on `withdraw_wanted`: it is cancelled
+  at once on the `move_withdrawn` that answers it, where nothing has driven
+  the train since the move was acted on, and otherwise when the move ends at
+  its sensor
+  ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
+  [#1068](https://github.com/rails49/control/issues/1068)).
   The requests of the same train chained after it before the cancel was
   asked are cancelled with it, each with its own `request_cancelled`, reason
   `revoked`. One chained after it once the cancel was asked departs from the
