@@ -465,7 +465,7 @@ export interface TrainRow {
  *  entry, a car made for it whose address is to be asked, the one car of it
  *  no train holds, or nothing yet, there being several to choose from —
  *  or nothing at all, where there is no such train or model, or where every
- *  car of it it could be is in another train (`taken`, naming the first). */
+ *  car of it is in another train (`taken`, naming the first). */
 export type Added =
   | { as: "model" }
   | { as: "made"; car: string }
@@ -898,9 +898,10 @@ export class Stock {
    * with a decoder goes in as a car**, its address belonging to one item:
    * a car counts as free only where no train names it (#1067). Where the
    * railroad has no free car of it, one is made (`newCar`) and its address is
-   * the next thing to ask — unless a car of it is in another train, when
-   * nothing goes in and that car and train are named (`taken`): the person
-   * owns one, and a second would be a locomotive nobody has. Where it has
+   * the next thing to ask — unless every car of it is in another train,
+   * when nothing goes in and the first car and its train are named
+   * (`taken`): the person owns those, and another would be a locomotive
+   * nobody has (#1077). Where it has
    * exactly one free car, that car goes in; where it has more, nothing goes
    * in yet and the cars are the person's to choose from (`carsOf`).
    */
@@ -916,7 +917,7 @@ export class Stock {
     const cars = this.carsOf(train, at);
     const free = cars.filter((one) => !one.inTrain && one.elsewhere === null);
     const held = cars.find((one) => one.elsewhere !== null);
-    if (free.length === 0 && held !== undefined) {
+    if (held !== undefined && cars.every((one) => one.elsewhere !== null)) {
       return { as: "taken", car: held.car, train: held.elsewhere! };
     }
     if (free.length === 0) {
