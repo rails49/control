@@ -189,8 +189,9 @@ _Avoid_: type (reads as kind), class, product
 **Car**:
 One item a railroad owns: a model with zero or more fields overridden, its own
 address where it has a decoder, and its own camera where it carries one. No
-two cars on one railroad share either. A locomotive is a car whose model's kind
-says so ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
+two cars on one railroad share either. A car stands in at most one train. A
+locomotive is a car whose model's kind says so
+([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: vehicle, item, wagon, rolling stock (the mass noun is stock)
 
 **Function**:
