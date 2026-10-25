@@ -745,7 +745,8 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/schedule/state/facing` — `facing`: map of train to the run it would
   make across its block, `<block>.A-to-B` or `<block>.B-to-A`; a train facing
   `<block>.A-to-B` would depart through that block's B end (GLOSSARY.md,
-  **Facing**). The bare end letter this value once carried is refused rather
+  **Facing**). A move changes it when the dispatcher records the train in
+  the block entered, not at the grant. The bare end letter this value once carried is refused rather
   than read, a retained row written by an older build losing that train's
   facing rather than turning it round. Kept through a rebuild under the same
   railroad name and adopted as after a restart; cleared when another railroad
