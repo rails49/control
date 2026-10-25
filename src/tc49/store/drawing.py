@@ -74,6 +74,9 @@ LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
 #
 # It is also the roll of kinds that have a motor at all, which is what takes an
 # `addr`; a fixed crossing is not in it and takes none.
+#
+# A turnout's row is the default: one with `closed_leg: diverging` wants the
+# reverse, which `Symbol.position` reads.
 POSITIONS: dict[str, dict[str, str]] = {
     "turnout": {"straight": "closed", "diverging": "thrown"},
     "single_slip": {"a": "closed", "b": "closed", "slip": "thrown"},
@@ -991,7 +994,9 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     check_keys(spec, where, {"kind"}, optional)
     transits = LIBRARY[kind]
     closed_leg = spec.get("closed_leg", "straight")
-    if kind == "turnout" and closed_leg not in transits:
+    if kind == "turnout" and (
+        not isinstance(closed_leg, str) or closed_leg not in transits
+    ):
         raise ValueError(f"{where}: closed_leg must be one of {list(transits)}")
 
     names: dict[str, str] = {}
