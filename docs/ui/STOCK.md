@@ -38,9 +38,10 @@ the Name field below is the one place the name appears.
 **The list** has three tabs, **Trains · Cars · Models**, each with its count, a
 *New train* / *New car* / *New model* button, and one card per item: a photo
 frame 10:3 wide, the name, and a line of facts. A model: kind, scale, length,
-*decoder*. A car: its model's name, its address, *camera*. A train: how many
-cars, its length, its kind, its priority. A car's card shows its model's photo
-and a train's its first locomotive's. **Every photo is shown whole**
+*decoder*. A car: its model's name where it is not the car's own, its address
+as `#12`, *camera*. A train: how many cars, its length, its kind, its
+priority. A car's card shows its model's photo and a train's its first
+locomotive's. **Every photo is shown whole**
 (`object-fit: contain`) on white: train cars are wide and low, and a crop cuts
 off the end that tells two apart. Product photos are shot on white, so the
 space beside or above the photo matches it in either theme.
@@ -255,8 +256,7 @@ An empty Cars list says *no cars yet — press New car on a model to make one*.
 From the top, as the mockup draws it
 ([#979](https://github.com/rails49/control/issues/979)).
 
-**The model's photo**, read-only and marked *Photo of the model*: a car has no
-photo of its own (ADR-0061).
+**The model's photo**, read-only: a car has no photo of its own (ADR-0061).
 
 **Name**: any characters. Refused when empty — *A car needs a name.* — or when
 another car on the railroad has it — *There is already a car 'Re 460 001'.* —
@@ -306,8 +306,7 @@ address**, refused in the field's words with the question left standing.
 From the top, as the mockup draws it
 ([#980](https://github.com/rails49/control/issues/980)).
 
-**The picture**: the first locomotive's model photo, marked *Photo of the first
-locomotive*, or *No locomotive with a photo*.
+**The picture**: the first locomotive's model photo, or *No photo*.
 
 **Name**: any characters. Refused when empty — *A train needs a name.* — or
 when another train has it — *There is already a train 'IC 721'.* — and the

@@ -477,13 +477,19 @@ export class TcStock extends LitElement {
     );
   }
 
+  /** The model's name is left out where it is the car's own, which a car
+   *  named by its model has (ADR-0061). */
   private carFacts(car: CarRow) {
-    return html`<span
-        >${car.modelName}${car.kind === null ? " — no such model" : ""}</span
-      >${
+    const model =
+      car.kind === null
+        ? `${car.modelName} — no such model`
+        : car.modelName === car.name
+          ? null
+          : car.modelName;
+    return html`${model === null ? nothing : html`<span>${model}</span>`}${
         car.addr === null
           ? nothing
-          : html`<span class="pill">${car.addr}</span>`
+          : html`<span class="pill">#${car.addr}</span>`
       }${
         car.camera === null ? nothing : html`<span class="pill">camera</span>`
       }`;
@@ -1155,7 +1161,6 @@ export class TcStock extends LitElement {
       <div class="body car-editor">
         <div class="photo-frame">
           ${this.photo(car.kind === null ? null : car.model)}
-          <span class="chip">Photo of the model</span>
         </div>
         <div class="grid">
           <label class="field wide">
@@ -1491,9 +1496,6 @@ export class TcStock extends LitElement {
       <div class="body train-editor">
         <div class="photo-frame">
           ${pictured ? this.photo(train.locomotive) : this.noPhoto()}
-          <span class="chip">
-            ${pictured ? "Photo of the first locomotive" : "No locomotive with a photo"}
-          </span>
         </div>
         <div class="grid">
           <label class="field">
