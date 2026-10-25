@@ -407,9 +407,9 @@ class LayoutInterface:
 
         `reread`: the loaded railroad's roster read again, once and without
         waiting on a store that does not answer, None where it cannot be read
-        (ADR-0092, decision 2). A take naming a train this app was not built
-        with asks it, a train made in the stock view since the last build
-        being on the store's roster and nowhere else. The simulator binding
+        (ADR-0092, decision 2). A placement or a take naming a train this app
+        was not built with asks it, a train made in the stock view since the
+        last build being on the store's roster and nowhere else. The simulator binding
         passes none.
         """
         self._bus = bus
@@ -999,8 +999,8 @@ class LayoutInterface:
         """The trains the store's roster has and this app lacks, added with
         their cars, addresses and functions (ADR-0092, decision 2). A train it
         already has keeps its entry until the next build (ADR-0071). A store
-        that does not answer adds nothing, and the take is applied as it
-        would have been."""
+        that does not answer adds nothing, and the placement or take is
+        applied as it would have been."""
         if self._reread is None:
             return
         read = self._reread()
@@ -1331,10 +1331,16 @@ class LayoutInterface:
         A `train_placed` never carries a null block — a train taken off the
         layout is `train_removed`, which names the train alone (ADR-0039) —
         so one that does is read the way an unreadable frame is.
+
+        A placement of a train the roster lacks reads the roster again first
+        (`_learn`): the accept is the first this app hears of a train made
+        since the last build, and in `automatic` no take follows to read it.
         """
         placed = placement(payload)
         if placed is None or placed.block is None:
             return
+        if placed.train not in self._roster.trains:
+            self._learn()
         self._position[placed.train] = placed.block
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
