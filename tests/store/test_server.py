@@ -8,6 +8,7 @@ requests and the status codes an editor has to distinguish.
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from threading import Thread
 from typing import Any
@@ -1450,6 +1451,207 @@ def test_a_name_with_a_slash_in_it_is_no_copy_route(
         handle(store, backup, "POST", "/railroads/facing/pair/copy", {"to": "b"})[0]
         == 404
     )
+
+
+def _railroad_files(root: Path, name: str) -> list[Path]:
+    """Everything a railroad named `name` keeps: its four documents and its
+    scenarios' directory."""
+    layouts = root / "layouts"
+    return [
+        layouts / f"{name}.drawing.yaml",
+        layouts / f"{name}.roster.yaml",
+        layouts / f"{name}.script.py",
+        layouts / f"{name}.clock.yaml",
+        root / "scenarios" / name,
+    ]
+
+
+def test_a_railroad_is_deleted_with_every_document_and_scenario(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """Its drawing, roster, script, clock and scenarios, and nothing of any
+    other railroad's (#1073)."""
+    store.put_script(SCRIPT, "reversing-loops-v0")
+    store.put_clock(CLOCK, "reversing-loops-v0")
+    scenarios = tmp_path / "scenarios" / "reversing-loops-v0"
+    scenarios.mkdir(parents=True)
+    (scenarios / "rush.scenario.yaml").write_text("scenario: rush\n")
+    others = {
+        path: path.read_bytes()
+        for path in (tmp_path / "layouts").iterdir()
+        if not path.name.startswith("reversing-loops-v0.")
+    }
+    assert others
+
+    assert handle(store, backup, "DELETE", "/railroads/reversing-loops-v0", None) == (
+        200,
+        {"deleted": "reversing-loops-v0"},
+    )
+    for path in _railroad_files(tmp_path, "reversing-loops-v0"):
+        assert not path.exists(), path
+    assert {path: path.read_bytes() for path in others} == others
+    assert "reversing-loops-v0" not in store.list()
+
+
+def test_a_railroad_with_only_a_drawing_is_deleted(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    (tmp_path / "layouts").mkdir()
+    shutil.copy(
+        ASSETS / "layouts" / "facing-pair.drawing.yaml",
+        tmp_path / "layouts" / "facing-pair.drawing.yaml",
+    )
+    assert handle(store, backup, "DELETE", "/railroads/facing-pair", None) == (
+        200,
+        {"deleted": "facing-pair"},
+    )
+    assert not list((tmp_path / "layouts").iterdir())
+
+
+def test_the_loaded_railroad_is_not_deleted(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    store.put_loaded("reversing-loops-v0")
+    store.put_script(SCRIPT, "reversing-loops-v0")
+    before = {
+        path.name: path.read_bytes()
+        for path in (tmp_path / "layouts").glob("reversing-loops-v0.*")
+    }
+    assert handle(store, backup, "DELETE", "/railroads/reversing-loops-v0", None) == (
+        409,
+        {"error": "'reversing-loops-v0' is loaded; load another railroad first"},
+    )
+    assert {
+        path.name: path.read_bytes()
+        for path in (tmp_path / "layouts").glob("reversing-loops-v0.*")
+    } == before
+
+
+def test_deleting_a_railroad_with_no_drawing_is_not_found(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """A roster alone is no railroad to delete, and it stays."""
+    roster = tmp_path / "layouts" / "atlantis.roster.yaml"
+    roster.write_text("roster: atlantis\n")
+    assert handle(store, backup, "DELETE", "/railroads/atlantis", None) == (
+        404,
+        {"error": "no railroad 'atlantis'"},
+    )
+    assert roster.exists()
+
+
+def test_a_name_with_a_slash_in_it_is_no_delete_route(
+    store: AssetStore, backup: Backup
+) -> None:
+    assert handle(store, backup, "DELETE", "/railroads/facing/pair", None)[0] == 404
+    assert handle(store, backup, "DELETE", "/railroads/facing-pair/copy", None)[0] == (
+        404
+    )
+
+
+def test_a_deleted_railroad_leaves_the_catalogue_as_it_was(
+    store: AssetStore, backup: Backup
+) -> None:
+    """The models its roster named are the installation's, not the
+    railroad's, whether or not another roster uses them."""
+    used = {
+        car["model"]
+        for car in store.roster_document("reversing-loops-v0")["cars"].values()
+    }
+    assert used
+    handle(store, backup, "DELETE", "/railroads/reversing-loops-v0", None)
+    models = handle(store, backup, "GET", "/catalogue", None)[1]["models"]
+    assert used <= set(models)
+
+
+def test_a_delete_arms_the_backup_as_a_save_does(
+    store: AssetStore, tmp_path: Path
+) -> None:
+    saved: list[bool] = []
+
+    class Saving(Backup):
+        def saved(self) -> None:
+            saved.append(True)
+
+    backup = Saving(tmp_path, log=lambda _: None)
+    handle(store, backup, "DELETE", "/railroads/facing-pair", None)
+    assert saved == [True]
+
+
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    ).stdout
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="the backup drives git")
+def test_a_railroad_is_backed_up_before_it_is_deleted(
+    store: AssetStore, tmp_path: Path
+) -> None:
+    """An edit nobody backed up yet is in a commit before the files go, so
+    the railroad's last state can be restored (#1073)."""
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "config", "user.email", "suite@example.invalid")
+    _git(tmp_path, "config", "user.name", "The Suite")
+    _git(tmp_path, "config", "commit.gpgsign", "false")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "before")
+    store.put_script(SCRIPT, "reversing-loops-v0")
+    backup = Backup(tmp_path, log=lambda _: None)
+
+    assert handle(store, backup, "DELETE", "/railroads/reversing-loops-v0", None) == (
+        200,
+        {"deleted": "reversing-loops-v0"},
+    )
+    assert not (tmp_path / "layouts" / "reversing-loops-v0.script.py").exists()
+    assert _git(tmp_path, "show", "HEAD:layouts/reversing-loops-v0.script.py") == (
+        SCRIPT
+    )
+    assert _git(tmp_path, "log", "--format=%s").splitlines()[1] == "before"
+    # The removal itself is the next backup's, not this one's.
+    assert " D layouts/reversing-loops-v0.drawing.yaml" in _git(
+        tmp_path, "status", "--porcelain"
+    )
+
+
+def test_a_backup_that_fails_deletes_nothing(store: AssetStore, tmp_path: Path) -> None:
+    """Where git cannot commit, the railroad's last state would be lost with
+    it: refused with git's own words."""
+
+    class Failing(Backup):
+        def repository(self) -> bool:
+            return True
+
+        def back_up(self) -> Said:
+            return Said(False, "fatal: index.lock exists")
+
+    backup = Failing(tmp_path, log=lambda _: None)
+    assert handle(store, backup, "DELETE", "/railroads/reversing-loops-v0", None) == (
+        409,
+        {"error": "fatal: index.lock exists"},
+    )
+    assert (tmp_path / "layouts" / "reversing-loops-v0.drawing.yaml").exists()
+    assert (tmp_path / "layouts" / "reversing-loops-v0.roster.yaml").exists()
+
+
+def test_nothing_to_back_up_is_no_reason_not_to_delete(
+    store: AssetStore, tmp_path: Path
+) -> None:
+    backed_up: list[bool] = []
+
+    class Clean(Backup):
+        def repository(self) -> bool:
+            return True
+
+        def back_up(self) -> Said:
+            backed_up.append(True)
+            return Said(True, "nothing has moved since the last backup")
+
+    backup = Clean(tmp_path, log=lambda _: None)
+    assert handle(store, backup, "DELETE", "/railroads/facing-pair", None)[0] == 200
+    assert backed_up == [True]
+    assert not (tmp_path / "layouts" / "facing-pair.drawing.yaml").exists()
 
 
 def test_a_store_with_no_record_has_no_railroad_loaded(

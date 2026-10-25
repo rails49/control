@@ -143,6 +143,9 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     POST /railroads/<from>/copy its drawing, roster, script and clock under
                                 the name `{"to": …}` gives; 409 where that
                                 is taken
+    DELETE /railroads/<name>    its drawing, roster, script, clock and
+                                scenarios; 409 where it is loaded, or where
+                                the backup made first fails
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /backup                what backup can do here, what it needs, the
@@ -186,8 +189,12 @@ derives to, so the editor holds no second copy of the derivation
 ([ui/EDITOR.md](ui/EDITOR.md)). `/rosters/<name>/trains` is the other
 derivation the browser reads: what the run views read, and a path of its own
 because `GET` and `PUT` on the document have to be inverses
-([#388](https://github.com/rails49/control/issues/388)). `delete` is on no
-route, for any document; a scenario is on none at all (below).
+([#388](https://github.com/rails49/control/issues/388)). No one document of
+a railroad is deleted on its own: `DELETE /railroads/<name>` takes the
+railroad whole, backing the store up first where it is a repository so a
+restore brings it back
+([#1073](https://github.com/rails49/control/issues/1073)). A scenario is on no
+route at all (below).
 
 `/layouts/<name>` is the derivation **the apps** read. Each of the scheduler,
 the dispatcher and the layout interface takes a `Layout` at construction, and
