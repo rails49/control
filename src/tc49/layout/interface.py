@@ -128,7 +128,8 @@ them again on arrival. **How fast** is the move's own speed, a magnitude.
 **Which way** is two facts composed: whether the move leaves the end the train
 faces — read off `tc49/schedule/state/facing`, there being nowhere else facing
 lives (ADR-0045) — and which way round each car is coupled. A move whose
-facing this app has never seen is dropped rather than guessed, and a train
+facing this app has not seen is held until it arrives, never guessed
+(ADR-0095), and a train
 whose cars carry no address at all is carried out with nothing to publish
 (#296).
 
@@ -453,6 +454,10 @@ class LayoutInterface:
         # each spent by the move that takes it, and the moves waiting on one.
         self._aligned: set[str] = set()
         self._held: dict[str, Command] = {}
+        # The moves waiting on a facing naming the block their train departs,
+        # one per transit, each put back through the rules when `state/facing`
+        # next reads (ADR-0095).
+        self._unfaced: dict[str, Command] = {}
         # The moves granted while the rails are dead, one per transit, each
         # put back through the rules when `state/power` next reads `on`.
         self._kept: dict[str, Command] = {}
@@ -688,13 +693,19 @@ class LayoutInterface:
         train has left the near end as surely as it has on the steel — and the
         sensors that will say it arrived are the detectors'.
 
-        There is a fourth thing that stops a command here and it is a refusal
-        rather than a rule about the bus: a train with wheels to turn and no
-        facing this app has seen is **dropped**, because the sign cannot be
-        composed and a guess is a locomotive driven the wrong way down the
-        track (`_traction`). It is checked last, after the hold, so a command
-        waiting for its `align` is judged on the facing it has when it acts,
-        like every other rule here.
+        There is a fourth thing that stops a command here: a train with wheels
+        to turn and no facing this app can use for the block it departs is
+        **held** until one arrives, because the sign cannot be composed and a
+        guess is a locomotive driven the wrong way down the track
+        (`_traction`, ADR-0095). The scheduler publishes that facing and the
+        driver the move, and the bus promises no order between two writers,
+        so a move reaching here first is the ordinary case and not a fault.
+        Each value of `state/facing` puts every move held for it back through
+        all of this, and a second `move` for the same transit replaces the
+        one held. There is no timer. It is checked last, after the hold for
+        the `align`, so a command waiting for its `align` is judged on the
+        facing it has when it acts, like every other rule here. A move that
+        states no speed is dropped instead: no facing will supply the number.
 
         A move this app is not to drive runs the whole of this and writes
         nothing: one for a train a throttle holds, whose speed is the
@@ -727,6 +738,8 @@ class LayoutInterface:
         traction = self._traction(commanded, near)
         if traction is None:
             if driving:
+                if commanded.speed is not None:
+                    self._unfaced[transit] = commanded
                 return
             # A move this app is not driving runs its course whatever it could
             # have made of the sign: nothing is being written, so there is no
@@ -757,7 +770,7 @@ class LayoutInterface:
     ) -> tuple[float, tuple[tuple[str, float], ...]] | None:
         """What this move is worth on each of the train's decoders: one signed
         speed per addressed car, `()` where the train has none, and None where
-        the move is to be dropped for want of the facts to sign it (#296).
+        the move cannot be acted on for want of the facts to sign it (#296).
         Beside it, the same speed signed for the train, nose-first positive,
         which is the lever's sign and `0.0` where nothing is written.
 
@@ -791,12 +804,11 @@ class LayoutInterface:
         here to turn wrongly.
 
         **No facing, no move.** A train that has wheels to turn and no facing
-        this app has seen — none published, one it cannot spell, or one naming
-        another block than the one the train is departing — is dropped whole.
-        Facing arriving later does not run it: the command was dropped, and
-        nothing here holds it (BUS.md, rule 4). A move that states no
-        **speed** falls the same way and for the same reason: this app would
-        have to choose a number nobody asked for.
+        this app can use — none published, one it cannot spell, or one naming
+        another block than the one the train is departing — gets None, and
+        `_cross` holds the move until a facing naming the departed block
+        arrives (ADR-0095). A move that states no **speed** gets None too, and
+        is dropped: this app would have to choose a number nobody asked for.
         """
         addressed = self._addressed(commanded.train)
         if not addressed:
@@ -1387,7 +1399,7 @@ class LayoutInterface:
 
         The value is the whole map and is adopted as one: a state topic's last
         value is what facing *is*, so a train missing from a value that reads
-        has no facing here and its next move is dropped, which is the safe
+        has no facing here and its next move is held, which is the safe
         direction. A value that cannot be read at all is no value: the map
         already held stands, since forgetting every train's facing on one bad
         frame would stop the railroad on a payload.
@@ -1398,6 +1410,13 @@ class LayoutInterface:
         if held is None:
             return
         self._facing = held
+        # Every move held for a facing meets every rule again, this value
+        # included: one whose train was taken off or placed elsewhere
+        # meanwhile fails the near-end check and is dropped, and one this
+        # value still does not sign is held again (ADR-0095).
+        waiting, self._unfaced = self._unfaced, {}
+        for commanded in waiting.values():
+            self._cross(commanded)
 
     # -- the signals --------------------------------------------------------
 

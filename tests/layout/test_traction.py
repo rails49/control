@@ -18,7 +18,7 @@ from tc49.bench.runner import DEFAULT_K, NONCE, facing, placement
 from tc49.dispatcher import Dispatcher, Incremental
 from tc49.driver import Driver
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import InProcessBus
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
 from tc49.lib.roster import Coupled, Train
@@ -184,10 +184,10 @@ def test_the_arrival_stops_each_car_once_and_the_vacate_follows_it() -> None:
     assert speeds(written) == [("3", 1.0), ("3", 0.0)]
 
 
-def test_a_move_for_a_train_with_no_published_facing_is_dropped() -> None:
-    """Guessing is a locomotive driven the wrong way down the track, and a
-    drop is what a failed read is worth for an app that answers nothing
-    (BUS.md, rule 4)."""
+def test_a_move_for_a_train_with_no_published_facing_waits_for_one() -> None:
+    """Guessing is a locomotive driven the wrong way down the track, so the
+    move is held, the train standing where it is, until a facing naming the
+    block it departs arrives (ADR-0095)."""
     bus, app = build()
     energised(bus)
     stand(bus, "single", "up_w")
@@ -198,26 +198,32 @@ def test_a_move_for_a_train_with_no_published_facing_is_dropped() -> None:
     assert speeds(written) == []
     assert app.position == {"single": "up_w"}
 
-
-def test_facing_arriving_after_the_move_does_not_run_the_train() -> None:
-    """The dropped command stays dropped: nothing here holds a `move` for want
-    of a facing, and a redelivery is what a driver would send."""
-    bus, app = build()
-    energised(bus)
-    stand(bus, "single", "up_w")
-    align(bus, "crossover", "to_dn")
-    written = commanded(bus)
-    move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)
     faces(bus, single="up_w.A-to-B")
 
-    assert speeds(written) == []
-    assert app.position == {"single": "up_w"}
+    assert speeds(written) == [("3", 1.0)]
+    assert app.position == {"single": "dn_e"}
+
+
+def test_facing_arriving_after_the_move_runs_the_train_the_way_it_says() -> None:
+    """The driver's `move` and the scheduler's facing come from two writers,
+    and the bus promises no order between them: the facing arriving second
+    still runs the train, with the sign it gives."""
+    bus, app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    align(bus, "crossover", "to_dn")
+    written = commanded(bus)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)
+    faces(bus, single="up_w.B-to-A")
+
+    assert speeds(written) == [("3", -1.0)]
+    assert app.position == {"single": "dn_e"}
 
 
 def test_a_facing_naming_another_block_is_no_facing_for_this_move() -> None:
     """A facing is a run across one block. One that names a block the train is
-    not departing says nothing about this move, and is refused rather than
-    read as propelled."""
+    not departing says nothing about this move, and is not read as
+    propelled: the move waits for one naming `up_w`."""
     bus, app = ready("single", "up_e.A-to-B")
     written = commanded(bus)
     move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)
@@ -225,11 +231,16 @@ def test_a_facing_naming_another_block_is_no_facing_for_this_move() -> None:
     assert speeds(written) == []
     assert app.position == {"single": "up_w"}
 
+    faces(bus, single="up_w.A-to-B")
+
+    assert speeds(written) == [("3", 1.0)]
+    assert app.position == {"single": "dn_e"}
+
 
 def test_a_facing_this_build_cannot_spell_is_no_facing() -> None:
     """The `<block>.<A-to-B|B-to-A>` form is the vocabulary, and the bare end
-    letter it once was is retired (#241): a value outside it is dropped rather
-    than guessed at."""
+    letter it once was is retired (#241): a value outside it is not guessed
+    at, and the move waits for one this build can read."""
     bus, app = ready("single", "up_w.B")
     written = commanded(bus)
     move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)
@@ -237,14 +248,52 @@ def test_a_facing_this_build_cannot_spell_is_no_facing() -> None:
     assert speeds(written) == []
     assert app.position == {"single": "up_w"}
 
+    faces(bus, single="up_w.A-to-B")
+
+    assert speeds(written) == [("3", 1.0)]
+    assert app.position == {"single": "dn_e"}
+
+
+def test_a_move_held_for_its_facing_is_dropped_for_a_train_placed_elsewhere() -> None:
+    """The held move meets every rule again when the facing arrives, and the
+    near-end check is one: the train no longer stands at the end it would
+    depart through."""
+    bus, app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    align(bus, "crossover", "to_dn")
+    written = commanded(bus)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)
+    stand(bus, "single", "up_e")
+    faces(bus, single="up_w.A-to-B")
+
+    assert speeds(written) == []
+    assert app.position == {"single": "up_e"}
+
+
+def test_a_second_move_for_the_transit_replaces_the_one_held() -> None:
+    """One move held per transit: the facing runs the last one, once."""
+    bus, app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    align(bus, "crossover", "to_dn")
+    written = commanded(bus)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.4)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.7)
+    faces(bus, single="up_w.A-to-B")
+
+    assert speeds(written) == [("3", 0.7)]
+    assert app.position == {"single": "dn_e"}
+
 
 def test_a_move_stating_no_speed_commands_nothing_and_moves_nothing() -> None:
     """The magnitude is the command's and this app has no number to fall back
-    on, so a `move` that states none is dropped the way one with no facing
-    is."""
+    on, so a `move` that states none is dropped, and no facing arriving
+    later runs it."""
     bus, app = ready("single", "up_w.A-to-B")
     written = commanded(bus)
     move(bus, "single", "crossover", "to_dn", "dn_e", None)
+    faces(bus, single="up_w.A-to-B")
 
     assert speeds(written) == []
     assert app.position == {"single": "up_w"}
@@ -277,7 +326,7 @@ def test_an_unreadable_facing_leaves_the_facing_already_held_alone() -> None:
 def test_a_train_missing_from_a_value_that_reads_has_no_facing() -> None:
     """The map is adopted whole, a state topic's last value being what facing
     *is*: a train the scheduler no longer names has none here, and its next
-    move is dropped rather than run on a value that has moved on."""
+    move is held rather than run on a value that has moved on."""
     bus, app = ready("single", "up_w.A-to-B")
     faces(bus, topped="up_w.A-to-B")
     written = commanded(bus)
@@ -454,6 +503,31 @@ def test_a_point_the_last_session_left_thrown_replays_untouched() -> None:
     }
 
 
+class FacingLast(InProcessBus):
+    """A bus that hands `state/facing` on only once everything else queued
+    has been delivered: the driver's `move` reaches `layout` before the
+    scheduler's facing for the same arrival, an order the bus allows between
+    two writers (BUS.md, "Order from one publisher")."""
+
+    def __init__(self, clock: Clock) -> None:
+        super().__init__(clock)
+        self._late: list[Payload] = []
+
+    def publish(self, topic: str, payload: Payload) -> None:
+        if topic != FACING:
+            super().publish(topic, payload)
+            return
+        self._late.append(payload)
+
+    def drain(self) -> None:
+        super().drain()
+        while self._late:
+            late, self._late = self._late, []
+            for payload in late:
+                super().publish(FACING, payload)
+            super().drain()
+
+
 def test_a_train_reading_clear_behind_before_occupied_ahead_runs_every_move() -> None:
     """The real apps on one bus, and an addressed `freight_1` shorter than
     the gap to each next block's entry detector: every origin reads clear
@@ -461,12 +535,26 @@ def test_a_train_reading_clear_behind_before_occupied_ahead_runs_every_move() ->
     still runs, because the allocation recording an arrival goes out before
     the grant it leads to, so the scheduler has moved the facing `layout`
     signs the next `move` on (#1038, #1025, ADR-0052)."""
+    runs_every_move(InProcessBus)
+
+
+def test_a_move_reaching_layout_before_its_facing_still_runs() -> None:
+    """The same, with each `move` delivered before the facing the scheduler
+    published for the same arrival: `layout` holds the move until the facing
+    names the block departed, and every move still starts (ADR-0095)."""
+    runs_every_move(FacingLast)
+
+
+def runs_every_move(binding: type[InProcessBus]) -> None:
+    """The route of `crossover-yard/meet` run by the real apps on a `binding`, each
+    origin reading clear before the next block reads occupied, and a nonzero
+    speed written on address `3` for every move granted."""
     layout, roster, scenario = load("crossover-yard/meet")
     addressed = replace(
         roster, trains={**roster.trains, "freight_1": Train((Coupled(loco("3")),))}
     )
     clock = Clock()
-    bus = InProcessBus(clock)
+    bus = binding(clock)
     stood = placement(scenario.trains)
     app = LayoutInterface(bus, layout, addressed, clock, position=stood)
     Scheduler(bus, layout, facing(layout, scenario.trains), nonce=NONCE)
