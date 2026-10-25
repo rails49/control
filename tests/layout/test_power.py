@@ -27,6 +27,7 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.scheduler import Scheduler
 from tests.harness import load
+from tests.invariants import checked
 from tests.layout.railroad import (
     DEVICE_LINK,
     DEVICE_TRACK,
@@ -288,6 +289,7 @@ def test_a_drain_under_a_train_partway_along_its_route_cuts() -> None:
     Scheduler(bus, layout, facing(layout, scenario.trains), nonce=NONCE)
     dispatcher = Dispatcher(bus, layout, roster, stood, Incremental(layout, DEFAULT_K))
     Driver(bus)
+    checked(bus, layout, roster)
     track = live(bus)
     bus.publish(
         "tc49/schedule/request_wanted", {"train": "freight_1", "dest": ["yard_e.A"]}

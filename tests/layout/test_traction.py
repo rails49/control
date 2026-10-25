@@ -24,6 +24,7 @@ from tc49.lib.inventory import AUTOMATIC
 from tc49.lib.roster import Coupled, Train
 from tc49.scheduler import Scheduler
 from tests.harness import load
+from tests.invariants import checked
 from tests.layout.railroad import (
     DEVICE_SENSOR,
     FACING,
@@ -562,6 +563,7 @@ def runs_every_move(binding: type[InProcessBus]) -> None:
         bus, layout, addressed, stood, Incremental(layout, DEFAULT_K)
     )
     Driver(bus)
+    checked(bus, layout, addressed)
     switches(bus, AUTOMATIC)
     bus.publish(POWER_WANTED, {"power": "on"})
     energised(bus)
