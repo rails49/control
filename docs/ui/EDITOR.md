@@ -692,6 +692,10 @@ to the east pin, the diverging road is a 45 degree stub to the top pin. This
 is the only 1×1 geometry with a 45 degree leg ending on a face centre, and a
 wire continuing at 45 degrees reaches the next row's track line in half a
 square, which is how turnouts stack between parallel station tracks.
+The leg the closed position does not take (`closed_leg`,
+[DRAWING.md](../store/DRAWING.md#hardware-ids)) starts a fifth of a square
+from the toe, measured along the leg, in the editor, the palette and a run. The
+gap marks the curved road, so the 45 degree angle does not have to.
 
 **Crossing and slips**, 2×1. Route `a` is the horizontal, `a1` at
 `(0, 0.5)` to `a2` at `(2, 0.5)`; route `b` is the 45 degree diagonal, `b1`
@@ -818,7 +822,12 @@ portal-label questions that rare layout editing does not justify.
 
 The right-click dialog edits, per kind: a block's name, its length, the address
 of the signal at each of its ends and the name each end's sensor is known by, a
-portal's label, and a turnout's or a slip's address.
+portal's label, a turnout's or a slip's address, and which leg a turnout's
+closed position takes.
+
+Under a turnout's address, `Closed (0) takes` chooses the in-line leg or the
+45° leg. The in-line leg writes nothing; the 45° leg writes
+`closed_leg: diverging` ([DRAWING.md](../store/DRAWING.md#hardware-ids)).
 
 **A name is typed only where a person has to say it out loud**
 ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). That is a

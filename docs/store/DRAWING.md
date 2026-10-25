@@ -81,7 +81,7 @@ transits.
 | --- | --- | --- | --- | --- | --- |
 | Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length; a signal address per signalled end, a sensor name per end named otherwise |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
-| Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | |
+| Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | `closed_leg`: the leg its closed position takes |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
 | Single slip | `single_slip` | 4 | `a`, `b`, `slip` | none | |
 | Double slip | `double_slip` | 4 | `a`, `b`, `slip_1`, `slip_2` | none | topologically two turnouts joined toe to toe |
@@ -197,7 +197,8 @@ symbols:
   takes a `length` and optional `signals` and `sensors`, each keyed by its
   ends; a portal a
   `label`; a turnout
-  or a slip an optional `addr` ([Hardware ids](#hardware-ids)); a terminal and a
+  or a slip an optional `addr`, and a turnout an optional `closed_leg`
+  ([Hardware ids](#hardware-ids)); a terminal and a
   free-standing pin (`kind: pin`) nothing.
   A symbol of fixed geometry takes only the names below. The generic connection
   symbol declares its `pins`, its `transits`, and optionally which pairs of
@@ -303,9 +304,9 @@ checks whether a widget overlaps a symbol or another widget.
 ## Hardware ids
 
 The drawing holds the identities of the fixed wiring, as optional symbol
-properties: `addr` on a turnout or a slip, and `signals` and `sensors` on a
-block, keyed by the end each signal stands at and the end each sensor
-watches.
+properties: `addr` on a turnout or a slip, `closed_leg` on a turnout, and
+`signals` and `sensors` on a block, keyed by the end each signal stands at and
+the end each sensor watches.
 
 ```yaml
 b_station_a: { kind: block, at: [12, 4], length: 900, signals: { A: '40', B: '41' } }
@@ -414,6 +415,20 @@ the library declares which leg wants which position:
 | `turnout` | `straight` | `diverging` |
 | `single_slip` | `a`, `b` | `slip` |
 | `double_slip` | `a`, `b` | `slip_1`, `slip_2` |
+
+On the steel, closed is the straight road and thrown the curved one. Where the
+grid puts a turnout's straight road on its 45° leg, the turnout says so with
+`closed_leg`, and its closed position takes that leg and thrown the other
+([#1060](https://github.com/rails49/control/issues/1060)):
+
+```yaml
+t111: { kind: turnout, at: [14, 6], addr: '111', closed_leg: diverging }
+```
+
+`closed_leg` is `straight` or `diverging`. Absent means `straight`, the table
+above. Derivation reads it, so the positions in a transit's `points` follow it;
+`rot` and `flip` do not change it. A slip carrying the key, or a value naming
+no leg, refuses the drawing, naming the symbol.
 
 A fixed crossing has no motor and takes no `addr`. Nothing in the concurrency
 model changes: the library declares nothing concurrent through a crossing or a
