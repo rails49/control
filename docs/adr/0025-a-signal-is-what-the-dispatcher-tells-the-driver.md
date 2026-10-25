@@ -6,6 +6,12 @@ While the run is `held` every signalled end shows `stop`, whatever the locks
 say. The reading below is unchanged and gated: an aspect answers "may the
 train in this block leave via this end", and while held the answer is no.
 
+**Qualified by
+[ADR-0093](0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md).**
+An aspect answers "may a train that reaches this end leave by it": every
+signal along a train's locked blocks shows the aspect counted from its own
+block, and a passed signal shows `stop` once the next block reads occupied.
+
 **Amended for
 [#235](https://github.com/rails49/control/issues/235):** the middle aspect was
 `approach` when this was written and is now `caution`. The text below has been
