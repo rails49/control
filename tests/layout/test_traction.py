@@ -12,13 +12,22 @@ and `up_w.B-to-A` is the same move **propelled**, which is an ordinary
 movement and not an error.
 """
 
+from dataclasses import replace
+
+from tc49.bench.runner import DEFAULT_K, NONCE, facing, placement
+from tc49.dispatcher import Dispatcher, Incremental
+from tc49.driver import Driver
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
+from tc49.lib.roster import Coupled, Train
+from tc49.scheduler import Scheduler
+from tests.harness import load
 from tests.layout.railroad import (
     DEVICE_SENSOR,
     FACING,
+    POWER_WANTED,
     WANTED_POINT,
     WANTED_TRACTION,
     Unstamped,
@@ -27,6 +36,8 @@ from tests.layout.railroad import (
     commanded,
     energised,
     faces,
+    heard,
+    loco,
     move,
     railroad,
     reads,
@@ -37,6 +48,9 @@ from tests.layout.railroad import (
     switches,
     wired,
 )
+
+MOVE_GRANTED = "tc49/dispatch/move_granted"
+REQUEST_COMPLETED = "tc49/dispatch/request_completed"
 
 
 def ready(train: str, facing: str) -> tuple[InProcessBus, LayoutInterface]:
@@ -438,3 +452,54 @@ def test_a_point_the_last_session_left_thrown_replays_untouched() -> None:
         "addr": "12",
         "position": "thrown",
     }
+
+
+def test_a_train_reading_clear_behind_before_occupied_ahead_runs_every_move() -> None:
+    """The real apps on one bus, and an addressed `freight_1` shorter than
+    the gap to each next block's entry detector: every origin reads clear
+    before the next block reads occupied (ADR-0077). Each move of the route
+    still runs, because the allocation recording an arrival goes out before
+    the grant it leads to, so the scheduler has moved the facing `layout`
+    signs the next `move` on (#1038, #1025, ADR-0052)."""
+    layout, roster, scenario = load("crossover-yard/meet")
+    addressed = replace(
+        roster, trains={**roster.trains, "freight_1": Train((Coupled(loco("3")),))}
+    )
+    clock = Clock()
+    bus = InProcessBus(clock)
+    stood = placement(scenario.trains)
+    app = LayoutInterface(bus, layout, addressed, clock, position=stood)
+    Scheduler(bus, layout, facing(layout, scenario.trains), nonce=NONCE)
+    dispatcher = Dispatcher(
+        bus, layout, addressed, stood, Incremental(layout, DEFAULT_K)
+    )
+    Driver(bus)
+    switches(bus, AUTOMATIC)
+    bus.publish(POWER_WANTED, {"power": "on"})
+    energised(bus)
+    granted = heard(bus, MOVE_GRANTED)
+    completed = heard(bus, REQUEST_COMPLETED)
+    written = commanded(bus)
+
+    bus.publish(
+        "tc49/schedule/request_wanted", {"train": "freight_1", "dest": ["yard_e.A"]}
+    )
+    bus.drain()
+    answered = 0
+    while len(granted) > answered:
+        grant = granted[answered][1]
+        answered += 1
+        origin = dispatcher.state.block_of["freight_1"]
+        for end in (f"{origin}.A", f"{origin}.B"):
+            reads(bus, end, "clear")
+        settle(bus, app, clock)
+        for end in (f"{grant['into']}.A", f"{grant['into']}.B"):
+            reads(bus, end, "occupied")
+            settle(bus, app, clock)
+
+    assert [p["into"] for _t, p in granted] == ["dn_w", "dn_e", "yard_e"]
+    assert completed
+    assert dispatcher.state.block_of["freight_1"] == "yard_e"
+    # One start per move: a move `layout` dropped wrote none.
+    started = [s for a, s in speeds(written) if a == "3" and s != 0.0]
+    assert len(started) == len(granted), speeds(written)
