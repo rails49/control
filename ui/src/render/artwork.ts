@@ -23,7 +23,6 @@ import {
 } from "../symbols.generated.js";
 import {
   motorised,
-  type AnyKind,
   type SymbolSpec,
   type WidgetKind,
   type WidgetSpec,
@@ -42,7 +41,16 @@ import {
   togglePosition,
   type Run,
 } from "../model/widgets.js";
-import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W, WIDGET } from "./units.js";
+import {
+  BEND,
+  BLOCK,
+  PORTAL,
+  SLIP,
+  TERMINAL,
+  TURNOUT,
+  W,
+  WIDGET,
+} from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
 /** What a signal shows, as the dispatcher publishes it (GLOSSARY.md). */
@@ -87,7 +95,7 @@ export function artwork(
 ): SVGTemplateResult {
   const on: Lit = (...legs) =>
     lit.has(WHOLE) || legs.some((leg) => lit.has(leg)) ? " lit" : "";
-  const set = against(spec.kind, position);
+  const set = against(spec, position);
   switch (spec.kind) {
     case "connection":
       return opaque(spec, lit);
@@ -100,7 +108,7 @@ export function artwork(
     case "pin":
       return bend(on);
     case "turnout":
-      return turnout(on, set);
+      return turnout(on, spec.closed_leg ?? "straight", set);
     case "crossing":
     case "crossing_90":
     case "crossing_90d":
@@ -125,11 +133,16 @@ type Against = (legs: readonly string[]) => boolean;
 const NEITHER: Against = () => false;
 
 /** The library declares which position each leg wants, so where a point lies
- *  is enough to say which roads it does not offer. A kind with no motor —
+ *  is enough to say which roads it does not offer. A turnout closing on its
+ *  diverging leg wants the reverse of the library's. A kind with no motor —
  *  a fixed crossing, a block — has none whatever it is handed. */
-function against(kind: AnyKind, position: Position | undefined): Against {
+function against(spec: SymbolSpec, position: Position | undefined): Against {
+  const { kind } = spec;
   if (position === undefined || !motorised(kind)) return NEITHER;
-  const wants: Record<string, Position> = POSITIONS[kind];
+  const wants: Record<string, Position> =
+    kind === "turnout" && spec.closed_leg === "diverging"
+      ? { straight: "thrown", diverging: "closed" }
+      : POSITIONS[kind];
   return (legs) =>
     legs.length > 0 && legs.every((leg) => wants[leg] !== position);
 }
@@ -333,15 +346,27 @@ function bend(on: Lit): SVGTemplateResult {
 /** Each road drawn from the toe, so lighting the diverging leg lights the way
  *  a train actually takes rather than the curve beyond the frog. The diverging
  *  road is the one 45 degree leg ending on a face centre, which is how
- *  turnouts stack between parallel station tracks. */
-function turnout(on: Lit, set: Against = NEITHER): SVGTemplateResult {
+ *  turnouts stack between parallel station tracks. The leg the closed
+ *  position does not take starts `TURNOUT.gap` along from the toe, so the
+ *  drawing says which road is the curved one (#1060). */
+function turnout(
+  on: Lit,
+  closed: "straight" | "diverging",
+  set: Against = NEITHER,
+): SVGTemplateResult {
   const p = (pin: string) => anchorIn("turnout", pin);
+  const toe = p("toe");
+  const from = (leg: string) => {
+    if (leg === closed) return toe;
+    const u = unit(toe, p(leg));
+    return { x: toe.x + u.x * TURNOUT.gap, y: toe.y + u.y * TURNOUT.gap };
+  };
   return svg`${roads(
     on,
-    [
-      { legs: ["straight"], d: path(p("toe"), p("straight")) },
-      { legs: ["diverging"], d: path(p("toe"), p("diverging")) },
-    ],
+    ["straight", "diverging"].map((leg) => ({
+      legs: [leg],
+      d: path(from(leg), p(leg)),
+    })),
     set,
   )}`;
 }

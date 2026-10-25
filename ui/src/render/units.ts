@@ -97,6 +97,10 @@ export const BLOCK = {
  *  than the track so that the stub's square end stays inside it. */
 export const TERMINAL = { stub: 0.6, bar: { h: 0.6, w: 1.2 * W } };
 
+/** Turnout: the gap between the toe and the start of the thrown leg's stroke,
+ *  measured along the leg (#1060). */
+export const TURNOUT = { gap: 0.2 };
+
 /**
  * Portal, 1×1: the stub, cut off at the mouth, and the two strokes carrying on
  * past it.

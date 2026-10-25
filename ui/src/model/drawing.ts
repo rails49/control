@@ -72,6 +72,9 @@ export interface SymbolSpec {
   label?: string;
   /** What the hardware behind a motorised symbol answers to. */
   addr?: string;
+  /** A turnout's: the leg its closed position takes, thrown taking the other.
+   *  Absent is `straight`, and the editor writes only `diverging`. */
+  closed_leg?: "straight" | "diverging";
   /** The junction this symbol belongs to. */
   connection?: string;
   /** Transit names, keyed by the symbol leg the way through takes. */
