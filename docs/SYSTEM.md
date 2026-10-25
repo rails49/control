@@ -707,7 +707,10 @@ changes nothing
 grant: the first three rules are worked out on `move_granted` and kept, and
 the facing moves when `tc49/dispatch/state/allocation` names the train in the
 block the move entered, the train's nose past the signal it left by
-([#1025](https://github.com/rails49/control/issues/1025)). A restart reads
+([#1025](https://github.com/rails49/control/issues/1025)). The dispatcher
+publishes the allocation recording an arrival before any grant that arrival
+leads to, so the facing `layout` signs the next `move` on has already moved
+([#1038](https://github.com/rails49/control/issues/1038)). A restart reads
 the kept facing off the retained allocation's `crossing` instead. The scheduler
 publishes facing on a state topic that every view reads to draw the train's
 direction arrow
