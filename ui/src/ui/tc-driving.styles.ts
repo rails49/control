@@ -235,6 +235,13 @@ export const drivingStyles = css`
     align-content: start;
   }
 
+  /* The functions fill the left column first (#1031). */
+  .functions .column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   button.function {
     position: relative;
     min-height: 50px;

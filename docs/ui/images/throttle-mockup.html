@@ -147,6 +147,7 @@ button:focus-visible, a:focus-visible, .track:focus-visible { outline: 2px solid
 .sig { display: block; width: 50px; height: 156px; }
 
 .fns { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start; }
+.fns .col { display: flex; flex-direction: column; gap: 8px; }
 .fn { position: relative; min-height: 50px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--fn-off); color: var(--fn-off-ink); font: 500 14px/1.2 var(--font); cursor: pointer; }
 .fn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 50%, transparent); font-weight: 650; }
 .fn[aria-pressed="true"]::after { content: ""; position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
@@ -297,15 +298,13 @@ function clockSVG() {
     m += `<line y1="-44" y2="-34" stroke="#000" stroke-width="4" transform="rotate(${i * 30})"/>`;
   }
   return `<svg class="clock" viewBox="-50 -50 100 100" role="img" aria-label="Clock"><circle r="48" fill="#fff" stroke="#000" stroke-width="1.5"/>${m}` +
-    `<line class="h" y1="12" y2="-22" stroke="#000" stroke-width="7"/><line class="m" y1="12" y2="-40" stroke="#000" stroke-width="5"/>` +
-    `<line class="s" y1="16" y2="-40" stroke="#d40000" stroke-width="1.5"/></svg>`;
+    `<line class="h" y1="12" y2="-22" stroke="#000" stroke-width="7"/><line class="m" y1="12" y2="-40" stroke="#000" stroke-width="5"/></svg>`;
 }
 function tickClocks() {
   const d = new Date(), s = d.getSeconds(), m = d.getMinutes() + s / 60, h = (d.getHours() % 12) + m / 60;
   document.querySelectorAll(".clock").forEach((c) => {
     c.querySelector(".h").setAttribute("transform", `rotate(${h * 30})`);
     c.querySelector(".m").setAttribute("transform", `rotate(${m * 6})`);
-    c.querySelector(".s").setAttribute("transform", `rotate(${s * 6})`);
   });
 }
 
@@ -529,8 +528,9 @@ class Panel {
   }
   buildFns(t) {
     if (!t) { this.$fns.innerHTML = ""; return; }
+    const fn = (f) => `<button class="fn" type="button" data-f="${f}" aria-pressed="false">${f}</button>`, half = Math.ceil(t.fns.length / 2);
     this.$fns.innerHTML = t.fns.length
-      ? t.fns.map((f) => `<button class="fn" type="button" data-f="${f}" aria-pressed="false">${f}</button>`).join("")
+      ? `<div class="col">${t.fns.slice(0, half).map(fn).join("")}</div><div class="col">${t.fns.slice(half).map(fn).join("")}</div>`
       : `<p class="nofn">This train has no functions.</p>`;
   }
   renderFnState(t) {

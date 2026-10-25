@@ -1505,6 +1505,23 @@ describe("what a person can switch", () => {
     expect(rule("button.function")).toMatch(/min-height:\s*50px/);
   });
 
+  /** Down the left column first, the left taking the odd one (#1031). */
+  it("puts the first three of five in the left column and the last two in the right", async () => {
+    declaring("headlights", "horn", "bell", "doors", "cab light");
+    const shell = await driving();
+    await held(shell);
+    expect(
+      parts(shell, ".functions .column").map((column) =>
+        [...column.querySelectorAll("button.function")].map((one) =>
+          one.textContent!.trim(),
+        ),
+      ),
+    ).toEqual([
+      ["headlights", "horn", "bell"],
+      ["doors", "cab light"],
+    ]);
+  });
+
   /** The press asks; `layout` answers on `state/functions`, and only that
    *  moves the button (#849). */
   it("asks for on from an off button, and reads on only once state/functions says so", async () => {
@@ -2146,7 +2163,6 @@ describe("a row of throttles", () => {
     await said(shell, "tc49/layout/state/clock", { at: 1, time: 36_000, speed_up: 8 });
 
     expect(clock().time).toBe(36_000);
-    expect(clock().plain).toBe(false);
   });
 
   it("drives each panel's train under its own id", async () => {

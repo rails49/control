@@ -150,12 +150,13 @@ things on a railroad and keep their own colours; what is laid over the train's
 picture is light on a dark chip in either.
 
 **The clock**, `tc-clock`: the railroad's fast clock as a station clock —
-a white face, twelve black bars, black hour and minute hands and a red second
-hand. Every panel holding a train has one. It draws what
-`tc49/layout/state/clock` last said and reads no clock of the browser's, so
-it moves when the row does, once a real second, its second hand stepping by
-the speed-up. With no railroad loaded or no broker answering it draws its face
-with no hands
+a white face, twelve black bars, and black hour and minute hands. It has no
+second hand: sped up, one sweeps too fast to read
+([#1031](https://github.com/rails49/control/issues/1031)). Every panel
+holding a train has one. It draws what `tc49/layout/state/clock` last said and
+reads no clock of the browser's, so it moves when the row does, once a real
+second. With no railroad loaded or no broker answering it draws its face with
+no hands
 ([ADR-0090](../adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 
 **Nothing about hardware.** No address, no decoder step, no command station,
@@ -301,8 +302,10 @@ one bit on the wire, so there is no value list to draw a chooser from
 which is most of the stock a railroad owns.
 
 All of them show, two across, every button at least 50 px high, in the left
-column under the blocks; where they do not fit, the function area scrolls and
-nothing else does.
+column under the blocks. They run down the left column first and then down
+the right, the left taking the odd one
+([#1031](https://github.com/rails49/control/issues/1031)). Where they do not
+fit, the function area scrolls and nothing else does.
 
 **Each button shows what `layout` says**: on or off is read from
 `tc49/layout/state/functions`, which maps train to function name to boolean

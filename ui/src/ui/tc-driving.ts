@@ -31,7 +31,7 @@ import { customElement, property, query, state } from "lit/decorators.js";
 import { watchPicture, type Watching } from "../model/picture.js";
 import type { Ahead } from "../model/panel.js";
 import { photoUrl, pictureUrl, RETRY_MS } from "../model/store.js";
-import { driveRefusal, type Cab } from "../model/throttle.js";
+import { driveRefusal, type Cab, type CabFunction } from "../model/throttle.js";
 import type { Aspect } from "../render/artwork.js";
 import type { Power } from "../model/trace.js";
 import "./tc-clock.js";
@@ -457,8 +457,9 @@ export class TcDriving extends LitElement {
 
   /**
    * What a person can switch on this train, by the names the catalogue gives
-   * them (ADR-0045), in the order the roster lists them, two across, every
-   * one of them: where they do not fit, they scroll and nothing else does. A
+   * them (ADR-0045), in the order the roster lists them, down the left column
+   * and then down the right, the left taking the odd one (#1031), every one
+   * of them: where they do not fit, they scroll and nothing else does. A
    * train whose cars declare none shows none, which is most of the stock a
    * railroad owns.
    *
@@ -478,48 +479,56 @@ export class TcDriving extends LitElement {
    * not, and otherwise drawn with their state and dead.
    */
   private functions(cab: Cab) {
+    const half = Math.ceil(cab.functions.length / 2);
     return html`<div class="functions">
-      ${cab.functions.map((one) =>
-        one.mode === "momentary"
-          ? html`
-              <button
-                class="function"
-                aria-pressed=${one.on}
-                ?disabled=${!this.live}
-                @pointerdown=${(event: PointerEvent) => {
-                  (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-                  this.holding(cab.train, one.name);
-                }}
-                @pointerup=${() => this.letting(cab.train, one.name)}
-                @pointercancel=${() => this.letting(cab.train, one.name)}
-                @lostpointercapture=${() => this.letting(cab.train, one.name)}
-                @keydown=${(event: KeyboardEvent) => {
-                  if (!HOLD_KEYS.has(event.key)) return;
-                  event.preventDefault();
-                  if (!event.repeat) this.holding(cab.train, one.name);
-                }}
-                @keyup=${(event: KeyboardEvent) => {
-                  if (!HOLD_KEYS.has(event.key)) return;
-                  event.preventDefault();
-                  this.letting(cab.train, one.name);
-                }}
-                @blur=${() => this.letting(cab.train, one.name)}
-              >
-                ${one.name}
-              </button>
-            `
-          : html`
-              <button
-                class="function"
-                aria-pressed=${one.on}
-                ?disabled=${!this.live}
-                @click=${() => this.switching(cab.train, one.name, !one.on)}
-              >
-                ${one.name}
-              </button>
-            `,
-      )}
+      <div class="column">
+        ${cab.functions.slice(0, half).map((one) => this.function(cab, one))}
+      </div>
+      <div class="column">
+        ${cab.functions.slice(half).map((one) => this.function(cab, one))}
+      </div>
     </div>`;
+  }
+
+  private function(cab: Cab, one: CabFunction) {
+    return one.mode === "momentary"
+      ? html`
+          <button
+            class="function"
+            aria-pressed=${one.on}
+            ?disabled=${!this.live}
+            @pointerdown=${(event: PointerEvent) => {
+              (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+              this.holding(cab.train, one.name);
+            }}
+            @pointerup=${() => this.letting(cab.train, one.name)}
+            @pointercancel=${() => this.letting(cab.train, one.name)}
+            @lostpointercapture=${() => this.letting(cab.train, one.name)}
+            @keydown=${(event: KeyboardEvent) => {
+              if (!HOLD_KEYS.has(event.key)) return;
+              event.preventDefault();
+              if (!event.repeat) this.holding(cab.train, one.name);
+            }}
+            @keyup=${(event: KeyboardEvent) => {
+              if (!HOLD_KEYS.has(event.key)) return;
+              event.preventDefault();
+              this.letting(cab.train, one.name);
+            }}
+            @blur=${() => this.letting(cab.train, one.name)}
+          >
+            ${one.name}
+          </button>
+        `
+      : html`
+          <button
+            class="function"
+            aria-pressed=${one.on}
+            ?disabled=${!this.live}
+            @click=${() => this.switching(cab.train, one.name, !one.on)}
+          >
+            ${one.name}
+          </button>
+        `;
   }
 
   /**
