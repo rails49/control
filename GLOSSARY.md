@@ -586,6 +586,13 @@ physical railroad is the normative one, and the simulator conforms to it
 ([GOALS.md](docs/GOALS.md#approach)).
 _Avoid_: backend, mode, target
 
+**Invariant**:
+A statement an ADR makes about what the bus shows: the retained values, and
+what the messages so far have said. It holds once the messages in flight are
+delivered. "While power is not `on`, every signal shows stop" is one
+([ADR-0096](docs/adr/0096-invariants-are-stated-over-what-the-bus-shows-and-checked-in-tests.md)).
+_Avoid_: rule (BUS.md's rules 1–4 are the bus contract), predicate, check
+
 **Camera app**:
 The app `camera`: it reads a camera car's picture and serves it on control's
 origin
