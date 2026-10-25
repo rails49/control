@@ -294,6 +294,12 @@ export function carHolders(name: string, roster: RosterDoc): string[] {
   return carTrains(name, roster).map((train) => `train '${train}'`);
 }
 
+/** Why a car cannot go in a train: another train has it. The car editor's
+ *  Remove says the same of a car in a train. */
+export function taken(car: string, train: string): string {
+  return `${car} is in ${train}. Take it out of that train first.`;
+}
+
 /** The trains whose entries name a car, by name. */
 export function carTrains(name: string, roster: RosterDoc): string[] {
   return Object.entries(roster.trains)
@@ -457,13 +463,15 @@ export interface TrainRow {
 
 /** What a model put in a train went in as (`Stock.addModel`): a model
  *  entry, a car made for it whose address is to be asked, the one car of it
- *  the train does not already hold, or nothing yet, there being several to
- *  choose from — or nothing at all, where there is no such train or model. */
+ *  no train holds, or nothing yet, there being several to choose from —
+ *  or nothing at all, where there is no such train or model, or where every
+ *  car of it it could be is in another train (`taken`, naming the first). */
 export type Added =
   | { as: "model" }
   | { as: "made"; car: string }
   | { as: "only"; car: string }
   | { as: "which" }
+  | { as: "taken"; car: string; train: string }
   | { as: "nothing" };
 
 /**
@@ -872,6 +880,11 @@ export class Stock {
     ) {
       return `${what.car} is already in ${train}. One item cannot stand in a train twice.`;
     }
+    // A car stands in at most one train (#1067).
+    if ("car" in what) {
+      const other = this.elsewhere(what.car, train);
+      if (other !== null) return taken(what.car, other);
+    }
     const as = this.named(train, [...(made.cars ?? []), what]);
     if (as !== train) this.retitled.set(train, as);
     this.inTrain(train, (cars) => [...cars, what], as);
@@ -883,9 +896,12 @@ export class Stock {
    *
    * **A model without a decoder goes in as a model entry** (ADR-0061). **One
    * with a decoder goes in as a car**, its address belonging to one item:
-   * where the railroad has no car of it the train does not already hold, one
-   * is made (`newCar`) and its address is the next thing to ask; where it has
-   * exactly one such car, that car goes in; where it has more, nothing goes
+   * a car counts as free only where no train names it (#1067). Where the
+   * railroad has no free car of it, one is made (`newCar`) and its address is
+   * the next thing to ask — unless a car of it is in another train, when
+   * nothing goes in and that car and train are named (`taken`): the person
+   * owns one, and a second would be a locomotive nobody has. Where it has
+   * exactly one free car, that car goes in; where it has more, nothing goes
    * in yet and the cars are the person's to choose from (`carsOf`).
    */
   addModel(train: string, key: string): Added {
@@ -898,7 +914,11 @@ export class Stock {
       return { as: "model" };
     }
     const cars = this.carsOf(train, at);
-    const free = cars.filter((one) => !one.inTrain);
+    const free = cars.filter((one) => !one.inTrain && one.elsewhere === null);
+    const held = cars.find((one) => one.elsewhere !== null);
+    if (free.length === 0 && held !== undefined) {
+      return { as: "taken", car: held.car, train: held.elsewhere! };
+    }
     if (free.length === 0) {
       const car = this.newCar(at)!;
       this.append(train, { car });
@@ -911,9 +931,12 @@ export class Stock {
     return { as: "which" };
   }
 
-  /** Every car of a model, by name, and whether the train already holds it:
-   *  what *Which <model>?* lists. */
-  carsOf(train: string, key: string): { car: string; inTrain: boolean }[] {
+  /** Every car of a model, by name, whether the train already holds it, and
+   *  the other train holding it if one does: what *Which <model>?* lists. */
+  carsOf(
+    train: string,
+    key: string,
+  ): { car: string; inTrain: boolean; elsewhere: string | null }[] {
     const at = this.keyOf(key);
     const held = new Set(
       (this.doc.trains[train]?.cars ?? []).flatMap((entry) =>
@@ -924,7 +947,16 @@ export class Stock {
       .filter(([, car]) => car.model === at)
       .map(([car]) => car)
       .sort(byName)
-      .map((car) => ({ car, inTrain: held.has(car) }));
+      .map((car) => ({
+        car,
+        inTrain: held.has(car),
+        elsewhere: this.elsewhere(car, train),
+      }));
+  }
+
+  /** The first train other than `train` naming a car, or `null`. */
+  private elsewhere(car: string, train: string): string | null {
+    return carTrains(car, this.doc).find((one) => one !== train) ?? null;
   }
 
   /**

@@ -1113,7 +1113,10 @@ describe("making up a train", () => {
     expect(written()!.trains.IC!.cars).toEqual([{ car: "Re 460" }]);
   });
 
-  it("reuses that car where the model is added to another train, and says so", async () => {
+  /** A car stands in at most one train (#1067): the railroad's only
+   *  Krokodil is the ore train's, and a second car of it would be a
+   *  locomotive nobody owns. */
+  it("puts in nothing where the model's only car is in another train, and says which", async () => {
     const shell = await opened();
     await ore(shell);
     await train(shell, "light");
@@ -1123,13 +1126,49 @@ describe("making up a train", () => {
     expect(
       screen(shell).renderRoot.querySelector("look-dialog.address"),
     ).toBeNull();
-    expect(part(shell, ".toast").textContent).toBe(
-      "Added arnold-ce68, your only arnold-ce68.",
+    expect(
+      screen(shell).renderRoot.querySelector("look-dialog.picker"),
+    ).toBeNull();
+    expect(trouble(shell)).toBe(
+      "arnold-ce68 is in ore. Take it out of that train first.",
     );
-    expect(await tiles(shell)).toEqual(["arnold-ce68"]);
-    await saved(shell);
-    expect(Object.keys(written()!.cars!)).toEqual(["arnold-ce68"]);
-    expect(written()!.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);
+    expect(await tiles(shell)).toEqual([]);
+    await tab(shell, "cars");
+    expect(parts(shell, "button.card.car")).toHaveLength(1);
+  });
+
+  it("greys a car another train holds, among the Cars and in Which", async () => {
+    const shell = await opened();
+    await ore(shell);
+    await chosen(shell, "arnold-ce68");
+    await pressed(shell, ".ed-head button.new-car");
+    await answered(shell, "4");
+    await chosen(shell, "arnold-ce68");
+    await pressed(shell, ".ed-head button.new-car");
+    await answered(shell, "5");
+    await train(shell, "light");
+
+    await pressed(shell, ".train-editor button.add-tile");
+    await pressed(shell, 'look-dialog.picker button.tab[data-tab="cars"]');
+    const among = parts(
+      shell,
+      "look-dialog.picker button.card.car",
+    ) as HTMLButtonElement[];
+    const theirs = among[offered(shell).indexOf("arnold-ce68")]!;
+    expect(theirs.disabled).toBe(true);
+    expect(theirs.title).toBe("arnold-ce68 is in ore.");
+    await away(shell);
+
+    await add(shell, "models", "arnold-ce68");
+    expect(part(shell, "look-dialog.picker").getAttribute("label")).toBe(
+      "Which arnold-ce68?",
+    );
+    const choices = parts(
+      shell,
+      "look-dialog.picker button.card",
+    ) as HTMLButtonElement[];
+    expect(choices.map((one) => one.disabled)).toEqual([true, false, false]);
+    expect(choices[0]!.title).toBe("arnold-ce68 is in ore.");
   });
 
   /** Two cars of the model, one already in the train, leave one to put in:
