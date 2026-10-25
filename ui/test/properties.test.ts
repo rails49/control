@@ -137,12 +137,27 @@ describe("a turnout's closed leg", () => {
     return dialog.renderRoot.querySelector<SlSelect>("sl-select") ?? undefined;
   }
 
+  /** Pick a leg, and put the dropdown away as Shoelace does: its
+   *  `sl-after-hide` bubbles up through the dialog. */
   async function chosen(dialog: TcProperties, value: string): Promise<void> {
     const select = choice(dialog)!;
     select.value = value;
     select.dispatchEvent(new CustomEvent("sl-change"));
+    select.dispatchEvent(
+      new CustomEvent("sl-after-hide", { bubbles: true, composed: true }),
+    );
     await dialog.updateComplete;
   }
+
+  it("stays open when the dropdown closes", async () => {
+    const dialog = await opened("sw1", { kind: "turnout" });
+    let closed = false;
+    dialog.addEventListener("properties-closed", () => {
+      closed = true;
+    });
+    await chosen(dialog, "diverging");
+    expect(closed).toBe(false);
+  });
 
   it("is offered on a turnout and on no slip", async () => {
     expect(choice(await opened("sw1", { kind: "turnout" }))?.label).toBe(
