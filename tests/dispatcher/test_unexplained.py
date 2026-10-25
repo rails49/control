@@ -18,8 +18,10 @@ which is exactly the railroad a hand reaches onto.
 
 import pytest
 
-from tc49.bench.runner import Assembly, assemble_live
-from tc49.lib.bus import Payload
+from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live, placement
+from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import AT, DRAINING, OFF, ON
 from tc49.lib.scenario import TrainSpec
 from tests.harness import POWER, drains, events, load, power, press, run
@@ -28,6 +30,8 @@ OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 DISPUTED = "tc49/dispatch/state/disputed"
+REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
+POWER_WANTED = "tc49/layout/power_wanted"
 
 STOOD = {
     "freight_1": TrainSpec("yard_w", "A-to-B"),
@@ -168,3 +172,59 @@ def test_the_readings_a_granted_move_explains_drain_nothing() -> None:
 
     assert [line["power"] for line in events(trace, "power_wanted")] == [ON]
     assert len(events(trace, "request_completed")) == 3
+
+
+def test_nothing_is_granted_between_asking_for_a_drain_and_the_answer(
+    standing: Assembly,
+) -> None:
+    """The dispatcher reads `on` until `layout` answers the drain it asked
+    for, and a request arriving in that window is not granted: the table it
+    would be granted from is the one the reading just said is wrong (#1087).
+    Both are put on the bus before either is delivered, so the request lands
+    before the answer, as it can on a broker."""
+    standing.bus.publish(OCCUPIED, {"block": "up_w"})
+    standing.bus.publish(
+        "tc49/schedule/request_wanted",
+        {"train": "freight_1", "dest": ["yard_e.A"]},
+    )
+    standing.bus.drain()
+
+    assert drains(standing) == [DRAINING]
+    assert not events(standing.trace, "move_granted")
+
+
+def test_a_person_pressing_on_ends_a_drain_nobody_answered() -> None:
+    """A dispatcher with no `layout` on its bus: the drain it asks for is
+    never answered and power goes on reading `on`. Nothing is granted until a
+    person presses `on`, which acknowledges the fault (ADR-0078, decision 7,
+    #1087)."""
+    bus = InProcessBus(Clock())
+    layout, roster, scenario = load("crossover-yard/meet")
+    Dispatcher(
+        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
+    )
+    granted: list[Payload] = []
+    bus.subscribe(
+        "tc49/dispatch/move_granted", lambda _, payload: granted.append(payload)
+    )
+
+    for topic, payload in (
+        (POWER, {"power": ON}),
+        (OCCUPIED, {"block": "up_w"}),
+        (
+            REQUEST_SUBMITTED,
+            {
+                "id": "r-1",
+                "train": "freight_1",
+                "depart": "yard_w.B",
+                "dest": ["dn_w.A"],
+            },
+        ),
+    ):
+        bus.publish(topic, payload)
+        bus.drain()
+    assert granted == []
+
+    bus.publish(POWER_WANTED, {"power": ON})
+    bus.drain()
+    assert [payload["id"] for payload in granted] == ["r-1"]

@@ -60,6 +60,7 @@ from tc49.lib.payload import (
     power,
     readable_id,
     wanted_point,
+    wanted_power,
     wanted_reorder,
     withdrawal,
 )
@@ -783,6 +784,9 @@ class Dispatcher:
         # The lock table's rules broken at the last check (`_check`), so only
         # a rule newly broken drains the railroad.
         self._broken: list[str] = []
+        # Whether a drain has been asked for (`_drain`) and `layout` has not
+        # yet answered it, so nothing is granted in between (#1087).
+        self._drain_asked = False
         # The opening statement is the whole of what the dispatcher holds, in
         # the order a grant phase says it. Aspects are in it because a restart
         # has a previous value on that topic too: the last session's
@@ -1596,11 +1600,16 @@ class Dispatcher:
         sensor leaves are named here so a command passes by unread rather
         than being taken for a reading with no block in it. So is its own
         `withdraw_wanted`, and `layout`'s answer to it, `move_withdrawn`, is
-        read (#1068).
+        read (#1068). So is `power_wanted`, for a person's `on` (#1087).
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_withdrawn":
             self._withdrawn(payload)
+        elif leaf == "power_wanted":
+            # A person's `on` ends a hold `layout` has not answered (`_drain`).
+            if wanted_power(payload) == ON and self._drain_asked:
+                self._drain_asked = False
+                self._sweep()
         elif leaf == "power":
             # An older value of the supply than the one already held means
             # the wire handed the pair over backwards: it is ignored, and
@@ -1715,8 +1724,17 @@ class Dispatcher:
         reads `on`: `draining` is answered from `on` alone, so asking from
         anywhere else asks for nothing — and a railroad that is already
         draining or off is already where a fault would put it.
+
+        **From the ask until the answer nothing is granted** (#1087). Power
+        goes on reading `on` until `layout` answers, and a request or a vacate
+        arriving in between would otherwise be granted from the table the
+        fault just said is wrong. The hold ends on the first `state/power`
+        that does not read `on`, after which power holds the grants itself,
+        or on a person pressing `on`, which acknowledges the fault
+        (ADR-0078, decision 7) and covers a `layout` that never answers.
         """
         if self._state.power == ON:
+            self._drain_asked = True
             self._bus.publish(POWER_WANTED, {"power": DRAINING})
 
     def _arrived(self, block: str) -> None:
@@ -1860,6 +1878,8 @@ class Dispatcher:
         """
         was = self._state.power
         self._state.power = power(payload)
+        if self._state.power != ON:
+            self._drain_asked = False
         if self._state.power == was:
             return
         if self._state.power == ON:
@@ -1888,7 +1908,7 @@ class Dispatcher:
         # itself grants nothing in this sweep (ADR-0076), however long the
         # drain it asked for takes to come back on `state/power`.
         faulted = self._check()
-        if self._state.power == ON and not faulted:
+        if self._state.power == ON and not faulted and not self._drain_asked:
             self._grant()
         self._publish_aspects()
         self._publish_allocation()
