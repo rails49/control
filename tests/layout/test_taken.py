@@ -3,7 +3,8 @@ on the rails (ADR-0079).
 
 At most one throttle holds a train: `take_wanted` names the throttle by the id
 its page minted, a second take is dropped, and `throttle: null` releases the
-train whoever holds it. `state/taken` says who holds which.
+train whoever holds it. A throttle holds one train (ADR-0089): its take of
+another releases the first as `null` would. `state/taken` says who holds which.
 
 The two edges are not symmetric, and that is the design. **Taking** a train
 writes nothing: it keeps whatever speed it had, and a person's first movement
@@ -26,6 +27,7 @@ from tests.layout.railroad import (
     POWER_WANTED,
     TAKE_WANTED,
     TAKEN,
+    WANTED_TRACTION,
     align,
     alive,
     build,
@@ -99,6 +101,89 @@ def test_a_take_by_the_throttle_already_holding_it_says_nothing() -> None:
     takes(bus, "single")
 
     assert held_by(said) == [{"single": "t-1"}]
+
+
+def test_a_take_of_a_second_train_releases_the_first() -> None:
+    """A throttle holds one train (ADR-0089): taking another lets go of the
+    first as `null` would, here in `manual`, so it stops once `state/taken`
+    no longer lists it, and then takes the second as any take is."""
+    bus, _app = build(driving=MANUAL)
+    energised(bus)
+    stand(bus, "single", "up_w")
+    takes(bus, "single")
+    turns(bus, "single", 0.5)
+    said: list[object] = []
+    bus.subscribe(TAKEN, lambda _t, payload: said.extend(held_by([(_t, payload)])))
+    bus.subscribe(
+        WANTED_TRACTION + "/#",
+        lambda _t, payload: said.extend(speeds([(_t, payload)])),
+    )
+    bus.drain()
+    said.clear()
+    takes(bus, "lit")
+
+    assert said == [{}, ("3", 0.0), {"lit": "t-1"}]
+
+
+def test_a_second_take_from_a_train_running_in_automatic_keeps_its_speed() -> None:
+    """The first train is released as a release is: running mid-move, nothing
+    is written and its arrival stops it (ADR-0081, decision 6)."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    written = commanded(bus)
+    granted(bus, "single")
+    turns(bus, "single", 0.4)
+    said = heard(bus, TAKEN)
+    takes(bus, "lit")
+    assert held_by(said) == [{"single": "t-1"}, {}, {"lit": "t-1"}]
+    assert speeds(written) == [("3", 0.4)]
+
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+
+    assert speeds(written) == [("3", 0.4), ("3", 0.0)]
+
+
+def test_a_second_take_of_a_train_another_throttle_holds_keeps_the_first() -> None:
+    """The take is dropped as any take of a train another throttle holds is,
+    and nothing is released."""
+    bus, _app = build(driving=MANUAL)
+    energised(bus)
+    stand(bus, "single", "up_w")
+    takes(bus, "single")
+    takes(bus, "lit", throttle="t-2")
+    said = heard(bus, TAKEN)
+    written = commanded(bus)
+    takes(bus, "lit")
+
+    assert held_by(said) == [{"single": "t-1", "lit": "t-2"}]
+    assert speeds(written) == []
+
+
+def test_silence_after_a_second_take_releases_the_second_train_only() -> None:
+    """The first train, taken since by another throttle, stays with it."""
+    bus, app, clock = wired(driving=MANUAL)
+    energised(bus)
+    stand(bus, "single", "up_w")
+    takes(bus, "single")
+    takes(bus, "lit")
+    takes(bus, "single", throttle="t-2")
+    said = heard(bus, TAKEN)
+    written = commanded(bus)
+    bus.drain()
+    written.clear()
+    elapse(clock, 3.0)
+    alive(bus, "t-2")
+    settle(bus, app, clock, after=2.0)
+
+    assert held_by(said) == [
+        {"lit": "t-1", "single": "t-2"},
+        {"single": "t-2"},
+    ]
+    assert speeds(written) == [("5", 0.0), ("6", 0.0)]
 
 
 def test_a_take_that_cannot_be_read_is_dropped() -> None:
@@ -492,7 +577,7 @@ def test_a_train_read_again_keeps_the_entry_of_one_it_has() -> None:
     stand(bus, "railcar", "up_w")
     stand(bus, "single", "up_e")
     faces(bus, railcar="up_w.A-to-B", single="up_e.A-to-B")
-    takes(bus, "railcar")
+    takes(bus, "railcar", throttle="t-2")
     written = commanded(bus)
     takes(bus, "single")
     turns(bus, "single", 0.4)
