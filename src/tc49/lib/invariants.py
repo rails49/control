@@ -93,6 +93,7 @@ from tc49.lib.payload import (
     supply,
     taken,
     wanted_power,
+    withdrawal,
 )
 from tc49.lib.roster import FORWARD, Roster
 
@@ -121,6 +122,7 @@ BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER_WANTED = "tc49/layout/power_wanted"
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
+MOVE_WITHDRAWN = "tc49/layout/move_withdrawn"
 RAILROAD = "tc49/layout/state/railroad"
 DRIVING = "tc49/layout/state/driving"
 TAKEN = "tc49/layout/state/taken"
@@ -963,6 +965,21 @@ class Record:
                 self.moves[train] = move
         elif topic in ENDED:
             self._ended(readable_id(payload))
+        elif topic == MOVE_WITHDRAWN:
+            # `layout` took back a cancelled request's move nothing had
+            # driven, so it ends on that answer and not on its readings
+            # (#1068).
+            withdrawn = withdrawal(payload)
+            move = None if withdrawn is None else self.moves.get(withdrawn.train)
+            if (
+                withdrawn is not None
+                and move is not None
+                and move.transit == withdrawn.transit
+                and move.id in self.cancelled
+            ):
+                del self.moves[withdrawn.train]
+                self.commanded.pop(withdrawn.train, None)
+                self.started.pop(withdrawn.train, None)
         elif topic == CANCEL_WANTED:
             rid = readable_id(payload)
             if any(move.id == rid for move in self.moves.values()):
