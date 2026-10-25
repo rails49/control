@@ -28,7 +28,7 @@ Once, in a browser, and no terminal
 
 1. Make an **empty, private repository** on github.com — no README, no
    licence, nothing in it.
-2. Open `Settings ▸ Backup ▸ Backup…`. The dialog shows the key this store made for
+2. Open `Settings ▸ Backup`. The tab shows the key this store made for
    itself. Copy it and paste it into that repository under *Settings ▸ Deploy
    keys*, with *Allow write access* ticked. It is the public half; pasting it
    somewhere wrong loses nothing.
@@ -37,7 +37,7 @@ Once, in a browser, and no terminal
 
 The store clones the repository and moves the clone's `.git` in under the
 drawings already there, which become the first backup. Then *Turn automatic
-backup on* in the same dialog, which writes `backup.yaml` in the store. It is
+backup on* in the same tab, which writes `backup.yaml` in the store. It is
 a document of the installation like the catalogue is, so it is backed up with
 the rest, and a box that takes the store over from its repository comes back
 with backup on.
@@ -71,7 +71,7 @@ the `.DS_Store` Finder leaves behind is nobody's drawing
 Until a repository is adopted the store still works: the server comes up, the
 editor saves, and backup says what is missing.
 
-**The key.** It is made by the store the first time the dialog asks for it,
+**The key.** It is made by the store the first time the tab asks for it,
 where `tc49 serve --keys` gave it somewhere to keep one — on the layout server
 a docker volume, `keys`, so that it is outside the store and no commit can
 carry it, and on nothing the host has to make. It opens that one repository
@@ -81,13 +81,13 @@ deploy keys. The store names its key on every push, whatever the
 repository's own config holds, so a repository cloned by hand pushes under it
 too; and every push sets the branch's upstream where it has none. A store with
 nowhere to keep a key — `tc49 serve` on a workstation without `--keys` —
-pushes with whatever ssh key that machine already has, and the dialog says so.
+pushes with whatever ssh key that machine already has, and the tab says so.
 
 **A deploy key opens one repository.** GitHub refuses a key already
 registered on another repository with *Key is already in use*. To move to
 another, delete it from the old repository under *Settings ▸ Deploy keys*
 before deleting that repository, because a deleted repository keeps its keys
-in use; the dialog's setup text says the same
+in use; the tab's setup text says the same
 ([#692](https://github.com/rails49/control/issues/692)).
 
 **New key** is for when that was not done: the old repository is gone and
@@ -103,12 +103,12 @@ first, because the key in use stops working until the new one is added
 to keep a key, or inside another repository, has none to replace and is
 refused.
 
-**A key is both halves, and the dialog shows one only where it holds the
+**A key is both halves, and the tab shows one only where it holds the
 other.** The public half is world-readable and the private half is not, so a
 store can print a key it cannot push with — which is what a `keys` volume made
 before the store ran as the person leaves behind, the volume being seeded from
 the image only while it is empty
-([#387](https://github.com/rails49/control/issues/387)). The dialog shows no
+([#387](https://github.com/rails49/control/issues/387)). The tab shows no
 key there rather than one that looks fine, and what backup needs names the
 file and the one removal that cures it
 ([../DEPLOY.md](../DEPLOY.md), [#443](https://github.com/rails49/control/issues/443)).
@@ -190,12 +190,11 @@ remote has not been given and how old the oldest is, which is asked of git
 rather than remembered, so a restart does not forget it. Past `STALE_S` the
 run view says *backup behind* in the band, with git's words from the last push
 as its tooltip — a missing key and a deleted repository read differently —
-and `Settings ▸ Backup ▸ Backup…` wears the same words beside it. Without that, a remote
+and the note opens `Settings ▸ Backup`. Without that, a remote
 that moved is invisible until the disk it was protecting against fails.
 
 **What the band says** ([#688](https://github.com/rails49/control/issues/688)).
-The band's note and the words beside `Settings ▸ Backup ▸ Backup…` follow one rule, the
-first that holds:
+The band's note follows one rule, the first that holds:
 
 | The store | Says |
 | --- | --- |
@@ -206,13 +205,13 @@ first that holds:
 | a repository with automatic backup off | *backup is off* |
 | anything else, a single failed push included | nothing |
 
-Pressing the note opens the backup dialog, as `Settings ▸ Backup ▸ Backup…` does. The app asks again every hour, so a
+Pressing the note opens `Settings ▸ Backup` (#1075). The app asks again every hour, so a
 copy that went behind after the page loaded still shows.
 
 ## Restoring
 
-*Restore*, in the footer of the `Settings ▸ Backup ▸ Backup…` dialog, lists the backups
-there are and puts the store back as the one you pick held it. It is usually not the last one you want: the editing
+*Restore*, beneath the list of backups in `Settings ▸ Backup`, puts the store
+back as the one you pick held it. It is usually not the last one you want: the editing
 session you are trying to get out of was itself backed up.
 
 **A restore over documents that have not been backed up is refused**, in words
@@ -262,7 +261,7 @@ which every app answers by building it again from the store — the track is
 already off, so this is the same build as picking it in the band — and then
 the page reloads, so the editor cannot save back a copy it read before the
 restore. With no railroad loaded the page only reloads. A refused restore
-changed nothing, so it names nothing and reloads nothing. The dialog says so
+changed nothing, so it names nothing and reloads nothing. The tab says so
 above the backups: *Restore puts the store back as the picked backup held it;
 the apps and this page then reload*
 ([#699](https://github.com/rails49/control/issues/699)). With drawing or
@@ -274,7 +273,7 @@ refuses only over documents changed on disk, cannot see them
 **Quit DecoderPro first.** It reads its profile in the store once, at
 launch, and writes the roster it holds back on its next save, so a restore
 under an open DecoderPro is undone by it. Nothing here can see whether DecoderPro is
-open, so nothing is refused: the dialog says *Quit DecoderPro and PanelPro
+open, so nothing is refused: the tab says *Quit DecoderPro and PanelPro
 before restoring, and open them again after*
 ([#714](https://github.com/rails49/control/issues/714)). A restore changes no
 decoder; a loco programmed since the picked backup keeps its CVs, and its
@@ -289,13 +288,13 @@ same one press.
 
 The new box's store is empty. In order:
 
-1. On the new box, open `Settings ▸ Backup ▸ Backup…` and copy the key it shows.
+1. On the new box, open `Settings ▸ Backup` and copy the key it shows.
 2. On github.com, in the repository's *Settings ▸ Deploy keys*, remove the
    old box's key — a deploy key opens one repository, and the old box should
    no longer push here — and add the new box's, with *Allow write access*.
    A dead box's key is removed the same way: it is listed there whether or
    not the box still runs.
-3. In the dialog, enter the repository's ssh address and press *Back up to
+3. In the tab, enter the repository's ssh address and press *Back up to
    it*. The store clones it and holds the latest backup, `backup.yaml` with it,
    so backup is on again if it was on before, and pushes go out under the new
    box's key.
@@ -308,15 +307,15 @@ box that took a backup over comes up after a restart on the railroad the old
 box had loaded.
 
 Drawing anything on the new box before step 3 makes its store not empty, and
-the dialog then refuses, naming both the store's documents and the
+the tab then refuses, naming both the store's documents and the
 repository's backups: the two are never merged. `backup.yaml` alone is not a
-document, so turning backup on or off first changes nothing. The dialog's
+document, so turning backup on or off first changes nothing. The tab's
 setup text, on a store that is no repository yet, points here
 ([#694](https://github.com/rails49/control/issues/694)).
 
 ## Moving to another repository
 
-A store already backed up can move to another repository from the dialog — the
+A store already backed up can move to another repository from the tab — the
 old one deleted, or another wanted — with no terminal
 ([#698](https://github.com/rails49/control/issues/698)):
 
@@ -326,7 +325,7 @@ old one deleted, or another wanted — with no terminal
    two repositories, then add it to the new one's with write access. An old
    repository already deleted took the key with it; if GitHub still says the
    key is in use, *New key* makes another ([the key](#setting-one-up)).
-3. Open `Settings ▸ Backup ▸ Backup…`, unfold *back up to another repository*, enter the new
+3. Open `Settings ▸ Backup`, unfold *back up to another repository*, enter the new
    address and press *Back up to it*.
 
 The store asks the address with `git ls-remote` first. Anything listed there is
@@ -334,7 +333,7 @@ refused — "… already holds backups, and backup moves only to an empty
 repository" — and an address git cannot reach is refused in git's words. An
 empty one is given the store's branch, every earlier backup with it so each
 stays restorable, and only once that push worked does `origin` name the new
-address and the branch follow it; the dialog says "backing up to *address*,
+address and the branch follow it; the tab says "backing up to *address*,
 with *n* backups". A push that fails leaves the store backing up where it did.
 
 ## What it will not do
