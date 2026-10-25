@@ -1345,8 +1345,18 @@ class LayoutInterface:
     def _on_placed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train and put it somewhere else (#152), and the
         dispatcher accepted it. The one thing besides a `move` that moves a
-        train: nothing is commanded on it, and what it changes is which move
-        this app will act on next.
+        train, and what it changes is which move this app will act on next.
+
+        The dispatcher cancels every request of the train's before it accepts
+        a placement, so any move of the train's this app holds is one nobody
+        granted any more, and it is forgotten as a removal forgets it (#1061).
+        Kept, the crossing would be driven when the railroad next switches to
+        `automatic` or a throttle lets the train go, from a block it no longer
+        stands in and over a route nobody holds. A running train no throttle
+        holds is told `0.0`: with no move outstanding it stands, in `manual`
+        (ADR-0079) as in `automatic` (ADR-0081, decision 6), and a decoder
+        lifted running keeps its last speed. A train a throttle holds keeps
+        the person's.
 
         A `train_placed` never carries a null block — a train taken off the
         layout is `train_removed`, which names the train alone (ADR-0039) —
@@ -1362,6 +1372,9 @@ class LayoutInterface:
         if placed.train not in self._roster.trains:
             self._learn()
         self._position[placed.train] = placed.block
+        self._forget(placed.train)
+        if placed.train not in self._taken and self._running(placed.train):
+            self._stop(placed.train)
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train off the layout: it stands nowhere, so it
@@ -1384,12 +1397,20 @@ class LayoutInterface:
         if train is None:
             return
         self._position.pop(train, None)
+        self._forget(train)
+        self._stop(train)
+
+    def _forget(self, train: str) -> None:
+        """Every move of the train's this app holds dropped: its crossings, and
+        the moves waiting on an `align`, a facing or the power."""
         self._crossing = {
             block: crossing
             for block, crossing in self._crossing.items()
             if crossing.train != train
         }
-        self._stop(train)
+        for waiting in (self._held, self._unfaced, self._kept):
+            for transit in [t for t, c in waiting.items() if c.train == train]:
+                del waiting[transit]
 
     # -- which way each train points ----------------------------------------
 
