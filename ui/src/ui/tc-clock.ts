@@ -5,15 +5,14 @@
  * which is what `tc49/layout/state/clock` last said
  * ([ADR-0090](../../../docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)),
  * and reads no clock of its own — so it moves when the row does, once a real
- * second, and its second hand steps by the speed-up.
+ * second.
  *
- * A face of 100 units, twelve bar markers, an hour and a minute hand, and a
- * red second hand with no disc at its tip. Each hand is drawn pointing at
- * twelve and turned to its angle, so the angles are the whole of the drawing:
- * the hour hand at `h×30 + m×0.5` degrees, the minute hand at `m×6 + s×0.1`,
- * the second hand at `s×6`. With no time — no railroad loaded, or the broker
- * not answering — the face is drawn with no hands. The band's face has no
- * second hand (`plain`).
+ * A face of 100 units, twelve bar markers, and an hour and a minute hand. No
+ * second hand: sped up, it sweeps too fast to read (#1031). Each hand is
+ * drawn pointing at twelve and turned to its angle, so the angles are the
+ * whole of the drawing: the hour hand at `h×30 + m×0.5` degrees, the minute
+ * hand at `m×6 + s×0.1`. With no time — no railroad loaded, or the broker not
+ * answering — the face is drawn with no hands.
  */
 
 import { LitElement, html, nothing, svg } from "lit";
@@ -32,9 +31,6 @@ export class TcClock extends LitElement {
   /** The time drawn, fast seconds since midnight, `null` for none. */
   @property({ type: Number }) time: number | null = null;
 
-  /** Hour and minute hands only, as the band draws it. */
-  @property({ type: Boolean }) plain = false;
-
   override render() {
     const time = this.time;
     const s = time === null ? 0 : time % 60;
@@ -52,8 +48,7 @@ export class TcClock extends LitElement {
         ${time === null
           ? nothing
           : svg`${hand("hour", h * 30 + m / 2, 62, 28)}
-            ${hand("minute", m * 6 + s / 10, 62, 10)}
-            ${this.plain ? nothing : hand("second", s * 6, 66, 10)}`}
+            ${hand("minute", m * 6 + s / 10, 62, 10)}`}
       </svg>
     `;
   }

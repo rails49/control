@@ -172,7 +172,6 @@ describe("the fast clock", () => {
     const drawn = face(shell)!;
     expect(drawn.title).toBe("10:08");
     const hands = drawn.querySelector("tc-clock")!;
-    expect(hands.plain).toBe(true);
     expect(hands.time).toBe(TEN_PAST);
   });
 

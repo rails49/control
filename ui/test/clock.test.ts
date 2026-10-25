@@ -18,10 +18,9 @@ afterEach(() => {
 /** 10:08:30, as `state/clock` says it. */
 const TEN_PAST = 10 * 3600 + 8 * 60 + 30;
 
-async function mounted(time: number | null, plain = false): Promise<TcClock> {
+async function mounted(time: number | null): Promise<TcClock> {
   const clock = document.createElement("tc-clock");
   clock.time = time;
-  clock.plain = plain;
   document.body.append(clock);
   await clock.updateComplete;
   return clock;
@@ -38,15 +37,14 @@ describe("the station clock", () => {
     const clock = await mounted(TEN_PAST);
     expect(angle(clock, "hour")).toBe(304);
     expect(angle(clock, "minute")).toBe(51);
-    expect(angle(clock, "second")).toBe(180);
   });
 
   /** It reads no clock of its own: the hands move when the row does. */
   it("moves when it is handed the next time", async () => {
     const clock = await mounted(TEN_PAST);
-    clock.time = TEN_PAST + 8;
+    clock.time = TEN_PAST + 60;
     await clock.updateComplete;
-    expect(angle(clock, "second")).toBe(228);
+    expect(angle(clock, "minute")).toBe(57);
   });
 
   it("reads the afternoon on the same face", async () => {
@@ -62,12 +60,16 @@ describe("the station clock", () => {
   it("draws its face with no hands with no time", async () => {
     const clock = await mounted(null);
     expect(clock.renderRoot.querySelector(".face")).not.toBeNull();
-    expect(clock.renderRoot.querySelectorAll(".hour, .minute, .second")).toHaveLength(0);
+    expect(clock.renderRoot.querySelectorAll("line:not(.marker)")).toHaveLength(0);
   });
 
-  it("draws no second hand where it is plain", async () => {
-    const clock = await mounted(TEN_PAST, true);
-    expect(clock.renderRoot.querySelector(".minute")).not.toBeNull();
-    expect(clock.renderRoot.querySelector(".second")).toBeNull();
+  /** Sped up, a second hand sweeps too fast to read (#1031). */
+  it("draws an hour and a minute hand and nothing else", async () => {
+    const clock = await mounted(TEN_PAST);
+    expect(
+      [...clock.renderRoot.querySelectorAll("line:not(.marker)")].map(
+        (one) => one.getAttribute("class"),
+      ),
+    ).toEqual(["hour", "minute"]);
   });
 });

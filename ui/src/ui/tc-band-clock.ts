@@ -54,7 +54,7 @@ export class TcBandClock extends LitElement {
     const beside = faster(clock.speedUp);
     return html`
       <button class="face" title=${time} aria-label=${`fast clock ${time}`} @click=${this.open}>
-        <tc-clock plain .time=${clock.time}></tc-clock>
+        <tc-clock .time=${clock.time}></tc-clock>
         ${beside === "" ? nothing : html`<span class="faster">${beside}</span>`}
       </button>
       ${this.typed === null ? nothing : this.dialog(this.typed)}
