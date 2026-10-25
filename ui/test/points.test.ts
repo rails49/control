@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Drawing, SymbolSpec } from "../src/model/drawing.js";
 import { anchorIn } from "../src/model/geometry.js";
+import { WHOLE } from "../src/model/inspect.js";
 import { Panel } from "../src/model/panel.js";
 import { positionsBySymbol } from "../src/model/scene.js";
 import type { Explained, Layout } from "../src/model/store.js";
@@ -38,6 +39,45 @@ function drawn(
 /** The classes of every stroke the symbol draws, in the order drawn. */
 function strokes(kind: SymbolSpec["kind"], position?: Position): string[] {
   return drawn(kind, position).map((path) => path.getAttribute("class")!);
+}
+
+/** A turnout's strokes by the leg each draws, read off where the stroke
+ *  ends: every leg runs from the toe to the pin it is named for. */
+function turnoutLegs(
+  spec: SymbolSpec,
+  lit?: ReadonlySet<string>,
+  position?: Position,
+): Map<string, SVGPathElement> {
+  const root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  render(svg`${artwork(spec, lit, undefined, undefined, position)}`, root);
+  const roads = [...root.querySelectorAll("path")];
+  return new Map(
+    Object.keys(TRANSITS.turnout).map((leg) => {
+      const at = anchorIn("turnout", leg);
+      const stroke = roads.find((path) => {
+        const [x, y] = ends(path)[1];
+        return Math.abs(x - at.x) < 1e-9 && Math.abs(y - at.y) < 1e-9;
+      })!;
+      return [leg, stroke];
+    }),
+  );
+}
+
+/** Where a straight stroke starts and ends. */
+function ends(path: SVGPathElement): [number[], number[]] {
+  const d = path.getAttribute("d")!;
+  const [from, to] = d.slice(1).split("L");
+  return [from!, to!].map((one) => one.trim().split(/\s+/).map(Number)) as [
+    number[],
+    number[],
+  ];
+}
+
+/** Which of a turnout's legs are drawn set against, by name. */
+function legsAgainst(spec: SymbolSpec, position: Position): string[] {
+  return [...turnoutLegs(spec, undefined, position)]
+    .filter(([, path]) => path.classList.contains("against"))
+    .map(([leg]) => leg);
 }
 
 describe("a point drawn in a position", () => {
@@ -79,6 +119,14 @@ describe("a point drawn in a position", () => {
     ]);
   });
 
+  it("reads the position through the leg the turnout closes on", () => {
+    // Where the grid puts the straight road on the 45° leg (#1060), closed
+    // offers the diverging leg and the straight one is set against.
+    const spec: SymbolSpec = { kind: "turnout", closed_leg: "diverging" };
+    expect(legsAgainst(spec, "closed")).toEqual(["straight"]);
+    expect(legsAgainst(spec, "thrown")).toEqual(["diverging"]);
+  });
+
   it("leaves a symbol with no motor alone", () => {
     // A fixed crossing has nothing to command, so no address ever names it
     // and no position can reach it.
@@ -89,6 +137,35 @@ describe("a point drawn in a position", () => {
       "track",
     ]);
   });
+});
+
+describe("a turnout's thrown leg", () => {
+  /** The editor and the palette (nothing lit, no position), a lit way, and a
+   *  run with the point lying either way. */
+  const modes: [string, ReadonlySet<string> | undefined, Position | undefined][] = [
+    ["the editor", undefined, undefined],
+    ["a lit way", new Set([WHOLE]), undefined],
+    ["a run, closed", undefined, "closed"],
+    ["a run, thrown", undefined, "thrown"],
+  ];
+
+  for (const [closed, thrown] of [
+    ["straight", "diverging"],
+    ["diverging", "straight"],
+  ] as const) {
+    it(`starts a fifth of a square from the toe when closed takes ${closed}`, () => {
+      const toe = anchorIn("turnout", "toe");
+      const spec: SymbolSpec = { kind: "turnout", closed_leg: closed };
+      for (const [mode, lit, position] of modes) {
+        const legs = turnoutLegs(spec, lit, position);
+        const [start] = ends(legs.get(thrown)!);
+        const along = Math.hypot(start[0]! - toe.x, start[1]! - toe.y);
+        // Path data is rounded to a thousandth per coordinate.
+        expect(along, mode).toBeCloseTo(0.2, 2);
+        expect(ends(legs.get(closed)!)[0], mode).toEqual([toe.x, toe.y]);
+      }
+    });
+  }
 });
 
 /**
