@@ -9,13 +9,16 @@ been written for the train since it acted on the move. Otherwise it says
 nothing, and the cancel waits for the sensors.
 """
 
+from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC, MANUAL
 from tests.layout.railroad import (
     align,
     commanded,
     energised,
     faces,
+    gives,
     heard,
     move,
     reads,
@@ -33,9 +36,11 @@ MOVE_WITHDRAWN = "tc49/layout/move_withdrawn"
 TO_DN = "crossover.to_dn"
 
 
-def withdraws(bus: InProcessBus, train: str, transit: str = TO_DN) -> None:
+def withdraws(
+    bus: InProcessBus, train: str, transit: str = TO_DN, into: str = "dn_e"
+) -> None:
     """The dispatcher asking for a cancelled request's move back."""
-    bus.publish(WITHDRAW_WANTED, {"train": train, "transit": transit})
+    bus.publish(WITHDRAW_WANTED, {"train": train, "transit": transit, "into": into})
     bus.drain()
 
 
@@ -44,9 +49,14 @@ def answers(bus: InProcessBus) -> list[tuple[str, Payload]]:
     return heard(bus, MOVE_WITHDRAWN)
 
 
-def asked(answered: list[tuple[str, Payload]]) -> list[tuple[object, object]]:
-    """Those answers as the train and the transit each names."""
-    return [(payload["train"], payload["transit"]) for _topic, payload in answered]
+def asked(
+    answered: list[tuple[str, Payload]],
+) -> list[tuple[object, object, object]]:
+    """Those answers as the train, the transit and the block each names."""
+    return [
+        (payload["train"], payload["transit"], payload["into"])
+        for _topic, payload in answered
+    ]
 
 
 def told(bus: InProcessBus) -> list[tuple[str, Payload]]:
@@ -83,7 +93,7 @@ def test_a_granted_move_nothing_drove_is_withdrawn_and_answered() -> None:
 
     withdraws(bus, "single")
 
-    assert asked(answered) == [("single", TO_DN)]
+    assert asked(answered) == [("single", TO_DN, "dn_e")]
     assert app.position == {"single": "up_w"}
     assert speeds(written) == [("3", 0.0)]
 
@@ -219,16 +229,76 @@ def test_a_withdrawal_naming_a_move_already_carried_out_is_not_answered() -> Non
     answered = answers(bus)
 
     withdraws(bus, "single")
-    withdraws(bus, "single", "crossover.straight")
+    withdraws(bus, "single", "crossover.straight", "up_e")
 
-    assert asked(answered) == [("single", "crossover.straight")]
+    assert asked(answered) == [("single", "crossover.straight", "up_e")]
+
+
+def arrived(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
+    """`single` has crossed `crossover.to_dn` from `up_w` into `dn_e` in
+    `manual`, driven by a throttle that let it go once it stood."""
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+    takes(bus, "single")
+    turns(bus, "single", 0.4)
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    reads(bus, "dn_e.B", "occupied")
+    settle(bus, app, clock)
+    turns(bus, "single", 0.0)
+    gives(bus, "single")
+
+
+def test_a_withdrawal_of_the_way_back_over_a_transit_just_crossed_is_answered() -> None:
+    """A transit names the way and not the direction: the move back over
+    `crossover.to_dn` into `up_w` is told from the one just carried out into
+    `dn_e` by the block it enters, so it is answered and its late `move`
+    dropped (#1080)."""
+    bus, app, clock = wired(driving=MANUAL)
+    arrived(bus, app, clock)
+    faces(bus, single="dn_e.A-to-B")
+    align(bus, "crossover", "to_dn")
+    answered = answers(bus)
+
+    withdraws(bus, "single", TO_DN, "up_w")
+    written = told(bus)
+    move(bus, "single", "crossover", "to_dn", "up_w", 0.3)
+
+    assert asked(answered) == [("single", TO_DN, "up_w")]
+    assert speeds(written) == []
+    assert app.position == {"single": "dn_e"}
+
+
+def test_a_withdrawal_into_another_block_leaves_a_held_move_held() -> None:
+    bus, app, _clock = wired(driving=MANUAL)
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+    answered = answers(bus)
+
+    withdraws(bus, "single", TO_DN, "up_w")
+    align(bus, "crossover", "to_dn")
+
+    assert answered == []
+    assert app.position == {"single": "dn_e"}
 
 
 def test_a_withdrawal_that_cannot_be_read_is_dropped() -> None:
     bus = granted()
     answered = answers(bus)
 
-    for payload in ({}, {"train": "single"}, {"transit": TO_DN}, "single"):
+    for payload in (
+        {},
+        {"train": "single"},
+        {"transit": TO_DN},
+        {"train": "single", "transit": TO_DN},
+        {"train": "single", "transit": TO_DN, "into": 3},
+        "single",
+    ):
         bus.publish(WITHDRAW_WANTED, payload)  # type: ignore[arg-type]
         bus.drain()
 

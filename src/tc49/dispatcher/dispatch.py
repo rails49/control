@@ -1425,7 +1425,11 @@ class Dispatcher:
                 req.cancelled = True
                 self._bus.publish(
                     WITHDRAW_WANTED,
-                    {"train": req.train, "transit": active.outstanding.transit},
+                    {
+                        "train": req.train,
+                        "transit": active.outstanding.transit,
+                        "into": active.outstanding.into,
+                    },
                 )
                 return
             self._retire(req.train, active, Cancellation.REVOKED)
@@ -1450,8 +1454,9 @@ class Dispatcher:
         which is the move's origin: the train is put back where it was before
         the grant, so a request chained after it departs from there. Anything
         else is dropped — a request not cancelled, a move not outstanding, a
-        transit other than the one it crosses — the answer being about a move
-        this dispatcher no longer holds."""
+        transit other than the one it crosses or a block other than the one
+        it enters (#1080) — the answer being about a move this dispatcher no
+        longer holds."""
         withdrawn = withdrawal(payload)
         if withdrawn is None:
             return
@@ -1459,7 +1464,11 @@ class Dispatcher:
         if active is None or not active.request.cancelled:
             return
         move = active.outstanding
-        if move is None or move.transit != withdrawn.transit:
+        if (
+            move is None
+            or move.transit != withdrawn.transit
+            or move.into != withdrawn.into
+        ):
             return
         active.outstanding = None
         active.cur_index -= 1

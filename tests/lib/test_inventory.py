@@ -421,6 +421,6 @@ def test_layout_is_asked_to_take_a_move_back_and_says_when_it_has() -> None:
     """A cancel landing on a move nothing has driven ends at once (#1068): the
     dispatcher asks, `layout` answers. Neither is a page's to write."""
     for topic in ("tc49/layout/withdraw_wanted", "tc49/layout/move_withdrawn"):
-        assert TOPICS[topic].fields == ("train", "transit")
+        assert TOPICS[topic].fields == ("train", "transit", "into")
         assert topic not in INBOUND
         assert not is_state_topic(topic)

@@ -90,9 +90,10 @@ TOPICS: dict[str, Topic] = {
     # The dispatcher asking `layout` to take back a move a cancelled request
     # has outstanding, and `layout`'s answer where nothing has driven the
     # train since it acted on the move (#1068). `transit` is qualified,
-    # `<connection>.<transit>`, as a grant names it.
-    "tc49/layout/withdraw_wanted": Topic(("train", "transit")),
-    "tc49/layout/move_withdrawn": Topic(("train", "transit")),
+    # `<connection>.<transit>`, as a grant names it, and `into` is the block
+    # the move enters, as `move` names it (#1080).
+    "tc49/layout/withdraw_wanted": Topic(("train", "transit", "into")),
+    "tc49/layout/move_withdrawn": Topic(("train", "transit", "into")),
     "tc49/layout/throttle_wanted": Topic(("train", "speed", "throttle"), browser=True),
     # At most one throttle holds a train (ADR-0079). A throttle is named by
     # the id its page mints when it opens; `null` releases a train whoever

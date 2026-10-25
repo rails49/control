@@ -818,11 +818,14 @@ def command(payload: object) -> Command | None:
 @dataclass(frozen=True)
 class Withdrawal:
     """The move a `withdraw_wanted` asks `layout` to take back, and the one a
-    `move_withdrawn` says it took back: a train and the transit it was to
-    cross, qualified as a grant names it (#1068)."""
+    `move_withdrawn` says it took back: a train, the transit it was to
+    cross, qualified as a grant names it (#1068), and the block it was to
+    enter, which tells a move still to come from one already carried out over
+    the same transit (#1080)."""
 
     train: str
     transit: str
+    into: str
 
 
 def withdrawal(payload: object) -> Withdrawal | None:
@@ -831,10 +834,11 @@ def withdrawal(payload: object) -> Withdrawal | None:
     if not isinstance(payload, dict):
         return None
     fields = cast(dict[str, object], payload)
-    train, transit = fields.get("train"), fields.get("transit")
-    if not isinstance(train, str) or not isinstance(transit, str):
+    named = [fields.get(key) for key in ("train", "transit", "into")]
+    if not all(isinstance(name, str) for name in named):
         return None
-    return Withdrawal(train, transit)
+    train, transit, into = cast(list[str], named)
+    return Withdrawal(train, transit, into)
 
 
 @dataclass(frozen=True)
