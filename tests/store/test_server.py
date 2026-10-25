@@ -198,6 +198,35 @@ def test_two_cars_sharing_a_decoder_address_are_refused(
     assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
 
 
+def test_a_roster_naming_one_car_in_two_trains_is_refused_and_not_written(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A locomotive is in one train on the track (#1057). A model entry
+    builds its own car (ADR-0061), so the same model in two trains is fine."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    status, body = handle(
+        store,
+        backup,
+        "PUT",
+        "/rosters/oval",
+        {
+            "roster": "oval",
+            "cars": {"krokodil_a": {"model": "arnold-ce68", "addr": "3"}},
+            "trains": {
+                "ore": {"cars": [{"car": "krokodil_a"}, {"model": "bench-600"}]},
+                "light_1": {"cars": [{"car": "krokodil_a"}]},
+                "light_2": {"cars": [{"model": "bench-600"}]},
+            },
+        },
+    )
+    assert status == 400
+    assert body["error"] == (
+        "roster 'oval': car 'krokodil_a' is in trains 'ore' and 'light_1'"
+    )
+    assert not (tmp_path / "layouts" / "oval.roster.yaml").exists()
+
+
 def test_a_roster_with_a_camera_car_is_written_and_read_back(
     tmp_path: Path, backup: Backup
 ) -> None:
@@ -214,7 +243,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
         },
         "trains": {
             "ore": {"cars": [{"car": "krokodil_a"}, {"car": "cam_1"}]},
-            "light_1": {"cars": [{"car": "krokodil_a"}]},
+            "light_1": {"cars": [{"model": "arnold-ce68"}]},
         },
     }
     assert handle(store, backup, "PUT", "/rosters/oval", doc) == (

@@ -316,6 +316,37 @@ def test_two_cars_may_not_share_one_address() -> None:
         )
 
 
+def test_one_car_may_not_stand_in_two_trains() -> None:
+    """A locomotive is in one train on the track; two trains naming it would
+    have a write for either reach the other (#1057). The first two trains
+    naming it are named, in document order."""
+    with pytest.raises(
+        ValueError,
+        match="roster 'reversing-loops': car 're460_1' is in trains 'a' and 'b'",
+    ):
+        roster(
+            {"re460_1": {"model": "sbb-re460", "addr": "460"}},
+            {
+                "a": {"cars": [{"car": "re460_1"}]},
+                "b": {"cars": [{"car": "re460_1"}]},
+                "c": {"cars": [{"car": "re460_1"}]},
+            },
+        )
+
+
+def test_one_model_may_stand_in_two_trains() -> None:
+    """An entry naming a model builds its own car (ADR-0061), so two such
+    entries are two cars."""
+    stock = roster(
+        {},
+        {
+            "a": {"cars": [{"model": "hbis"}]},
+            "b": {"cars": [{"model": "hbis"}]},
+        },
+    )
+    assert set(stock.trains) == {"a", "b"}
+
+
 def test_an_address_is_written_as_a_string() -> None:
     """`460` and `"460"` would be one address written two ways, and two cars
     wearing them would not read as the collision they are."""
@@ -372,7 +403,7 @@ def test_a_trains_camera_is_its_first_camera_car_head_first() -> None:
             "ic_721": {
                 "cars": [{"car": "re460_1"}, {"car": "cam_2"}, {"car": "cam_1"}]
             },
-            "light_1": {"cars": [{"car": "re460_1"}]},
+            "light_1": {"cars": [{"model": "sbb-re460"}]},
             "ic_722": {"cars": [{"model": "sbb-ic2000", "camera": "cam-3"}]},
             "freight_1": {"length": 1100},
         },
@@ -468,9 +499,13 @@ def test_a_trains_kind_ignores_the_locomotives() -> None:
         {
             "ic_721": {"cars": [{"car": "re460_1"}, {"car": "ic_1"}]},
             "mixed_9": {
-                "cars": [{"car": "re460_1"}, {"car": "ic_1"}, {"car": "hbis_1"}]
+                "cars": [
+                    {"model": "sbb-re460"},
+                    {"model": "sbb-ic2000"},
+                    {"car": "hbis_1"},
+                ]
             },
-            "light_1": {"cars": [{"car": "re460_1"}]},
+            "light_1": {"cars": [{"model": "sbb-re460"}]},
         },
     )
     assert stock.trains["ic_721"].kind == "passenger"
@@ -489,15 +524,16 @@ def test_a_trains_locomotive_is_its_first_locomotives_model_head_first() -> None
             "ic_2": {"model": "sbb-ic2000"},
             "hbis_1": {"model": "hbis"},
             "railcar_1": {"model": "hbis", "kind": "locomotive"},
+            "railcar_2": {"model": "hbis", "kind": "locomotive"},
         },
         {
             "ic_721": {
                 "cars": [{"car": "ic_1"}, {"car": "re460_1"}, {"car": "railcar_1"}]
             },
             "push_1": {
-                "cars": [{"car": "ic_2"}, {"car": "railcar_1"}, {"car": "re460_1"}]
+                "cars": [{"car": "ic_2"}, {"car": "railcar_2"}, {"model": "sbb-re460"}]
             },
-            "wagons_1": {"cars": [{"car": "ic_1"}, {"car": "hbis_1"}]},
+            "wagons_1": {"cars": [{"model": "sbb-ic2000"}, {"car": "hbis_1"}]},
             "freight_1": {"length": 1100},
         },
     )
@@ -525,7 +561,7 @@ def test_a_trains_functions_are_its_cars_by_name_and_each_name_once() -> None:
                     {"car": "re460_2", "orientation": "reverse"},
                 ]
             },
-            "ic_721": {"cars": [{"car": "ic_1"}]},
+            "ic_721": {"cars": [{"model": "sbb-ic2000"}]},
         },
     )
     functions = stock.trains["top_and_tail"].functions
@@ -539,11 +575,11 @@ def test_a_train_with_no_priority_sorts_after_every_train_that_has_one() -> None
     """Absent means lowest, and no default number is written into a
     document: lowest number highest among the numbers that are present."""
     stock = roster(
-        {"ic_1": {"model": "sbb-ic2000"}},
+        {},
         {
-            "whenever": {"cars": [{"car": "ic_1"}]},
-            "ic_721": {"cars": [{"car": "ic_1"}], "priority": 2},
-            "ice_1": {"cars": [{"car": "ic_1"}], "priority": 1},
+            "whenever": {"cars": [{"model": "sbb-ic2000"}]},
+            "ic_721": {"cars": [{"model": "sbb-ic2000"}], "priority": 2},
+            "ice_1": {"cars": [{"model": "sbb-ic2000"}], "priority": 1},
         },
     )
     assert stock.trains["whenever"].priority is None
