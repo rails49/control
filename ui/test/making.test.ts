@@ -740,6 +740,22 @@ describe("the car editor", () => {
     expect((await car(shell, "addr")).value).toBe("460");
   });
 
+  /** A car named by its model shows the name once, and its address reads
+   *  `#460`; the photo says nothing over it (#1030). */
+  it("shows a card's model name only where the car has a name of its own", async () => {
+    owned();
+    const shell = await opened();
+    await chosen(shell, "Re 460");
+    await pressed(shell, ".ed-head button.new-car");
+    await answered(shell, "461");
+    await tab(shell, "cars");
+
+    expect(
+      parts(shell, "button.card.car .facts span").map((one) => one.textContent),
+    ).toEqual(["#461", "Re 460", "#460"]);
+    expect(part(shell, ".car-editor .chip")).toBeNull();
+  });
+
   it("refuses a name another car has, and puts the field back", async () => {
     owned();
     const shell = await opened();
@@ -917,7 +933,7 @@ describe("the list", () => {
     await tab(shell, "cars");
     expect(
       parts(shell, "button.card.car .facts span").map((one) => one.textContent),
-    ).toEqual(["arnold-ce68", "3"]);
+    ).toEqual(["#3"]);
   });
 
   /** A rule for another button must not reach a card: `button.model` did,
@@ -1073,9 +1089,7 @@ describe("making up a train", () => {
       "by model · 100 mm",
       "by model · 100 mm",
     ]);
-    expect(part(shell, ".train-editor .chip").textContent!.trim()).toBe(
-      "No locomotive with a photo",
-    );
+    expect(part(shell, ".train-editor .chip")).toBeNull();
   });
 
   /** A decoder's address belongs to one item, so a model with a decoder goes

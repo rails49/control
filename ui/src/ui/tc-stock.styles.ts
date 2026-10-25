@@ -726,20 +726,6 @@ export const stockStyles = css`
 
   /* --- the car editor --- */
 
-  /* What the photo on a car's editor is: its model's, a car having none of
-     its own. */
-  .chip {
-    position: absolute;
-    left: 10px;
-    bottom: 10px;
-    padding: 5px 9px;
-    border-radius: 7px;
-    background: rgb(0 0 0 / 0.55);
-    color: #fff;
-    font-size: 12px;
-    font-weight: 650;
-  }
-
   button.open-model,
   button.remove-car,
   button.unmake {

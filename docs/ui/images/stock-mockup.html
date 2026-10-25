@@ -160,8 +160,6 @@ button:focus-visible, a:focus-visible, label.btn:focus-within { outline: 2px sol
 .pz.hot { border: 2px dashed var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
 .pz.hot::after { content: "Drop to use this picture"; position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--accent-soft) 85%, transparent); color: var(--accent-ink); font-size: 16px; font-weight: 700; }
 .pz .wait { position: absolute; inset: 0; display: grid; place-items: center; background: var(--scrim); color: #fff; font-weight: 650; }
-.chip { position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 7px; background: rgb(0 0 0 / 0.55); color: #fff; font: 650 12px/1 var(--font); }
-.chip svg { width: 13px; height: 13px; }
 .pz-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: -12px; }
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
 .btn svg { width: 16px; height: 16px; }
@@ -560,7 +558,7 @@ class App {
     } else if (tab === "cars") {
       const c = S.cars[k], m = S.models[c.model];
       photo = m.photo; name = c.name;
-      sub = `<span>${esc(m.name)}</span>${c.addr ? `<span class="pill">${esc(c.addr)}</span>` : ""}${c.camera ? `<span class="pill">${I.camera} camera</span>` : ""}`;
+      sub = `${m.name === c.name ? "" : `<span>${esc(m.name)}</span>`}${c.addr ? `<span class="pill">#${esc(c.addr)}</span>` : ""}${c.camera ? `<span class="pill">${I.camera} camera</span>` : ""}`;
     } else {
       const t = S.trains[k];
       photo = trainPhoto(t); name = t.name;
@@ -635,7 +633,7 @@ class App {
       : `<div class="fld"><span class="lab">Functions, from the model</span><div class="chips">${m.fns.map((f) => `<span class="fchip${f.mode === "momentary" ? " m" : ""}"><code>F${f.n}</code>${esc(f.name)}${f.mode === "momentary" ? "<em>hold</em>" : ""}</span>`).join("") || '<span class="hint">None</span>'}</div>` +
         `<button class="link" type="button" data-act="cfnown">This car's decoder is different: give it its own functions</button></div>`;
     return this.head("Car", back, `<button class="btn small danger" type="button" data-act="rmcar"${trains.length ? ` disabled title="In train ${esc(trains[0][1].name)}. Take it out of the train first."` : ""}>${I.trash}Remove</button>`) +
-      `<div class="ed-body"><div class="pz">${photoHTML(m.photo)}<span class="chip">${I.image}Photo of the model</span></div>` +
+      `<div class="ed-body"><div class="pz">${photoHTML(m.photo)}</div>` +
       `<div class="grid2"><label class="fld wide"><span class="lab">Name</span><input class="in name-in${this.bad("c.name")}" id="${id}-c-name" data-f="c.name" value="${esc(c.name)}">${this.errFor("c.name")}</label>` +
       `<div class="fld"><span class="lab">Model</span><button class="btn" type="button" data-act="open" data-tab="models" data-k="${c.model}">${I.car}${esc(m.name)}</button></div>${addr}` +
       `<label class="fld wide"><span class="lab">Camera address</span><input class="in mono${this.bad("c.camera")}" id="${id}-c-camera" data-f="c.camera" value="${esc(c.camera)}" placeholder="cam-1.local or 192.168.1.40">${this.errFor("c.camera")}` +
@@ -658,7 +656,7 @@ class App {
         `<button class="x" type="button" data-act="rment" data-i="${i}" aria-label="Take ${esc(entryName(e))} out">${I.close}</button></span></div>`;
     }).join("");
     return this.head("Train", back, `<button class="btn small danger" type="button" data-act="unmake">${I.trash}Unmake</button>`) +
-      `<div class="ed-body"><div class="pz">${photoHTML(trainPhoto(t))}<span class="chip">${I.image}${trainPhoto(t) ? "Photo of the first locomotive" : "No locomotive with a photo"}</span></div>` +
+      `<div class="ed-body"><div class="pz">${photoHTML(trainPhoto(t))}</div>` +
       `<div class="grid2"><label class="fld"><span class="lab">Name</span><input class="in name-in${this.bad("t.name")}" id="${id}-t-name" data-f="t.name" value="${esc(t.name)}">${this.errFor("t.name")}</label>` +
       `<label class="fld"><span class="lab">Priority</span><input class="in num" type="number" min="1" id="${id}-t-priority" data-f="t.priority" value="${t.priority ?? ""}" placeholder="lowest"><span class="hint">1 is highest. Empty is lowest.</span></label></div>` +
       `<section class="sec"><div class="sec-head"><h3>Cars</h3><span class="hint">Drag to reorder.</span></div><div class="ends"><span>← Head</span><span>Tail</span></div>` +
