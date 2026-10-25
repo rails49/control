@@ -692,10 +692,6 @@ to the east pin, the diverging road is a 45 degree stub to the top pin. This
 is the only 1×1 geometry with a 45 degree leg ending on a face centre, and a
 wire continuing at 45 degrees reaches the next row's track line in half a
 square, which is how turnouts stack between parallel station tracks.
-The leg the closed position does not take (`closed_leg`,
-[DRAWING.md](../store/DRAWING.md#hardware-ids)) starts a fifth of a square
-from the toe, measured along the leg, in the editor, the palette and a run. The
-gap marks the curved road.
 
 **Crossing and slips**, 2×1. Route `a` is the horizontal, `a1` at
 `(0, 0.5)` to `a2` at `(2, 0.5)`; route `b` is the 45 degree diagonal, `b1`
