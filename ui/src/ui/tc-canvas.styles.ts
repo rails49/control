@@ -400,6 +400,13 @@ const running = css`
     font-weight: 600;
   }
 
+  /* The photo a block shows in place of its train's name (#1018). A press
+     and a resting pointer go through it to the block, as they go through the
+     name. */
+  .photo {
+    pointer-events: none;
+  }
+
   /* The direction arrow: where the occupying train's nose points. */
   .arrow {
     fill: var(--ink);

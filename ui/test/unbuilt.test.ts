@@ -216,13 +216,17 @@ describe("a run on a railroad not built", () => {
     return running(shell).renderRoot.querySelector<TcCanvas>("tc-canvas")!;
   }
 
-  /** The canvas pressed and let go at each point in turn, as a mouse. */
+  /** The canvas pressed and let go at each point in turn, as a mouse. A drag
+   *  goes by way of a point further off than a click's slop, the two blocks'
+   *  middles being closer than it: a release within it is a tap (#1018). */
   async function dragged(shell: TcApp, from: { x: number; y: number }, to = from) {
+    const away = to === from ? [] : [["pointermove", { x: to.x, y: to.y + 10 }] as const];
     for (const [name, at] of [
-      ["pointerdown", from],
-      ["pointermove", to],
-      ["pointerup", to],
-    ] as const) {
+      ["pointerdown", from] as const,
+      ...away,
+      ["pointermove", to] as const,
+      ["pointerup", to] as const,
+    ]) {
       surface(shell).dispatchEvent(
         new PointerEvent(name, { bubbles: true, button: 0, clientX: at.x, clientY: at.y }),
       );
@@ -244,7 +248,7 @@ describe("a run on a railroad not built", () => {
     const shell = await standing(false);
 
     expect(sheet(shell).classList.contains("unbuilt")).toBe(true);
-    expect(sheet(shell).renderRoot.querySelector("text.name.train")).toBeNull();
+    expect(sheet(shell).renderRoot.querySelector("g[data-symbol] > title")).toBeNull();
   });
 
   it("throws nothing on a press, and asks for no request on a drag", async () => {
@@ -262,7 +266,7 @@ describe("a run on a railroad not built", () => {
     const shell = await standing(true);
 
     expect(sheet(shell).classList.contains("unbuilt")).toBe(false);
-    expect(sheet(shell).renderRoot.querySelector("text.name.train")).not.toBeNull();
+    expect(sheet(shell).renderRoot.querySelector("g[data-symbol] > title")).not.toBeNull();
     await dragged(shell, SWITCH);
 
     expect(written()).toContainEqual({

@@ -47,7 +47,7 @@ import {
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
 import type { Point } from "../model/geometry.js";
-import { roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
+import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
 import { pointsOffered, positionsBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
@@ -135,6 +135,7 @@ export class TcPanel extends LitElement {
     throwPoint: (wanted) => this.session?.send(pointWanted(wanted)),
     pressWidget: (name) => this.pressWidget(name),
     onRoster: (screen) => this.overRoster(screen),
+    showName: (block) => this.canvas?.showName(block),
   });
 
   /**
@@ -469,8 +470,9 @@ export class TcPanel extends LitElement {
     if (model === null || this.drawing === null || this.unbuilt) return null;
     const lit = model.lit();
     const commanded = model.positionsByAddress();
+    const blocks = model.blocks();
     return {
-      blocks: model.blocks(),
+      blocks,
       lit,
       aspects: model.aspects(),
       detected: model.detected(),
@@ -478,6 +480,7 @@ export class TcPanel extends LitElement {
       offered: pointsOffered(this.drawing, lit.legs, commanded),
       markers: model.markers(),
       widgets: this.session?.widgetRows ?? new Map(),
+      locomotives: locomotives(this.session?.owned ?? {}, blocks),
     };
   }
 

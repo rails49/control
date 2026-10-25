@@ -256,13 +256,14 @@ describe("the run view's machine", () => {
   const OVER_ROSTER = { x: 0, y: 0 };
   const OVER_CANVAS = { x: 500, y: 500 };
 
-  /** A machine over the drawing above, with the drops it submitted and the
-   *  trains it took off the layout. */
+  /** A machine over the drawing above, with the drops it submitted, the
+   *  trains it took off the layout and the blocks it showed a name in. */
   function machine(painting: Painted | null = PAINTED) {
     const sent: Drop[] = [];
     const lifted: string[] = [];
     const thrown: PointWanted[] = [];
     const pressed: string[] = [];
+    const named: string[] = [];
     const it = schedulingMachine(new Drag(), {
       painted: () => painting,
       submit: (drop) => {
@@ -278,8 +279,11 @@ describe("the run view's machine", () => {
         pressed.push(name);
       },
       onRoster: (screen) => screen.x === OVER_ROSTER.x && screen.y === OVER_ROSTER.y,
+      showName: (block) => {
+        named.push(block);
+      },
     });
-    return { sent, lifted, thrown, pressed, it };
+    return { sent, lifted, thrown, pressed, named, it };
   }
 
   const press = { button: 0, shift: false, touch: false, screen: { x: 0, y: 0 } };
@@ -381,6 +385,56 @@ describe("the run view's machine", () => {
     expect(sent).toHaveLength(1);
   });
 
+  /**
+   * A press on a train released within the slop is a tap: the block pressed
+   * shows the train's name in place of its photo, and nothing is dropped
+   * (#1018). A finger may wander further than a mouse before it is a drag.
+   */
+  describe("a tap on a train", () => {
+    const at = (x: number, touch = false) => ({ ...press, touch, screen: { x, y: 500 } });
+
+    it("shows its name and drops nothing", () => {
+      const { named, sent, it } = machine();
+      it.down(on("a", 0.5), at(500));
+      it.moved(on("a", 0.5), { x: 503, y: 500 });
+      expect(it.up(on("a", 0.5), { x: 503, y: 500 })).toBe("render");
+      expect(named).toEqual(["a"]);
+      expect(sent).toEqual([]);
+      expect(it.marks).toBeNull();
+    });
+
+    it("allows twelve pixels of wander for a finger and four for a mouse", () => {
+      const { named, it } = machine();
+      it.down(on("a", 0.5), at(500, true));
+      it.up(on("a", 0.5), { x: 512, y: 500 });
+      it.down(on("a", 0.5), at(500));
+      it.up(on("a", 0.5), { x: 508, y: 500 });
+      it.down(on("a", 0.5), at(500, true));
+      it.up(on("a", 0.5), { x: 513, y: 500 });
+      expect(named).toEqual(["a"]);
+    });
+
+    it("is a drag once the pointer has moved past the slop, even back again", () => {
+      const { named, sent, it } = machine();
+      it.down(on("a", 0.5), at(500));
+      it.moved(on("b", 0.5), { x: 520, y: 500 });
+      it.moved(on("a", 0.5), { x: 500, y: 500 });
+      it.up(on("a", 0.5), { x: 500, y: 500 });
+      it.down(on("a", 0.5), at(500));
+      it.moved(on("b", 0.5), { x: 520, y: 500 });
+      it.up(on("b", 0.5), { x: 520, y: 500 });
+      expect(named).toEqual([]);
+      expect(sent).toEqual([{ train: "t1", block: "b", dest: ["b.A", "b.B"] }]);
+    });
+
+    it("is nothing on a block with no train in it", () => {
+      const { named, it } = machine();
+      it.down(on("b", 0.5), at(500));
+      it.up(on("b", 0.5), { x: 500, y: 500 });
+      expect(named).toEqual([]);
+    });
+  });
+
   /** The pointer left the sheet, or the gesture under it was cancelled. */
   it("abandons a drag in flight and nothing otherwise", () => {
     const { sent, it } = machine();
@@ -479,6 +533,7 @@ describe("the run view's machine", () => {
         },
         pressWidget: () => undefined,
         onRoster: () => false,
+        showName: () => undefined,
       });
       it.down(SW, at(OVER_CANVAS));
       painting = { ...POINTS, offered: new Map() };

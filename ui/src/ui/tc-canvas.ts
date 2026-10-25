@@ -56,7 +56,7 @@ import type { Machine, Outcome } from "../model/machine.js";
 import type { Aspect, Marker, Overlay } from "../model/panel.js";
 import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
-import { UNREVIEWED, type Review } from "../model/store.js";
+import { photoUrl, UNREVIEWED, type Review } from "../model/store.js";
 import { pointOf, under, type Under } from "../model/under.js";
 import { isWidgetKind, selectionKey, widgetTopic } from "../model/widgets.js";
 import {
@@ -72,6 +72,10 @@ import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
 
 /** Which of the two surfaces this is. */
 export type Mode = "edit" | "run";
+
+/** How long a tap on a block shows its train's name in place of the photo,
+ *  in milliseconds (#1018). */
+const NAMED_FOR = 3000;
 
 /**
  * What the canvas lights, worked out once a render: the legs of the symbols on
@@ -131,6 +135,12 @@ export class TcCanvas extends LitElement {
 
   @state() private view: Box = { x: -1, y: -1, w: 16, h: 11 };
   @state() private pointer: Point | null = null;
+  /** The models whose photo did not load, drawn as the train's name. */
+  @state() private unseen: ReadonlySet<string> = new Set();
+  /** The blocks a tap has asked to show their train's name in rather than its
+   *  photo, each until its timer in `timers` runs out (#1018). */
+  @state() private naming: ReadonlySet<string> = new Set();
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Where the middle button was pressed, while it is down. The anchor stays
    *  put: the view moves under the pointer, so the same screen position reads
    *  as the anchor again on the next event. */
@@ -388,6 +398,7 @@ export class TcCanvas extends LitElement {
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
+          ${this.hover(name)}
           <g transform=${transformOf(spec)}>
             ${artwork(
               spec,
@@ -517,7 +528,9 @@ export class TcCanvas extends LitElement {
    * A block carries it whatever its colour — the train's own block lit by its
    * route still has the train in it — and two blocks carry it while the train
    * passes from one to the next (`Panel.blocks`, #897). A train's name is the
-   * longer of the two, so this is where the fit usually does work.
+   * longer of the two, so this is where the fit usually does work. Where the
+   * train's first locomotive has a photo the block shows that instead, and
+   * the name again for a while after a tap (#1018).
    */
   private label(
     name: string,
@@ -528,9 +541,56 @@ export class TcCanvas extends LitElement {
     if (spec.kind !== "block") return nothing;
     const live = this.running;
     const train = live?.blocks.get(name)?.named;
+    const model = train === undefined ? undefined : live?.locomotives.get(train);
+    if (model !== undefined && !this.unseen.has(model) && !this.naming.has(name)) {
+      return this.blockPhoto(model, spec);
+    }
     const worn =
       train !== undefined ? "name train" : live === null ? "name" : "name dim";
     return this.blockName(train ?? name, worn, spec);
+  }
+
+  /**
+   * The photo of the train's first locomotive in place of its name, the one
+   * the roster pane shows (#1018): centred in the rectangle and fitted inside
+   * it whole, and turned as the name is, outside the artwork's own group, so
+   * it is never mirrored. A photo that does not load is drawn as the name
+   * from then on.
+   */
+  private blockPhoto(model: string, spec: SymbolSpec): unknown {
+    const { x, y } = centreOf(spec);
+    const { w, h, border } = BLOCK.body;
+    return svg`<image class="photo"
+      href=${photoUrl(model)}
+      x=${x - w / 2 + border} y=${y - h / 2 + border}
+      width=${w - 2 * border} height=${h - 2 * border}
+      preserveAspectRatio="xMidYMid meet"
+      transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}
+      @error=${() => (this.unseen = new Set([...this.unseen, model]))} />`;
+  }
+
+  /** The train's name for a pointer resting on its block, on a run, where
+   *  the block may show its photo rather than the name (#1018). */
+  private hover(name: string): unknown {
+    const train = this.running?.blocks.get(name)?.named;
+    return train === undefined ? nothing : svg`<title>${train}</title>`;
+  }
+
+  /**
+   * Show the train's name in a block in place of its photo for three seconds:
+   * what a tap on the block asks for (#1018). A second tap starts the three
+   * seconds again.
+   */
+  showName(block: string): void {
+    clearTimeout(this.timers.get(block));
+    this.timers.set(
+      block,
+      setTimeout(() => {
+        this.timers.delete(block);
+        this.naming = new Set([...this.naming].filter((one) => one !== block));
+      }, NAMED_FOR),
+    );
+    this.naming = new Set([...this.naming, block]);
   }
 
   /**
