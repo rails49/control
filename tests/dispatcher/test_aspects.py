@@ -151,9 +151,9 @@ def test_a_passed_signal_shows_stop_once_the_next_block_reads_occupied() -> None
 
 
 def test_power_not_on_puts_every_signal_to_stop() -> None:
-    """An aspect answers "may the train in this block leave via this end",
-    and while `draining` or `off` the answer is no at every end: nothing is
-    granted (ADR-0078). The real aspects return with the power: the power is
+    """An aspect answers "may a train that reaches this end leave by it"
+    (ADR-0093), and while `draining` or `off` the answer is no at every end:
+    nothing is granted (ADR-0078). The real aspects return with the power: the power is
     a gate over the reading, not a rewrite of it, so nothing about the locks
     has to be undone and put back."""
     layout, _roster, _ = load("crossover-yard/meet")
