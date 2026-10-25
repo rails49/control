@@ -650,8 +650,8 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         adr_0062_drain_ends_at_a_stand,
         MEET,
         {POWER: {"power": "draining"}, MOVING: {"moving": True}},
-        [(MOVING, {"moving": False}), (POWER, {"power": "off"})],
-        [(POWER, {"power": "off"})],
+        [(MOVING, {"moving": False}), (WANTED_TRACK, {"power": "off"})],
+        [(WANTED_TRACK, {"power": "off"})],
     ),
     (
         adr_0069_removed_is_stopped,
