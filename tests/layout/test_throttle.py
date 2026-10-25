@@ -100,7 +100,7 @@ def test_one_lever_drives_a_top_and_tail_set_opposite() -> None:
     bus, written = held("topped", "up_w.A-to-B")
     turns(bus, "topped", 0.5)
 
-    assert speeds(written) == [("3", 0.5), ("4", -0.5)]
+    assert speeds(written) == [("8", 0.5), ("4", -0.5)]
 
 
 def test_the_lever_says_which_way_and_the_facing_does_not() -> None:
@@ -110,7 +110,7 @@ def test_the_lever_says_which_way_and_the_facing_does_not() -> None:
     bus, written = held("topped", "up_w.B-to-A")
     turns(bus, "topped", 0.5)
 
-    assert speeds(written) == [("3", 0.5), ("4", -0.5)]
+    assert speeds(written) == [("8", 0.5), ("4", -0.5)]
 
 
 def test_centring_the_lever_stops_every_car() -> None:
@@ -120,7 +120,7 @@ def test_centring_the_lever_stops_every_car() -> None:
     turns(bus, "topped", 0.5)
     turns(bus, "topped", 0.0)
 
-    assert speeds(written)[2:] == [("3", 0.0), ("4", 0.0)]
+    assert speeds(written)[2:] == [("8", 0.0), ("4", 0.0)]
 
 
 def test_a_car_with_no_address_is_not_commanded() -> None:
@@ -129,7 +129,7 @@ def test_a_car_with_no_address_is_not_commanded() -> None:
     bus, written = held("van", "up_w.A-to-B")
     turns(bus, "van", 0.5)
 
-    assert speeds(written) == [("3", 0.5)]
+    assert speeds(written) == [("9", 0.5)]
 
 
 def test_a_throttle_drives_in_manual_as_in_automatic() -> None:
@@ -297,7 +297,7 @@ def test_a_flip_on_a_top_and_tail_set_stops_both_locomotives() -> None:
     turns(bus, "topped", 0.5)
     turns(bus, "topped", -0.5)
 
-    assert speeds(written) == [("3", 0.5), ("4", -0.5), ("3", 0.0), ("4", 0.0)]
+    assert speeds(written) == [("8", 0.5), ("4", -0.5), ("8", 0.0), ("4", 0.0)]
 
 
 def test_the_next_grant_brings_the_lever_back() -> None:

@@ -173,12 +173,12 @@ def test_to_automatic_a_train_with_a_move_and_no_throttle_gets_the_grant() -> No
     assert speeds(written) == []
 
     switches(bus, AUTOMATIC)
-    assert speeds(written) == [("3", 0.6), ("4", -0.6)]
+    assert speeds(written) == [("8", 0.6), ("4", -0.6)]
 
     reads(bus, "dn_e.A", "occupied")
     settle(bus, app, clock)
 
-    assert speeds(written)[2:] == [("3", 0.0), ("4", 0.0)]
+    assert speeds(written)[2:] == [("8", 0.0), ("4", 0.0)]
 
 
 def test_to_automatic_a_train_a_throttle_holds_is_left_to_the_throttle() -> None:
