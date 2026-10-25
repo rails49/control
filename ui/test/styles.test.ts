@@ -372,22 +372,22 @@ describe("a signal's lamps", () => {
     }
   });
 
-  it("are lit by every aspect the dispatcher publishes", () => {
+  it("are lit by every aspect the dispatcher publishes, one lamp each", () => {
     // The aspect arrives as a class name, so a sheet that misses one leaves
     // those signals wrongly lit and nothing red: the classes are correct and
     // only the paint is wrong, which is what the rename of `approach` to
-    // `caution` could have left behind (#235). Each lamp of each aspect, not
-    // each aspect: a `caution` that lost its amber rule paints green alone,
-    // which is `clear` — full speed where the dispatcher said be ready to
-    // stop.
+    // `caution` could have left behind (#235). The panel draws SBB system N
+    // (ADR-0094): one lamp per aspect, and `caution` is Warnung, amber alone.
+    // A `caution` that also lit green would be Fb 2, a speed, on an L main
+    // signal.
     for (const lit of [
       ".signal.stop .lamp.red",
-      ".signal.caution .lamp.green",
       ".signal.caution .lamp.amber",
       ".signal.clear .lamp.green",
     ]) {
       expect(canvasStyles.cssText).toContain(lit);
     }
+    expect(canvasStyles.cssText).not.toContain(".signal.caution .lamp.green");
   });
 });
 
