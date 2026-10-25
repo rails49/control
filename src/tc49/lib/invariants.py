@@ -1562,17 +1562,17 @@ def adr_0060_new_railroad_only_while_off(
 def adr_0062_drain_ends_at_a_stand(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
-    """A drain ends in `off` only while `moving` reads `false`; only
-    `power_wanted: off` cuts at once
+    """`layout` writes `wanted/track: off` only while `moving` reads
+    `false`, unless `power_wanted: off` was pressed or `layout` is coming up
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
     as amended by ADR-0078)."""
-    if topic != POWER or POWER not in record.rows or power(payload) != OFF:
+    if topic != WANTED_TRACK or commanded_power(payload) != OFF:
         return []
-    was = power(record.rows[POWER])
-    drained = was == DRAINING or (was == ON and record.drain_wanted)
-    if not drained or record.cut_wanted or not moving(record.rows.get(MOVING)):
+    if record.cut_wanted or WANTED_TRACK in record.starting:
         return []
-    return [f"power went from {was} to off while moving"]
+    if not moving(record.rows.get(MOVING)):
+        return []
+    return ["wanted/track written off while moving"]
 
 
 def adr_0069_removed_is_stopped(
@@ -1956,9 +1956,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0062",
-        "A drain ends in `off` only while `moving` reads `false`; only"
-        " `power_wanted: off` cuts at once.",
-        (POWER, MOVING, POWER_WANTED),
+        "`layout` writes `wanted/track: off` only while `moving` reads"
+        " `false`, unless `power_wanted: off` was pressed or `layout` is"
+        " coming up.",
+        (WANTED_TRACK, MOVING, POWER_WANTED, RAILROAD),
         adr_0062_drain_ends_at_a_stand,
     ),
     HistoryInvariant(
