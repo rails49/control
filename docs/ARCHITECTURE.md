@@ -104,6 +104,9 @@ src/tc49/
     scenario.py   Scenario, TrainSpec, RequestSpec — the harness's own
                   document, which no app reads (#171)
     inventory.py  the event inventory's leaf fields
+    invariants.py INVARIANTS — what the ADRs say the bus shows, one function
+                  per rule over the retained values, checked in tests only
+                  (ADR-0096)
     trace.py      the trace tap — canonical JSONL serialization, read/write
 
   store/        store.py    AssetStore — CRUD contract, YAML binding,
@@ -306,14 +309,15 @@ tests that drive the real assembly over the bus, with `harness.py`,
 may — `brokers.py` — a real broker, for the apps that come up against one —
 `apps.py` — the apps as processes, for the suites that start what a compose
 service starts — `ports.py` — a port to listen on, picked from below the
-range the kernel hands out so nothing else can take it (#560) — and
+range the kernel hands out so nothing else can take it (#560) — `invariants.py`
+— the check of `tc49.lib.invariants` over an assembly's bus — and
 `generate.py` shared at the top.
 
 ```
 tests/
-  harness.py  interleaving.py  brokers.py  apps.py  ports.py  generate.py
-  test_interleaving
-  lib/         test_layout  test_bus  test_trace
+  harness.py  interleaving.py  invariants.py  brokers.py  apps.py  ports.py
+  generate.py  test_interleaving  test_invariants_check
+  lib/         test_layout  test_bus  test_trace  test_invariants
   store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler  test_main
   dispatcher/  test_routing  test_safety  test_incremental
@@ -455,8 +459,9 @@ Five properties:
    handler is running when it publishes, `outside` for a fired event or a
    gesture and `retained` for a value handed to a late subscriber — and
    Hypothesis draws which channel's head goes next. Under `Incremental` the
-   lock table's rules hold after every message the dispatcher is handed,
-   `safe()` after every grant, and quiescence is still a permanent obstacle.
+   lock table's rules and `safe()` hold after every message the dispatcher is
+   handed, read in the bus's `after` hook so a grant is checked on the state
+   it left, and quiescence is still a permanent obstacle.
    The channels are offered oldest head first and a drawn 0 is the oldest,
    so a counterexample shrinks to the fewest messages out of order.
 
@@ -470,6 +475,15 @@ from those the scheduler minted plus one nobody did. After every message the
 bus delivers the lock table's rules hold (`broken()` is empty), and after
 every grant `safe()` does. It checks only what holds after each message, not
 that a request ever ends.
+
+**The invariants** of `tc49/lib/invariants.py` are checked by every property
+above and by `test_gestures_and_readings`, through `tests/invariants.py`
+([ADR-0096](adr/0096-invariants-are-stated-over-what-the-bus-shows-and-checked-in-tests.md)).
+An invariant over one app's rows is asserted after every message, by a
+subscriber on `#`; one over several apps' rows (`cross_app`) each time
+`drain()` returns with nothing left to deliver. ADR-0026's holds only under
+`Incremental`, and the check is told the strategy. A breach fails with the
+ADR, the rule and what broke.
 
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the

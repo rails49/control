@@ -16,6 +16,8 @@ The organisation's
 says what each kind of doc holds and that an accepted ADR does not change.
 Where `docs/` files an app's pages: [ARCHITECTURE.md](../ARCHITECTURE.md#documentation-layout).
 
+An issue that adds an ADR stating an invariant adds its function to `src/tc49/lib/invariants.py` ([ADR-0096](../adr/0096-invariants-are-stated-over-what-the-bus-shows-and-checked-in-tests.md)).
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids — each entry lists its own _Avoid_ set (e.g. "connection", never "connector" or "node"; "transit", never "crossing"; "route" only for the request-level path).
