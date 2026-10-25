@@ -277,16 +277,19 @@ a real thing and the address is what says a car can be told a speed.
 
 ### Two refusals
 
-**No facing, no move.** A `move` for a train whose facing this app has never
-seen is dropped: none published for it, one it cannot spell, or one naming a
-block other than the one the train is departing. Guessing is a locomotive
-driven the wrong way down the track, and a drop is what a failed read is worth
-for an app that answers nothing ([BUS.md](../BUS.md#event-inventory),
-rule 4). Nothing holds the command for a facing, so a facing arriving later
-does not retroactively run the train — where a command is *held* for its
-`align`, though, it is signed on the facing it has at the moment it acts, like
-every other rule here. A `move` that states no **speed** falls the same way and
-for the same reason: this app would have to choose a number nobody asked for.
+**No facing, no move.** A `move` for a train with an address whose facing this
+app cannot use is **held** until a facing naming the block the train departs
+arrives ([ADR-0095](../adr/0095-layout-holds-a-move-until-its-facing-names-the-block-the-train-departs.md)):
+none published for it, one it cannot spell, or one naming a block other than
+the one the train is departing. Guessing is a locomotive driven the wrong way
+down the track. The scheduler publishes the facing and the driver the move,
+and the bus promises no order between two writers, so the move arriving first
+is ordinary running. Each facing puts the held move back through every rule, so
+a train taken off or placed elsewhere meanwhile has its move dropped then. A
+second `move` for the same transit replaces the one held, and there is no
+timer. A command *held* for its `align` is likewise signed on the facing it has
+at the moment it acts. A `move` that states no **speed** is dropped: this app
+would have to choose a number nobody asked for.
 
 **No address, no command.** A train whose cars carry no address at all — the
 simulator's trains are like this, and so is anything a hand moves — still gets
