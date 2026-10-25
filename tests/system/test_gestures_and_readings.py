@@ -1,6 +1,6 @@
 """A person's gestures and detector faults, at any moment, over the assembly.
 
-The four properties of ARCHITECTURE.md draw placements and request sequences
+The five properties of ARCHITECTURE.md draw placements and request sequences
 and then let the railroad run. The railroad also gets a person's gestures at
 any moment, and detector readings no train caused, and the bugs those inputs
 made were found by review rather than by a test (#806, #836, #811, #791).

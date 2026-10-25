@@ -302,7 +302,8 @@ live in. Each spec page links the ADRs that bind it.
 
 `tests/` mirrors `src/tc49/`: one package per app, plus `system/` for the
 tests that drive the real assembly over the bus, with `harness.py`,
-`brokers.py` — a real broker, for the apps that come up against one —
+`interleaving.py` — an in-process bus that delivers in any order a broker
+may — `brokers.py` — a real broker, for the apps that come up against one —
 `apps.py` — the apps as processes, for the suites that start what a compose
 service starts — `ports.py` — a port to listen on, picked from below the
 range the kernel hands out so nothing else can take it (#560) — and
@@ -310,7 +311,8 @@ range the kernel hands out so nothing else can take it (#560) — and
 
 ```
 tests/
-  harness.py  brokers.py  apps.py  ports.py  generate.py
+  harness.py  interleaving.py  brokers.py  apps.py  ports.py  generate.py
+  test_interleaving
   lib/         test_layout  test_bus  test_trace
   store/       test_store  test_drawing  test_server  test_symbols
   scheduler/   test_scheduler  test_main
@@ -358,7 +360,7 @@ added to, which is what a page opened afterwards would read. The third reads
 no service claiming a device. `tests/apps.py` is what all
 three start their processes with.
 
-pytest, with Hypothesis for the deadlock hunt. **All four properties drive
+pytest, with Hypothesis for the deadlock hunt. **All five properties drive
 the real assembly over the in-process bus**: each generated case wires
 scheduler, dispatcher, driver, and simulator together and interacts only by
 publishing and observing events, so the bus contract itself gets thousands
@@ -380,7 +382,7 @@ deadlocks. The library is chosen to be adversarial:
   transit concurrency; already drawn, at
   [`bench/layouts/crossover-yard.drawing.yaml`](../bench/layouts/crossover-yard.drawing.yaml).
 
-Four properties:
+Five properties:
 
 1. **Safety invariant** — every reachable state satisfies `safe()`. The bus
    drives, the assertion peeks: the test holds the dispatcher it
@@ -441,8 +443,24 @@ Four properties:
    function of its inputs — fixed transit delays, no RNG, one delivery order —
    and that arrival order picks only among grants that were all safe
    ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+5. **Any order MQTT delivers** — properties 1–4 run on the in-process bus,
+   which delivers from one queue, each message to every subscriber before
+   the next. Over a broker each app is a process of its own, and
+   [BUS.md](BUS.md) ("Order from one publisher") promises order only for
+   what one writer sends on one topic: none between two writers, none
+   between two topics, and one message's copies to different subscribers
+   arrive independently. `tests/interleaving.py`'s `InterleavingBus` keeps
+   exactly that order — one FIFO queue per channel, a channel being
+   (publisher, topic, subscriber), where the publisher is the app whose
+   handler is running when it publishes, `outside` for a fired event or a
+   gesture and `retained` for a value handed to a late subscriber — and
+   Hypothesis draws which channel's head goes next. Under `Incremental` the
+   lock table's rules hold after every message the dispatcher is handed,
+   `safe()` after every grant, and quiescence is still a permanent obstacle.
+   The channels are offered oldest head first and a drawn 0 is the oldest,
+   so a counterexample shrinks to the fewest messages out of order.
 
-`test_gestures_and_readings` draws what the four properties do not: a
+`test_gestures_and_readings` draws what the five properties do not: a
 person's gestures, and detector readings no train caused, at any moment of a
 live run. It is a Hypothesis state machine over `assemble_live` with a drawn
 case's trains standing, and each step is one of a drag, a cancel, a reorder, a
