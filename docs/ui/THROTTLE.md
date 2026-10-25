@@ -104,7 +104,9 @@ layout at every panel width, 360–440 px
   live picture once a frame has come (below), otherwise the first
   locomotive's photo — the same as its card — otherwise a train icon with the
   train's name under it, each shown whole
-  ([#956](https://github.com/rails49/control/issues/956)). Laid over it: the
+  ([#956](https://github.com/rails49/control/issues/956)) and centred, the
+  space it leaves in the page's colour
+  ([#1020](https://github.com/rails49/control/issues/1020)). Laid over it: the
   train's name in a small dark chip at the bottom left (not on the icon,
   which has it already), *LIVE* at the top left while the camera picture
   shows, and a *Trains* chip at the top right saying the picture opens the
