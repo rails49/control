@@ -156,16 +156,18 @@ export class TcApp extends LitElement {
    *  rather than the view's. */
   @state() private netlist = false;
 
-  /** Whether the backup dialog is up. The store is asked when the app comes
-   *  up, every hour after, and whenever the dialog is opened: what a railroad
-   *  that is not being backed up needs is to reach the person who never opens
-   *  this (#321), on a page that may stay open for days (#691). */
-  @state() private backingUp = false;
-
-  /** Whether the settings dialog is up: loading a railroad, and the way into
-   *  backup (ADR-0072). The list of railroads is asked for again each time it
-   *  opens, so a railroad another page made is there to load. */
+  /** Whether the settings dialog is up: loading a railroad, and backup in its
+   *  Backup tab (ADR-0072, #1075). The list of railroads and backup's standing
+   *  are asked for again each time it opens, so a railroad another page made
+   *  is there to load. Backup is asked when the app comes up and every hour
+   *  after as well: what a railroad that is not being backed up needs is to
+   *  reach the person who never opens this (#321), on a page that may stay
+   *  open for days (#691). */
   @state() private settling = false;
+
+  /** The tab Settings opens on: Railroad from the gear, Backup from the
+   *  band's backup note. */
+  @state() private settingsTab: "railroad" | "backup" = "railroad";
 
   /** The page's one session with the broker (`model/session.ts`, #756),
    *  opened as the app comes onto the page and let go of as it leaves. */
@@ -200,11 +202,12 @@ export class TcApp extends LitElement {
     });
     this.wake = new Wake(navigator.wakeLock as WakeLock | undefined, document);
     void this.filing.load();
-    // Asked for the band's note and the File menu's mark rather than for the
-    // dialog: a copy that has been failing for a day, and a railroad that has
-    // never been backed up at all, are both things a person finds out by not
-    // being told. Asked again every hour, so a copy that went behind after
-    // the page loaded still shows on a page left open for days (#688).
+    // Asked for the band's note and the File menu's mark rather than for
+    // the Backup tab: a copy that has been failing for a day, and a railroad
+    // that has never been backed up at all, are both things a person finds
+    // out by not being told. Asked again every hour, so a copy that went
+    // behind after the page loaded still shows on a page left open for days
+    // (#688).
     void this.backing.load();
     this.unwatch = this.backing.watch();
   }
@@ -397,20 +400,9 @@ export class TcApp extends LitElement {
         @picked=${() => this.redraw()}
       ></tc-editor>
 
-      <tc-backup
-        .backing=${this.backingUp ? this.backing : null}
-        .power=${this.status.power}
-        .railroad=${this.status.railroad}
-        .unsaved=${this.unsaved}
-        @backup-closed=${() => {
-          this.backingUp = false;
-        }}
-        @restored=${() => this.restored()}
-        @power-wanted=${(event: CustomEvent<Power>) => this.draining(event.detail)}
-      ></tc-backup>
-
       <tc-settings
         .open=${this.settling}
+        .tab=${this.settingsTab}
         .drawings=${this.filing.drawings}
         .railroad=${this.status.railroad}
         .power=${this.status.power}
@@ -419,15 +411,26 @@ export class TcApp extends LitElement {
         .opened=${this.filing.opened}
         .built=${this.status.built}
         .allocated=${this.status.allocated}
-        .backup=${backupWords(this.backing.standing)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
         @railroad-arrived=${() => this.arrived()}
         @power-wanted=${(event: CustomEvent<Power>) => this.draining(event.detail)}
-        @backup-wanted=${() => this.backingOpen()}
         @settings-closed=${() => {
           this.settling = false;
         }}
-      ></tc-settings>
+      >
+        <tc-backup
+          slot="backup"
+          .backing=${this.settling ? this.backing : null}
+          .power=${this.status.power}
+          .railroad=${this.status.railroad}
+          .unsaved=${this.unsaved}
+          @restored=${() => this.restored()}
+          @power-wanted=${(event: CustomEvent<Power>) => {
+            event.stopPropagation();
+            this.draining(event.detail);
+          }}
+        ></tc-backup>
+      </tc-settings>
       </look-shell>
     `;
   }
@@ -470,7 +473,7 @@ export class TcApp extends LitElement {
               data-backup
               word=${note.says}
               label=${note.why}
-              @look-press=${() => this.backingOpen()}
+              @look-press=${() => this.settingsOpen("backup")}
             ></look-band-press>`}
         <tc-band-clock
           .clock=${this.clock}
@@ -485,7 +488,7 @@ export class TcApp extends LitElement {
           @look-power=${(event: CustomEvent<{ state: PowerState }>) =>
             void this.supplying(event.detail.state)}
         ></look-power>
-        <look-gear @look-press=${() => this.settingsOpen()}></look-gear>
+        <look-gear @look-press=${() => this.settingsOpen("railroad")}></look-gear>
       </look-band>
     `;
   }
@@ -661,24 +664,19 @@ export class TcApp extends LitElement {
 
   // --- settings and backup -------------------------------------------------
 
-  /** The gear was pressed. The store's list is asked for again, so the dialog
-   *  lists what is there now and not what was there when the page loaded. */
-  private settingsOpen(): void {
+  /** Settings, on `tab`: the gear opens it on Railroad and the band's backup
+   *  note on Backup (#688, #1075). The store's list and backup's standing are
+   *  asked for again, so the dialog shows what is there now and not what was
+   *  there when the page loaded, the note's reading being up to an hour old. */
+  private settingsOpen(tab: "railroad" | "backup"): void {
+    this.settingsTab = tab;
     this.settling = true;
     void this.filing.load();
-  }
-
-  /** The backup dialog, from the settings dialog's Backup… or the band's note
-   *  (#688). The settings dialog goes as it comes up: one modal at a time. The
-   *  store is asked afresh, the note's reading being up to an hour old. */
-  private backingOpen(): void {
-    this.settling = false;
-    this.backingUp = true;
     void this.backing.load();
   }
 
-  /** What the band says about backup, and why: the same words `Settings ▸
-   *  Backup…` wears (`model/commands.ts`), `null` where it says nothing. */
+  /** What the band says about backup, and why (`model/commands.ts`), `null`
+   *  where it says nothing. */
   private backupNote(): { says: string; why: string } | null {
     const says = backupWords(this.backing.standing);
     return says === null ? null : { says, why: this.backing.why ?? says };
@@ -886,7 +884,7 @@ export class TcApp extends LitElement {
     // The stock view holds the same `Railroad`, and the `Stock` inside it
     // keeps its identity across an edit and a Save.
     this.renderRoot.querySelector<TcStock>("tc-stock")?.requestUpdate();
-    // The dialog holds the same `Backing` across a press, so Lit sees no
+    // The Backup tab holds the same `Backing` across a press, so Lit sees no
     // changed property and would draw what git said before it said it.
     this.renderRoot.querySelector<TcBackup>("tc-backup")?.requestUpdate();
   }
@@ -908,13 +906,12 @@ export class TcApp extends LitElement {
     ) {
       return;
     }
-    // The backup dialog is up, so the keyboard is the dialog's: `r` behind a
-    // modal must not rotate the selection under it, and Escape clearing the
+    // The settings dialog is up, so the keyboard is the dialog's: `r` behind
+    // a modal must not rotate the selection under it, and Escape clearing the
     // selection while taking the dialog down is the same bug the open menu
-    // has below. Shoelace closes on Escape itself, and `backup-closed` comes
-    // back from that. The settings dialog is a modal the same way, and
-    // `settings-closed` comes back the same way.
-    if (this.backingUp || this.settling) return;
+    // has below. Shoelace closes on Escape itself, and `settings-closed`
+    // comes back from that.
+    if (this.settling) return;
     // Nothing on the rail or the band comes down over the work, so there is no
     // state in which the keyboard belongs to the chrome (ADR-0073).
     const meta = event.metaKey || event.ctrlKey;

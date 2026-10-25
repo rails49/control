@@ -5,10 +5,10 @@
  *
  * Three parts. The model against a fake store, because what it holds — git's
  * words, a refusal that is not a failure, the store not answering at all — has
- * nothing to do with HTTP (EDITOR.md#tests). Then the dialog, which decides
- * nothing and is asked only what it draws for the answer it is handed and what
- * it presses. Then the paths through the app: `Settings ▸ Backup…` and the
- * band's note open it, and nothing is asked of git until one does.
+ * nothing to do with HTTP (EDITOR.md#tests). Then the settings dialog's Backup
+ * tab, which decides nothing and is asked only what it draws for the answer it
+ * is handed and what it presses. Then the paths through the app: the gear and
+ * the band's note open Settings, the note on its Backup tab (#1075).
  */
 
 import type { LookBandPress } from "@rails49/look";
@@ -255,7 +255,7 @@ function press(surface: TcBackup, label: string): void {
   (found as HTMLElement).click();
 }
 
-/** The footer's Restore press. */
+/** The Restore press, beneath the backups. */
 function restoring(surface: TcBackup): HTMLButtonElement {
   return [...surface.renderRoot.querySelectorAll("sl-button")].find((button) =>
     (button.textContent ?? "").includes("Restore"),
@@ -266,7 +266,29 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("the backup dialog", () => {
+describe("the Backup tab", () => {
+  /** Everything the backup dialog held, drawn without a dialog of its own:
+   *  Settings is the dialog (#1075). */
+  it("draws the store, its presses, its backups and Restore, in no dialog", async () => {
+    const { dialog: surface } = await dialog();
+    expect(surface.renderRoot.querySelector("look-dialog")).toBeNull();
+    expect(reads(surface)).toContain("/home/somebody/tc49");
+    expect(reads(surface)).toContain("Back up now");
+    expect(reads(surface)).toContain("Turn automatic backup on");
+    expect(surface.renderRoot.querySelectorAll("ul.backups button")).toHaveLength(2);
+    const restore = restoring(surface);
+    expect(restore.getAttribute("variant")).toBe("warning");
+    expect(restore.hasAttribute("slot")).toBe(false);
+    expect(restore.closest(".restore")).not.toBeNull();
+  });
+
+  it("draws nothing without backing", async () => {
+    const { dialog: surface } = await dialog();
+    surface.backing = null;
+    await surface.updateComplete;
+    expect(reads(surface)).toBe("");
+  });
+
   it("says where the store is and what is waiting to be backed up", async () => {
     const { dialog: surface } = await dialog();
     expect(reads(surface)).toContain("/home/somebody/tc49");
@@ -549,7 +571,6 @@ describe("the backup dialog", () => {
     it("restores nothing once closed", async () => {
       const { dialog: surface, store, asked } = await draining();
 
-      press(surface, "Close");
       surface.backing = null;
       await surface.updateComplete;
       surface.power = "off";
@@ -612,6 +633,26 @@ describe("the backup dialog", () => {
     expect(restoring(surface).disabled).toBe(false);
   });
 
+  /** The press reaches the store's route, through the app's own client. */
+  it("sends the picked backup to POST /backup/restore", async () => {
+    serving({ backup: KEPT });
+    const sent = requests();
+    const surface = document.createElement("tc-backup");
+    surface.railroad = "";
+    document.body.append(surface);
+    const held = new Backing(() => surface.requestUpdate());
+    await held.load();
+    surface.backing = held;
+    await surface.updateComplete;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+
+    press(surface, "Restore");
+    await new Promise((settle) => setTimeout(settle, 0));
+
+    expect(sent).toContain("POST /backup/restore");
+  });
+
   it("says a restore that worked, and only one that worked", async () => {
     const { dialog: surface, store } = await dialog();
     let restored = 0;
@@ -630,16 +671,6 @@ describe("the backup dialog", () => {
     await new Promise((settle) => setTimeout(settle, 0));
     expect(restored).toBe(1);
   });
-
-  it("says it was closed rather than closing anything itself", async () => {
-    const { dialog: surface } = await dialog();
-    let closed = 0;
-    surface.addEventListener("backup-closed", () => {
-      closed += 1;
-    });
-    press(surface, "Close");
-    expect(closed).toBe(1);
-  });
 });
 
 describe("the app's way in", () => {
@@ -651,56 +682,65 @@ describe("the app's way in", () => {
     document.body.replaceChildren();
   });
 
-  /** A person who never opens it has no interest in git, and a page that
-   *  asked anyway would put a `git` process behind every reload. */
-  it("asks the store nothing about git until the dialog is opened", async () => {
-    const shell = await mounted();
-    expect(open(shell)).toBeNull();
-
-    await chooseBackup(shell);
-
-    expect(open(shell)).not.toBeNull();
-    expect(reads(open(shell)!)).toContain("/home/somebody/tc49");
-  });
-
-  /** One modal at a time: the settings dialog goes as backup's comes up. */
-  it("closes Settings as it opens the backup dialog", async () => {
-    const shell = await mounted();
-    await chooseBackup(shell);
-
-    expect(open(shell)).not.toBeNull();
-    expect(settings(shell).open).toBe(false);
-  });
-
-  /** The band note's words, beside the press that opens what they are
-   *  about, and the press is never dead. */
-  it("wears the band note's words beside Backup…", async () => {
-    serving({ drawings: ["reversing-loops"], backup: UNBACKED });
+  /** The gear opens Settings on Railroad, as it did before the Backup tab
+   *  held anything (#899). */
+  it("opens Settings on Railroad from the gear", async () => {
     const shell = await mounted();
     const dialog = await settingsOpened(shell);
 
-    expect(dialog.renderRoot.querySelector(".note")?.textContent?.trim()).toBe(
-      "no backup set up",
-    );
-    expect(backupPress(dialog).hasAttribute("disabled")).toBe(false);
+    expect(dialog.open).toBe(true);
+    expect(activeTab(dialog)).toBe("Railroad");
   });
 
-  it("says nothing beside Backup… of a store backing up as it should", async () => {
-    serving({ drawings: ["reversing-loops"], backup: { ...KEPT, automatic: true } });
-    const shell = await mounted();
-    const dialog = await settingsOpened(shell);
-
-    expect(dialog.renderRoot.querySelector(".note")).toBeNull();
-  });
-
-  it("shuts it again when the dialog says it was closed", async () => {
-    const shell = await mounted();
-    await chooseBackup(shell);
-    open(shell)!.dispatchEvent(
-      new CustomEvent("backup-closed", { bubbles: true, composed: true }),
-    );
+  /** The band's note opens Settings on its Backup tab, drawing what the
+   *  store answered (#1075). */
+  it("opens Settings on Backup from the band's note", async () => {
+    serving({ drawings: ["reversing-loops"], backup: { ...KEPT, root: "/srv/noted" } });
+    const shell = await mounted("run");
+    pressOn(band(shell).querySelector<LookBandPress>("look-band-press[data-backup]")!);
     await settled(shell);
 
+    expect(settings(shell).open).toBe(true);
+    expect(activeTab(settings(shell))).toBe("Backup");
+    expect(reads(open(shell)!)).toContain("/srv/noted");
+  });
+
+  /** Opening Settings asks the store afresh, so the tab draws what it says
+   *  now rather than what it said up to an hour ago. */
+  it("asks the store where backup stands each time Settings opens", async () => {
+    const store = serving({ drawings: ["reversing-loops"], backup: KEPT });
+    const shell = await mounted();
+    store.backup = { ...KEPT, root: "/srv/moved" };
+    await chooseBackup(shell);
+
+    expect(reads(open(shell)!)).toContain("/srv/moved");
+  });
+
+  /** Being in one dialog only to be sent to another was a step that did
+   *  nothing, and it went (#1075). */
+  it("puts up no backup dialog of its own", async () => {
+    const shell = await mounted();
+    const dialogs = (): string[] =>
+      [
+        ...shell.renderRoot.querySelectorAll("look-dialog"),
+        ...settings(shell).renderRoot.querySelectorAll("look-dialog"),
+      ].map((one) => one.getAttribute("label") ?? "");
+    expect(dialogs()).not.toContain("Backup");
+    await chooseBackup(shell);
+    expect(open(shell)).not.toBeNull();
+    expect(dialogs()).not.toContain("Backup");
+    expect(open(shell)!.renderRoot.querySelector("look-dialog")).toBeNull();
+  });
+
+  it("shows nothing of backup once Settings is closed", async () => {
+    const shell = await mounted();
+    await chooseBackup(shell);
+    settings(shell)
+      .renderRoot.querySelector("look-dialog")!
+      .dispatchEvent(new Event("sl-after-hide"));
+    await settled(shell);
+
+    expect(settings(shell).open).toBe(false);
     expect(open(shell)).toBeNull();
   });
 });
@@ -740,7 +780,7 @@ describe("what a restore would discard", () => {
 
 /**
  * The run view's note: backup that is not running, said where a person
- * running trains is looking, and one press from its dialog (#688).
+ * running trains is looking, and one press from Settings ▸ Backup (#688).
  */
 describe("the note in the band", () => {
   afterEach(() => {
@@ -783,7 +823,7 @@ describe("the note in the band", () => {
     expect(note(shell)).toBeNull();
   });
 
-  it("opens the backup dialog when pressed", async () => {
+  it("opens Settings on Backup when pressed", async () => {
     serving({ drawings: ["reversing-loops"], backup: UNBACKED });
     const shell = await mounted("run");
     pressOn(note(shell)!);
@@ -967,6 +1007,34 @@ describe("what follows a restore", () => {
     ]);
   });
 
+  /** Closing Settings while the drain is out gives the wait up and leaves
+   *  power as it is: the restore is never sent (ADR-0085, decision 5). */
+  it("restores nothing once Settings is closed before the track reads off", async () => {
+    const shell = await joined("edit");
+    await said(shell, "tc49/layout/state/power", { power: "on" });
+    serving({ drawings: ["toy"], backup: RESTORED });
+    const sent = requests();
+    await chooseBackup(shell);
+    const surface = open(shell)!;
+    surface.renderRoot.querySelectorAll<HTMLButtonElement>("ul.backups button")[1]!.click();
+    await surface.updateComplete;
+    press(surface, "Restore");
+    await settled(shell);
+
+    settings(shell)
+      .renderRoot.querySelector("look-dialog")!
+      .dispatchEvent(new Event("sl-after-hide"));
+    await settled(shell);
+    await said(shell, "tc49/layout/state/power", { power: "off" });
+    await settled(shell);
+    await new Promise((settle) => setTimeout(settle, 0));
+
+    expect(sent).not.toContain("POST /backup/restore");
+    expect(written()).toEqual([
+      { topic: "tc49/layout/power_wanted", payload: { power: "draining" } },
+    ]);
+  });
+
   it("reloads the page with no railroad loaded, naming none", async () => {
     serving({ drawings: [], backup: RESTORED });
     const shell = await mounted("edit");
@@ -1006,25 +1074,35 @@ describe("what follows a restore", () => {
   });
 });
 
-/** The dialog the app has up, `null` while it has none. */
+/** Every request the page sends from here, as `METHOD path`, through the
+ *  store `serving` put behind `fetch`. */
+function requests(): string[] {
+  const sent: string[] = [];
+  const inner = globalThis.fetch;
+  globalThis.fetch = ((path: string, init?: RequestInit) => {
+    sent.push(`${init?.method ?? "GET"} ${path}`);
+    return inner(path, init);
+  }) as typeof fetch;
+  return sent;
+}
+
+/** The Backup tab the app has up, `null` while Settings is shut. */
 function open(shell: TcApp): TcBackup | null {
   const surface = shell.renderRoot.querySelector<TcBackup>("tc-backup");
   return surface === null || surface.backing === null ? null : surface;
 }
 
-/** Settings ▸ Backup…, the way a pointer presses it: the gear on the band,
- *  and the one button in the dialog's backup part (ADR-0072). */
+/** Settings ▸ Backup, the way a pointer gets there: the gear on the band,
+ *  and the dialog's Backup tab (ADR-0072, #1075). */
 async function chooseBackup(shell: TcApp): Promise<void> {
   const dialog = await settingsOpened(shell);
-  backupPress(dialog).click();
+  dialog.renderRoot.querySelector("sl-tab-group")!.show("backup");
   await settled(shell);
 }
 
-/** The settings dialog's Backup…. */
-function backupPress(dialog: TcSettings): HTMLElement {
-  return [...dialog.renderRoot.querySelectorAll<HTMLElement>("sl-button")].find(
-    (one) => one.textContent!.trim() === "Backup…",
-  )!;
+/** The tab Settings shows, by its label. */
+function activeTab(dialog: TcSettings): string | null {
+  return dialog.renderRoot.querySelector("sl-tab[active]")?.textContent?.trim() ?? null;
 }
 
 /**

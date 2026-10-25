@@ -1,9 +1,9 @@
 import { css } from "lit";
 
 /**
- * The backup dialog (`tc-backup`).
+ * The settings dialog's Backup tab (`tc-backup`).
  *
- * Three registers, and they are the three the dialog is made of: what is
+ * Three registers, and they are the three the tab is made of: what is
  * quietly true reads as a hint, what git said reads as itself, and a refusal
  * reads in the red that marks anything else that stopped
  * ([ADR-0024](../../../docs/adr/0024-the-drawing-shows-its-own-faults.md)).
@@ -11,8 +11,8 @@ import { css } from "lit";
  * are quoted and not written here.
  *
  * A backup is a row that is chosen rather than one that acts where it is
- * clicked: restoring takes the press in the footer, so the row only has to
- * show which one the press is about.
+ * clicked: restoring takes the press beneath the list, so the row only has
+ * to show which one the press is about.
  */
 export const backupStyles = css`
   .root {
@@ -51,6 +51,12 @@ export const backupStyles = css`
     display: flex;
     gap: 0.5rem;
     margin: 0.8rem 0 0.2rem;
+  }
+
+  .restore {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0.8rem 0 0;
   }
 
   .adopt {
