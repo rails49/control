@@ -16,12 +16,12 @@ becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
 **Everything the bus hands it is read and never trusted** (BUS.md, rule 4).
-Thirteen topics from six publishers — the detectors joining them with the fold
+Fourteen topics from six publishers — the detectors joining them with the fold
 (#288), the throttle's four gestures and the driving mode coming from where
-a person's press already does (#297, ADR-0079, #849), and the moving row a
-drain ends on (ADR-0078) — and the function rows it writes, read back
-(below), none of which this app answers — it reports
-observations — so a frame that cannot be read is **dropped**, silently and to
+a person's press already does (#297, ADR-0079, #849), the moving row a
+drain ends on (ADR-0078), and the dispatcher asking for a move back (#1068) —
+and the function rows it writes, read back (below). It answers none of them
+but that ask — it reports observations — so a frame that cannot be read is **dropped**, silently and to
 the trace, and a command the layout contradicts goes the same way. Raising on
 one would take the app running the railroad down at the whim of whoever
 published it. The reading is `lib.payload`'s and whether the names name
@@ -215,6 +215,7 @@ from tc49.lib.payload import (
     wanted_function,
     wanted_take,
     wanted_throttle,
+    withdrawal,
 )
 from tc49.lib.power import TrackPower
 from tc49.lib.roster import FORWARD, MOMENTARY, Roster
@@ -223,6 +224,8 @@ _log = logging.getLogger(__name__)
 
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
+WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
+MOVE_WITHDRAWN = "tc49/layout/move_withdrawn"
 POWER_WANTED = "tc49/layout/power_wanted"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 TAKE_WANTED = "tc49/layout/take_wanted"
@@ -291,7 +294,8 @@ class _Crossing:
     `train` is who is crossing, and it is here so that a train can be found by
     name: taking one in a throttle or giving it back has to reach the move it
     is in the middle of, and nothing else about a crossing says whose it is
-    (#297).
+    (#297). `transit` is what it crosses, qualified, which is how a
+    `withdraw_wanted` names the move it asks back (#1068).
 
     `implied` is what this move is worth on each addressed car — the speed the
     grant implies, which is what a train is given when this app takes up its
@@ -318,6 +322,7 @@ class _Crossing:
     origin: str
     far: str
     train: str
+    transit: str
     implied: tuple[tuple[str, float], ...] = ()
     heading: float = 0.0
     driving: bool = True
@@ -461,6 +466,13 @@ class LayoutInterface:
         # The moves granted while the rails are dead, one per transit, each
         # put back through the rules when `state/power` next reads `on`.
         self._kept: dict[str, Command] = {}
+        # What a `withdraw_wanted` is judged on (#1068): the transit of each
+        # train's last move acted on, the trains given a non-zero speed since,
+        # and the move each train is not to be sent over, asked back before
+        # its `move` arrived.
+        self._acted: dict[str, str] = {}
+        self._driven: set[str] = set()
+        self._withdrawing: dict[str, str] = {}
         # The occupancy fold: the settled level at each block end, the level
         # each end has most recently said (which is what makes the log of an
         # `unknown` once per transition into it), the levels waiting out the
@@ -502,6 +514,7 @@ class LayoutInterface:
         # *after* the supply this app states (ADR-0059, decision 5).
         bus.subscribe(ALIGN, self._on_align)
         bus.subscribe(MOVE, self._on_move)
+        bus.subscribe(WITHDRAW_WANTED, self._on_withdraw_wanted)
         bus.subscribe(POWER_WANTED, self._on_power_wanted)
         bus.subscribe(DRIVING_WANTED, self._on_driving_wanted)
         bus.subscribe(TAKE_WANTED, self._on_take_wanted)
@@ -660,7 +673,68 @@ class LayoutInterface:
         commanded = command(payload)
         if commanded is None:
             return
+        # The train's next move, whichever it is, ends a withdrawal waiting
+        # for one; the one it names is dropped (#1068).
+        if self._withdrawing.pop(commanded.train, None) == commanded.transit_id:
+            return
         self._cross(commanded)
+
+    def _on_withdraw_wanted(self, topic: str, payload: Payload) -> None:
+        """The dispatcher asking for the move a cancelled request has
+        outstanding back, which is given where nothing has driven the train
+        since this app acted on it (#1068).
+
+        A turnout usually has no detector, so the dispatcher cannot tell a
+        train that never left its block from one stopped halfway across the
+        points, and releasing the points under the second routes another
+        train over it. This app can: every speed a train is given passes
+        through it, the move's own and a throttle's. "Driven" is a non-zero
+        speed written to any of the train's addressed cars since the move
+        was acted on; one reading `0.0` now may still have moved.
+
+        A move held for its `align`, a facing or the power has not been acted
+        on, so it is never driven. Taken back, it is dropped as `_forget`
+        drops it, the train given `0.0` unless a throttle holds it, and
+        `move_withdrawn` says so. A move acted on and driven since, or one
+        already carried out, gets no answer: the cancel waits for the
+        sensors. A move not here yet — the driver's `move` and this ask are
+        two writers', in no order — is answered at once and dropped when it
+        comes, unless the train's next move is another or a placement or a
+        removal lands first."""
+        wanted = withdrawal(payload)
+        if wanted is None:
+            return
+        train, transit = wanted.train, wanted.transit
+        for waiting in (self._held, self._unfaced, self._kept):
+            held = waiting.get(transit)
+            if held is not None and held.train == train:
+                del waiting[transit]
+                self._withdraw(train, transit)
+                return
+        crossed = [
+            (block, crossing)
+            for block, crossing in self._crossing.items()
+            if crossing.train == train and crossing.transit == transit
+        ]
+        if crossed:
+            block, crossing = crossed[-1]
+            if not crossing.outstanding or train in self._driven:
+                return
+            del self._crossing[block]
+            self._position[train] = crossing.origin
+            self._withdraw(train, transit)
+            return
+        if self._acted.get(train) == transit:
+            return
+        self._withdrawing[train] = transit
+        self._withdraw(train, transit)
+
+    def _withdraw(self, train: str, transit: str) -> None:
+        """A move taken back: the train told to stand, unless the speed is a
+        throttle's, and the dispatcher told the train never left."""
+        if train not in self._taken:
+            self._stop(train)
+        self._bus.publish(MOVE_WITHDRAWN, {"train": train, "transit": transit})
 
     def _cross(self, commanded: Command) -> None:
         """The three rules, in the order a command meets them, applied at the
@@ -751,10 +825,15 @@ class LayoutInterface:
         # waits for one of its own (#305).
         self._aligned.discard(transit)
         self._position[commanded.train] = commanded.into
+        # Acted on: from here a speed written for the train is one that may
+        # have taken it onto the points (#1068).
+        self._acted[commanded.train] = transit
+        self._driven.discard(commanded.train)
         crossing = _Crossing(
             origin=block_of(near),
             far=opposite_end(entered),
             train=commanded.train,
+            transit=transit,
             implied=wheels,
             heading=heading,
             driving=driving,
@@ -898,6 +977,8 @@ class LayoutInterface:
         self._crossing[block] = replace(crossing, driving=True)
         if crossing.implied:
             self._headed(crossing.train, crossing.heading)
+        if any(speed != 0.0 for _addr, speed in crossing.implied):
+            self._driven.add(crossing.train)
         for addr, speed in crossing.implied:
             self._traction_write(addr, speed)
 
@@ -1221,6 +1302,8 @@ class LayoutInterface:
                 self._traction_write(addr, 0.0)
             return
         self._headed(train, turned.speed)
+        if turned.speed != 0.0 and addressed:
+            self._driven.add(train)
         for addr, speed in _composed(addressed, turned.speed >= 0.0, abs(turned.speed)):
             self._traction_write(addr, speed)
 
@@ -1402,7 +1485,12 @@ class LayoutInterface:
 
     def _forget(self, train: str) -> None:
         """Every move of the train's this app holds dropped: its crossings, and
-        the moves waiting on an `align`, a facing or the power."""
+        the moves waiting on an `align`, a facing or the power. With them goes
+        what a `withdraw_wanted` is judged on: a train set down by hand starts
+        a fresh account (#1068)."""
+        self._acted.pop(train, None)
+        self._driven.discard(train)
+        self._withdrawing.pop(train, None)
         self._crossing = {
             block: crossing
             for block, crossing in self._crossing.items()
