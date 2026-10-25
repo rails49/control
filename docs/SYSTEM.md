@@ -1266,7 +1266,9 @@ train stands in — a hand putting a locomotive down, a train pushed while the
 power was off, a detector asserting on dirt — says the table has stopped
 describing the steel. While power reads `on` the dispatcher publishes
 `tc49/layout/power_wanted` `{power: draining}`, as a person's press would, and
-stops committing over the table once `layout` answers.
+grants nothing from that moment: power still reads `on` until `layout`
+answers, and the hold lasts until `state/power` reads anything else or a
+person presses `on` ([#1087](https://github.com/rails49/control/issues/1087)).
 It guesses nothing: occupancy is anonymous, so there is no train to place. It
 does not raise either, a payload never being a reason to leave the bus
 (rule 4).

@@ -415,7 +415,10 @@ train stands in, says the table has stopped describing the steel — a hand
 putting a locomotive down, a train pushed while the supply was off, a detector
 asserting on dirt. While power reads `on` the dispatcher publishes
 `tc49/layout/power_wanted` `{power: draining}`, the press a person makes for an
-ordinary shutdown, and stops routing once `layout` answers. Nothing is
+ordinary shutdown, and grants nothing from then on. Power reads `on` until
+`layout` answers, so the dispatcher holds its grants until `state/power`
+reads anything else or a person presses `on`
+([#1087](https://github.com/rails49/control/issues/1087)). Nothing is
 guessed: occupancy is anonymous, so there is no train to place. It does not
 raise, a payload never being a reason to leave the bus (BUS.md, rule 4).
 
