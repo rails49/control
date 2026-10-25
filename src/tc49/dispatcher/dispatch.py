@@ -61,6 +61,7 @@ from tc49.lib.payload import (
     readable_id,
     wanted_point,
     wanted_reorder,
+    withdrawal,
 )
 from tc49.lib.rejection import PlacementRefusal, Reason
 from tc49.lib.roster import Roster
@@ -71,6 +72,8 @@ from tc49.lib.roster import Roster
 ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
 POWER = "tc49/layout/state/power"
+WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
+"""Where a deferred cancel asks `layout` to take its move back (#1068)."""
 POWER_WANTED = "tc49/layout/power_wanted"
 """Where a fault asks `layout` for a drain, as a person's press would
 (ADR-0078)."""
@@ -1393,7 +1396,8 @@ class Dispatcher:
         when that move's sensors end it (`_ended`). The requests chained after
         it by then are cancelled `revoked` as it ends; one chained after it
         once the cancel was asked departs from where the train stops
-        (`_follow`, #836). An id the
+        (`_follow`, #836). The deferral asks `layout` to take the move back,
+        and ends at once where it does (`_withdrawn`, #1068). An id the
         dispatcher does not hold is dropped in silence and to the trace, as
         every gesture it cannot act on is (ADR-0034).
 
@@ -1415,8 +1419,14 @@ class Dispatcher:
             req.revoking = frozenset(each.id for each in self._followers(req))
             if active.outstanding is not None:
                 # Deferred: it frees nothing yet and dequeues nothing, so
-                # there is nothing for a sweep to hand anybody.
+                # there is nothing for a sweep to hand anybody. `layout` is
+                # asked to take the move back, which it does where nothing
+                # has driven the train since (`_withdrawn`, #1068).
                 req.cancelled = True
+                self._bus.publish(
+                    WITHDRAW_WANTED,
+                    {"train": req.train, "transit": active.outstanding.transit},
+                )
                 return
             self._retire(req.train, active, Cancellation.REVOKED)
         else:
@@ -1428,6 +1438,33 @@ class Dispatcher:
         # What a cancelled route was holding is exactly what somebody else
         # has been refused for, and a request that waited can have been
         # what kept its train's next one from starting (ADR-0047).
+        self._sweep()
+
+    def _withdrawn(self, payload: Payload) -> None:
+        """`layout` took back the move a cancelled request had outstanding:
+        nothing had driven the train since it acted on the move, so the train
+        never left its block (#1068).
+
+        The request retires as the move's sensors would have retired it
+        (`_ended`), `revoked`, keeping only the block the train stands in,
+        which is the move's origin: the train is put back where it was before
+        the grant, so a request chained after it departs from there. Anything
+        else is dropped — a request not cancelled, a move not outstanding, a
+        transit other than the one it crosses — the answer being about a move
+        this dispatcher no longer holds."""
+        withdrawn = withdrawal(payload)
+        if withdrawn is None:
+            return
+        active = self._state.active.get(withdrawn.train)
+        if active is None or not active.request.cancelled:
+            return
+        move = active.outstanding
+        if move is None or move.transit != withdrawn.transit:
+            return
+        active.outstanding = None
+        active.cur_index -= 1
+        del self._state.crossing[withdrawn.train]
+        self._retire(withdrawn.train, active, Cancellation.REVOKED)
         self._sweep()
 
     def _reorder(self, payload: Payload) -> None:
@@ -1548,10 +1585,14 @@ class Dispatcher:
         `align` and `move` are on this filter because they name the component
         that responds to them, and the dispatcher is not that component: the
         sensor leaves are named here so a command passes by unread rather
-        than being taken for a reading with no block in it.
+        than being taken for a reading with no block in it. So is its own
+        `withdraw_wanted`, and `layout`'s answer to it, `move_withdrawn`, is
+        read (#1068).
         """
         leaf = topic.rsplit("/", 1)[-1]
-        if leaf == "power":
+        if leaf == "move_withdrawn":
+            self._withdrawn(payload)
+        elif leaf == "power":
             # An older value of the supply than the one already held means
             # the wire handed the pair over backwards: it is ignored, and
             # quietly — the trace has it, as it has every frame. The sensor

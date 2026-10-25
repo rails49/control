@@ -290,8 +290,10 @@ def test_a_deferred_cancellation_sweeps_nothing_either() -> None:
 
     cancel(assembly, request)
 
+    # The one thing it says is to `layout`, asking for the move back (#1068).
     assert [line["event"] for line in events(assembly.trace[len(before) :])] == [
-        "cancel_wanted"
+        "cancel_wanted",
+        "withdraw_wanted",
     ]
     assert len(leaves(assembly, "grant_refused")) == refusals
 
@@ -405,3 +407,110 @@ def test_a_drag_chained_after_a_waiting_request_is_cancelled_with_it() -> None:
         (first, "revoked"),
         (second, "revoked"),
     ]
+
+
+# -- a move nothing has driven, taken back (#1068) ----------------------------
+
+WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
+MOVE_WITHDRAWN = "tc49/layout/move_withdrawn"
+
+
+def granted(assembly: Assembly) -> str:
+    """The transit of the move last granted."""
+    return str(last(assembly, "move_granted")["transit"])
+
+
+def test_a_deferred_cancel_asks_layout_to_take_the_move_back() -> None:
+    """The move cannot be taken back on the dispatcher's word, so it asks the
+    one app that knows whether anything has driven the train since."""
+    assembly = whole_route()
+    request = drag(assembly, "freight_1", "yard_e.A")
+    transit = granted(assembly)
+
+    cancel(assembly, request)
+
+    assert leaves(assembly, "withdraw_wanted") == [
+        {
+            "time": 0.0,
+            "event": "withdraw_wanted",
+            "train": "freight_1",
+            "transit": transit,
+        }
+    ]
+
+
+def test_a_cancel_with_no_move_outstanding_asks_for_no_withdrawal() -> None:
+    assembly = whole_route()
+    request = drag(assembly, "freight_1", "yard_e.A")
+    ticks(assembly, 2, at={0: power(OFF)})
+
+    cancel(assembly, request)
+
+    assert leaves(assembly, "withdraw_wanted") == []
+
+
+def test_a_move_withdrawn_retires_the_cancelled_request_at_once() -> None:
+    """Drag, cancel, and no sensor ever changes, as in `manual` with no
+    throttle on the train: `layout`'s answer ends it, and the train keeps only
+    the block it never left."""
+    assembly = whole_route()
+    request = drag(assembly, "freight_1", "yard_e.A")
+    cancel(assembly, request)
+    assert cancellations(assembly) == []
+
+    press(
+        assembly, MOVE_WITHDRAWN, {"train": "freight_1", "transit": granted(assembly)}
+    )
+
+    assert [(c["id"], c["reason"]) for c in cancellations(assembly)] == [
+        (request, "revoked")
+    ]
+    assert [r for r, by in locks(assembly).items() if by == "freight_1"] == ["yard_w"]
+
+
+def test_after_the_withdrawal_nothing_is_moving_or_crossing() -> None:
+    """So a drain asked now ends, which it never did while the cancel waited."""
+    assembly = whole_route()
+    request = drag(assembly, "freight_1", "yard_e.A")
+    cancel(assembly, request)
+
+    press(
+        assembly, MOVE_WITHDRAWN, {"train": "freight_1", "transit": granted(assembly)}
+    )
+
+    assert leaves(assembly, "moving")[-1]["moving"] is False
+    assert "freight_1" not in last(assembly, "allocation")["crossing"]
+
+
+def test_a_move_withdrawn_for_a_request_not_cancelled_changes_nothing() -> None:
+    assembly = whole_route()
+    drag(assembly, "freight_1", "yard_e.A")
+    before = len(assembly.trace.splitlines())
+
+    press(
+        assembly, MOVE_WITHDRAWN, {"train": "freight_1", "transit": granted(assembly)}
+    )
+
+    assert [line["event"] for line in events(assembly.trace)[before:]] == [
+        "move_withdrawn"
+    ]
+
+
+def test_a_move_withdrawn_for_another_transit_changes_nothing() -> None:
+    assembly = whole_route()
+    request = drag(assembly, "freight_1", "yard_e.A")
+    cancel(assembly, request)
+    before = len(assembly.trace.splitlines())
+
+    for payload in (
+        {"train": "freight_1", "transit": "east_ladder.from_dn"},
+        {"train": "express_2", "transit": granted(assembly)},
+        {"train": "freight_1"},
+    ):
+        press(assembly, MOVE_WITHDRAWN, cast(Payload, payload))
+
+    assert [line["event"] for line in events(assembly.trace)[before:]] == [
+        "move_withdrawn"
+    ] * 3
+    ticks(assembly, 2)  # the move runs to its sensors, as it did before
+    assert [c["id"] for c in cancellations(assembly)] == [request]
