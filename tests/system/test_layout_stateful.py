@@ -13,7 +13,9 @@ link — whatever was asked for, including readings no train caused.
 Each step is one publish and a drain, or time passing and the settling it
 drives. After every message the invariants over what the bus shows hold
 (`tests/invariants.py`, ADR-0096), and no handler raises — bar ADR-0062's
-drain rule, left out for `test_on_ending_a_drain_over_a_dead_link`.
+drain rule, left out for `test_on_ending_a_drain_over_a_dead_link`, and
+ADR-0079's rule of a train standing in `manual` and ADR-0081's of a release
+in `automatic`, left out for the three xfail tests after it.
 """
 
 import unittest
@@ -69,6 +71,13 @@ ADDRS = sorted({point["addr"] for way in POINTS.values() for point in way})
 DRAIN_OVER_A_DEAD_LINK = frozenset({"adr_0062_drain_ends_at_a_stand"})
 """Left out of the checks for `test_on_ending_a_drain_over_a_dead_link`."""
 
+PLACED_WHILE_RUNNING = frozenset(
+    {"adr_0079_manual_untaken_stands", "adr_0081_release_in_automatic"}
+)
+"""Left out of the checks for `test_on_placing_a_running_train_in_manual`,
+`test_on_releasing_a_train_placed_while_running` and
+`test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive`."""
+
 
 def assembled(
     without: frozenset[str] = frozenset(),
@@ -111,6 +120,75 @@ def test_on_ending_a_drain_over_a_dead_link() -> None:
     press(POWER_WANTED, {"power": "on"})
 
 
+def started(bus: InProcessBus) -> None:
+    """`single` in dn_e on a live railroad in `automatic`, running its move
+    to up_w."""
+    press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "dn_e"})
+    press(bus, POWER_WANTED, {"power": "on"})
+    press(bus, DEVICE_TRACK, {"power": "on"})
+    press(bus, "tc49/schedule/request_wanted", {"train": "single", "dest": ["up_w.B"]})
+
+
+def press(bus: InProcessBus, topic: str, payload: Payload) -> None:
+    bus.publish(topic, payload)
+    bus.drain()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="ADR-0079: a train placed while running keeps its speed in manual",
+)
+def test_on_placing_a_running_train_in_manual() -> None:
+    """A person lifts `single` mid-move and sets it down, and the dispatcher
+    ends the move. `layout` does not: it keeps the crossing and the speed,
+    so in `manual` with no throttle the train runs on at 0.3. Found by the
+    state machine below.
+    """
+    bus, _app, _clock = assembled()
+    started(bus)
+    press(bus, DRIVING_WANTED, {"driving": MANUAL})
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "dn_e"})
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="ADR-0081: a train placed while running is not stopped on its release",
+)
+def test_on_releasing_a_train_placed_while_running() -> None:
+    """The same placement in `automatic`, then a throttle takes `single` and
+    lets it go. On the bus no move is outstanding, so ADR-0081 has it written
+    0; `layout` still holds the crossing and leaves it running. Found by the
+    state machine below.
+    """
+    bus, _app, _clock = assembled()
+    started(bus)
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "dn_e"})
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": None})
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="ADR-0081: releasing a train off the layout stops a shared locomotive",
+)
+def test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive() -> None:
+    """`single` is released mid-move and keeps running, then its throttle
+    takes `topped`, which stands nowhere, and takes `single` back, letting
+    `topped` go. `layout` writes 0 to `topped`'s cars, and address 3 is the
+    locomotive `single` is running on, so `single` stops mid-move. Found by
+    the state machine below.
+    """
+    bus, _app, _clock = assembled()
+    started(bus)
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
+    press(bus, TAKE_WANTED, {"train": "topped", "throttle": "t-1"})
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
+
+
 @settings(deadline=None, stateful_step_count=40, max_examples=1500)
 class LayoutUnderTheAssembly(RuleBasedStateMachine):
     """One run of the bench railroad, driven one publish at a time."""
@@ -125,8 +203,11 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
         self.layout = railroad()
         self.roster = stock()
         self.minted = []
-        # Narrowed around `test_on_ending_a_drain_over_a_dead_link`.
-        self.bus, self.app, self.clock = assembled(without=DRAIN_OVER_A_DEAD_LINK)
+        # Narrowed around `test_on_ending_a_drain_over_a_dead_link` and the
+        # three tests of a train placed while running and a shared locomotive.
+        self.bus, self.app, self.clock = assembled(
+            without=DRAIN_OVER_A_DEAD_LINK | PLACED_WHILE_RUNNING
+        )
 
         def collect(topic: str, payload: Payload) -> None:
             self.minted.append(str(payload["id"]))
