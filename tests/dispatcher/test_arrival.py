@@ -283,3 +283,52 @@ def test_a_placement_over_a_broken_table() -> None:
 
     assert state.block_of["freight_1"] == "dn_w"
     assert state.locks["dn_w"] == "freight_1"
+
+
+ALLOCATION = "tc49/dispatch/state/allocation"
+
+
+def recorded_before_granted(railroad: Railroad, block: str, into: str) -> bool:
+    """Whether the allocation naming `freight_1` in `block` went out before
+    the `move_granted` taking it into `into`."""
+    said = [(t, dict(p)) for t, p in railroad.said]
+    recorded = next(
+        i
+        for i, (t, p) in enumerate(said)
+        if t == ALLOCATION and p["trains"].get("freight_1") == block
+    )
+    granted = next(
+        i
+        for i, (t, p) in enumerate(said)
+        if t.endswith("/move_granted") and p["into"] == into
+    )
+    return recorded < granted
+
+
+def test_an_arrival_after_the_vacate_is_recorded_before_the_next_grant() -> None:
+    """The scheduler moves facing on the allocation, and `layout` reads that
+    facing for the next `move`, so the allocation recording the arrival goes
+    out first (#1038, #1025, ADR-0052)."""
+    railroad = Railroad()
+    railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
+    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+
+    assert recorded_before_granted(railroad, "dn_w", "dn_e")
+
+
+def test_an_arrival_ending_a_request_is_recorded_before_the_next_ones_grant() -> None:
+    """The same for the first move of a chained request, granted by the
+    sweep of the arrival that completes the one before it."""
+    railroad = Railroad()
+    railroad.request("r-1", "yard_w.B", "dn_w.A", answer=False)
+    railroad.deliver(
+        REQUEST_SUBMITTED,
+        {"id": "r-2", "train": "freight_1", "dest": ["yard_e.A"], "after": "r-1"},
+        answer=False,
+    )
+    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+
+    assert railroad.leaf("request_completed") == [{"id": "r-1"}]
+    assert recorded_before_granted(railroad, "dn_w", "dn_e")

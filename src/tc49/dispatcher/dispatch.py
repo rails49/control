@@ -1661,20 +1661,25 @@ class Dispatcher:
         if its origin has read clear since the grant and still does (ADR-0077,
         #806). Otherwise the move is not over: the tail is still in the origin
         block, the train is between blocks, and it takes no further grant
-        until the vacate ends the move (ADR-0047)."""
+        until the vacate ends the move (ADR-0047).
+
+        Either way the allocation recording the arrival goes out before any
+        grant the arrival leads to: the scheduler moves the train's facing
+        when the allocation names it in the block its move entered, and
+        `layout` reads that facing for the next `move`, dropping one whose
+        facing names another block (#1025, #1038, ADR-0052)."""
         found = self._explained(block)
         if found is None or found[2].into != block:
             self._unexplained()
             return
         train, active, move = found
         self._state.block_of[train] = block
+        # The train is recorded past the signal it left by, which now shows
+        # `stop` (ADR-0093) — before `_ended`'s sweep can grant its next move.
+        self._publish_aspects()
+        self._publish_allocation()
         if active.origin_cleared and self._state.reported.get(move.from_block) is False:
             self._ended(train, active, move)
-        else:
-            # The train is recorded past the signal it left by, which now
-            # shows `stop` (ADR-0093).
-            self._publish_aspects()
-            self._publish_allocation()
 
     def _cleared(self, block: str) -> None:
         """`block_vacated` of a move's origin ends the move once its arrival
