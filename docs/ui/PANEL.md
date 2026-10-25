@@ -271,7 +271,9 @@ points wearing one address lie the same way, and an address no symbol wears is
 ignored. A point stays where its row last left it. An unlit point whose
 position is known is drawn in it, the road the other position offers faint, so
 a turnout shows its straight road or its diverging one and a slip's tick says
-which road it has; one whose position is unknown draws every road plainly. A
+which road it has; one whose position is unknown draws every road plainly.
+Which of a turnout's legs `closed` takes is its `closed_leg`
+([DRAWING.md](../store/DRAWING.md#hardware-ids)). A
 **lit** point (GLOSSARY.md) is drawn with nothing faint: the lit road is the
 position it is being set to, and a lit leg the `align` has not reached yet is
 a route chosen, not a road the point does not offer. The panel infers
