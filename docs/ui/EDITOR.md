@@ -122,6 +122,20 @@ was written. Both presses are dead while the name is blank and for the list's
 reasons below; Copy is also dead with no railroad loaded, saying
 `no railroad is loaded to copy`, that box's first railroad being New's.
 
+**Deleting a railroad is the Railroad tab's too** (#1074). Every row but two
+ends in a trash press, `Delete <name>`: the loaded railroad has none, the
+steel runs it and it is deleted by loading another first, and nor has the
+drawing the page holds. Pressed, the row gives way to the question the
+Shutdown tab asks, `Delete <name>? Its drawing, roster, script and clock go.`,
+with **Delete** and **Cancel**; one row asks at a time, and Cancel sends
+nothing. **Delete** has the store delete the railroad whole
+(`DELETE /railroads/<name>`, which backs the store up first, #1073) and the
+list is asked for again, so the row goes. A refusal — the railroad loaded on
+another page since, or the backup failing — shows the store's words beneath
+the presses, and the row stays. The press is dead while the layout has not
+said what is loaded, while a pick is on its way and while a write is out, and
+waits on nothing about the track, which deleting does not touch.
+
 **It asks and does not load.** Which railroad the apps run is a choice made
 while they run, so a press publishes `tc49/layout/railroad_wanted` and stops
 there; whichever binding of the layout interface is running answers it and
