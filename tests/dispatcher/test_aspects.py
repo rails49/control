@@ -11,6 +11,7 @@ from tc49.dispatcher.dispatch import (
     State,
     aspects,
 )
+from tc49.dispatcher.locking import Move
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
@@ -78,20 +79,75 @@ def test_the_aspect_is_how_far_ahead_the_dispatcher_has_locked() -> None:
         assert shown[end] == expected, f"{ahead} ahead should show {expected}"
 
 
+def exit_of(layout: Layout, route: Route, i: int) -> str:
+    """The end the route's `i`th transit leaves `route.blocks[i]` by."""
+    ends = transit_ends(layout, route.blocks[i], route.transits[i])
+    assert ends is not None
+    return ends[0]
+
+
 def test_an_end_no_train_is_leaving_by_shows_stop() -> None:
     """`stop` is not a rule of its own: it falls out of nothing being locked
-    beyond the end. The one train's departure end is the only one that moves,
-    including the other end of the very block it stands in."""
+    beyond the end. Only the exits along the train's locked blocks move
+    (ADR-0093), and not the other end of the very block it stands in."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    ends = transit_ends(layout, route.blocks[0], route.transits[0])
-    assert ends is not None
-    end = ends[0]
     shown = aspects(a_state(layout, route, 2))
 
-    assert [e for e, a in shown.items() if a != "stop"] == [end]
-    other = opposite_end(end)
+    assert {e for e, a in shown.items() if a != "stop"} == {
+        exit_of(layout, route, 0),
+        exit_of(layout, route, 1),
+    }
+    other = opposite_end(exit_of(layout, route, 0))
     assert shown.get(other, "stop") == "stop"
+
+
+def test_every_signal_along_the_locked_blocks_shows_its_aspect() -> None:
+    """Two blocks held ahead: `clear` leaving the block the train stands in,
+    `caution` leaving the next, and `stop` leaving the last it holds — each
+    counted from its own block (ADR-0093)."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    route = a_route(layout)
+    shown = aspects(a_state(layout, route, 2))
+
+    assert shown[exit_of(layout, route, 0)] == "clear"
+    assert shown[exit_of(layout, route, 1)] == "caution"
+    assert shown[exit_of(layout, route, 2)] == "stop"
+
+
+def test_a_committed_block_that_is_not_locked_shows_stop() -> None:
+    """The route goes on past the locks, and its signals there stay at stop
+    until the blocks beyond them are locked: an unlocked block can still go
+    to another train."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    route = a_route(layout)
+    shown = aspects(a_state(layout, route, 1))
+
+    assert shown[exit_of(layout, route, 0)] == "caution"
+    for i in range(1, len(route.transits)):
+        assert shown[exit_of(layout, route, i)] == "stop", route.blocks[i]
+
+
+def test_a_passed_signal_shows_stop_once_the_next_block_reads_occupied() -> None:
+    """With the move into the second block outstanding, the entered block
+    read occupied and the origin not yet clear, the dispatcher records the
+    train in the entered block: the signal it passed shows `stop`, and the
+    entered block's exit its own aspect (ADR-0093)."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    route = a_route(layout)
+    state = a_state(layout, route, 3)
+    move = Move(route.blocks[0], route.transits[0], route.blocks[1], [], [])
+    state.active["t"] = Active(state.active["t"].request, route, 1, move)
+
+    state.block_of["t"] = route.blocks[0]  # the entered block not yet occupied
+    before = aspects(state)
+    assert before[exit_of(layout, route, 0)] == "clear"
+
+    state.block_of["t"] = route.blocks[1]  # it now reads occupied
+    after = aspects(state)
+    assert after[exit_of(layout, route, 0)] == "stop"
+    assert after[exit_of(layout, route, 1)] == "clear"
+    assert after[exit_of(layout, route, 2)] == "caution"
 
 
 def test_power_not_on_puts_every_signal_to_stop() -> None:
