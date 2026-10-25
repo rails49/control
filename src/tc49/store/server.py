@@ -28,6 +28,9 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /clocks/<railroad>     save them, replacing what was
     POST /railroads/<from>/copy copy that railroad's drawing, roster, script
                                 and clock under the name the body gives
+    DELETE /railroads/<name>    delete that railroad's drawing, roster,
+                                script, clock and scenarios, if it is not
+                                loaded, backing the store up first
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /backup                whether the store can be backed up, is being,
@@ -91,8 +94,9 @@ independently editable and a backup's `git diff` readable.
 `PUT /catalogue/<name>` is the first write on this face that is not a
 drawing's, and it is the one a fresh box needs: with no `catalogue/` directory
 every car names a model the installation has not got, so no roster can be
-written at all (#392). `DELETE /catalogue/<name>` is the one DELETE on this
-face, and it removes the model's photo with it. **A model a roster uses is
+written at all (#392). `DELETE /catalogue/<name>` removes the model's photo
+with it; `DELETE /railroads/<name>` is the face's other DELETE, and it refuses
+the loaded railroad (#1073). **A model a roster uses is
 refused** — every `layouts/*.roster.yaml`, whichever railroad is loaded, read
 as written for a car or a train entry naming it — with a 400 naming each
 railroad and place, so a person knows what to change (#976).
@@ -395,6 +399,8 @@ def _route(
         source, _, verb = copied.partition("/")
         if verb == "copy":
             return _copy(store, backup, source, body)
+    if method == "DELETE" and copied != route and "/" not in copied:
+        return _delete_railroad(store, backup, copied)
 
     railroad = route.removeprefix("/layouts/")
     if method == "GET" and railroad != route and "/" not in railroad:
@@ -639,6 +645,31 @@ def _copy(store: AssetStore, backup: Backup, source: str, body: Any) -> Response
     # As a drawing's save does: the copy is documents of the store that moved.
     backup.saved()
     return 200, {"copied": to}
+
+
+def _delete_railroad(store: AssetStore, backup: Backup, name: str) -> Response:
+    """Railroad `name` deleted, every document and scenario of it (#1073).
+
+    **The loaded railroad is refused**, a 409: the binding is running on it,
+    and the person loads another first. **Backed up first** where the store
+    is a repository, so the railroad as it last stood is in a commit and a
+    restore brings it back; a backup that fails is a 409 in git's words and
+    nothing is deleted, while one with nothing to commit goes ahead. A store
+    that is no repository has no backup to make, and deletes all the same.
+    """
+    if name == store.loaded():
+        return 409, {"error": f"'{name}' is loaded; load another railroad first"}
+    if name not in store.list():
+        return 404, {"error": f"no railroad '{name}'"}
+    if backup.repository():
+        said = backup.back_up()
+        if not said.ok:
+            return 409, {"error": said.words}
+    store.delete_railroad(name)
+    # As a copy does: the railroad gone is documents of the store that moved,
+    # and its removal is the next backup's.
+    backup.saved()
+    return 200, {"deleted": name}
 
 
 def _put_loaded(store: AssetStore, backup: Backup, body: Any) -> Response:
