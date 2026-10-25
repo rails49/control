@@ -23,7 +23,7 @@ accepted at any power
 ([ADR-0080](0080-the-waiting-requests-are-a-list-a-person-orders.md)), and a
 new train is no different.
 
-ADR-0091 had `layout` read the roster again only for a take. In `automatic`
+Until now `layout` read the roster again only for a take. In `automatic`
 `layout` drives a train no throttle holds, and nothing sends a take, so a new
 train placed and granted a route was never told a speed and its granted
 blocks stayed held.

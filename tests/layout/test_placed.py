@@ -46,6 +46,8 @@ def test_a_placed_train_made_since_the_build_is_driven_in_automatic() -> None:
 
 
 def test_a_placement_of_a_train_it_has_reads_no_roster() -> None:
+    """A train the interface was built with keeps its entry until the next
+    build (ADR-0071), so its placement costs no store read."""
     asked: list[None] = []
 
     def reread() -> Roster | None:

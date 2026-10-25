@@ -435,8 +435,9 @@ def test_silence_releases_every_train_of_that_throttle_and_no_other() -> None:
 
 def test_a_take_of_a_train_made_since_the_build_drives_its_car() -> None:
     """A train made in the stock view after the last build is on the store's
-    roster and nowhere else; the take reads the roster again, so the lever
-    reaches the car's address (ADR-0092, decision 2)."""
+    roster and nowhere else; its placement reads the roster again, so the
+    take finds the train and the lever reaches the car's address (ADR-0092,
+    decision 2)."""
     asked: list[None] = []
 
     def reread() -> Roster | None:

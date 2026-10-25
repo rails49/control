@@ -238,8 +238,8 @@ def reread_roster(
     documents: Documents, railroad: str, log: Callable[[str], None]
 ) -> Callable[[], Roster | None]:
     """How an app built on `railroad` reads its roster again: the dispatcher
-    for a placement naming a train it has not got, `layout` for a take
-    (ADR-0092, decisions 1 and 2). One attempt, on the bus loop's own thread:
+    for a placement naming a train it has not got, `layout` for an accepted
+    placement or a take (ADR-0092, decisions 1 and 2). One attempt, on the bus loop's own thread:
     a store that does not answer, or a roster it refuses, is None and said on
     `log`, and the app goes on as it was."""
 
