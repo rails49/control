@@ -314,6 +314,12 @@ trains:
   maintain. An entry naming a model builds a car from it with no address and
   nothing overridden, so length, kind and functions derive exactly as they do
   for a named car. Naming both, or neither, is refused.
+- **A car stands in at most one train.** A car named by entries of two trains
+  is refused as `roster '<railroad>': car '<car>' is in trains '<a>' and
+  '<b>'`, the first two in document order: a write for either would reach the
+  train the other is running in
+  ([#1067](https://github.com/rails49/control/issues/1067)). An entry naming a
+  model builds its own car and is not counted.
 - **`cars:` under a train is ordered, head first.** `orientation` is `forward`
   or `reverse` and defaults to `forward`; `reverse` says the car's nose points
   toward the tail, so a top-and-tail set is a reversed locomotive at the end.
