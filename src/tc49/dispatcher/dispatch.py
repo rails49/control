@@ -304,12 +304,18 @@ def aspects(state: State) -> dict[str, str]:
     shows `stop`, which falls out of there being nothing locked beyond it
     rather than being a rule of its own.
 
-    A train mid-transit has already had `cur_index` advanced, so the block it
-    stands in is one back. The aspect belongs to where it stands, not where
-    it is going.
+    **An aspect answers "may a train that reaches this end leave by it"**
+    (ADR-0093). For each train, the exit of every block on its route from the
+    one the dispatcher records it in (`block_of`) through its last locked
+    block shows the depth counted from that block, so a train holding two
+    ahead shows `clear`, then `caution`, then `stop`. The block it is recorded
+    in is the origin of an outstanding move until the entered block reads
+    occupied, and the entered block from then on, before the origin reads
+    clear: the signal it has passed shows `stop` once the nose is past it, not
+    once the move ends. The ends of blocks behind it show `stop`, and a block
+    has one holder, so no end is set by two trains.
 
-    **Power not `on` puts every signal to stop.** An aspect answers "may the
-    train in this block leave via this end", and while `draining` or `off`
+    **Power not `on` puts every signal to stop.** While `draining` or `off`
     the answer is no at every end: nothing is granted, so a train standing at
     a signal goes nowhere, and a drain stops each moving train in the block
     it is entering (ADR-0078). Reading the locks instead would show `clear`
@@ -324,16 +330,17 @@ def aspects(state: State) -> dict[str, str]:
     if state.power != ON:
         return shown
     for train, active in state.active.items():
-        standing = active.cur_index - (1 if active.outstanding else 0)
-        if standing >= len(active.route.transits):
-            continue  # in its arrival block; nothing left to leave by
-        ends = transit_ends(
-            state.layout,
-            active.route.blocks[standing],
-            active.route.transits[standing],
-        )
-        assert ends is not None  # a route's transits reach its blocks
-        shown[ends[0]] = aspect_of(locked_ahead(state, train, active.route, standing))
+        route = active.route
+        # `cur_index` advances at the grant, so with a move outstanding the
+        # train is recorded one back until the entered block reads occupied.
+        standing = active.cur_index
+        if active.outstanding and state.block_of.get(train) != route.blocks[standing]:
+            standing -= 1
+        last = standing + locked_ahead(state, train, route, standing)
+        for i in range(standing, min(last + 1, len(route.transits))):
+            ends = transit_ends(state.layout, route.blocks[i], route.transits[i])
+            assert ends is not None  # a route's transits reach its blocks
+            shown[ends[0]] = aspect_of(locked_ahead(state, train, route, i))
     return shown
 
 
@@ -1664,6 +1671,9 @@ class Dispatcher:
         if active.origin_cleared and self._state.reported.get(move.from_block) is False:
             self._ended(train, active, move)
         else:
+            # The train is recorded past the signal it left by, which now
+            # shows `stop` (ADR-0093).
+            self._publish_aspects()
             self._publish_allocation()
 
     def _cleared(self, block: str) -> None:
