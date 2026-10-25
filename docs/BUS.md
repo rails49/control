@@ -684,7 +684,9 @@ what a drop would cost:
 - `tc49/layout/take_wanted` — browser-writable — `train`; `throttle`: a
   non-empty string, the id the throttle's page minted when it opened, or
   `null` to release the train. A take of a train no throttle holds is
-  applied; a take of a train another throttle holds is dropped. `null`
+  applied; a take of a train another throttle holds is dropped. A take by a
+  throttle already holding another train releases that train first, as `null`
+  would. `null`
   releases the train whoever holds it, which is also the force release a
   panel makes. A missing `throttle` is not a release: the frame is dropped.
   Released in `manual`, the train's traction is written `0.0`. In
