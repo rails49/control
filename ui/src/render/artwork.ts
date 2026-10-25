@@ -24,7 +24,6 @@ import {
 import {
   motorised,
   type SymbolSpec,
-  type TurnoutLeg,
   type WidgetKind,
   type WidgetSpec,
 } from "../model/drawing.js";
@@ -42,16 +41,7 @@ import {
   togglePosition,
   type Run,
 } from "../model/widgets.js";
-import {
-  BEND,
-  BLOCK,
-  PORTAL,
-  SLIP,
-  TERMINAL,
-  TURNOUT,
-  W,
-  WIDGET,
-} from "./units.js";
+import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W, WIDGET } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
 /** What a signal shows, as the dispatcher publishes it (GLOSSARY.md). */
@@ -109,7 +99,7 @@ export function artwork(
     case "pin":
       return bend(on);
     case "turnout":
-      return turnout(on, spec.closed_leg ?? "straight", set);
+      return turnout(on, set);
     case "crossing":
     case "crossing_90":
     case "crossing_90d":
@@ -347,26 +337,15 @@ function bend(on: Lit): SVGTemplateResult {
 /** Each road drawn from the toe, so lighting the diverging leg lights the way
  *  a train actually takes rather than the curve beyond the frog. The diverging
  *  road is the one 45 degree leg ending on a face centre, which is how
- *  turnouts stack between parallel station tracks. The leg the closed
- *  position does not take starts `TURNOUT.gap` along from the toe (#1060). */
-function turnout(
-  on: Lit,
-  closed: TurnoutLeg,
-  set: Against = NEITHER,
-): SVGTemplateResult {
+ *  turnouts stack between parallel station tracks. */
+function turnout(on: Lit, set: Against = NEITHER): SVGTemplateResult {
   const p = (pin: string) => anchorIn("turnout", pin);
-  const toe = p("toe");
-  const from = (leg: string) => {
-    if (leg === closed) return toe;
-    const u = unit(toe, p(leg));
-    return { x: toe.x + u.x * TURNOUT.gap, y: toe.y + u.y * TURNOUT.gap };
-  };
   return svg`${roads(
     on,
-    ["straight", "diverging"].map((leg) => ({
-      legs: [leg],
-      d: path(from(leg), p(leg)),
-    })),
+    [
+      { legs: ["straight"], d: path(p("toe"), p("straight")) },
+      { legs: ["diverging"], d: path(p("toe"), p("diverging")) },
+    ],
     set,
   )}`;
 }
