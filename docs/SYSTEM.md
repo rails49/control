@@ -703,7 +703,12 @@ next block tail-first and faces the end it entered through. On a terminal
 block facing is the run that departs by its one connected end, whatever a
 placement or a route says. A reversal at rest turns it. Committing to a route
 changes nothing
-([#295](https://github.com/rails49/control/issues/295)). The scheduler
+([#295](https://github.com/rails49/control/issues/295)), and nor does a
+grant: the first three rules are worked out on `move_granted` and kept, and
+the facing moves when `tc49/dispatch/state/allocation` names the train in the
+block the move entered, the train's nose past the signal it left by
+([#1025](https://github.com/rails49/control/issues/1025)). A restart reads
+the kept facing off the retained allocation's `crossing` instead. The scheduler
 publishes facing on a state topic that every view reads to draw the train's
 direction arrow
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md))
