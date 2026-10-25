@@ -96,12 +96,14 @@ async function dark(): Promise<TcApp> {
 
 /** The dialog's railroads, each as its name and its tick. */
 function listed(dialog: TcSettings): string[][] {
-  return [...dialog.renderRoot.querySelectorAll("ul.railroads li button")].map(
-    (one) => [
-      one.querySelector(".label")!.textContent!.trim(),
-      one.querySelector(".tick")!.textContent!.trim(),
-    ],
-  );
+  return [
+    ...dialog.renderRoot.querySelectorAll(
+      "ul.railroads li button:not(.delete)",
+    ),
+  ].map((one) => [
+    one.querySelector(".label")!.textContent!.trim(),
+    one.querySelector(".tick")!.textContent!.trim(),
+  ]);
 }
 
 /** Why the dialog's railroad part is refused, `null` where it is not. */
@@ -117,7 +119,9 @@ function refused(dialog: TcSettings): string | null {
 async function pick(shell: TcApp, name: string): Promise<TcSettings> {
   const dialog = await settingsOpened(shell);
   const entries = [
-    ...dialog.renderRoot.querySelectorAll("ul.railroads li button"),
+    ...dialog.renderRoot.querySelectorAll(
+      "ul.railroads li button:not(.delete)",
+    ),
   ];
   const entry = entries.find(
     (one) => one.querySelector(".label")!.textContent!.trim() === name,
@@ -680,6 +684,163 @@ describe("Copy loaded railroad as…", () => {
   });
 });
 
+/** The railroad on the row named `name`'s Delete press, `undefined` where the
+ *  row has none. */
+function deleting(
+  dialog: TcSettings,
+  name: string,
+): HTMLButtonElement | undefined {
+  const row = [...dialog.renderRoot.querySelectorAll("ul.railroads li")].find(
+    (one) => one.querySelector(".label")?.textContent?.trim() === name,
+  );
+  return row?.querySelector<HTMLButtonElement>("button.delete") ?? undefined;
+}
+
+/** The rows that have a Delete press, by name. */
+function deletable(dialog: TcSettings): string[] {
+  return listed(dialog)
+    .map(([name]) => name!)
+    .filter((name) => deleting(dialog, name) !== undefined);
+}
+
+/** The question a row asks once its Delete is pressed: its words, and the
+ *  press of the two beneath them that `which` names. */
+function asked(dialog: TcSettings, which: "confirm" | "cancel"): HTMLElement {
+  return dialog.renderRoot.querySelector<HTMLElement>(
+    `ul.railroads li sl-button.${which}`,
+  )!;
+}
+
+/**
+ * Delete asks the store to delete a railroad whole (#1074,
+ * `DELETE /railroads/<name>`, #1073), once more in the row before anything
+ * is sent. The loaded railroad has no Delete — the steel runs it, and another
+ * is loaded first — and nor has the drawing the page holds; neither depends on
+ * track power, Delete touching nothing the layout runs.
+ */
+describe("Delete railroad", () => {
+  it("is on every row but the loaded one", async () => {
+    const shell = await dark();
+
+    const dialog = await settingsOpened(shell);
+
+    expect(deletable(dialog)).toEqual(["otira", "reversing-loops"]);
+  });
+
+  /** The page holds the drawing the row names once it has been read, so the
+   *  two differ only between the row moving and the read landing; the dialog
+   *  is handed another `opened` here to stand for that moment. */
+  it("is not on the row of the drawing the page holds", async () => {
+    const shell = await dark();
+    const dialog = await settingsOpened(shell);
+
+    dialog.opened = "otira";
+    await settled(shell);
+
+    expect(deletable(dialog)).toEqual(["reversing-loops"]);
+  });
+
+  it("is live with the track powered", async () => {
+    const shell = await joined();
+    await said(shell, POWER, { power: "on" });
+
+    const dialog = await settingsOpened(shell);
+
+    expect(deleting(dialog, "otira")!.disabled).toBe(false);
+  });
+
+  it("is dead while the layout has not said what is loaded", async () => {
+    const shell = await mounted("run");
+
+    const dialog = await settingsOpened(shell);
+
+    expect(deletable(dialog)).toEqual(HAS);
+    for (const name of deletable(dialog)) {
+      expect(deleting(dialog, name)!.disabled).toBe(true);
+    }
+  });
+
+  it("is dead while a pick is out", async () => {
+    const shell = await dark();
+
+    const dialog = await pick(shell, "otira");
+
+    expect(deleting(dialog, "reversing-loops")!.disabled).toBe(true);
+  });
+
+  it("asks in the row, and Cancel sends nothing", async () => {
+    const shell = await dark();
+    const dialog = await settingsOpened(shell);
+
+    deleting(dialog, "otira")!.click();
+    await settled(shell);
+    expect(dialog.renderRoot.textContent).toContain(
+      "Delete otira? Its drawing, roster, script and clock go.",
+    );
+    asked(dialog, "cancel").click();
+    await settled(shell);
+
+    expect(store.deleted).toEqual([]);
+    expect(deleting(dialog, "otira")).toBeDefined();
+  });
+
+  it("asks in one row at a time", async () => {
+    const shell = await dark();
+    const dialog = await settingsOpened(shell);
+
+    deleting(dialog, "otira")!.click();
+    await settled(shell);
+    deleting(dialog, "reversing-loops")!.click();
+    await settled(shell);
+
+    expect(
+      dialog.renderRoot.querySelectorAll("ul.railroads li sl-button.confirm"),
+    ).toHaveLength(1);
+    expect(deleting(dialog, "otira")).toBeDefined();
+  });
+
+  it("deletes the railroad, and the list drops it", async () => {
+    store.drawings = [...HAS, "b"];
+    const shell = await dark();
+    const dialog = await settingsOpened(shell);
+    const changed = vi.fn();
+    shell.addEventListener("railroads-changed", changed);
+
+    deleting(dialog, "b")!.click();
+    await settled(shell);
+    // The store lists what it holds, so the list loses `b` once it is gone.
+    store.drawings = HAS;
+    asked(dialog, "confirm").click();
+    await settled(shell);
+
+    expect(store.deleted).toEqual(["/railroads/b"]);
+    expect(changed).toHaveBeenCalledOnce();
+    expect(listed(dialog).map(([name]) => name)).toEqual(HAS);
+    expect(written()).toEqual([]);
+  });
+
+  it("shows the store's words on a 409, and leaves the row", async () => {
+    const shell = await dark();
+    store.refuses = () => ({
+      status: 409,
+      error: "'otira' is loaded; load another railroad first",
+    });
+    const dialog = await settingsOpened(shell);
+
+    deleting(dialog, "otira")!.click();
+    await settled(shell);
+    asked(dialog, "confirm").click();
+    await settled(shell);
+
+    expect(store.deleted).toEqual([]);
+    expect(wrong(dialog)).toBe(
+      "'otira' is loaded; load another railroad first",
+    );
+    expect(listed(dialog).map(([name]) => name)).toContain("otira");
+    expect(deleting(dialog, "otira")).toBeDefined();
+  });
+});
+
 /**
  * A railroad whose drawing is not a valid drawing is picked like any other
  * (#900, [ADR-0085](../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
@@ -714,7 +875,7 @@ describe("a railroad whose drawing is invalid", () => {
     ]);
     const buttons = [
       ...dialog.renderRoot.querySelectorAll<HTMLButtonElement>(
-        "ul.railroads li button",
+        "ul.railroads li button:not(.delete)",
       ),
     ];
     expect(buttons.map((one) => one.disabled)).toEqual([false, false, false]);
@@ -787,7 +948,7 @@ describe("a pick on its way", () => {
     expect(busy(dialog)).toEqual(["otira"]);
     const buttons = [
       ...dialog.renderRoot.querySelectorAll<HTMLButtonElement>(
-        "ul.railroads li button",
+        "ul.railroads li button:not(.delete)",
       ),
     ];
     expect(buttons.every((one) => one.disabled)).toBe(true);

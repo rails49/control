@@ -19,7 +19,11 @@
  * drawing under the name — no roster and no script, a railroad with neither
  * being an ordinary one — and **Copy loaded as…** has the store copy every
  * document of the loaded railroad under it (#729); each then asks for what
- * it wrote, the same way a press on the list does. **Backup** is a slot the
+ * it wrote, the same way a press on the list does. A row's **Delete** has
+ * the store delete that railroad whole (#1074), asking once more in the row
+ * first; the loaded railroad and the drawing the page holds have none, the
+ * loaded one being deleted by loading another first, and nothing about it
+ * waits on the track, which it does not touch. **Backup** is a slot the
  * app fills with `tc-backup`, which draws itself in the tab rather than in a
  * dialog of its own: being sent from one dialog to another is a step that
  * does nothing. **Shutdown** turns the box off (#745), and is drawn only
@@ -72,7 +76,7 @@ import {
   STOPPING,
   UNANSWERED,
 } from "../model/settings.js";
-import { copyRailroad, said, saveDrawing } from "../model/store.js";
+import { copyRailroad, deleteRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
 
@@ -135,6 +139,10 @@ export class TcSettings extends LitElement {
   /** Whether a write is out: one at a time, so a second press cannot ask for
    *  a railroad the first is still writing. */
   @state() private writing = false;
+
+  /** The railroad whose Delete was pressed, its row asking once more,
+   *  `null` while no row asks. One at a time. */
+  @state() private deleting: string | null = null;
 
   /** Whether the installation said this box can be turned off, asked each
    *  time the dialog opens and no until it answers. */
@@ -239,8 +247,10 @@ export class TcSettings extends LitElement {
       ${this.drawings.length === 0
         ? html`<p class="hint">the store lists no railroad</p>`
         : html`<ul class="railroads">
-            ${this.drawings.map(
-              (one) => html`
+            ${this.drawings.map((one) =>
+              one === this.deleting
+                ? this.deletingRow(one)
+                : html`
                 <li>
                   <button
                     class=${one === this.railroad ? "loaded" : ""}
@@ -254,6 +264,18 @@ export class TcSettings extends LitElement {
                       ? html`<span class="unanswered">${UNANSWERED}</span>`
                       : nothing}
                   </button>
+                  ${one === this.railroad || one === this.opened
+                    ? nothing
+                    : html`<button
+                        class="delete"
+                        title="Delete ${one}"
+                        ?disabled=${this.railroad === null || busy || this.writing}
+                        @click=${() => {
+                          this.deleting = one;
+                        }}
+                      >
+                        <sl-icon name="trash"></sl-icon>
+                      </button>`}
                 </li>
               `,
             )}
@@ -293,6 +315,57 @@ export class TcSettings extends LitElement {
         : html`<p class="hint copy">${copyRefused}</p>`}
       ${this.wrong === null ? nothing : html`<p class="hint wrong">${this.wrong}</p>`}
     `;
+  }
+
+  /** The row of the railroad whose Delete was pressed: what deleting it
+   *  costs, and **Delete** and **Cancel**, the question the Shutdown tab
+   *  asks before it turns the box off. */
+  private deletingRow(name: string) {
+    return html`<li class="deleting">
+      <span class="asking">Delete ${name}? Its drawing, roster, script and clock go.</span>
+      <div class="presses">
+        <sl-button
+          class="confirm"
+          size="small"
+          variant="danger"
+          ?disabled=${this.writing}
+          @click=${() => void this.deletingRailroad(name)}
+        >
+          Delete
+        </sl-button>
+        <sl-button
+          class="cancel"
+          size="small"
+          @click=${() => {
+            this.deleting = null;
+          }}
+        >
+          Cancel
+        </sl-button>
+      </div>
+    </li>`;
+  }
+
+  /** **Delete** was pressed: the store deletes `name`, and the app asks for
+   *  the list again on `railroads-changed`. A refusal — the railroad loaded
+   *  on another page since, or the backup made first failing — shows the
+   *  store's words, and the row stays. */
+  private async deletingRailroad(name: string): Promise<void> {
+    if (this.writing) return;
+    this.writing = true;
+    try {
+      await deleteRailroad(name);
+    } catch (failure) {
+      this.wrong = said(failure);
+      return;
+    } finally {
+      this.writing = false;
+      this.deleting = null;
+    }
+    this.wrong = null;
+    this.dispatchEvent(
+      new CustomEvent<void>("railroads-changed", { bubbles: true, composed: true }),
+    );
   }
 
   /** What a tab says while its press waits for the track to go dead, and the

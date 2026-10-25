@@ -413,6 +413,7 @@ export class TcApp extends LitElement {
         .allocated=${this.status.allocated}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
         @railroad-arrived=${() => this.arrived()}
+        @railroads-changed=${() => void this.filing.load()}
         @power-wanted=${(event: CustomEvent<Power>) => this.draining(event.detail)}
         @settings-closed=${() => {
           this.settling = false;
