@@ -968,6 +968,11 @@ class LayoutInterface:
         throttle already holding it changes nothing and counts as hearing
         from it.
 
+        **A throttle holds one train** (ADR-0089). A take by a throttle
+        already holding another train releases that train first, as `null`
+        would (`_let_go`), then takes the new one: what the page sends when a
+        panel switches trains. A take that is dropped releases nothing.
+
         **Taking writes nothing.** The train keeps whatever speed it had and
         the person's first movement of the lever changes it: writing zero
         would stop a running train the instant somebody selected it (#207).
@@ -1000,6 +1005,9 @@ class LayoutInterface:
         self._heard[wanted.throttle] = self._clock.now
         if holder is not None:
             return
+        for train, throttle in list(self._taken.items()):
+            if throttle == wanted.throttle:
+                self._let_go(train)
         self._taken[wanted.train] = wanted.throttle
         self._publish_taken()
         flight = self._outstanding(wanted.train)
