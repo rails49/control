@@ -409,8 +409,8 @@ class LayoutInterface:
         waiting on a store that does not answer, None where it cannot be read
         (ADR-0092, decision 2). A placement or a take naming a train this app
         was not built with asks it, a train made in the stock view since the
-        last build being on the store's roster and nowhere else. The simulator binding
-        passes none.
+        last build being on the store's roster and nowhere else. The simulator
+        binding passes none.
         """
         self._bus = bus
         self._layout = layout

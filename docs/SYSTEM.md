@@ -439,8 +439,8 @@ LAN is still the trust boundary and a browser is not on it
   `built: false`, a railroad named whose drawing is not a valid drawing
   ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
   The one read between builds is of the roster: the dispatcher's, for a
-  placement naming a train it has not got, and `layout`'s, for a take naming
-  one. Each is one attempt, adding the trains the app lacks and changing none
+  placement naming a train it has not got, and `layout`'s, for an accepted
+  placement or a take naming one. Each is one attempt, adding the trains the app lacks and changing none
   it has
   ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
 - **The store validates and consumers derive** — `get` never returns an
