@@ -1,5 +1,7 @@
 # An app reads the roster again for a train it has not got, and a refused placement says why
 
+*Superseded by [ADR-0092](0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md) (#1015): `layout` also reads the roster again for a placement the dispatcher accepted, so a new train is driven in `automatic`.*
+
 Part of [#1008](https://github.com/rails49/control/issues/1008),
 [#1009](https://github.com/rails49/control/issues/1009),
 [#1010](https://github.com/rails49/control/issues/1010) and
