@@ -18,7 +18,8 @@ import { css } from "lit";
  * for the track to go dead reads "stopping trains…" with the stop sign in a
  * row beside it. A pick on its way wears the spinner at the end of its
  * row, and one the layout did not answer says so there, in the weight a
- * thing missing reads in.
+ * thing missing reads in. A row's trash sits at its end, and pressed, the
+ * row gives way to what deleting it costs and the two presses beside it.
  */
 export const settingsStyles = css`
   .hint {
@@ -47,6 +48,29 @@ export const settingsStyles = css`
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+
+  /* A row is its press, and beside it the trash that deletes it (#1074). */
+  ul.railroads li {
+    display: flex;
+    align-items: center;
+  }
+
+  ul.railroads button.delete {
+    width: auto;
+    flex: none;
+  }
+
+  /* A row whose Delete was pressed: what deleting it costs, and the two
+     presses beside it. */
+  ul.railroads li.deleting {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.25rem 0.3rem;
+  }
+
+  ul.railroads li.deleting .asking {
+    flex: 1;
   }
 
   ul.railroads button:hover:not(:disabled) {
