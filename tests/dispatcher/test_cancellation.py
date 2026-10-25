@@ -420,12 +420,26 @@ def granted(assembly: Assembly) -> str:
     return str(last(assembly, "move_granted")["transit"])
 
 
+def entered(assembly: Assembly) -> str:
+    """The block the move last granted enters."""
+    return str(last(assembly, "move_granted")["into"])
+
+
+def taken_back(assembly: Assembly) -> Payload:
+    """`layout`'s answer naming the move last granted."""
+    return {
+        "train": "freight_1",
+        "transit": granted(assembly),
+        "into": entered(assembly),
+    }
+
+
 def test_a_deferred_cancel_asks_layout_to_take_the_move_back() -> None:
     """The move cannot be taken back on the dispatcher's word, so it asks the
     one app that knows whether anything has driven the train since."""
     assembly = whole_route()
     request = drag(assembly, "freight_1", "yard_e.A")
-    transit = granted(assembly)
+    transit, into = granted(assembly), entered(assembly)
 
     cancel(assembly, request)
 
@@ -435,6 +449,7 @@ def test_a_deferred_cancel_asks_layout_to_take_the_move_back() -> None:
             "event": "withdraw_wanted",
             "train": "freight_1",
             "transit": transit,
+            "into": into,
         }
     ]
 
@@ -458,9 +473,7 @@ def test_a_move_withdrawn_retires_the_cancelled_request_at_once() -> None:
     cancel(assembly, request)
     assert cancellations(assembly) == []
 
-    press(
-        assembly, MOVE_WITHDRAWN, {"train": "freight_1", "transit": granted(assembly)}
-    )
+    press(assembly, MOVE_WITHDRAWN, taken_back(assembly))
 
     assert [(c["id"], c["reason"]) for c in cancellations(assembly)] == [
         (request, "revoked")
@@ -474,9 +487,7 @@ def test_after_the_withdrawal_nothing_is_moving_or_crossing() -> None:
     request = drag(assembly, "freight_1", "yard_e.A")
     cancel(assembly, request)
 
-    press(
-        assembly, MOVE_WITHDRAWN, {"train": "freight_1", "transit": granted(assembly)}
-    )
+    press(assembly, MOVE_WITHDRAWN, taken_back(assembly))
 
     assert leaves(assembly, "moving")[-1]["moving"] is False
     assert "freight_1" not in last(assembly, "allocation")["crossing"]
@@ -487,9 +498,7 @@ def test_a_move_withdrawn_for_a_request_not_cancelled_changes_nothing() -> None:
     drag(assembly, "freight_1", "yard_e.A")
     before = len(assembly.trace.splitlines())
 
-    press(
-        assembly, MOVE_WITHDRAWN, {"train": "freight_1", "transit": granted(assembly)}
-    )
+    press(assembly, MOVE_WITHDRAWN, taken_back(assembly))
 
     assert [line["event"] for line in events(assembly.trace)[before:]] == [
         "move_withdrawn"
@@ -503,14 +512,18 @@ def test_a_move_withdrawn_for_another_transit_changes_nothing() -> None:
     before = len(assembly.trace.splitlines())
 
     for payload in (
-        {"train": "freight_1", "transit": "east_ladder.from_dn"},
-        {"train": "express_2", "transit": granted(assembly)},
+        {**taken_back(assembly), "transit": "east_ladder.from_dn"},
+        {**taken_back(assembly), "train": "express_2"},
+        # The right transit the other way, as a move back over it names it
+        # (#1080).
+        {**taken_back(assembly), "into": "yard_w"},
+        {"train": "freight_1", "transit": granted(assembly)},
         {"train": "freight_1"},
     ):
         press(assembly, MOVE_WITHDRAWN, cast(Payload, payload))
 
     assert [line["event"] for line in events(assembly.trace)[before:]] == [
         "move_withdrawn"
-    ] * 3
+    ] * 5
     ticks(assembly, 2)  # the move runs to its sensors, as it did before
     assert [c["id"] for c in cancellations(assembly)] == [request]

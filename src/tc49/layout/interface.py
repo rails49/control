@@ -205,6 +205,7 @@ from tc49.lib.loading import BUILT
 from tc49.lib.payload import (
     Command,
     Ordering,
+    Withdrawal,
     alignment,
     alive_throttle,
     command,
@@ -473,14 +474,14 @@ class LayoutInterface:
         # The moves granted while the rails are dead, one per transit, each
         # put back through the rules when `state/power` next reads `on`.
         self._kept: dict[str, Command] = {}
-        # What a `withdraw_wanted` is judged on (#1068): the transit of each
-        # train's last move acted on, the trains driven since — running when
-        # it was acted on, or given a non-zero speed after (#1076) — and the
-        # move each train is not to be sent over, asked back before its
-        # `move` arrived. A train running now is never withdrawn.
-        self._acted: dict[str, str] = {}
+        # What a `withdraw_wanted` is judged on (#1068): the trains driven
+        # since their last move was acted on — running when it was acted on,
+        # or given a non-zero speed after (#1076) — and the move each train is
+        # not to be sent over, its transit and the block it enters, asked
+        # back before its `move` arrived (#1080). A train running now is
+        # never withdrawn.
         self._driven: set[str] = set()
-        self._withdrawing: dict[str, str] = {}
+        self._withdrawing: dict[str, tuple[str, str]] = {}
         # The occupancy fold: the settled level at each block end, the level
         # each end has most recently said (which is what makes the log of an
         # `unknown` once per transition into it), the levels waiting out the
@@ -683,7 +684,8 @@ class LayoutInterface:
             return
         # The train's next move, whichever it is, ends a withdrawal waiting
         # for one; the one it names is dropped (#1068).
-        if self._withdrawing.pop(commanded.train, None) == commanded.transit_id:
+        withdrawn = self._withdrawing.pop(commanded.train, None)
+        if withdrawn == (commanded.transit_id, commanded.into):
             return
         self._cross(commanded)
 
@@ -708,23 +710,27 @@ class LayoutInterface:
         held for its `align`, a facing or the power has not been acted on, so
         it is never driven. Taken back, it is dropped as `_forget` drops it,
         the train given `0.0` unless a throttle holds it, and
-        `move_withdrawn` says so. A move acted on and driven since, or one
-        already carried out, gets no answer: the cancel waits for the
-        sensors. A move not here yet — the driver's `move` and this ask are
-        two writers', in no order — is answered at once and dropped when it
-        comes, unless the train's next move is another or a placement or a
-        removal lands first."""
+        `move_withdrawn` says so. A move waiting is matched on its train,
+        transit and the block it enters; a crossing on its train and transit.
+        A move acted on and driven since, or one already carried out — the
+        train stands in the block it enters — gets no answer: the cancel waits
+        for the sensors. A transit names the way and not the direction, so the
+        block is what tells a move back over the transit it just crossed from
+        that crossing (#1080). A move not here yet — the driver's `move` and
+        this ask are two writers', in no order — is answered at once and
+        dropped when it comes, unless the train's next move is another or a
+        placement or a removal lands first."""
         wanted = withdrawal(payload)
         if wanted is None:
             return
-        train, transit = wanted.train, wanted.transit
+        train, transit, into = wanted.train, wanted.transit, wanted.into
         if self._running(train):
             return
         for waiting in (self._held, self._unfaced, self._kept):
             held = waiting.get(transit)
-            if held is not None and held.train == train:
+            if held is not None and held.train == train and held.into == into:
                 del waiting[transit]
-                self._withdraw(train, transit)
+                self._withdraw(wanted)
                 return
         crossed = [
             (block, crossing)
@@ -737,19 +743,26 @@ class LayoutInterface:
                 return
             del self._crossing[block]
             self._position[train] = crossing.origin
-            self._withdraw(train, transit)
+            self._withdraw(wanted)
             return
-        if self._acted.get(train) == transit:
+        if self._position.get(train) == into:
             return
-        self._withdrawing[train] = transit
-        self._withdraw(train, transit)
+        self._withdrawing[train] = (transit, into)
+        self._withdraw(wanted)
 
-    def _withdraw(self, train: str, transit: str) -> None:
+    def _withdraw(self, withdrawn: Withdrawal) -> None:
         """A move taken back: the train told to stand, unless the speed is a
         throttle's, and the dispatcher told the train never left."""
-        if train not in self._taken:
-            self._stop(train)
-        self._bus.publish(MOVE_WITHDRAWN, {"train": train, "transit": transit})
+        if withdrawn.train not in self._taken:
+            self._stop(withdrawn.train)
+        self._bus.publish(
+            MOVE_WITHDRAWN,
+            {
+                "train": withdrawn.train,
+                "transit": withdrawn.transit,
+                "into": withdrawn.into,
+            },
+        )
 
     def _cross(self, commanded: Command) -> None:
         """The three rules, in the order a command meets them, applied at the
@@ -844,7 +857,6 @@ class LayoutInterface:
         # have taken it onto the points (#1068), and a train already running
         # is driven from the start, its decoder keeping the last speed it was
         # given (#1076).
-        self._acted[commanded.train] = transit
         if self._running(commanded.train):
             self._driven.add(commanded.train)
         else:
@@ -1508,7 +1520,6 @@ class LayoutInterface:
         the moves waiting on an `align`, a facing or the power. With them goes
         what a `withdraw_wanted` is judged on: a train set down by hand starts
         a fresh account (#1068)."""
-        self._acted.pop(train, None)
         self._driven.discard(train)
         self._withdrawing.pop(train, None)
         self._crossing = {
