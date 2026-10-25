@@ -990,7 +990,9 @@ class Record:
                 self.aligned.add(aligning.transit_id)
         elif topic == MOVE:
             self._commanded(payload)
-        elif topic == RAILROAD:
+        elif topic == RAILROAD and payload != self.rows.get(RAILROAD):
+            # A value the record already holds is the retained row handed to
+            # a late subscriber, and not `layout` coming up.
             self.resting = {
                 addr for addr, speed in _traction(self.rows).items() if speed != 0.0
             }
