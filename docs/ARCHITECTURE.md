@@ -490,10 +490,15 @@ in, fully in, or its tail out of the block behind); a point, the supply or a
 link reporting either value whatever was asked; or time passing and the
 settling time with it. ADR-0062's drain invariant is left out there, for a
 strict xfail beside it: `on` ending a drain over a link that went `down`
-reads as a drain ending early.
+reads as a drain ending early. So are ADR-0079's rule that a train no
+throttle holds stands in `manual` and ADR-0081's rule of a release in
+`automatic`, for three more: a train placed by hand while running keeps the
+speed of a move the dispatcher has ended, and letting go of a train off the
+layout writes 0 to a locomotive another train is running on.
 
 **The invariants** of `tc49/lib/invariants.py` are checked by every property
-above, by `test_gestures_and_readings` and by `test_layout_stateful`, through `tests/invariants.py`
+above, by `test_gestures_and_readings`, by `test_layout_stateful` and by the
+two tests in `tests/layout/` that run `layout` with the real apps, through `tests/invariants.py`
 ([ADR-0096](adr/0096-invariants-are-stated-over-what-the-bus-shows-and-checked-in-tests.md)).
 An invariant over one app's rows is asserted after every message, by a
 subscriber on `#`; one over several apps' rows (`cross_app`) each time
@@ -505,7 +510,9 @@ before recording it, and once more with nothing left to deliver, where a rule
 that one message follows another is breached. Under `InterleavingBus` each
 subscriber sees its own order, so only those over one app's topics are
 checked there, on the order that app published in. A breach fails with the
-ADR, the rule and what broke.
+ADR, the rule and what broke. The rules over `layout`'s traction rows read
+an address and not a train, so the record takes a nonzero speed on a car of
+a train no throttle holds, after a `move` for it, as that move's start.
 
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the
