@@ -606,8 +606,9 @@ block's rectangle by occupancy, and a signal by dimming the lamps its aspect
 does not light, whichever aspect the dispatcher says
 ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
 An aspect is a set of lamps rather than one of them, so the class goes on the
-signal's group and never on a lamp. `stop` lights red alone, `caution` green
-with amber, and `clear` green alone, as the Swiss standard sets them.
+signal's group and never on a lamp. In run mode one lamp is lit, as SBB
+system N sets them: `stop` red (Halt), `caution` amber (Warnung) and `clear`
+green (Fahrt) ([ADR-0094](../adr/0094-caution-is-warnung-the-panel-draws-system-n-and-the-throttle-system-l.md)).
 
 ### Pins
 

@@ -129,10 +129,15 @@ where the route is chosen and the claim has not been made yet. With no route
 ahead both read *—*. Neither colour is derived here; both are read off the
 same ledger the picture is lit from ([PANEL.md](PANEL.md)).
 
-**The signal** is a vertical three-lamp head, 50 × 156 px: green at the top,
-red in the middle, amber at the bottom, the Swiss order ([EDITOR.md](EDITOR.md)).
-*Stop* lights red, *caution* green and amber, *clear* green, and no aspect
-lights nothing. The aspect is the one at the end the reverser points the train
+**The signal** is an SBB system L main signal over its distant signal, as
+FDV R 300.2 figs 519, 524 and 528 draw them, 50 × 156 px
+([ADR-0094](../adr/0094-caution-is-warnung-the-panel-draws-system-n-and-the-throttle-system-l.md)). The main signal has two
+lamps, green above red; the distant signal is a square head under it with
+four, amber top left and top right, green middle right and bottom left.
+*Stop* lights the main red with the distant signal dark, *caution* (Warnung)
+the main green and both ambers, *clear* the main green and both greens, and
+no aspect lights nothing. The panel draws the same aspect as system N, one
+lamp ([EDITOR.md](EDITOR.md#symbol-geometry)). The aspect is the one at the end the reverser points the train
 to, from `tc49/dispatch/state/aspects`: for Forward the end its facing names
 (`tc49/schedule/state/facing`, GLOSSARY.md, **Facing**), for Reverse the
 block's other end. A person driving by hand reads the signal, and this is
@@ -519,8 +524,10 @@ light up to the value, that the speed reads as a percentage and which way the
 reverser is set, that the button under the slider publishes 0 above 0 and
 leaves the reverser and at 0 flips the reverser, publishes nothing and signs
 the next slider input the other way, and is Forward on every take, that the
-signal has green, red and amber from the top and lights `aspect` at Forward
-and `tailAspect` at Reverse and nothing with no aspect, that *at*, *next* and
+signal has two main lamps, green over red, and four distant lamps, that
+`caution` lights the main green and both ambers, `clear` the main green and
+both greens and `stop` the main red and no distant lamp, read off `aspect` at
+Forward and `tailAspect` at Reverse, and nothing with no aspect, that *at*, *next* and
 *to* read `C2`, `CE2`, `A2` for a cab in `C2` with `CE2, X, A2` ahead, *at*
 reads *crossing a transit* with no block and *next* and *to* *—* with nothing
 ahead, that the picture is the first locomotive's photo with the name over it

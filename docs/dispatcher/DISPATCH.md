@@ -47,11 +47,11 @@ dispatcher has locked for the train that will reach it; the table is in
 [GOALS.md](../GOALS.md#dispatching) (ADR-0025). Every exit along a train's
 locked blocks is lit, from the block the train is recorded in to the last it
 holds, and a passed signal goes to `stop` once the block beyond reads occupied
-([ADR-0093](../adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)). Each aspect answers to a Swiss
-one: `stop` to Halt, `caution` to Fb 2, `clear` to Freie Fahrt (Fb 1). That is
-not a translation. Fb 2 names a speed, 40 km/h, where `caution` names a braking
-instruction, and which of the two the middle aspect finally is stays open
-(ADR-0025).
+([ADR-0093](../adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)). Each aspect answers to an SBB
+one: `stop` to Halt, `caution` to Warnung (proceed, the next signal shows
+stop), `clear` to Fahrt. The panel draws them as system N and the throttle as
+system L
+([ADR-0094](../adr/0094-caution-is-warnung-the-panel-draws-system-n-and-the-throttle-system-l.md)).
 
 ### Requests
 
