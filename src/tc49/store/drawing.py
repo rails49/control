@@ -158,6 +158,9 @@ class Symbol:
     length: int = 0
     label: str = ""  # a portal's, which pairs it with its mate
     addr: str = ""  # a motorised symbol's, naming what the hardware answers to
+    # A turnout's: the leg its closed position takes, thrown taking the other.
+    # Where the grid puts the straight road on the 45° leg, it is `diverging`.
+    closed_leg: str = "straight"
     # A block's signals, by the end each stands at: the address of the signal
     # installed there, absent where an end carries none.
     signals: dict[str, str] = field(default_factory=dict[str, str])
@@ -165,6 +168,12 @@ class Symbol:
     # knows that sensor by. One per end, always, the drawing writing only the
     # ends whose address is not the default (ADR-0063).
     sensors: dict[str, str] = field(default_factory=dict[str, str])
+
+    def position(self, leg: str) -> str:
+        """The position a way over `leg` of this motorised symbol wants."""
+        if self.kind == "turnout":
+            return "closed" if leg == self.closed_leg else "thrown"
+        return POSITIONS[self.kind][leg]
 
 
 @dataclass(frozen=True)
@@ -398,7 +407,7 @@ class Drawing:
                     for symbol, local in named[way][1]:
                         points = self.symbols[symbol]
                         if points.addr and points.kind in POSITIONS:
-                            position = POSITIONS[points.kind][local]
+                            position = points.position(local)
                             wanted[points.addr][position].add(symbol)
                 for addr, at in sorted(wanted.items()):
                     if len(at) > 1:
@@ -829,7 +838,7 @@ class Drawing:
         for symbol, local in used:
             points = self.symbols[symbol]
             if points.addr and points.kind in POSITIONS:
-                wanted.add((points.addr, POSITIONS[points.kind][local]))
+                wanted.add((points.addr, points.position(local)))
         return [
             {"addr": addr, "position": position} for addr, position in sorted(wanted)
         ]
@@ -977,8 +986,13 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     optional = {"names", "connection"} | _PLACEMENT
     if kind in POSITIONS:
         optional.add("addr")
+    if kind == "turnout":
+        optional.add("closed_leg")
     check_keys(spec, where, {"kind"}, optional)
     transits = LIBRARY[kind]
+    closed_leg = spec.get("closed_leg", "straight")
+    if kind == "turnout" and closed_leg not in transits:
+        raise ValueError(f"{where}: closed_leg must be one of {list(transits)}")
 
     names: dict[str, str] = {}
     for transit, authored in as_mapping(
@@ -999,6 +1013,7 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
         # Nothing checks an address, so nothing but the yaml's own quoting
         # separates the accessory number 31 from the string "31" (ADR-0022).
         addr=str(spec.get("addr", "")),
+        closed_leg=closed_leg,
     )
 
 
