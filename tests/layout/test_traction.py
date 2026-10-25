@@ -96,7 +96,7 @@ def test_a_top_and_tail_set_runs_its_two_locomotives_opposite() -> None:
     written = commanded(bus)
     move(bus, "topped", "crossover", "to_dn", "dn_e", 1.0)
 
-    assert speeds(written) == [("3", 1.0), ("4", -1.0)]
+    assert speeds(written) == [("8", 1.0), ("4", -1.0)]
 
 
 def test_a_propelled_top_and_tail_set_swaps_both_signs() -> None:
@@ -104,7 +104,7 @@ def test_a_propelled_top_and_tail_set_swaps_both_signs() -> None:
     written = commanded(bus)
     move(bus, "topped", "crossover", "to_dn", "dn_e", 1.0)
 
-    assert speeds(written) == [("3", -1.0), ("4", 1.0)]
+    assert speeds(written) == [("8", -1.0), ("4", 1.0)]
 
 
 def test_a_car_with_no_address_is_not_commanded() -> None:
@@ -115,7 +115,7 @@ def test_a_car_with_no_address_is_not_commanded() -> None:
     written = commanded(bus)
     move(bus, "van", "crossover", "to_dn", "dn_e", 0.5)
 
-    assert speeds(written) == [("3", 0.5)]
+    assert speeds(written) == [("9", 0.5)]
 
 
 def test_a_train_with_no_addressed_car_crosses_and_publishes_nothing() -> None:
@@ -164,7 +164,7 @@ def test_the_arrival_writes_zero_to_exactly_the_addresses_commanded() -> None:
     reads(bus, "dn_e.A", "occupied")
     settle(bus, app, clock)
 
-    assert speeds(written) == [("3", 1.0), ("4", -1.0), ("3", 0.0), ("4", 0.0)]
+    assert speeds(written) == [("8", 1.0), ("4", -1.0), ("8", 0.0), ("4", 0.0)]
 
 
 def test_the_arrival_stops_each_car_once_and_the_vacate_follows_it() -> None:

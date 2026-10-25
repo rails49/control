@@ -266,7 +266,7 @@ def test_a_train_released_standing_mid_move_gets_its_grants_speed() -> None:
 
     gives(bus, "topped")
 
-    assert speeds(written) == [("3", 0.6), ("4", -0.6)]
+    assert speeds(written) == [("8", 0.6), ("4", -0.6)]
 
 
 def released_running(
@@ -380,7 +380,7 @@ def test_a_release_in_automatic_with_no_move_outstanding_writes_zero() -> None:
     written = commanded(bus)
     gives(bus, "topped")
 
-    assert speeds(written) == [("3", 0.0), ("4", 0.0)]
+    assert speeds(written) == [("8", 0.0), ("4", 0.0)]
 
 
 def test_a_release_in_manual_mid_transit_writes_zero() -> None:

@@ -142,8 +142,8 @@ def stock() -> Roster:
         {
             "freight_1": Train((Coupled(loco(None)),)),
             "single": Train((Coupled(loco("3")),)),
-            "topped": Train((Coupled(loco("3")), Coupled(loco("4"), REVERSE))),
-            "van": Train((Coupled(loco("3")), Coupled(loco(None), FORWARD))),
+            "topped": Train((Coupled(loco("8")), Coupled(loco("4"), REVERSE))),
+            "van": Train((Coupled(loco("9")), Coupled(loco(None), FORWARD))),
             "lit": Train(
                 (
                     Coupled(lit(None, {"0": "headlights"})),

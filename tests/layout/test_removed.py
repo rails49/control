@@ -53,7 +53,7 @@ def test_a_standing_train_with_a_speed_written_is_told_to_stand() -> None:
 
     removed(bus, "topped")
 
-    assert speeds(written) == [("3", 0.0), ("4", 0.0)]
+    assert speeds(written) == [("8", 0.0), ("4", 0.0)]
 
 
 def test_the_zero_goes_out_whatever_the_power() -> None:
