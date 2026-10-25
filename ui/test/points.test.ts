@@ -139,7 +139,7 @@ describe("a point drawn in a position", () => {
   });
 });
 
-describe("a turnout's thrown leg", () => {
+describe("a turnout's legs", () => {
   /** The editor and the palette (nothing lit, no position), a lit way, and a
    *  run with the point lying either way. */
   const modes: [string, ReadonlySet<string> | undefined, Position | undefined][] = [
@@ -149,20 +149,14 @@ describe("a turnout's thrown leg", () => {
     ["a run, thrown", undefined, "thrown"],
   ];
 
-  for (const [closed, thrown] of [
-    ["straight", "diverging"],
-    ["diverging", "straight"],
-  ] as const) {
-    it(`starts a fifth of a square from the toe when closed takes ${closed}`, () => {
+  for (const closed of ["straight", "diverging"] as const) {
+    it(`both start at the toe when closed takes ${closed}`, () => {
       const toe = anchorIn("turnout", "toe");
       const spec: SymbolSpec = { kind: "turnout", closed_leg: closed };
       for (const [mode, lit, position] of modes) {
-        const legs = turnoutLegs(spec, lit, position);
-        const [start] = ends(legs.get(thrown)!);
-        const along = Math.hypot(start[0]! - toe.x, start[1]! - toe.y);
-        // Path data is rounded to a thousandth per coordinate.
-        expect(along, mode).toBeCloseTo(0.2, 2);
-        expect(ends(legs.get(closed)!)[0], mode).toEqual([toe.x, toe.y]);
+        for (const [leg, path] of turnoutLegs(spec, lit, position)) {
+          expect(ends(path)[0], `${mode}, ${leg}`).toEqual([toe.x, toe.y]);
+        }
       }
     });
   }
