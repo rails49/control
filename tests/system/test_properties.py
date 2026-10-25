@@ -3,7 +3,9 @@
 Every generated case wires scheduler, dispatcher, driver and simulator on
 one in-process bus and interacts only by publishing and observing events, so
 the bus contract gets thousands of adversarial runs for free. The layouts are
-the fixed library of `tests/generate.py`; what varies is the workload.
+the fixed library of `tests/generate.py`; what varies is the workload. Each
+also checks the invariants over what the bus shows (`tests/invariants.py`,
+ADR-0096).
 """
 
 from typing import Any
@@ -23,6 +25,7 @@ from tc49.store import AssetStore
 from tests.generate import fixture_yaml, scenarios
 from tests.harness import ASSETS, Assembly, build, events, run
 from tests.interleaving import InterleavingBus
+from tests.invariants import check as check_invariants
 
 K = 2  # the default candidate budget; the k axis is swept by `tc49 sweep`
 TICK_LIMIT = 100  # a backstop against live-lock, never the normal stop
@@ -65,6 +68,7 @@ def test_safety_invariant_holds_after_every_grant(
     doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     assembly = build(layout, roster, scenario, Incremental, K)
+    check_invariants(assembly, Incremental)
 
     def check(topic: str, payload: Payload) -> None:
         assert safe(
@@ -90,6 +94,7 @@ def test_the_lock_table_keeps_its_rules_after_every_event(
     doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     assembly = build(layout, roster, scenario, strategy, K)
+    check_invariants(assembly, strategy)
 
     def check(topic: str, payload: Payload) -> None:
         assert broken(assembly.dispatcher.state) == [], f"after {topic} {payload}"
@@ -145,6 +150,7 @@ def test_quiescence_is_always_a_permanent_obstacle(
     doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     assembly = build(layout, roster, scenario, Incremental, K)
+    check_invariants(assembly, Incremental)
     assembly.simulator.run(TICK_LIMIT)
     assert_quiescence_is_a_permanent_obstacle(assembly)
 
@@ -176,6 +182,7 @@ def test_differential_against_the_baseline(
     note(fixture_yaml(doc))
     for strategy in (FullRoute, Incremental):
         assembly = build(layout, roster, scenario, strategy, K)
+        check_invariants(assembly, strategy)
         assembly.simulator.run(TICK_LIMIT)
         assert_quiescence_is_a_permanent_obstacle(assembly)
 
@@ -188,13 +195,16 @@ def test_traces_are_byte_identical_across_runs(
     """Property 4. Each case run twice, the two trace byte streams identical
     in memory — the tie-break, grant-order and canonical-serialization
     promises. No trace files are committed; the goldens are metrics numbers
-    and scenario YAML."""
+    and scenario YAML. The second run checks the invariants, so it also shows
+    that checking them changes nothing on the bus."""
     doc, layout, roster, scenario = case
     note(fixture_yaml(doc))
     for strategy in (FullRoute, Incremental):
         first = run(layout, roster, scenario, strategy, K, TICK_LIMIT)
-        second = run(layout, roster, scenario, strategy, K, TICK_LIMIT)
-        assert first == second
+        checked = build(layout, roster, scenario, strategy, K)
+        check_invariants(checked, strategy)
+        checked.simulator.run(TICK_LIMIT)
+        assert first == checked.trace
 
 
 @given(scenarios(), st.data())
@@ -205,8 +215,8 @@ def test_the_rules_hold_in_any_order_mqtt_delivers(
     """Property 5. The assembly on a bus that keeps only the order BUS.md
     promises ("Order from one publisher") and draws every other: what one app
     sends on one topic to one subscriber stays in order, and nothing else
-    does. The lock table's rules hold after every message the dispatcher is
-    handed, `safe()` after every grant, and quiescence is still a permanent
+    does. The lock table's rules and `safe()` hold after every message the
+    dispatcher is handed, the invariants hold, and quiescence is still a permanent
     obstacle. A drawn index of 0 is the oldest message, so a counterexample
     shrinks to the fewest delivered out of order (#1043)."""
     doc, layout, roster, scenario = case
@@ -214,8 +224,13 @@ def test_the_rules_hold_in_any_order_mqtt_delivers(
     built: list[Assembly] = []
 
     def after(subscriber: object, topic: str, payload: Payload) -> None:
+        # Here rather than on a subscriber to `move_granted`: that one's copy
+        # of a grant can arrive several dispatcher steps late, and `safe()`
+        # would then read a later state than the grant's (#1047).
         if built and subscriber is built[0].dispatcher:
-            assert broken(built[0].dispatcher.state) == [], f"after {topic} {payload}"
+            state = built[0].dispatcher.state
+            assert broken(state) == [], f"after {topic} {payload}"
+            assert safe(*safety_view(state)), f"unsafe state after {topic} {payload}"
 
     def choose(n: int) -> int:
         return data.draw(st.integers(0, n - 1))
@@ -229,13 +244,7 @@ def test_the_rules_hold_in_any_order_mqtt_delivers(
         make_bus=lambda clock: InterleavingBus(clock, choose, after),
     )
     built.append(assembly)
-
-    def check(topic: str, payload: Payload) -> None:
-        assert safe(
-            *safety_view(assembly.dispatcher.state)
-        ), f"unsafe state after granting {payload}"
-
-    assembly.bus.subscribe("tc49/dispatch/move_granted", check)
+    check_invariants(assembly, Incremental)
     assembly.simulator.run(TICK_LIMIT)
     assert broken(assembly.dispatcher.state) == []
     assert_quiescence_is_a_permanent_obstacle(assembly)

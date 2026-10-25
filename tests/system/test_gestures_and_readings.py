@@ -7,7 +7,8 @@ made were found by review rather than by a test (#806, #836, #811, #791).
 This drives them as a Hypothesis state machine over the live assembly: each
 step is one gesture, one reading or one turn of the live loop, and after
 every message the bus delivers the lock table's rules hold, and after every
-grant `safe()` does (#1042).
+grant `safe()` does (#1042). The invariants over what the bus shows hold too
+(`tests/invariants.py`, ADR-0096).
 
 The readings are what the layout interface publishes, standing in for
 hardware that reports a block emptying under a standing train or filling
@@ -36,6 +37,7 @@ from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
 from tests.generate import ENDS, fixture_yaml, scenarios
 from tests.harness import Assembly, assemble_live, press, ticks
+from tests.invariants import check as check_invariants
 
 UNMINTED = "nobody-minted-this"
 """A request id no scheduler minted: a stale or forged gesture's."""
@@ -67,6 +69,7 @@ class GesturesAndReadings(RuleBasedStateMachine):
         # The scenario's trains stand where it puts them; its requests are not
         # used, every request here being a drag drawn by the rules.
         self.assembly = assemble_live(layout, roster, scenario.trains, Incremental)
+        check_invariants(self.assembly, Incremental)
         bus = self.assembly.bus
 
         def collect(topic: str, payload: Payload) -> None:
