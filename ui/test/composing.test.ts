@@ -1190,22 +1190,58 @@ describe("a model dropped", () => {
 });
 
 describe("what the lists draw", () => {
-  it("orders cars, models and trains by name", () => {
-    const screen = stock({
-      roster: "oval",
-      cars: { b: { model: "hopper" }, a: { model: "hopper" } },
-      trains: {
-        z: { cars: [{ model: "hopper" }] },
-        m: { cars: [{ model: "coach" }] },
-      },
-    });
-    expect(screen.cars().map((one) => one.name)).toEqual(["a", "b"]);
-    expect(screen.trains().map((one) => one.train)).toEqual(["m", "z"]);
-    expect(screen.modelRows().map((one) => one.model)).toEqual([
+  /** Kind first, in the order the kind list reads, then name, case aside
+   *  (#1035). */
+  it("orders models by kind, then name", () => {
+    expect(stock().modelRows().map((one) => one.model)).toEqual([
       "arnold-ce68",
       "coach",
       "hopper",
       "van",
+    ]);
+  });
+
+  it("orders cars by kind, then name, a car of no model last", () => {
+    const screen = stock({
+      roster: "oval",
+      cars: {
+        Van: { model: "van" },
+        gone: { model: "unknown" },
+        coach: { model: "coach" },
+        "b-hopper": { model: "hopper" },
+        Krokodil: { model: "arnold-ce68" },
+      },
+      trains: {},
+    });
+    expect(screen.cars().map((one) => one.name)).toEqual([
+      "Krokodil",
+      "coach",
+      "b-hopper",
+      "Van",
+      "gone",
+    ]);
+  });
+
+  it("orders trains by kind, then name, a train of no kind last", () => {
+    const screen = stock({
+      roster: "oval",
+      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
+      trains: {
+        empty: { cars: [] },
+        shunt: { cars: [{ car: "krokodil-a" }] },
+        pick: { cars: [{ model: "coach" }, { model: "hopper" }] },
+        Ore: { cars: [{ model: "hopper" }] },
+        goods: { cars: [{ model: "van" }] },
+        local: { cars: [{ model: "coach" }] },
+      },
+    });
+    expect(screen.trains().map((one) => one.train)).toEqual([
+      "local",
+      "goods",
+      "Ore",
+      "pick",
+      "shunt",
+      "empty",
     ]);
   });
 
