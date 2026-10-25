@@ -869,3 +869,31 @@ def test_a_retained_railroad_handed_again_is_no_start() -> None:
     replayed: Messages = [(RAILROAD, {"name": "bench"}), (POWER, {"power": "on"})]
     for breaches in (adr_0074_comes_up_off, adr_0054_traction_zeroed_at_start):
         assert breaches_over(breaches, BENCH, rows, [*replayed, moved()]) == []
+
+
+WITHDRAWN: Messages = [
+    TO_DN,
+    (CANCEL_WANTED, {"id": "r1"}),
+    (
+        "tc49/layout/move_withdrawn",
+        {"train": "single", "transit": "crossover.to_dn", "into": "dn_e"},
+    ),
+]
+"""`single`'s move granted, cancelled, and taken back before its `move`
+came (#1080)."""
+
+
+def test_a_move_withdrawn_before_it_came_is_dropped_when_it_does() -> None:
+    """`layout` drops the late `move`, so it starts nothing: a later write to
+    the train's address is no move's, and no sign is checked against it."""
+    late: Messages = [*WITHDRAWN, ALIGNED, moved(), wrote("3", -0.3)]
+
+    assert breaches_over(adr_0052_sign_composed, BENCH, STANDING, late) == []
+
+
+def test_a_placement_clears_a_withdrawal_waiting_for_its_move() -> None:
+    record = Record(RAILROADS[BENCH], STANDING, STOCK[BENCH])
+    for topic, payload in [*WITHDRAWN, placed("single", "up_w"), moved()]:
+        record.observe(topic, payload)
+
+    assert list(record.commanded) == ["single"]
