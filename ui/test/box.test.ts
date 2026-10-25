@@ -245,7 +245,7 @@ describe("the dialog's Shutdown tab", () => {
 
     const dialog = await settingsOpened(shell);
 
-    expect(press(dialog, "turn")!.textContent!.trim()).toBe("Turn the box off…");
+    expect(press(dialog, "turn")!.textContent!.trim()).toBe("Turn the server off…");
     expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(false);
     expect(hint(dialog)).toBeNull();
   });
@@ -281,7 +281,7 @@ describe("the dialog's Shutdown tab", () => {
     await settled(shell);
 
     expect(asked).toBe(1);
-    expect(hint(dialog)).toBe("The box is turning off. Unplug it once its lights go out.");
+    expect(hint(dialog)).toBe("The server is turning off. Unplug it once its lights go out.");
   });
 
   it("asks for off at once on the stop sign", async () => {
@@ -346,7 +346,7 @@ describe("the dialog's Shutdown tab", () => {
 
     await pressed(shell, dialog, "turn");
     expect(part(dialog)!.querySelector(".asking")!.textContent!.trim()).toBe(
-      "Every app on this box stops, and starting it again takes a person at the box.",
+      "Every app on this server stops, and starting it again takes a person at the server.",
     );
     await pressed(shell, dialog, "cancel");
 
@@ -363,7 +363,7 @@ describe("the dialog's Shutdown tab", () => {
     await pressed(shell, dialog, "off");
 
     expect(asked).toBe(1);
-    expect(hint(dialog)).toBe("The box is turning off. Unplug it once its lights go out.");
+    expect(hint(dialog)).toBe("The server is turning off. Unplug it once its lights go out.");
     expect(press(dialog, "turn")).toBeNull();
   });
 

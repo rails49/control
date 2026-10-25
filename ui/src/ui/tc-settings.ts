@@ -314,7 +314,7 @@ export class TcSettings extends LitElement {
   }
 
   /**
-   * The Shutdown tab. **Turn the box off…** is dead while the rule refuses or a
+   * The Shutdown tab. **Turn the server off…** is dead while the rule refuses or a
    * request is out, with the rule's reason beneath; pressed, it gives way to
    * what turning off costs and **Turn off** and **Cancel**. **Turn off** with
    * the track live drains it first, and the tab says so with the stop sign
@@ -324,12 +324,12 @@ export class TcSettings extends LitElement {
   private shutdown() {
     if (this.turning === "stopping") return this.stoppingTrains();
     if (this.turning === "going") {
-      return html`<p class="hint">The box is turning off. Unplug it once its lights go out.</p>`;
+      return html`<p class="hint">The server is turning off. Unplug it once its lights go out.</p>`;
     }
     if (this.turning === "asking") {
       return html`
         <p class="asking">
-          Every app on this box stops, and starting it again takes a person at the box.
+          Every app on this server stops, and starting it again takes a person at the server.
         </p>
         <div class="presses">
           <sl-button class="off" size="small" variant="danger" @click=${this.turningOff}>
@@ -357,7 +357,7 @@ export class TcSettings extends LitElement {
           this.turning = "asking";
         }}
       >
-        Turn the box off…
+        Turn the server off…
       </sl-button>
       ${refused === null ? nothing : html`<p class="hint">${refused}</p>`}
       ${this.refusedOff === null ? nothing : html`<p class="hint wrong">${this.refusedOff}</p>`}

@@ -653,6 +653,15 @@ def test_a_store_that_is_not_a_repository_points_a_new_box_to_its_section(
     assert "Moving to a new box in docs/store/BACKUP.md" in words
 
 
+def test_the_setup_words_call_the_box_a_server(tmp_path: Path) -> None:
+    """A person knows the box as the server: the words they read say so, and
+    only the section they point to keeps its title (#1022)."""
+    words = Backup(tmp_path, run=FakeGit(toplevel="")).needs()[0]
+    assert "A new server taking over" in words
+    assert "the old server backed up to" in words
+    assert "box" not in words.replace("Moving to a new box", "")
+
+
 def test_a_store_inside_a_larger_repository_is_not_one(tmp_path: Path) -> None:
     """A checkout's `bench/` is what a developer runs a session on, and
     committing there would land the store's backups in the control repository
