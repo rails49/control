@@ -14,8 +14,8 @@ Each step is one publish and a drain, or time passing and the settling it
 drives. After every message the invariants over what the bus shows hold
 (`tests/invariants.py`, ADR-0096), and no handler raises — bar ADR-0062's
 drain rule, left out for `test_on_ending_a_drain_over_a_dead_link`, and
-ADR-0079's rule of a train standing in `manual` and ADR-0081's of a release
-in `automatic`, left out for the three xfail tests after it.
+ADR-0081's rule of a release in `automatic`, left out for
+`test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive`.
 """
 
 import unittest
@@ -71,11 +71,8 @@ ADDRS = sorted({point["addr"] for way in POINTS.values() for point in way})
 DRAIN_OVER_A_DEAD_LINK = frozenset({"adr_0062_drain_ends_at_a_stand"})
 """Left out of the checks for `test_on_ending_a_drain_over_a_dead_link`."""
 
-PLACED_WHILE_RUNNING = frozenset(
-    {"adr_0079_manual_untaken_stands", "adr_0081_release_in_automatic"}
-)
-"""Left out of the checks for `test_on_placing_a_running_train_in_manual`,
-`test_on_releasing_a_train_placed_while_running` and
+SHARED_LOCOMOTIVE = frozenset({"adr_0081_release_in_automatic"})
+"""Left out of the checks for
 `test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive`."""
 
 
@@ -152,17 +149,12 @@ def test_on_switching_to_automatic_after_placing_a_train_granted_in_manual() -> 
     press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="ADR-0079: a train placed while running keeps its speed in manual",
-)
 def test_on_placing_a_running_train_in_manual() -> None:
-    """A person lifts `single` mid-move and sets it back in dn_e. The
-    dispatcher refuses the placement, the train holding dn_e, but has ended
-    the move first, and no `train_placed` follows (#1062). `layout` keeps
-    the crossing and the speed, so in `manual` with no throttle the train
-    runs on at 0.3. Found by the state machine below.
+    """A placement of `single` mid-move into dn_e, the block it departs. The
+    dispatcher refused it, the train holding dn_e, but ended the move first,
+    and no `train_placed` followed, so `layout` drove on at 0.3 with no
+    throttle in `manual`. A refused placement now changes nothing (#1062).
+    Found by the state machine below.
     """
     bus, _app, _clock = assembled()
     started(bus)
@@ -170,16 +162,11 @@ def test_on_placing_a_running_train_in_manual() -> None:
     press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "dn_e"})
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="ADR-0081: a train placed while running is not stopped on its release",
-)
 def test_on_releasing_a_train_placed_while_running() -> None:
-    """The same refused placement in `automatic` (#1062), then a throttle
-    takes `single` and lets it go. On the bus no move is outstanding, so
-    ADR-0081 has it written 0; `layout` still holds the crossing and leaves
-    it running. Found by the state machine below.
+    """The same refused placement in `automatic`, then a throttle takes
+    `single` and lets it go. With the move ended on the bus, ADR-0081 had it
+    written 0, and `layout` left it running. The move now stands, and the
+    release keeps its speed (#1062). Found by the state machine below.
     """
     bus, _app, _clock = assembled()
     started(bus)
@@ -222,9 +209,9 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
         self.roster = stock()
         self.minted = []
         # Narrowed around `test_on_ending_a_drain_over_a_dead_link` and the
-        # three tests of a train placed while running and a shared locomotive.
+        # test of a shared locomotive.
         self.bus, self.app, self.clock = assembled(
-            without=DRAIN_OVER_A_DEAD_LINK | PLACED_WHILE_RUNNING
+            without=DRAIN_OVER_A_DEAD_LINK | SHARED_LOCOMOTIVE
         )
 
         def collect(topic: str, payload: Payload) -> None:
