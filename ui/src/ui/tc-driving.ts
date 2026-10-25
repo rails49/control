@@ -71,21 +71,31 @@ const PAGE = 0.1;
 /** The tick marks up the track, one every 5 %: 0 through 20. */
 const TICKS = Array.from({ length: 21 }, (_, at) => at);
 
-/** The signal's three lamps, top to bottom, in the Swiss order
- *  (docs/ui/EDITOR.md): each with its height on the head and the colour it
- *  is lit in. The colours are a lamp's and not the page's, so they are the
- *  same in either theme. */
+/** The signal's lamps, as SBB system L draws them (ADR-0094): a main
+ *  signal of two, green above red, and under it its distant signal of four
+ *  on a square head, amber top left and top right, green middle right and
+ *  bottom left. Each has its head, its colour, its centre and its radius.
+ *  The colours are a lamp's and not the page's, so they are the same in
+ *  either theme. */
 const LAMPS = [
-  { lamp: "green", y: 32, colour: "#22c55e" },
-  { lamp: "red", y: 68, colour: "#ef4444" },
-  { lamp: "amber", y: 104, colour: "#f59e0b" },
+  { head: "main", lamp: "green", x: 26, y: 23, r: 11 },
+  { head: "main", lamp: "red", x: 26, y: 53, r: 11 },
+  { head: "distant", lamp: "amber", x: 14, y: 93, r: 6 },
+  { head: "distant", lamp: "amber", x: 38, y: 93, r: 6 },
+  { head: "distant", lamp: "green", x: 38, y: 105, r: 6 },
+  { head: "distant", lamp: "green", x: 14, y: 117, r: 6 },
 ] as const;
 
-/** Which lamps each aspect lights. */
+/** What a lit lamp of each colour is painted in. */
+const COLOUR = { green: "#22c55e", red: "#ef4444", amber: "#f59e0b" } as const;
+
+/** Which lamps each aspect lights, by head and colour: Halt is red with the
+ *  distant signal dark, Warnung green over two ambers, Fahrt green over two
+ *  greens (ADR-0094). */
 const LIT: Record<Aspect, readonly string[]> = {
-  stop: ["red"],
-  caution: ["green", "amber"],
-  clear: ["green"],
+  stop: ["main red"],
+  caution: ["main green", "distant amber"],
+  clear: ["main green", "distant green"],
 };
 
 /** A train seen from the front, drawn where it has no photo. */
@@ -432,14 +442,15 @@ export class TcDriving extends LitElement {
   }
 
   /**
-   * The signal the train reads, as a three-lamp head: green at the top, red
-   * in the middle, amber at the bottom (the Swiss order, docs/ui/EDITOR.md).
-   * Stop lights red, caution green and amber, clear green, and no aspect
-   * lights nothing. It is the aspect at the end the reverser points the
-   * train to: the end its facing names for Forward, the block's other end
+   * The signal the train reads, as an SBB system L main signal over its
+   * distant signal (ADR-0094, FDV R 300.2 figs 519, 524 and 528). Stop
+   * lights the main red and leaves the distant dark, caution the main green
+   * and both ambers (Warnung), clear the main green and both greens, and no
+   * aspect lights nothing. It is the aspect at the end the reverser points
+   * the train to: the end its facing names for Forward, the block's other end
    * for Reverse (ADR-0025). Like the clock it is a picture of a thing on the
-   * railroad, so the head and its lamps keep their colours in either theme;
-   * the rim follows the page.
+   * railroad, so the heads and their lamps keep their colours in either
+   * theme; the rims follow the page.
    */
   private signal(cab: Cab) {
     const aspect = this.reverse ? cab.tailAspect : cab.aspect;
@@ -450,12 +461,13 @@ export class TcDriving extends LitElement {
       role="img"
       aria-label=${aspect === null ? "no signal ahead" : `signal ahead: ${aspect}`}
     >
-      <rect class="mast" x="22" y="132" width="8" height="28" />
-      <rect class="head" x="3" y="4" width="46" height="128" rx="17" fill="#0d0f12" />
-      ${LAMPS.map(({ lamp, y, colour }) =>
-        lit.includes(lamp)
-          ? svg`<circle class=${`lamp ${lamp} lit`} cx="26" cy=${y} r="12.5" fill=${colour} />`
-          : svg`<circle class=${`lamp ${lamp}`} cx="26" cy=${y} r="12.5" fill="#22262d" />`,
+      <rect class="mast" x="22" y="128" width="8" height="32" />
+      <rect class="head main" x="7" y="4" width="38" height="68" rx="17" fill="#0d0f12" />
+      <rect class="head distant" x="3" y="80" width="46" height="50" rx="5" fill="#0d0f12" />
+      ${LAMPS.map(({ head, lamp, x, y, r }) =>
+        lit.includes(`${head} ${lamp}`)
+          ? svg`<circle class=${`lamp ${head} ${lamp} lit`} cx=${x} cy=${y} r=${r} fill=${COLOUR[lamp]} />`
+          : svg`<circle class=${`lamp ${head} ${lamp}`} cx=${x} cy=${y} r=${r} fill="#22262d" />`,
       )}
     </svg>`;
   }

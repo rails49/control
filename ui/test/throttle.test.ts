@@ -863,40 +863,66 @@ describe("the button under the slider", () => {
 });
 
 /** The signal a person reads is the one at the end the train would leave
- *  by, which the reverser decides (ADR-0025): a three-lamp head, green over
- *  red over amber. */
+ *  by, which the reverser decides (ADR-0025): an SBB system L main signal,
+ *  green over red, over its four-lamp distant signal (ADR-0094). */
 describe("the signal", () => {
-  /** The lamps lit, top to bottom. */
-  function lit(shell: TcApp): string[] {
-    return parts(shell, ".signal .lamp.lit").map(
-      (one) => [...one.classList].find((name) => name !== "lamp" && name !== "lit")!,
-    );
+  /** A lamp's head and colour, as `main green`. */
+  function named(one: Element): string {
+    return [...one.classList].filter((name) => name !== "lamp" && name !== "lit").join(" ");
   }
 
-  it("has three lamps, green, red and amber from the top", async () => {
+  /** The lamps lit, in drawing order. */
+  function lit(shell: TcApp): string[] {
+    return parts(shell, ".signal .lamp.lit").map(named);
+  }
+
+  it("has two main lamps, green over red, and four distant lamps", async () => {
     const shell = await driving();
     await held(shell);
-    expect(
-      parts(shell, ".signal .lamp").map((one) => one.classList[1]),
-    ).toEqual(["green", "red", "amber"]);
+    expect(parts(shell, ".signal .lamp").map(named)).toEqual([
+      "main green",
+      "main red",
+      "distant amber",
+      "distant amber",
+      "distant green",
+      "distant green",
+    ]);
+    const [green, red] = parts(shell, ".signal .lamp.main");
+    expect(Number(green!.getAttribute("cy"))).toBeLessThan(Number(red!.getAttribute("cy")));
   });
 
-  it("lights the aspect at the facing end at Forward and at the other at Reverse", async () => {
+  it("lights Warnung for caution at Forward: the main green and both ambers", async () => {
     const shell = await driving();
     await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
     await said(shell, ASPECTS, {
       aspects: { "a.B": "caution", "a.A": "clear" },
     });
     await held(shell);
-    expect(lit(shell)).toEqual(["green", "amber"]);
+    expect(lit(shell)).toEqual(["main green", "distant amber", "distant amber"]);
+    expect(part(shell, ".signal")!.getAttribute("aria-label")).toBe(
+      "signal ahead: caution",
+    );
+  });
 
-    await reversed(shell);
-    expect(lit(shell)).toEqual(["green"]);
-
+  it("lights the other end at Reverse: clear is the main green and both greens", async () => {
+    const shell = await driving();
+    await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
     await said(shell, ASPECTS, {
-      aspects: { "a.B": "caution", "a.A": "stop" },
+      aspects: { "a.B": "caution", "a.A": "clear" },
     });
-    expect(lit(shell)).toEqual(["red"]);
+    await held(shell);
+    await reversed(shell);
+    expect(lit(shell)).toEqual(["main green", "distant green", "distant green"]);
+  });
+
+  it("lights stop as the main red with the distant signal dark", async () => {
+    const shell = await driving();
+    await said(shell, FACING, { facing: { goods: "a.A-to-B" } });
+    await said(shell, ASPECTS, {
+      aspects: { "a.B": "stop", "a.A": "clear" },
+    });
+    await held(shell);
+    expect(lit(shell)).toEqual(["main red"]);
   });
 
   it("lights nothing with no aspect", async () => {
