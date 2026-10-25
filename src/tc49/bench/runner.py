@@ -185,9 +185,13 @@ def assemble(
     scenario: Scenario,
     make_strategy: StrategyFactory = FullRoute,
     k: int = DEFAULT_K,
+    *,
+    make_bus: Callable[[Clock], InProcessBus] = InProcessBus,
 ) -> Assembly:
+    """`make_bus` builds the bus on the run clock: the in-process binding, or
+    a test's subclass of it that delivers in another order (#1043)."""
     clock = Clock()
-    bus = InProcessBus(clock)
+    bus = make_bus(clock)
     out = io.StringIO()
     TraceTap(bus, out, clock)
     stood = placement(scenario.trains)
@@ -207,6 +211,8 @@ def assemble_live(
     make_strategy: StrategyFactory = Incremental,
     k: int = DEFAULT_K,
     retained: dict[str, Payload] | None = None,
+    *,
+    make_bus: Callable[[Clock], InProcessBus] = InProcessBus,
 ) -> Assembly:
     """The live wiring (#71): **a railroad and its roster**, and no timetable.
     That is the whole of what a run an operator drives is built from (#171) —
@@ -240,11 +246,13 @@ def assemble_live(
     [`rails49/dccex`](https://github.com/rails49/dccex) now. A run on steel is
     those two as processes of their own on a broker, with the typed readings a
     third (`tc49 readings`), and `bench` assembles none of it.
+
+    `make_bus` is as `assemble` has it.
     """
     document = trains or {}
     stood = placement(document)
     clock = Clock()
-    bus = InProcessBus(clock)
+    bus = make_bus(clock)
     # On their topics before anything subscribes, and drained with nothing
     # listening: what is left is the last-value map, which is what a late
     # subscriber is handed — an app adopting its own row reads it at
