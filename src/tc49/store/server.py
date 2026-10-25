@@ -14,7 +14,8 @@ rather than to an app of its own — a `ui` package could not import
     GET  /rosters/<name>/trains its trains, each with its length, the
                                 functions its cars declare with each
                                 one's mode, whether one carries a
-                                camera and its first locomotive's model
+                                camera, its first locomotive's model and
+                                its cars' addresses
     GET  /catalogue             every model the installation knows, by key
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
@@ -515,19 +516,21 @@ def _put(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
 
 def _trains(roster: Roster) -> dict[str, Any]:
     """What the run views read a roster for: each train's length, what a
-    person driving it can switch, whether it carries a camera, and the model
-    of its first locomotive, which the throttle draws it as.
+    person driving it can switch, whether it carries a camera, the model of
+    its first locomotive, which the throttle draws it as, and its cars'
+    addresses, which the throttle shows.
 
     Derived rather than written down, which is why it is a path of its own
     below the document: `/rosters/<name>` is the roster as the file has it and
     `GET` and `PUT` there are inverses, and one answer cannot be both that and
-    this. The cars a train is made of, their addresses and which function
-    number each name sits on are the stock screen's and the translator's, not
-    a view's (ui/THROTTLE.md, ADR-0045) — and so is where a camera answers:
-    the route says a train carries one and still carries no address of any
-    kind, the picture reaching a view through the `camera` app (ADR-0082).
-    The first locomotive's model is a view's: a model name is not a decoder
-    detail. Each function's mode is a view's too: the throttle holds a
+    this. The cars a train is made of and which function number each name
+    sits on are the stock screen's and the translator's, not a view's
+    (ui/THROTTLE.md, ADR-0045) — and so is where a camera answers: the route
+    says a train carries one, the picture reaching a view through the
+    `camera` app (ADR-0082). The first locomotive's model is a view's: a model
+    name is not a decoder detail. So are the decoder addresses, head first,
+    for a person to copy onto another throttle; a view shows them and never
+    writes one (#1032). Each function's mode is a view's too: the throttle holds a
     momentary one on only while its button is (#977). Written out rather than `asdict`, which would put every field of
     the document on this face the day one is added — and would drop all of
     these, which a train derives.
@@ -543,6 +546,7 @@ def _trains(roster: Roster) -> dict[str, Any]:
                 ],
                 "camera": train.camera is not None,
                 "locomotive": train.locomotive,
+                "addresses": list(train.addresses),
             }
             for name, train in sorted(roster.trains.items())
         },

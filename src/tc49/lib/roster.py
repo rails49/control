@@ -265,6 +265,17 @@ class Train:
         return None
 
     @property
+    def addresses(self) -> tuple[str, ...]:
+        """The address of every car that has one, head first: the cars
+        `layout` writes the train's speed to. The throttle shows them for a
+        person to drive the train from another throttle, and never writes one
+        (ui/THROTTLE.md, #1032).
+        """
+        return tuple(
+            coupled.car.addr for coupled in self.cars if coupled.car.addr is not None
+        )
+
+    @property
     def priority_key(self) -> tuple[int, int]:
         """Where the train sorts against another: lowest number highest, and
         **a train with no priority after every train that has one**
