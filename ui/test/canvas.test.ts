@@ -11,16 +11,17 @@
  * ever match, and nothing would be drawn while every test stayed green.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-canvas.js";
-import { Drag, schedulingMachine } from "../src/model/drag.js";
+import { Drag, schedulingMachine, type Drop } from "../src/model/drag.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { editingMachine, Gesture } from "../src/model/gesture.js";
 import type { Chosen } from "../src/model/inspect.js";
 import type { Overlay } from "../src/model/panel.js";
 import {
+  photoUrl,
   UNREVIEWED,
   type Review,
   type Transit,
@@ -655,6 +656,7 @@ describe("what each mode draws", () => {
     offered: new Map(),
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
     widgets: new Map(),
+    locomotives: new Map(),
   };
 
   /** The run view's surface: the same canvas, told it is running, with the
@@ -672,6 +674,7 @@ describe("what each mode draws", () => {
       throwPoint: () => undefined,
       pressWidget: () => undefined,
       onRoster: () => false,
+      showName: () => undefined,
     });
     document.body.append(canvas);
     await canvas.updateComplete;
@@ -858,6 +861,185 @@ describe("what each mode draws", () => {
 });
 
 /**
+ * A block a train stands in shows the photo of the train's first locomotive
+ * in place of its name, the one the roster pane shows (#1018), and the name
+ * where there is no photo. A tap shows the name for a while; a press that
+ * moves picks the train up, as a press on the name did.
+ *
+ * Driven through the run view's own machine with something painted, so the
+ * tap and the drag are told apart by the same rules a person meets.
+ * happy-dom's `getScreenCTM` is the identity, so a client pixel is a square.
+ */
+describe("a train's photo in its block", () => {
+  /** Two blocks, `west` over x 0…6 and `east` over x 6…12, on row 0. */
+  const RAILROAD: Drawing = {
+    drawing: "two-blocks",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      east: { kind: "block", at: [6, 0], length: 1000 },
+    },
+    wires: [["west.B", "east.A"]],
+  };
+
+  /** `goods` standing in `west`, its first locomotive a BR 218. */
+  const LIVE: Overlay = {
+    blocks: new Map([
+      ["west", { state: "occupied", train: "goods", named: "goods" }],
+      ["east", { state: "free" }],
+    ]),
+    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    aspects: new Map(),
+    detected: new Map(),
+    positions: new Map(),
+    offered: new Map(),
+    markers: [],
+    widgets: new Map(),
+    locomotives: new Map([["goods", "BR 218"]]),
+  };
+
+  let canvas: TcCanvas;
+  let sent: Drop[];
+
+  async function running(live: Overlay = LIVE): Promise<TcCanvas> {
+    sent = [];
+    canvas = document.createElement("tc-canvas");
+    canvas.mode = "run";
+    canvas.drawing = structuredClone(RAILROAD);
+    canvas.review = reviewed([]);
+    canvas.live = live;
+    canvas.machine = schedulingMachine(new Drag(), {
+      painted: () => ({
+        drawing: canvas.drawing,
+        review: canvas.review!,
+        blocks: live.blocks,
+        offered: new Map(),
+      }),
+      submit: (drop) => {
+        sent.push(drop);
+      },
+      remove: () => undefined,
+      throwPoint: () => undefined,
+      pressWidget: () => undefined,
+      onRoster: () => false,
+      showName: (block) => canvas.showName(block),
+    });
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return canvas;
+  }
+
+  afterEach(() => {
+    canvas.remove();
+    vi.useRealTimers();
+  });
+
+  /** What a block's rectangle shows: the photo's route, or the text. */
+  function shown(name: string): { photo: string | null; text: string | null } {
+    const group = canvas.renderRoot.querySelector(`g[data-symbol="${name}"]`)!;
+    return {
+      photo: group.querySelector("image.photo")?.getAttribute("href") ?? null,
+      text: group.querySelector("text.name")?.textContent!.trim() ?? null,
+    };
+  }
+
+  function pointer(name: string, x: number, touch = false) {
+    canvas.renderRoot.querySelector("svg")!.dispatchEvent(
+      new PointerEvent(name, {
+        bubbles: true,
+        clientX: x,
+        clientY: 0.5,
+        pointerType: touch ? "touch" : "mouse",
+      }),
+    );
+  }
+
+  it("shows the photo of the train's first locomotive and not its name", async () => {
+    await running();
+    expect(shown("west")).toEqual({ photo: photoUrl("BR 218"), text: null });
+    expect(shown("east")).toEqual({ photo: null, text: "east" });
+  });
+
+  /** Centred and fitted inside the rectangle, never cropped, and turned as
+   *  the name is: outside the artwork's own group, so never mirrored. */
+  it("fits the photo inside the rectangle, turned as the name is", async () => {
+    await running();
+    const photo = canvas.renderRoot.querySelector("image.photo")!;
+    expect(photo.getAttribute("preserveAspectRatio")).toBe("xMidYMid meet");
+    const [x, y, w, h] = ["x", "y", "width", "height"].map((key) =>
+      Number(photo.getAttribute(key)),
+    );
+    expect(x! + w! / 2).toBeCloseTo(3);
+    expect(y! + h! / 2).toBeCloseTo(0.5);
+    expect(w).toBeLessThanOrEqual(BLOCK.body.w);
+    expect(h).toBeLessThanOrEqual(BLOCK.body.h);
+    expect(photo.getAttribute("transform")).toBe("rotate(0 3 0.5)");
+    expect(photo.closest("g[transform]")!.getAttribute("data-symbol")).toBe("west");
+  });
+
+  it("shows the name where the train has no locomotive", async () => {
+    await running({ ...LIVE, locomotives: new Map() });
+    expect(shown("west")).toEqual({ photo: null, text: "goods" });
+  });
+
+  it("shows the name where the photo does not load", async () => {
+    await running();
+    canvas.renderRoot.querySelector("image.photo")!.dispatchEvent(new Event("error"));
+    await canvas.updateComplete;
+    expect(shown("west")).toEqual({ photo: null, text: "goods" });
+  });
+
+  /** Both blocks a train passing from one to the next is named in (#897). */
+  it("shows the photo in both blocks a passing train is named in", async () => {
+    await running({
+      ...LIVE,
+      blocks: new Map([
+        ["west", { state: "occupied", train: "goods", named: "goods" }],
+        ["east", { state: "occupied", train: "goods", named: "goods" }],
+      ]),
+    });
+    expect(shown("west").photo).toBe(photoUrl("BR 218"));
+    expect(shown("east").photo).toBe(photoUrl("BR 218"));
+  });
+
+  it("names the train when the pointer rests on its block", async () => {
+    await running();
+    const group = canvas.renderRoot.querySelector('g[data-symbol="west"]')!;
+    expect(group.querySelector(":scope > title")?.textContent).toBe("goods");
+  });
+
+  it("shows the name for three seconds after a tap, with a mouse or a finger", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await running();
+    for (const touch of [false, true]) {
+      pointer("pointerdown", 3, touch);
+      pointer("pointerup", 3.5, touch);
+      await canvas.updateComplete;
+      expect(shown("west")).toEqual({ photo: null, text: "goods" });
+      expect(sent).toEqual([]);
+
+      vi.advanceTimersByTime(2900);
+      await canvas.updateComplete;
+      expect(shown("west").text).toBe("goods");
+      vi.advanceTimersByTime(100);
+      await canvas.updateComplete;
+      expect(shown("west")).toEqual({ photo: photoUrl("BR 218"), text: null });
+    }
+  });
+
+  it("picks the train up on a press that moves past the slop", async () => {
+    await running();
+    pointer("pointerdown", 3);
+    pointer("pointermove", 9);
+    pointer("pointerup", 9);
+    await canvas.updateComplete;
+    expect(sent).toEqual([
+      { train: "goods", block: "east", dest: ["east.A", "east.B"] },
+    ]);
+    expect(shown("west").photo).toBe(photoUrl("BR 218"));
+  });
+});
+
+/**
  * A point on a run (ADR-0068, #666). The lit road says how a point on it lies,
  * so nothing on a lit point is drawn set against; an unlit point whose
  * position is known fades the road it does not offer.
@@ -894,6 +1076,7 @@ describe("a point on a run", () => {
     ]),
     markers: [],
     widgets: new Map(),
+    locomotives: new Map(),
   };
 
   async function running(live: Overlay = LIVE): Promise<TcCanvas> {
@@ -909,6 +1092,7 @@ describe("a point on a run", () => {
       throwPoint: () => undefined,
       pressWidget: () => undefined,
       onRoster: () => false,
+      showName: () => undefined,
     });
     document.body.append(canvas);
     await canvas.updateComplete;

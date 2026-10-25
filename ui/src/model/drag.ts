@@ -189,6 +189,9 @@ export interface Gestures {
   pressWidget(name: string): void;
   /** Whether a screen point is over the roster pane. */
   onRoster(screen: Point): boolean;
+  /** A tap on a block carrying a train: the train's name, shown there in
+   *  place of its photo for a while (#1018). */
+  showName(block: string): void;
 }
 
 /**
@@ -208,7 +211,9 @@ export interface Gestures {
  * offered point nearest it, within a square, and may move further before it
  * stops being one (#893).
  * A train is taken hold of first, so dragging one across a point throws
- * nothing.
+ * nothing. A press on a train released within the same slop is a tap: it
+ * drops nothing and shows the train's name in the block pressed, where the
+ * block shows its photo (#1018).
  *
  * A widget is drawn over the symbols, so a plain left press on one is the
  * widget's before it is a train's or a point's, and a release on the same
@@ -227,10 +232,14 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   let pressed: { symbol: string; screen: Point; touch: boolean } | null = null;
   /** The widget pressed on, while the press may still be a click on it. */
   let widget: { name: string; screen: Point; touch: boolean } | null = null;
+  /** The block a train was taken hold of in, while the press may still be a
+   *  tap on it. */
+  let tapped: { block: string; screen: Point; touch: boolean } | null = null;
   /** The press and the drag both dropped, nothing submitted. */
   function abandon(): Outcome {
     pressed = null;
     widget = null;
+    tapped = null;
     if (drag.train === null) return "quiet";
     drag.cancel();
     return "render";
@@ -239,6 +248,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
     down: (point, input) => {
       pressed = null;
       widget = null;
+      tapped = null;
       const now = painted();
       if (now === null) return "quiet";
       const name = pressableAt(now.drawing, point);
@@ -249,6 +259,8 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
         return "quiet";
       }
       if (drag.down(now.drawing, now.review, now.blocks, point)) {
+        const block = blockAt(now.drawing, now.review, point)!;
+        tapped = { block, screen: input.screen, touch: input.touch };
         return "render";
       }
       const symbol = input.touch
@@ -267,6 +279,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
     moved: (point, screen) => {
       if (pressed !== null && strayed(pressed, screen)) pressed = null;
       if (widget !== null && strayed(widget, screen)) widget = null;
+      if (tapped !== null && strayed(tapped, screen)) tapped = null;
       const now = painted();
       if (now === null || drag.train === null) return "quiet";
       drag.moved(now.drawing, now.review, point);
@@ -276,6 +289,8 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       const now = painted();
       const click = pressed;
       pressed = null;
+      const tap = tapped;
+      tapped = null;
       const on = widget;
       widget = null;
       if (now !== null && on !== null) {
@@ -303,6 +318,11 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
         view.remove(held);
         return "render";
       }
+      if (tap !== null && !strayed(tap, screen)) {
+        drag.cancel();
+        view.showName(tap.block);
+        return "render";
+      }
       const drop = drag.up(now.drawing, now.review, point);
       if (drop !== null) view.submit(drop);
       return "render";
@@ -319,6 +339,7 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
       drag.cancel();
       pressed = null;
       widget = null;
+      tapped = null;
       const standing =
         now === null
           ? null

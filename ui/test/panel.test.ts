@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { Panel, refusal, roster } from "../src/model/panel.js";
+import { locomotives, Panel, refusal, roster } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import type { Position } from "../src/symbols.generated.js";
@@ -1247,6 +1247,26 @@ describe("the roster's rows", () => {
     expect(roster({}, [{ train: "ghost", block: null }])).toEqual([
       { train: "ghost", block: null, length: null, placed: true, locomotive: null },
     ]);
+  });
+});
+
+/** The photo a block shows is its train's first locomotive, off the roster
+ *  the pane's photos come from (#1018). */
+describe("the locomotives the blocks show", () => {
+  it("gives the model of each train a block names that has one", () => {
+    const blocks = new Map([
+      ["a", { state: "occupied" as const, train: "goods", named: "goods" }],
+      ["b", { state: "occupied" as const, train: "goods", named: "goods" }],
+      ["c", { state: "occupied" as const, train: "rake", named: "rake" }],
+      ["d", { state: "locked" as const, train: "express" }],
+      ["e", { state: "occupied" as const, train: "ghost", named: "ghost" }],
+    ]);
+    const stock = {
+      goods: { length: 400, locomotive: "BR 218" },
+      rake: { length: 300, locomotive: null },
+      express: { length: 1100, locomotive: "Re 460" },
+    };
+    expect(locomotives(stock, blocks)).toEqual(new Map([["goods", "BR 218"]]));
   });
 });
 

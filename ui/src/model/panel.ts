@@ -199,6 +199,28 @@ export interface Overlay {
    *  (ADR-0087, #929): the session's and not this model's, a widget's topic
    *  naming no railroad. */
   widgets: ReadonlyMap<string, string>;
+  /** train → the model of its first locomotive, for each train a block names
+   *  that has one: the photo the block shows in place of the name (#1018).
+   *  The roster's and not this model's, read as `RosterRow.locomotive` is
+   *  (`locomotives`). */
+  locomotives: ReadonlyMap<string, string>;
+}
+
+/**
+ * train → the model of its first locomotive, for each train a block names
+ * that has one (#1018). Read off the roster the roster pane reads its photos
+ * from (`roster`), so a block and the pane's row show one picture.
+ */
+export function locomotives(
+  stock: Record<string, { locomotive?: string | null }>,
+  blocks: ReadonlyMap<string, BlockView>,
+): Map<string, string> {
+  return new Map(
+    [...blocks.values()].flatMap(({ named }) => {
+      const model = named === undefined ? null : (stock[named]?.locomotive ?? null);
+      return model === null ? [] : [[named!, model] as const];
+    }),
+  );
 }
 
 /** One endpoint of a request still worth marking: a pending or rejected

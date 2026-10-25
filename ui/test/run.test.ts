@@ -19,7 +19,7 @@ import { press } from "@rails49/look/testing";
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
-import { RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
+import { photoUrl, RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import { brokerAt, gone } from "../src/model/session.js";
 import { VIEWS } from "../src/model/views.js";
@@ -135,7 +135,7 @@ describe("joining the railroad the broker runs", () => {
     expect(
       running(shell)
         .renderRoot.querySelector("tc-canvas")!
-        .renderRoot.querySelector("text.name.train")!
+        .renderRoot.querySelector('g[data-symbol="a"] > title')!
         .textContent!.trim(),
     ).toBe("goods");
   });
@@ -340,8 +340,12 @@ describe("the picture on the shared canvas", () => {
     expect([...drawn.querySelector('g[data-symbol="a"]')!.classList]).toContain(
       "occupied",
     );
-    expect(drawn.querySelector("text.name.train")!.textContent!.trim()).toBe(
+    expect(drawn.querySelector('g[data-symbol="a"] > title')!.textContent!.trim()).toBe(
       "goods",
+    );
+    // Drawn as its first locomotive, the roster naming one (#1018).
+    expect(drawn.querySelector("image.photo")!.getAttribute("href")).toBe(
+      photoUrl("BR 218"),
     );
     // The editor's marks are not on a run's sheet, whatever it is showing.
     expect(drawn.querySelectorAll("circle.pin")).toHaveLength(0);
@@ -354,7 +358,10 @@ describe("the picture on the shared canvas", () => {
    * is one frame on the bus, which is what this walks (#168).
    *
    * happy-dom's `getScreenCTM` is the identity, so a client pixel reads as a
-   * grid square and a block's centre is the point to press at.
+   * grid square and a block's centre is the point to press at. The two
+   * centres are only four pixels apart, within a click's slop, so the pointer
+   * goes by way of a point further off: a press released within the slop is
+   * a tap and drops nothing (#1018).
    */
   it("submits the request a drag across the canvas asks for", async () => {
     const shell = await joined();
@@ -370,6 +377,7 @@ describe("the picture on the shared canvas", () => {
     const surface = sheet(shell).querySelector("svg")!;
     for (const [name, at] of [
       ["pointerdown", from],
+      ["pointermove", { x: to.x, y: to.y + 10 }],
       ["pointermove", to],
       ["pointerup", to],
     ] as const) {
