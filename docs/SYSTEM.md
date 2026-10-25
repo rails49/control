@@ -899,9 +899,17 @@ What a cancelled request held is released, **all of it but the block the train
 stands in** — under `FullRoute` that is the whole route, every transit and
 every block beyond the origin — as one `lock_released`, and the sweep that
 follows hands it to whoever was waiting on it. The one thing a cancellation
-cannot do at once is take a move back: where one is outstanding the request is
-marked, granted nothing further, and retires as `request_cancelled` when
-`block_vacated` says the move it was already making is over. A cancelled id
+cannot do on its own word is take a move back: a turnout usually has no
+detector, and a train stopped halfway across the points reads like one that
+never left. So where one is outstanding the request is marked, granted
+nothing further, and `layout` is asked for the move back on
+`tc49/layout/withdraw_wanted`. `layout`, which writes every speed a train is
+given, takes it back where it has written none but `0.0` for the train since
+it acted on the move, and says so on `tc49/layout/move_withdrawn`; the request
+then retires as `request_cancelled` at once, keeping the block the train never
+left. Otherwise it retires when `block_vacated` says the move it was already
+making is over
+([#1068](https://github.com/rails49/control/issues/1068)). A cancelled id
 stays used for the session; no id ever resumes
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
 
@@ -1044,10 +1052,10 @@ that drives realistically later grows behind the same topic.
 app but the UI makes
 ([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
 *Subscribes* `tc49/layout/align`,
-`tc49/layout/move`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
+`tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
 `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
 `tc49/schedule/state/facing` and `tc49/layout/state/device/#`. *Publishes*
-`state/railroad`, the sensor events, `state/power`
+`state/railroad`, the sensor events, `move_withdrawn`, `state/power`
 and the desired half of the device vocabulary
 ([BUS.md](BUS.md#device-vocabulary)).
 
@@ -1058,8 +1066,9 @@ debounces the levels on the way
 two commands and the two placement facts, publishes the sensors from delays of
 its own
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)), and
-answers power commands as `layout` does ([Track power](#track-power)). A run
-has one of them.
+answers power commands as `layout` does ([Track power](#track-power)). It
+answers no `withdraw_wanted`, driving every move at once. A run has one of
+them.
 
 The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
