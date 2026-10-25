@@ -438,6 +438,24 @@ describe("a model put in a train", () => {
     expect(Object.keys(screen.roster.cars!)).toEqual(cars);
   });
 
+  /** Taken only where every car of the model is in another train (#1077):
+   *  one Krokodil is light's own, so doubling it makes a new car. */
+  it("makes a car where one of it is in this train and the other in another", () => {
+    const screen = stock();
+    screen.addTrain("light");
+    screen.newCar("arnold-ce68");
+    screen.addModel("light", "arnold-ce68");
+    const added = screen.addModel("light", "arnold-ce68");
+    expect(added).toEqual({ as: "made", car: expect.any(String) });
+    const car = (added as { car: string }).car;
+    expect(car).not.toBe("arnold-ce68");
+    expect(screen.roster.cars![car]!.model).toBe("arnold-ce68");
+    expect(screen.roster.trains.light!.cars).toEqual([
+      { car: "arnold-ce68" },
+      { car },
+    ]);
+  });
+
   it("passes over a car another train holds", () => {
     const screen = stock();
     screen.addTrain("light");
