@@ -123,6 +123,7 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
                 "functions": [{"name": "lights", "mode": "latching"}],
                 "camera": False,
                 "locomotive": "arnold-ce68",
+                "addresses": ["3"],
             }
         },
     }
@@ -201,7 +202,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
     tmp_path: Path, backup: Backup
 ) -> None:
     """The document keeps where the camera answers; the run views' answer
-    says only that the train carries one, and no address of any kind
+    says only that the train carries one, and not where it answers
     (ADR-0082)."""
     catalogued(tmp_path)
     store = AssetStore(tmp_path)
@@ -227,6 +228,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
         "functions": [{"name": "lights", "mode": "latching"}],
         "camera": True,
         "locomotive": "arnold-ce68",
+        "addresses": ["3"],
     }
     assert trains["light_1"]["camera"] is False
 
@@ -298,6 +300,7 @@ def test_the_run_views_answer_is_the_trains_below_the_document(
         "functions": [],
         "camera": False,
         "locomotive": None,
+        "addresses": [],
     }
     assert body["trains"] == dict(sorted(body["trains"].items()))
 
@@ -336,6 +339,7 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
         ],
         "camera": False,
         "locomotive": "re460",
+        "addresses": [],
     }
 
 
@@ -371,8 +375,7 @@ def test_a_trains_first_locomotive_is_served_by_its_model(
     tmp_path: Path, backup: Backup
 ) -> None:
     """What the throttle draws a train as: the model of its first locomotive,
-    head first, and `null` for a train with none. A model name is not a
-    decoder detail, so the answer still carries no address (ui/THROTTLE.md)."""
+    head first, and `null` for a train with none (ui/THROTTLE.md)."""
     catalogued(tmp_path)
     store = AssetStore(tmp_path)
     doc = {
@@ -387,7 +390,41 @@ def test_a_trains_first_locomotive_is_served_by_its_model(
     trains = handle(store, backup, "GET", "/rosters/oval/trains", None)[1]["trains"]
     assert trains["ore"]["locomotive"] == "arnold-ce68"
     assert trains["wagons"]["locomotive"] is None
-    assert set(trains["ore"]) == {"length", "functions", "camera", "locomotive"}
+    assert set(trains["ore"]) == {
+        "length",
+        "functions",
+        "camera",
+        "locomotive",
+        "addresses",
+    }
+
+
+def test_a_trains_addresses_are_served_head_first(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Every car's address, head first, for a person to drive the train from
+    another throttle, and none for a car without one (#1032)."""
+    catalogued(tmp_path)
+    store = AssetStore(tmp_path)
+    doc = {
+        "roster": "oval",
+        "cars": {
+            "krokodil_a": {"model": "arnold-ce68", "addr": "3"},
+            "krokodil_b": {"model": "arnold-ce68", "addr": "47"},
+        },
+        "trains": {
+            "ore": {
+                "cars": [
+                    {"car": "krokodil_b"},
+                    {"model": "bench-600"},
+                    {"car": "krokodil_a"},
+                ]
+            },
+        },
+    }
+    assert handle(store, backup, "PUT", "/rosters/oval", doc)[0] == 200
+    trains = handle(store, backup, "GET", "/rosters/oval/trains", None)[1]["trains"]
+    assert trains["ore"]["addresses"] == ["47", "3"]
 
 
 def test_a_railroad_with_no_roster_owns_nothing_yet(
