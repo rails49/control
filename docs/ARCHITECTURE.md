@@ -488,7 +488,9 @@ lever, a throttle's heartbeat or a change of driving mode; a detector's level
 at any end; the next reading of a train `layout` holds as crossing (its head
 in, fully in, or its tail out of the block behind); a point, the supply or a
 link reporting either value whatever was asked; or time passing and the
-settling time with it.
+settling time with it. ADR-0062's drain invariant is left out there, for a
+strict xfail beside it: `on` ending a drain over a link that went `down`
+reads as a drain ending early.
 
 **The invariants** of `tc49/lib/invariants.py` are checked by every property
 above, by `test_gestures_and_readings` and by `test_layout_stateful`, through `tests/invariants.py`
