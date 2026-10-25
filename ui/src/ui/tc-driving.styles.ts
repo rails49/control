@@ -80,7 +80,8 @@ export const drivingStyles = css`
     font-weight: 700;
   }
 
-  /* Laid over the picture: the train's name, LIVE and Trains. */
+  /* Laid over the picture: the train's name, LIVE, Trains and the
+     addresses. */
   .chip {
     position: absolute;
     display: flex;
@@ -124,6 +125,13 @@ export const drivingStyles = css`
   .chip.trains {
     top: 10px;
     right: 10px;
+  }
+
+  .chip.addresses {
+    right: 10px;
+    bottom: 10px;
+    border-radius: 7px;
+    font-size: 13px;
   }
 
   .lower {

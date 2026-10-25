@@ -222,12 +222,12 @@ export interface TrainsDoc {
 }
 
 /** One train on the roster: how long it is, what a person driving it can
- *  switch, whether it carries a camera, and the model of its first
- *  locomotive. All four are **derived from the cars it is made of** and none
- *  is authored, so they arrive together
+ *  switch, whether it carries a camera, the model of its first locomotive
+ *  and its cars' addresses. All five are **derived from the cars it is made
+ *  of** and none is authored, so they arrive together
  *  ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
- *  The cars themselves, their addresses and which DCC number each function
- *  sits on are not here: a decoder detail is no view's (ui/THROTTLE.md). */
+ *  The cars themselves and which DCC number each function sits on are not
+ *  here: a decoder detail is no view's (ui/THROTTLE.md). */
 export interface TrainDoc {
   length: number;
   /** Absent from an older store's answer, which is a train with nothing to
@@ -242,6 +242,10 @@ export interface TrainDoc {
    *  name is not a decoder detail. Absent from an older store's answer, read
    *  as `null`. */
   locomotive?: string | null;
+  /** The address of every car that has one, head first, which the throttle
+   *  shows for a person to drive the train from another throttle and never
+   *  writes (#1033). Absent from an older store's answer, read as none. */
+  addresses?: string[];
 }
 
 /** One thing a person can switch on a train, by the name the catalogue gives

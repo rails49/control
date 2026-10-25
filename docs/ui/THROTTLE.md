@@ -109,8 +109,10 @@ layout at every panel width, 360–440 px
   ([#1020](https://github.com/rails49/control/issues/1020)). Laid over it: the
   train's name in a small dark chip at the bottom left (not on the icon,
   which has it already), *LIVE* at the top left while the camera picture
-  shows, and a *Trains* chip at the top right saying the picture opens the
-  selector.
+  shows, a *Trains* chip at the top right saying the picture opens the
+  selector, and the train's addresses at the bottom right, `#12 #47`, head
+  first, on the icon too and not at all where no car has one
+  ([#1033](https://github.com/rails49/control/issues/1033)).
 - **Below it, two columns**: the left `minmax(0, 1fr)`, the right
   `clamp(104px, 30%, 136px)`, with a 12 px gap and padding.
 - **Left, at the top**: the clock in the first row, the blocks in the second,
@@ -159,11 +161,13 @@ second. With no railroad loaded or no broker answering it draws its face with
 no hands
 ([ADR-0090](../adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 
-**Nothing about hardware.** No address, no decoder step, no command station,
-no function number. The UI reaches the bus and the store and there is no other
-world for it ([#208](https://github.com/rails49/control/issues/208)). A
-throttle that talked to a command station would be a different program in a
-different repository, and this one is not that.
+**Nothing about hardware but the addresses.** No decoder step, no command
+station, no function number. The UI reaches the bus and the store and there
+is no other world for it ([#208](https://github.com/rails49/control/issues/208)).
+A throttle that talked to a command station would be a different program in a
+different repository, and this one is not that. It shows a train's addresses,
+so a person can drive the train from another throttle, and never writes one
+([#1033](https://github.com/rails49/control/issues/1033)).
 
 ## What it does
 
@@ -470,13 +474,15 @@ is asked for again after `RETRY_MS` (`ui/src/model/store.ts`) under
 three stops holding.
 
 The **roster route** carries what a person can switch beside the length,
-whether the train carries a camera, and the model of its first locomotive,
-head first, or `null` where it has none (`GET /rosters/<railroad>/trains`,
-`store/server.py`). All four are derived from the cars the train is made of
-and none is authored, so they arrive together; the cars themselves, their
-addresses, where a camera answers and which function number each name sits on
-are the roster screen's and the translator's, never a view's. A model name is
-not a decoder detail, so the first locomotive's is a view's to read.
+whether the train carries a camera, the model of its first locomotive, head
+first, or `null` where it has none, and its cars' addresses, head first
+(`GET /rosters/<railroad>/trains`, `store/server.py`). All five are derived
+from the cars the train is made of and none is authored, so they arrive
+together; the cars themselves, where a camera answers and which function
+number each name sits on are the roster screen's and the translator's, never
+a view's. A model name is not a decoder detail, so the first locomotive's is a
+view's to read; the addresses are a view's to show and never to write
+([#1032](https://github.com/rails49/control/issues/1032)).
 
 ## Tests
 

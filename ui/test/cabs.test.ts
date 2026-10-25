@@ -432,6 +432,23 @@ describe("the train's picture", () => {
   });
 });
 
+/** What the throttle shows a person to copy onto another throttle (#1033). */
+describe("the train's addresses", () => {
+  it("are the trains route's, head first", () => {
+    const model = panel();
+    standing(model);
+    const stock = { t1: { length: 400, addresses: ["12", "47"] } };
+    expect(drive(model, stock)[0]!.addresses).toEqual(["12", "47"]);
+  });
+
+  it("are none where the field is absent or the roster lacks the train", () => {
+    const model = panel();
+    standing(model);
+    expect(drive(model, { t1: { length: 400 } })[0]!.addresses).toEqual([]);
+    expect(drive(model)[0]!.addresses).toEqual([]);
+  });
+});
+
 /** Whether the throttle shows the camera car's picture: the trains route's
  *  `camera`, and only `true` (#857). */
 describe("the camera a train carries", () => {
