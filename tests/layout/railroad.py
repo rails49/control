@@ -185,7 +185,7 @@ def wired(
     outlived the last `layout` holds it (#960).
 
     `reread`: how the app reads the roster again for a train `stock()` lacks,
-    the store's answer as `__main__` hands it over (ADR-0091, decision 2).
+    the store's answer as `__main__` hands it over (ADR-0092, decision 2).
 
     Switched to `automatic` unless `driving` says otherwise. The app comes up
     `manual` (ADR-0079), where it writes no traction for a train no throttle

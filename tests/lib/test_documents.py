@@ -176,7 +176,7 @@ def test_it_returns_once_the_store_comes_up_after_it_was_asked(root: Path) -> No
 def test_a_roster_read_once_raises_where_no_store_answers() -> None:
     """The read a running app makes for a train it has not got: one attempt,
     because a bus loop waiting on the store would stop the railroad
-    (ADR-0091, decision 1)."""
+    (ADR-0092, decision 1)."""
     said: list[str] = []
 
     with pytest.raises(ConnectionError):

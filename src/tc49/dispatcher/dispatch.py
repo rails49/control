@@ -679,7 +679,7 @@ class Dispatcher:
 
         `reread` reads the railroad's roster again, once and without waiting
         on a store that does not answer, and is None where it cannot be read
-        (ADR-0091, decision 1). A placement naming a train this dispatcher was
+        (ADR-0092, decision 1). A placement naming a train this dispatcher was
         not built with asks it, because a train made in the stock view after
         the last build is on the store's roster and nowhere else. The bench
         passes none: its stock is the scenario's and nothing changes it.
@@ -1073,7 +1073,7 @@ class Dispatcher:
         act on it drops, in silence and to the trace: a gesture carries no id
         and there is nothing to address an answer to (ADR-0034). A placement
         is the exception: its answer, `placement_refused`, names what the
-        gesture named instead (ADR-0091).
+        gesture named instead (ADR-0092).
         """
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "request_submitted":
@@ -1098,7 +1098,7 @@ class Dispatcher:
         layout* rather than a leaf of its own.
 
         The train has to be known either way, on this dispatcher's roster or,
-        read again, on the store's (ADR-0091), and **either direction is
+        read again, on the store's (ADR-0092), and **either direction is
         accepted at any power** (#821, ADR-0069): a person puts a train on
         the rails or lifts it off whenever they need to, and what decides
         whether a block can take it is whether the block is **free** — of
@@ -1132,7 +1132,7 @@ class Dispatcher:
         it leaves behind is exactly what a `cancel_wanted` would have.
 
         **A refusal is answered**, never dropped in silence: `placement_refused`
-        names the train and block the gesture named and why (ADR-0091,
+        names the train and block the gesture named and why (ADR-0092,
         decision 3), an unknown train being one the store's roster lacks too.
         A payload that cannot be read as a placement names no train, and is
         dropped with no answer.
@@ -1167,7 +1167,7 @@ class Dispatcher:
 
     def _learn(self) -> None:
         """The trains the store's roster has and this dispatcher lacks, added
-        (ADR-0091, decision 1). A train it already has keeps the length and
+        (ADR-0092, decision 1). A train it already has keeps the length and
         priority it was built with until the next build (ADR-0071): a placed
         train whose length changed under it is a rule nobody has written. A
         store that does not answer, or a roster it refuses, adds nothing."""
@@ -1234,7 +1234,7 @@ class Dispatcher:
 
     def _refuse(self, train: str, block: str | None, reason: PlacementRefusal) -> None:
         """A placement not accepted, answered with the train and block the
-        gesture named and why (ADR-0091, decision 3). It carries no id: what
+        gesture named and why (ADR-0092, decision 3). It carries no id: what
         it names is what a reader matches it to its drag by (ADR-0034)."""
         self._publish(
             "placement_refused", {"train": train, "block": block, "reason": reason}

@@ -176,7 +176,7 @@ describe("what the pane lists", () => {
 });
 
 /**
- * Why a placement was refused (ADR-0091 decision 3, #1011). The dispatcher
+ * Why a placement was refused (ADR-0092 decision 3, #1011). The dispatcher
  * answers a placement it does not accept on `placement_refused`, and the pane
  * says it under that train's row until the train is placed or removed, or the
  * row is picked up to try again.

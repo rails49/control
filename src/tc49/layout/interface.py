@@ -407,7 +407,7 @@ class LayoutInterface:
 
         `reread`: the loaded railroad's roster read again, once and without
         waiting on a store that does not answer, None where it cannot be read
-        (ADR-0091, decision 2). A take naming a train this app was not built
+        (ADR-0092, decision 2). A take naming a train this app was not built
         with asks it, a train made in the stock view since the last build
         being on the store's roster and nowhere else. The simulator binding
         passes none.
@@ -997,7 +997,7 @@ class LayoutInterface:
 
     def _learn(self) -> None:
         """The trains the store's roster has and this app lacks, added with
-        their cars, addresses and functions (ADR-0091, decision 2). A train it
+        their cars, addresses and functions (ADR-0092, decision 2). A train it
         already has keeps its entry until the next build (ADR-0071). A store
         that does not answer adds nothing, and the take is applied as it
         would have been."""

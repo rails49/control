@@ -755,7 +755,7 @@ export class Panel {
         return;
       }
       case "placement_refused": {
-        // A placement the dispatcher did not accept, and why (ADR-0091). It
+        // A placement the dispatcher did not accept, and why (ADR-0092). It
         // names what the gesture named, so the train is the whole key.
         const { train, block, reason } = event as unknown as {
           train?: unknown;

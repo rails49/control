@@ -442,7 +442,7 @@ LAN is still the trust boundary and a browser is not on it
   placement naming a train it has not got, and `layout`'s, for a take naming
   one. Each is one attempt, adding the trains the app lacks and changing none
   it has
-  ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
+  ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
 - **The store validates and consumers derive** — `get` never returns an
   invalid document. The store checks the schema, and the references a document
   makes: that a scenario's layout exists, that the blocks it names exist, and
