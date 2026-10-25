@@ -21,11 +21,18 @@ Fourteen topics from six publishers — the detectors joining them with the fold
 a person's press already does (#297, ADR-0079, #849), the moving row a
 drain ends on (ADR-0078), and the dispatcher asking for a move back (#1068) —
 and the function rows it writes, read back (below). It answers none of them
-but that ask — it reports observations — so a frame that cannot be read is **dropped**, silently and to
-the trace, and a command the layout contradicts goes the same way. Raising on
-one would take the app running the railroad down at the whim of whoever
-published it. The reading is `lib.payload`'s and whether the names name
-anything here is `lib.layout`'s.
+but that ask — it reports observations — so a frame that cannot be read is
+**dropped**, silently and to the trace, and a command the layout contradicts
+goes the same way. Raising on one would take the app running the railroad
+down at the whim of whoever published it. The reading is `lib.payload`'s and
+whether the names name anything here is `lib.layout`'s.
+
+**A move is given back only if nothing drove the train.** A train is driven
+if it was running when its move was acted on — the last speed written on some
+addressed car not `0.0`, a decoder keeping what it was last told — or if a
+non-zero speed has been written to any of its addressed cars since. No
+withdrawal is taken while the train is running, whatever state its move is
+in, and otherwise none of a move acted on and driven (#1068, #1076).
 
 Three rules govern the two commands, and each exists because the bus promises
 less than it looks like it does. A fourth thing stops a `move`, and it is a
@@ -467,9 +474,10 @@ class LayoutInterface:
         # put back through the rules when `state/power` next reads `on`.
         self._kept: dict[str, Command] = {}
         # What a `withdraw_wanted` is judged on (#1068): the transit of each
-        # train's last move acted on, the trains given a non-zero speed since,
-        # and the move each train is not to be sent over, asked back before
-        # its `move` arrived.
+        # train's last move acted on, the trains driven since — running when
+        # it was acted on, or given a non-zero speed after (#1076) — and the
+        # move each train is not to be sent over, asked back before its
+        # `move` arrived. A train running now is never withdrawn.
         self._acted: dict[str, str] = {}
         self._driven: set[str] = set()
         self._withdrawing: dict[str, str] = {}
@@ -688,13 +696,18 @@ class LayoutInterface:
         train that never left its block from one stopped halfway across the
         points, and releasing the points under the second routes another
         train over it. This app can: every speed a train is given passes
-        through it, the move's own and a throttle's. "Driven" is a non-zero
-        speed written to any of the train's addressed cars since the move
-        was acted on; one reading `0.0` now may still have moved.
+        through it, the move's own and a throttle's. A train is "driven" if
+        it was running when the move was acted on — the last speed written on
+        some addressed car not `0.0`, which a decoder keeps — or if a non-zero
+        speed has been written to any of its addressed cars since; one
+        reading `0.0` now may still have moved (#1076).
 
-        A move held for its `align`, a facing or the power has not been acted
-        on, so it is never driven. Taken back, it is dropped as `_forget`
-        drops it, the train given `0.0` unless a throttle holds it, and
+        No withdrawal is taken while the train is running, whatever state its
+        move is in: a train rolling under a throttle may be on the points
+        whether its move was acted on, held or not yet here. Otherwise a move
+        held for its `align`, a facing or the power has not been acted on, so
+        it is never driven. Taken back, it is dropped as `_forget` drops it,
+        the train given `0.0` unless a throttle holds it, and
         `move_withdrawn` says so. A move acted on and driven since, or one
         already carried out, gets no answer: the cancel waits for the
         sensors. A move not here yet — the driver's `move` and this ask are
@@ -705,6 +718,8 @@ class LayoutInterface:
         if wanted is None:
             return
         train, transit = wanted.train, wanted.transit
+        if self._running(train):
+            return
         for waiting in (self._held, self._unfaced, self._kept):
             held = waiting.get(transit)
             if held is not None and held.train == train:
@@ -826,9 +841,14 @@ class LayoutInterface:
         self._aligned.discard(transit)
         self._position[commanded.train] = commanded.into
         # Acted on: from here a speed written for the train is one that may
-        # have taken it onto the points (#1068).
+        # have taken it onto the points (#1068), and a train already running
+        # is driven from the start, its decoder keeping the last speed it was
+        # given (#1076).
         self._acted[commanded.train] = transit
-        self._driven.discard(commanded.train)
+        if self._running(commanded.train):
+            self._driven.add(commanded.train)
+        else:
+            self._driven.discard(commanded.train)
         crossing = _Crossing(
             origin=block_of(near),
             far=opposite_end(entered),

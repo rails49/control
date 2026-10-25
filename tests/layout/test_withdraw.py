@@ -233,3 +233,55 @@ def test_a_withdrawal_that_cannot_be_read_is_dropped() -> None:
         bus.drain()
 
     assert answered == []
+
+
+def running(bus: InProcessBus) -> None:
+    """`single` standing in `up_w`, facing the crossover, held in a throttle
+    at 0.4 in `manual`: a person driving it, the lever left there."""
+    energised(bus)
+    stand(bus, "single", "up_w")
+    faces(bus, single="up_w.A-to-B")
+    takes(bus, "single")
+    turns(bus, "single", 0.4)
+
+
+def test_a_train_running_when_its_move_was_acted_on_is_not_withdrawn() -> None:
+    """The decoder keeps the last speed it was given, so a lever left at 0.4
+    drives the train over the points with nothing written since (#1076)."""
+    bus, _app, _clock = wired(driving=MANUAL)
+    running(bus)
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+    answered = answers(bus)
+    written = told(bus)
+
+    withdraws(bus, "single")
+
+    assert answered == []
+    assert speeds(written) == []
+
+
+def test_a_running_train_s_move_held_for_its_align_is_not_withdrawn() -> None:
+    bus, app, _clock = wired(driving=MANUAL)
+    running(bus)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+    answered = answers(bus)
+
+    withdraws(bus, "single")
+    align(bus, "crossover", "to_dn")
+
+    assert answered == []
+    assert app.position == {"single": "dn_e"}
+
+
+def test_a_running_train_s_withdrawal_before_its_move_is_not_answered() -> None:
+    bus, app, _clock = wired(driving=MANUAL)
+    running(bus)
+    align(bus, "crossover", "to_dn")
+    answered = answers(bus)
+
+    withdraws(bus, "single")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+
+    assert answered == []
+    assert app.position == {"single": "dn_e"}
