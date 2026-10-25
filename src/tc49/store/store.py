@@ -353,6 +353,29 @@ class AssetStore:
         if clock is not None:
             self.put_clock(clock, to)
 
+    def delete_railroad(self, name: str) -> None:
+        """Delete railroad `name`: its drawing, and its roster, its script,
+        its clock and its scenarios where it has them (#1073).
+
+        A `name` with no drawing raises `FileNotFoundError` and deletes
+        nothing — a roster or a script alone is not a railroad this deletes.
+        The catalogue is every railroad's, so the models its roster named
+        stay, whether or not another roster uses them. Whether `name` is the
+        loaded railroad is the caller's to check, as it is `copy`'s.
+        """
+        if not self._drawing_path(name).exists():
+            raise FileNotFoundError(f"no railroad '{name}'")
+        for path in (
+            self._drawing_path(name),
+            self._roster_path(name),
+            self._script_path(name),
+            self._clock_path(name),
+        ):
+            path.unlink(missing_ok=True)
+        scenarios = self._scenario_path(f"{name}/").parent
+        if scenarios.is_dir():
+            shutil.rmtree(scenarios)
+
     def loaded(self) -> str:
         """The railroad the layout binding last loaded, and `""` where
         nothing records one: a fresh box, or one that has never loaded a
