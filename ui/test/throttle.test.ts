@@ -913,6 +913,10 @@ describe("the signal", () => {
     await held(shell);
     await reversed(shell);
     expect(lit(shell)).toEqual(["main green", "distant green", "distant green"]);
+    await said(shell, ASPECTS, {
+      aspects: { "a.B": "caution", "a.A": "stop" },
+    });
+    expect(lit(shell)).toEqual(["main red"]);
   });
 
   it("lights stop as the main red with the distant signal dark", async () => {
