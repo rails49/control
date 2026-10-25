@@ -310,13 +310,19 @@ function tickClocks() {
 }
 
 function signalSVG(aspect) {
-  const lit = { stop: ["red"], caution: ["green", "amber"], clear: ["green"] }[aspect];
-  const lamps = [["green", 32, "#22c55e"], ["red", 68, "#ef4444"], ["amber", 104, "#f59e0b"]];
-  const l = lamps.map(([n, y, c]) => lit.includes(n)
-    ? `<circle cx="26" cy="${y}" r="17" fill="${c}" opacity=".5" filter="url(#glow)"/><circle cx="26" cy="${y}" r="12.5" fill="${c}"/><circle cx="22" cy="${y - 4}" r="3.6" fill="#fff" opacity=".55"/>`
-    : `<circle cx="26" cy="${y}" r="12.5" fill="#22262d"/><circle cx="22" cy="${y - 4}" r="3" fill="#fff" opacity=".07"/>`).join("");
-  return `<svg class="sig" viewBox="0 0 52 160" role="img" aria-label="Signal ahead: ${aspect}"><rect x="22" y="132" width="8" height="28" fill="var(--mast)"/>` +
-    `<rect x="3" y="4" width="46" height="128" rx="17" fill="#0d0f12" stroke="var(--sig-rim)" stroke-width="3"/>${l}</svg>`;
+  /* SBB system L (ADR-0094): a main signal, green over red, over its distant
+     signal, amber top left and right, green middle right and bottom left. */
+  const lit = { stop: ["main red"], caution: ["main green", "distant amber"], clear: ["main green", "distant green"] }[aspect];
+  const colour = { green: "#22c55e", red: "#ef4444", amber: "#f59e0b" };
+  const lamps = [["main", "green", 26, 23, 11], ["main", "red", 26, 53, 11],
+    ["distant", "amber", 14, 93, 6], ["distant", "amber", 38, 93, 6],
+    ["distant", "green", 38, 105, 6], ["distant", "green", 14, 117, 6]];
+  const l = lamps.map(([h, n, x, y, r]) => lit.includes(`${h} ${n}`)
+    ? `<circle cx="${x}" cy="${y}" r="${r * 1.36}" fill="${colour[n]}" opacity=".5" filter="url(#glow)"/><circle cx="${x}" cy="${y}" r="${r}" fill="${colour[n]}"/><circle cx="${x - r * 0.32}" cy="${y - r * 0.32}" r="${r * 0.29}" fill="#fff" opacity=".55"/>`
+    : `<circle cx="${x}" cy="${y}" r="${r}" fill="#22262d"/><circle cx="${x - r * 0.32}" cy="${y - r * 0.32}" r="${r * 0.24}" fill="#fff" opacity=".07"/>`).join("");
+  return `<svg class="sig" viewBox="0 0 52 160" role="img" aria-label="Signal ahead: ${aspect}"><rect x="22" y="128" width="8" height="32" fill="var(--mast)"/>` +
+    `<rect x="7" y="4" width="38" height="68" rx="17" fill="#0d0f12" stroke="var(--sig-rim)" stroke-width="3"/>` +
+    `<rect x="3" y="80" width="46" height="50" rx="5" fill="#0d0f12" stroke="var(--sig-rim)" stroke-width="3"/>${l}</svg>`;
 }
 
 let uid = 0;

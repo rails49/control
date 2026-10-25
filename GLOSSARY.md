@@ -63,7 +63,7 @@ _Avoid_: indication, state, colour, signal (which shows the aspect), approach
 (formerly)
 
 **Lamp**:
-One of a signal's three lights, named for its colour: green, red or amber. An
+One of a signal's lights, named for its colour: green, red or amber. An
 aspect is a set of lit lamps, so no lamp is named for an aspect
 ([EDITOR.md](docs/ui/EDITOR.md#symbol-geometry)).
 _Avoid_: bulb, light, LED, any aspect's name
