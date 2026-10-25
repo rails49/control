@@ -36,7 +36,7 @@ export const drivingStyles = css`
   }
 
   /* The picture is the press that opens the train selector. It is shown
-     whole, letterboxed in black as a screen is. */
+     whole and centred, and the space it leaves is the page's colour. */
   .view {
     position: relative;
     display: block;
@@ -46,7 +46,7 @@ export const drivingStyles = css`
     padding: 0;
     border: 0;
     overflow: hidden;
-    background: black;
+    background: none;
     color: inherit;
     cursor: pointer;
   }
@@ -66,7 +66,6 @@ export const drivingStyles = css`
     align-items: center;
     justify-content: center;
     gap: 6px;
-    background: var(--body);
     color: var(--hint);
   }
 

@@ -1192,6 +1192,17 @@ describe("the camera car's picture", () => {
     expect(live(shell)!.getAttribute("src")).not.toBe(first);
   });
 
+  /** Whole and centred in a 16:9 box that has no fill of its own, so the
+   *  space the picture leaves is the page's colour and not black (#1020). */
+  it("leaves the page's colour around the picture", () => {
+    const sheet = drivingStyles.cssText.replace(/\/\*[\s\S]*?\*\//g, "");
+    const view = sheet.match(/\.view\s*\{([^}]*)\}/)![1];
+    expect(view).toMatch(/aspect-ratio:\s*16 \/ 9/);
+    expect(view).toMatch(/background:\s*none/);
+    const name = sheet.match(/\.thumbnail\.name\s*\{([^}]*)\}/)![1];
+    expect(name).not.toMatch(/background/);
+  });
+
   it("names the railroad and the train, each URL-encoded", () => {
     expect(pictureUrl("my road", "a/b")).toBe("/picture/my%20road/a%2Fb");
     expect(pictureUrl("toy", "goods", 3)).toBe("/picture/toy/goods?try=3");
