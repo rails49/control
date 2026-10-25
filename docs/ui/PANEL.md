@@ -136,9 +136,9 @@ shows, read from the same `GET /rosters/<railroad>/trains`
 fitted whole inside the rectangle and turns with the block as the name does.
 A train with no locomotive, or one whose photo does not load, shows the name
 as before. Resting the pointer on the block shows the name, and so does a
-tap, for 3 s: a press released within the slop a click on a point allows,
-which picks nothing up. A press that moves further picks the train up, as a
-press on the name does.
+tap, for 3 s: a press released before it moves further than a click or a tap
+on a point may, which picks nothing up. A press that moves further picks the
+train up, as a press on the name does.
 
 **What the detectors dispute is marked on the block it is about.** While the
 run is held the dispatcher compares its placement against the occupancy the

@@ -167,6 +167,9 @@ export class TcCanvas extends LitElement {
 
   override disconnectedCallback(): void {
     this.watch.disconnect();
+    for (const timer of this.timers.values()) clearTimeout(timer);
+    this.timers.clear();
+    this.naming = new Set();
     super.disconnectedCallback();
   }
 

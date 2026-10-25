@@ -976,6 +976,19 @@ describe("a train's photo in its block", () => {
     expect(photo.closest("g[transform]")!.getAttribute("data-symbol")).toBe("west");
   });
 
+  /** A vertical block reads bottom to top, as its name does (`labelTurn`). */
+  it("turns the photo on a vertical block", async () => {
+    await running();
+    canvas.drawing = {
+      ...RAILROAD,
+      symbols: { west: { kind: "block", at: [0, 0], rot: 90, length: 1000 } },
+      wires: [],
+    };
+    await canvas.updateComplete;
+    const photo = canvas.renderRoot.querySelector("image.photo")!;
+    expect(photo.getAttribute("transform")).toBe("rotate(-90 0.5 3)");
+  });
+
   it("shows the name where the train has no locomotive", async () => {
     await running({ ...LIVE, locomotives: new Map() });
     expect(shown("west")).toEqual({ photo: null, text: "goods" });
