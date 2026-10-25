@@ -2,7 +2,7 @@
 
 /**
  * What a signal draws and what an aspect lights (ui/EDITOR.md#symbol-geometry,
- * ADR-0025).
+ * ADR-0025, ADR-0094).
  *
  * A DOM test because both are positions and classes on rendered elements: the
  * lamp order is the geometry itself, and an aspect is a class on the signal's
@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import type { SymbolSpec } from "../src/model/drawing.js";
 import { PINS } from "../src/symbols.generated.js";
 import { artwork, type Aspect } from "../src/render/artwork.js";
+import { canvasStyles } from "../src/ui/tc-canvas.styles.js";
 
 function drawn(aspects?: ReadonlyMap<string, Aspect>): SVGSVGElement {
   const root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -100,6 +101,41 @@ describe("an aspect", () => {
     );
     expect(root.querySelector(".signal.end-A")!.classList).toContain("stop");
     expect(root.querySelector(".signal.end-B")!.classList).toContain("clear");
+  });
+});
+
+describe("an aspect in run mode", () => {
+  /** The selectors the canvas lights a lamp with on a run, the host's mode
+   *  taken off so that they match inside the drawing alone. */
+  function lighting(): string[] {
+    return [
+      ...canvasStyles.cssText
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .matchAll(/([^{}]*)\{([^{}]*)\}/g),
+    ]
+      .filter(
+        ([, selector, declared]) =>
+          selector!.includes(".lamp") && /opacity:\s*1\s*;/.test(declared!),
+      )
+      .flatMap(([, selector]) => selector!.split(","))
+      .map((one) => one.replace(':host([mode="run"])', "").trim());
+  }
+
+  /** The colours of the lamps lit at the A end with `aspect` showing. */
+  function lit(aspect: Aspect): string[] {
+    const selectors = lighting();
+    const root = drawn(new Map([["A", aspect]]));
+    return [...root.querySelectorAll(".signal.end-A circle.lamp")]
+      .filter((lamp) => selectors.some((one) => lamp.matches(one)))
+      .map((lamp) => [...lamp.classList].find((name) => name !== "lamp")!);
+  }
+
+  it("lights exactly one lamp, as SBB system N does", () => {
+    // `caution` is Warnung, amber alone. Green with amber is Fb 2, a speed
+    // aspect on an L main signal, and is not what `caution` means.
+    expect(lit("stop")).toEqual(["red"]);
+    expect(lit("caution")).toEqual(["amber"]);
+    expect(lit("clear")).toEqual(["green"]);
   });
 });
 
