@@ -332,6 +332,7 @@ tests/
                test_railroad  test_main
   camera/      test_face  test_stream  test_main
   system/      test_skeleton  test_properties  test_gestures_and_readings
+               test_layout_stateful
                test_safety_conditions  test_app_boundaries  test_cold_start  test_reload
                test_compose
 ```
@@ -476,8 +477,21 @@ bus delivers the lock table's rules hold (`broken()` is empty), and after
 every grant `safe()` does. It checks only what holds after each message, not
 that a request ever ends.
 
+`test_layout_stateful` does the same with `layout` as the binding, which the
+simulator's unaddressed trains never drive. It is a Hypothesis state machine
+over `LayoutInterface`, the scheduler, the dispatcher (`Incremental`) and the
+driver on one bus, with the railroad and roster of `tests/layout/railroad.py`,
+driving `automatic`, a one-car train or two standing and the power on. The
+test plays the hardware, so no translator runs. Each step is one of the
+gestures above, the point drawn from the railroad's `12` and `13`; a take, a
+lever, a throttle's heartbeat or a change of driving mode; a detector's level
+at any end; the next reading of a train `layout` holds as crossing (its head
+in, fully in, or its tail out of the block behind); a point, the supply or a
+link reporting either value whatever was asked; or time passing and the
+settling time with it.
+
 **The invariants** of `tc49/lib/invariants.py` are checked by every property
-above and by `test_gestures_and_readings`, through `tests/invariants.py`
+above, by `test_gestures_and_readings` and by `test_layout_stateful`, through `tests/invariants.py`
 ([ADR-0096](adr/0096-invariants-are-stated-over-what-the-bus-shows-and-checked-in-tests.md)).
 An invariant over one app's rows is asserted after every message, by a
 subscriber on `#`; one over several apps' rows (`cross_app`) each time
