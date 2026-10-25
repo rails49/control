@@ -287,6 +287,11 @@ export class TcDriving extends LitElement {
           ? nothing
           : html`<span class="chip title">${cab.train}</span>`}
         <span class="chip trains">${SWAP}Trains</span>
+        ${cab.addresses.length === 0
+          ? nothing
+          : html`<span class="chip addresses"
+              >${cab.addresses.map((one) => `#${one}`).join(" ")}</span
+            >`}
       </button>
       <section class=${still === null ? "lower" : "lower dead"}>
         <div class="left">

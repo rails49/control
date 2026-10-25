@@ -28,8 +28,9 @@
  * (`throttleFor`) and keeps alive on `tc49/layout/throttle_alive`
  * ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
  * It reaches no command station, shows no
- * decoder step and names no hardware address: the UI reaches the bus and the
- * store and there is no other world for it.
+ * decoder step and writes no hardware address — it shows a train's addresses
+ * for a person to copy onto another throttle (#1033): the UI reaches the bus
+ * and the store and there is no other world for it.
  *
  * It works nothing out. Every train it offers, who holds each, which way
  * each points, what each is reading and what a person can switch on it arrive

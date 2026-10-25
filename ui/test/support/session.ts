@@ -41,6 +41,8 @@ export const STOCK = {
     ],
     // The model of its first locomotive, which the throttle draws it as.
     locomotive: "BR 218",
+    // Its cars' addresses, head first, which the throttle shows (#1033).
+    addresses: ["12", "47"],
   },
   // Nothing to switch, which is most of the stock a railroad owns.
   shunter: { length: 200 },

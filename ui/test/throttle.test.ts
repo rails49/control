@@ -932,6 +932,7 @@ describe("the blocks", () => {
       aspect: null,
       tailAspect: null,
       locomotive: null,
+      addresses: [],
       camera: false,
       ahead: [],
       functions: [],
@@ -1007,6 +1008,28 @@ describe("the train's thumbnail", () => {
       "Trains",
     );
     expect(part(shell, ".chip.live")).toBeNull();
+  });
+
+  /** Every address, head first, for a person to drive the train from
+   *  another throttle (#1033). */
+  it("has the train's addresses over it at the bottom right", async () => {
+    const shell = await driving();
+    await held(shell);
+    expect(part(shell, "button.view .chip.addresses")!.textContent!.trim()).toBe(
+      "#12 #47",
+    );
+  });
+
+  it("has no address chip for a train with no address", async () => {
+    const shell = await driving();
+    await said(shell, ALLOCATION, {
+      trains: { shunter: "b" },
+      locks: { b: "shunter" },
+      requests: [],
+    });
+    await held(shell, "shunter");
+    expect(part(shell, ".chip.trains")).not.toBeNull();
+    expect(part(shell, ".chip.addresses")).toBeNull();
   });
 
   /** The icon has the name under it, and no second name over it. */
@@ -1172,6 +1195,7 @@ describe("the camera car's picture", () => {
       "chip live",
       "chip title",
       "chip trains",
+      "chip addresses",
     ]);
     const rules = drivingStyles.cssText
       .replace(/\/\*[\s\S]*?\*\//g, "")

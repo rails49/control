@@ -124,6 +124,7 @@ button:focus-visible, a:focus-visible, .track:focus-visible { outline: 2px solid
 .chip { position: absolute; display: flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 999px; background: rgb(0 0 0 / 0.5); color: #fff; font: 650 12px/1 var(--font); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .chip svg { width: 14px; height: 14px; }
 .tname { left: 10px; bottom: 10px; border-radius: 7px; font-size: 13px; letter-spacing: 0.01em; }
+.addrs { right: 10px; bottom: 10px; border-radius: 7px; font-size: 13px; }
 .hint { top: 10px; right: 10px; }
 .live-mark { top: 10px; left: 10px; letter-spacing: 0.08em; font-size: 11px; }
 .live-mark i { width: 7px; height: 7px; border-radius: 50%; background: var(--stop); box-shadow: 0 0 6px var(--stop); animation: pulse 1.6s ease-in-out infinite; }
@@ -236,15 +237,15 @@ button:focus-visible, a:focus-visible, .track:focus-visible { outline: 2px solid
 const MIN_W = 360, MAX_W = 440, GAP = 20, HPAD = 8, VPAD = 16, MAX_H = 834, MIN_H = 560;
 
 const TRAINS = [
-  { id: "e10", name: "e10", camera: true, photo: { body: "#1f4e8c", stripe: "#e5e7eb" }, at: "C2", next: "CE2", end: "A2", claim: "locked",
+  { id: "e10", name: "e10", addrs: ["10"], camera: true, photo: { body: "#1f4e8c", stripe: "#e5e7eb" }, at: "C2", next: "CE2", end: "A2", claim: "locked",
     aspect: { f: "caution", r: "stop" }, fns: ["Light", "Horn", "Bell", "Cab light", "Sound", "Brake squeal", "Coupler", "Shunting light", "Mute"] },
-  { id: "ic2", name: "ic 2", photo: { body: "#c8102e", stripe: "#ffffff" }, at: "B1", next: "BE1", end: "D1", claim: "chosen",
+  { id: "ic2", name: "ic 2", addrs: ["12", "47"], photo: { body: "#c8102e", stripe: "#ffffff" }, at: "B1", next: "BE1", end: "D1", claim: "chosen",
     aspect: { f: "clear", r: "stop" }, fns: ["Light", "Horn"] },
-  { id: "sbahn12", name: "s-bahn 12", photo: { body: "#0f766e", stripe: "#f1f5f9" }, at: "E2", next: "C1", end: "B2", claim: "locked",
+  { id: "sbahn12", name: "s-bahn 12", addrs: ["120"], photo: { body: "#0f766e", stripe: "#f1f5f9" }, at: "E2", next: "C1", end: "B2", claim: "locked",
     aspect: { f: "clear", r: "stop" }, fns: ["Light", "Horn", "Doors", "Announcement", "Cab light"] },
-  { id: "cargo7", name: "cargo 7", photo: null, crossing: "T4", next: "D3", end: "D3", claim: "locked",
+  { id: "cargo7", name: "cargo 7", addrs: ["7"], photo: null, crossing: "T4", next: "D3", end: "D3", claim: "locked",
     aspect: { f: "clear", r: "caution" }, fns: [] },
-  { id: "re460", name: "re 460", photo: { body: "#b91c1c", stripe: "#f8fafc" }, at: "A1", next: null, end: null,
+  { id: "re460", name: "re 460", addrs: ["460"], photo: { body: "#b91c1c", stripe: "#f8fafc" }, at: "A1", next: null, end: null,
     aspect: { f: "stop", r: "stop" }, fns: ["Light", "Horn", "Sound", "Mute"] },
   { id: "shunter", name: "shunter", photo: { body: "#d4a017", stripe: "#1f2937" }, at: "Y3", next: null, end: null,
     aspect: { f: "stop", r: "stop" }, fns: ["Light", "Horn", "Coupler"] },
@@ -512,7 +513,8 @@ class Panel {
   }
   renderPic(t) {
     const name = t ? `<span class="chip tname">${t.name}</span>` : "";
-    const hint = `<span class="chip hint">${I.swap}Trains</span>`;
+    const hint = `<span class="chip hint">${I.swap}Trains</span>` +
+      (t?.addrs?.length ? `<span class="chip addrs">${t.addrs.map((a) => `#${a}`).join(" ")}</span>` : "");
     if (!t) this.$pic.innerHTML = `<span class="noimg">${I.trainFront}<span>No train</span></span>`;
     else if (t.camera) {
       this.$pic.innerHTML = `<canvas aria-hidden="true"></canvas><span class="chip live-mark"><i></i>LIVE</span>${name}${hint}`;
