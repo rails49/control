@@ -105,8 +105,8 @@ src/tc49/
                   document, which no app reads (#171)
     inventory.py  the event inventory's leaf fields
     invariants.py INVARIANTS — what the ADRs say the bus shows, one function
-                  per rule over the retained values, checked in tests only
-                  (ADR-0096)
+                  per rule over the retained values; HISTORY_INVARIANTS over a
+                  Record of the messages too; checked in tests only (ADR-0096)
     trace.py      the trace tap — canonical JSONL serialization, read/write
 
   store/        store.py    AssetStore — CRUD contract, YAML binding,
@@ -482,7 +482,13 @@ above and by `test_gestures_and_readings`, through `tests/invariants.py`
 An invariant over one app's rows is asserted after every message, by a
 subscriber on `#`; one over several apps' rows (`cross_app`) each time
 `drain()` returns with nothing left to deliver. ADR-0026's holds only under
-`Incremental`, and the check is told the strategy. A breach fails with the
+`Incremental`, and the check is told the strategy. The history invariants
+read a `Record` of the messages as well, a block's occupancy among them. On
+the in-process bus a subscriber on `#` keeps it and checks each message
+before recording it, and once more with nothing left to deliver, where a rule
+that one message follows another is breached. Under `InterleavingBus` each
+subscriber sees its own order, so only those over one app's topics are
+checked there, on the order that app published in. A breach fails with the
 ADR, the rule and what broke.
 
 **The library-core seam is pure functions only.** Direct unit tests cover
