@@ -11,7 +11,7 @@ Placing at any power, into a block that is **free** — no lock on it and on no
 active train's route — and that the train fits; taking a train off at any
 power too (ADR-0069, `test_remove_running`). Anything else is refused on
 `tc49/dispatch/placement_refused`, naming the train, the block and why
-(ADR-0091, decision 3): the answer names what the gesture named, so it needs
+(ADR-0092, decision 3): the answer names what the gesture named, so it needs
 no id (ADR-0034). A gesture that cannot be read as a placement names no train,
 and is still dropped with no answer.
 """
@@ -408,7 +408,7 @@ def test_a_placement_naming_stock_the_railroad_lacks_is_refused(
     off: Assembly,
 ) -> None:
     """Answered with what the gesture named, which is how a reader matches
-    the answer to its drag with no id (ADR-0091, decision 3)."""
+    the answer to its drag with no id (ADR-0092, decision 3)."""
     before = locks(off)
 
     place(off, "ghost", "up_w")
@@ -854,7 +854,7 @@ def put(bus: InProcessBus, train: str, block: str) -> None:
 def test_a_train_made_after_the_build_is_placed_from_the_roster_read_again() -> None:
     """A train made in the stock view after the last build is on the store's
     roster and not the dispatcher's: its placement reads the roster once more
-    and is then judged as any other (ADR-0091, decision 1)."""
+    and is then judged as any other (ADR-0092, decision 1)."""
     reads: list[None] = []
 
     def reread() -> Roster:
@@ -870,7 +870,7 @@ def test_a_train_made_after_the_build_is_placed_from_the_roster_read_again() -> 
 
 def test_a_train_the_store_lacks_too_is_refused_as_unknown() -> None:
     """`unknown_train` is said only after the read: the store not answering
-    and the store not having it are refused alike (ADR-0091, decision 3)."""
+    and the store not having it are refused alike (ADR-0092, decision 3)."""
     reads: list[None] = []
 
     def reread() -> Roster | None:

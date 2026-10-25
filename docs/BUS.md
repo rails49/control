@@ -335,7 +335,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/lock_granted` | event | dispatcher | resources claimed for a train |
 | `tc49/dispatch/lock_released` | event | dispatcher | resources released |
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
-| `tc49/dispatch/placement_refused` | event | dispatcher | a placement not accepted, and why ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)) |
+| `tc49/dispatch/placement_refused` | event | dispatcher | a placement not accepted, and why ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)) |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
 | `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
@@ -860,7 +860,7 @@ payload is read defensively, and one that fails the read is dropped.
   nor the store's, read again), `unknown_block`, `not_free`, `no_fit` — the
   set is `tc49.lib.rejection.PlacementRefusal`, and the UI's copy of it is
   generated. It names what the gesture named and so carries no id
-  ([ADR-0091](adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)). Read by the run
+  ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)). Read by the run
   view's roster pane, which says it under the train's row
   ([#1011](https://github.com/rails49/control/issues/1011)).
 - `tc49/dispatch/train_removed` — `train`.

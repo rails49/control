@@ -409,7 +409,7 @@ locomotive on the track and lifting it off are the same act with a different
 destination, so there is one leaf and one answer — `train_placed` or
 `train_removed`, which the picture follows, or `placement_refused` for one the
 dispatcher does not accept
-([ADR-0091](../adr/0091-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
+([ADR-0092](../adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
 The roster pane says the refusal under that train's row, in place of where it
 is: *not on the roster*, *`<block>` is not on the drawing*, *`<block>` is not
 free* or *too long for `<block>`*, from a wording table keyed by the generated

@@ -301,7 +301,7 @@ def test_a_train_made_after_it_came_up_is_driven(
     """A train made in the stock view while the app runs is on the store's
     roster and not on the one the app was built from: the take reads the
     roster again, so the release in `manual` stops its addressed car
-    (ADR-0091, decision 2)."""
+    (ADR-0092, decision 2)."""
     store.start()
     witness, heard = watching(broker)
     app.start()

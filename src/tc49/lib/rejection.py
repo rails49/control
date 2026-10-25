@@ -1,5 +1,5 @@
 """Why a request was rejected, or a placement refused: one set each, both
-sides answering to it (#126, ADR-0091).
+sides answering to it (#126, ADR-0092).
 
 The dispatcher is the only app that mints a rejection reason, and every
 reader of one — the panel first — has to know the same names. Minted as bare
@@ -46,7 +46,7 @@ class Reason(StrEnum):
 
 class PlacementRefusal(StrEnum):
     """Why the dispatcher did not accept a placement, in the order it judges
-    one (ADR-0091, decision 3): the train is on neither its roster nor the
+    one (ADR-0092, decision 3): the train is on neither its roster nor the
     store's, the block is not on the layout, the block is not free, or the
     train is longer than the block. A placement carries no id, so this
     travels on its own event, `placement_refused`, beside the train and block

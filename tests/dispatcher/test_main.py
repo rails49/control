@@ -263,7 +263,7 @@ def test_a_train_made_after_it_came_up_is_placed(
 ) -> None:
     """A train made in the stock view while the app runs is on the store's
     roster and not on the one the app was built from: the placement reads the
-    roster again and is answered (ADR-0091, decision 1)."""
+    roster again and is answered (ADR-0092, decision 1)."""
     store.start()
     witness, heard = watching(broker)
     app.start()

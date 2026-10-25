@@ -98,7 +98,7 @@ class Documents:
         can import it.
 
         `once` is the read a running app makes for a train it has not got
-        (ADR-0091): one attempt each, and a store that does not answer is a
+        (ADR-0092): one attempt each, and a store that does not answer is a
         `ConnectionError` rather than a wait its bus loop would sit through.
         """
         return validate_roster(
@@ -239,7 +239,7 @@ def reread_roster(
 ) -> Callable[[], Roster | None]:
     """How an app built on `railroad` reads its roster again: the dispatcher
     for a placement naming a train it has not got, `layout` for a take
-    (ADR-0091, decisions 1 and 2). One attempt, on the bus loop's own thread:
+    (ADR-0092, decisions 1 and 2). One attempt, on the bus loop's own thread:
     a store that does not answer, or a roster it refuses, is None and said on
     `log`, and the app goes on as it was."""
 
