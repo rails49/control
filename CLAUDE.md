@@ -66,6 +66,11 @@ What each doc holds, and that an accepted ADR does not change: the
 organisation's
 [ADR-0021](https://github.com/rails49/.github/blob/main/docs/adr/0021-each-fact-has-one-owner-and-the-glossary-is-glossary-md.md).
 
+Before writing an ADR, check whether it would amend or supersede one accepted
+less than a month ago. If it would, the decision was easy to reverse and is not
+an ADR: the new behaviour goes in SYSTEM.md, BUS.md or the module docstring,
+and the earlier ADR gets a superseded line naming the issue.
+
 ### Batch implementation
 
 `/implement-loop` lands `ready-for-agent` issues unattended: one cold agent per
