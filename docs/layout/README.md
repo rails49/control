@@ -344,7 +344,9 @@ cannot be read is dropped.
 
 **Who holds which train.** `tc49/layout/take_wanted` `{train, throttle}` takes a
 train for the throttle with that id. A take of a train another throttle holds
-is dropped to the trace: the last take does not win. `throttle: null` releases
+is dropped to the trace: the last take does not win. A take by a throttle
+already holding another train releases that train first, as `null` would
+([ADR-0089](../adr/0089-a-throttle-holds-one-train.md)). `throttle: null` releases
 the train whoever holds it, which is also a panel's force release; a frame with
 no `throttle` at all is dropped. This app states who holds which on
 `tc49/layout/state/taken`, empty at startup. A throttle publishes
