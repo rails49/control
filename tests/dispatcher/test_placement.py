@@ -321,27 +321,49 @@ def test_a_placement_over_an_outstanding_move_retires_the_request_at_once() -> N
     assert last(assembly, "allocation")["trains"]["freight_1"] == "up_w"
 
 
-def test_a_placement_the_railroad_cannot_accept_still_ends_the_request(
+def test_a_placement_the_railroad_cannot_accept_changes_nothing(
     off: Assembly,
 ) -> None:
-    """The gesture read in halves, and where they come apart: the person said
-    this train is not running that request any more, which is honoured, and
-    then said where it is, which the railroad refuses.
-
-    Cancel first, then place, so the placement is judged after — a claim may
-    be the cancellation's own to release, and a block another train stands in
-    is not. It holds the same way for a block the railroad does not have.
-    What either leaves behind is exactly what a `cancel_wanted` would have.
-    """
+    """The block is judged before the request is cancelled, so a refusal
+    leaves the request standing (#1062). A block another train stands in is
+    refused, and so is one the railroad does not have."""
     press(off, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    before = last(off, "allocation")["requests"]
 
     place(off, "freight_1", "dn_e")  # leviathan is standing there
+    place(off, "freight_1", "siding_9")
 
-    assert last(off, "request_cancelled")["reason"] == "displaced"
+    assert cancellations(off) == []
     assert placements(off) == []
+    assert refusals(off) == [
+        ("freight_1", "dn_e", PlacementRefusal.NOT_FREE),
+        ("freight_1", "siding_9", PlacementRefusal.UNKNOWN_BLOCK),
+    ]
     assert last(off, "allocation")["trains"]["freight_1"] == "yard_w"
     assert last(off, "allocation")["locks"]["dn_e"] == "leviathan"
-    assert last(off, "allocation")["requests"] == []
+    assert last(off, "allocation")["requests"] == before
+
+
+def test_a_crossing_train_put_back_where_it_stands_keeps_its_move() -> None:
+    """A person sets a moving train down in the block it is departing. That
+    block is its standing lock and not free, so the placement is refused, and
+    the move it is making keeps its route: released under it, nothing would
+    tell `layout`, which would go on driving it (#1062)."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, STOCK, two_trains(), FullRoute)
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    press(assembly, *power(OFF))
+    before = last(assembly, "allocation")
+    assert before["crossing"]["freight_1"], "no move is outstanding"
+
+    place(assembly, "freight_1", "yard_w")
+
+    assert refusals(assembly) == [("freight_1", "yard_w", PlacementRefusal.NOT_FREE)]
+    assert cancellations(assembly) == []
+    after = last(assembly, "allocation")
+    assert after["crossing"] == before["crossing"]
+    assert after["locks"] == before["locks"]
+    assert after["requests"] == before["requests"]
 
 
 def test_a_placement_into_a_block_the_trains_own_route_holds_succeeds() -> None:
