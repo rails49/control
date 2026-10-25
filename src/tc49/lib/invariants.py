@@ -114,6 +114,7 @@ REQUEST_CANCELLED = "tc49/dispatch/request_cancelled"
 REQUEST_REJECTED = "tc49/dispatch/request_rejected"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
+PLACEMENT_REFUSED = "tc49/dispatch/placement_refused"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 BLOCK_OCCUPIED = "tc49/layout/block_occupied"
 BLOCK_VACATED = "tc49/layout/block_vacated"
@@ -887,6 +888,7 @@ class Record:
         self.listed: tuple[str, ...] = ()  # the last allocation's ids, in order
         self.routes: dict[str, tuple[str, ...]] = {}  # id -> route, once chosen
         self.moves: dict[str, _Move] = {}  # train -> its move not yet ended
+        self.placing: dict[str, _Move] = {}  # train -> its move, while placed
         self.cancelled: set[str] = set()  # ids cancelled while a move ran
         self.turns: Counter[str] = Counter()  # facing changes a train is owed
         self.unexplained: list[str] = []  # readings since a drain was asked
@@ -940,16 +942,25 @@ class Record:
                 self.trains.pop(train, None)
                 self.crossing.pop(train, None)
                 self.moves.pop(train, None)
+                self.placing.pop(train, None)
                 self.commanded.pop(train, None)
                 self.started.pop(train, None)
                 self.keeps.discard(train)
                 for addr, _orientation in _addresses(self.roster, train):
                     self.removed[addr] = train
         elif topic == PLACEMENT_WANTED:
-            # A placement ends the train's move by hand, not on its readings.
+            # A placement ends the train's move by hand, not on its readings,
+            # and one the dispatcher refuses leaves it running (#1062).
             wanted = placement(payload)
             if wanted is not None:
-                self.moves.pop(wanted.train, None)
+                move = self.moves.pop(wanted.train, None)
+                if move is not None:
+                    self.placing[wanted.train] = move
+        elif topic == PLACEMENT_REFUSED:
+            train = named_train(payload)
+            move = None if train is None else self.placing.pop(train, None)
+            if train is not None and move is not None:
+                self.moves[train] = move
         elif topic in ENDED:
             self._ended(readable_id(payload))
         elif topic == CANCEL_WANTED:
@@ -1101,6 +1112,7 @@ class Record:
         self.trains[train] = block
         self.crossing.pop(train, None)
         self.moves.pop(train, None)
+        self.placing.pop(train, None)
         self.turns[train] += 1
 
     def _ended(self, rid: str | None) -> None:
@@ -1958,7 +1970,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         " its origin reads clear and its arrival block reads occupied, in either"
         " order.",
         (BLOCK_OCCUPIED, BLOCK_VACATED, MOVE_GRANTED, LOCK_RELEASED)
-        + (REQUEST_COMPLETED, PLACEMENT_WANTED),
+        + (REQUEST_COMPLETED, PLACEMENT_WANTED, PLACEMENT_REFUSED),
         adr_0077_move_ends_on_both_readings,
     ),
     HistoryInvariant(
