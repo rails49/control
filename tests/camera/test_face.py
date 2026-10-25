@@ -57,18 +57,6 @@ def test_two_readers_of_one_train_share_one_connection_and_its_bytes(
     assert camera.paths == [PATH]
 
 
-def test_two_trains_naming_one_camera_share_its_connection(
-    railroad: Railroad, lens: Lens, face: int
-) -> None:
-    camera = watching(lens, "cam-a", Camera())
-    railroad.roster({"ore": "cam-a", "coal": "cam-a"})
-    for train in ("ore", "coal"):
-        answer = asked(face, picture(train))
-        assert answer.status == 200
-        next(parts(answer))
-    assert camera.connections == 1
-
-
 def test_a_reader_that_stops_reading_holds_up_no_other(
     railroad: Railroad, lens: Lens, face: int
 ) -> None:

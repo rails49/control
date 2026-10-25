@@ -41,15 +41,13 @@ class Railroad:
         (root / "layouts").mkdir()
 
     def roster(self, trains: Mapping[str, str | None]) -> None:
-        """A roster whose trains each carry the camera named, or none. Trains
-        naming one camera share the car carrying it, a camera being one car's
-        (`lib/stock.py`)."""
-        cars: dict[str, dict[str, str]] = {
-            "loco": {"model": "arnold-ce68", "addr": "3"}
-        }
+        """A roster whose trains each carry the camera named, or none. No two
+        trains name one camera: a camera is one car's, and a car stands in one
+        train (`lib/stock.py`)."""
+        cars: dict[str, dict[str, str]] = {}
         made: dict[str, list[dict[str, str]]] = {}
         for train, camera in trains.items():
-            made[train] = [{"car": "loco"}]
+            made[train] = [{"model": "arnold-ce68"}]
             if camera is not None:
                 car = f"car-{camera}"
                 cars[car] = {"model": "bench-600", "camera": camera}

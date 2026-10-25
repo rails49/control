@@ -129,6 +129,19 @@ def validate_roster(doc: Any, catalogue: Mapping[str, Model]) -> Roster:
         name: _train(train_spec, cars, catalogue, f"{where}: train '{name}'")
         for name, train_spec in as_mapping(spec["trains"], f"{where}: trains").items()
     }
+    # One car stands in one train: two naming it would have a write for
+    # either reach the train the other is running in (#1057).
+    standing: dict[str, str] = {}  # car -> the first train naming it
+    for name, train_spec in cast(dict[str, dict[str, Any]], spec["trains"]).items():
+        for entry in cast(list[dict[str, str]], train_spec.get("cars") or []):
+            car = entry.get("car")
+            if car is None:
+                continue  # a model entry builds its own car (ADR-0061)
+            if standing.setdefault(car, name) != name:
+                raise ValueError(
+                    f"{where}: car '{car}' is in trains '{standing[car]}' and"
+                    f" '{name}'"
+                )
     return Roster(railroad, trains, cars)
 
 

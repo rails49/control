@@ -8,11 +8,11 @@ importing it: a part is read by its `Content-Length`, as pnzeo's
 `_content_length` and `_read_exact` read it, and a part without one ends the
 stream rather than being searched for its boundary.
 
-**One connection per camera address**, however many pages are watching it,
-and that includes two trains naming one camera car. A camera on the LAN is a
-small device that serves few clients and serves each of them the same
-picture; a second connection to it buys nothing but load. So every reader of
-one address reads one `Stream`, and `Cameras` is what keeps it one.
+**One connection per camera address**, however many pages are watching it.
+A camera on the LAN is a small device that serves few clients and serves each
+of them the same picture; a second connection to it buys nothing but load. So
+every reader of one address reads one `Stream`, and `Cameras` is what keeps it
+one.
 
 **Each reader is handed the newest frame.** A reader that cannot keep up — a
 page on a slow link, a tab gone to the background — skips the frames it was
