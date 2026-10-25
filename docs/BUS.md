@@ -788,7 +788,10 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)). A block is
   accepted at any power where it is **free**: no train placed there, no lock
   on it, and on no active train's remaining route (`DispatchState.free()`).
-  A placement not accepted is answered on `placement_refused`, below; one
+  The placed train's own route is no claim, since an accepted placement
+  cancels it first.
+  A placement not accepted is answered on `placement_refused`, below, and
+  changes nothing; one
   that cannot be read as a placement names no train and is dropped with no
   answer. `null` is accepted at any power
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
