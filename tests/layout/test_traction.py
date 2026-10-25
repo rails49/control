@@ -42,6 +42,7 @@ from tests.layout.railroad import (
     move,
     railroad,
     reads,
+    removed,
     settle,
     speeds,
     stand,
@@ -270,6 +271,43 @@ def test_a_move_held_for_its_facing_is_dropped_for_a_train_placed_elsewhere() ->
 
     assert speeds(written) == []
     assert app.position == {"single": "up_e"}
+
+
+def test_a_move_held_for_its_facing_is_dropped_for_a_train_lifted_and_set_back() -> (
+    None
+):
+    """A train lifted and set back where it stood is at the near end again,
+    but the dispatcher cancelled its request and freed its route on the
+    removal: the move held for the facing went with the train (#1056)."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+    removed(bus, "single")
+    stand(bus, "single", "up_w")
+    written = commanded(bus)
+    faces(bus, single="up_w.A-to-B")
+
+    assert [speed for _addr, speed in speeds(written) if speed != 0.0] == []
+
+
+def test_a_move_held_for_its_facing_is_dropped_for_a_train_placed_away_and_back() -> (
+    None
+):
+    """The same with no removal between: a placement elsewhere drops the held
+    move, and the placement back where it stood does not restore it (#1056)."""
+    bus, _app = build()
+    energised(bus)
+    stand(bus, "single", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
+    stand(bus, "single", "up_e")
+    stand(bus, "single", "up_w")
+    written = commanded(bus)
+    faces(bus, single="up_w.A-to-B")
+
+    assert [speed for _addr, speed in speeds(written) if speed != 0.0] == []
 
 
 def test_a_second_move_for_the_transit_replaces_the_one_held() -> None:
