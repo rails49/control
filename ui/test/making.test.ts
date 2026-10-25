@@ -1354,6 +1354,52 @@ describe("making up a train", () => {
     ]);
   });
 
+  /** A tile held near the strip's edge scrolls it, so a tile out of view
+   *  can be dropped on (#1088). */
+  it("scrolls the strip while a dragged tile is held near its edge", async () => {
+    vi.useFakeTimers();
+    try {
+      const shell = await opened();
+      await ore(shell);
+      await tab(shell, "trains");
+      const strip = part(shell, ".train-editor .strip");
+      strip.getBoundingClientRect = () =>
+        ({ left: 0, right: 300, top: 0, bottom: 100 }) as DOMRect;
+      const held = (x: number) =>
+        strip.dispatchEvent(
+          new MouseEvent("dragover", { bubbles: true, clientX: x, clientY: 50 }),
+        );
+      const row = parts(shell, ".train-editor .tile");
+
+      row[0]!.dispatchEvent(new Event("dragstart"));
+      held(290);
+      await vi.advanceTimersByTimeAsync(160);
+      const scrolled = strip.scrollLeft;
+      expect(scrolled).toBeGreaterThan(0);
+
+      held(150);
+      await vi.advanceTimersByTimeAsync(160);
+      expect(strip.scrollLeft).toBe(scrolled);
+
+      held(10);
+      await vi.advanceTimersByTimeAsync(160);
+      expect(strip.scrollLeft).toBeLessThan(scrolled);
+
+      row[3]!.dispatchEvent(new Event("drop", { cancelable: true }));
+      const dropped = strip.scrollLeft;
+      await vi.advanceTimersByTimeAsync(160);
+      expect(strip.scrollLeft).toBe(dropped);
+      expect(await tiles(shell)).toEqual([
+        "hopper",
+        "hopper",
+        "hopper",
+        "arnold-ce68",
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("flips an entry, writing orientation reverse, and takes one out", async () => {
     const shell = await opened();
     await ore(shell);

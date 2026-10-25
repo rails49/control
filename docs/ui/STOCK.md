@@ -334,7 +334,10 @@ one (*Ae 6/6 (2)* where the name is taken) and takes the entry's place, same
 position and same `orientation`, in one edit; then *Address for <car>* is
 asked, with Later / Set address, as the picker asks it for a car it made.
 **Tiles are dragged to reorder**, with HTML drag and drop, which iPadOS has: a
-tile dropped on another takes its place. A last tile, **Add**, opens the
+tile dropped on another takes its place. A tile held within 40 px of the
+strip's left or right edge scrolls the strip that way until it is moved off
+the edge or dropped, so a long train can be reordered end to end on a narrow
+screen ([#1088](https://github.com/rails49/control/issues/1088)). A last tile, **Add**, opens the
 picker.
 
 **What follows from the cars**: length, kind and functions, derived as above;
@@ -660,7 +663,8 @@ address from its tile and saved as a car in its place, a decoder model added to 
 train becoming a new car with its address asked for, the same model added
 again reusing that car, a choice offered where there are two, a car refused a
 second place in one train, a model without a decoder added as a model entry,
-reorder by drag changing the order in the saved roster, flip writing
+reorder by drag changing the order in the saved roster, the strip scrolling
+while a dragged tile is held near its edge, flip writing
 `orientation: reverse`, the *hold* chip and Unmake; a car named
 `Re 4/4 II` and a train named `S 1/S 2` saved; a train made up of a locomotive
 and three hoppers, the document that reaches `PUT /rosters/<railroad>` with one

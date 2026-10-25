@@ -97,6 +97,12 @@ const KIND: Record<string, string> = {
 const SAVED_MS = 2500;
 const TOLD_MS = 4000;
 
+/** How near the strip's left or right edge a dragged tile scrolls it, and
+ *  how far it scrolls each tick while held there (#1088). */
+const EDGE_PX = 40;
+const STEP_PX = 12;
+const STEP_MS = 16;
+
 /** What a press that writes is dead with where no railroad is loaded: this
  *  view is one of the app's views of the loaded railroad (ADR-0038), so
  *  without one there is no roster and no catalogue to write into
@@ -214,6 +220,11 @@ export class TcStock extends LitElement {
   @state() private dragged: number | null = null;
   @state() private over: number | null = null;
 
+  /** The way the strip scrolls while a dragged tile is held near its edge:
+   *  -1 toward the head, 1 toward the tail, 0 not at all. */
+  private edge = 0;
+  private scrolling: ReturnType<typeof setInterval> | null = null;
+
   /** The photo version at which each model's photo did not load, by key:
    *  the route answering anything but 200, which is the whole of how this
    *  screen learns there is none (docs/SYSTEM.md). A photo written since is
@@ -276,6 +287,7 @@ export class TcStock extends LitElement {
     super.disconnectedCallback();
     if (this.timer !== null) clearTimeout(this.timer);
     if (this.telling !== null) clearTimeout(this.telling);
+    this.edged(0);
   }
 
   override render() {
@@ -1494,7 +1506,7 @@ export class TcStock extends LitElement {
             Unmake
           </button>`,
       )}
-      <div class="body train-editor">
+      <div class="body train-editor" @dragover=${this.nearEdge}>
         <div class="photo-frame">
           ${pictured ? this.photo(train.locomotive) : this.noPhoto()}
         </div>
@@ -1590,6 +1602,8 @@ export class TcStock extends LitElement {
    * *by model*, *camera*, and its length; Forward / Reversed and the ×, and
    * *Give it an address* on a model entry of a model with a decoder, which
    * cannot be driven without one (#993). Dragged along the strip with HTML drag and drop, which iPadOS has.
+   * Held near the strip's left or right edge, it scrolls the strip that way
+   * (`nearEdge`), so a tile out of view can be dropped on (#1088).
    */
   private tile(train: string, entry: TrainRow["entries"][number], at: number) {
     const facts = [
@@ -1636,6 +1650,7 @@ export class TcStock extends LitElement {
           const from = this.dragged;
           this.dragged = null;
           this.over = null;
+          this.edged(0);
           if (from !== null && from !== at) {
             this.changed((one) => one.moveEntry(train, from, at));
           }
@@ -1643,6 +1658,7 @@ export class TcStock extends LitElement {
         @dragend=${() => {
           this.dragged = null;
           this.over = null;
+          this.edged(0);
         }}
       >
         <span class="tph"
@@ -1680,6 +1696,40 @@ export class TcStock extends LitElement {
         </span>
       </div>
     `;
+  }
+
+  /** A drag over the train editor: within `EDGE_PX` of the strip's left or
+   *  right edge, and level with it, the strip scrolls that way; anywhere
+   *  else it stops. A timer scrolls it, since a finger held still may not
+   *  be reported again. */
+  private nearEdge = (event: DragEvent): void => {
+    const strip = this.renderRoot.querySelector<HTMLElement>(".strip");
+    if (this.dragged === null || strip === null) return;
+    const box = strip.getBoundingClientRect();
+    const { clientX: x, clientY: y } = event;
+    const level = y >= box.top && y <= box.bottom;
+    this.edged(
+      !level || x < box.left || x > box.right
+        ? 0
+        : x < box.left + EDGE_PX
+          ? -1
+          : x > box.right - EDGE_PX
+            ? 1
+            : 0,
+      strip,
+    );
+  };
+
+  private edged(way: number, strip?: HTMLElement): void {
+    this.edge = way;
+    if (way === 0) {
+      if (this.scrolling !== null) clearInterval(this.scrolling);
+      this.scrolling = null;
+    } else if (this.scrolling === null && strip !== undefined) {
+      this.scrolling = setInterval(() => {
+        strip.scrollLeft += this.edge * STEP_PX;
+      }, STEP_MS);
+    }
   }
 
   /** *Give it an address* on a tile: a car of the entry's model in its
