@@ -1038,7 +1038,7 @@ describe("making up a train", () => {
     await add(shell, "models", "arnold-ce68");
     await answered(shell, "3");
 
-    expect(cards(shell)).toEqual(["a", "arnold-ce68"]);
+    expect(cards(shell)).toEqual(["arnold-ce68", "a"]);
     expect(
       (part(shell, ".train-editor input.name") as HTMLInputElement).value,
     ).toBe("arnold-ce68");

@@ -40,7 +40,10 @@ the Name field below is the one place the name appears.
 frame 10:3 wide, the name, and a line of facts. A model: kind, scale, length,
 *decoder*. A car: its model's name where it is not the car's own, its address
 as `#12`, *camera*. A train: how many cars, its length, its kind, its
-priority. A car's card shows its model's photo and a train's its first
+priority. **Cards are in order of kind, then name**, case aside: locomotive,
+passenger, freight, special, then a train's mixed and light engine, and
+anything without a kind last
+([#1035](https://github.com/rails49/control/issues/1035)). A car's card shows its model's photo and a train's its first
 locomotive's. **Every photo is shown whole**
 (`object-fit: contain`) on white: train cars are wide and low, and a crop cuts
 off the end that tells two apart. Product photos are shot on white, so the

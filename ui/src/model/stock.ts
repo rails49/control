@@ -651,7 +651,6 @@ export class Stock {
 
   cars(power: Power | null = null, heard: boolean = true): CarRow[] {
     return Object.entries(this.doc.cars ?? {})
-      .sort(([one], [other]) => (one < other ? -1 : 1))
       .map(([name, car]) => {
         const whole = merged(car, this.models);
         const product = this.models[car.model];
@@ -675,12 +674,15 @@ export class Stock {
           modelNotes: product?.notes ?? null,
           trains: carTrains(name, this.doc),
         };
-      });
+      })
+      .sort(
+        (one, other) =>
+          byKind(one.kind, other.kind) || byName(one.name, other.name),
+      );
   }
 
   modelRows(power: Power | null = null, heard: boolean = true): ModelRow[] {
     return Object.values(this.models)
-      .sort((one, other) => byName(modelName(one), modelName(other)))
       .map((model) => ({
         model: model.model,
         name: modelName(model),
@@ -690,13 +692,16 @@ export class Stock {
         decoder: hasDecoder(model),
         holders: modelHolders(model.model, this.doc),
         held: this.fresh.has(model.model) ? null : lengthHeld(power, heard),
-      }));
+      }))
+      .sort(
+        (one, other) =>
+          byKind(one.kind, other.kind) || byName(one.name, other.name),
+      );
   }
 
   trains(placed: readonly string[] = []): TrainRow[] {
     const onLayout = new Set(placed);
     return Object.entries(this.doc.trains)
-      .sort(([one], [other]) => (one < other ? -1 : 1))
       .map(([train, made]) => ({
         train,
         entries: (made.cars ?? []).map((entry) => this.entry(entry)),
@@ -707,7 +712,11 @@ export class Stock {
         priority: made.priority ?? null,
         placed: onLayout.has(train),
         stated: made.length !== undefined,
-      }));
+      }))
+      .sort(
+        (one, other) =>
+          byKind(one.kind, other.kind) || byName(one.train, other.train),
+      );
   }
 
   private locomotive(train: RosterTrain): string | null {
@@ -1606,6 +1615,19 @@ export class Stock {
  *  scheme, port, path or login, how the camera is spoken to being the
  *  `camera` app's (ADR-0082). */
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
+
+/** The order the lists take kinds in: a model's, then the two only a train
+ *  has. One list serves both, a train never being a locomotive. */
+const KIND_ORDER: readonly string[] = [...KINDS, MIXED, LIGHT_ENGINE];
+
+/** Kinds in the lists' order, no kind last (#1035). */
+function byKind(one: string | null, other: string | null): number {
+  const rank = (kind: string | null): number => {
+    const at = kind === null ? -1 : KIND_ORDER.indexOf(kind);
+    return at === -1 ? KIND_ORDER.length : at;
+  };
+  return rank(one) - rank(other);
+}
 
 /** Names in the order a person reads a list: case aside. */
 function byName(one: string, other: string): number {
