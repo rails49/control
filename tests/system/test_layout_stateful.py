@@ -13,9 +13,7 @@ link — whatever was asked for, including readings no train caused.
 Each step is one publish and a drain, or time passing and the settling it
 drives. After every message the invariants over what the bus shows hold
 (`tests/invariants.py`, ADR-0096), and no handler raises — bar ADR-0062's
-drain rule, left out for `test_on_ending_a_drain_over_a_dead_link`, and
-ADR-0081's rule of a release in `automatic`, left out for
-`test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive`.
+drain rule, left out for `test_on_ending_a_drain_over_a_dead_link`.
 """
 
 import unittest
@@ -70,10 +68,6 @@ ADDRS = sorted({point["addr"] for way in POINTS.values() for point in way})
 
 DRAIN_OVER_A_DEAD_LINK = frozenset({"adr_0062_drain_ends_at_a_stand"})
 """Left out of the checks for `test_on_ending_a_drain_over_a_dead_link`."""
-
-SHARED_LOCOMOTIVE = frozenset({"adr_0081_release_in_automatic"})
-"""Left out of the checks for
-`test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive`."""
 
 
 def assembled(
@@ -175,25 +169,6 @@ def test_on_releasing_a_train_placed_while_running() -> None:
     press(bus, TAKE_WANTED, {"train": "single", "throttle": None})
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="ADR-0081: releasing a train off the layout stops a shared locomotive",
-)
-def test_on_releasing_a_train_off_the_layout_that_shares_a_locomotive() -> None:
-    """`single` is released mid-move and keeps running, then its throttle
-    takes `topped`, which stands nowhere, and takes `single` back, letting
-    `topped` go. `layout` writes 0 to `topped`'s cars, and address 3 is the
-    locomotive `single` is running on, so `single` stops mid-move. Found by
-    the state machine below.
-    """
-    bus, _app, _clock = assembled()
-    started(bus)
-    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
-    press(bus, TAKE_WANTED, {"train": "topped", "throttle": "t-1"})
-    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
-
-
 @settings(deadline=None, stateful_step_count=40, max_examples=1500)
 class LayoutUnderTheAssembly(RuleBasedStateMachine):
     """One run of the bench railroad, driven one publish at a time."""
@@ -208,11 +183,8 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
         self.layout = railroad()
         self.roster = stock()
         self.minted = []
-        # Narrowed around `test_on_ending_a_drain_over_a_dead_link` and the
-        # test of a shared locomotive.
-        self.bus, self.app, self.clock = assembled(
-            without=DRAIN_OVER_A_DEAD_LINK | SHARED_LOCOMOTIVE
-        )
+        # Narrowed around `test_on_ending_a_drain_over_a_dead_link`.
+        self.bus, self.app, self.clock = assembled(without=DRAIN_OVER_A_DEAD_LINK)
 
         def collect(topic: str, payload: Payload) -> None:
             self.minted.append(str(payload["id"]))
