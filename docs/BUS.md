@@ -306,7 +306,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/power` | state | layout | on, draining or off: whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/align` | command | any | throw these points, and authorise the transit it names, if any |
 | `tc49/layout/move` | command | any | take the train across, this fast |
-| `tc49/layout/withdraw_wanted` | event | any | take back this move, if nothing has driven the train since it was acted on ([#1068](https://github.com/rails49/control/issues/1068)) |
+| `tc49/layout/withdraw_wanted` | event | any | take back this move, unless the train is running or was running when the move was acted on, or has been given a non-zero speed since ([#1068](https://github.com/rails49/control/issues/1068), [#1076](https://github.com/rails49/control/issues/1076)) |
 | `tc49/layout/move_withdrawn` | event | layout | the move was taken back: the train never left its block ([#1068](https://github.com/rails49/control/issues/1068)) |
 | `tc49/layout/throttle_wanted` | event | any (browser) | how fast a person is driving a train |
 | `tc49/layout/driving_wanted` | event | any (browser) | switch the railroad's driving mode ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
@@ -627,18 +627,22 @@ what a drop would cost:
   `<connection>.<transit>`, the transit the train's outstanding move crosses.
   Not browser-writable. The dispatcher publishes it when a `cancel_wanted`
   lands on a request with a move outstanding, in either driving mode, and
-  `layout` answers it. A move `layout` holds for an `align`, a facing or the
-  power has not been acted on and is taken back. One acted on is taken back
-  where `layout` has written no non-zero speed to any of the train's
-  addressed cars since, from the move or from a throttle: the train is put
-  back in the block it stood in and, unless a throttle holds it, told
-  `0.0`. A move not there yet is answered at once and the train's next
-  `move` dropped if it names that transit; a `train_placed` or
-  `train_removed` clears that. Dropped, with no answer, where the train has
-  been driven since the move was acted on, where the move has arrived, and
-  where the last move `layout` acted on for the train already crossed that
-  transit. The simulator answers none: it drives every move at once
-  ([#1068](https://github.com/rails49/control/issues/1068)).
+  `layout` answers it. A train is driven if it was running when the move
+  was acted on — the last speed `layout` wrote on some addressed car not
+  `0.0`, which a decoder keeps — or if `layout` has written a non-zero speed
+  to any of its addressed cars since, from the move or from a throttle. No
+  withdrawal is taken while the train is running, whatever state the move is
+  in. Otherwise a move `layout` holds for an `align`, a facing or the power
+  has not been acted on and is taken back, and one acted on is taken back
+  where the train has not been driven: the train is put back in the block it
+  stood in and, unless a throttle holds it, told `0.0`. A move not there yet
+  is answered at once and the train's next `move` dropped if it names that
+  transit; a `train_placed` or `train_removed` clears that. Dropped, with no
+  answer, where the train is running, where it has been driven since the
+  move was acted on, where the move has arrived, and where the last move
+  `layout` acted on for the train already crossed that transit. The simulator answers none: it drives every move at once
+  ([#1068](https://github.com/rails49/control/issues/1068),
+  [#1076](https://github.com/rails49/control/issues/1076)).
 - `tc49/layout/move_withdrawn` — `train`, `transit`: as asked. Published
   once per withdrawal taken, and read by the dispatcher, which drops one not
   naming the transit of a cancelled request's outstanding move
@@ -825,7 +829,7 @@ payload is read defensively, and one that fails the read is dropped.
   move outstanding. One with a move outstanding is granted nothing further
   and asks `layout` for the move back on `withdraw_wanted`: it is cancelled
   at once on the `move_withdrawn` that answers it, where nothing has driven
-  the train since the move was acted on, and otherwise when the move ends at
+  the train (`withdraw_wanted` says what that is), and otherwise when the move ends at
   its sensor
   ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md),
   [#1068](https://github.com/rails49/control/issues/1068)).
