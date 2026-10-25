@@ -26,7 +26,12 @@ and carried forward from the bus: a train that left nose-first faces away from
 the end it entered through, and a **propelled** one — pushed out of the end its
 nose points away from — faces the end it entered through. Committing to a route
 changes nothing, facing being a fact about the stock and not about the plan
-(#295). That is what the layout read is for — `move_granted` names a transit
+(#295), and nor does a grant: the facing a move gives is worked out on
+`move_granted` and kept, and taken up when `tc49/dispatch/state/allocation`
+names the train in the block entered — until then the nose is still at the
+signal the grant cleared, which is what a throttle shows (#1025). A restart
+reads what it would have kept off the retained allocation's `crossing`.
+That is what the layout read is for — `move_granted` names a transit
 and the block entered, not the end entered through — and why the scheduler
 subscribes `tc49/dispatch/#` (ADR-0028's growth, spent on facing). What it
 holds per train is `lib`'s facing: the run the train would make across its
@@ -54,6 +59,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.layout import (
     FACINGS,
     Layout,
+    block_of,
     connected_end,
     connected_facing,
     departure_end,
@@ -65,6 +71,7 @@ from tc49.lib.layout import (
 from tc49.lib.payload import (
     gesture,
     grant,
+    kept_allocation,
     kept_facing,
     named_train,
     placement,
@@ -73,6 +80,7 @@ from tc49.lib.payload import (
 from tc49.lib.scenario import RequestSpec
 
 FACING = "tc49/schedule/state/facing"
+ALLOCATION = "tc49/dispatch/state/allocation"
 
 
 class Scheduler:
@@ -105,6 +113,14 @@ class Scheduler:
         # a cold start of one.
         restored = _kept(bus.last_values.get(FACING))
         self._facing: dict[str, str] = dict(sorted((facing or {}).items())) | restored
+        # Facing a grant has settled and the train has not yet taken up: the
+        # block each move enters and the facing the train will hold there, in
+        # grant order. Adopted when the allocation names the train in that
+        # block (#1025). More than one only where the next grant overtakes
+        # the allocation that records the arrival before it.
+        self._kept: dict[str, list[tuple[str, str]]] = self._crossing(
+            bus.last_values.get(ALLOCATION)
+        )
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
         self._counters: Counter[str] = Counter()  # one undivided minter
         # What makes a drag's id unique across a restart of this process
@@ -244,7 +260,9 @@ class Scheduler:
         and the dispatcher learns nothing: nothing moves.
 
         Dropped where the train has a request in flight, from submit to
-        completion. Flipping the arrow under one produces a lie: the queued
+        completion, or a granted move it has not yet been recorded at the
+        end of: the facing that move keeps would land over the flip (#1025).
+        Flipping the arrow under one produces a lie: the queued
         request still departs the end the facing named when it was composed,
         so the train the arrow now points one way would leave the other — and
         the move that answers it would be read as a propelling one, turning
@@ -279,6 +297,8 @@ class Scheduler:
         if facing is None:  # a train this session does not hold
             return
         if train in self._train_of.values():  # a request in flight
+            return
+        if train in self._kept:  # a move not yet taken up (#1025)
             return
         tail, _ = facing_ends(facing)
         self._facing[train] = facing_towards(connected_end(self._layout, tail))
@@ -335,19 +355,24 @@ class Scheduler:
         leaf = topic.rsplit("/", 1)[-1]
         if leaf == "move_granted":
             self._granted(payload)
+        elif leaf == "allocation":
+            self._recorded(payload)
         elif leaf == "train_placed":
             placed = placement(payload)
             # A null block is `train_removed`'s statement and not this
             # leaf's, so the fact that carries one is read as unreadable.
             if placed is not None and placed.block is not None:
+                self._kept.pop(placed.train, None)
                 self._placed(placed.train, placed.block)
         elif leaf == "train_removed":
             # An unplaced train has no facing: facing is the end of *its
             # block* a parked train would depart through, and there is no
-            # block for it to be an end of (ADR-0019, ADR-0039).
+            # block for it to be an end of (ADR-0019, ADR-0039). Nor a kept
+            # one: the move it was kept for is not going to be taken up.
             removed = named_train(payload)
             if removed is not None:
                 self._facing.pop(removed, None)
+                self._kept.pop(removed, None)
         elif leaf == "request_submitted":
             # A request in flight, whoever submitted it. Either half
             # unreadable and there is nothing to remember by: a frame with no
@@ -364,9 +389,19 @@ class Scheduler:
         self._publish_facing()
 
     def _granted(self, payload: Payload) -> None:
-        """Facing after a move the dispatcher authorised: away from the end
-        the train came in through where it left nose-first, and **at** that
-        end where it was propelled.
+        """Facing after a move the dispatcher authorised, **kept** rather than
+        held: away from the end the train came in through where it left
+        nose-first, and **at** that end where it was propelled.
+
+        A grant is permission, and the train is still in the block it is
+        leaving: its nose is still at the signal the grant cleared. So the
+        facing the move will give it is worked out here and kept against the
+        block it enters, and `_recorded` adopts it once the dispatcher records
+        the train there (ADR-0019: facing changes only by the geometry of a
+        move the train actually made; #1025). Read against the facing the
+        train will hold when the move begins — the last one kept, where the
+        grant overtook the allocation recording the arrival before it, and the
+        one held otherwise.
 
         Neither end is on the bus — the grant names the transit and the block
         entered — so both are read off the layout, and read there through
@@ -402,11 +437,76 @@ class Scheduler:
         if ends is None:  # not a transit into that block on this railroad
             return
         entered, left_by = ends
-        facing = self._facing.get(granted.train)
+        kept = self._kept.setdefault(granted.train, [])
+        facing = kept[-1][1] if kept else self._facing.get(granted.train)
+        kept.append((granted.into, self._across(facing, left_by, entered)))
+
+    def _across(self, facing: str | None, left_by: str, entered: str) -> str:
+        """The facing a train holding `facing` has once it has left by
+        `left_by` and come in through `entered`: the pass-through rule
+        `_granted` states, and the one a restart's crossing is read by."""
         propelled = facing is not None and left_by == facing_ends(facing)[0]
-        self._facing[granted.train] = facing_towards(
+        return facing_towards(
             entered if propelled else departure_end(self._layout, entered)
         )
+
+    def _recorded(self, payload: Payload) -> None:
+        """The kept facing a train takes up when the dispatcher's allocation
+        names it in the block the move entered — the entered block reading
+        occupied, which is when the train's nose is past the signal it left
+        by (ADR-0093) and the facing its throttle reads the signal ahead off
+        has to move with it (#1025).
+
+        Moves kept ahead of that one stay kept. A train the allocation has
+        stopped naming as crossing, and not named in any block it was kept
+        for, has had its move ended by something other than its arrival and
+        keeps nothing. An allocation that cannot be read moves nothing.
+        """
+        stated = kept_allocation(payload)
+        if stated is None:
+            return
+        for train in list(self._kept):
+            kept = self._kept[train]
+            entered = [into for into, _ in kept]
+            standing = stated.trains.get(train)
+            if standing in entered:
+                arrived = entered.index(standing)
+                self._facing[train] = kept[arrived][1]
+                del kept[: arrived + 1]
+            elif train not in stated.crossing:
+                kept.clear()
+            if not kept:
+                del self._kept[train]
+
+    def _crossing(self, retained: object) -> dict[str, list[tuple[str, str]]]:
+        """The facing kept for each train a retained allocation says was
+        crossing when the last session ended (#1025).
+
+        A restart holds no kept facing — the grant it was worked out on went
+        by before this process existed — so it is read off the allocation
+        instead: the transit the train is crossing out of the block it is
+        recorded in, against the facing adopted for it there, by the same
+        rule a grant is read by. Only where that facing names that block: a
+        train whose facing says it stands somewhere else has nothing here to
+        carry forward. A train already recorded in the block the transit
+        enters reads the same way, and is kept a facing for the block
+        behind it that nothing will record it in; `_recorded` drops it once
+        the crossing ends.
+        """
+        stated = kept_allocation(retained)
+        if stated is None:
+            return {}
+        kept: dict[str, list[tuple[str, str]]] = {}
+        for train, transit in stated.crossing.items():
+            origin, facing = stated.trains.get(train), self._facing.get(train)
+            if origin is None or facing is None or block_of(facing) != origin:
+                continue
+            ends = transit_ends(self._layout, origin, transit)
+            if ends is None:
+                continue
+            left_by, entered = ends
+            kept[train] = [(block_of(entered), self._across(facing, left_by, entered))]
+        return kept
 
     def _placed(self, train: str, block: str) -> None:
         """Facing after a person has said where a train actually stands.

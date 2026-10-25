@@ -227,6 +227,26 @@ def test_a_train_only_the_old_spelling_names_comes_up_with_no_facing() -> None:
     assert facing(seen)["shunter"] == "up_w.B-to-A"
 
 
+ALLOCATION = "tc49/dispatch/state/allocation"
+
+
+def recorded(
+    bus: InProcessBus, train: str, block: str, crossing: str | None = None
+) -> None:
+    """The dispatcher's allocation naming `train` in `block`, and crossing
+    `crossing` out of it where one is given."""
+    bus.publish(
+        ALLOCATION,
+        {
+            "trains": {train: block},
+            "crossing": {} if crossing is None else {train: crossing},
+            "locks": {},
+            "requests": [],
+        },
+    )
+    bus.drain()
+
+
 def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
     """`move_granted` carries the transit and the block entered, never the
     end entered through, so the layout is what says which ends the transit
@@ -245,7 +265,7 @@ def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
             "aspect": "clear",
         },
     )
-    bus.drain()
+    recorded(bus, "freight_1", "dn_w")
     assert seen[-1][1]["facing"]["freight_1"] == "dn_w.A-to-B"
 
 
@@ -283,7 +303,7 @@ def test_a_granted_move_into_a_terminal_block_faces_its_connected_end() -> None:
             "aspect": "clear",
         },
     )
-    bus.drain()
+    recorded(bus, "express_2", "yard_w")
     assert seen[-1][1]["facing"]["express_2"] == "yard_w.A-to-B"
 
 
@@ -308,6 +328,13 @@ def granted(bus: InProcessBus, train: str, transit: str, into: str) -> None:
     bus.drain()
 
 
+def arrived(bus: InProcessBus, train: str, transit: str, into: str) -> None:
+    """A grant, and the allocation that records the train in the block it
+    entered: the whole of a move as the scheduler reads one (#1025)."""
+    granted(bus, train, transit, into)
+    recorded(bus, train, into)
+
+
 def test_a_route_out_of_the_end_the_train_faces_moves_the_arrow_on_arrival() -> None:
     """Committing to a route is a plan; facing is a fact about the stock, and
     it moves when the train does (ADR-0019, #295). `express_2` stands in
@@ -324,7 +351,7 @@ def test_a_route_out_of_the_end_the_train_faces_moves_the_arrow_on_arrival() -> 
     assert len(seen) == published
     assert seen[-1][1]["facing"]["express_2"] == "up_e.B-to-A"
 
-    granted(bus, "express_2", "crossover.up_straight", "up_w")
+    arrived(bus, "express_2", "crossover.up_straight", "up_w")
     assert seen[-1][1]["facing"]["express_2"] == "up_w.B-to-A"
 
 
@@ -358,7 +385,7 @@ def test_a_propelled_train_faces_the_end_it_entered_through() -> None:
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
 
-    granted(bus, "shunter", "crossover.up_straight", "up_e")
+    arrived(bus, "shunter", "crossover.up_straight", "up_e")
     assert seen[-1][1]["facing"]["shunter"] == "up_e.B-to-A"
 
 
@@ -373,9 +400,9 @@ def test_a_propelled_train_keeps_its_nose_direction_across_two_blocks() -> None:
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
 
-    granted(bus, "shunter", "crossover.up_straight", "up_e")
+    arrived(bus, "shunter", "crossover.up_straight", "up_e")
     assert seen[-1][1]["facing"]["shunter"] == "up_e.B-to-A"
-    granted(bus, "shunter", "east_ladder.from_up", "yard_e")
+    arrived(bus, "shunter", "east_ladder.from_up", "yard_e")
     assert seen[-1][1]["facing"]["shunter"] == "yard_e.B-to-A"
 
 
@@ -389,7 +416,7 @@ def test_a_propelled_train_into_a_terminal_block_faces_its_connected_end() -> No
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded({"shunter": TrainSpec("dn_w", "A-to-B")}))
 
-    granted(bus, "shunter", "west_ladder.to_dn", "yard_w")
+    arrived(bus, "shunter", "west_ladder.to_dn", "yard_w")
     assert seen[-1][1]["facing"]["shunter"] == "yard_w.A-to-B"
 
 
@@ -406,10 +433,150 @@ def test_a_route_out_and_back_through_a_reversing_loop_turns_the_train() -> None
         seed(reversing_loops(), {"shunter": TrainSpec("CW", "B-to-A")}),
     )
 
-    granted(bus, "shunter", "j1.A1_A__CW_A", "A1")
+    arrived(bus, "shunter", "j1.A1_A__CW_A", "A1")
     assert seen[-1][1]["facing"]["shunter"] == "A1.A-to-B"
-    granted(bus, "shunter", "j1.A1_B__CW_A", "CW")
+    arrived(bus, "shunter", "j1.A1_B__CW_A", "CW")
     assert seen[-1][1]["facing"]["shunter"] == "CW.A-to-B"
+
+
+def test_a_grant_moves_no_arrow_until_the_allocation_records_the_arrival() -> None:
+    """A grant is permission, and the train is still where it was: its nose
+    is at the signal the grant cleared, and the throttle reads that signal off
+    the facing (#1025). The facing moves when the dispatcher records the
+    train in the block it entered, and not while the allocation goes on
+    naming it in the block it is crossing out of (ADR-0019)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    bus.drain()
+    published = len(seen)
+
+    granted(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    recorded(bus, "freight_1", "yard_w", crossing="west_ladder.to_dn")
+    assert len(seen) == published
+    assert facing(seen)["freight_1"] == "yard_w.A-to-B"
+
+    recorded(bus, "freight_1", "dn_w", crossing="west_ladder.to_dn")
+    assert facing(seen)["freight_1"] == "dn_w.A-to-B"
+
+
+def test_a_grant_ahead_of_the_arrival_before_it_is_read_from_that_arrival() -> None:
+    """A move that ends on its arrival grants the next one in the same sweep,
+    and the grant is published before the allocation that records the
+    arrival. The second move starts from where the first ends, so it is read
+    against the facing the first was kept, and each is taken up as the
+    allocation names the train in its block. `shunter` is propelled the whole
+    way, its nose at the `A` end of each block."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded({"shunter": TrainSpec("up_w", "B-to-A")}))
+
+    granted(bus, "shunter", "crossover.up_straight", "up_e")
+    granted(bus, "shunter", "east_ladder.from_up", "yard_e")
+    assert facing(seen)["shunter"] == "up_w.B-to-A"
+
+    recorded(bus, "shunter", "up_e", crossing="east_ladder.from_up")
+    assert facing(seen)["shunter"] == "up_e.B-to-A"
+    recorded(bus, "shunter", "yard_e")
+    assert facing(seen)["shunter"] == "yard_e.B-to-A"
+
+
+def test_a_kept_facing_is_dropped_when_the_train_is_taken_off() -> None:
+    """A train taken off the layout mid-move makes no arrival: placed again
+    where the move was going, it faces the way the placement says and not the
+    way the move would have left it."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+
+    granted(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    announce(bus, "train_removed", {"train": "freight_1"})
+    placed(bus, {"train": "freight_1", "block": "dn_w"})
+    assert facing(seen)["freight_1"] == "dn_w.B-to-A"
+
+    recorded(bus, "freight_1", "dn_w")
+    assert facing(seen)["freight_1"] == "dn_w.B-to-A"
+
+
+def test_a_kept_facing_is_dropped_when_the_train_is_placed() -> None:
+    """The same for a train a person places again without taking it off: the
+    placement is where it stands, and the move it was granted is over."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+
+    granted(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    placed(bus, {"train": "freight_1", "block": "dn_w"})
+    assert facing(seen)["freight_1"] == "dn_w.A-to-B"
+    reversal(bus, {"train": "freight_1"})
+    assert facing(seen)["freight_1"] == "dn_w.B-to-A"
+
+    recorded(bus, "freight_1", "dn_w")
+    assert facing(seen)["freight_1"] == "dn_w.B-to-A"
+
+
+def test_a_reversal_is_dropped_under_a_move_not_yet_taken_up() -> None:
+    """Between the grant and the arrival the train is moving whether or not a
+    request is still in flight, and the kept facing would land over the
+    flip."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+
+    granted(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    reversal(bus, {"train": "freight_1"})
+    assert facing(seen)["freight_1"] == "yard_w.A-to-B"
+
+    recorded(bus, "freight_1", "dn_w")
+    reversal(bus, {"train": "freight_1"})
+    assert facing(seen)["freight_1"] == "dn_w.B-to-A"
+
+
+def test_a_restart_reads_the_kept_facing_off_a_retained_crossing() -> None:
+    """The grant went by before this process existed, so a restart has no
+    kept facing: it reads one off the transit the retained allocation says
+    the train is crossing, against the facing it adopted, by the rule a grant
+    is read by (#1025)."""
+    bus = retaining(
+        {
+            FACING: {"facing": {"freight_1": "yard_w.A-to-B"}},
+            ALLOCATION: {
+                "trains": {"freight_1": "yard_w"},
+                "crossing": {"freight_1": "west_ladder.to_dn"},
+                "locks": {},
+                "requests": [],
+            },
+        }
+    )
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard())
+    bus.drain()
+    assert facing(seen)["freight_1"] == "yard_w.A-to-B"
+
+    recorded(bus, "freight_1", "dn_w")
+    assert facing(seen)["freight_1"] == "dn_w.A-to-B"
+
+
+def test_an_allocation_that_cannot_be_read_keeps_the_facing_kept() -> None:
+    """Read through `lib.payload` like every frame on the filter (#259): one
+    that states no allocation records no arrival, and the next honest one
+    still does."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+
+    granted(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    unreadable: list[object] = [
+        "dn_w",  # not an object at all
+        {"trains": {"freight_1": "dn_w"}},  # no crossing
+        {"crossing": {}},  # no trains
+    ]
+    for payload in unreadable:
+        announce(bus, "state/allocation", payload)
+    assert facing(seen)["freight_1"] == "yard_w.A-to-B"
+
+    recorded(bus, "freight_1", "dn_w")
+    assert facing(seen)["freight_1"] == "dn_w.A-to-B"
 
 
 def test_facing_is_published_only_when_it_moves() -> None:
@@ -550,6 +717,7 @@ def test_a_gesture_departs_from_where_facing_has_moved_to() -> None:
             "aspect": "clear",
         },
     )
+    recorded(bus, "freight_1", "dn_w")
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     assert seen[-1][1]["depart"] == "dn_w.B"
 
@@ -1117,6 +1285,7 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
             "aspect": "clear",
         },
     )
+    recorded(bus, "freight_1", "dn_w")
     assert facing(seen)["freight_1"] == "dn_w.A-to-B"
 
 
