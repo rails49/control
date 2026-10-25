@@ -1541,7 +1541,7 @@ export class TcStock extends LitElement {
             <button
               class="add-tile"
               @click=${() => {
-                this.picking = { train: name, tab: "cars", model: null };
+                this.picking = { train: name, tab: "models", model: null };
               }}
             >
               <span aria-hidden="true">+</span>Add
@@ -1755,8 +1755,8 @@ export class TcStock extends LitElement {
         <div class="tabs two" role="tablist">
           ${(
             [
-              ["cars", "Cars"],
               ["models", "Models"],
+              ["cars", "Cars"],
             ] as const
           ).map(
             ([tab, label]) => html`
@@ -1906,7 +1906,7 @@ export class TcStock extends LitElement {
   private newTrain(stock: Stock): void {
     this.train = stock.newTrain();
     this.editing = true;
-    this.picking = { train: this.train, tab: "cars", model: null };
+    this.picking = { train: this.train, tab: "models", model: null };
     this.did(null);
   }
 

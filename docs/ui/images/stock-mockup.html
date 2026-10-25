@@ -672,7 +672,7 @@ class App {
     let html;
     if (o.type === "pick") {
       const t = o.t && S.trains[o.t];
-      const tabs = o.mode === "train" ? `<div class="tabs" role="tablist">${[["cars", "Cars"], ["models", "Models"]].map(([v, n]) => `<button class="tab" type="button" role="tab" data-act="ptab" data-tab="${v}" aria-selected="${o.tab === v}">${n}</button>`).join("")}</div>` : "";
+      const tabs = o.mode === "train" ? `<div class="tabs" role="tablist">${[["models", "Models"], ["cars", "Cars"]].map(([v, n]) => `<button class="tab" type="button" role="tab" data-act="ptab" data-tab="${v}" aria-selected="${o.tab === v}">${n}</button>`).join("")}</div>` : "";
       let list;
       if (o.mode === "which") list = Object.keys(S.cars).filter((ck) => S.cars[ck].model === o.model).map((ck) => this.card("cars", ck, t.entries.some((e) => e.car === ck) ? " disabled" : "", "pick", "car")).join("");
       else if (o.mode === "train" && o.tab === "cars") list = Object.keys(S.cars).map((ck) => this.card("cars", ck, t.entries.some((e) => e.car === ck) ? " disabled" : "", "pick", "car")).join("");
@@ -738,7 +738,7 @@ class App {
         else {
           const tk = "t" + ++S.seq;
           S.trains[tk] = { name: uniqueName("New train", Object.values(S.trains).map((t) => t.name)), entries: [] };
-          this.selOf.trains = tk; this.showEd = true; this.ov = { type: "pick", mode: "train", t: tk, tab: "cars" }; touched(); notify();
+          this.selOf.trains = tk; this.showEd = true; this.ov = { type: "pick", mode: "train", t: tk, tab: "models" }; touched(); notify();
         }
         return;
       case "newcar": {
@@ -796,7 +796,7 @@ class App {
       case "rmcar": delete S.cars[k]; this.selOf.cars = Object.keys(S.cars)[0]; touched(); notify(); return;
       case "flip": { const e = S.trains[k].entries[+d.i]; e.rev = !e.rev; touched(); notify(); return; }
       case "rment": S.trains[k].entries.splice(+d.i, 1); touched(); notify(); return;
-      case "add": this.ov = { type: "pick", mode: "train", t: k, tab: "cars" }; this.renderOv(); return;
+      case "add": this.ov = { type: "pick", mode: "train", t: k, tab: "models" }; this.renderOv(); return;
       case "unmake": delete S.trains[k]; this.selOf.trains = Object.keys(S.trains)[0]; touched(); notify(); return;
     }
   }

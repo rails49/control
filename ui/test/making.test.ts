@@ -1231,11 +1231,32 @@ describe("making up a train", () => {
   });
 
   /** One item cannot stand in a train twice. */
+  /** Models are what is picked far more often (#1036). */
+  it("opens the picker on Models, its first tab, from Add and New train", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const shown = () =>
+      parts(shell, "look-dialog.picker button.tab").map(
+        (one) => `${one.dataset.tab}:${one.getAttribute("aria-selected")}`,
+      );
+    await tab(shell, "trains");
+    await pressed(shell, ".train-editor button.add-tile");
+    expect(shown()).toEqual(["models:true", "cars:false"]);
+    await pressed(shell, 'look-dialog.picker button.tab[data-tab="cars"]');
+    await away(shell);
+    await pressed(shell, ".train-editor button.add-tile");
+    expect(shown()).toEqual(["models:true", "cars:false"]);
+    await away(shell);
+    await pressed(shell, "button.new");
+    expect(shown()).toEqual(["models:true", "cars:false"]);
+  });
+
   it("greys a car already in the train, and puts it in no second place", async () => {
     const shell = await opened();
     await ore(shell);
     await tab(shell, "trains");
     await pressed(shell, ".train-editor button.add-tile");
+    await pressed(shell, 'look-dialog.picker button.tab[data-tab="cars"]');
 
     const car = part(
       shell,

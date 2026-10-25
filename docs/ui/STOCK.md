@@ -350,7 +350,9 @@ stays.
 
 ### The picker
 
-*Add to <train>*, with two tabs, **Cars** and **Models**.
+*Add to <train>*, with two tabs, **Models** and **Cars**. It opens on Models,
+from Add and from New train alike
+([#1036](https://github.com/rails49/control/issues/1036)).
 
 - **A car** goes in as itself, at the tail. A car already in this train is
   greyed, its title saying so.
