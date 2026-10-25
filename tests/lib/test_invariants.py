@@ -856,3 +856,16 @@ def test_which_history_invariants_are_cross_app() -> None:
     assert not cross_app(by_name["adr_0084_sign_changes_through_zero"])
     assert not cross_app(by_name["adr_0078_cut_leaves_the_railroad_at_rest"])
     assert cross_app(by_name["adr_0069_removed_is_stopped"])
+
+
+def test_a_retained_railroad_handed_again_is_no_start() -> None:
+    """A late subscriber on `#` is handed `state/railroad` and then
+    `state/power` as they stand, which is not `layout` coming up."""
+    rows: Rows = {
+        RAILROAD: {"name": "bench"},
+        POWER: {"power": "on"},
+        traction("3"): {"addr": "3", "speed": 0.3},
+    }
+    replayed: Messages = [(RAILROAD, {"name": "bench"}), (POWER, {"power": "on"})]
+    for breaches in (adr_0074_comes_up_off, adr_0054_traction_zeroed_at_start):
+        assert breaches_over(breaches, BENCH, rows, [*replayed, moved()]) == []
