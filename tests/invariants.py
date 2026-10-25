@@ -99,7 +99,7 @@ def checked(
         if invariant.breaches.__name__ not in without
         and (one_order or not cross_app(invariant))
     ]
-    record = Record(layout, bus.last_values)
+    record = Record(layout, bus.last_values, roster)
 
     def heard(topic: str, payload: Payload) -> None:
         view = View(record.rows, layout, roster)
