@@ -84,14 +84,15 @@ both views are of one railroad, so one control asks for it. The gear is drawn
 whether or not a session is joined, and Help after it is the last thing on
 the band.
 
-The dialog has three tabs, in this order, and opens on the first each time
-([#899](https://github.com/rails49/control/issues/899)):
+The dialog has three tabs, in this order. The gear opens it on the first and
+the band's backup note on Backup
+([#899](https://github.com/rails49/control/issues/899), #1075):
 
 - **Railroad** lists what the store has, asked again each time the dialog
   opens, and ticks the one that is loaded, with the name field and the two
   presses that make a railroad beneath.
-- **Backup** holds `Backup…`, which closes the dialog and opens the backup
-  dialog ([Backing the store up](#backing-the-store-up)).
+- **Backup** is where the store is backed up and restored, drawn in the tab
+  and not in a dialog of its own ([Backing the store up](#backing-the-store-up)).
 - **Shutdown** turns the box off (#745). It is there only where the
   installation says this box can be turned off, asked each time the dialog
   opens. Its press asks once more, saying that every app on the box stops and
@@ -171,7 +172,7 @@ the band, ending the drain, abandons it too. With power `off` a press acts at
 once. With no railroad loaded there are no rails built to change, so power is
 not asked and a new box loads its first railroad here
 (`Drain` in `model/settings.ts`). *Turn off* on the Shutdown tab and *Restore*
-in the backup dialog wait the same way.
+on the Backup tab wait the same way.
 
 The band reads *unsaved* beside the name only where the drawing holds edits
 that could not be saved: power came on from elsewhere while this page had
@@ -205,8 +206,8 @@ this, a toggle at off being a railroad at rest since #585. It is shown verbatim
 and nothing branches on it, and it clears when a frame arrives carrying no
 reason, the trip being a condition that holds until somebody resets it.
 
-**And a store that is not being backed up**, as a press that opens the backup
-dialog ([Backing the store up](#backing-the-store-up)).
+**And a store that is not being backed up**, as a press that opens Settings on
+its Backup tab ([Backing the store up](#backing-the-store-up)).
 The note is one of *no backup set up* (the store is no repository), *backup
 behind* (the copy off this machine is more than a day behind, git's words from
 the last push as its tooltip), *backup cannot run* (something backup needs is
@@ -329,8 +330,8 @@ Fit is does not learn it again on the other view.
 over the work, so there is no state in which a bare key belongs to the chrome:
 `r`, `f`, `n`, `0`, `+`, `-`, Delete and Backspace reach the canvas whatever the
 rail is showing, and Escape clears the selection. Nothing on the band hangs over
-the work either. The settings and backup dialogs are modal, and while either is
-up the keyboard is the dialog's.
+the work either. The settings dialog is modal, and while it is up the keyboard
+is the dialog's.
 
 **A shortcut is still not a bare key.** `⌘Z` is the editor's and is taken
 from the browser, as `⌘S` is, so Chrome's own `⌘S` never offers to save the
@@ -1088,8 +1089,7 @@ screenshot and PANEL.md wants nothing here.
 
 ### Backing the store up
 
-`Settings ▸ Backup ▸ Backup…`, and the band's note, open the one dialog about the store
-as a whole — every railroad in it rather than the one that is open: where it is,
+`Settings ▸ Backup` is the one place about the store as a whole — every railroad in it rather than the one that is open: where it is,
 what has moved since the last backup, what backup has not got, what git last
 said, and the backups there are to come back to. The app **drives git and does
 not own it**
@@ -1099,7 +1099,7 @@ switch that turns automated backup on, and *Back up to it*, which hands the
 address of a repository the person made to the store: an empty one to adopt
 ([#355](https://github.com/rails49/control/issues/355)), or, on a store with
 nothing drawn in it, the one an old box backed up to, whose latest backup it
-brings in ([#694](https://github.com/rails49/control/issues/694)). Neither this dialog
+brings in ([#694](https://github.com/rails49/control/issues/694)). Neither this tab
 nor anything behind it runs `git init`, makes a remote or resolves a conflict.
 
 A store nobody has made a repository is the ordinary state of a fresh
@@ -1109,25 +1109,25 @@ beside it, and everything else in the editor is unaffected.
 
 **It says so when nobody is looking.** The app asks the store where backup
 stands when it comes up and every hour after, and the band says what is wrong
-as a press that opens this dialog, in every view ([The band](#the-band)):
-*no backup set up*, *backup behind*, *backup cannot run* or *backup is off*.
-`Settings ▸ Backup ▸ Backup…` wears the same words beside it; the two follow one rule
-and never disagree
+as a press that opens Settings on its Backup tab, in every view
+([The band](#the-band), #1075): *no backup set up*, *backup behind*, *backup
+cannot run* or *backup is off*
 ([store/BACKUP.md](../store/BACKUP.md#what-it-does-while-you-draw), #688). A
 store inside another repository — a checkout's `bench/` — says nothing.
-`Backup…` is never disabled.
+Settings asks the store afresh each time it opens, so the tab shows what the
+store says now and not the note's reading, which may be an hour old.
 
-The dialog says the same thing at length: how many backups the other machine
+The tab says the same thing at length: how many backups the other machine
 has not been given and how old the oldest is. `Back up now` answers with the
 commit, which is the backup and is made at once; the copy off the machine is
-the store's own timer's, so it may not have happened yet when the dialog
+the store's own timer's, so it may not have happened yet when the tab
 redraws.
 
 **Restoring takes two presses**: the backup to come back to is chosen in the
-list, and the footer's *Restore* is what does it. Over documents that have not
+list, and *Restore* beneath it is what does it. Over documents that have not
 been backed up it is refused in words naming them, which arrives the way a
 refusal from `/review` does — inside a 200, read rather than caught. The words
-in the dialog are git's own, kept whether the press worked or not: this app
+in the tab are git's own, kept whether the press worked or not: this app
 knows nothing to add to *could not resolve host*.
 
 **Trains on the layout do not freeze a restore**, as they no longer [freeze
@@ -1135,10 +1135,10 @@ the drawing](#track-power-freezes-the-drawing): the rebuild after it keeps
 the trains that still fit, and those that do not come off and are listed as
 unfit (#710, ADR-0071). With a railroad loaded a restore waits for track power
 to read off, draining it first with *stopping trains…* and the stop sign in the
-dialog as a load does ([The band](#the-band)), and
+tab as a load does ([The band](#the-band)), and
 refuses a backup that does not hold the loaded railroad —
-rules the app hands the dialog and the store server does not check. Closing
-the dialog while it waits restores nothing. A restore
+rules the app hands the tab and the store server does not check. Closing
+Settings while it waits restores nothing and leaves power as it is. A restore
 also waits for the layout to say which railroad is loaded, and whether the
 track has power, as a load does: until it has, nothing says the backup holds
 the railroad the apps run (#759). After a

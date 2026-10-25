@@ -305,7 +305,7 @@ thing on the bus is the store, which is what makes the editor the way a first
 railroad is drawn.
 
 Turning the store into a git repository is offered through the app rather
-than needing a terminal (#355): the backup dialog shows the key the store made
+than needing a terminal (#355): `Settings ▸ Backup` shows the key the store made
 for itself and takes the address of an empty repository the person made, or
 of the one an old box backed up to (#694). That key lives in the `keys`
 docker volume — outside the store, so no commit can carry it, and on no host
@@ -330,10 +330,10 @@ still the person's** — nothing about whose the documents are changes. A box
 whose account changes uid gets the new name on its next deploy, which rebuilds
 the image anyway.
 
-**A key that has to be replaced is replaced from the dialog.** A key
+**A key that has to be replaced is replaced from `Settings ▸ Backup`.** A key
 GitHub refuses as *Key is already in use* — still held by a repository deleted
 without taking it off first — needs no terminal: *New key* in `Settings ▸
-Backup…` deletes the pair in the `keys` volume and makes a new one, and shows
+Backup` deletes the pair in the `keys` volume and makes a new one, and shows
 its public half to add under *Settings ▸ Deploy keys* with *Allow write
 access* ([#693](https://github.com/rails49/control/issues/693),
 [store/BACKUP.md](store/BACKUP.md#setting-one-up)). The terminal step below is
@@ -361,7 +361,7 @@ docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d --no-deps store
 ```
 
-The store makes itself a new key on the next `Settings ▸ Backup ▸ Backup…`, in a volume
+The store makes itself a new key on the next `Settings ▸ Backup`, in a volume
 seeded from the image and owned by that person. Paste its public half into the
 repository under *Settings ▸ Deploy keys* with *Allow write access*, and delete
 the old one if it is still listed. The key is the box's identity and nothing
