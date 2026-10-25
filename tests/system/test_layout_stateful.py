@@ -12,14 +12,12 @@ link — whatever was asked for, including readings no train caused.
 
 Each step is one publish and a drain, or time passing and the settling it
 drives. After every message the invariants over what the bus shows hold
-(`tests/invariants.py`, ADR-0096), and no handler raises — bar ADR-0062's
-drain rule, left out for `test_on_ending_a_drain_over_a_dead_link`.
+(`tests/invariants.py`, ADR-0096), and no handler raises.
 """
 
 import unittest
 from typing import cast
 
-import pytest
 from hypothesis import note, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, precondition, rule
@@ -66,15 +64,9 @@ ADDRS = sorted({point["addr"] for way in POINTS.values() for point in way})
 """The bench railroad's addressed points, `12` and `13`."""
 
 
-DRAIN_OVER_A_DEAD_LINK = frozenset({"adr_0062_drain_ends_at_a_stand"})
-"""Left out of the checks for `test_on_ending_a_drain_over_a_dead_link`."""
-
-
-def assembled(
-    without: frozenset[str] = frozenset(),
-) -> tuple[InProcessBus, LayoutInterface, Clock]:
+def assembled() -> tuple[InProcessBus, LayoutInterface, Clock]:
     """The bench railroad with every app but a translator on one bus, come
-    up and checked, `without` the invariants named."""
+    up and checked."""
     layout, roster = railroad(), stock()
     clock = Clock()
     bus = InProcessBus(clock)
@@ -83,17 +75,15 @@ def assembled(
     Dispatcher(bus, layout, roster, {}, Incremental(layout, DEFAULT_K))
     Driver(bus)
     bus.drain()
-    checked(bus, layout, roster, Incremental, without)
+    checked(bus, layout, roster, Incremental)
     return bus, app, clock
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)
 def test_on_ending_a_drain_over_a_dead_link() -> None:
-    """A link goes `down` during a drain with a train moving, and a person
-    presses `on`. That ends the drain, and the row reads the fold, which is
-    `off` for the dead link: hardware reading the supply off, not a cut. The
-    ADR-0062 history invariant reads any `draining` to `off` while moving as
-    a drain that ended early, and fails. Found by the state machine below.
+    """A drain ended by `on` over a dead link is not a cut: a link goes
+    `down` during a drain with a train moving, a person presses `on`, and
+    power reads the fold, `off` for the dead link, while `layout` writes
+    `wanted/track: on`. Found by the state machine below.
     """
     bus, _app, _clock = assembled()
 
@@ -183,8 +173,7 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
         self.layout = railroad()
         self.roster = stock()
         self.minted = []
-        # Narrowed around `test_on_ending_a_drain_over_a_dead_link`.
-        self.bus, self.app, self.clock = assembled(without=DRAIN_OVER_A_DEAD_LINK)
+        self.bus, self.app, self.clock = assembled()
 
         def collect(topic: str, payload: Payload) -> None:
             self.minted.append(str(payload["id"]))
