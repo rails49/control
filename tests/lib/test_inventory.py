@@ -415,3 +415,12 @@ def test_every_state_row_leads_with_the_stamp_and_no_event_row_carries_one() -> 
             assert row.fields[0] == AT, topic
         else:
             assert AT not in row.fields, topic
+
+
+def test_layout_is_asked_to_take_a_move_back_and_says_when_it_has() -> None:
+    """A cancel landing on a move nothing has driven ends at once (#1068): the
+    dispatcher asks, `layout` answers. Neither is a page's to write."""
+    for topic in ("tc49/layout/withdraw_wanted", "tc49/layout/move_withdrawn"):
+        assert TOPICS[topic].fields == ("train", "transit")
+        assert topic not in INBOUND
+        assert not is_state_topic(topic)

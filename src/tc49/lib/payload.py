@@ -816,6 +816,28 @@ def command(payload: object) -> Command | None:
 
 
 @dataclass(frozen=True)
+class Withdrawal:
+    """The move a `withdraw_wanted` asks `layout` to take back, and the one a
+    `move_withdrawn` says it took back: a train and the transit it was to
+    cross, qualified as a grant names it (#1068)."""
+
+    train: str
+    transit: str
+
+
+def withdrawal(payload: object) -> Withdrawal | None:
+    """The move the payload names, or None where it names none. One shape on
+    two topics, the request and its answer."""
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    train, transit = fields.get("train"), fields.get("transit")
+    if not isinstance(train, str) or not isinstance(transit, str):
+        return None
+    return Withdrawal(train, transit)
+
+
+@dataclass(frozen=True)
 class Alignment:
     """The route an `align` sets: the connection and the transit it names,
     and the points that transit's way needs thrown (ADR-0031).
