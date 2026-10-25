@@ -27,10 +27,10 @@ the trains kept under the same name. What is this binding's own is handed
 over as `_Binding`. **Two documents**: the transits a `move` may name and
 the signal at each block end come off the layout, and the addresses that
 answer for a train off the roster, no address ever reaching a command
-(#199), the roster read again for a take naming a train made since the
-build (ADR-0092, decision 2). **The rows it adopts** are the traction rows a
-previous process left, waited for as each build begins and zeroed by the
-constructor (#333).
+(#199), the roster read again for a placement or a take naming a train made
+since the build (ADR-0092, decision 2). **The rows it adopts** are the
+traction rows a previous process left, waited for as each build begins and
+zeroed by the constructor (#333).
 
 Then the loop, which is this app's own and not the drain the other apps run:
 advance the clock to wall time, `settle()`, drain, once per period. It moves
@@ -265,8 +265,8 @@ class _Binding:
         railroad keeps (ADR-0090, decision 4), or, where it keeps none, at
         the box's time of day at a speed-up of 1, which is not written until
         a person sets the clock. The interface can read the railroad's
-        roster again, once, for a take naming a train it was not built with
-        (ADR-0092, decision 2)."""
+        roster again, once, for a placement or a take naming a train it was
+        not built with (ADR-0092, decision 2)."""
         retained(self._bus, self._stop)
         layout, roster, kept = read
         clock = Clock()
