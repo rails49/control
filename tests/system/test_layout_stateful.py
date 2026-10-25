@@ -135,16 +135,34 @@ def press(bus: InProcessBus, topic: str, payload: Payload) -> None:
     bus.drain()
 
 
+def test_on_switching_to_automatic_after_placing_a_train_granted_in_manual() -> None:
+    """`single` is granted a move in `manual`, which nothing drives, and
+    placed elsewhere, which cancels it. `layout` kept the crossing and drove
+    it on the switch to `automatic`, from a block the train was no longer in
+    (#1061). Found by the state machine below.
+    """
+    bus, _app, _clock = assembled()
+    press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "up_w"})
+    press(bus, POWER_WANTED, {"power": "on"})
+    press(bus, DEVICE_TRACK, {"power": "on"})
+    press(bus, DRIVING_WANTED, {"driving": MANUAL})
+    press(bus, "tc49/schedule/request_wanted", {"train": "single", "dest": ["dn_e.A"]})
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "dn_e"})
+    press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
     reason="ADR-0079: a train placed while running keeps its speed in manual",
 )
 def test_on_placing_a_running_train_in_manual() -> None:
-    """A person lifts `single` mid-move and sets it down, and the dispatcher
-    ends the move. `layout` does not: it keeps the crossing and the speed,
-    so in `manual` with no throttle the train runs on at 0.3. Found by the
-    state machine below.
+    """A person lifts `single` mid-move and sets it back in dn_e. The
+    dispatcher refuses the placement, the train holding dn_e, but has ended
+    the move first, and no `train_placed` follows (#1062). `layout` keeps
+    the crossing and the speed, so in `manual` with no throttle the train
+    runs on at 0.3. Found by the state machine below.
     """
     bus, _app, _clock = assembled()
     started(bus)
@@ -158,10 +176,10 @@ def test_on_placing_a_running_train_in_manual() -> None:
     reason="ADR-0081: a train placed while running is not stopped on its release",
 )
 def test_on_releasing_a_train_placed_while_running() -> None:
-    """The same placement in `automatic`, then a throttle takes `single` and
-    lets it go. On the bus no move is outstanding, so ADR-0081 has it written
-    0; `layout` still holds the crossing and leaves it running. Found by the
-    state machine below.
+    """The same refused placement in `automatic` (#1062), then a throttle
+    takes `single` and lets it go. On the bus no move is outstanding, so
+    ADR-0081 has it written 0; `layout` still holds the crossing and leaves
+    it running. Found by the state machine below.
     """
     bus, _app, _clock = assembled()
     started(bus)
