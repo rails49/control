@@ -1,5 +1,7 @@
 """Each invariant of `tc49.lib.invariants` over literal rows: one view where it
-holds and one where it is breached, on a railroad of the library (ADR-0096)."""
+holds and one where it is breached, on a railroad of the library; and each
+history invariant over a literal message sequence, one where it holds and one
+where it is breached (ADR-0096)."""
 
 from collections.abc import Callable
 from typing import Any
@@ -10,25 +12,53 @@ from tc49.lib.bus import Payload
 from tc49.lib.invariants import (
     ALLOCATION,
     ASPECTS,
+    BLOCK_OCCUPIED,
+    BLOCK_VACATED,
+    CANCEL_WANTED,
+    DISPUTED,
     FACING,
+    HISTORY_INVARIANTS,
     INVARIANTS,
+    LOCK_RELEASED,
+    MOVE_GRANTED,
     MOVING,
     POWER,
+    POWER_WANTED,
+    QUIET,
+    REQUEST_CANCELLED,
+    ROUTE_CHOSEN,
+    TRAIN_PLACED,
     UNFIT,
+    Record,
     View,
     adr_0001_pass_through,
+    adr_0002_route_is_fixed,
     adr_0006_no_conflicting_transits,
     adr_0007_route_ends_at_an_arrival,
+    adr_0019_facing_turns_on_a_move,
     adr_0019_terminal_facing,
+    adr_0025_grant_shows_its_aspect,
     adr_0026_two_blocks_ahead,
     adr_0029_block_with_its_transit,
     adr_0039_unplaced_has_no_facing,
+    adr_0047_no_grant_while_crossing,
+    adr_0048_disputed_lists_contradictions,
+    adr_0048_unexplained_drains,
+    adr_0049_no_grant_after_cancel,
+    adr_0049_placed_has_no_request,
+    adr_0062_drain_ends_at_a_stand,
     adr_0062_moving_while_crossing,
     adr_0071_placed_where_it_fits,
     adr_0071_unfit_is_not_placed,
     adr_0076_crossing_is_placed,
     adr_0076_placed_holds_its_block,
+    adr_0077_move_ends_on_both_readings,
+    adr_0077_not_into_occupied,
+    adr_0077_placement_releases_its_own,
+    adr_0078_nothing_commits_without_power,
     adr_0080_after_follows,
+    adr_0080_listed_by_priority,
+    adr_0080_placed_into_a_free_block,
     adr_0093_aspects_along_the_locks,
     adr_0093_stop_without_power,
     cross_app,
@@ -299,3 +329,232 @@ def test_an_invariant_over_one_apps_topics_is_not_cross_app() -> None:
     assert not cross_app(by_name["adr_0062_moving_while_crossing"])
     assert cross_app(by_name["adr_0039_unplaced_has_no_facing"])
     assert cross_app(by_name["adr_0093_stop_without_power"])
+
+
+# -- the history invariants ---------------------------------------------------
+
+Messages = list[tuple[str, Payload]]
+Breaches = Callable[[Record, View, str, Payload], list[str]]
+
+ON: Rows = {POWER: {"power": "on"}}
+PLACED: Rows = {ALLOCATION: allocation({"t1": "west_1"}, locks={"west_1": "t1"})}
+GRANT: tuple[str, Payload] = (
+    MOVE_GRANTED,
+    {
+        "id": "r1",
+        "train": "t1",
+        "transit": "west_throat.from_1",
+        "into": "w_main",
+        "aspect": "caution",
+    },
+)
+ONWARD: tuple[str, Payload] = (
+    MOVE_GRANTED,
+    {
+        "id": "r1",
+        "train": "t1",
+        "transit": "west_switch.to_up",
+        "into": "loop_up",
+        "aspect": "caution",
+    },
+)
+LEFT: tuple[str, Payload] = (
+    LOCK_RELEASED,
+    {"train": "t1", "resources": ["west_1", "west_throat.from_1"]},
+)
+CHOSEN: tuple[str, Payload] = (ROUTE_CHOSEN, {"id": "r1", "route": ROUTE})
+
+
+def read(block: str, occupied: bool = True) -> tuple[str, Payload]:
+    return (BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block})
+
+
+def placed(train: str, block: str) -> tuple[str, Payload]:
+    return (TRAIN_PLACED, {"train": train, "block": block})
+
+
+HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
+    (
+        adr_0002_route_is_fixed,
+        {},
+        [CHOSEN, (ALLOCATION, allocation(requests=[request(route=ROUTE)]))],
+        [CHOSEN, (ALLOCATION, allocation(requests=[request(route=ROUTE[:3])]))],
+    ),
+    (
+        adr_0019_facing_turns_on_a_move,
+        {FACING: {"facing": {"t1": "west_1.A-to-B"}}},
+        [GRANT, (FACING, {"facing": {"t1": "w_main.A-to-B"}})],
+        [CHOSEN, (FACING, {"facing": {"t1": "w_main.A-to-B"}})],
+    ),
+    (
+        adr_0025_grant_shows_its_aspect,
+        ON,
+        [GRANT, (ASPECTS, {"aspects": {"west_1.B": "caution"}})],
+        [GRANT, (ASPECTS, {"aspects": {"west_1.B": "clear"}})],
+    ),
+    (
+        adr_0047_no_grant_while_crossing,
+        PLACED,
+        [GRANT, LEFT, ONWARD],
+        [GRANT, ONWARD],
+    ),
+    (
+        adr_0048_unexplained_drains,
+        ON | PLACED,
+        [read("loop_up"), (POWER_WANTED, {"power": "draining"})],
+        [read("loop_up")],
+    ),
+    (
+        adr_0048_disputed_lists_contradictions,
+        {POWER: {"power": "off"}, DISPUTED: {"trains": [], "blocks": []}} | PLACED,
+        [
+            read("west_1", False),
+            read("loop_up"),
+            (DISPUTED, {"trains": ["t1"], "blocks": ["loop_up"]}),
+        ],
+        [read("west_1", False), read("loop_up")],
+    ),
+    (
+        adr_0049_placed_has_no_request,
+        {ALLOCATION: allocation({"t1": "west_1"}, requests=[request()])},
+        [
+            (REQUEST_CANCELLED, {"id": "r1", "reason": "displaced"}),
+            placed("t1", "w_main"),
+        ],
+        [placed("t1", "w_main")],
+    ),
+    (
+        adr_0049_no_grant_after_cancel,
+        PLACED,
+        [GRANT, LEFT, ONWARD, (CANCEL_WANTED, {"id": "r1"})],
+        [GRANT, (CANCEL_WANTED, {"id": "r1"}), LEFT, ONWARD],
+    ),
+    (
+        adr_0062_drain_ends_at_a_stand,
+        {POWER: {"power": "draining"}, MOVING: {"moving": True}},
+        [(MOVING, {"moving": False}), (POWER, {"power": "off"})],
+        [(POWER, {"power": "off"})],
+    ),
+    (
+        adr_0077_not_into_occupied,
+        PLACED,
+        [GRANT],
+        [read("w_main"), GRANT],
+    ),
+    (
+        adr_0077_move_ends_on_both_readings,
+        PLACED,
+        # In the other order from the usual one: a short train.
+        [GRANT, read("west_1", False), read("w_main"), LEFT],
+        [GRANT, read("w_main"), LEFT],
+    ),
+    (
+        adr_0077_placement_releases_its_own,
+        # A broken table: t1 stands in a block t2 holds.
+        {ALLOCATION: allocation({"t1": "west_1"}, locks={"west_1": "t2"})},
+        [
+            placed("t1", "w_main"),
+            (
+                ALLOCATION,
+                allocation({"t1": "w_main"}, locks={"west_1": "t2", "w_main": "t1"}),
+            ),
+        ],
+        [
+            placed("t1", "w_main"),
+            (ALLOCATION, allocation({"t1": "w_main"}, locks={"w_main": "t1"})),
+        ],
+    ),
+    (
+        adr_0078_nothing_commits_without_power,
+        {POWER: {"power": "off"}} | PLACED,
+        [(POWER, {"power": "on"}), GRANT],
+        [GRANT],
+    ),
+    (
+        adr_0080_listed_by_priority,
+        # Every train of the library roster has the same priority.
+        {ALLOCATION: allocation(requests=[request("r1")])},
+        [
+            (
+                ALLOCATION,
+                allocation(requests=[request("r1"), request("r2", train="t2")]),
+            )
+        ],
+        [
+            (
+                ALLOCATION,
+                allocation(requests=[request("r2", train="t2"), request("r1")]),
+            )
+        ],
+    ),
+    (
+        adr_0080_placed_into_a_free_block,
+        {
+            ALLOCATION: allocation(
+                {"t1": "west_1", "t2": "east_1"},
+                locks={"west_1": "t1", "east_1": "t2"},
+            )
+        },
+        [placed("t1", "w_main")],
+        [placed("t1", "east_1")],
+    ),
+]
+
+
+def breaches_over(breaches: Breaches, rows: Rows, messages: Messages) -> list[str]:
+    """What `breaches` finds over `messages` from `rows`, as the helper runs
+    it: each message before the record observes it, then `QUIET`."""
+    record = Record(LAYOUTS[MEET], rows)
+    found: list[str] = []
+    for topic, payload in [*messages, (QUIET, {})]:
+        found += breaches(record, view(MEET, record.rows), topic, payload)
+        record.observe(topic, payload)
+    return found
+
+
+@pytest.mark.parametrize(
+    "breaches, rows, holds, breached",
+    HISTORY_CASES,
+    ids=[case[0].__name__ for case in HISTORY_CASES],
+)
+def test_a_history_invariant_holds_and_is_breached(
+    breaches: Breaches, rows: Rows, holds: Messages, breached: Messages
+) -> None:
+    assert breaches_over(breaches, rows, holds) == []
+    assert len(breaches_over(breaches, rows, breached)) == 1
+
+
+def test_every_history_invariant_has_its_cases() -> None:
+    assert [invariant.breaches for invariant in HISTORY_INVARIANTS] == [
+        case[0] for case in HISTORY_CASES
+    ]
+
+
+def test_each_history_function_is_named_for_its_adr() -> None:
+    for invariant in HISTORY_INVARIANTS:
+        assert invariant.breaches.__name__.startswith(f"adr_{invariant.adr}_")
+
+
+def test_an_unreadable_message_breaks_no_history_reader() -> None:
+    junk: list[Payload] = [
+        {"trains": 7, "locks": "x", "requests": [None, {"route": 3}]},
+        {"id": 3, "train": None, "resources": "x", "block": 4, "route": 5},
+    ]
+    topics = {topic for invariant in HISTORY_INVARIANTS for topic in invariant.reads}
+    for invariant in HISTORY_INVARIANTS:
+        for payload in junk:
+            breaches_over(
+                invariant.breaches,
+                {topic: payload for topic in topics if "/state/" in topic},
+                [(topic, payload) for topic in sorted(topics)],
+            )
+
+
+def test_which_history_invariants_are_cross_app() -> None:
+    by_name = {
+        invariant.breaches.__name__: invariant for invariant in HISTORY_INVARIANTS
+    }
+    assert not cross_app(by_name["adr_0002_route_is_fixed"])
+    assert not cross_app(by_name["adr_0080_placed_into_a_free_block"])
+    assert cross_app(by_name["adr_0048_unexplained_drains"])
+    assert cross_app(by_name["adr_0019_facing_turns_on_a_move"])
