@@ -373,39 +373,45 @@ def placed(train: str, block: str) -> tuple[str, Payload]:
     return (TRAIN_PLACED, {"train": train, "block": block})
 
 
-HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
+HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
     (
         adr_0002_route_is_fixed,
+        MEET,
         {},
         [CHOSEN, (ALLOCATION, allocation(requests=[request(route=ROUTE)]))],
         [CHOSEN, (ALLOCATION, allocation(requests=[request(route=ROUTE[:3])]))],
     ),
     (
         adr_0019_facing_turns_on_a_move,
+        MEET,
         {FACING: {"facing": {"t1": "west_1.A-to-B"}}},
         [GRANT, (FACING, {"facing": {"t1": "w_main.A-to-B"}})],
         [CHOSEN, (FACING, {"facing": {"t1": "w_main.A-to-B"}})],
     ),
     (
         adr_0025_grant_shows_its_aspect,
+        MEET,
         ON,
         [GRANT, (ASPECTS, {"aspects": {"west_1.B": "caution"}})],
         [GRANT, (ASPECTS, {"aspects": {"west_1.B": "clear"}})],
     ),
     (
         adr_0047_no_grant_while_crossing,
+        MEET,
         PLACED,
         [GRANT, LEFT, ONWARD],
         [GRANT, ONWARD],
     ),
     (
         adr_0048_unexplained_drains,
+        MEET,
         ON | PLACED,
         [read("loop_up"), (POWER_WANTED, {"power": "draining"})],
         [read("loop_up")],
     ),
     (
         adr_0048_disputed_lists_contradictions,
+        MEET,
         {POWER: {"power": "off"}, DISPUTED: {"trains": [], "blocks": []}} | PLACED,
         [
             read("west_1", False),
@@ -416,6 +422,7 @@ HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
     ),
     (
         adr_0049_placed_has_no_request,
+        MEET,
         {ALLOCATION: allocation({"t1": "west_1"}, requests=[request()])},
         [
             (REQUEST_CANCELLED, {"id": "r1", "reason": "displaced"}),
@@ -425,24 +432,28 @@ HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
     ),
     (
         adr_0049_no_grant_after_cancel,
+        MEET,
         PLACED,
         [GRANT, LEFT, ONWARD, (CANCEL_WANTED, {"id": "r1"})],
         [GRANT, (CANCEL_WANTED, {"id": "r1"}), LEFT, ONWARD],
     ),
     (
         adr_0062_drain_ends_at_a_stand,
+        MEET,
         {POWER: {"power": "draining"}, MOVING: {"moving": True}},
         [(MOVING, {"moving": False}), (POWER, {"power": "off"})],
         [(POWER, {"power": "off"})],
     ),
     (
         adr_0077_not_into_occupied,
+        MEET,
         PLACED,
         [GRANT],
         [read("w_main"), GRANT],
     ),
     (
         adr_0077_move_ends_on_both_readings,
+        MEET,
         PLACED,
         # In the other order from the usual one: a short train.
         [GRANT, read("west_1", False), read("w_main"), LEFT],
@@ -450,6 +461,7 @@ HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
     ),
     (
         adr_0077_placement_releases_its_own,
+        MEET,
         # A broken table: t1 stands in a block t2 holds.
         {ALLOCATION: allocation({"t1": "west_1"}, locks={"west_1": "t2"})},
         [
@@ -466,12 +478,14 @@ HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
     ),
     (
         adr_0078_nothing_commits_without_power,
+        MEET,
         {POWER: {"power": "off"}} | PLACED,
         [(POWER, {"power": "on"}), GRANT],
         [GRANT],
     ),
     (
         adr_0080_listed_by_priority,
+        MEET,
         # Every train of the library roster has the same priority.
         {ALLOCATION: allocation(requests=[request("r1")])},
         [
@@ -489,6 +503,7 @@ HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
     ),
     (
         adr_0080_placed_into_a_free_block,
+        MEET,
         {
             ALLOCATION: allocation(
                 {"t1": "west_1", "t2": "east_1"},
@@ -501,27 +516,29 @@ HISTORY_CASES: list[tuple[Breaches, Rows, Messages, Messages]] = [
 ]
 
 
-def breaches_over(breaches: Breaches, rows: Rows, messages: Messages) -> list[str]:
+def breaches_over(
+    breaches: Breaches, layout_id: str, rows: Rows, messages: Messages
+) -> list[str]:
     """What `breaches` finds over `messages` from `rows`, as the helper runs
     it: each message before the record observes it, then `QUIET`."""
-    record = Record(LAYOUTS[MEET], rows)
+    record = Record(LAYOUTS[layout_id], rows)
     found: list[str] = []
     for topic, payload in [*messages, (QUIET, {})]:
-        found += breaches(record, view(MEET, record.rows), topic, payload)
+        found += breaches(record, view(layout_id, record.rows), topic, payload)
         record.observe(topic, payload)
     return found
 
 
 @pytest.mark.parametrize(
-    "breaches, rows, holds, breached",
+    "breaches, layout_id, rows, holds, breached",
     HISTORY_CASES,
     ids=[case[0].__name__ for case in HISTORY_CASES],
 )
 def test_a_history_invariant_holds_and_is_breached(
-    breaches: Breaches, rows: Rows, holds: Messages, breached: Messages
+    breaches: Breaches, layout_id: str, rows: Rows, holds: Messages, breached: Messages
 ) -> None:
-    assert breaches_over(breaches, rows, holds) == []
-    assert len(breaches_over(breaches, rows, breached)) == 1
+    assert breaches_over(breaches, layout_id, rows, holds) == []
+    assert len(breaches_over(breaches, layout_id, rows, breached)) == 1
 
 
 def test_every_history_invariant_has_its_cases() -> None:
@@ -545,6 +562,7 @@ def test_an_unreadable_message_breaks_no_history_reader() -> None:
         for payload in junk:
             breaches_over(
                 invariant.breaches,
+                MEET,
                 {topic: payload for topic in topics if "/state/" in topic},
                 [(topic, payload) for topic in sorted(topics)],
             )
