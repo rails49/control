@@ -452,9 +452,9 @@ class Backup:
             wrong.append(
                 f"{self.root} is not a git repository — create an empty"
                 f" private repository on github.com,{key} enter its address"
-                f" below.{one} A new box taking over an old one's railroad"
+                f" below.{one} A new server taking over an old one's railroad"
                 " is the same press: draw nothing first, and enter the"
-                " address of the repository the old box backed up to (Moving"
+                " address of the repository the old server backed up to (Moving"
                 f" to a new box in docs/store/BACKUP.md). git said: {said.words}"
             )
         elif not self._run(self.root, "remote").words:
