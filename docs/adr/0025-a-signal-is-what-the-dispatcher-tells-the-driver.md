@@ -12,6 +12,11 @@ An aspect answers "may a train that reaches this end leave by it": every
 signal along a train's locked blocks shows the aspect counted from its own
 block, and a passed signal shows `stop` once the next block reads occupied.
 
+**Qualified by
+[ADR-0094](0094-caution-is-warnung-the-panel-draws-system-n-and-the-throttle-system-l.md).**
+`caution` is SBB Warnung, not Fb 2. The panel draws a signal as system N and
+the throttle as system L.
+
 **Amended for
 [#235](https://github.com/rails49/control/issues/235):** the middle aspect was
 `approach` when this was written and is now `caution`. The text below has been
