@@ -44,6 +44,9 @@ export type Wire =
  */
 export type AnyKind = Kind | "connection";
 
+/** A turnout's two legs, which its toe reaches. */
+export type TurnoutLeg = "straight" | "diverging";
+
 export interface SymbolSpec {
   kind: AnyKind;
   /** The grid cell of the symbol's top-left square. */
@@ -74,7 +77,7 @@ export interface SymbolSpec {
   addr?: string;
   /** A turnout's: the leg its closed position takes, thrown taking the other.
    *  Absent is `straight`, and the editor writes only `diverging`. */
-  closed_leg?: "straight" | "diverging";
+  closed_leg?: TurnoutLeg;
   /** The junction this symbol belongs to. */
   connection?: string;
   /** Transit names, keyed by the symbol leg the way through takes. */

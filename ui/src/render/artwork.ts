@@ -24,6 +24,7 @@ import {
 import {
   motorised,
   type SymbolSpec,
+  type TurnoutLeg,
   type WidgetKind,
   type WidgetSpec,
 } from "../model/drawing.js";
@@ -139,12 +140,12 @@ const NEITHER: Against = () => false;
 function against(spec: SymbolSpec, position: Position | undefined): Against {
   const { kind } = spec;
   if (position === undefined || !motorised(kind)) return NEITHER;
-  const wants: Record<string, Position> =
-    kind === "turnout" && spec.closed_leg === "diverging"
-      ? { straight: "thrown", diverging: "closed" }
-      : POSITIONS[kind];
+  const closed = spec.closed_leg ?? "straight";
+  const table: Record<string, Position> = POSITIONS[kind];
+  const wants = (leg: string): Position =>
+    kind === "turnout" ? (leg === closed ? "closed" : "thrown") : table[leg]!;
   return (legs) =>
-    legs.length > 0 && legs.every((leg) => wants[leg] !== position);
+    legs.length > 0 && legs.every((leg) => wants(leg) !== position);
 }
 
 /** The generic connection symbol: a box with the pins it declares and no
@@ -347,11 +348,10 @@ function bend(on: Lit): SVGTemplateResult {
  *  a train actually takes rather than the curve beyond the frog. The diverging
  *  road is the one 45 degree leg ending on a face centre, which is how
  *  turnouts stack between parallel station tracks. The leg the closed
- *  position does not take starts `TURNOUT.gap` along from the toe, so the
- *  drawing says which road is the curved one (#1060). */
+ *  position does not take starts `TURNOUT.gap` along from the toe (#1060). */
 function turnout(
   on: Lit,
-  closed: "straight" | "diverging",
+  closed: TurnoutLeg,
   set: Against = NEITHER,
 ): SVGTemplateResult {
   const p = (pin: string) => anchorIn("turnout", pin);

@@ -47,6 +47,7 @@ import {
   symbolTrouble,
   type AnyKind,
   type SymbolSpec,
+  type TurnoutLeg,
 } from "../model/drawing.js";
 import { lengthTrouble } from "../model/rules.js";
 import { PINS } from "../symbols.generated.js";
@@ -179,7 +180,7 @@ export class TcProperties extends LitElement {
           this.draft = {
             ...this.draft,
             closed_leg: (event.target as HTMLSelectElement)
-              .value as "straight" | "diverging",
+              .value as TurnoutLeg,
           };
         }}
       >
@@ -297,8 +298,8 @@ export function editable(kind: AnyKind): boolean {
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,
  *  and an empty mapping is a key the file does not need, as is a turnout
- *  closing on its in-line leg. A cleared address is
- *  no address rather than an empty one — a drawing with none is valid, an
+ *  closing on its in-line leg. A cleared address is no address rather than
+ *  an empty one — a drawing with none is valid, an
  *  end whose signal field was left empty carries no signal, and an end whose
  *  sensor field was left empty is watched under the default. */
 function tidy(spec: SymbolSpec): SymbolSpec {

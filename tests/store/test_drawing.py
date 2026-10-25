@@ -1770,6 +1770,7 @@ def test_a_turnout_closed_on_its_diverging_leg_is_no_fault_beside_its_mate() -> 
         {"kind": "double_slip", "closed_leg": "slip_1"},
         {"kind": "turnout", "closed_leg": "curved"},
         {"kind": "turnout", "closed_leg": "toe"},
+        {"kind": "turnout", "closed_leg": ["diverging"]},
     ],
 )
 def test_a_closed_leg_on_a_slip_or_naming_no_leg_is_refused(
