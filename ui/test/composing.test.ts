@@ -229,32 +229,35 @@ describe("making up a train", () => {
    *  locomotive goes in, in the same edit (#1005). */
   it("names a new train after the first locomotive put in it", () => {
     const screen = stock();
+    const loco = screen.newCar("arnold-ce68")!;
     const made = screen.newTrain();
     screen.append(made, { model: "hopper" });
     expect(screen.trainNow(made)).toBe("New train");
     const unsaved = screen.unsaved;
-    expect(screen.append(made, { car: "krokodil-a" })).toBeNull();
+    expect(screen.append(made, { car: loco })).toBeNull();
     expect(screen.unsaved).toBe(unsaved + 1);
-    expect(screen.trainNow(made)).toBe("krokodil-a");
-    expect(Object.keys(screen.roster.trains)).toEqual(["ore", "krokodil-a"]);
-    expect(screen.roster.trains["krokodil-a"]!.cars).toEqual([
+    expect(screen.trainNow(made)).toBe(loco);
+    expect(Object.keys(screen.roster.trains)).toEqual(["ore", loco]);
+    expect(screen.roster.trains[loco]!.cars).toEqual([
       { model: "hopper" },
-      { car: "krokodil-a" },
+      { car: loco },
     ]);
   });
 
   it("adds (2) where another train has the locomotive's name", () => {
     const screen = stock();
-    screen.addTrain("krokodil-a");
+    const loco = screen.newCar("arnold-ce68")!;
+    screen.addTrain(loco);
     const made = screen.newTrain();
-    screen.append(made, { car: "krokodil-a" });
-    expect(screen.trainNow(made)).toBe("krokodil-a (2)");
+    screen.append(made, { car: loco });
+    expect(screen.trainNow(made)).toBe(`${loco} (2)`);
   });
 
   it("keeps a name typed by hand when a locomotive goes in", () => {
     const screen = stock();
+    const loco = screen.newCar("arnold-ce68")!;
     screen.renameTrain(screen.newTrain(), "Gotthard");
-    screen.append("Gotthard", { car: "krokodil-a" });
+    expect(screen.append("Gotthard", { car: loco })).toBeNull();
     expect(screen.trainNow("Gotthard")).toBe("Gotthard");
     expect(Object.keys(screen.roster.trains)).toEqual(["ore", "Gotthard"]);
   });
@@ -267,6 +270,16 @@ describe("making up a train", () => {
     );
     expect(screen.roster.trains.ore!.cars).toHaveLength(4);
     expect(screen.edits).toBe(false);
+  });
+
+  /** A car stands in at most one train (#1067). */
+  it("refuses a car another train has, in the car editor's words", () => {
+    const screen = stock();
+    screen.addTrain("light");
+    expect(screen.append("light", { car: "krokodil-a" })).toBe(
+      "krokodil-a is in ore. Take it out of that train first.",
+    );
+    expect(screen.roster.trains.light!.cars).toEqual([]);
   });
 
   it("moves an entry to where it is dropped", () => {
@@ -403,9 +416,39 @@ describe("a model put in a train", () => {
     expect(screen.addModel("ore", "arnold-ce68")).toEqual({ as: "which" });
     expect(screen.roster.trains.ore!.cars).toHaveLength(4);
     expect(screen.carsOf("ore", "arnold-ce68")).toEqual([
-      { car: "arnold-ce68", inTrain: false },
-      { car: "arnold-ce68 (2)", inTrain: false },
-      { car: "krokodil-a", inTrain: true },
+      { car: "arnold-ce68", inTrain: false, elsewhere: null },
+      { car: "arnold-ce68 (2)", inTrain: false, elsewhere: null },
+      { car: "krokodil-a", inTrain: true, elsewhere: null },
+    ]);
+  });
+
+  /** A car stands in at most one train (#1067): the railroad's only
+   *  Krokodil is the ore train's, and a second car of it would be a
+   *  locomotive nobody owns. */
+  it("puts in nothing where its only car is in another train, and names it", () => {
+    const screen = stock();
+    screen.addTrain("light");
+    const cars = Object.keys(screen.roster.cars!);
+    expect(screen.addModel("light", "arnold-ce68")).toEqual({
+      as: "taken",
+      car: "krokodil-a",
+      train: "ore",
+    });
+    expect(screen.roster.trains.light!.cars).toEqual([]);
+    expect(Object.keys(screen.roster.cars!)).toEqual(cars);
+  });
+
+  it("passes over a car another train holds", () => {
+    const screen = stock();
+    screen.addTrain("light");
+    screen.newCar("arnold-ce68");
+    expect(screen.addModel("light", "arnold-ce68")).toEqual({
+      as: "only",
+      car: "arnold-ce68",
+    });
+    expect(screen.carsOf("light", "arnold-ce68")).toEqual([
+      { car: "arnold-ce68", inTrain: true, elsewhere: null },
+      { car: "krokodil-a", inTrain: false, elsewhere: "ore" },
     ]);
   });
 });

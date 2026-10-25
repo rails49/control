@@ -197,8 +197,9 @@ reason: what was not typed there was not refused.
 
 **Refusals name what holds a thing.** A car a train is made of cannot be
 removed: its Remove is dead, its title naming the train. A car already in a
-train is greyed in that train's picker: one item cannot stand in a train
-twice. A model's editor says what uses
+train is greyed in every train's picker: one item cannot stand in a train
+twice, nor in two trains, which the store refuses as well (`lib/stock.py`,
+[#1067](https://github.com/rails49/control/issues/1067)). A model's editor says what uses
 it — the cars that are one, then the trains whose entries do — read there
 rather than run into, and its Delete is dead while anything does.
 
@@ -354,17 +355,20 @@ stays.
 from Add and from New train alike
 ([#1036](https://github.com/rails49/control/issues/1036)).
 
-- **A car** goes in as itself, at the tail. A car already in this train is
-  greyed, its title saying so.
+- **A car** goes in as itself, at the tail. A car already in a train is
+  greyed, its title saying which.
 - **A model without a decoder** goes in as a model entry.
 - **A model with a decoder goes in as a car**:
-  - where the railroad has no car of it that is not already in this train, a
+  - where every car of it is in another train, nothing goes in and the view
+    says *<car> is in <train>. Take it out of that train first.*, the car
+    editor's words;
+  - otherwise, where the railroad has no car of it that is in no train, a
     car is made, named after the model as New car names one, and its address
     is asked for at once, as New car asks;
   - where it has exactly one such car, that car goes in, and the view says
     *Added <car>, your only <model>.* for a moment;
-  - where it has several, *Which <model>?* lists them, those already in this
-    train greyed, and the one pressed goes in.
+  - where it has several, *Which <model>?* lists every car of it, those
+    already in a train greyed, and the one pressed goes in.
 
 Placing the train is the run view's
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)).

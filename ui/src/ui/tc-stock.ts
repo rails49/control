@@ -53,6 +53,7 @@ import {
   type CarRow,
   type FnOwner,
   type ModelRow,
+  taken,
   type TrainRow,
 } from "../model/stock.js";
 import type { Railroad } from "../model/railroad.js";
@@ -1693,8 +1694,9 @@ export class TcStock extends LitElement {
 
   /**
    * *Add to <train>*, with a Cars tab and a Models tab, or *Which <model>?*
-   * where a model with a decoder has several cars. A car already in the
-   * train is greyed: one item cannot stand in a train twice.
+   * where a model with a decoder has several cars. A car already in a
+   * train is greyed: one item cannot stand in a train twice, nor in two
+   * trains (#1067).
    */
   private picker() {
     const stock = this.stock;
@@ -1713,6 +1715,10 @@ export class TcStock extends LitElement {
       ),
     );
     const cars = stock.cars(this.power, this.heard);
+    const elsewhere = (one: CarRow) => {
+      const other = one.trains.find((named) => named !== train);
+      return other === undefined ? null : `${one.name} is in ${other}.`;
+    };
     const car = (one: CarRow) =>
       this.card(
         "car",
@@ -1721,7 +1727,9 @@ export class TcStock extends LitElement {
         this.carFacts(one),
         false,
         () => this.pickedCar(one.name),
-        held.has(one.name) ? `${one.name} is already in ${train}.` : null,
+        held.has(one.name)
+          ? `${one.name} is already in ${train}.`
+          : elsewhere(one),
       );
     const which = picking.model === null ? null : stock.model(picking.model);
     if (which !== null && picking.model !== null) {
@@ -1736,7 +1744,7 @@ export class TcStock extends LitElement {
           @sl-after-hide=${() => this.closePicker()}
         >
           <p class="hint">
-            You own more than one. A car already in this train is greyed.
+            You own more than one. A car already in a train is greyed.
           </p>
           <div class="cards offered">
             ${cars.filter((one) => named.has(one.name)).map(car)}
@@ -1831,6 +1839,8 @@ export class TcStock extends LitElement {
    * A model pressed in the picker: a model entry where it has no decoder;
    * otherwise its car — made, and asked for its address at once as New car
    * does; the only one, said; or chosen from several (`Stock.addModel`).
+   * Where its every car is in another train, nothing goes in and the bar
+   * says which (#1067).
    */
   private pickedModel(key: string): void {
     const picking = this.picking;
@@ -1842,6 +1852,10 @@ export class TcStock extends LitElement {
       return;
     }
     this.picking = null;
+    if (added.as === "taken") {
+      this.did(taken(added.car, added.train));
+      return;
+    }
     this.follow(picking.train);
     if (added.as === "made") {
       this.asked = added.car;
