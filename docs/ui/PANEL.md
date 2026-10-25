@@ -289,7 +289,8 @@ picture to run when the styling is what is being looked at (#130).
 end, always, so there is nothing to place and nothing in the drawing to
 record. A signal governs departures through one block end, and routes are
 strict pass-throughs with no reversal within a route, so a signal at
-`station_c_2.B` can only mean "may the train in `station_c_2` leave via B".
+`station_c_2.B` means "may a train that reaches B leave by it"
+([ADR-0093](../adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
 
 **The panel derives no aspect.** The dispatcher publishes one — `stop`,
 `caution` or `clear`, read off how far ahead it has locked — on a last-value
@@ -300,9 +301,11 @@ so a second party working it out is a second authority to disagree with.
 
 Two questions the panel's own locked-ahead derivation raised are answered by
 not arising. Whether an end the standing train does not face may show anything
-but red: the dispatcher knows the committed route, so it knows the one end a
-train may leave by, and every other end shows `stop` because nothing is locked
-beyond it. And the middle aspect, which the binary derivation could not
+but red: the dispatcher knows the committed route, so it knows the exit of
+each block from where the train stands through the last it has locked, and
+lights those; every other end shows `stop` because nothing is locked beyond it
+for a train that would leave by it, and a signal the train has passed goes back
+to `stop` as soon as the train reads occupied in the block beyond (ADR-0093). And the middle aspect, which the binary derivation could not
 produce at all: the dispatcher counts the depth, so `caution` and `clear` are
 simply two different counts.
 

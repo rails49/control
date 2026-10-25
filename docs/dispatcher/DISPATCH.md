@@ -42,9 +42,12 @@ avoidance at high throughput. Terminology follows [GLOSSARY.md](../../GLOSSARY.m
 
 ### Aspects
 
-A signal shows one of three aspects, read off how far ahead the dispatcher has
-locked for the train standing at it; the table is in
-[GOALS.md](../GOALS.md#dispatching) (ADR-0025). Each aspect answers to a Swiss
+A signal shows one of three aspects, read off how far beyond its block the
+dispatcher has locked for the train that will reach it; the table is in
+[GOALS.md](../GOALS.md#dispatching) (ADR-0025). Every exit along a train's
+locked blocks is lit, from the block the train is recorded in to the last it
+holds, and a passed signal goes to `stop` once the block beyond reads occupied
+([ADR-0093](../adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)). Each aspect answers to a Swiss
 one: `stop` to Halt, `caution` to Fb 2, `clear` to Freie Fahrt (Fb 1). That is
 not a translation. Fb 2 names a speed, 40 km/h, where `caution` names a braking
 instruction, and which of the two the middle aspect finally is stays open
