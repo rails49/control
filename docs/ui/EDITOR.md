@@ -126,8 +126,9 @@ reasons below; Copy is also dead with no railroad loaded, saying
 ends in a trash press, `Delete <name>`: the loaded railroad has none, the
 steel runs it and it is deleted by loading another first, and nor has the
 drawing the page holds. Pressed, the row gives way to the question the
-Shutdown tab asks, `Delete <name>? Its drawing, roster, script and clock go.`,
-with **Delete** and **Cancel**; one row asks at a time, and Cancel sends
+Shutdown tab asks,
+`Delete <name>? Its drawing, roster, script, clock and scenarios go.`, with
+**Delete** and **Cancel**; one row asks at a time, and Cancel sends
 nothing. **Delete** has the store delete the railroad whole
 (`DELETE /railroads/<name>`, which backs the store up first, #1073) and the
 list is asked for again, so the row goes. A refusal — the railroad loaded on

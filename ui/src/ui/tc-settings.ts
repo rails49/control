@@ -323,7 +323,7 @@ export class TcSettings extends LitElement {
    *  asks before it turns the box off. */
   private deletingRow(name: string) {
     return html`<li class="deleting">
-      <span class="asking">Delete ${name}? Its drawing, roster, script and clock go.</span>
+      <span class="asking">Delete ${name}? Its drawing, roster, script, clock and scenarios go.</span>
       <div class="presses">
         <sl-button
           class="confirm"

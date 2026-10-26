@@ -775,7 +775,7 @@ describe("Delete railroad", () => {
     deleting(dialog, "otira")!.click();
     await settled(shell);
     expect(dialog.renderRoot.textContent).toContain(
-      "Delete otira? Its drawing, roster, script and clock go.",
+      "Delete otira? Its drawing, roster, script, clock and scenarios go.",
     );
     asked(dialog, "cancel").click();
     await settled(shell);
