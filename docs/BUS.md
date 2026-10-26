@@ -747,23 +747,24 @@ what a drop would cost:
   `null` or empty fails the read; `function`: a function's name as the
   catalogue gives it, a non-empty string; `on`: a boolean, any other value
   failing the read. A frame whose `throttle` does not hold the train is
-  dropped. Otherwise `layout` writes the `wanted/function` row of the first
-  car in the train's order that has an address and declares a function of
-  that name, on the car's number for it — the first in the car's declared
-  order where it has two — with `value` set to `on`. A train the roster does
+  dropped. Otherwise `layout` writes the `wanted/function` row of every car
+  in the train that has an address and declares a function of that name, in
+  the train's order, each on the car's number for it — the first in the car's
+  declared order where it has two — with `value` set to `on`
+  ([#1097](https://github.com/rails49/control/issues/1097)). A train the roster does
   not name, or a name no addressed car of the train declares, is dropped with
   a log line. Accepted at any power and in either driving mode. Nothing else
   writes a function row, with one exception: when `layout` lets go of a train
   (a release, `take_wanted` with `throttle: null`, a silent throttle), each of
   the train's **momentary** functions that `state/functions` says is on is
-  written off, on the row a press of its name writes
+  written off, on each row a press of its name writes that is on
   ([#998](https://github.com/rails49/control/issues/998)). Latching functions,
   `train_removed`, a cut and a restart leave the rows as they are
   ([#849](https://github.com/rails49/control/issues/849)).
 - `tc49/layout/state/functions` — `functions`: map of train to a map of
-  function name to boolean, the `value` of the `wanted/function` row a press
-  of that name writes. A train or name with no such row is absent, which reads
-  off. Empty when `layout` starts, and published again whenever a
+  function name to boolean, `true` where any `wanted/function` row a press
+  of that name writes has `value` `true`. A train or name with no such row is
+  absent, which reads off. Empty when `layout` starts, and published again whenever a
   `wanted/function` row it knows of changes: its own writes, and the retained
   rows a bus that outlived it hands back at start, so a light a decoder still
   has on shows on after a restart. An unreadable row is skipped.

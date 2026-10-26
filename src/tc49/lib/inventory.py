@@ -104,10 +104,10 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/throttle_alive": Topic(("throttle",), browser=True),
     "tc49/layout/state/taken": Topic((AT, "taken")),
     # A throttle switches one of its train's functions by the name the
-    # catalogue gives it, and `layout` writes the `wanted/function` row of the
-    # first addressed car declaring that name (#849). `functions` maps each
-    # train to its functions by name, each to the bit its row carries; a train
-    # or name with no row is absent, which reads off.
+    # catalogue gives it, and `layout` writes the `wanted/function` row of
+    # every addressed car declaring that name (#849, #1097). `functions` maps
+    # each train to its functions by name, each on where any of its rows is
+    # on; a train or name with no row is absent, which reads off.
     "tc49/layout/function_wanted": Topic(
         ("train", "throttle", "function", "on"), browser=True
     ),

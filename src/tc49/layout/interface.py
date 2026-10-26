@@ -160,16 +160,17 @@ move outstanding it is written `0.0`.
 
 **A train's functions.** A throttle switches one by the name the catalogue
 gives it, on `function_wanted`, and the press is the holding throttle's
-alone, at any power and in either driving mode. It reaches the first car in
-the train's order that has an address and declares the name, on that car's
-first number for it, whichever way the train runs: one `wanted/function` row.
+alone, at any power and in either driving mode. It reaches every car in the
+train that has an address and declares the name, each on its first number for
+it, whichever way the train runs: one `wanted/function` row a car (#1097).
 The one other write is a train let go of — a release, a silent throttle —
 having each momentary function that is on written off, nobody holding its
 button any more (#998); latching functions, `train_removed`, a cut and a
 restart leave the rows standing. `state/functions`
 says which of each train's functions are on, read off those rows: this app's
 own writes and the ones a bus that outlived it hands back, so a light a
-decoder still has on shows on after a restart (#849).
+decoder still has on shows on after a restart (#849). A name is on where any
+of its rows is.
 
 The simulator is untouched and remains the second binding of the same
 interface (ADR-0030).
@@ -1357,12 +1358,12 @@ class LayoutInterface:
         light is not a wheel, and the row waits for the supply as any desired
         row does (ADR-0054).
 
-        **The first addressed car declaring the name** is the one written,
-        on that car's first number for it: `Train.functions` lists a name
-        once, first car first, and a press reaches one decoder. Which way the
-        train runs is not asked. A train the roster does not name, or a name
-        no addressed car of it declares, is dropped with a log line: the
-        throttle showed a button the roster cannot back.
+        **Every addressed car declaring the name** is written, each on its
+        first number for it, in the train's order: `Train.functions` lists a
+        name once, and a press reaches each decoder that has it (#1097). Which
+        way the train runs is not asked. A train the roster does not name, or
+        a name no addressed car of it declares, is dropped with a log line:
+        the throttle showed a button the roster cannot back.
 
         Nothing else writes a function row, with one exception: a train let
         go of has its momentary functions that are on written off
@@ -1373,24 +1374,24 @@ class LayoutInterface:
         if switched is None or self._taken.get(switched.train) != switched.throttle:
             return
         reached = self._reaches(switched.train, switched.function)
-        if reached is None:
+        if not reached:
             _log.info(
                 "%s of %s dropped, no addressed car declares it",
                 switched.function,
                 switched.train,
             )
             return
-        addr, number = reached
-        self._bus.publish(
-            device_topic(WANTED_FUNCTION, addr, number),
-            {"addr": addr, "function": number, "value": switched.on},
-        )
-        self._function_known(addr, number, switched.on)
+        for addr, number in reached:
+            self._bus.publish(
+                device_topic(WANTED_FUNCTION, addr, number),
+                {"addr": addr, "function": number, "value": switched.on},
+            )
+            self._function_known(addr, number, switched.on)
 
     def _unhold(self, train: str) -> None:
         """Each momentary function of a train just let go of that
-        `state/functions` says is on, written off on the row a press of its
-        name writes (#998).
+        `state/functions` says is on, written off on each row a press of its
+        name writes that is on (#998).
 
         A momentary function is on only while a person holds its button, and
         once the train is let go nobody does: the off its throttle sends
@@ -1401,15 +1402,14 @@ class LayoutInterface:
         for function in made_up.functions if made_up is not None else ():
             if function.mode != MOMENTARY:
                 continue
-            reached = self._reaches(train, function.name)
-            if reached is None or not self._lit.get(reached, False):
-                continue
-            addr, number = reached
-            self._bus.publish(
-                device_topic(WANTED_FUNCTION, addr, number),
-                {"addr": addr, "function": number, "value": False},
-            )
-            self._function_known(addr, number, False)
+            for addr, number in self._reaches(train, function.name):
+                if not self._lit.get((addr, number), False):
+                    continue
+                self._bus.publish(
+                    device_topic(WANTED_FUNCTION, addr, number),
+                    {"addr": addr, "function": number, "value": False},
+                )
+                self._function_known(addr, number, False)
 
     def _on_function_row(self, topic: str, payload: Payload) -> None:
         """A `wanted/function` row: this app's own write coming back, or one
@@ -1435,30 +1435,37 @@ class LayoutInterface:
         self._lit[(addr, number)] = value
         self._bus.publish(FUNCTIONS, {"functions": self._functions()})
 
-    def _reaches(self, train: str, name: str) -> tuple[str, str] | None:
-        """The address and function number a press of `name` on `train`
-        writes: the first car in the train's order that has an address and
-        declares the name, on the first number it declares it on. None for a
-        train the roster does not name and a name no addressed car declares."""
+    def _reaches(self, train: str, name: str) -> list[tuple[str, str]]:
+        """The address and function number of each row a press of `name` on
+        `train` writes: every car in the train's order that has an address
+        and declares the name, on the first number it declares it on. Empty
+        for a train the roster does not name and a name no addressed car
+        declares."""
         made_up = self._roster.trains.get(train)
+        reached: list[tuple[str, str]] = []
         for coupled in made_up.cars if made_up is not None else ():
             if coupled.car.addr is None:
                 continue
             for number, function in coupled.car.functions.items():
                 if function.name == name:
-                    return coupled.car.addr, number
-        return None
+                    reached.append((coupled.car.addr, number))
+                    break
+        return reached
 
     def _functions(self) -> dict[str, dict[str, bool]]:
-        """Which of each train's functions are on, by name: the bit on the
-        row a press of that name writes. A train or name with no row known is
-        absent, which reads off."""
+        """Which of each train's functions are on, by name: on where any row
+        a press of that name writes is on. A train or name with no row known
+        is absent, which reads off."""
         stated: dict[str, dict[str, bool]] = {}
         for train, made_up in self._roster.trains.items():
             for function in made_up.functions:
-                reached = self._reaches(train, function.name)
-                if reached is not None and reached in self._lit:
-                    stated.setdefault(train, {})[function.name] = self._lit[reached]
+                known = [
+                    self._lit[reached]
+                    for reached in self._reaches(train, function.name)
+                    if reached in self._lit
+                ]
+                if known:
+                    stated.setdefault(train, {})[function.name] = any(known)
         return stated
 
     # -- where the trains stand ---------------------------------------------
