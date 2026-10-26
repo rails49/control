@@ -2,14 +2,14 @@
 catalogue gives it (#849).
 
 The name is the train's, as a throttle shows it (`Train.functions`), and
-which decoder and which function number it reaches is `layout`'s: the first
-car in the train's order that has an address and declares the name, and that
-car's first number for it. The press is the holding throttle's alone, and is
+which decoders and which function numbers it reaches is `layout`'s: every car
+in the train that has an address and declares the name, each on its first
+number for it (#1097). The press is the holding throttle's alone, and is
 accepted at any power and in either driving mode. Nothing else writes a
 function row bar a train let go of having its momentary functions that are on
 written off (#998), and `state/functions` says which of each train's functions are
 on, read back off the rows themselves so a light a decoder still has on shows
-on after a restart.
+on after a restart: a name is on where any of its rows is.
 """
 
 from tc49.layout import LayoutInterface
@@ -56,15 +56,16 @@ def held(train: str = "lit") -> tuple[InProcessBus, list[tuple[str, Payload]]]:
     return bus, heard(bus, WANTED_FUNCTION + "/#")
 
 
-def test_a_press_writes_the_row_of_the_first_addressed_car_declaring_the_name() -> None:
-    """The coach ahead declares headlights and has no decoder, so the
-    locomotive behind it is the one that answers: the first addressed car,
-    not the first car."""
+def test_a_press_writes_the_row_of_every_addressed_car_declaring_the_name() -> None:
+    """The coach ahead declares headlights and has no decoder, so the two
+    locomotives behind it are the ones that answer, in the train's order: a
+    second locomotive is not left dark (#1097)."""
     bus, written = held()
     switches_function(bus, "lit", "headlights", True)
 
     assert rows(written) == [
-        (f"{WANTED_FUNCTION}/5/0", {"addr": "5", "function": "0", "value": True})
+        (f"{WANTED_FUNCTION}/5/0", {"addr": "5", "function": "0", "value": True}),
+        (f"{WANTED_FUNCTION}/6/0", {"addr": "6", "function": "0", "value": True}),
     ]
 
 
@@ -73,7 +74,8 @@ def test_a_press_with_on_false_writes_value_false() -> None:
     switches_function(bus, "lit", "headlights", False)
 
     assert rows(written) == [
-        (f"{WANTED_FUNCTION}/5/0", {"addr": "5", "function": "0", "value": False})
+        (f"{WANTED_FUNCTION}/5/0", {"addr": "5", "function": "0", "value": False}),
+        (f"{WANTED_FUNCTION}/6/0", {"addr": "6", "function": "0", "value": False}),
     ]
 
 
@@ -132,7 +134,7 @@ def test_a_press_while_the_power_is_off_is_written() -> None:
     assert bus.last_values["tc49/layout/state/power"]["power"] == "off"
     switches_function(bus, "lit", "headlights", True)
 
-    assert len(written) == 1
+    assert len(written) == 2
 
 
 def test_a_press_in_manual_is_written() -> None:
@@ -141,7 +143,7 @@ def test_a_press_in_manual_is_written() -> None:
     written = heard(bus, WANTED_FUNCTION + "/#")
     switches_function(bus, "lit", "headlights", True)
 
-    assert len(written) == 1
+    assert len(written) == 2
 
 
 def test_a_release_writes_no_function_row() -> None:
@@ -151,7 +153,7 @@ def test_a_release_writes_no_function_row() -> None:
     switches_function(bus, "lit", "headlights", True)
     gives(bus, "lit")
 
-    assert len(written) == 1
+    assert len(written) == 2
 
 
 HORN_OFF = (f"{WANTED_FUNCTION}/5/3", {"addr": "5", "function": "3", "value": False})
@@ -221,7 +223,7 @@ def test_a_train_taken_off_writes_no_function_row() -> None:
     switches_function(bus, "lit", "headlights", True)
     removed(bus, "lit")
 
-    assert len(written) == 1
+    assert len(written) == 2
 
 
 # -- which functions are on ----------------------------------------------------
@@ -281,7 +283,25 @@ def test_a_retained_row_no_name_sits_on_is_left_out() -> None:
         (f"{WANTED_FUNCTION}/5/7", {"addr": "5", "function": "7", "value": True}),
         (f"{WANTED_FUNCTION}/5/2", {"addr": "5", "function": "2", "value": True}),
         (f"{WANTED_FUNCTION}/6/1", {"addr": "6", "function": "1", "value": "on"}),
-        (f"{WANTED_FUNCTION}/6/0", {"addr": "6", "function": "0", "value": True}),
     )
 
     assert bus.last_values[FUNCTIONS]["functions"] == {}
+
+
+def test_a_name_is_on_where_any_of_its_rows_is_on() -> None:
+    """The second locomotive's headlights still on after a restart, the
+    first's off: the train's headlights show on (#1097)."""
+    bus = restarted(
+        (f"{WANTED_FUNCTION}/5/0", {"addr": "5", "function": "0", "value": False}),
+        (f"{WANTED_FUNCTION}/6/0", {"addr": "6", "function": "0", "value": True}),
+    )
+
+    assert bus.last_values[FUNCTIONS]["functions"] == {"lit": {"headlights": True}}
+
+
+def test_a_name_is_off_where_every_known_row_is_off() -> None:
+    bus = restarted(
+        (f"{WANTED_FUNCTION}/5/0", {"addr": "5", "function": "0", "value": False}),
+    )
+
+    assert bus.last_values[FUNCTIONS]["functions"] == {"lit": {"headlights": False}}
