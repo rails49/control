@@ -198,9 +198,9 @@ export async function copyRailroad(from: string, to: string): Promise<void> {
   await ask("POST", `/railroads/${encodeURIComponent(from)}/copy`, { to });
 }
 
-/** Delete a railroad whole — its drawing, roster, script and clock — which
- *  is what the settings dialog's Delete asks for (#1074). The store backs up
- *  first, and refuses the loaded railroad and a backup that failed (409) in
+/** Delete a railroad whole — its drawing, roster, script, clock and
+ *  scenarios — which is what the settings dialog's Delete asks for (#1074).
+ *  The store backs up first, and refuses the loaded railroad and a backup that failed (409) in
  *  its own words, and a name it has no railroad for (404). */
 export async function deleteRailroad(name: string): Promise<void> {
   await ask("DELETE", `/railroads/${encodeURIComponent(name)}`);
