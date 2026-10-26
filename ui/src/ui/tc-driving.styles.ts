@@ -31,8 +31,12 @@ export const drivingStyles = css`
     min-height: 0;
   }
 
+  /* No double-tap zoom: stop then reverse is two quick presses on one
+     button, which zoomed the page on an iPhone (#1099). On the button itself,
+     since an ancestor's touch-action stops at the panel, a scroll container. */
   button {
     font: inherit;
+    touch-action: manipulation;
   }
 
   /* The picture is the press that opens the train selector. It is shown
