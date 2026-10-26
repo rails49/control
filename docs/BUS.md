@@ -354,7 +354,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
-| Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors |
+| Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors, **and** `tc49/layout/state/clock` where it passes the fast clock to its hardware |
 | Trace tap | `tc49/#` |
 
 Every app but the layout interface also subscribes
@@ -701,7 +701,8 @@ what a drop would cost:
   keeps in the store, `layouts/<layout>.clock.yaml`
   ([LAYOUT.md](store/LAYOUT.md)), or at the box's wall time of day at a
   speed-up of 1 where it keeps none. It wraps at midnight, has no date, and
-  runs whatever track power and the run are doing. The page reads it; no app
+  runs whatever track power and the run are doing. The page reads it, and a
+  translator may pass it on to its hardware without acting on it; no other app
   does, and nothing in the control path may
   ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md),
   [ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
