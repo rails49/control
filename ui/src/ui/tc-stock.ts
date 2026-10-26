@@ -1598,8 +1598,8 @@ export class TcStock extends LitElement {
 
   /**
    * One entry as a tile: its model's photo, mirrored where the entry is
-   * reversed; the car's name or the model's; its address, *no address* or
-   * *by model*, *camera*, and its length; Forward / Reversed and the ×, and
+   * reversed; the car's name or the model's; its address as `#10`,
+   * *camera*, and its length; Forward / Reversed and the ×, and
    * *Give it an address* on a model entry of a model with a decoder, which
    * cannot be driven without one (#993). Dragged along the strip with HTML drag and drop, which iPadOS has.
    * Held near the strip's left or right edge, it scrolls the strip that way
@@ -1607,11 +1607,7 @@ export class TcStock extends LitElement {
    */
   private tile(train: string, entry: TrainRow["entries"][number], at: number) {
     const facts = [
-      entry.car === null
-        ? "by model"
-        : entry.addr === null
-          ? "no address"
-          : `address ${entry.addr}`,
+      ...(entry.addr === null ? [] : [`#${entry.addr}`]),
       ...(entry.camera === null ? [] : ["camera"]),
       entry.length === null ? "—" : `${entry.length} mm`,
     ].join(" · ");

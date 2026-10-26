@@ -1070,7 +1070,8 @@ describe("making up a train", () => {
     expect(written()!.trains.ore!.priority).toBeUndefined();
   });
 
-  /** A tile says what the entry is: the car's address, or *by model*. */
+  /** A tile says the car's address and its length; a model entry has no
+   *  address to show (#1095). */
   it("draws one tile per entry, head first, with what each is", async () => {
     const shell = await opened();
     await ore(shell);
@@ -1084,10 +1085,10 @@ describe("making up a train", () => {
     expect(
       parts(shell, ".tile .tm").map((one) => one.textContent!.trim()),
     ).toEqual([
-      "address 3 · 122 mm",
-      "by model · 100 mm",
-      "by model · 100 mm",
-      "by model · 100 mm",
+      "#3 · 122 mm",
+      "100 mm",
+      "100 mm",
+      "100 mm",
     ]);
     expect(part(shell, ".train-editor .chip")).toBeNull();
   });
