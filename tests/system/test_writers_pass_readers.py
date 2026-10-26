@@ -18,7 +18,9 @@ Two kinds of run between them cover every writer in the table:
    `train_placed` is only ever the dispatcher's answer to a placement a
    person asked for, and an assembled run places its trains by constructor;
 2. one `LayoutInterface` on the railroad `tests/layout/railroad.py` draws,
-   driven with that module's helpers — `layout`'s writes.
+   driven with that module's helpers — `layout`'s writes, a function press
+   among them, since `desired_function` is read only in `rails49/dccex`
+   (#1092).
 
 A frame the test publishes itself is not checked: it is not an app's.
 """
@@ -42,6 +44,7 @@ from tc49.lib.payload import (
     command,
     commanded_power,
     desired_aspect,
+    desired_function,
     desired_position,
     desired_speed,
     driving,
@@ -64,6 +67,7 @@ from tests.layout.railroad import (
     DEVICE_TRACK,
     DRIVING_WANTED,
     FACING,
+    FUNCTION_WANTED,
     MOVE,
     PLACED,
     TAKE_WANTED,
@@ -75,6 +79,7 @@ from tests.layout.railroad import (
     stand,
     stock,
     switches,
+    switches_function,
     takes,
 )
 
@@ -184,6 +189,11 @@ TABLE: tuple[Rule, ...] = (
         lambda f: desired_aspect(f) is not None,
     ),
     Rule(
+        "tc49/layout/state/wanted/function/#",
+        "desired_function",
+        lambda f: desired_function(f) is not None,
+    ),
+    Rule(
         "tc49/layout/state/wanted/track",
         "commanded_power",
         lambda f: commanded_power(f) is not None,
@@ -247,8 +257,9 @@ def layout_run() -> Recorded:
     """`layout` on the bench railroad: switched to `automatic`, `topped` in a
     throttle, the rails live, `single` standing in `up_w` facing the
     crossover, an aspect at the signalled end it departs through, the way set
-    and the train moved over it. Every topic the test writes is left out, so
-    what is left is `layout`'s."""
+    and the train moved over it, and `lit`'s headlights switched on from a
+    second throttle. Every topic the test writes is left out, so what is left
+    is `layout`'s."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = recording(bus)
@@ -263,8 +274,11 @@ def layout_run() -> Recorded:
     bus.drain()
     align(bus, "crossover", "to_dn")
     move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    takes(bus, "lit", "second")
+    switches_function(bus, "lit", "headlights", True, "second")
     ours = {
         DRIVING_WANTED,
+        FUNCTION_WANTED,
         TAKE_WANTED,
         DEVICE_TRACK,
         PLACED,
