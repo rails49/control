@@ -393,6 +393,14 @@ gesture topics, which are contract and not this view's
 ([DEPLOY.md](../DEPLOY.md)). Consisting, decoder programming and a train that
 is not on the layout are all somewhere else.
 
+**Not for a phone held sideways.** The driving controls stay where they are,
+like the controls in a locomotive's cab: nothing scrolls, zooms or moves them
+while a person drives ([#1099](https://github.com/rails49/control/issues/1099)).
+A phone held upright shows the whole panel. Held sideways, the view is shorter
+than the 560 px a panel needs, so the view scrolls (`panelHeight`) and the
+controls move. A sideways phone would need a layout of its own, and there is
+none.
+
 ## Implementation
 
 `ui/src/ui/tc-throttle.ts`, a Lit component in the shape the other views take,
