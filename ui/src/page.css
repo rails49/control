@@ -6,6 +6,12 @@ body {
   height: 100%;
 }
 
+/* No double-tap zoom anywhere, so two quick presses on the throttle's stop
+   button do not zoom the page on an iPhone (#1099). Pinch zoom still works. */
+html {
+  touch-action: manipulation;
+}
+
 /* The paper the app paints over, in both themes: the app's own host covers
    the viewport, so this shows while the module loads and nowhere else. The two
    values are `--paper` and its dark entry (src/render/units.ts), which a

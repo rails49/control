@@ -204,6 +204,16 @@ describe("what a pane paints its ground with", () => {
     );
     expect(grounds).toEqual([COLOURS["--paper"], DARK["--paper"]]);
   });
+
+  /** Two quick presses on the throttle's stop button zoomed the page on an
+   *  iPhone and put the button off the screen (#1099). */
+  it("lets no double tap zoom the page", () => {
+    const page = readFileSync(
+      new URL("../src/page.css", import.meta.url),
+      "utf8",
+    );
+    expect(page).toMatch(/html\s*\{\s*touch-action:\s*manipulation;\s*\}/);
+  });
 });
 
 /**
