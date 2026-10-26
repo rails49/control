@@ -784,6 +784,28 @@ describe("Delete railroad", () => {
     expect(deleting(dialog, "otira")).toBeDefined();
   });
 
+  /** The dialog stays in the page while it is closed, so a question left
+   *  asking would greet the next opening one press from deleting (#1081). */
+  it("asks nothing once the dialog is closed and opened again", async () => {
+    const shell = await dark();
+    const first = await settingsOpened(shell);
+    deleting(first, "otira")!.click();
+    await settled(shell);
+    first.dispatchEvent(
+      new CustomEvent("settings-closed", { bubbles: true, composed: true }),
+    );
+    await settled(shell);
+    expect(first.open).toBe(false);
+
+    const dialog = await settingsOpened(shell);
+
+    expect(dialog.open).toBe(true);
+    expect(dialog.renderRoot.querySelector("ul.railroads li.deleting")).toBeNull();
+    expect(dialog.renderRoot.textContent).not.toContain("Delete otira?");
+    expect(deleting(dialog, "otira")).toBeDefined();
+    expect(store.deleted).toEqual([]);
+  });
+
   it("asks in one row at a time", async () => {
     const shell = await dark();
     const dialog = await settingsOpened(shell);

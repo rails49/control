@@ -189,6 +189,7 @@ export class TcSettings extends LitElement {
     if (changed.has("open") && this.open) {
       this.canTurnOff = false;
       if (this.turning !== "sending") this.turning = "idle";
+      this.deleting = null;
       this.refusedOff = null;
       void canTurnOff().then((can) => {
         this.canTurnOff = can;
