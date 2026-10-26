@@ -416,6 +416,29 @@ def test_two_ends_coming_due_together_publish_in_the_order_they_arrived() -> Non
     ]
 
 
+def test_a_block_behind_that_reads_occupied_in_the_same_settle_is_not_vacated() -> None:
+    """The train fully in ahead and a detector behind going occupied, due in
+    one call: the block behind is not said clear, because a detector in it
+    reads occupied. Said clear and then occupied, the dispatcher grants it to
+    the next train between the two and takes the second for that train's
+    arrival (ADR-0077, #1081)."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    seen = occupancy(bus)
+
+    reads(bus, "dn_e.B", "occupied")  # fully in, at the far end
+    reads(bus, "up_w.A", "occupied")  # and something standing behind
+    settle(bus, app, clock)
+
+    assert seen == [
+        (BLOCK_OCCUPIED, {"block": "dn_e"}),
+        (BLOCK_OCCUPIED, {"block": "up_w"}),
+    ]
+
+
 def test_a_move_that_was_not_acted_on_leaves_no_crossing_behind() -> None:
     """The second event names the block behind because a move was carried
     out. A command that was refused carried out nothing, so the entered
