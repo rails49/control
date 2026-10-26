@@ -494,6 +494,9 @@ class LayoutInterface:
         self._occupied: dict[str, bool] = {}
         self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
+        # The blocks a crossing has released in this call to `settle`, whose
+        # vacate waits for the call's other levels (`_vacate`, #1081).
+        self._released: list[str] = []
         # How a power press is answered, the rule both bindings keep: the
         # word applied, and the moving row a drain ends on (ADR-0078).
         self._track_power = TrackPower()
@@ -628,6 +631,9 @@ class LayoutInterface:
         for _at, end, level in due:
             del self._settling[end]
             self._settled(end, level)
+        released, self._released = self._released, []
+        for block in released:
+            self._vacate(block)
         self._let_go_of_silent()
 
     # -- the two commands ---------------------------------------------------
@@ -1847,6 +1853,7 @@ class LayoutInterface:
         if end == crossing.far:
             del self._crossing[block]
             self._release(crossing.origin)
+            self._released.append(crossing.origin)
 
     def _release(self, block: str) -> None:
         """The block a train has just left, said once however the two routes
@@ -1874,13 +1881,35 @@ class LayoutInterface:
         detector stuck occupied — would be out of the fold for good, and a
         level no move explains is still a level (ADR-0048).
 
-        The record is set to clear rather than dropped, and the levels go on
-        standing as the detectors reported them: a block that reads occupied
-        again is an ordinary change in the fold, wherever it comes from.
+        The vacate itself is `_vacate`'s, once the call to `settle` that
+        spent the ends has applied every level due in it.
         """
         for end in (f"{block}.A", f"{block}.B"):
             if self._level.get(end) == OCCUPIED:
                 self._spent.add(end)
+
+    def _vacate(self, block: str) -> None:
+        """The block `_release` spent, said clear, unless an end of it settled
+        occupied later in the same call to `settle` (#1081).
+
+        The record is set to clear rather than dropped, and the levels go on
+        standing as the detectors reported them: a block that reads occupied
+        again is an ordinary change in the fold, wherever it comes from.
+
+        Levels due in one call are as near simultaneous as this app can tell,
+        and an end of the block behind that settles occupied alongside the
+        far end is not the train that left — its ends were spent before that
+        level was applied. Said clear and then occupied, the block would be
+        free to the dispatcher between the two, which grants it to the next
+        train and then takes the reading for that train's arrival (ADR-0077).
+        So the block is left as the fold has it, occupied, and its vacate
+        comes when its ends say so.
+        """
+        if any(
+            self._level.get(end) == OCCUPIED and end not in self._spent
+            for end in (f"{block}.A", f"{block}.B")
+        ):
+            return
         if self._occupied.get(block) is False:
             return
         self._occupied[block] = False
