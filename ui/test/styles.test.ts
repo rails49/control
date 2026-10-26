@@ -206,13 +206,12 @@ describe("what a pane paints its ground with", () => {
   });
 
   /** Two quick presses on the throttle's stop button zoomed the page on an
-   *  iPhone and put the button off the screen (#1099). */
-  it("lets no double tap zoom the page", () => {
-    const page = readFileSync(
-      new URL("../src/page.css", import.meta.url),
-      "utf8",
+   *  iPhone and put the button off the screen (#1099). The rule is on the
+   *  buttons: on `html` it stopped at the panel, a scroll container. */
+  it("lets no double tap on a driving button zoom the page", () => {
+    expect(drivingStyles.cssText).toMatch(
+      /button\s*\{\s*font:\s*inherit;\s*touch-action:\s*manipulation;\s*\}/,
     );
-    expect(page).toMatch(/html\s*\{\s*touch-action:\s*manipulation;\s*\}/);
   });
 });
 
