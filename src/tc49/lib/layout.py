@@ -37,11 +37,13 @@ class Point:
     With the signal address at a block end (``signal_at``), the whole of the
     hardware the layout knows about (ADR-0031): never a shape, a place on the
     canvas, or a switching time. Two points may share an address and then move
-    together, so a way can name one address twice.
+    together, so a way can name one address twice. ``reported`` says the
+    hardware reports where the point at this address lies (ADR-0097).
     """
 
     addr: str
     position: str
+    reported: bool = False
 
 
 @dataclass(frozen=True)
@@ -255,7 +257,10 @@ def check_points(
         entries: list[Point] = []
         for entry in cast(list[Any], raw if isinstance(raw, list) else []):
             check_keys(
-                entry, f"{where}: transit '{transit}': point", {"addr", "position"}
+                entry,
+                f"{where}: transit '{transit}': point",
+                {"addr", "position"},
+                {"reported"},
             )
             position = entry["position"]
             if position not in ("closed", "thrown"):
@@ -263,7 +268,12 @@ def check_points(
                     f"{where}: transit '{transit}': position must be 'closed' or"
                     f" 'thrown', got {position!r}"
                 )
-            entries.append(Point(str(entry["addr"]), position))
+            if "reported" in entry and entry["reported"] is not True:
+                raise ValueError(
+                    f"{where}: transit '{transit}': reported is written true or"
+                    f" left out, got {entry['reported']!r}"
+                )
+            entries.append(Point(str(entry["addr"]), position, "reported" in entry))
         if not entries:
             raise ValueError(
                 f"{where}: transit '{transit}' lists no point — a transit with"
