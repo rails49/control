@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   emptyDrawing,
+  isReported,
   wirePins,
   type Drawing,
   type PinRef,
@@ -170,6 +171,65 @@ describe("a motorised symbol with no address", () => {
     editor.edit("sw1", "sw1", { ...spec, addr: "31" });
     editor.edit("sw1", "sw1", { ...spec, addr: "" });
     expect(editor.unaddressed()).toEqual(["sw1"]);
+  });
+});
+
+/**
+ * Which addresses the hardware reports (ADR-0097, #1108): the drawing's
+ * `reported`, set from the properties dialog of any symbol wearing one.
+ */
+describe("a reported address", () => {
+  /** Two turnouts, both wearing `addr`, and the first readdressed with the
+   *  flag it is given. */
+  function addressed(addr: string): void {
+    place("turnout", [0, 0]);
+    place("turnout", [0, 4]);
+    for (const name of ["sw1", "sw2"]) {
+      editor.edit(name, name, { ...editor.drawing.symbols[name]!, addr });
+    }
+  }
+
+  it("is listed once checked, and every symbol wearing it shares it", () => {
+    addressed("12");
+    editor.edit("sw1", "sw1", editor.drawing.symbols.sw1!, true);
+    expect(editor.drawing.reported).toEqual(["12"]);
+    expect(isReported(editor.drawing, editor.drawing.symbols.sw2!.addr)).toBe(true);
+  });
+
+  it("leaves the drawing once cleared, writing no empty list", () => {
+    addressed("12");
+    editor.edit("sw1", "sw1", editor.drawing.symbols.sw1!, true);
+    editor.edit("sw2", "sw2", editor.drawing.symbols.sw2!, false);
+    expect(editor.drawing).not.toHaveProperty("reported");
+  });
+
+  it("stays where it is when the dialog does not say", () => {
+    addressed("12");
+    editor.edit("sw1", "sw1", editor.drawing.symbols.sw1!, true);
+    editor.edit("sw2", "sw2", editor.drawing.symbols.sw2!);
+    expect(editor.drawing.reported).toEqual(["12"]);
+  });
+
+  it("is not carried to the address a symbol is given instead", () => {
+    place("turnout", [0, 0]);
+    editor.edit("sw1", "sw1", { ...editor.drawing.symbols.sw1!, addr: "12" }, true);
+    editor.edit("sw1", "sw1", { ...editor.drawing.symbols.sw1!, addr: "13" });
+    expect(editor.drawing).not.toHaveProperty("reported");
+  });
+
+  it("stays while another symbol still wears it", () => {
+    addressed("12");
+    editor.edit("sw1", "sw1", editor.drawing.symbols.sw1!, true);
+    editor.edit("sw1", "sw1", { ...editor.drawing.symbols.sw1!, addr: "13" });
+    expect(editor.drawing.reported).toEqual(["12"]);
+  });
+
+  it("goes with the last symbol wearing it", () => {
+    place("turnout", [0, 0]);
+    editor.edit("sw1", "sw1", { ...editor.drawing.symbols.sw1!, addr: "12" }, true);
+    editor.select(["sw1"]);
+    editor.remove();
+    expect(editor.drawing).not.toHaveProperty("reported");
   });
 });
 

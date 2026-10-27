@@ -12,9 +12,13 @@
  *
  * A turnout and a slip are left with something: `addr`, the address the
  * hardware behind the points answers to (ADR-0022). It is what the bus
- * commands them by, so it is theirs to type where their key is not. A turnout
- * is asked one thing more, which leg its closed position takes (#1060). A fixed
- * crossing has no motor and so still holds nothing.
+ * commands them by, so it is theirs to type where their key is not. Beside it
+ * is whether the hardware at that address reports its position (ADR-0097):
+ * the drawing's `reported`, which is the address's and not the symbol's, so
+ * every symbol wearing the address shows the same state, and typing another
+ * address shows that one's. A turnout is asked one thing more, which leg its
+ * closed position takes (#1060). A fixed crossing has no motor and so still
+ * holds nothing.
  *
  * A block's key is the name it is known by everywhere: on the canvas, in the
  * netlist, and as the prefix of every transit id in a trace. Renaming one is a
@@ -37,6 +41,7 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { lookTheme, type LookDialog } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
+import "@shoelace-style/shoelace/dist/components/checkbox/checkbox.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
@@ -53,11 +58,13 @@ import { lengthTrouble } from "../model/rules.js";
 import { PINS } from "../symbols.generated.js";
 import { propertiesStyles } from "./tc-properties.styles.js";
 
-/** What the dialog hands back: a new name where it changed, and the spec. */
+/** What the dialog hands back: a new name where it changed, the spec, and
+ *  for a motorised symbol whether its address is reported (ADR-0097). */
 export interface Properties {
   was: string;
   name: string;
   spec: SymbolSpec;
+  reported?: boolean;
 }
 
 @customElement("tc-properties")
@@ -73,14 +80,24 @@ export class TcProperties extends LitElement {
    *  typed. */
   @property({ attribute: false }) taken: readonly string[] = [];
 
+  /** The drawing's reported addresses (ADR-0097): what the `Reported` box
+   *  starts from, for the address the symbol wears and for any typed. */
+  @property({ attribute: false }) reported: readonly string[] = [];
+
   @state() private draft: SymbolSpec = { kind: "block" };
   @state() private name = "";
+  @state() private checked = false;
 
   override willUpdate(changed: Map<string, unknown>): void {
     if (changed.has("editing") && this.editing !== null) {
       this.draft = structuredClone(this.editing.spec);
       this.name = this.editing.name;
+      this.checked = this.reports(this.draft.addr);
     }
+  }
+
+  private reports(addr: string | undefined): boolean {
+    return addr !== undefined && this.reported.includes(addr);
   }
 
   override render() {
@@ -159,8 +176,22 @@ export class TcProperties extends LitElement {
           label="Address"
           help-text="What the points answer to. A DCC accessory number is a string that happens to be digits."
           value=${this.draft.addr ?? ""}
-          @sl-input=${this.take("addr")}
+          @sl-input=${(event: Event) => {
+            this.take("addr")(event);
+            // The flag is the address's: another address shows its own,
+            // rather than carrying this one's over (ADR-0097).
+            this.checked = this.reports(this.draft.addr);
+          }}
         ></sl-input>
+        <sl-checkbox
+          help-text="The hardware at this address says where the point lies, and trains wait for it."
+          ?checked=${this.checked}
+          ?disabled=${!this.draft.addr}
+          @sl-change=${(event: Event) => {
+            this.checked = (event.target as HTMLInputElement).checked;
+          }}
+          >Reported</sl-checkbox
+        >
         ${this.draft.kind === "turnout" ? this.closedLeg() : nothing}
       `;
     }
@@ -274,7 +305,12 @@ export class TcProperties extends LitElement {
     if (this.nameTrouble !== null || this.lengthTrouble !== null) return;
     this.dispatchEvent(
       new CustomEvent<Properties>("properties", {
-        detail: { was: this.editing.name, name: this.name, spec: tidy(this.draft) },
+        detail: {
+          was: this.editing.name,
+          name: this.name,
+          spec: tidy(this.draft),
+          ...(motorised(this.draft.kind) ? { reported: this.checked } : {}),
+        },
         bubbles: true,
         composed: true,
       }),

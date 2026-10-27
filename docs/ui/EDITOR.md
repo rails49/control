@@ -834,8 +834,21 @@ portal-label questions that rare layout editing does not justify.
 
 The right-click dialog edits, per kind: a block's name, its length, the address
 of the signal at each of its ends and the name each end's sensor is known by, a
-portal's label, a turnout's or a slip's address, and which leg a turnout's
-closed position takes.
+portal's label, a turnout's or a slip's address, whether that address is
+reported, and which leg a turnout's closed position takes.
+
+Beside a turnout's or a slip's address, `Reported` says the hardware at it
+reports where the point lies, so the Run view draws it from `device/point` and
+a train waits for it
+([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+Checking it adds the address to the drawing's `reported` list and clearing it
+removes the address
+([DRAWING.md](../store/DRAWING.md#hardware-ids)). The flag is the address's,
+not the symbol's: every symbol wearing the address shows the same state, and
+typing another address shows that one's. A symbol given another address does
+not carry the flag to it, and an address no symbol wears any more, after a
+readdress or a delete, leaves the list, which the store would otherwise refuse.
+With no address the box cannot be checked.
 
 Under a turnout's address, `Closed (0) takes` chooses the in-line leg or the
 45° leg. The in-line leg writes nothing; the 45° leg writes

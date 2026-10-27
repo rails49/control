@@ -14,6 +14,7 @@ import "../src/ui/tc-properties.js";
 import type { Properties, TcProperties } from "../src/ui/tc-properties.js";
 import type { SymbolSpec } from "../src/model/drawing.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
+import type SlCheckbox from "@shoelace-style/shoelace/dist/components/checkbox/checkbox.js";
 import type SlSelect from "@shoelace-style/shoelace/dist/components/select/select.js";
 
 /** The dialog, opened on one symbol. The drawing holds that symbol's name
@@ -22,8 +23,10 @@ async function opened(
   name: string,
   spec: SymbolSpec,
   taken: readonly string[] = [name],
+  reported: readonly string[] = [],
 ): Promise<TcProperties> {
   const dialog = document.createElement("tc-properties");
+  dialog.reported = reported;
   dialog.editing = { name, spec };
   dialog.taken = taken;
   document.body.append(dialog);
@@ -125,6 +128,59 @@ describe("a motorised symbol", () => {
     const dialog = await opened("sw1", { kind: "turnout", addr: "31" });
     await typed(dialog, "Address", "");
     expect((await applied(dialog)).spec).not.toHaveProperty("addr");
+  });
+});
+
+/**
+ * Whether the hardware at the address reports where the point lies
+ * (ADR-0097, #1108). The flag is the address's, so the box reads the
+ * drawing's `reported` for whatever address the field holds.
+ */
+describe("a reported address", () => {
+  function box(dialog: TcProperties): SlCheckbox {
+    return dialog.renderRoot.querySelector<SlCheckbox>("sl-checkbox")!;
+  }
+
+  async function ticked(dialog: TcProperties, checked: boolean): Promise<void> {
+    box(dialog).checked = checked;
+    box(dialog).dispatchEvent(new CustomEvent("sl-change"));
+    await dialog.updateComplete;
+  }
+
+  it("shows the drawing's flag for the address the symbol wears", async () => {
+    const dialog = await opened("sw1", { kind: "turnout", addr: "12" }, ["sw1"], ["12"]);
+    expect(box(dialog).checked).toBe(true);
+  });
+
+  it("is handed back as set", async () => {
+    const dialog = await opened("sw1", { kind: "single_slip", addr: "12" });
+    await ticked(dialog, true);
+    expect((await applied(dialog)).reported).toBe(true);
+  });
+
+  it("is handed back cleared", async () => {
+    const dialog = await opened("sw1", { kind: "turnout", addr: "12" }, ["sw1"], ["12"]);
+    await ticked(dialog, false);
+    expect((await applied(dialog)).reported).toBe(false);
+  });
+
+  it("follows a typed address rather than carrying the old one's", async () => {
+    const dialog = await opened("sw1", { kind: "turnout", addr: "12" }, ["sw1"], ["12"]);
+    await typed(dialog, "Address", "13");
+    expect(box(dialog).checked).toBe(false);
+    await typed(dialog, "Address", "12");
+    expect(box(dialog).checked).toBe(true);
+  });
+
+  it("cannot be set without an address", async () => {
+    const dialog = await opened("sw1", { kind: "turnout" });
+    expect(box(dialog).disabled).toBe(true);
+  });
+
+  it("is not offered to a block", async () => {
+    const dialog = await opened("b1", { kind: "block", length: 1000 });
+    expect(dialog.renderRoot.querySelector("sl-checkbox")).toBeNull();
+    expect(await applied(dialog)).not.toHaveProperty("reported");
   });
 });
 

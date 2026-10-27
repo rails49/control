@@ -161,6 +161,14 @@ export interface Drawing {
   wires: Wire[];
   /** Absent in a drawing that has none. */
   widgets?: Record<string, WidgetSpec>;
+  /**
+   * The addresses whose position the hardware reports, each one some
+   * symbol's `addr`
+   * ([ADR-0097](../../../docs/adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+   * The flag is the address's and not a symbol's, so two symbols sharing an
+   * address cannot disagree. Absent in a drawing that has none.
+   */
+  reported?: string[];
 }
 
 export function emptyDrawing(name: string): Drawing {
@@ -197,6 +205,38 @@ export function symbolTrouble(
   if (!isName(name)) return `'${name}' cannot name a symbol`;
   if (name !== was && taken.includes(name)) return `'${name}' is already taken`;
   return null;
+}
+
+/** Whether the hardware at an address reports its position: `false` for no
+ *  address at all, which nothing can report on (ADR-0097). */
+export function isReported(drawing: Drawing, addr: string | undefined): boolean {
+  return addr !== undefined && (drawing.reported ?? []).includes(addr);
+}
+
+/**
+ * Say whether an address is reported, in place. Every symbol wearing it
+ * follows, the flag being the address's. Addresses no symbol wears any more
+ * go with it: the store refuses a `reported` naming one, and a symbol whose
+ * address changed leaves its old one behind rather than carrying the flag to
+ * the new one. A drawing left with none writes no `reported` at all, which is
+ * how it was before the first was set.
+ */
+export function setReported(drawing: Drawing, addr: string | undefined, on: boolean): void {
+  const listed = new Set(drawing.reported ?? []);
+  if (addr !== undefined && addr !== "") {
+    if (on) listed.add(addr);
+    else listed.delete(addr);
+  }
+  const worn = new Set(Object.values(drawing.symbols).map((spec) => spec.addr));
+  const kept = [...listed].filter((one) => worn.has(one));
+  if (kept.length > 0) drawing.reported = kept;
+  else delete drawing.reported;
+}
+
+/** Drop from `reported` every address no symbol wears any more, as after a
+ *  symbol is deleted or readdressed. */
+export function pruneReported(drawing: Drawing): void {
+  if (drawing.reported !== undefined) setReported(drawing, undefined, false);
 }
 
 export function clone(drawing: Drawing): Drawing {
