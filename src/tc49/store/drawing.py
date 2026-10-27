@@ -209,6 +209,10 @@ class Drawing:
         default_factory=dict[tuple[str, str], str]
     )
     widgets: dict[str, Widget] = field(default_factory=dict[str, Widget])
+    # The addresses whose position the hardware reports (ADR-0097). The flag
+    # is the address's, not a symbol's, so two symbols sharing an address
+    # cannot disagree.
+    reported: frozenset[str] = frozenset()
 
     @classmethod
     def from_document(cls, doc: Any) -> "Drawing":
@@ -216,7 +220,7 @@ class Drawing:
             doc,
             "drawing document",
             {"drawing", "symbols"},
-            {"units", "wires", "widgets"},
+            {"units", "wires", "widgets", "reported"},
         )
         name = doc["drawing"]
         check_name(name, "drawing")
@@ -254,7 +258,13 @@ class Drawing:
             widgets[widget] = _widget(f"drawing '{name}'", widget, spec)
 
         return cls(
-            name, symbols, tuple(wires), doc.get("units"), wire_connections, widgets
+            name,
+            symbols,
+            tuple(wires),
+            doc.get("units"),
+            wire_connections,
+            widgets,
+            _reported(f"drawing '{name}'", doc.get("reported"), symbols),
         )
 
     def derive(self) -> dict[str, Any]:
@@ -826,7 +836,7 @@ class Drawing:
             **({"points": points} if points else {}),
         }
 
-    def _points(self, used: tuple[Use, ...]) -> list[dict[str, str]]:
+    def _points(self, used: tuple[Use, ...]) -> list[dict[str, Any]]:
         """The points a way must have thrown, as address-and-position pairs.
 
         A point wearing no address is omitted — the layout carries only what
@@ -843,7 +853,12 @@ class Drawing:
             if points.addr and points.kind in POSITIONS:
                 wanted.add((points.addr, points.position(local)))
         return [
-            {"addr": addr, "position": position} for addr, position in sorted(wanted)
+            {
+                "addr": addr,
+                "position": position,
+                **({"reported": True} if addr in self.reported else {}),
+            }
+            for addr, position in sorted(wanted)
         ]
 
     def _transit_name(
@@ -877,6 +892,25 @@ class Drawing:
             for name in sorted(self.symbols)
             if self.symbols[name].kind == kind
         ]
+
+
+def _reported(where: str, spec: Any, symbols: dict[str, Symbol]) -> frozenset[str]:
+    """The drawing's `reported` addresses, each one some symbol's `addr`.
+
+    An address no symbol wears would mark nothing, so it is refused, naming
+    it (ADR-0097).
+    """
+    if spec is None:
+        return frozenset()
+    if not isinstance(spec, list) or not all(
+        isinstance(addr, str) for addr in cast(list[Any], spec)
+    ):
+        raise ValueError(f"{where}: reported must be a list of address strings")
+    worn = {symbol.addr for symbol in symbols.values() if symbol.addr}
+    for addr in cast(list[str], spec):
+        if addr not in worn:
+            raise ValueError(f"{where}: reported address '{addr}' is no symbol's addr")
+    return frozenset(cast(list[str], spec))
 
 
 def _wires_wanted(symbol: Symbol) -> int:

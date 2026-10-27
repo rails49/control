@@ -404,6 +404,22 @@ Neither is visible under the simulator, which has no addresses
 neither stops derivation: addresses are dropped from the layout, so a drawing
 with a motor fault reads fine and cannot be driven.
 
+**`reported` lists the addresses whose position the hardware reports**, as a
+list of address strings beside `symbols`
+([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)):
+
+```yaml
+reported: ['12']
+```
+
+The flag belongs to the address, not to a symbol, so two points sharing an
+address cannot disagree. An address no symbol's `addr` has, or a `reported`
+that is not a list of strings, refuses the drawing, naming it. Derivation
+writes `reported: true` on each point at a listed address in a transit's
+`points` and leaves the key out on every other
+([LAYOUT.md](LAYOUT.md#the-derived-layout)). A drawing without `reported`
+derives what it did before.
+
 A **point** is a motorised symbol: a turnout, a single slip or a double slip.
 Each has one motor, takes one `addr`, and has two positions, `closed` and
 `thrown`, the pair a DCC accessory decoder answers to. A symbol's own
