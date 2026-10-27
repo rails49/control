@@ -1,6 +1,6 @@
 # The desired half may ask for what the observed half cannot report
 
-*Partly superseded by [ADR-0097](0097-a-point-the-drawing-marks-reported-is-drawn-from-device-point.md) (#1103): decision 7's `device/point` clause, and the alternative of publishing a `device/point` for a turnout without feedback. For a point the drawing marks reported, `device/point` carries the position a translator last put the hardware in where the hardware measures none, and the Run view draws it.*
+*Partly superseded by [ADR-0097](0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md) (#1103): decision 7's `device/point` clause, and the alternative of publishing a `device/point` for a turnout without feedback. For an address the drawing lists as reported, `device/point` is where the point lies, measured or set by the translator, and a train waits for it.*
 
 Resolves [#466](https://github.com/rails49/control/issues/466). Amends
 [ADR-0043](0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md):
