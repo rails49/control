@@ -1,6 +1,7 @@
 """The walking skeleton: crossover-yard/meet end-to-end under FullRoute."""
 
 import json
+from collections.abc import Mapping
 from typing import cast
 
 from tc49.bench.runner import placement
@@ -470,7 +471,7 @@ def test_a_level_re_asserted_is_an_at_least_once_no_op() -> None:
     assert seen == said
 
 
-def points_layout(*points: dict[str, str]) -> Layout:
+def points_layout(*points: Mapping[str, object]) -> Layout:
     """Two blocks joined by one transit, whose way crosses `points`."""
     return Layout.from_document(
         {
@@ -503,7 +504,17 @@ def test_the_dispatcher_aligns_the_route_and_carries_its_points() -> None:
     thrown = {"addr": "12", "position": "thrown"}
     [align] = events(one_crossing(points_layout(thrown)), "align")
     assert (align["connection"], align["transit"]) == ("j", "ab")
-    assert align["points"] == [thrown]
+    assert align["points"] == [{**thrown, "reported": False}]
+
+
+def test_the_align_says_which_of_its_points_are_reported() -> None:
+    """`layout` holds no table of points (ADR-0031), so each point on the
+    `align` says whether its address is reported, `true` or `false`, always
+    present (ADR-0097, decision 5)."""
+    reported = {"addr": "12", "position": "thrown", "reported": True}
+    quiet = {"addr": "13", "position": "closed"}
+    [align] = events(one_crossing(points_layout(reported, quiet)), "align")
+    assert align["points"] == [reported, {**quiet, "reported": False}]
 
 
 def test_a_transit_with_nothing_to_throw_still_says_so_on_the_wire() -> None:

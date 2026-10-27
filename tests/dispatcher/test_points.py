@@ -11,11 +11,13 @@ addresses: `mover` stands in C4, and a route out of it goes through j2 and
 then j1. The address `align`s ride on are read off the trace.
 """
 
+from dataclasses import replace
 from typing import Any, cast
 
-from tc49.bench.runner import Assembly
+from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bus import Payload
-from tests.harness import events, live, press, ticks
+from tc49.lib.layout import Layout
+from tests.harness import events, live, load, press, ticks
 
 POINT_WANTED = "tc49/dispatch/point_wanted"
 POWER = "tc49/layout/state/power"
@@ -44,15 +46,34 @@ def by_hand(assembly: Assembly) -> list[dict[str, Any]]:
     return [line for line in events(assembly.trace, "align") if line["transit"] is None]
 
 
-def thrown(addr: str, position: str = "thrown") -> dict[str, Any]:
+def thrown(
+    addr: str, position: str = "thrown", reported: bool = False
+) -> dict[str, Any]:
     """The `align` a throw by hand goes out as, as the trace writes it."""
     return {
         "time": 0.0,
         "event": "align",
         "connection": None,
         "transit": None,
-        "points": [{"addr": addr, "position": position}],
+        "points": [{"addr": addr, "position": position, "reported": reported}],
     }
+
+
+def reporting(layout: Layout, connection: str, transit: str, addr: str) -> Layout:
+    """`layout` with the point at `addr` on that one transit's way reported,
+    and every other point wearing `addr` left as it was."""
+    joined = layout.connections[connection]
+    needed = tuple(
+        replace(point, reported=True) if point.addr == addr else point
+        for point in joined.points[transit]
+    )
+    return replace(
+        layout,
+        connections={
+            **layout.connections,
+            connection: replace(joined, points={**joined.points, transit: needed}),
+        },
+    )
 
 
 def test_a_point_on_no_lit_transit_goes_out_as_an_align_naming_no_transit() -> None:
@@ -63,6 +84,25 @@ def test_a_point_on_no_lit_transit_goes_out_as_an_align_naming_no_transit() -> N
     throw(assembly, "113", "closed")
 
     assert by_hand(assembly) == [thrown("113", "closed")]
+
+
+def test_a_throw_by_hand_says_whether_its_address_is_reported() -> None:
+    """`layout` holds no table of points, so the `align` says whether the
+    address is reported (ADR-0097). Points sharing an address move together,
+    so one of them reported is the whole address reported: `113` is marked
+    on the way to C7 alone and goes out `true`, `112` on neither and goes out
+    `false`."""
+    layout, roster, scenario = load("reversing-loops/positions")
+    marked = reporting(layout, "j3", "C3b_B__C7_A", "113")
+    assembly = assemble_live(marked, roster, scenario.trains)
+
+    throw(assembly, "113", "closed")
+    throw(assembly, "112", "thrown")
+
+    assert by_hand(assembly) == [
+        thrown("113", "closed", reported=True),
+        thrown("112", "thrown"),
+    ]
 
 
 def test_an_address_no_point_wears_is_dropped() -> None:
@@ -126,7 +166,7 @@ def test_the_same_throw_goes_out_once_the_route_has_ended() -> None:
     throw(assembly, "110", "closed")
 
     assert [line["points"] for line in by_hand(assembly)] == [
-        [{"addr": "110", "position": "closed"}]
+        [{"addr": "110", "position": "closed", "reported": False}]
     ]
 
 

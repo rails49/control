@@ -2105,7 +2105,9 @@ class Dispatcher:
         it says the dispatcher sent it. It carries the points the transit
         needs, read from the layout (ADR-0031), so the layout interface throws
         what it is told and holds no table of its own. Always `points`, `[]`
-        where nothing needs throwing: the document is quiet, the wire explicit.
+        where nothing needs throwing, and always `reported` on each, `false`
+        where the address is not (ADR-0097): the document is quiet, the wire
+        explicit.
         """
         connection, _, transit = transit_id.partition(".")
         needed = self._state.layout.connections[connection].points.get(transit, ())
@@ -2115,7 +2117,12 @@ class Dispatcher:
                 "connection": connection,
                 "transit": transit,
                 "points": [
-                    {"addr": point.addr, "position": point.position} for point in needed
+                    {
+                        "addr": point.addr,
+                        "position": point.position,
+                        "reported": point.reported,
+                    }
+                    for point in needed
                 ],
             },
         )
@@ -2133,7 +2140,8 @@ class Dispatcher:
         so one of them on a lit road is the whole address on it.
 
         Otherwise it goes out as an `align` naming no transit, carrying the
-        one point as asked: on `align` and not a topic of its own so that it
+        one point as asked, `reported` where any point wearing the address is
+        (ADR-0097): on `align` and not a topic of its own so that it
         keeps its order against a route's (ADR-0008). The dispatcher keeps no
         record of where it left the point. Every `align` sends all the points
         its transit needs, so the next route over this one sets it again.
@@ -2147,12 +2155,14 @@ class Dispatcher:
         if point is None:
             return
         connections = self._state.layout.connections
-        worn = {
-            f"{name}.{transit}"
+        wearing = [
+            (f"{name}.{transit}", each)
             for name, connection in connections.items()
             for transit, needed in connection.points.items()
-            if any(each.addr == point.addr for each in needed)
-        }
+            for each in needed
+            if each.addr == point.addr
+        ]
+        worn = {transit for transit, _ in wearing}
         if not worn:
             return
         lit = set(self._state.locks)
@@ -2165,7 +2175,13 @@ class Dispatcher:
             {
                 "connection": None,
                 "transit": None,
-                "points": [{"addr": point.addr, "position": point.position}],
+                "points": [
+                    {
+                        "addr": point.addr,
+                        "position": point.position,
+                        "reported": any(each.reported for _, each in wearing),
+                    }
+                ],
             },
         )
 
