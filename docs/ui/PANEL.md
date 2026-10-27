@@ -279,9 +279,23 @@ position it is being set to, and a lit leg the `align` has not reached yet is
 a route chosen, not a road the point does not offer. The panel infers
 nothing, which supersedes the inference
 [ADR-0017](../adr/0017-turnout-position-is-inferred-by-the-panel.md) put here.
-It still shows commanded position, not measured position, so a point that
-failed to throw looks fine. Reported position becomes worth adding if hardware
-with point feedback ever exists; the owner's points do not report. Only a
+For an address the drawing does not list as reported this is commanded
+position, not measured position, so a point that failed to throw looks fine.
+
+**A reported point is drawn from `device/point`.** For an address the drawing
+lists as `reported` ([DRAWING.md](../store/DRAWING.md#hardware-ids)), the
+layout marks each of its points `reported: true`, and the panel draws it where
+its retained `tc49/layout/state/device/point/<addr>` row says
+([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+Before any such row it is drawn from `wanted/point`, as any other point is. A
+reported point is **marked** when it lies on a transit locked to a train and
+its report has differed from `wanted/point` for more than two seconds: a train
+waiting for it to throw, or one it stopped. A point that has reported nothing
+differs from any row. The mark is the amber a dispute wears, on its roads, lit
+or not, with what it reports written under it: *reports closed*, *reports
+thrown* or *no report*. A reported point on no locked transit is not marked,
+whatever it reports. The two seconds are the page's wall clock, on no topic,
+and the view draws again when a mark falls due with no frame arriving. Only a
 drawing whose points carry addresses can show any of this, and
 [`reversing-loops/positions`](../../bench/scenarios/reversing-loops/positions.scenario.yaml)
 is the scenario that does — one train across two junctions, which is the
@@ -924,8 +938,8 @@ Until the station has said where power stands the control is dead and says
 health area beside the store and the broker
 ([#602](https://github.com/rails49/control/issues/602)). The session reads
 `tc49/layout/state/device/track` into the panel model
-(`ui/src/model/panel.ts`), one of the two device rows a view reads with
-`device/sensor` above, and keeps the free-text `reason` alone: `power` there is one translator's
+(`ui/src/model/panel.ts`), one of the three device rows a view reads with
+`device/sensor` and `device/point` above, and keeps the free-text `reason` alone: `power` there is one translator's
 reading of its own hardware, and what the picture draws is the railroad-wide
 `state/power` that `layout` folds it into. The reason is what nothing else
 carries. A district reaches no topic, so a trip the command station cut itself

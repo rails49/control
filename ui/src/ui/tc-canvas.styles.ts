@@ -460,6 +460,21 @@ const running = css`
     fill: var(--amber);
   }
 
+  /* A reported point holding a train (ADR-0097): its report has differed from
+     what was asked for more than two seconds on a transit locked to a train.
+     Amber, as a dispute is, and over the lit road too, since the lit road is
+     what the point is failing to give. */
+  .symbol.stuck .track,
+  .symbol.stuck .track.lit,
+  .symbol.stuck .tick,
+  .symbol.stuck .tick.lit {
+    stroke: var(--amber);
+  }
+
+  .note.stuck {
+    fill: var(--amber);
+  }
+
   /* A button and a toggle are pressed, with or without track power. A press
      is not kept, so a button shows one only while it is held (#939). */
   :host(.scheduling) .widget.button,

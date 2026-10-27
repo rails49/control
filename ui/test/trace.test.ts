@@ -349,12 +349,14 @@ describe("Ordering", () => {
    *  device rows a view reads are among them under the name `Live` gives
    *  each: a state row like the rest, so a pair delivered backwards must not
    *  leave a trip on the band after the hardware has stopped saying so
-   *  (#602), nor a detector's older reading at its block end (#898). */
+   *  (#602), nor a detector's older reading at its block end (#898), nor a
+   *  reported point's older position (ADR-0097). */
   it("names every state topic a view is shown", () => {
     expect([...STATE_NAMES].sort()).toEqual([
       "allocation",
       "aspects",
       "clock",
+      "device/point",
       "device/sensor",
       "device/track",
       "disputed",

@@ -122,6 +122,25 @@ export function positionsBySymbol(
 }
 
 /**
+ * The reported points holding a train, keyed by symbol, each with what it
+ * reports (`Panel.stuck`, ADR-0097). Every symbol wearing a marked address
+ * is marked, the flag being the address's; an address no symbol wears is
+ * left out, as `positionsBySymbol` leaves it.
+ */
+export function stuckBySymbol(
+  drawing: Drawing,
+  stuck: ReadonlyMap<string, Position | null>,
+): Map<string, Position | null> {
+  const found = new Map<string, Position | null>();
+  for (const [name, spec] of Object.entries(drawing.symbols)) {
+    if (spec.addr !== undefined && stuck.has(spec.addr)) {
+      found.set(name, stuck.get(spec.addr)!);
+    }
+  }
+  return found;
+}
+
+/**
  * What a click on each point would ask for, keyed by symbol: its address and
  * the other position from the one it lies in, `thrown` where nothing has
  * commanded it

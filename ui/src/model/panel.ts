@@ -82,6 +82,11 @@ export interface LitRoute {
 
 export type { Aspect, Reading };
 
+/** How long a reported point's report may differ from what was asked before
+ *  the Run view marks it, in milliseconds: longer than a point takes to
+ *  throw, so a point on its way is not called stuck (ADR-0097, decision 8). */
+export const STUCK_MS = 2000;
+
 
 /**
  * A train on the layout, and where it is standing: the block, or `null` while
@@ -190,6 +195,10 @@ export interface Overlay {
    *  row has named is absent, and drawn as `unknown`. */
   detected: ReadonlyMap<EndRef, Reading>;
   positions: ReadonlyMap<string, Position>;
+  /** symbol → what a reported point that holds a train reports, `null` for
+   *  none yet (`Panel.stuck`, ADR-0097). By symbol for the reason positions
+   *  are. */
+  stuck: ReadonlyMap<string, Position | null>;
   /** symbol → what a click on that point asks for, the points the panel
    *  offers a throw on (`scene.pointsOffered`, ADR-0068). Like positions, the
    *  drawing's answer as much as this model's. */
@@ -357,9 +366,16 @@ export class Panel {
    *  for a person debugging the layout and never folded here: that fold is
    *  `layout`'s. */
   private readings = new Map<EndRef, Reading>();
-  /** address → the position its `wanted/point` row last said. Commanded,
-   *  not measured: nothing this reads reports where a point actually lies. */
+  /** address → the position its `wanted/point` row last said: what was
+   *  asked, and where a point lies unless its address is reported. */
   private lyingByAddress = new Map<string, Position>();
+  /** address → the position its `device/point` row last said, kept for a
+   *  reported address only: where that point lies (ADR-0097). */
+  private reports = new Map<string, Position>();
+  /** reported address → since when, on `now`, its report has differed from
+   *  its `wanted/point` row. No report differs from any row: a point that
+   *  never reports holds a train as surely as one reporting the other way. */
+  private differing = new Map<string, number>();
   /** block → the train standing in it. */
   private standing = new Map<string, string>();
   /** train → the transit it is crossing, as the picture says. A train in it
@@ -447,13 +463,28 @@ export class Panel {
     string,
     { legs: [string, string][]; wires: string[] }
   >();
+  /** transit resource → the reported addresses among the points it needs,
+   *  as the layout marks them (ADR-0097). Fixed while a railroad is on
+   *  screen, as `ways` is. */
+  private readonly reportedOn = new Map<string, string[]>();
+  /** Every reported address the layout names. */
+  private readonly reported = new Set<string>();
 
+  /** `now` is the wall clock in milliseconds, which only a reported point's
+   *  mark reads: two seconds are a person's, and no topic carries them. */
   constructor(
     private readonly layout: Layout,
     explain: Explained,
     wires: readonly Wire[],
+    private readonly now: () => number = () => Date.now(),
   ) {
-    for (const [connection, { transits }] of Object.entries(layout.connections)) {
+    for (const [connection, { transits, points }] of Object.entries(layout.connections)) {
+      for (const [transit, needed] of Object.entries(points ?? {})) {
+        const addrs = needed.filter((point) => point.reported === true).map((point) => point.addr);
+        if (addrs.length === 0) continue;
+        this.reportedOn.set(`${connection}.${transit}`, addrs);
+        for (const addr of addrs) this.reported.add(addr);
+      }
       for (const transit of Object.keys(transits)) {
         const crossing = explain.connections[connection]?.transits[transit];
         if (crossing === undefined) continue;
@@ -469,6 +500,8 @@ export class Panel {
     this.locks.clear();
     this.readings.clear();
     this.lyingByAddress.clear();
+    this.reports.clear();
+    this.differing.clear();
     this.standing.clear();
     this.crossing.clear();
     this.reads.clear();
@@ -561,6 +594,21 @@ export class Panel {
           position: Position;
         };
         this.lyingByAddress.set(addr, position);
+        this.compare(addr);
+        return;
+      }
+      case "device/point": {
+        // Where the hardware at this address says the point lies, which is
+        // where it lies for an address the drawing lists as reported and is
+        // nothing to draw for any other (ADR-0097, decisions 3 and 4).
+        const { addr, position } = event as unknown as {
+          addr?: unknown;
+          position?: unknown;
+        };
+        if (typeof addr !== "string" || !this.reported.has(addr)) return;
+        if (position === "closed" || position === "thrown") this.reports.set(addr, position);
+        else this.reports.delete(addr);
+        this.compare(addr);
         return;
       }
       case "allocation": {
@@ -1036,9 +1084,74 @@ export class Panel {
    * neither knows which points a transit traverses nor works out how each
    * must lie. An address stays where its row last left it, and a page opened
    * mid-session is handed every row since the broker came up.
+   *
+   * An address the drawing lists as reported is drawn from its
+   * `device/point` row instead, once it has one: there `wanted/point` is only
+   * what was asked
+   * ([ADR-0097](../../../docs/adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
    */
   positionsByAddress(): ReadonlyMap<string, Position> {
-    return this.lyingByAddress;
+    if (this.reports.size === 0) return this.lyingByAddress;
+    return new Map([...this.lyingByAddress, ...this.reports]);
+  }
+
+  /**
+   * The reported points holding a train, by address, each with what it
+   * reports, `null` where it has reported nothing (ADR-0097, decision 8).
+   *
+   * One is marked when it lies on a transit locked to a train and its report
+   * has differed from its `wanted/point` row for more than `STUCK_MS`: a
+   * train waiting for it to throw, or one it stopped by moving under it. A
+   * reported point on no locked transit is not marked, whatever it reports —
+   * a person may throw it, and nothing waits for it.
+   */
+  stuck(): ReadonlyMap<string, Position | null> {
+    const now = this.now();
+    const marked = new Map<string, Position | null>();
+    for (const addr of this.held()) {
+      const since = this.differing.get(addr);
+      if (since !== undefined && now - since > STUCK_MS) {
+        marked.set(addr, this.reports.get(addr) ?? null);
+      }
+    }
+    return marked;
+  }
+
+  /** How many milliseconds until the next reported point is marked, `null`
+   *  where none is about to be. A mark falls due with no frame arriving, so
+   *  the view asks this to know when to draw again. */
+  markDue(): number | null {
+    const now = this.now();
+    let due: number | null = null;
+    for (const addr of this.held()) {
+      const since = this.differing.get(addr);
+      if (since === undefined || now - since > STUCK_MS) continue;
+      const wait = since + STUCK_MS + 1 - now;
+      due = due === null ? wait : Math.min(due, wait);
+    }
+    return due;
+  }
+
+  /** The reported addresses on a transit some train holds the lock on. */
+  private held(): Set<string> {
+    const held = new Set<string>();
+    for (const [resource, addrs] of this.reportedOn) {
+      if (this.locks.has(resource)) for (const addr of addrs) held.add(addr);
+    }
+    return held;
+  }
+
+  /** Start or stop the clock on a reported address whose report and
+   *  `wanted/point` row now differ, or now agree. A difference already
+   *  running keeps the moment it began. */
+  private compare(addr: string): void {
+    if (!this.reported.has(addr)) return;
+    const asked = this.lyingByAddress.get(addr);
+    if (asked === undefined || this.reports.get(addr) === asked) {
+      this.differing.delete(addr);
+    } else if (!this.differing.has(addr)) {
+      this.differing.set(addr, this.now());
+    }
   }
 
   /**

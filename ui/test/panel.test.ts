@@ -964,6 +964,128 @@ describe("point positions", () => {
 });
 
 /**
+ * A reported point (ADR-0097, #1108): one at an address the drawing lists as
+ * `reported`, which the layout marks on each transit's points. It is drawn
+ * from `device/point`, and marked where a train is held on it.
+ */
+describe("a reported point", () => {
+  /** The toy railroad, `sw.main` needing `12` closed and `sw.side` needing
+   *  it thrown, `12` reported; `sw.side` also needs `13`, which is not. */
+  const REPORTED: Layout = {
+    ...LAYOUT,
+    connections: {
+      ...LAYOUT.connections,
+      sw: {
+        ...LAYOUT.connections.sw!,
+        points: {
+          main: [{ addr: "12", position: "closed", reported: true }],
+          side: [
+            { addr: "12", position: "thrown", reported: true },
+            { addr: "13", position: "thrown" },
+          ],
+        },
+      },
+    },
+  };
+
+  /** The panel, on a clock the test moves. */
+  function clocked(): { model: Panel; tick: (ms: number) => void } {
+    let now = 1_000_000;
+    const model = new Panel(REPORTED, EXPLAIN, WIRES, () => now);
+    return { model, tick: (ms) => (now += ms) };
+  }
+
+  function wanted(addr: string, position: Position): Partial<TraceEvent> {
+    return { event: "wanted/point", addr, position };
+  }
+
+  function reported(addr: string, position: Position): Partial<TraceEvent> {
+    return { event: "device/point", addr, position };
+  }
+
+  const locked: Partial<TraceEvent> = {
+    event: "lock_granted",
+    train: "t1",
+    resources: ["sw.side", "c"],
+  };
+
+  it("is drawn from wanted/point before any report", () => {
+    const { model } = clocked();
+    feed(model, wanted("12", "thrown"));
+    expect(model.positionsByAddress().get("12")).toBe("thrown");
+  });
+
+  it("is drawn where device/point says, whatever was asked", () => {
+    const { model } = clocked();
+    feed(model, wanted("12", "thrown"), reported("12", "closed"));
+    expect(model.positionsByAddress().get("12")).toBe("closed");
+  });
+
+  it("leaves any other address drawn from wanted/point", () => {
+    const { model } = clocked();
+    feed(model, wanted("13", "thrown"), reported("13", "closed"));
+    expect(model.positionsByAddress().get("13")).toBe("thrown");
+  });
+
+  it("is marked once its report has differed for more than two seconds on a locked transit", () => {
+    const { model, tick } = clocked();
+    feed(model, locked, reported("12", "closed"), wanted("12", "thrown"));
+    tick(2000);
+    expect(model.stuck()).toEqual(new Map());
+    tick(1);
+    expect(model.stuck()).toEqual(new Map([["12", "closed"]]));
+  });
+
+  it("is marked when it never reports, a train waiting for it", () => {
+    const { model, tick } = clocked();
+    feed(model, locked, wanted("12", "thrown"));
+    tick(2001);
+    expect(model.stuck()).toEqual(new Map([["12", null]]));
+  });
+
+  it("is not marked on a transit no train has locked, whatever it reports", () => {
+    const { model, tick } = clocked();
+    feed(model, wanted("12", "thrown"), reported("12", "closed"));
+    tick(10_000);
+    expect(model.stuck()).toEqual(new Map());
+  });
+
+  it("is not marked once it reports what was asked", () => {
+    const { model, tick } = clocked();
+    feed(model, locked, wanted("12", "thrown"), reported("12", "closed"));
+    tick(1500);
+    feed(model, reported("12", "thrown"));
+    tick(1500);
+    expect(model.stuck()).toEqual(new Map());
+  });
+
+  it("is not marked for an address that is not reported", () => {
+    const { model, tick } = clocked();
+    feed(model, locked, wanted("13", "thrown"), reported("13", "closed"));
+    tick(10_000);
+    expect(model.stuck()).toEqual(new Map());
+  });
+
+  it("says when its mark falls due, so the view can draw it then", () => {
+    const { model, tick } = clocked();
+    feed(model, wanted("12", "thrown"), reported("12", "closed"));
+    expect(model.markDue()).toBeNull();
+    feed(model, locked);
+    tick(500);
+    expect(model.markDue()).toBe(1501);
+    tick(1501);
+    expect(model.markDue()).toBeNull();
+  });
+
+  it("forgets its report when a replay starts over", () => {
+    const { model } = clocked();
+    feed(model, wanted("12", "thrown"), reported("12", "closed"));
+    model.reset();
+    expect(model.positionsByAddress()).toEqual(new Map());
+  });
+});
+
+/**
  * Where a train's name is drawn (#897): in every block it holds that reads
  * occupied, whatever that block's colour, and in the block it last stood in
  * where none does. The picture's `crossing` says it has left that block for a

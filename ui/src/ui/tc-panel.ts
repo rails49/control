@@ -48,7 +48,7 @@ import {
 import type { Drawing } from "../model/drawing.js";
 import type { Point } from "../model/geometry.js";
 import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
-import { pointsOffered, positionsBySymbol } from "../model/scene.js";
+import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { widgetPress, widgetTopic } from "../model/widgets.js";
@@ -124,6 +124,8 @@ export class TcPanel extends LitElement {
   /** Whether this last painted the drawing grey, so turning grey or back
    *  takes down a drag and a menu, and fits the drawing once. */
   private grey = false;
+  /** The redraw waiting on a reported point's mark, `null` for none. */
+  private marking: ReturnType<typeof setTimeout> | null = null;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -454,6 +456,27 @@ export class TcPanel extends LitElement {
       this.fitting = false;
       this.canvas?.fit();
     }
+    this.awaitMark();
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this.marking !== null) clearTimeout(this.marking);
+    this.marking = null;
+  }
+
+  /** Draw again when the next reported point's mark falls due (ADR-0097).
+   *  Two seconds pass with no frame arriving, so nothing else would. */
+  private awaitMark(): void {
+    if (this.marking !== null) clearTimeout(this.marking);
+    this.marking = null;
+    const due = this.unbuilt ? null : (this.panel?.markDue() ?? null);
+    if (due !== null) {
+      this.marking = setTimeout(() => {
+        this.marking = null;
+        this.requestUpdate();
+      }, due);
+    }
   }
 
   /**
@@ -477,6 +500,7 @@ export class TcPanel extends LitElement {
       aspects: model.aspects(),
       detected: model.detected(),
       positions: positionsBySymbol(this.drawing, commanded),
+      stuck: stuckBySymbol(this.drawing, model.stuck()),
       offered: pointsOffered(this.drawing, lit.legs, commanded),
       markers: model.markers(),
       widgets: this.session?.widgetRows ?? new Map(),
