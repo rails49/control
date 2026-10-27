@@ -310,3 +310,28 @@ def test_a_facing_in_a_terminal_block_is_turned_off_the_wall(
     assert connected_facing(layout, "yard_w.B-to-A") == "yard_w.A-to-B"
     assert connected_facing(layout, "yard_e.A-to-B") == "yard_e.B-to-A"
     assert connected_facing(layout, "dn_w.A-to-B") == "dn_w.A-to-B"
+
+
+def test_a_point_says_its_address_is_reported() -> None:
+    doc = minimal_layout()
+    doc["connections"]["j"]["points"] = {
+        "ab": [
+            {"addr": "12", "position": "thrown", "reported": True},
+            {"addr": "13", "position": "closed"},
+        ]
+    }
+    layout = Layout.from_document(doc)
+    assert layout.connections["j"].points == {
+        "ab": (Point("12", "thrown", reported=True), Point("13", "closed"))
+    }
+    assert not layout.connections["j"].points["ab"][1].reported
+
+
+@pytest.mark.parametrize("value", [False, "true", 1, None])
+def test_reported_is_written_true_or_left_out(value: Any) -> None:
+    doc = minimal_layout()
+    doc["connections"]["j"]["points"] = {
+        "ab": [{"addr": "12", "position": "thrown", "reported": value}]
+    }
+    with pytest.raises(ValueError, match="reported"):
+        Layout.from_document(doc)
