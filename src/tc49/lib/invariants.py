@@ -85,6 +85,7 @@ from tc49.lib.payload import (
     link_up,
     moving,
     named_train,
+    observed_position,
     occupancy,
     placement,
     power,
@@ -131,10 +132,12 @@ WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
 DEVICE_TRACK = "tc49/layout/state/device/track"
 DEVICE_LINK = "tc49/layout/state/device/link"
+DEVICE_POINT = "tc49/layout/state/device/point"
 
 EVERY_TRACTION = f"{WANTED_TRACTION}/+"
 EVERY_POINT = f"{WANTED_POINT}/+"
 EVERY_LINK = f"{DEVICE_LINK}/+"
+EVERY_REPORT = f"{DEVICE_POINT}/+"
 """The addressed rows a rule reads, one per address, as the filter that
 matches them all: a rule about traction reads every car's row."""
 
@@ -824,6 +827,7 @@ class _Started:
 
     into: str
     signs: dict[str, float]  # addr -> +1.0 or -1.0, the sign the move gives it
+    reported: tuple[tuple[str, str], ...] = ()  # its align's reported points
 
 
 @dataclass(frozen=True)
@@ -901,7 +905,9 @@ class Record:
         self.pressed: str | None = None  # the last `power_wanted` word, likewise
         self.granted: dict[str, tuple[str, str | None]] = {}  # train -> transit, aspect
         self.priced: dict[str, float] = {}  # aspect -> the speed its moves ran at
-        self.aligned: set[str] = set()  # transits an `align` named, not yet driven
+        # transits an `align` named, not yet driven -> the position it asked
+        # of each reported point (ADR-0097)
+        self.aligned: dict[str, dict[str, str]] = {}
         self.commanded: dict[str, Command] = {}  # train -> a `move` not yet driven
         # train -> the transit and block of a `move` withdrawn before it came,
         # which `layout` drops when it does (#1080)
@@ -915,6 +921,8 @@ class Record:
         self.arrived: dict[str, str] = {}  # addr -> train at its sensor, owed a 0
         self.released: dict[str, str] = {}  # addr -> train let go of, owed a 0
         self.keeps: set[str] = set()  # trains let go of mid-move in automatic
+        self.lies: dict[str, str] = {}  # addr -> where `device/point` says
+        self.halted: set[str] = set()  # trains a wrong report stopped mid-move
         for topic, payload in (rows or {}).items():
             self.rows[topic] = payload
             if topic == ALLOCATION:
@@ -1024,7 +1032,14 @@ class Record:
         elif topic == ALIGN:
             aligning = alignment(payload)
             if aligning is not None and aligning.transit_id is not None:
-                self.aligned.add(aligning.transit_id)
+                asked: dict[str, str] = {}
+                for each in aligning.points:
+                    asked.setdefault(each.addr, each.position)
+                self.aligned[aligning.transit_id] = {
+                    each.addr: asked[each.addr]
+                    for each in aligning.points
+                    if each.reported
+                }
         elif topic == MOVE:
             self._commanded(payload)
         elif topic == RAILROAD and payload != self.rows.get(RAILROAD):
@@ -1038,6 +1053,8 @@ class Record:
             self.starting.discard(WANTED_TRACK)
         elif topic == TAKEN:
             self._let_go(payload)
+        elif (split := split_device(topic)) is not None and split[0] == DEVICE_POINT:
+            self._lies(split[1], payload)
         elif (written := _written(topic, payload)) is not None:
             self._wrote(*written)
         if is_state_topic(topic):
@@ -1166,6 +1183,31 @@ class Record:
             return False
         return self.pressed in (OFF, DRAINING) or was == DRAINING
 
+    def _lies(self, addr: str, payload: object) -> None:
+        """A point saying where it lies: a position other than the one a
+        started move's `align` asked of it stops that train, which is then no
+        longer kept running by a release (ADR-0097, decision 7)."""
+        position = observed_position(payload)
+        if position is None or self.lies.get(addr) == position:
+            return
+        self.lies[addr] = position
+        for train, started in self.started.items():
+            if any(
+                each == addr and asked != position for each, asked in started.reported
+            ):
+                self.halted.add(train)
+                self.keeps.discard(train)
+
+    def waits(self, train: str) -> bool:
+        """Whether the train's `move`, heard and not yet driven, waits for a
+        reported point of its transit's `align` to report the position asked
+        for (ADR-0097, decision 6)."""
+        commanded = self.commanded.get(train)
+        if commanded is None:
+            return False
+        asked = self.aligned.get(commanded.transit_id, {})
+        return any(self.lies.get(addr) != position for addr, position in asked.items())
+
     def under_way(self, train: str) -> bool:
         """Whether the train has a move granted that has not reached the
         block it enters."""
@@ -1237,15 +1279,20 @@ class Record:
         self.signs[addr] = speed
         for train, commanded in self.starts(addr):
             del self.commanded[train]
-            self.aligned.discard(commanded.transit_id)
+            asked = self.aligned.pop(commanded.transit_id, {})
             ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
             signs = None if ends is None else self.composed(train, ends[1])
-            self.started[train] = _Started(commanded.into, signs or {})
+            self.started[train] = _Started(
+                commanded.into, signs or {}, tuple(asked.items())
+            )
+            self.halted.discard(train)
 
     def _let_go(self, payload: object) -> None:
         """A `state/taken`: each train it no longer names was let go of, and
         in `automatic` is owed a 0 unless it is mid-move over live rails, when
-        it keeps running (ADR-0081, ADR-0083)."""
+        it keeps running (ADR-0081, ADR-0083). Not mid-move is a move waiting
+        for a reported point, or one a wrong report stopped that stands
+        (ADR-0097)."""
         before, after = taken(self.rows.get(TAKEN)), taken(payload)
         self.keeps -= after.keys()
         if driving(self.rows.get(DRIVING)) != AUTOMATIC:
@@ -1253,7 +1300,15 @@ class Record:
         live = power(self.rows.get(POWER)) != OFF
         for train in sorted(before.keys() - after.keys()):
             addrs = [addr for addr, _orientation in _addresses(self.roster, train)]
-            if addrs and live and self.under_way(train):
+            speeds = _traction(self.rows)
+            standing = not any(speeds.get(addr, 0.0) != 0.0 for addr in addrs)
+            if (
+                addrs
+                and live
+                and self.under_way(train)
+                and not self.waits(train)
+                and not (train in self.halted and standing)
+            ):
                 self.keeps.add(train)
             else:
                 self.released.update(dict.fromkeys(addrs, train))
@@ -1377,6 +1432,30 @@ def adr_0031_no_traction_before_align(
         for train, commanded in record.starts(written[0])
         if commanded.transit_id not in record.aligned
     ]
+
+
+def adr_0097_no_departure_before_the_report(
+    record: Record, view: View, topic: str, payload: Payload
+) -> list[str]:
+    """No train is given a non-zero speed for a move across a transit while a
+    reported point of that transit's `align` has not reported the position
+    asked for
+    ([ADR-0097](../../../docs/adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+    """
+    written = _written(topic, payload)
+    if written is None or written[1] == 0.0:
+        return []
+    lines: list[str] = []
+    for train, commanded in record.starts(written[0]):
+        asked = record.aligned.get(commanded.transit_id, {})
+        for addr, position in sorted(asked.items()):
+            lies = record.lies.get(addr)
+            if lies != position:
+                lines.append(
+                    f"{train} driven over {commanded.transit_id} with point {addr}"
+                    f" reporting {lies}, not {position}"
+                )
+    return lines
 
 
 def adr_0047_no_grant_while_crossing(
@@ -1895,6 +1974,14 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "No traction is written for a move before the `align` naming its" " transit.",
         (ALIGN, MOVE, EVERY_TRACTION, TAKEN),
         adr_0031_no_traction_before_align,
+    ),
+    HistoryInvariant(
+        "0097",
+        "No train is given a non-zero speed for a move across a transit while"
+        " a reported point of that transit's `align` has not reported the"
+        " position asked for.",
+        (ALIGN, MOVE, EVERY_TRACTION, TAKEN, EVERY_REPORT),
+        adr_0097_no_departure_before_the_report,
     ),
     HistoryInvariant(
         "0047",

@@ -92,6 +92,7 @@ from tc49.lib.invariants import (
     adr_0089_one_train_a_throttle,
     adr_0093_aspects_along_the_locks,
     adr_0093_stop_without_power,
+    adr_0097_no_departure_before_the_report,
     cross_app,
 )
 from tests.generate import LAYOUTS, ROSTERS
@@ -530,6 +531,27 @@ def wrote(addr: str, speed: float) -> tuple[str, Payload]:
     return (traction(addr), {"addr": addr, "speed": speed})
 
 
+REPORTED: tuple[str, Payload] = (
+    ALIGN,
+    {
+        "connection": "crossover",
+        "transit": "to_dn",
+        "points": [
+            {"addr": "12", "position": "thrown", "reported": True},
+            {"addr": "13", "position": "thrown", "reported": False},
+        ],
+    },
+)
+"""The same way with point 12 reported (ADR-0097)."""
+
+
+def lies(addr: str, position: str) -> tuple[str, Payload]:
+    return (
+        f"tc49/layout/state/device/point/{addr}",
+        {"addr": addr, "position": position},
+    )
+
+
 RUNNING: Rows = STANDING | {traction("3"): {"addr": "3", "speed": 0.3}}
 STARTED: Messages = [TO_DN, ALIGNED, moved(), wrote("3", 0.3)]
 
@@ -568,6 +590,13 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         STANDING,
         [moved(), ALIGNED, wrote("3", 0.3)],
         [moved(), wrote("3", 0.3)],
+    ),
+    (
+        adr_0097_no_departure_before_the_report,
+        BENCH,
+        STANDING,
+        [REPORTED, moved(), lies("12", "thrown"), wrote("3", 0.3)],
+        [REPORTED, moved(), lies("12", "closed"), wrote("3", 0.3)],
     ),
     (
         adr_0047_no_grant_while_crossing,
