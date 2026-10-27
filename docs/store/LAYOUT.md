@@ -173,6 +173,11 @@ connections:
   they have nothing to say. A point wearing no address is omitted too: the
   drawing is where an unaddressed point is reported, and the layout carries
   only what can be thrown.
+- **A point at a reported address carries `reported: true`**, and every other
+  point leaves the key out; any other value is refused at load. The drawing
+  lists the reported addresses ([DRAWING.md](DRAWING.md#hardware-ids)), and
+  `Point.reported` reads it
+  ([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
 
 ## Catalogue schema
 

@@ -2034,3 +2034,72 @@ def test_the_store_refuses_to_save_a_bad_widget(tmp_path: Path) -> None:
     doc = {**spanned(), "widgets": {"w": {"kind": "slider", "at": [0, 0]}}}
     with pytest.raises(ValueError, match="widget 'w'"):
         store.put(doc)
+
+
+def two_points_in_series(reported: list[str]) -> dict[str, Any]:
+    """One way over `swa` at `12` and `swb` at `13`."""
+    doc = ganged_in_series()
+    doc["symbols"]["swa"]["addr"] = "12"
+    doc["symbols"]["swb"]["addr"] = "13"
+    doc["reported"] = reported
+    return doc
+
+
+def test_a_reported_address_marks_its_points_in_the_layout() -> None:
+    """`reported` is a fact about an address, so every point wearing it is
+    marked and every other point is not (ADR-0097, decision 1). The document
+    leaves the key out where it would be false."""
+    doc = two_points_in_series(["12"])
+    assert derive(doc)["connections"]["throat"]["points"] == {
+        "east_A__west_B": [
+            {"addr": "12", "position": "closed", "reported": True},
+            {"addr": "13", "position": "thrown"},
+        ]
+    }
+    layout = Layout.from_document(derive(doc))
+    assert layout.connections["throat"].points == {
+        "east_A__west_B": (
+            Point("12", "closed", reported=True),
+            Point("13", "thrown", reported=False),
+        )
+    }
+
+
+def test_reported_is_held_by_the_drawing() -> None:
+    doc = throat(addr="12")
+    doc["reported"] = ["12"]
+    assert Drawing.from_document(doc).reported == frozenset({"12"})
+
+
+def test_a_drawing_without_reported_derives_what_it_did() -> None:
+    """The layout document is quiet: an unreported point carries no key."""
+    assert derive(throat(addr="12")) == derive({**throat(addr="12"), "reported": []})
+    assert derive(throat(addr="12"))["connections"]["points"]["points"] == {
+        "east_A__west_B": [{"addr": "12", "position": "closed"}],
+        "north_A__west_B": [{"addr": "12", "position": "thrown"}],
+    }
+
+
+def test_a_reported_address_no_symbol_has_is_refused() -> None:
+    doc = throat(addr="12")
+    doc["reported"] = ["99"]
+    with pytest.raises(ValueError, match="'99'"):
+        Drawing.from_document(doc)
+
+
+def test_a_reported_address_a_signal_has_is_refused() -> None:
+    """`reported` names a point's address; a signal's is not a symbol's
+    `addr`."""
+    doc = throat(addr="12")
+    doc["symbols"]["west"]["signals"] = {"B": "40"}
+    doc["reported"] = ["40"]
+    with pytest.raises(ValueError, match="'40'"):
+        Drawing.from_document(doc)
+
+
+@pytest.mark.parametrize("reported", ["12", [12], {"12": True}, [None]])
+def test_reported_is_a_list_of_strings(reported: Any) -> None:
+    doc = throat(addr="12")
+    doc["reported"] = reported
+    with pytest.raises(ValueError, match="reported"):
+        Drawing.from_document(doc)
