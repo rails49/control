@@ -205,6 +205,7 @@ export class TcEditor extends LitElement {
       <tc-properties
         .editing=${this.editing}
         .taken=${Object.keys(this.editor.drawing.symbols)}
+        .reported=${this.editor.drawing.reported ?? []}
         @properties=${this.applied}
         @properties-closed=${() => {
           this.editing = null;
@@ -325,9 +326,9 @@ export class TcEditor extends LitElement {
    *  can take: it asks `symbolTrouble` before it closes, so the document's own
    *  guard has nothing left to catch here. */
   private applied(event: CustomEvent<Properties>): void {
-    const { was, name, spec } = event.detail;
+    const { was, name, spec, reported } = event.detail;
     this.editing = null;
-    if (!this.editor.edit(was, name, spec)) return;
+    if (!this.editor.edit(was, name, spec, reported)) return;
     this.redraw();
     this.edited();
   }

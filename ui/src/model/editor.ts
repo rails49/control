@@ -14,8 +14,11 @@
 import type { Kind } from "../symbols.generated.js";
 import {
   clone,
+  isReported,
   motorised,
   pinsOf,
+  pruneReported,
+  setReported,
   symbolOf,
   wireKey,
   wirePins,
@@ -491,6 +494,9 @@ export class Editor {
         delete this.current.symbols[name];
       }
     }
+    // A reported address no symbol wears any more is refused by the store
+    // (ADR-0097), so the last symbol wearing it takes it with it.
+    pruneReported(this.current);
     this.chosen = new Set([...this.chosen].filter((key) => this.holds(key)));
     if (
       this.drawingFrom !== null &&
@@ -528,8 +534,13 @@ export class Editor {
    * junction takes its symbol's name, so renaming a lone turnout renames its
    * connection too — which is the drawing's rule, not this one's
    * (store/DRAWING.md).
+   *
+   * `reported`, where given, says whether the hardware at the spec's address
+   * reports its position, for every symbol wearing that address (ADR-0097).
+   * An address the symbol no longer wears, and no other does, leaves the
+   * list: the flag is not carried to a new address.
    */
-  edit(was: string, name: string, spec: SymbolSpec): boolean {
+  edit(was: string, name: string, spec: SymbolSpec, reported?: boolean): boolean {
     if (!(was in this.current.symbols)) return false;
     if (name !== was && (!isName(name) || name in this.current.symbols)) {
       return false;
@@ -542,6 +553,7 @@ export class Editor {
         key === was ? [name, spec] : [key, value],
       ),
     );
+    setReported(this.current, spec.addr, reported ?? isReported(this.current, spec.addr));
     if (name !== was) {
       this.current.wires = this.current.wires.map((wire) => renamed(wire, was, name));
       this.chosen = new Set(
