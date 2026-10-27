@@ -1,5 +1,7 @@
 # The layout interface is a core app, and hardware hangs under it by address
 
+**Partly superseded by [ADR-0097](0097-a-point-the-drawing-marks-reported-is-drawn-from-device-point.md), 2026-10-27:** "They publish observed state only when the hardware reports it" below no longer holds for `device/point`. For a point the drawing marks reported, a translator publishes the position it last put the hardware in where the hardware measures none.
+
 **Amended for [#567](https://github.com/rails49/control/issues/567), 2026-09-22:** the mirror named below is no app of this repository's. `dccex-usb` — the package `tc49.dccex_usb`, the compose service and the image — is [`rails49/dccex`](https://github.com/rails49/dccex) now, and what this repository sees of it is the 2560 it publishes. The mechanism below stands unchanged, and this is what it always said: hardware hangs under the layout interface by address, and the translator is one client of that port exactly as JMRI and the hand-held throttles are. The links to the page that described the mirror point at the repository that holds it; no sentence below has moved.
 
 **Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** an address no longer names its system as its first level, and a translator no longer subscribes its own system: whatever is wired acts on the addresses it recognises, and the link row is keyed by an id the publisher chooses. The rest of the mechanism below stands.
