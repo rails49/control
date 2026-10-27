@@ -47,7 +47,10 @@ crossing and the move that is acted on spends it, so the rule guards every
 crossing of a transit rather than only its first — a record of every transit
 ever aligned would let the second move through with the points unthrown, which
 is a train taking the wrong path (#305). It costs nothing in the ordinary
-order, the dispatcher sending an `align` with every grant.
+order, the dispatcher sending an `align` with every grant. A point the `align`
+marks reported is **waited for**: the transit counts as aligned only once it
+says, on `device/point`, the position asked for, and one saying another while
+the train may still be over it stops the train (ADR-0097).
 
 **The near-end check.** A `move` is acted on only if that train is standing at
 the transit's near end (ADR-0047). At-least-once delivery can repeat one
@@ -216,6 +219,7 @@ from tc49.lib.payload import (
     kept_facing,
     link_up,
     named_train,
+    observed_position,
     placement,
     reported_reason,
     shown_aspects,
@@ -265,6 +269,7 @@ WANTED_TRACK = "tc49/layout/state/wanted/track"
 DEVICE_SENSOR = "tc49/layout/state/device/sensor"
 DEVICE_TRACK = "tc49/layout/state/device/track"
 DEVICE_LINK = "tc49/layout/state/device/link"
+DEVICE_POINT = "tc49/layout/state/device/point"
 
 SETTLING_S = 0.3
 """How long a new level has to stand before it is acted on, in seconds of the
@@ -326,6 +331,11 @@ class _Crossing:
     driving mode. The
     `0.0` at the arrival goes out where it is true or a throttle holds the
     train, since a car nothing was sent for is a car nothing may be sent for.
+
+    `reported` is each reported point of the transit's `align`, address and
+    the position asked for: every one reported that position when the move
+    was let through, and one reporting another while the crossing lasts —
+    until the block behind reads vacated — stops the train (ADR-0097).
     """
 
     origin: str
@@ -336,6 +346,7 @@ class _Crossing:
     heading: float = 0.0
     driving: bool = True
     outstanding: bool = True
+    reported: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -465,9 +476,14 @@ class LayoutInterface:
         # outlived it hands back, which is what `state/functions` is made of.
         self._lit: dict[tuple[str, str], bool] = {}
         # The crossings an `align` has authorised, one entry per transit and
-        # each spent by the move that takes it, and the moves waiting on one.
-        self._aligned: set[str] = set()
+        # each spent by the move that takes it, with the position the `align`
+        # asked of each of its reported points; and the moves waiting on one,
+        # or on those points reporting (ADR-0097).
+        self._aligned: dict[str, dict[str, str]] = {}
         self._held: dict[str, Command] = {}
+        # Where each reported point last said it lies, by address: the
+        # `device/point` rows, read and never written here.
+        self._lies: dict[str, str] = {}
         # The moves waiting on a facing naming the block their train departs,
         # one per transit, each put back through the rules when `state/facing`
         # next reads (ADR-0095).
@@ -658,9 +674,17 @@ class LayoutInterface:
         transit it does not hold costs nothing, a `move` naming one being
         dropped anyway.
 
+        **A reported point is waited for** (ADR-0097, decision 6). The
+        points the `align` marks `reported` are kept with the position asked
+        of each, and the transit counts as aligned — a held `move` is let
+        through — only once each has a `device/point` saying that position
+        (`_on_device`). A point not reported is taken to lie where
+        `wanted/point` puts it, as before.
+
         An `align` naming no transit is a throw by hand the dispatcher let
         through (ADR-0068): its points are written like any other's, and it
-        authorises no crossing, so no waiting `move` is let through. Nothing
+        authorises no crossing, so no waiting `move` is let through and
+        nothing is waited for. Nothing
         else is checked — no lock, no power, no run state — because this app
         holds none of what a check would need, and with the rails dead the
         row is stored for when they come back (ADR-0054).
@@ -678,7 +702,11 @@ class LayoutInterface:
         transit = aligning.transit_id
         if transit is None:
             return
-        self._aligned.add(transit)
+        self._aligned[transit] = {
+            point.addr: thrown[point.addr]
+            for point in aligning.points
+            if point.reported
+        }
         waiting = self._held.pop(transit, None)
         if waiting is not None:
             self._cross(waiting)
@@ -840,7 +868,7 @@ class LayoutInterface:
             return
         if self._position.get(commanded.train) != block_of(near):
             return
-        if transit not in self._aligned:
+        if not self._set(transit):
             self._held[transit] = commanded
             return
         driving = self._drives(commanded.train)
@@ -857,8 +885,9 @@ class LayoutInterface:
         heading, wheels = traction
         # The authorisation is spent here, with the act it authorised: an
         # `align` stands for one crossing, so the next move over this transit
-        # waits for one of its own (#305).
-        self._aligned.discard(transit)
+        # waits for one of its own (#305). Its reported points go with the
+        # crossing, which a wrong report of one stops (ADR-0097).
+        reported = tuple(self._aligned.pop(transit).items())
         self._position[commanded.train] = commanded.into
         # Acted on: from here a speed written for the train is one that may
         # have taken it onto the points (#1068), and a train already running
@@ -876,10 +905,53 @@ class LayoutInterface:
             implied=wheels,
             heading=heading,
             driving=driving,
+            reported=reported,
         )
         self._crossing[commanded.into] = crossing
         if driving:
             self._give(commanded.into, crossing)
+
+    def _set(self, transit: str) -> bool:
+        """Whether an `align` has named the transit and each of its reported
+        points reports the position that `align` asked for (ADR-0097)."""
+        asked = self._aligned.get(transit)
+        return asked is not None and all(
+            self._lies.get(addr) == position for addr, position in asked.items()
+        )
+
+    def _on_point(self, addr: str, payload: Payload) -> None:
+        """Where a point says it lies (ADR-0097, decisions 6 and 7).
+
+        A report naming another position than the one a crossing's `align`
+        asked of the point stops that train, as an arrival does: `0.0` where
+        this app or a throttle drives it, and the grant implying nothing more,
+        so no `on` or switch to `automatic` drives it on over the point. A
+        throttle may (ADR-0081): nothing holds the train against one, and the
+        same report heard again stops nothing. The crossing lasts until the
+        block the train left reads vacated, so a train that has arrived with
+        its tail over the point is stopped too.
+
+        A report that completes a transit's reported points lets the `move`
+        held for them through. One this cannot read is dropped, the position
+        held standing.
+        """
+        position = observed_position(payload)
+        if position is None:
+            return
+        before, self._lies[addr] = self._lies.get(addr), position
+        if before != position:
+            for block, crossing in list(self._crossing.items()):
+                if all(
+                    asked == position
+                    for reported, asked in crossing.reported
+                    if reported == addr
+                ):
+                    continue
+                if crossing.driving or crossing.train in self._taken:
+                    self._stop(crossing.train)
+                self._crossing[block] = replace(crossing, implied=())
+        for transit in [t for t in self._held if self._set(t)]:
+            self._cross(self._held.pop(transit))
 
     # -- the traction write -------------------------------------------------
 
@@ -1704,13 +1776,15 @@ class LayoutInterface:
             self._give(*flight)
 
     def _on_device(self, topic: str, payload: Payload) -> None:
-        """What the hardware reports about itself. Three of the five rows are
-        read: the supply, each publisher's link to the hardware it drives, and
-        each detector's level at the block end it watches.
+        """What the hardware reports about itself. Four of the five rows are
+        read: the supply, each publisher's link to the hardware it drives,
+        each detector's level at the block end it watches, and where each
+        point lies, which a `move` over a reported point waits for and a
+        wrong report stops a train on (`_on_point`, ADR-0097). Nothing here
+        publishes a `device/point`.
 
-        Two pass by unread rather than being taken for something else. A
-        `device/point` is a position where hardware reports one, and this app
-        acts on none. A `device/refused` is the publisher's report that the
+        One passes by unread rather than being taken for something else. A
+        `device/refused` is the publisher's report that the
         hardware refused a command or could not parse it, keyed by whatever
         that publisher calls itself: it is for a UI, for a person to read, and
         nothing here branches on it — a refusal that is published happened,
@@ -1733,6 +1807,11 @@ class LayoutInterface:
             if not self._ordering.accepts(topic, payload):
                 return
             self._on_reading(address, payload)
+            return
+        if row == DEVICE_POINT:
+            if not self._ordering.accepts(topic, payload):
+                return
+            self._on_point(address, payload)
             return
         if row == DEVICE_TRACK:
             if not self._ordering.accepts(topic, payload):

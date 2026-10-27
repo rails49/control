@@ -1128,6 +1128,11 @@ How the obligation is met is the binding's own business: on the harness's
 in-process bus the `align` is delivered first, and a hardware adapter pairs
 them.
 
+Where a point's address is reported, `layout` also waits for the point to say
+it lies as the `align` asked, on `device/point`, before the train departs, and
+stops the train if it says otherwise before the block the train left reads
+vacated ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+
 A second obligation guards against a stale command: the layout interface
 **acts on a `move` only if that train is standing at the transit's near end**
 ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).

@@ -188,6 +188,15 @@ fails closed — a move with no `align` of its own waits — and costs nothing i
 the ordinary order, the points being thrown for each crossing whether or not
 this app remembers the last one.
 
+**A reported point is waited for.** Each point on an `align` says whether its
+address is reported. The transit counts as aligned only once each reported
+point has a `device/point` saying the position the `align` asked for, so a
+point that fails to throw holds the train rather than sending it the wrong
+way. From when the move is let through until the block the train left reads
+vacated, a reported point saying another position stops the train, as an
+arrival does; a throttle may drive it on. A throw by hand waits for nothing
+([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+
 **The near-end check.** A `move` is acted on only if that train is standing at
 the transit's near end
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
