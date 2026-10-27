@@ -1209,11 +1209,18 @@ looking idle, and goes on saying so while the failure lasts
 ([ADR-0050](adr/0050-broken-hardware-is-reported-never-worked-around.md)).
 That is where verifying the link belongs: at runtime, with a person present
 who can act on it, and not in a test suite that would need a powered layout to
-pass. A translator publishes `device/point` only where its
+pass. For an address the drawing lists as `reported`, `device/point` is where
+the point lies: the translator that drives it publishes the position the
+hardware measured, or, where it measures none, the position it last put the
+hardware in, whether from `wanted/point` or from its own logic
+([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+For any other address a translator publishes `device/point` only where its
 hardware actually reports a position, a commanded one never being echoed back
-as a measured one (ADR-0043); on this railroad turnouts have no feedback
-([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so the
-translator driving them writes none, a faked reply being worse than silence.
+as a measured one (ADR-0043), and `wanted/point` stands for where the point
+lies; turnouts without feedback
+([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)) get none, a
+faked reply being worse than silence. `layout` and the Run view read
+`device/point`; the dispatcher does not.
 
 **`refused` is the publisher's report on its own last exchange**, and not a
 state of any device: the hardware refused a command or could not parse it, and
