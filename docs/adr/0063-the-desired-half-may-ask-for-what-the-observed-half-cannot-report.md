@@ -1,5 +1,7 @@
 # The desired half may ask for what the observed half cannot report
 
+*Partly superseded by [ADR-0097](0097-a-point-the-drawing-marks-reported-is-drawn-from-device-point.md) (#1103): decision 7's `device/point` clause, and the alternative of publishing a `device/point` for a turnout without feedback. For a point the drawing marks reported, `device/point` carries the position a translator last put the hardware in where the hardware measures none, and the Run view draws it.*
+
 Resolves [#466](https://github.com/rails49/control/issues/466). Amends
 [ADR-0043](0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md):
 its claim that a command station reached over JSON reports power as on or off
