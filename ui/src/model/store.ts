@@ -96,8 +96,11 @@ export interface Layout {
        *  accessory address, sorted by address, and a point wearing no address
        *  omitted. A transit needing none is absent, and a connection where no
        *  way needs any says nothing at all
-       *  ([ADR-0031](../../../docs/adr/0031-the-layout-carries-the-points-a-transit-needs.md)). */
-      points?: Record<string, { addr: string; position: Position }[]>;
+       *  ([ADR-0031](../../../docs/adr/0031-the-layout-carries-the-points-a-transit-needs.md)).
+       *  A point at an address the drawing lists as reported carries
+       *  `reported: true`, and every other leaves it out
+       *  ([ADR-0097](../../../docs/adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)). */
+      points?: Record<string, { addr: string; position: Position; reported?: true }[]>;
     }
   >;
 }

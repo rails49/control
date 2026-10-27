@@ -336,7 +336,8 @@ export interface Submission {
  *  which is all `Live` keeps of a frame. The list is the state rows of
  *  `tc49.lib.inventory` and cannot drift from them: a Python test reads it
  *  out of this file and asserts the two match. The device rows are here only
- *  where a view reads one, which is `device/track` and `device/sensor` — a
+ *  where a view reads one, which is `device/track`, `device/sensor` and
+ *  `device/point` (ADR-0097) — a
  *  device topic is named by its row and the address under it rather than by a
  *  leaf, so the one a view reads is named as `Live` names it
  *  ([ADR-0043](../../../docs/adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md),
@@ -361,6 +362,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "allocation",
   "device/track",
   "device/sensor",
+  "device/point",
 ]);
 
 /**

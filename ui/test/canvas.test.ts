@@ -653,6 +653,7 @@ describe("what each mode draws", () => {
     aspects: new Map([["west.B", "clear"]]),
     detected: new Map(),
     positions: new Map(),
+    stuck: new Map(),
     offered: new Map(),
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
     widgets: new Map(),
@@ -687,6 +688,26 @@ describe("what each mode draws", () => {
       ...canvas.renderRoot.querySelector(`g[data-symbol="${name}"]`)!.classList,
     ];
   }
+
+  /** A reported point holding a train is outlined amber and says what it
+   *  reports (ADR-0097, #1108); one that is not wears neither. */
+  it("marks a reported point holding a train, in words under it", async () => {
+    const canvas = await running({ ...LIVE, stuck: new Map([["sw1", "closed"]]) });
+    canvas.drawing = {
+      ...structuredClone(RAILROAD),
+      symbols: {
+        ...structuredClone(RAILROAD.symbols),
+        sw1: { kind: "turnout", at: [0, 4], addr: "12" },
+        sw2: { kind: "turnout", at: [6, 4], addr: "13" },
+      },
+    };
+    await canvas.updateComplete;
+    expect(worn(canvas, "sw1")).toContain("stuck");
+    expect(worn(canvas, "sw2")).not.toContain("stuck");
+    const notes = [...canvas.renderRoot.querySelectorAll("text.note.stuck")];
+    expect(notes.map((note) => note.textContent!.trim())).toEqual(["reports closed"]);
+    canvas.remove();
+  });
 
   it("draws every pin while editing and none on a run", async () => {
     const editing = await canvasOn(RAILROAD, reviewed([]));
@@ -891,6 +912,7 @@ describe("a train's photo in its block", () => {
     aspects: new Map(),
     detected: new Map(),
     positions: new Map(),
+    stuck: new Map(),
     offered: new Map(),
     markers: [],
     widgets: new Map(),
@@ -1083,6 +1105,7 @@ describe("a point on a run", () => {
       ["lit", "thrown"],
       ["known", "thrown"],
     ]),
+    stuck: new Map(),
     offered: new Map([
       ["known", { addr: "8", position: "closed" }],
       ["unknown", { addr: "9", position: "thrown" }],

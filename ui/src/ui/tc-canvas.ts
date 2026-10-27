@@ -223,7 +223,7 @@ export class TcCanvas extends LitElement {
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.faces()} ${this.wires(lighting)} ${this.symbols(lighting)}
         ${this.widgets()} ${this.pins()} ${this.stacked()} ${this.arrows()}
-        ${this.disputes()} ${this.markers()} ${this.wireline()} ${this.reach()}
+        ${this.disputes()} ${this.stuck()} ${this.markers()} ${this.wireline()} ${this.reach()}
         ${this.rubberBand()} ${this.ghost()}
       </svg>
     `;
@@ -429,7 +429,8 @@ export class TcCanvas extends LitElement {
    * and a block being on no transit's way, the two never meet on one symbol.
    * Occupancy outranks both, which is what reading the block's state first
    * says (ui/PANEL.md). A point a click would throw wears `offered`, which is
-   * the click cursor (ADR-0068).
+   * the click cursor (ADR-0068), and a reported point holding a train wears
+   * `stuck` (ADR-0097).
    */
   private worn(
     name: string,
@@ -446,6 +447,7 @@ export class TcCanvas extends LitElement {
         : [
             live.blocks.get(name)?.state ?? live.lit.state.get(name) ?? "",
             live.blocks.get(name)?.dispute === undefined ? "" : "disputed",
+            live.stuck.has(name) ? "stuck" : "",
             name === target ? "target" : "",
             live.offered.has(name) ? "offered" : "",
           ];
@@ -816,6 +818,21 @@ export class TcCanvas extends LitElement {
       const { x, y } = centreOf(spec);
       return svg`<text class="note disputed" x=${x} y=${y + 1}>
         reads ${view.dispute}
+      </text>`;
+    });
+  }
+
+  /** What a reported point holding a train reports, in words under it
+   *  (ADR-0097): the position it says it lies in, which is not the one asked
+   *  for, or that it has said nothing. The amber outline says something is
+   *  wrong; this says which. */
+  private stuck(): unknown {
+    return [...(this.running?.stuck ?? [])].map(([name, reports]) => {
+      const spec = this.document.symbols[name];
+      if (spec === undefined) return nothing;
+      const { x, y } = centreOf(spec);
+      return svg`<text class="note stuck" x=${x} y=${y + 1}>
+        ${reports === null ? "no report" : `reports ${reports}`}
       </text>`;
     });
   }
