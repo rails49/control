@@ -277,7 +277,10 @@ def points_for(layout: Layout, crossing: Crossing) -> list[Payload]:
     and puts them on the command (ADR-0031). Always present, `[]` where the
     way needs nothing thrown: an absent list is a frame that lost a field."""
     points = layout.connections[crossing.connection].points.get(crossing.transit, ())
-    return [{"addr": point.addr, "position": point.position} for point in points]
+    return [
+        {"addr": point.addr, "position": point.position, "reported": point.reported}
+        for point in points
+    ]
 
 
 def test_a_typed_pair_completes_a_move_the_way_a_detectors_would() -> None:
