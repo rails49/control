@@ -849,8 +849,9 @@ class Alignment:
     The transit is bare and the connection stands beside it, the shape
     `Command` has, because the two commands name a transit the same way.
     The points are `lib.layout.Point`, the pair the layout document already
-    carries — an address and the position a way wants the point wearing in —
-    since what rides on `align` is exactly what was read off the layout.
+    carries — an address, the position a way wants the point wearing in, and
+    whether its address is reported (ADR-0097) — since what rides on `align`
+    is exactly what was read off the layout.
 
     Both names are None for a throw by hand: the frame names no transit and
     carries the points a person asked for, which the dispatcher let through
@@ -891,6 +892,8 @@ def alignment(payload: object) -> Alignment | None:
     payload. `points` is always present, `[]` where the way needs nothing
     thrown: the document is quiet and the wire explicit, so an absent list is
     a frame that lost a field rather than a way with no points on it.
+    `reported` is on every point for the same reason, `true` or `false`:
+    `layout` holds no table of points to look it up in (ADR-0097).
 
     `connection` and `transit` are both strings, or both `null` for a throw
     by hand (ADR-0068). A frame with only one of them `null` is half a route
@@ -913,9 +916,12 @@ def alignment(payload: object) -> Alignment | None:
             return None
         pair = cast(dict[str, object], entry)
         addr, position = pair.get("addr"), pair.get("position")
+        reported = pair.get("reported")
         if not isinstance(addr, str) or not isinstance(position, str):
             return None
-        points.append(Point(addr, position))
+        if not isinstance(reported, bool):
+            return None
+        points.append(Point(addr, position, reported))
     return Alignment(
         cast(str | None, connection), cast(str | None, transit), tuple(points)
     )

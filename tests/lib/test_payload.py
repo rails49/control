@@ -761,14 +761,14 @@ def test_an_alignment_reads_as_the_transit_it_names_and_the_points_it_carries() 
             "connection": "crossover",
             "transit": "up_to_dn",
             "points": [
-                {"addr": "dccex/12", "position": "thrown"},
-                {"addr": "dccex/13", "position": "closed"},
+                {"addr": "dccex/12", "position": "thrown", "reported": True},
+                {"addr": "dccex/13", "position": "closed", "reported": False},
             ],
         }
     ) == Alignment(
         "crossover",
         "up_to_dn",
-        (Point("dccex/12", "thrown"), Point("dccex/13", "closed")),
+        (Point("dccex/12", "thrown", True), Point("dccex/13", "closed")),
     )
 
 
@@ -789,7 +789,7 @@ def test_an_alignment_naming_no_transit_is_a_throw_by_hand() -> None:
         {
             "connection": None,
             "transit": None,
-            "points": [{"addr": "dccex/12", "position": "closed"}],
+            "points": [{"addr": "dccex/12", "position": "closed", "reported": False}],
         }
     ) == Alignment(None, None, (Point("dccex/12", "closed"),))
 
@@ -804,7 +804,7 @@ def test_an_alignment_names_its_transit_qualified_and_a_throw_by_hand_none() -> 
         {
             "connection": None,
             "transit": None,
-            "points": [{"addr": "dccex/12", "position": "closed"}],
+            "points": [{"addr": "dccex/12", "position": "closed", "reported": False}],
         }
     )
     assert by_hand is not None
@@ -818,9 +818,28 @@ def test_a_pair_that_cannot_be_read_fails_the_whole_alignment() -> None:
     half = {
         "connection": "crossover",
         "transit": "up_to_dn",
-        "points": [{"addr": "dccex/12", "position": "thrown"}, {"addr": "dccex/13"}],
+        "points": [
+            {"addr": "dccex/12", "position": "thrown", "reported": False},
+            {"addr": "dccex/13", "reported": False},
+        ],
     }
     assert alignment(half) is None
+
+
+def test_a_point_that_does_not_say_whether_it_is_reported_fails_the_alignment() -> None:
+    """`reported` is on every point, `true` or `false` (ADR-0097, decision 5):
+    `layout` holds no table of points to look it up in, so a point without
+    it, or with one that is not a boolean, is unreadable like any other and
+    fails the whole frame."""
+    read = {"addr": "dccex/12", "position": "thrown", "reported": False}
+    for unread in (
+        {"addr": "dccex/13", "position": "thrown"},
+        {"addr": "dccex/13", "position": "thrown", "reported": None},
+        {"addr": "dccex/13", "position": "thrown", "reported": "true"},
+        {"addr": "dccex/13", "position": "thrown", "reported": 1},
+    ):
+        frame = {"connection": "j", "transit": "ab", "points": [read, unread]}
+        assert alignment(frame) is None, unread
 
 
 def test_a_payload_setting_no_route_reads_as_none() -> None:
