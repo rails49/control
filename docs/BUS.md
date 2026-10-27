@@ -610,8 +610,14 @@ what a drop would cost:
   stop with the track live that [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) retires, is outside the set and reads
   as `off` ([#834](https://github.com/rails49/control/issues/834)).
 - `tc49/layout/align` — `connection`; `transit`: bare name within the
-  connection; `points`: list of `{addr, position}`, `position` enum `closed`
-  or `thrown`; `[]` where nothing needs throwing. `connection` and `transit`
+  connection; `points`: list of `{addr, position, reported}`, `position` enum
+  `closed` or `thrown`, `reported` a boolean, always present: whether the
+  hardware reports where the point at that address lies, so `layout`, which
+  holds no table of points, knows which to wait for
+  ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+  A point without `reported`, or with one that is not a boolean, fails the
+  whole frame, as any other unreadable point does. `points` is `[]` where
+  nothing needs throwing. `connection` and `transit`
   may both be `null`, for a throw by hand: the frame names no transit and
   `points` carries the points to set, any number of them. A frame with only
   one of the two `null` is unreadable and dropped whole
@@ -866,7 +872,8 @@ payload is read defensively, and one that fails the read is dropped.
   the loaded railroad wears `addr`, or when any point wearing `addr` lies on
   the way of a transit that is locked or committed. Otherwise it publishes
   `tc49/layout/align` with `connection` and `transit` `null` and the one
-  point `{addr, position}`. It is accepted in every run state and with track
+  point `{addr, position, reported}`, `reported` `true` where any point
+  wearing `addr` is reported. It is accepted in every run state and with track
   power on or off
   ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 - `tc49/dispatch/request_admitted` — `id`; `dest`: the arrival ends that

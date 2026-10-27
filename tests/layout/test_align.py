@@ -55,8 +55,8 @@ def test_two_pairs_naming_one_address_are_one_write() -> None:
             "connection": "crossover",
             "transit": "to_dn",
             "points": [
-                {"addr": "12", "position": "thrown"},
-                {"addr": "12", "position": "thrown"},
+                {"addr": "12", "position": "thrown", "reported": False},
+                {"addr": "12", "position": "thrown", "reported": False},
             ],
         },
     )
@@ -128,7 +128,7 @@ def test_a_throw_by_hand_writes_its_point_retained() -> None:
         {
             "connection": None,
             "transit": None,
-            "points": [{"addr": "12", "position": "closed"}],
+            "points": [{"addr": "12", "position": "closed", "reported": False}],
         },
     )
     late = points(bus)
@@ -155,8 +155,8 @@ def test_a_throw_by_hand_lets_no_waiting_move_through() -> None:
             "connection": None,
             "transit": None,
             "points": [
-                {"addr": "12", "position": "thrown"},
-                {"addr": "13", "position": "thrown"},
+                {"addr": "12", "position": "thrown", "reported": False},
+                {"addr": "13", "position": "thrown", "reported": False},
             ],
         },
     )
@@ -172,7 +172,7 @@ def test_an_align_with_only_one_of_the_two_null_writes_nothing() -> None:
     whole, and dropping it raises nothing (BUS.md)."""
     bus, _app = build()
     written = points(bus)
-    pair = [{"addr": "12", "position": "thrown"}]
+    pair = [{"addr": "12", "position": "thrown", "reported": False}]
     by_hand(bus, {"connection": None, "transit": "to_dn", "points": pair})
     by_hand(bus, {"connection": "crossover", "transit": None, "points": pair})
 

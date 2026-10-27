@@ -352,13 +352,16 @@ def turns(
 
 def align(bus: InProcessBus, connection: str, transit: str) -> None:
     """The command the dispatcher sends before each grant, carrying the points
-    the way needs — read off the layout, as the dispatcher reads them."""
+    the way needs — read off the layout, as the dispatcher reads them, none of
+    them reported (ADR-0097)."""
     bus.publish(
         ALIGN,
         {
             "connection": connection,
             "transit": transit,
-            "points": POINTS.get(transit, []),
+            "points": [
+                {**point, "reported": False} for point in POINTS.get(transit, [])
+            ],
         },
     )
     bus.drain()

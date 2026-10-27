@@ -506,8 +506,8 @@ ALIGNED: tuple[str, Payload] = (
         "connection": "crossover",
         "transit": "to_dn",
         "points": [
-            {"addr": "12", "position": "thrown"},
-            {"addr": "13", "position": "thrown"},
+            {"addr": "12", "position": "thrown", "reported": False},
+            {"addr": "13", "position": "thrown", "reported": False},
         ],
     },
 )
