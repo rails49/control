@@ -228,10 +228,12 @@ brightness, momentum — is written as decoder configuration, a different
 capability that would be a different row (ADR-0063).
 ``tc49.lib.payload.desired_function`` is the reader.
 
-`device/point` is published only where the hardware actually reports a
-position, and a commanded one is never echoed back as a measured one
-(ADR-0022): on this railroad turnouts have no feedback, so the translator
-driving them writes none. `device/link` is where a participant that knows it
+For an address the drawing lists as `reported`, `device/point` is where the
+point lies: the position the hardware measured or, where it measures none, the
+position the translator last put the hardware in, from `wanted/point` or from
+its own logic (ADR-0097). For any other address it is published only where the
+hardware actually reports a position, and a commanded one is never echoed back
+as a measured one (ADR-0022): a turnout without feedback gets none. `device/link` is where a participant that knows it
 cannot reach its hardware says so, so a UI can say the command station is
 unreachable rather than the railroad merely looking idle — reported at runtime
 to a person who can act on it, which is where verifying a link belongs
