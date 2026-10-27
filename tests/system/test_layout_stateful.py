@@ -16,6 +16,7 @@ drives. After every message the invariants over what the bus shows hold
 """
 
 import unittest
+from copy import deepcopy
 from typing import cast
 
 from hypothesis import note, settings
@@ -30,6 +31,7 @@ from tc49.layout.interface import SETTLING_S, THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC, MANUAL
+from tc49.lib.layout import Layout
 from tc49.scheduler import Scheduler
 from tests.invariants import checked
 from tests.layout.railroad import (
@@ -43,8 +45,8 @@ from tests.layout.railroad import (
     TAKE_WANTED,
     THROTTLE_ALIVE,
     THROTTLE_WANTED,
+    document,
     elapse,
-    railroad,
     settle,
     stock,
 )
@@ -62,6 +64,22 @@ LINKS = ("dccex", "detectors")
 
 ADDRS = sorted({point["addr"] for way in POINTS.values() for point in way})
 """The bench railroad's addressed points, `12` and `13`."""
+
+
+REPORTED = "12"
+"""The point whose address is reported, on both ways over the crossover: a
+move over it waits for its `device/point`, and a wrong one stops the train
+(ADR-0097)."""
+
+
+def railroad() -> Layout:
+    """The bench railroad with `REPORTED` reported."""
+    drawn = deepcopy(document())
+    for way in drawn["connections"]["crossover"]["points"].values():
+        for entry in way:
+            if entry["addr"] == REPORTED:
+                entry["reported"] = True
+    return Layout.from_document(drawn)
 
 
 def assembled() -> tuple[InProcessBus, LayoutInterface, Clock]:
