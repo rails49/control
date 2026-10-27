@@ -41,6 +41,7 @@ from tc49.lib.payload import (
     link_up,
     moving,
     named_train,
+    observed_position,
     occupancy,
     placement,
     power,
@@ -968,6 +969,21 @@ def test_a_named_desired_value_that_is_no_name_reads_as_none() -> None:
     for payload in unreadable:
         assert desired_position(payload) is None, payload
     assert desired_aspect({"addr": "dccex/40"}) is None
+
+
+def test_an_observed_position_is_one_a_point_can_be_in() -> None:
+    """`layout` stops a train on a `device/point` naming another position
+    (ADR-0097), so a word no way asks for is no report at all."""
+    assert observed_position({"addr": "12", "position": "closed"}) == "closed"
+    assert observed_position({"addr": "12", "position": "thrown"}) == "thrown"
+    unreadable: list[object] = [
+        "thrown",
+        {},
+        {"position": None},
+        {"position": "reverse"},
+    ]
+    for payload in unreadable:
+        assert observed_position(payload) is None, payload
 
 
 def test_a_desired_function_is_a_boolean_and_a_word_is_no_value() -> None:

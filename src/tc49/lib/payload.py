@@ -1076,6 +1076,18 @@ def desired_position(payload: object) -> str | None:
     return _stated(payload, "position")
 
 
+def observed_position(payload: object) -> str | None:
+    """The position a `device/point` value says a point lies in, or None
+    where it says none this can read.
+
+    `layout` waits on it for a reported point and stops a train on it
+    (ADR-0097), so only the two positions a point can be in are read: a word
+    a way never asks for is no report, rather than a report of "another
+    position" that would stop a train on a translator's typo."""
+    position = _stated(payload, "position")
+    return position if position in (CLOSED, THROWN) else None
+
+
 def desired_aspect(payload: object) -> str | None:
     """The aspect a `wanted/signal` value asks a signal for, or None where it
     asks for none. The name is read as a name here and what a head makes of
