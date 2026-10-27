@@ -59,6 +59,7 @@ WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
 DEVICE_TRACK = "tc49/layout/state/device/track"
 DEVICE_LINK = "tc49/layout/state/device/link"
+DEVICE_POINT = "tc49/layout/state/device/point"
 
 POINTS: dict[str, list[dict[str, str]]] = {
     # The way over the crossover throws two, one of which the straight way
@@ -350,20 +351,33 @@ def turns(
     bus.drain()
 
 
-def align(bus: InProcessBus, connection: str, transit: str) -> None:
+def align(
+    bus: InProcessBus,
+    connection: str,
+    transit: str,
+    reported: tuple[str, ...] = (),
+) -> None:
     """The command the dispatcher sends before each grant, carrying the points
-    the way needs — read off the layout, as the dispatcher reads them, none of
-    them reported (ADR-0097)."""
+    the way needs — read off the layout, as the dispatcher reads them. A point
+    is reported where its address is in `reported`, none by default
+    (ADR-0097)."""
     bus.publish(
         ALIGN,
         {
             "connection": connection,
             "transit": transit,
             "points": [
-                {**point, "reported": False} for point in POINTS.get(transit, [])
+                {**point, "reported": point["addr"] in reported}
+                for point in POINTS.get(transit, [])
             ],
         },
     )
+    bus.drain()
+
+
+def lies(bus: InProcessBus, addr: str, position: str) -> None:
+    """A translator saying where the point at `addr` lies (ADR-0097)."""
+    bus.publish(f"{DEVICE_POINT}/{addr}", {"addr": addr, "position": position})
     bus.drain()
 
 
