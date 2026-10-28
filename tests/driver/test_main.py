@@ -19,11 +19,11 @@ from collections.abc import Iterator
 
 import pytest
 
-from tc49.driver.__main__ import ALIVE_CONFIRMED, main, serve
-from tc49.driver.driver import CAUTION_ENV, CLEAR_ENV
+from tc49.driver.__main__ import ALIVE_CONFIRMED, serve
 from tc49.lib.bus import Payload
 from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
+from tc49.lib.settings import THROTTLE_SILENCE_S, KeptSettings, said
 from tests.brokers import (
     Broker,
     at_least_once_in_any_two_seconds,
@@ -35,6 +35,7 @@ from tests.brokers import (
 RAILROAD = "crossover-yard"
 GRANTED = "tc49/dispatch/move_granted"
 MOVE = "tc49/layout/move"
+SETTINGS = "tc49/layout/state/settings"
 
 HONEST: Payload = {
     "id": "freight_1-1",
@@ -123,7 +124,14 @@ def watching(broker: Broker) -> tuple[MqttBus, list[tuple[str, Payload]]]:
 
 def rows(heard: list[tuple[str, Payload]], topic: str) -> list[Payload]:
     """What arrived on one topic, in the order it arrived."""
-    return [payload for said, payload in heard if said == topic]
+    return [payload for heard_on, payload in heard if heard_on == topic]
+
+
+def settings(hand: MqttBus) -> None:
+    """`state/settings` as `layout` says it on a loaded railroad, the default
+    speeds among it: retained, so a driver that comes up later hears it, and
+    without it a grant moves nothing (#1133)."""
+    hand.publish(SETTINGS, said(KeptSettings(), THROTTLE_SILENCE_S))
 
 
 def test_a_cold_start_says_nothing_and_stays_up(broker: Broker, app: App) -> None:
@@ -131,7 +139,7 @@ def test_a_cold_start_says_nothing_and_stays_up(broker: Broker, app: App) -> Non
     and the bus stays silent (ADR-0059).
 
     Silence is this app's cold start, but for saying it is up (#1113). It
-    holds no state and reads no assets (SYSTEM.md, driver footprint), so it
+    reads no assets (SYSTEM.md, driver footprint), so it
     owns no retained row to publish, and a `move` before a grant would be a
     command the dispatcher never authorised.
     """
@@ -151,13 +159,14 @@ def test_it_commands_a_grant_it_finds_on_the_broker(broker: Broker, app: App) ->
     all is drained and restated as the command that moves the train, the
     transit split and the aspect priced (ADR-0025)."""
     witness, heard = watching(broker)
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    settings(hand)
     app.start()
     assert app.up.wait(10), "it never came up"
 
     # The grant as the dispatcher publishes one. It does not say who published
     # it, and nothing here asks (rule 4).
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
     hand.publish(GRANTED, HONEST)
 
     assert drained(witness, lambda: rows(heard, MOVE) != []), "the grant was dropped"
@@ -183,6 +192,7 @@ def test_it_comes_up_against_a_broker_that_is_not_there_yet(
     witness, heard = watching(broker)
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
+    settings(hand)
     hand.publish(GRANTED, HONEST)
 
     assert drained(witness, lambda: rows(heard, MOVE) != []), "the grant was dropped"
@@ -200,11 +210,12 @@ def test_a_grant_it_cannot_read_leaves_it_running(broker: Broker, app: App) -> N
     still lands — a drop being a drop and not a state.
     """
     witness, heard = watching(broker)
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    settings(hand)
     app.start()
     assert app.up.wait(10), "it never came up"
 
-    hand = MqttBus(port=broker.port)
-    assert hand.wait_connected()
     aspect = {"aspect": "clear"}
     for payload in (
         aspect,  # an aspect and nothing to move
@@ -225,20 +236,26 @@ def test_a_grant_it_cannot_read_leaves_it_running(broker: Broker, app: App) -> N
     witness.close()
 
 
-@pytest.mark.parametrize("variable", [CLEAR_ENV, CAUTION_ENV])
-def test_a_bad_speed_stops_the_app_at_start_naming_the_variable(
-    variable: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A speed the deployment got wrong is said once, at start, and the app
-    exits rather than looking for a broker: a container in a restart loop
-    whose log names the variable is a line of the env file to fix, where a
-    driver that guessed would run trains at a speed nobody configured."""
-    monkeypatch.setenv(variable, "fast")
-    monkeypatch.setattr("sys.argv", ["tc49.driver", "--broker", "localhost:1"])
-    with pytest.raises(SystemExit) as stopped:
-        main()
-    assert stopped.value.code != 0
-    assert variable in capsys.readouterr().err
+def test_a_grant_before_any_settings_moves_nothing(broker: Broker, app: App) -> None:
+    """Up on a broker that holds no `state/settings`, the driver has no
+    speeds and drops a grant; once the row is said, the next grant moves at
+    its speed (#1133)."""
+    witness, heard = watching(broker)
+    app.start()
+    assert app.up.wait(10), "it never came up"
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(GRANTED, HONEST)
+    settle(witness)
+    assert rows(heard, MOVE) == [], "a grant was priced with no speeds heard"
+
+    settings(hand)
+    hand.publish(GRANTED, HONEST)
+    assert drained(witness, lambda: rows(heard, MOVE) != []), "the grant was dropped"
+    assert rows(heard, MOVE) == [COMMANDED]
+    hand.close()
+    witness.close()
 
 
 def test_on_a_railroad_it_says_once_a_second_that_it_is_up(

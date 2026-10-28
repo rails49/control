@@ -1,25 +1,27 @@
-"""The driver seam: a grant restated as the command, and a grant read (#261).
+"""The driver seam: a grant restated as the command, and a grant read (#261),
+priced at the speeds `state/settings` says (#1133).
 
-The driver is a stateless translator that knows nothing of the layout, so its
-whole contract is that mapping and the mapping is asserted directly rather
-than through an assembly, where a wrong translation lands far from its cause
+The driver is a translator that knows nothing of the layout and holds nothing
+but the speeds it last heard, so its whole contract is that mapping and the
+mapping is asserted directly rather than through an assembly, where a wrong
+translation lands far from its cause
 ([#39](https://github.com/rails49/control/issues/39)). A bus and the driver
 on it: one grant in, one command out, the aspect turned into the speed the
 command carries ([#283](https://github.com/rails49/control/issues/283)) and
 no other topic touched.
 """
 
+from collections.abc import Mapping
 from typing import cast
 
-import pytest
-
 from tc49.driver import Driver
-from tc49.driver.driver import CAUTION_ENV, CLEAR_ENV, SPEEDS, speeds
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.settings import SPEEDS, THROTTLE_SILENCE_S, KeptSettings, said
 
 GRANTED = "tc49/dispatch/move_granted"
 MOVE = "tc49/layout/move"
+SETTINGS = "tc49/layout/state/settings"
 
 HONEST: Payload = {
     "id": "freight_1-1",
@@ -54,6 +56,20 @@ def grant(bus: InProcessBus, payload: object) -> None:
     bus.drain()
 
 
+def settings(bus: InProcessBus, speeds: Mapping[str, float] = SPEEDS) -> None:
+    """`state/settings` as `layout` says it, the railroad's speeds `speeds`."""
+    kept = KeptSettings(speeds=dict(speeds))
+    bus.publish(SETTINGS, cast(Payload, said(kept, THROTTLE_SILENCE_S)))
+    bus.drain()
+
+
+def driving(bus: InProcessBus) -> Driver:
+    """A driver on `bus` with the default speeds heard, as it is on a railroad
+    `layout` has loaded: the row is retained, so it is heard on subscribing."""
+    settings(bus)
+    return Driver(bus)
+
+
 def test_a_grant_becomes_the_command_with_the_transit_split() -> None:
     """The whole of the driver: the qualified transit the grant states is the
     connection and the bare transit the command states, the train and the
@@ -63,7 +79,7 @@ def test_a_grant_becomes_the_command_with_the_transit_split() -> None:
     thing the driver does (ADR-0025)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
-    Driver(bus)
+    driving(bus)
 
     grant(bus, HONEST)
     assert seen == [COMMANDED]
@@ -87,7 +103,7 @@ def test_a_grant_that_cannot_be_read_commands_nothing() -> None:
     """
     bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
-    Driver(bus)
+    driving(bus)
 
     aspect = {"aspect": "clear"}
     unreadable: list[object] = [
@@ -118,7 +134,7 @@ def test_the_driver_holds_nothing_across_a_dropped_grant() -> None:
     including a repeat of one already commanded."""
     bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
-    Driver(bus)
+    driving(bus)
 
     grant(bus, HONEST)
     grant(bus, {"train": "express_2", "into": "up_e"})
@@ -140,7 +156,7 @@ def test_a_caution_grant_commands_the_slower_speed_a_clear_one_does_not() -> Non
     """
     bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
-    Driver(bus)
+    driving(bus)
 
     for aspect in ("clear", "caution"):
         grant(bus, {**HONEST, "aspect": aspect})
@@ -148,24 +164,78 @@ def test_a_caution_grant_commands_the_slower_speed_a_clear_one_does_not() -> Non
     assert seen == [COMMANDED, {**COMMANDED, "speed": 0.3}]
 
 
-def test_a_driver_given_another_mapping_commands_that_mappings_numbers() -> None:
-    """The mapping is a constructor argument and the module constant is only
-    its default: a railroad whose locomotives crawl under `caution`, or one
-    that signals a third aspect its dispatcher does not yet show, says so
-    where it builds the driver.
-
-    `SPEEDS` is what an unconfigured driver uses, asserted here rather than
-    trusted, so the default and the injection are one statement.
-    """
+def test_the_speeds_are_the_ones_state_settings_says() -> None:
+    """The railroad's speeds, said by `layout` on `state/settings` and set
+    from the Settings dialog, are what a grant is priced at: one at `clear`
+    moves at the row's `clear` and one at `caution` at its `caution`
+    (#1133)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
-    Driver(bus, {"clear": 0.75, "caution": 0.1})
+    Driver(bus)
+    settings(bus, {"clear": 0.5, "caution": 0.25})
 
     for aspect in ("clear", "caution"):
         grant(bus, {**HONEST, "aspect": aspect})
 
-    assert [command["speed"] for command in seen] == [0.75, 0.1]
-    assert dict(SPEEDS) == {"clear": 0.6, "caution": 0.3}
+    assert [command["speed"] for command in seen] == [0.5, 0.25]
+
+
+def test_a_grant_before_any_settings_are_heard_commands_nothing() -> None:
+    """With no row heard there are no speeds, and a grant the driver cannot
+    price is dropped as a `stop` is: a speed this component invented would be
+    authority nobody gave. On the railroad the row is retained from the
+    moment a railroad is loaded, before any grant can exist (#1133)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, MOVE)
+    Driver(bus)
+
+    grant(bus, HONEST)
+    assert seen == []
+
+    settings(bus)
+    grant(bus, HONEST)
+    assert seen == [COMMANDED]
+
+
+def test_a_changed_speed_applies_from_the_next_grant() -> None:
+    """A person setting `clear` to 0.4 changes what the next grant at `clear`
+    moves at; the `move` already sent is not sent again (#1133)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, MOVE)
+    driving(bus)
+    grant(bus, HONEST)
+
+    settings(bus, {"clear": 0.4, "caution": 0.3})
+    assert len(seen) == 1, "a changed speed commanded something by itself"
+    grant(bus, HONEST)
+
+    assert [command["speed"] for command in seen] == [0.6, 0.4]
+
+
+def test_a_row_whose_speeds_do_not_read_leaves_the_speeds_as_they_were() -> None:
+    """A row is read and not trusted (BUS.md, rule 4): one whose `speeds`
+    is missing, not an object, half a pair or out of `0` < x ≤ `1` is ignored,
+    and the speeds heard before stay (#1133)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, MOVE)
+    Driver(bus)
+    settings(bus, {"clear": 0.5, "caution": 0.25})
+
+    row = said(KeptSettings(), THROTTLE_SILENCE_S)
+    for bad in (
+        {**row, "speeds": {"clear": 1.5, "caution": 0.25}},
+        {**row, "speeds": {"clear": 0.5, "caution": 0}},
+        {**row, "speeds": {"clear": 0.5}},
+        {**row, "speeds": "fast"},
+        {key: value for key, value in row.items() if key != "speeds"},
+        "not a row",
+    ):
+        bus.publish(SETTINGS, cast(Payload, bad))
+        bus.drain()
+    for aspect in ("clear", "caution"):
+        grant(bus, {**HONEST, "aspect": aspect})
+
+    assert [command["speed"] for command in seen] == [0.5, 0.25]
 
 
 def test_an_aspect_the_mapping_does_not_carry_commands_nothing() -> None:
@@ -183,7 +253,7 @@ def test_an_aspect_the_mapping_does_not_carry_commands_nothing() -> None:
     """
     bus = InProcessBus(Clock())
     seen = collect(bus, MOVE)
-    Driver(bus)
+    driving(bus)
 
     for payload in (
         {**HONEST, "aspect": "stop"},
@@ -218,7 +288,7 @@ def test_the_driver_publishes_the_command_and_nothing_else() -> None:
     bus = InProcessBus(Clock())
     heard: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
-    Driver(bus)
+    driving(bus)
 
     grant(bus, HONEST)
     grant(bus, {**HONEST, "aspect": "caution"})
@@ -226,32 +296,7 @@ def test_the_driver_publishes_the_command_and_nothing_else() -> None:
     grant(bus, {**HONEST, "aspect": "stop"})  # no speed to command
     grant(bus, {**HONEST, "transit": "to_dn"})  # unqualified: no connection
 
-    assert [topic for topic in heard if topic != GRANTED] == [MOVE, MOVE]
-
-
-def test_a_deployment_that_says_nothing_runs_at_the_default_speeds() -> None:
-    """`clear` 0.6 and `caution` 0.3 of each locomotive's maximum (ADR-0079):
-    an environment naming neither variable, or exporting them empty, is the
-    default and not a failure to start."""
-    assert speeds({}) == SPEEDS
-    assert speeds({CLEAR_ENV: "", CAUTION_ENV: "  "}) == SPEEDS
-    assert dict(SPEEDS) == {"clear": 0.6, "caution": 0.3}
-
-
-def test_each_speed_is_overridden_by_its_own_variable() -> None:
-    """A railroad whose locomotives run too fast at 0.6 says so on the
-    driver's service, one variable per aspect, and the other keeps its
-    default."""
-    assert speeds({CLEAR_ENV: "0.8"}) == {"clear": 0.8, "caution": 0.3}
-    assert speeds({CAUTION_ENV: "0.15"}) == {"clear": 0.6, "caution": 0.15}
-    assert speeds({CLEAR_ENV: "1", CAUTION_ENV: "0"}) == {"clear": 1.0, "caution": 0.0}
-
-
-@pytest.mark.parametrize("variable", [CLEAR_ENV, CAUTION_ENV])
-@pytest.mark.parametrize("value", ["fast", "1.5", "-0.1", "nan", "inf", "0,5"])
-def test_a_bad_speed_is_refused_naming_its_variable(variable: str, value: str) -> None:
-    """A value outside 0.0 … 1.0, or not a number, stops the app at start:
-    a driver that guessed would run trains at a speed nobody configured, and
-    the message names the variable so the person knows which line to fix."""
-    with pytest.raises(ValueError, match=variable):
-        speeds({variable: value})
+    assert [topic for topic in heard if topic not in (GRANTED, SETTINGS)] == [
+        MOVE,
+        MOVE,
+    ]
