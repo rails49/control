@@ -101,7 +101,10 @@ the band's backup note on Backup
   `tc49/layout/settings_wanted` with the gap typed, and nothing where it is
   the gap the row already says; a gap outside `0`–`5`, or no number at all,
   is not sent and the tab says why (`gapChange`, `model/settings.ts`). The
-  field goes on showing the row, not the press.
+  field goes on showing the row, not the press, except that a refused commit
+  stays in it beside the reason, however often it is committed, until a
+  commit is not refused or the row says a different gap
+  ([#1137](https://github.com/rails49/control/issues/1137)).
 - **Driving** sets the driver's speeds
   ([#1134](https://github.com/rails49/control/issues/1134)): two fields,
   *Speed at clear* and *Speed at caution*, each in percent of the
@@ -116,7 +119,7 @@ the band's backup note on Backup
 
   Both tabs read as Points does: dead with the same hint until the row is
   heard, nothing sent for the value the row already says, and a value out of
-  range or no number not sent, the field saying why.
+  range or no number not sent, the field keeping it and saying why.
 - **Backup** is where the store is backed up and restored, drawn in the tab
   and not in a dialog of its own ([Backing the store up](#backing-the-store-up)).
 - **Shutdown** turns the box off (#745). It is there only where the
