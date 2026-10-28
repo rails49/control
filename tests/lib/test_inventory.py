@@ -52,6 +52,7 @@ RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 RAILROAD = "tc49/layout/state/railroad"
 CLOCK = "tc49/layout/state/clock"
 CLOCK_WANTED = "tc49/layout/clock_wanted"
+SETTINGS = "tc49/layout/state/settings"
 SETTINGS_WANTED = "tc49/layout/settings_wanted"
 TEXT = "tc49/ui/state/text"
 TOGGLE = "tc49/ui/state/toggle"
@@ -282,6 +283,13 @@ def test_a_person_sets_the_fast_clock_from_any_page() -> None:
     (ADR-0090, decision 2)."""
     assert TOPICS[CLOCK_WANTED].fields == ("time", "speed_up")
     assert CLOCK_WANTED in INBOUND
+
+
+def test_the_settings_row_says_the_gap_the_speeds_and_the_throttle_silence() -> None:
+    """Every field always present: the railroad's point gap and speeds, and
+    the installation's throttle silence (#1125, #1130)."""
+    assert TOPICS[SETTINGS].fields == (AT, "point_gap", "speeds", "throttle_silence")
+    assert SETTINGS not in INBOUND
 
 
 def test_a_person_sets_the_railroads_settings_from_any_page() -> None:

@@ -631,11 +631,14 @@ def test_no_silence_set_is_five_seconds(environ: dict[str, str]) -> None:
     assert silence(environ) == 5.0
 
 
-def test_a_silence_set_is_that_many_seconds() -> None:
-    assert silence({SILENCE_ENV: "8"}) == 8.0
+@pytest.mark.parametrize(("said", "seconds"), [("8", 8.0), ("2", 2.0), ("60", 60.0)])
+def test_a_silence_set_is_that_many_seconds(said: str, seconds: float) -> None:
+    """Anything from 2 to 60 seconds, the range `state/settings` says it in
+    (#1130)."""
+    assert silence({SILENCE_ENV: said}) == seconds
 
 
-@pytest.mark.parametrize("said", ["soon", "1", "-3", "nan"])
+@pytest.mark.parametrize("said", ["soon", "1", "1.5", "61", "-3", "nan", "inf"])
 def test_a_bad_silence_stops_the_app_at_start_naming_the_variable(
     said: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
