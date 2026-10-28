@@ -974,13 +974,22 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/state/allocation` — `trains`: map of train to standing
   block; `crossing`: map of crossing train to its transit; `locks`: map of
   resource to holding train; `requests`: list of
-  `{id, train, depart, dest, after, route}` in **list order**, the order the
+  `{id, train, depart, dest, after, route, refused, cancelling}` in **list order**, the order the
   dispatcher serves them
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),
   `after` *optional* — present where the request follows an earlier one,
   as on `request_submitted`; `route` *optional* — present once the route is
   committed, which is when the request has started; `depart` is `null` on a
-  request with `after` until the one it follows has arrived. Kept through a rebuild under the
+  request with `after` until the one it follows has arrived;
+  `refused` *optional* — `{reason, obstacles}` as the latest `grant_refused`
+  for the request carried them, at a launch or for the next move of one
+  underway, and gone once a launch or a move is granted it; `cancelling`
+  *optional* — the block the outstanding move enters, as `withdraw_wanted`
+  names it in `into`, from the `cancel_wanted` held for that move until the
+  request leaves the list. Both are here so a page that connects after the
+  event shows what one open at the time did
+  ([#1117](https://github.com/rails49/control/issues/1117)); the restart
+  reader ignores them. Kept through a rebuild under the
   same railroad name, then republished by the new build: each train is placed
   again where its block still exists and still holds it, and the run comes up
   held. Cleared when another railroad is loaded
