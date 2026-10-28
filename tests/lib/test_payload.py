@@ -47,6 +47,7 @@ from tc49.lib.payload import (
     placement,
     power,
     reported_reason,
+    said_speeds,
     shown_aspects,
     stamp,
     supply,
@@ -431,6 +432,41 @@ def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert wanted_settings(payload) is None, payload
+
+
+def test_the_settings_row_reads_as_the_speeds_it_says() -> None:
+    """`state/settings` says `clear` and `caution` beside the point gap and
+    the throttle silence, which the driver does not read (#1133)."""
+    row = {"at": 3.0, "point_gap": 0.5, "throttle_silence": 5.0}
+    assert said_speeds({**row, "speeds": {"clear": 0.5, "caution": 0.25}}) == {
+        "clear": 0.5,
+        "caution": 0.25,
+    }
+    assert said_speeds({"speeds": {"clear": 1, "caution": 0.01}}) == {
+        "clear": 1.0,
+        "caution": 0.01,
+    }
+
+
+def test_a_settings_row_whose_speeds_do_not_read_says_none() -> None:
+    """Both speeds, each above 0 and at most 1, or the row says no speeds at
+    all: half a pair is not a pair (#1133)."""
+    refused: list[object] = [
+        "not a row",
+        {},  # no speeds
+        {"point_gap": 0.5},
+        {"speeds": None},
+        {"speeds": 0.6},  # not an object
+        {"speeds": {"clear": 0.6}},  # one of the two
+        {"speeds": {"clear": 1.5, "caution": 0.3}},
+        {"speeds": {"clear": 0.6, "caution": 0}},
+        {"speeds": {"clear": 0.6, "caution": -0.3}},
+        {"speeds": {"clear": float("nan"), "caution": 0.3}},
+        {"speeds": {"clear": "0.6", "caution": 0.3}},
+        {"speeds": {"clear": True, "caution": 0.3}},
+    ]
+    for payload in refused:
+        assert said_speeds(payload) is None, payload
 
 
 def test_the_wanted_supply_reads_as_the_value_it_asks_for() -> None:

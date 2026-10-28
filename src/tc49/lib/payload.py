@@ -550,6 +550,27 @@ def _speeds(stated: object) -> dict[str, float] | None:
     return speeds
 
 
+def said_speeds(payload: object) -> dict[str, float] | None:
+    """The speeds `tc49/layout/state/settings` says, `clear` and `caution`,
+    or None where the row says no such pair: `speeds` missing or not an
+    object, either speed missing, or either not a `speed` (#1133). The row's
+    other fields are not the driver's to read, so nothing about them is
+    asked."""
+    if not isinstance(payload, dict):
+        return None
+    stated = cast(dict[str, object], payload).get("speeds")
+    if not isinstance(stated, dict):
+        return None
+    named = cast(dict[str, object], stated)
+    speeds: dict[str, float] = {}
+    for aspect in SPEEDS:
+        fraction = speed(named.get(aspect))
+        if fraction is None:
+            return None
+        speeds[aspect] = fraction
+    return speeds
+
+
 @dataclass(frozen=True)
 class Throttle:
     """The lever a person is holding: which train, and how fast.
