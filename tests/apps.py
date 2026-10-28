@@ -196,6 +196,7 @@ APPS = (
             "tc49/layout/state/railroad",
             "tc49/layout/state/power",
             "tc49/layout/state/clock",
+            "tc49/layout/state/settings",
         ),
     ),
 )
