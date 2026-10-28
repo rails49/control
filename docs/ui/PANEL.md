@@ -187,8 +187,20 @@ the rule exact against every railroad it holds, which is what the front end's
 cheaper copy rests on. Lit wires are emitted after unlit ones, as the artwork
 already emits lit legs last, so a crossing unlit wire cannot half hide one.
 
-**It lights in two colours**, keyed to what the dispatcher is doing:
+**It lights in three colours**, keyed to what the dispatcher is doing:
 
+- **Red**, the occupancy colour, on the transit a train is **crossing**, from
+  the grant of the move until the move ends
+  ([#1116](https://github.com/rails49/control/issues/1116)). Nothing detects
+  a train on a transit: between leaving one block and reading occupied in the
+  next it may be anywhere from inside the first to across the points, and a
+  short one can stand on the points with both blocks reading clear
+  ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)). The
+  dispatcher holds the transit as occupied all that time, and the picture
+  shows it: one red stretch from where the train stood to where it is going.
+  The page reads it off the picture's `crossing` and keeps it until the
+  dispatcher drops it there, when the move ends on both readings, not at the
+  arrival alone. The blocks either side keep following their detectors.
 - **Green** where the dispatcher holds a **lock**. The train may move here.
 - **Cyan** where the resource is on a committed route and is **not** locked.
   The route is chosen; the claim has not been made yet.
@@ -219,10 +231,11 @@ Three precedence rules, written down rather than left to the rendering order:
   occupancy colour and the route's green begins at the first block beyond the
   train. A standing train holds a lock too, so this is a choice rather than
   an oversight.
-- **Locked wins on a shared symbol.** A throat symbol carried by a locked
-  transit and a committed one at the same time shows the locked colour. That
-  overstates the committed route's leg on that symbol, which is the price of
-  never hiding the stronger claim behind the weaker.
+- **The strongest claim wins on a shared symbol.** A throat symbol or wire
+  carried by transits of different claims at the same time shows the
+  strongest: occupied over locked over committed. That overstates the weaker
+  transit's leg on that symbol, which is the price of never hiding the
+  stronger claim behind the weaker.
 - **Nothing is predicted.** A request with no committed route still renders
   as endpoints only.
 
@@ -233,7 +246,8 @@ dash's spacing would vary with a wire's angle, which is why track is never
 patterned. A throat has no block body, so it is the part of the route left
 with hue alone, and also the part where which way is locked matters most.
 
-Both colours are palette entries in `render/units.ts`. The pale ground a block
+Green and cyan are palette entries in `render/units.ts`; red is the
+`--wrong` an occupied block already wears. The pale ground a block
 body wears is mixed from its own stroke in the stylesheet rather than named a
 second time, so a colour and its wash cannot drift apart.
 
