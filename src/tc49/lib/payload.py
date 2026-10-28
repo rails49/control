@@ -155,6 +155,7 @@ from tc49.lib.inventory import (
     is_state_topic,
 )
 from tc49.lib.layout import Point
+from tc49.lib.settings import KeptSettings, point_gap
 
 
 @dataclass(frozen=True)
@@ -483,6 +484,18 @@ def wanted_clock(payload: object) -> ClockSet | None:
             return None
         speed_up = float(stated)
     return ClockSet(time, speed_up)
+
+
+def wanted_settings(payload: object) -> KeptSettings | None:
+    """The settings a `settings_wanted` gesture asks for, or None where it
+    asks for none: `point_gap` given and in range (`lib.settings`), or the
+    gesture is dropped whole (#1126)."""
+    if not isinstance(payload, dict):
+        return None
+    gap = point_gap(cast(dict[str, object], payload).get("point_gap"))
+    if gap is None:
+        return None
+    return KeptSettings(gap)
 
 
 @dataclass(frozen=True)
