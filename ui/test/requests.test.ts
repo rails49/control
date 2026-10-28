@@ -205,3 +205,145 @@ describe("the run view's request list", () => {
     ]);
   });
 });
+
+/** A note under a row that waits or stands: which train it waits for, as the
+ *  latest `grant_refused` the picture carries on the request named it
+ *  ([#1114](https://github.com/rails49/control/issues/1114)). */
+describe("a refused request's note", () => {
+  beforeEach(brokering);
+
+  afterEach(unbrokered);
+
+  /** `express` underway through `c`, `goods` waiting at `a`, `parked`
+   *  standing in `b` with no request, and `crosser` in the transit `sw.side`
+   *  having left `d`. */
+  const TRAINS = { express: "c", goods: "a", parked: "b", crosser: "d" };
+
+  /** A joined session whose picture lists `requests`. */
+  async function serving(requests: Listed[]): Promise<{ shell: TcApp; element: TcRequests }> {
+    const shell = await joined();
+    await picture(shell, requests);
+    const element = running(shell).renderRoot.querySelector("tc-requests")!;
+    return { shell, element };
+  }
+
+  async function picture(shell: TcApp, requests: Listed[]): Promise<void> {
+    await said(shell, ALLOCATION, {
+      trains: TRAINS,
+      crossing: { crosser: "sw.side" },
+      locks: { a: "goods", b: "parked", c: "express", "sw.side": "crosser" },
+      requests,
+    });
+    await settled(shell);
+  }
+
+  /** The note drawn under each row, a line per sentence, `null` where a row
+   *  has none. */
+  function notes(element: TcRequests): (string | null)[] {
+    return [...element.renderRoot.querySelectorAll("li")].map((row) => {
+      const lines = [...row.querySelectorAll(".note")].map((line) => line.textContent!.trim());
+      return lines.length === 0 ? null : lines.join(" / ");
+    });
+  }
+
+  const EXPRESS: Listed = {
+    id: "e1",
+    train: "express",
+    depart: "c.A",
+    dest: ["a.B"],
+    route: ["c", "sw.side", "a"],
+  };
+
+  function goods(obstacles: { resource: string; holder: string }[]): Listed {
+    return {
+      id: "g1",
+      train: "goods",
+      depart: "a.B",
+      dest: ["b.A"],
+      refused: { reason: "unsafe", obstacles },
+    };
+  }
+
+  it("says a holder with a request of its own is to pass", async () => {
+    const { element } = await serving([EXPRESS, goods([{ resource: "c", holder: "express" }])]);
+    expect(notes(element)).toEqual([null, "waits for express to pass"]);
+  });
+
+  it("tells a person to give a holder with no request one", async () => {
+    const { element } = await serving([goods([{ resource: "b", holder: "parked" }])]);
+    expect(notes(element)).toEqual(["waits for parked to leave b — give parked a request"]);
+  });
+
+  /** A train is left standing in a block, not in a transit. */
+  it("names the block a holder in a transit stands in", async () => {
+    const { element } = await serving([goods([{ resource: "sw.side", holder: "crosser" }])]);
+    expect(notes(element)).toEqual(["waits for crosser to leave d — give crosser a request"]);
+  });
+
+  it("says a block held by no train is to read clear", async () => {
+    const { element } = await serving([goods([{ resource: "b", holder: "" }])]);
+    expect(notes(element)).toEqual(["waits for b to read clear"]);
+  });
+
+  /** Any one of them moving may free a route. */
+  it("joins distinct holders of one kind with or", async () => {
+    const local: Listed = { id: "l1", train: "local", depart: "d.A", dest: ["b.B"] };
+    const { element } = await serving([
+      EXPRESS,
+      local,
+      goods([
+        { resource: "c", holder: "express" },
+        { resource: "d", holder: "local" },
+        { resource: "sw.side", holder: "express" },
+      ]),
+    ]);
+    expect(notes(element)).toEqual([null, null, "waits for express or local to pass"]);
+  });
+
+  it("gives holders of mixed kinds a sentence each", async () => {
+    const { element } = await serving([
+      EXPRESS,
+      goods([
+        { resource: "c", holder: "express" },
+        { resource: "b", holder: "parked" },
+      ]),
+    ]);
+    expect(notes(element)).toEqual([
+      null,
+      "waits for express to pass / waits for parked to leave b — give parked a request",
+    ]);
+  });
+
+  it("shows on an underway row, and goes with the next picture without it", async () => {
+    const standing: Listed = {
+      ...EXPRESS,
+      refused: { reason: "held", obstacles: [{ resource: "b", holder: "parked" }] },
+    };
+    const { shell, element } = await serving([standing]);
+    expect(notes(element)).toEqual(["waits for parked to leave b — give parked a request"]);
+    await picture(shell, [EXPRESS]);
+    expect(notes(element)).toEqual([null]);
+  });
+
+  it("goes with the row when the request completes", async () => {
+    const { shell, element } = await serving([goods([{ resource: "b", holder: "parked" }])]);
+    await said(shell, "tc49/dispatch/request_completed", { id: "g1" });
+    await settled(shell);
+    expect(notes(element)).toEqual([]);
+  });
+
+  it("goes with the row when the request is cancelled", async () => {
+    const { shell, element } = await serving([goods([{ resource: "b", holder: "parked" }])]);
+    await picture(shell, []);
+    expect(notes(element)).toEqual([]);
+  });
+
+  /** The note is in the retained picture, so a page opened after the refusal
+   *  shows it: the first picture this page has is the one that carries it. */
+  it("shows on the first picture a page has", async () => {
+    const { element } = await serving([goods([{ resource: "b", holder: "parked" }])]);
+    expect(element.requests.map((row) => row.note)).toEqual([
+      ["waits for parked to leave b — give parked a request"],
+    ]);
+  });
+});

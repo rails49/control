@@ -6,7 +6,8 @@ import { css } from "lit";
  *
  * It sits under the roster in the run view's left pane, so its width is the
  * shell's (`--pane`). A row is the train and its state on one line, where the
- * request goes from and to under them, and the cancel at the right. A waiting
+ * request goes from and to under them, which train it waits for under that
+ * where the dispatcher refused it one (#1114), and the cancel at the right. A waiting
  * row takes the grab cursor, being something to drag into another place; an
  * underway one takes none, having started.
  */
@@ -89,6 +90,13 @@ export const requestsStyles = css`
     grid-column: 1 / 3;
     font-size: 0.7rem;
     color: var(--hint);
+  }
+
+  /* Which train it waits for, a line per sentence, under from and to. */
+  .note {
+    grid-column: 1 / 3;
+    font-size: 0.7rem;
+    font-style: italic;
   }
 
   .hint {

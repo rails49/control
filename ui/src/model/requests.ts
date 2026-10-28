@@ -12,6 +12,11 @@
  * `reorder_wanted`): a request that has started cannot move, and a train's
  * chained request cannot come before the one it follows. Refused here, the
  * row goes back where it was rather than being sent and silently dropped.
+ *
+ * A request the dispatcher last refused a launch or a move carries a note:
+ * which train it waits for, and, where that train has no request of its own
+ * and so will never move, that a person has to give it one
+ * ([#1114](https://github.com/rails49/control/issues/1114)).
  */
 
 import type { EndRef } from "./panel.js";
@@ -26,6 +31,16 @@ export interface Listed {
   after?: string;
   /** Present once the request has started. */
   route?: string[];
+  /** The latest `grant_refused` since its last grant, where there is one. */
+  refused?: Refused;
+}
+
+/** Why a request waits, as `grant_refused` said it (BUS.md): the reason, and
+ *  each block or transit in the way with the train holding it, `""` for a
+ *  block that reads occupied with no train in it. */
+export interface Refused {
+  reason: string;
+  obstacles: { resource: string; holder: string }[];
 }
 
 /** One row of the request list. */
@@ -40,12 +55,21 @@ export interface RequestRow {
   state: "waiting" | "underway";
   /** The id of the request this one follows, on a chained request. */
   after?: string;
+  /** Which train the request waits for, a sentence per kind of holder, on
+   *  a request the dispatcher last refused. */
+  note?: string[];
 }
 
-/** The rows, one per request in list order. */
-export function requestRows(requests: readonly Listed[]): RequestRow[] {
+/** The rows, one per request in list order. `standsIn` is the block a train
+ *  holding `resource` is to leave: the resource itself where it is a block,
+ *  and where it is a transit the block the train stands in. */
+export function requestRows(
+  requests: readonly Listed[],
+  standsIn: (holder: string, resource: string) => string = (_, resource) => resource,
+): RequestRow[] {
   const byId = new Map(requests.map((request) => [request.id, request]));
-  return requests.map(({ id, train, depart, dest, after, route }) => ({
+  const listed = new Set(requests.map((request) => request.train));
+  return requests.map(({ id, train, depart, dest, after, route, refused }) => ({
     id,
     train,
     from:
@@ -57,7 +81,46 @@ export function requestRows(requests: readonly Listed[]): RequestRow[] {
     to: dest,
     state: route === undefined ? "waiting" : "underway",
     ...(after === undefined ? {} : { after }),
+    ...(refused === undefined || refused.obstacles.length === 0
+      ? {}
+      : { note: waitsFor(refused, listed, standsIn) }),
   }));
+}
+
+/**
+ * What a refused request waits for, a sentence per kind of holder, each
+ * distinct holder once and several of one kind joined with "or", since any
+ * one of them moving may free a route:
+ *
+ * - a train with a request of its own will pass by itself;
+ * - a train with none never moves, so a person has to give it a request;
+ * - a block held by no train waits for its detector to read clear.
+ */
+function waitsFor(
+  refused: Refused,
+  listed: ReadonlySet<string>,
+  standsIn: (holder: string, resource: string) => string,
+): string[] {
+  const passing = new Set<string>();
+  const parked = new Map<string, string>();
+  const clearing = new Set<string>();
+  for (const { resource, holder } of refused.obstacles) {
+    if (holder === "") clearing.add(resource);
+    else if (listed.has(holder)) passing.add(holder);
+    else if (!parked.has(holder)) parked.set(holder, standsIn(holder, resource));
+  }
+  const sentences: string[] = [];
+  if (passing.size > 0) sentences.push(`waits for ${or([...passing])} to pass`);
+  if (parked.size > 0) {
+    const leaving = [...parked].map(([holder, block]) => `${holder} to leave ${block}`);
+    sentences.push(`waits for ${or(leaving)} — give ${or([...parked.keys()])} a request`);
+  }
+  if (clearing.size > 0) sentences.push(`waits for ${or([...clearing])} to read clear`);
+  return sentences;
+}
+
+function or(words: readonly string[]): string {
+  return words.join(" or ");
 }
 
 /**

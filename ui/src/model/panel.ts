@@ -24,7 +24,7 @@ import type { Aspect, Reading } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
-import { requestRows, type RequestRow } from "./requests.js";
+import { requestRows, type Refused, type RequestRow } from "./requests.js";
 import type { Explained, Layout } from "./store.js";
 import {
   Ordering,
@@ -261,6 +261,9 @@ interface Request {
   phase: "requested" | "admitted" | "committed" | "rejected";
   reason?: string;
   route?: string[];
+  /** Why the dispatcher last refused it a launch or a move, as the picture
+   *  carries it until it is granted one (#1117). */
+  refused?: Refused;
 }
 
 /** A rejection reason spelled out, as the spec words them (#67). The last
@@ -300,6 +303,22 @@ function mapping(value: unknown): value is Record<string, unknown> {
 function spell(table: Partial<Record<Reason, string>>, reason: string): string {
   const wordings: Record<string, string | undefined> = table;
   return wordings[reason] ?? reason;
+}
+
+/** `refused` on a request in the picture, or nothing where it is absent or
+ *  cannot be read: a note is for a person, and one that cannot be read says
+ *  nothing rather than something wrong. */
+function readRefused(value: unknown): { refused: Refused } | null {
+  if (!mapping(value)) return null;
+  const { reason, obstacles } = value;
+  if (typeof reason !== "string" || !Array.isArray(obstacles)) return null;
+  const read = obstacles.filter(
+    (obstacle): obstacle is { resource: string; holder: string } =>
+      mapping(obstacle) &&
+      typeof obstacle.resource === "string" &&
+      typeof obstacle.holder === "string",
+  );
+  return { refused: { reason, obstacles: read.map(({ resource, holder }) => ({ resource, holder })) } };
 }
 
 /** A refused placement in words, by its reason, as the roster pane says it
@@ -645,6 +664,7 @@ export class Panel {
             dest: EndRef[];
             after?: string;
             route?: string[];
+            refused?: unknown;
           }[];
         };
         this.locks = new Map(Object.entries(locks));
@@ -669,10 +689,11 @@ export class Panel {
         );
         this.requests = new Map([
           ...refused,
-          ...requests.map((request): [string, Request] => [
+          ...requests.map(({ refused, ...request }): [string, Request] => [
             request.id,
             {
               ...request,
+              ...(readRefused(refused) ?? {}),
               // Which ends were pruned is an admission-time fact the
               // dispatcher does not keep, so it is in no picture and this
               // page's own copy is the only one there is. A client that
@@ -1444,6 +1465,10 @@ export class Panel {
       [...this.requests.values()].filter(
         (request) => request.phase === "admitted" || request.phase === "committed",
       ),
+      // A train is left standing in a block: one holding a transit is to
+      // leave the block it last stood in.
+      (holder, resource) =>
+        resource in this.layout.blocks ? resource : (this.stood.get(holder) ?? resource),
     );
   }
 

@@ -5,7 +5,9 @@
  * [#829](https://github.com/rails49/control/issues/829)).
  *
  * It sits under the roster in the run view's left pane. A row is the train,
- * where the request starts, where it ends, and `waiting` or `underway`.
+ * where the request starts, where it ends, and `waiting` or `underway`, and,
+ * under them, which train it waits for where the dispatcher refused it a
+ * launch or a move (#1114).
  *
  * It works nothing out. The rows arrive as data (`Panel.requestList`), and
  * what a drag asks is `model/requests.ts`'s answer: this says which row was
@@ -60,7 +62,7 @@ export class TcRequests extends LitElement {
   /** One request. A waiting row can be picked up; an underway one cannot,
    *  having started. Both can be cancelled. */
   private row(request: RequestRow) {
-    const { id, train, from, to, state } = request;
+    const { id, train, from, to, state, note } = request;
     const pickable = this.live && state === "waiting";
     return html`
       <li
@@ -75,6 +77,7 @@ export class TcRequests extends LitElement {
         <span class="train" title=${train}>${train}</span>
         <span class="state">${state}</span>
         <span class="way">${ends(from)} → ${ends(to)}</span>
+        ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
         ${this.live
           ? html`<button
               class="cancel"
