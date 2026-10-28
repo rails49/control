@@ -17,13 +17,19 @@ as `layout` reads it: the store says which railroad was loaded last
 (`/loaded`), this binding starts on that one — nothing on the command line
 names a railroad, and a box that records none stands — and each railroad it
 is built on is written back to the record before the build (ADR-0072,
-decision 5). **The drawing and the clock, and no roster**, where
+decision 5). **The drawing, the clock and the settings, and no roster**, where
 `layout` reads a roster as well: an address is what a roster answers with and
 this binding sends no command to anything, so the track alone is what it
 stands in for. The clock is the railroad's start time and speed-up,
 `layouts/<layout>.clock.yaml`, read and kept as `layout` reads and keeps it
 (`lib/clock_row.py`), and the fast clock it starts is said off the run clock
-(ADR-0090). Neither the drain
+(ADR-0090). The settings are read as `layout` reads them, the railroad's
+from `layouts/<layout>.settings.yaml` at each build and the installation's
+throttle silence from `installation.yaml` once as the app starts; it takes
+`tc49/layout/settings_wanted` by `layout`'s rule and keeps each change where
+`layout` keeps it, so the Settings dialog works on a simulated railroad as on
+steel. It keeps and says the point gap and the throttle silence and runs on
+neither, sending no point command and holding no throttle (#1140). Neither the drain
 period nor the two delays is a flag — nothing outside this process has an
 opinion about how often it takes what the broker's network thread left
 waiting, and what a transit costs is this binding's own stand-in for travel
@@ -80,13 +86,13 @@ import time
 from collections.abc import Callable, Sequence
 
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import Keeping, kept_by, loaded
+from tc49.lib.clock_row import Keeping, kept_by, loaded, silence
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
-from tc49.lib.settings import KeptSettings
+from tc49.lib.settings import KeptInstallation, KeptSettings
 from tc49.lib.startup import PERIOD_S, RETAINED_S, Alive, command_line, connected
 from tc49.simulator.sim import Simulator
 
@@ -155,7 +161,8 @@ def serve(
     """
     if not connected(bus, stop, log):
         return
-    binding = _Binding(bus, documents, stop, period_s, transit_s, clear_s, log)
+    quiet_s = silence(documents, log)
+    binding = _Binding(bus, documents, stop, period_s, transit_s, clear_s, quiet_s, log)
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
@@ -180,9 +187,11 @@ class _Binding:
         period_s: float,
         transit_s: float,
         clear_s: float,
+        throttle_silence_s: float,
         log: Callable[[str], None],
     ) -> None:
         self._bus = bus
+        self._throttle_silence_s = throttle_silence_s
         self._stop = stop
         self._period_s = period_s
         self._transit_s = transit_s
@@ -234,11 +243,21 @@ class _Binding:
         The fast clock is started as `layout` starts it, at the start time and
         speed-up the railroad keeps or at the box's time of day at 1, and run
         on the run clock from there; what a person sets is kept with the
-        railroad as `layout` keeps it (ADR-0090)."""
+        railroad as `layout` keeps it (ADR-0090).
+
+        The settings are taken on `settings_wanted` and kept as `layout`
+        keeps them, the railroad's with the railroad and the throttle
+        silence with the installation, the one every later build says
+        (#1140)."""
         layout, kept, settings = read
         clock = Clock()
 
         def keep(changed: KeptClock) -> None:
+            self._keeping.keep(layout.name, changed)
+
+        def keep_settings(changed: KeptSettings | KeptInstallation) -> None:
+            if isinstance(changed, KeptInstallation):
+                self._throttle_silence_s = changed.throttle_silence
             self._keeping.keep(layout.name, changed)
 
         fast = loaded(self._bus, kept, lambda: clock.now, time.localtime(), keep)
@@ -252,6 +271,8 @@ class _Binding:
             built=built,
             fast=fast,
             settings=settings,
+            throttle_silence_s=self._throttle_silence_s,
+            keep=keep_settings,
         )
         return _Running(simulator, self._alive, self._stop, self._period_s)
 

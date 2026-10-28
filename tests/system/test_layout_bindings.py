@@ -3,7 +3,8 @@
 `layout` drives steel and `simulator` stands in for it, and a client on the
 bus is not to tell which is running (ADR-0030, ADR-0070). Every case here runs
 against both, and reads what both expose: where each train stands
-(`position`), and what each says on `state/railroad` and `state/power`. What
+(`position`), and what each says on `state/railroad`, `state/power` and
+`state/settings`. What
 only one binding does — the layout's fold, align hold and traction writes, the
 simulator's sensor timing — stays in that binding's own suite.
 
@@ -23,6 +24,7 @@ import pytest
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import Payload
 from tc49.lib.clock import Clock
+from tc49.lib.settings import KeptSettings
 from tc49.simulator import Simulator
 from tests.layout.railroad import (
     DEVICE_TRACK,
@@ -32,6 +34,8 @@ from tests.layout.railroad import (
     POWER_WANTED,
     RAILROAD,
     REMOVED,
+    SETTINGS,
+    SETTINGS_WANTED,
     WANTED_TRACK,
     Unstamped,
     align,
@@ -84,7 +88,10 @@ class Simulated:
     def __init__(self, position: dict[str, str] | None = None) -> None:
         clock = Clock()
         self.bus = Unstamped(clock)
-        self._app = Simulator(self.bus, railroad(), clock, position)
+        # The gap `OnSteel` is built at, said and run on by nothing here.
+        self._app = Simulator(
+            self.bus, railroad(), clock, position, settings=KeptSettings(0.0)
+        )
         self.bus.drain()
 
     @property
@@ -368,3 +375,27 @@ def test_a_press_that_cannot_be_read_changes_nothing(
     binding.bus.publish(POWER_WANTED, payload)
     binding.bus.drain()
     assert power(binding) == "on"
+
+
+# -- the settings ------------------------------------------------------------
+
+
+def test_the_settings_a_person_sets_are_said_the_same(build: Build) -> None:
+    """A gesture taken, a field left out keeping its value, and one the
+    contract does not read dropped whole: both bindings say the same row
+    after each (#1140)."""
+    binding = build()
+    for wanted in [
+        {"speeds": {"clear": 0.5}},
+        {"point_gap": 1.0, "speeds": {"caution": 0.2}},
+        {"throttle_silence": 10},
+        {"speeds": {"clear": 0}},
+        {"point_gap": 2.0, "colour": "red"},
+    ]:
+        binding.bus.publish(SETTINGS_WANTED, wanted)
+        binding.bus.drain()
+    assert binding.bus.last_values[SETTINGS] == {
+        "point_gap": 1.0,
+        "speeds": {"clear": 0.5, "caution": 0.2},
+        "throttle_silence": 10.0,
+    }

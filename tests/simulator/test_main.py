@@ -30,6 +30,7 @@ from tc49.lib.bus import Payload
 from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
 from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
+from tc49.lib.settings import POINT_GAP_S, THROTTLE_SILENCE_S
 from tc49.simulator.__main__ import OWNED, serve
 from tc49.store import AssetStore
 from tc49.store.server import make_server
@@ -53,6 +54,8 @@ VACATED = "tc49/layout/block_vacated"
 PLACED = "tc49/dispatch/train_placed"
 ALIVE = "tc49/layout/alive_confirmed"
 POWER_WANTED = "tc49/layout/power_wanted"
+SETTINGS = "tc49/layout/state/settings"
+SETTINGS_WANTED = "tc49/layout/settings_wanted"
 
 TRANSIT_S = 0.05
 CLEAR_S = 0.1
@@ -366,3 +369,84 @@ def test_the_fast_clock_is_cleared_with_the_other_rows_it_owns() -> None:
     """A railroad loaded starts on a broker holding nothing of the last one
     (ADR-0060), the clock included: the next build starts it again."""
     assert CLOCK in OWNED
+
+
+def test_a_speed_a_person_sets_is_said_and_kept_with_the_railroad(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """`clear` alone, said at once and written beside the railroad's other
+    documents with `caution` and the gap as they were, as `layout` keeps it
+    (#1140)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    witness.publish(SETTINGS_WANTED, {"speeds": {"clear": 0.5}})
+    assert drained(
+        witness,
+        lambda: any(row["speeds"]["clear"] == 0.5 for row in rows(heard, SETTINGS)),
+    ), "the speed was never said"
+    path = root / "layouts" / f"{RAILROAD_NAME}.settings.yaml"
+    assert until(path.exists), "the speed was never kept"
+    assert AssetStore(root).settings(RAILROAD_NAME) == {
+        "point_gap": POINT_GAP_S,
+        "speeds": {"clear": 0.5, "caution": 0.3},
+    }
+    witness.close()
+
+
+def test_a_throttle_silence_a_person_sets_is_kept_and_said_by_the_next_simulator(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """Written to `installation.yaml`, and the one a simulator started
+    afterwards reads and says, as `layout` does (#1140)."""
+    store.start()
+    first = App(broker, store)
+    witness, heard = watching(broker)
+    try:
+        first.start()
+        assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings"
+        witness.publish(SETTINGS_WANTED, {"throttle_silence": 10})
+        path = root / "installation.yaml"
+        assert until(path.exists), "the silence was never kept"
+        assert AssetStore(root).installation() == {"throttle_silence": 10.0}
+        assert not (root / "layouts" / f"{RAILROAD_NAME}.settings.yaml").exists()
+    finally:
+        first.stop()
+        # The row the first one left would say 10 whatever the next one read.
+        witness.clear(SETTINGS)
+        settle(witness)
+        witness.close()
+
+    witness, heard = watching(broker)
+    second = App(broker, store)
+    try:
+        second.start()
+        assert drained(
+            witness,
+            lambda: any(
+                row.get("throttle_silence") == 10 for row in rows(heard, SETTINGS)
+            ),
+        ), "the next simulator never said the kept silence"
+    finally:
+        second.stop()
+        witness.close()
+
+
+def test_a_throttle_silence_the_store_cannot_read_is_the_default(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """Said, and run as none would be, as `layout` runs it (#1132)."""
+    (root / "installation.yaml").write_text("throttle_silence: 1\n")
+    store.start()
+    said: list[str] = []
+    app = App(broker, store, log=said.append)
+    witness, heard = watching(broker)
+    try:
+        app.start()
+        assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings"
+        assert rows(heard, SETTINGS)[0]["throttle_silence"] == THROTTLE_SILENCE_S
+        assert any("throttle silence is the default" in line for line in said)
+    finally:
+        app.stop()
+        witness.close()
