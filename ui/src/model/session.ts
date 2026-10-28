@@ -96,6 +96,10 @@ export interface RunStatus {
    *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
    *  [#602](https://github.com/rails49/control/issues/602)). */
   fault: string | null;
+  /** The lock table's rules the dispatcher says it found broken, each a
+   *  line of its own, empty where it says none is (ADR-0076, #1118). The
+   *  band shows each as a fault beside the supply's. */
+  broken: readonly string[];
   /** The trains the run has on the layout, by name. The stock screen marks
    *  their rows "on the layout" (ui/STOCK.md). */
   placed: readonly string[];
@@ -112,6 +116,7 @@ export const QUIET: RunStatus = {
   allocated: false,
   trouble: null,
   fault: null,
+  broken: [],
   placed: [],
 };
 
@@ -913,6 +918,7 @@ export class Session {
       // railroad this page is watching, as the supply's own reading is, and a
       // page that has left a session is being told nothing.
       fault: model?.fault ?? null,
+      broken: model?.broken() ?? [],
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
@@ -1005,11 +1011,12 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.allocated === now.allocated &&
     was.trouble === now.trouble &&
     was.fault === now.fault &&
+    same(was.broken, now.broken) &&
     same(was.placed, now.placed)
   );
 }
 
-/** Whether two lists of placed trains say the same thing. A list is built
+/** Whether two lists of names say the same thing. A list is built
  *  afresh on every frame. */
 function same(was: readonly string[], now: readonly string[]): boolean {
   return was.length === now.length && was.every((train, at) => train === now[at]);

@@ -355,6 +355,7 @@ describe("Ordering", () => {
     expect([...STATE_NAMES].sort()).toEqual([
       "allocation",
       "aspects",
+      "broken",
       "clock",
       "device/point",
       "device/sensor",

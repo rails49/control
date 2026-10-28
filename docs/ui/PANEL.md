@@ -980,6 +980,13 @@ ordered like every other state row — the row is named `device/track` the way
 the `wanted/track` that `layout` writes on a press (`model/trace.ts`,
 [ADR-0043](../adr/0043-the-layout-interface-is-a-core-app-and-hardware-hangs-under-it-by-address.md)).
 
+**Beside it, each lock-table rule the dispatcher found broken**, as
+`dispatcher: <rule>`, for as long as `tc49/dispatch/state/broken` lists it
+([#1118](https://github.com/rails49/control/issues/1118)). A broken rule is a
+bug, and the dispatcher drains the railroad on one
+([ADR-0076](../adr/0076-a-broken-lock-table-holds-the-run.md)); the chip is
+what tells that drain from a person's press or a trip.
+
 **The power toggle and the stop sign command power**, on
 `tc49/layout/power_wanted`
 ([ADR-0078](../adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md),

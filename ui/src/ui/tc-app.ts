@@ -444,6 +444,7 @@ export class TcApp extends LitElement {
    * whether it holds edits that could not be saved (`stranded`); then only
    * what a person would act on (#517) — what the app could not do, an
    * invalid drawing (its title the store's refusal), what the hardware says is wrong with the supply,
+   * each lock-table rule the dispatcher found broken (#1118),
    * and backup that is not running — and the fast clock (ADR-0090);
    * then the driving control, the last of the band's items, and track power;
    * then the gear, and look's Help after it (org ADR-0020, #873).
@@ -468,6 +469,7 @@ export class TcApp extends LitElement {
           ? nothing
           : chip("invalid drawing", this.filing.reviewed?.refused ?? "")}
         ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
+        ${this.status.broken.map((rule) => chip(`dispatcher: ${rule}`))}
         ${note === null
           ? nothing
           : html`<look-band-press
