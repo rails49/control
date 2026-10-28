@@ -275,9 +275,12 @@ drives with ([#207](https://github.com/rails49/control/issues/207),
 the railroad's driving mode, the
 track power a person commands
 ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md))
-and the railroad a person loads
-([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
-are eight of them, under `layout`, which is the component that responds to
+the railroad a person loads
+([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
+the fast clock and the railroad's settings a person sets
+([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md),
+[#1126](https://github.com/rails49/control/issues/1126))
+are nine of them, under `layout`, which is the component that responds to
 them. Beyond them, one state row carries the mark: a toggle's,
 `tc49/ui/state/toggle/<name>`, which a page writes when a person presses the
 toggle. It is rule 1's widget exception: concurrent pages do it no harm,
@@ -324,6 +327,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/settings` | state | layout | the railroad's settings, so far the point gap ([#1125](https://github.com/rails49/control/issues/1125)) |
+| `tc49/layout/settings_wanted` | event | any (browser) | set the railroad's settings, so far the point gap ([#1126](https://github.com/rails49/control/issues/1126)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -360,7 +364,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
+| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/settings_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
 | Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors, **and** `tc49/layout/state/clock` where it passes the fast clock to its hardware |
 | Trace tap | `tc49/#` |
 
@@ -803,17 +807,27 @@ what a drop would cost:
 - `tc49/layout/state/settings` — `point_gap`: number, seconds, `0` to `5`,
   the time `layout` waits after a point command before it sends the next
   point command or lets go the move waiting on it; `0` is no wait. `layout`
-  publishes it as a railroad is loaded, `0` until a person can change it, and
+  publishes it as a railroad is loaded, at the gap the railroad keeps in the
+  store, `layouts/<layout>.settings.yaml` ([LAYOUT.md](store/LAYOUT.md)), or
+  `0` where it keeps none; at once after it takes a `settings_wanted`; and
   none while it stands. Loading a railroad clears it with the other `layout`
   rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-  The page shows it in the Settings dialog's Points tab; no app reads it
+  The simulator does not publish it. The page shows it in the Settings
+  dialog's Points tab; no app reads it
   ([#1125](https://github.com/rails49/control/issues/1125)).
+- `tc49/layout/settings_wanted` — browser-writable — `point_gap`: number,
+  seconds, `0` to `5`. A payload without `point_gap`, or with a value out of
+  range, is dropped, as any malformed gesture is. Taken whatever track power
+  and the run are doing, and a changed gap needs no rebuild. `layout` uses it
+  from the next `align`, publishes `state/settings` at once and keeps it with
+  the railroad. The page publishes it from the Settings dialog's Points tab
+  ([#1126](https://github.com/rails49/control/issues/1126)).
 
 #### `schedule`
 
-The fifteen browser-writable rows — the two here, the five under `dispatch`
-and the eight under `layout` above — are where rule 4 bites hardest: each
+The fifteen browser-writable rows — the two here, the four under `dispatch`
+and the nine under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,

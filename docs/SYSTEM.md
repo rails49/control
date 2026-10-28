@@ -140,12 +140,14 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /scripts/<railroad>    create or replace it
     GET  /clocks/<railroad>     the start time and speed-up that railroad keeps
     PUT  /clocks/<railroad>     create or replace them
-    POST /railroads/<from>/copy its drawing, roster, script and clock under
-                                the name `{"to": …}` gives; 409 where that
-                                is taken
-    DELETE /railroads/<name>    its drawing, roster, script, clock and
-                                scenarios; 409 where it is loaded, or where
-                                the backup made first fails
+    GET  /settings/<railroad>   the settings that railroad keeps
+    PUT  /settings/<railroad>   create or replace them
+    POST /railroads/<from>/copy its drawing, roster, script, clock and
+                                settings under the name `{"to": …}` gives;
+                                409 where that is taken
+    DELETE /railroads/<name>    its drawing, roster, script, clock, settings
+                                and scenarios; 409 where it is loaded, or
+                                where the backup made first fails
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /backup                what backup can do here, what it needs, the
@@ -1141,8 +1143,12 @@ block it left reads vacated, in either order ([ADR-0097](adr/0097-a-reported-poi
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
 loaded, so far only the **point gap**: how long it waits after a point command
-before the next one or the move waiting on it. It is `0`, no wait, and nothing
-yet waits on it ([#1125](https://github.com/rails49/control/issues/1125),
+before the next one or the move waiting on it. A person sets it with
+`settings_wanted`, taken at any power and with no rebuild, said at once, and
+kept with the railroad in `layouts/<layout>.settings.yaml`. A railroad that
+keeps none is loaded at `0`, no wait, and nothing yet waits on it
+([#1125](https://github.com/rails49/control/issues/1125),
+[#1126](https://github.com/rails49/control/issues/1126),
 [#1127](https://github.com/rails49/control/issues/1127)).
 
 A second obligation guards against a stale command: the layout interface
