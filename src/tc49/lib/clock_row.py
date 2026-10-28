@@ -17,6 +17,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
 from tc49.lib.payload import wanted_clock
+from tc49.lib.settings import KeptSettings
 
 CLOCK = "tc49/layout/state/clock"
 """The fast clock, said at the beat `alive_confirmed` is (ADR-0090)."""
@@ -28,24 +29,28 @@ CLOCK_WANTED = "tc49/layout/clock_wanted"
 
 class Keeping:
     """A railroad's clock written to the store on a thread of its own, in the
-    order it was set (ADR-0090, decision 3).
+    order it was set (ADR-0090, decision 3), and its settings beside it, the
+    one other thing `layout` writes when a person sets it (#1126).
 
     `Documents` waits for a store that does not answer, as it does for the
     loaded-railroad record; on the loop's thread that wait would hold up
     `alive_confirmed`, and something off the box cuts track power when that
     stops (#716). Setting the clock is not worth a dark railroad. The thread
-    starts at the first clock set and is a daemon: one still waiting when the
+    starts at the first thing set and is a daemon: one still waiting when the
     app stops loses that setting, as a store that never comes back would.
     """
 
     def __init__(self, documents: Documents, log: Callable[[str], None]) -> None:
         self._documents = documents
         self._log = log
-        self._waiting: queue.SimpleQueue[tuple[str, KeptClock]] = queue.SimpleQueue()
+        self._waiting: queue.SimpleQueue[tuple[str, KeptClock | KeptSettings]] = (
+            queue.SimpleQueue()
+        )
         self._thread: threading.Thread | None = None
 
-    def keep(self, railroad: str, kept: KeptClock) -> None:
-        """Write `kept` as `railroad`'s clock, after any set before it."""
+    def keep(self, railroad: str, kept: KeptClock | KeptSettings) -> None:
+        """Write `kept` as `railroad`'s clock or settings, after anything set
+        before it."""
         if self._thread is None:
             self._thread = threading.Thread(
                 target=self._write, name="clock-keeping", daemon=True
@@ -57,9 +62,13 @@ class Keeping:
         while True:
             railroad, kept = self._waiting.get()
             try:
-                self._documents.put_clock(railroad, kept)
+                if isinstance(kept, KeptClock):
+                    self._documents.put_clock(railroad, kept)
+                else:
+                    self._documents.put_settings(railroad, kept)
             except (OSError, ValueError, TypeError) as refused:
-                self._log(f"'{railroad}': the clock was not kept: {refused}")
+                what = "clock was" if isinstance(kept, KeptClock) else "settings were"
+                self._log(f"'{railroad}': the {what} not kept: {refused}")
 
 
 class FastClockRow:

@@ -58,6 +58,11 @@ at once rather than at the next beat, and kept with the railroad
 store that does not answer is waited for, and the loop it would hold up is
 the one that says `alive_confirmed`.
 
+The railroad's settings, so far its point gap, go the same way: read at each
+build from `layouts/<layout>.settings.yaml`, the defaults where it keeps none
+or keeps some the store cannot read, set with `tc49/layout/settings_wanted`
+and written by the same thread (#1126).
+
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
 nowhere else, the steel keeping its own time (ADR-0009, ADR-0047), and the
@@ -89,6 +94,7 @@ from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
+from tc49.lib.settings import POINT_GAP_S, KeptSettings
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 
 CLIENT_ID = "tc49-layout"
@@ -205,9 +211,9 @@ def serve(
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
-type _Read = tuple[Layout, Roster, KeptClock | None]
-"""What a railroad is built from: its layout, its stock, and the clock it
-keeps, None where it keeps none."""
+type _Read = tuple[Layout, Roster, KeptClock | None, KeptSettings | None]
+"""What a railroad is built from: its layout, its stock, and the clock and
+the settings it keeps, each None where it keeps none."""
 
 
 class _Binding:
@@ -236,26 +242,39 @@ class _Binding:
 
     def read(self, railroad: str) -> _Read:
         """What the interface is built from: the railroad's topology and the
-        stock that runs on it, and the clock it keeps."""
+        stock that runs on it, and the clock and the settings it keeps."""
         return (
             self._documents.layout(railroad),
             self._documents.roster(railroad),
             self._kept(railroad),
+            self._settings(railroad),
         )
 
     def nothing(self, railroad: str) -> _Read:
         """What this app runs on where `railroad`'s drawing is not a valid
         drawing and there is no build to keep: no block and no train under
         its name, so the row names it and the power is still answered
-        (ADR-0085, decision 4). Its clock is the railroad's all the same."""
+        (ADR-0085, decision 4). Its clock and its settings are the railroad's
+        all the same."""
         return (
             Layout(railroad, {}, {}, frozenset(), {}),
             Roster(railroad, {}),
             self._kept(railroad),
+            self._settings(railroad),
         )
 
     def _kept(self, railroad: str) -> KeptClock | None:
         return kept_by(self._documents, railroad, self._log)
+
+    def _settings(self, railroad: str) -> KeptSettings | None:
+        """The settings `railroad` keeps, or None. Ones the store cannot read
+        are said and loaded as none would be, at the defaults: a setting is
+        no reason not to build a railroad (#1126)."""
+        try:
+            return self._documents.settings(railroad)
+        except (ValueError, TypeError) as refused:
+            self._log(f"'{railroad}': {refused} — the settings are the defaults")
+            return None
 
     def layout(self, read: _Read) -> Layout:
         return read[0]
@@ -267,10 +286,16 @@ class _Binding:
         the box's time of day at a speed-up of 1, which is not written until
         a person sets the clock. The interface can read the railroad's
         roster again, once, for a placement or a take naming a train it was
-        not built with (ADR-0092, decision 2)."""
+        not built with (ADR-0092, decision 2). It starts at the settings
+        the railroad keeps, the defaults where it keeps none, and a person's
+        change to them is kept with the railroad (#1126)."""
         retained(self._bus, self._stop)
-        layout, roster, kept = read
+        layout, roster, kept, settings = read
         clock = Clock()
+
+        def keep_settings(changed: KeptSettings) -> None:
+            self._keeping.keep(layout.name, changed)
+
         app = LayoutInterface(
             self._bus,
             layout,
@@ -280,6 +305,8 @@ class _Binding:
             position=position,
             built=built,
             reread=reread_roster(self._documents, layout.name, self._log),
+            point_gap=POINT_GAP_S if settings is None else settings.point_gap,
+            keep=keep_settings,
         )
 
         def keep(changed: KeptClock) -> None:

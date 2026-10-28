@@ -16,9 +16,10 @@ becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
 **Everything the bus hands it is read and never trusted** (BUS.md, rule 4).
-Fourteen topics from six publishers — the detectors joining them with the fold
-(#288), the throttle's four gestures and the driving mode coming from where
-a person's press already does (#297, ADR-0079, #849), the moving row a
+Fifteen topics from six publishers — the detectors joining them with the fold
+(#288), the throttle's four gestures, the driving mode and the railroad's
+settings coming from where a person's press already does (#297, ADR-0079,
+#849, #1126), the moving row a
 drain ends on (ADR-0078), and the dispatcher asking for a move back (#1068) —
 and the function rows it writes, read back (below). It answers none of them
 but that ask — it reports observations — so a frame that cannot be read is
@@ -226,12 +227,14 @@ from tc49.lib.payload import (
     supply,
     wanted_driving,
     wanted_function,
+    wanted_settings,
     wanted_take,
     wanted_throttle,
     withdrawal,
 )
 from tc49.lib.power import TrackPower
 from tc49.lib.roster import FORWARD, MOMENTARY, Roster
+from tc49.lib.settings import POINT_GAP_S, KeptSettings
 
 _log = logging.getLogger(__name__)
 
@@ -245,6 +248,7 @@ TAKE_WANTED = "tc49/layout/take_wanted"
 THROTTLE_ALIVE = "tc49/layout/throttle_alive"
 THROTTLE_WANTED = "tc49/layout/throttle_wanted"
 FUNCTION_WANTED = "tc49/layout/function_wanted"
+SETTINGS_WANTED = "tc49/layout/settings_wanted"
 PLACED = "tc49/dispatch/train_placed"
 REMOVED = "tc49/dispatch/train_removed"
 ASPECTS = "tc49/dispatch/state/aspects"
@@ -290,13 +294,6 @@ its own (`TC49_LAYOUT_THROTTLE_SILENCE`, docs/DEPLOY.md), and the default of
 the constructor argument that carries it. A throttle says `throttle_alive`
 once a second, so this is five of them missed: a phone gone to sleep, a page
 closed, a network gone (ADR-0079)."""
-
-POINT_GAP_S = 0.0
-"""How long this app waits after a point command before it sends the next
-one or lets go the move waiting on it, in seconds, by default: `0`, no wait,
-which is what it does today. Said on `tc49/layout/state/settings` as the
-railroad is loaded, so every open page shows the gap a person can change
-(#1125)."""
 
 
 @dataclass(frozen=True)
@@ -402,6 +399,7 @@ class LayoutInterface:
         built: bool = True,
         reread: Callable[[], Roster | None] | None = None,
         point_gap: float = POINT_GAP_S,
+        keep: Callable[[KeptSettings], None] | None = None,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -450,8 +448,15 @@ class LayoutInterface:
         last build being on the store's roster and nowhere else. The simulator
         binding passes none.
 
-        `point_gap`: the wait after a point command, `POINT_GAP_S` by
-        default, said on `tc49/layout/state/settings` (#1125).
+        `point_gap`: the wait after a point command, the one the railroad
+        keeps or `lib.settings.POINT_GAP_S`, no wait, where it keeps none:
+        said on `tc49/layout/state/settings` (#1125), and changed by a
+        person on `tc49/layout/settings_wanted` (#1126).
+
+        `keep`: where a changed setting is kept with the railroad, handed
+        the settings as they now stand. `__main__` writes them to the store
+        off the loop's thread; None keeps them nowhere, which is the
+        simulator binding's and a test's.
         """
         self._bus = bus
         self._layout = layout
@@ -460,6 +465,8 @@ class LayoutInterface:
         self._clock = clock
         self._settling_s = settling_s
         self._throttle_silence_s = throttle_silence_s
+        self._settings = KeptSettings(point_gap)
+        self._keep = keep
         # Where each train stands, which is the whole of the near-end check,
         # and which way each one points, which is half of the traction write's
         # sign. The one is this app's own record and the other is read off the
@@ -565,6 +572,7 @@ class LayoutInterface:
         bus.subscribe(THROTTLE_ALIVE, self._on_throttle_alive)
         bus.subscribe(THROTTLE_WANTED, self._on_throttle_wanted)
         bus.subscribe(FUNCTION_WANTED, self._on_function_wanted)
+        bus.subscribe(SETTINGS_WANTED, self._on_settings_wanted)
         bus.subscribe(PLACED, self._on_placed)
         bus.subscribe(REMOVED, self._on_removed)
         # Which railroad this is, said before anything is said about it. One
@@ -614,7 +622,7 @@ class LayoutInterface:
         # The railroad's settings, retained so that every open page shows
         # what a person can change, and said with each build: a loaded
         # railroad starts on a broker cleared of the last one's (#1125).
-        bus.publish(SETTINGS, {"point_gap": point_gap})
+        bus.publish(SETTINGS, self._settings.document())
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
@@ -622,6 +630,12 @@ class LayoutInterface:
         bus.subscribe(WANTED_FUNCTION + "/#", self._on_function_row)
 
     # -- live state, for the tests ------------------------------------------
+
+    @property
+    def point_gap(self) -> float:
+        """The wait after a point command, in seconds, as a person last set
+        it or the railroad was loaded with (#1126)."""
+        return self._settings.point_gap
 
     @property
     def position(self) -> dict[str, str]:
@@ -1172,6 +1186,21 @@ class LayoutInterface:
         for train in {crossing.train for crossing in self._crossing.values()}:
             if train not in self._taken and self._outstanding(train) is not None:
                 self._take_up(train)
+
+    def _on_settings_wanted(self, topic: str, payload: Payload) -> None:
+        """A person set the railroad's settings from the Settings dialog
+        (#1126): taken whatever track power and the run are doing, used from
+        the next `align`, said at once on `state/settings` so every open
+        page shows it, and kept with the railroad. Nothing is rebuilt. A
+        gesture with no `point_gap`, or one out of range, is dropped as any
+        malformed gesture is (ADR-0034)."""
+        wanted = wanted_settings(payload)
+        if wanted is None:
+            return
+        self._settings = wanted
+        self._bus.publish(SETTINGS, wanted.document())
+        if self._keep is not None:
+            self._keep(wanted)
 
     def _on_take_wanted(self, topic: str, payload: Payload) -> None:
         """A throttle took a train, or the train was released (ADR-0079).

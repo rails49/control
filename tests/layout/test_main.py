@@ -42,6 +42,7 @@ from tc49.layout.interface import (
     POWER_WANTED,
     RAILROAD,
     SETTINGS,
+    SETTINGS_WANTED,
     TAKE_WANTED,
     TAKEN,
     WANTED_TRACK,
@@ -474,6 +475,53 @@ def test_a_layout_built_on_a_railroad_takes_the_clock_a_person_sets(
     ), "the clock was never set"
     said = next(row for row in rows(heard, CLOCK) if row["speed_up"] == 8)
     assert 8 * 3600 <= said["time"] < 8 * 3600 + 8 * 2
+    witness.close()
+
+
+def test_a_railroad_is_loaded_at_the_settings_it_keeps(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Not the defaults (#1126)."""
+    (root / "layouts" / f"{NAME}.settings.yaml").write_text("point_gap: 2.5\n")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    assert rows(heard, SETTINGS)[0]["point_gap"] == 2.5
+    witness.close()
+
+
+def test_settings_the_store_cannot_read_are_the_defaults(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """A setting is no reason not to build a railroad (#1126)."""
+    (root / "layouts" / f"{NAME}.settings.yaml").write_text("point_gap: 9\n")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    assert rows(heard, SETTINGS)[0]["point_gap"] == 0
+    witness.close()
+
+
+def test_the_settings_a_person_sets_are_said_and_kept_with_the_railroad(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Said at once to every page, and written beside the railroad's other
+    documents with no rebuild (#1126)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    witness.publish(SETTINGS_WANTED, {"point_gap": 1.5})
+    assert drained(
+        witness, lambda: any(row["point_gap"] == 1.5 for row in rows(heard, SETTINGS))
+    ), "the settings were never said"
+    path = root / "layouts" / f"{NAME}.settings.yaml"
+    assert until(
+        lambda: path.exists() and "1.5" in path.read_text()
+    ), "the settings were never kept"
+    assert AssetStore(root).settings(NAME) == {"point_gap": 1.5}
     witness.close()
 
 

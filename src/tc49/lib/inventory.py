@@ -137,6 +137,10 @@ TOPICS: dict[str, Topic] = {
     # point command before the next one or the move waiting on it; 0 is no
     # wait.
     "tc49/layout/state/settings": Topic((AT, "point_gap")),
+    # A person sets the railroad's settings from the Settings dialog, so far
+    # the point gap (#1126). Taken whatever track power and the run are
+    # doing, and a changed gap needs no rebuild.
+    "tc49/layout/settings_wanted": Topic(("point_gap",), browser=True),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
