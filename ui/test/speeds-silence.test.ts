@@ -123,6 +123,23 @@ describe("the Driving and Box tabs", () => {
     expect(hints(dialog, "driving")).toContain("the speed at clear is from 1 to 100 percent");
   });
 
+  it.each([
+    ["driving", "clear", "101", "the speed at clear is from 1 to 100 percent"],
+    ["driving", "caution", "101", "the speed at caution is from 1 to 100 percent"],
+    ["box", "silence", "1", "how long a throttle may go silent is from 2 to 60 seconds"],
+  ])(
+    "keep a refused %s %s in the field with the reason, however often it is committed",
+    async (tab, which, typed, reason) => {
+      const { shell, dialog } = await heard();
+      for (const _ of [1, 2]) {
+        await committed(shell, dialog, tab, which, typed);
+        expect(field(dialog, tab, which).value).toBe(typed);
+        expect(hints(dialog, tab)).toContain(reason);
+      }
+      expect(written()).toEqual([]);
+    },
+  );
+
   it("drop a field's reason once it sends, keeping the other's", async () => {
     const { shell, dialog } = await heard();
     await committed(shell, dialog, "driving", "clear", "0");
