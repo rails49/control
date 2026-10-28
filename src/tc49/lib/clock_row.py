@@ -17,7 +17,11 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
 from tc49.lib.payload import wanted_clock
-from tc49.lib.settings import KeptSettings
+from tc49.lib.settings import KeptInstallation, KeptSettings
+
+type Kept = KeptClock | KeptSettings | KeptInstallation
+"""What `Keeping` writes: a railroad's clock or settings, or the
+installation's settings."""
 
 CLOCK = "tc49/layout/state/clock"
 """The fast clock, said at the beat `alive_confirmed` is (ADR-0090)."""
@@ -29,8 +33,9 @@ CLOCK_WANTED = "tc49/layout/clock_wanted"
 
 class Keeping:
     """A railroad's clock written to the store on a thread of its own, in the
-    order it was set (ADR-0090, decision 3), and its settings beside it, the
-    one other thing `layout` writes when a person sets it (#1126).
+    order it was set (ADR-0090, decision 3), and its settings beside it and
+    the installation's, the other things `layout` writes when a person sets
+    them (#1126, #1132).
 
     `Documents` waits for a store that does not answer, as it does for the
     loaded-railroad record; on the loop's thread that wait would hold up
@@ -43,14 +48,13 @@ class Keeping:
     def __init__(self, documents: Documents, log: Callable[[str], None]) -> None:
         self._documents = documents
         self._log = log
-        self._waiting: queue.SimpleQueue[tuple[str, KeptClock | KeptSettings]] = (
-            queue.SimpleQueue()
-        )
+        self._waiting: queue.SimpleQueue[tuple[str, Kept]] = queue.SimpleQueue()
         self._thread: threading.Thread | None = None
 
-    def keep(self, railroad: str, kept: KeptClock | KeptSettings) -> None:
-        """Write `kept` as `railroad`'s clock or settings, after anything set
-        before it."""
+    def keep(self, railroad: str, kept: Kept) -> None:
+        """Write `kept` as `railroad`'s clock or settings, or as the
+        installation's settings whatever railroad is loaded, after anything
+        set before it."""
         if self._thread is None:
             self._thread = threading.Thread(
                 target=self._write, name="clock-keeping", daemon=True
@@ -64,9 +68,14 @@ class Keeping:
             try:
                 if isinstance(kept, KeptClock):
                     self._documents.put_clock(railroad, kept)
-                else:
+                elif isinstance(kept, KeptSettings):
                     self._documents.put_settings(railroad, kept)
+                else:
+                    self._documents.put_installation(kept)
             except (OSError, ValueError, TypeError) as refused:
+                if isinstance(kept, KeptInstallation):
+                    self._log(f"the installation's settings were not kept: {refused}")
+                    continue
                 what = "clock was" if isinstance(kept, KeptClock) else "settings were"
                 self._log(f"'{railroad}': the {what} not kept: {refused}")
 

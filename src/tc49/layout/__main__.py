@@ -14,9 +14,11 @@ about how often it takes what the broker's network thread left waiting, and
 what a settling time is worth is a fact about the detectors a railroad has,
 which is `LayoutInterface`'s argument and the suite's to drive (ADR-0030).
 How long a throttle may go silent before its trains are let go of is not a
-flag either: a container is configured by its environment, so it is
-`TC49_LAYOUT_THROTTLE_SILENCE` on the layout's service (docs/DEPLOY.md), read
-once here, and a bad one stops the app before it looks for a broker.
+flag either: it is the installation's, whatever railroad is loaded, kept in
+`installation.yaml` at the store root and read once as the app starts, before
+any railroad is loaded (#1132). An installation that keeps none, or keeps one
+the store cannot read, runs at the default and says so; a person sets it
+from the Settings dialog, and it holds across every railroad loaded after.
 
 The startup order is `lib/startup.py`'s, and the steps from the store's
 record to the rows cleared on a move are `rebuilding`'s, the loop both
@@ -58,10 +60,11 @@ at once rather than at the next beat, and kept with the railroad
 store that does not answer is waited for, and the loop it would hold up is
 the one that says `alive_confirmed`.
 
-The railroad's settings, so far its point gap, go the same way: read at each
-build from `layouts/<layout>.settings.yaml`, the defaults where it keeps none
-or keeps some the store cannot read, set with `tc49/layout/settings_wanted`
-and written by the same thread (#1126).
+The railroad's settings, its point gap and the driver's speeds, go the same
+way: read at each build from `layouts/<layout>.settings.yaml`, the defaults
+where it keeps none or keeps some the store cannot read, set with
+`tc49/layout/settings_wanted` and written by the same thread (#1126, #1132),
+which writes the installation's throttle silence too.
 
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
@@ -71,12 +74,11 @@ wall time in the binding (ADR-0059, decision 1).
 """
 
 import contextlib
-import os
 import signal
 import sys
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
@@ -93,13 +95,7 @@ from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
-from tc49.lib.settings import (
-    POINT_GAP_S,
-    THROTTLE_SILENCE_MAX_S,
-    THROTTLE_SILENCE_MIN_S,
-    KeptSettings,
-    throttle_silence,
-)
+from tc49.lib.settings import KeptInstallation, KeptSettings
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 
 CLIENT_ID = "tc49-layout"
@@ -143,36 +139,17 @@ the app is built on it. A filter and not a topic: a row exists for each
 address a previous process wrote to, and this app holds no list of which."""
 
 
-SILENCE_ENV = "TC49_LAYOUT_THROTTLE_SILENCE"
-"""The environment variable on the layout's service that overrides how long a
-throttle holding a train may go unheard, in seconds (docs/DEPLOY.md)."""
-
-
-def silence(environ: Mapping[str, str]) -> float:
-    """`THROTTLE_SILENCE_S`, or whatever the deployment's environment says.
-
-    Unset, or empty or blank, is no value at all and leaves the default, so
-    that compose passing an unset variable through as `""` means the same
-    thing as not passing it. A number of seconds from
-    `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S`, 2 to 60, the range
-    `state/settings` says it in (#1130), is that many seconds. Anything else
-    raises `ValueError` naming the variable: the app stops at start rather
-    than letting go of trains on a silence nobody configured, and the person
-    reading why knows which line of the env file to fix.
-    """
-    said = environ.get(SILENCE_ENV, "").strip()
-    if not said:
-        return THROTTLE_SILENCE_S
+def silence(documents: Documents, log: Callable[[str], None]) -> float:
+    """The throttle silence the installation keeps, in seconds, or
+    `THROTTLE_SILENCE_S` where it keeps none. One the store cannot read is
+    said and run as none would be, as a railroad's clock is: a setting is no
+    reason not to come up (#1132)."""
     try:
-        seconds = throttle_silence(float(said))
-    except ValueError:
-        seconds = None
-    if seconds is None:
-        raise ValueError(
-            f"{SILENCE_ENV} is {said!r}, not a number of seconds"
-            f" from {THROTTLE_SILENCE_MIN_S:g} to {THROTTLE_SILENCE_MAX_S:g}"
-        )
-    return seconds
+        kept = documents.installation()
+    except (ValueError, TypeError) as refused:
+        log(f"{refused} — the throttle silence is the default")
+        return THROTTLE_SILENCE_S
+    return THROTTLE_SILENCE_S if kept is None else kept.throttle_silence
 
 
 def to_stderr(line: str) -> None:
@@ -188,7 +165,6 @@ def serve(
     stop: threading.Event,
     period_s: float = PERIOD_S,
     log: Callable[[str], None] = to_stderr,
-    throttle_silence_s: float = THROTTLE_SILENCE_S,
 ) -> None:
     """The app: the broker, then the rebuild loop both layout bindings run
     (`lib/loading.py`, ADR-0086), handed this one's `_Binding`.
@@ -201,13 +177,19 @@ def serve(
     `railroad` is where this app starts **where the store records nothing**
     (`Answering.recorded`), read once the broker is there.
 
+    The installation's throttle silence is read before that, once: it is the
+    same whatever railroad is loaded, and a person setting it changes it for
+    every build after (#1132).
+
     The desired rows go with the railroad that is left — a speed for a
     locomotive the new railroad does not have, a position for a point it
     does not have, and nothing would ever republish either (`OWNED`).
     """
     if not connected(bus, stop, log):
         return
-    binding = _Binding(bus, documents, stop, period_s, throttle_silence_s, log)
+    quiet_s = silence(documents, log)
+    log(f"a throttle silent for {quiet_s:g}s lets go of its trains")
+    binding = _Binding(bus, documents, stop, period_s, quiet_s, log)
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
@@ -288,12 +270,16 @@ class _Binding:
         roster again, once, for a placement or a take naming a train it was
         not built with (ADR-0092, decision 2). It starts at the settings
         the railroad keeps, the defaults where it keeps none, and a person's
-        change to them is kept with the railroad (#1126)."""
+        change to them is kept with the railroad (#1126). A throttle silence
+        a person sets is kept with the installation and is the one every
+        later build starts at (#1132)."""
         retained(self._bus, self._stop)
         layout, roster, kept, settings = read
         clock = Clock()
 
-        def keep_settings(changed: KeptSettings) -> None:
+        def keep_settings(changed: KeptSettings | KeptInstallation) -> None:
+            if isinstance(changed, KeptInstallation):
+                self._throttle_silence_s = changed.throttle_silence
             self._keeping.keep(layout.name, changed)
 
         app = LayoutInterface(
@@ -305,8 +291,9 @@ class _Binding:
             position=position,
             built=built,
             reread=reread_roster(self._documents, layout.name, self._log),
-            point_gap=POINT_GAP_S if settings is None else settings.point_gap,
+            point_gap=(settings or KeptSettings()).point_gap,
             keep=keep_settings,
+            speeds=(settings or KeptSettings()).speeds,
         )
 
         def keep(changed: KeptClock) -> None:
@@ -405,16 +392,11 @@ def main() -> None:
         host, port = address(args.broker)
     except ValueError as refused:
         parser.error(str(refused))
-    try:
-        quiet_s = silence(os.environ)
-    except ValueError as refused:
-        parser.error(str(refused))
     # A signal is what ends this app, and SIGTERM is the one a container is
     # stopped with: given SIGINT's own handler it raises where the process
     # stands, so a wait for a store that never comes up ends on it too.
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     to_stderr(f"broker {host}:{port}, store {args.store}")
-    to_stderr(f"a throttle silent for {quiet_s}s lets go of its trains")
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
@@ -423,7 +405,6 @@ def main() -> None:
                 Documents(args.store),
                 NO_RAILROAD,
                 threading.Event(),
-                throttle_silence_s=quiet_s,
             )
     finally:
         bus.close()

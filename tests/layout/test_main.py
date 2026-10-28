@@ -24,14 +24,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tc49.layout.__main__ import (
-    OWNED,
-    SILENCE_ENV,
-    main,
-    retained,
-    serve,
-    silence,
-)
+from tc49.layout.__main__ import OWNED, retained, serve
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
@@ -53,7 +46,7 @@ from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
 from tc49.lib.documents import Documents
 from tc49.lib.loading import BUILT, RAILROAD_WANTED
 from tc49.lib.mqtt import MqttBus
-from tc49.lib.settings import POINT_GAP_S
+from tc49.lib.settings import POINT_GAP_S, SPEEDS, THROTTLE_SILENCE_S
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
@@ -535,7 +528,124 @@ def test_the_settings_a_person_sets_are_said_and_kept_with_the_railroad(
     assert until(
         lambda: path.exists() and "1.5" in path.read_text()
     ), "the settings were never kept"
-    assert AssetStore(root).settings(NAME) == {"point_gap": 1.5}
+    assert AssetStore(root).settings(NAME) == {"point_gap": 1.5, "speeds": SPEEDS}
+    witness.close()
+
+
+def test_a_railroad_and_installation_keeping_no_settings_say_the_defaults(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """`clear` 0.6, `caution` 0.3 and five seconds, and neither document
+    written until somebody sets one (#1132)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    said = rows(heard, SETTINGS)[0]
+    assert said["speeds"] == {"clear": 0.6, "caution": 0.3}
+    assert said["throttle_silence"] == THROTTLE_SILENCE_S == 5.0
+    assert not (root / "installation.yaml").exists()
+    witness.close()
+
+
+def test_a_railroad_is_loaded_at_the_speeds_it_keeps(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    (root / "layouts" / f"{NAME}.settings.yaml").write_text(
+        "point_gap: 1\nspeeds: {clear: 0.7, caution: 0.25}\n"
+    )
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    assert rows(heard, SETTINGS)[0]["speeds"] == {"clear": 0.7, "caution": 0.25}
+    witness.close()
+
+
+def test_a_speed_a_person_sets_is_kept_beside_what_they_did_not_set(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """`caution` alone: the railroad's document says it, with `clear` and the
+    gap as they were, and every page is told at once (#1132)."""
+    (root / "layouts" / f"{NAME}.settings.yaml").write_text("point_gap: 2.5\n")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    witness.publish(SETTINGS_WANTED, {"speeds": {"caution": 0.2}})
+    assert drained(
+        witness,
+        lambda: any(row["speeds"]["caution"] == 0.2 for row in rows(heard, SETTINGS)),
+    ), "the speed was never said"
+    path = root / "layouts" / f"{NAME}.settings.yaml"
+    assert until(lambda: "0.2" in path.read_text()), "the speed was never kept"
+    assert AssetStore(root).settings(NAME) == {
+        "point_gap": 2.5,
+        "speeds": {"clear": 0.6, "caution": 0.2},
+    }
+    witness.close()
+
+
+def test_the_app_starts_at_the_throttle_silence_the_installation_keeps(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    (root / "installation.yaml").write_text("throttle_silence: 12\n")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    assert rows(heard, SETTINGS)[0]["throttle_silence"] == 12.0
+    witness.close()
+
+
+def test_a_throttle_silence_the_store_cannot_read_is_the_default(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """Said, and run as none would be: a setting is no reason not to come up
+    (#1132)."""
+    (root / "installation.yaml").write_text("throttle_silence: 1\n")
+    store.start()
+    said: list[str] = []
+    app = App(broker, store, log=said.append)
+    witness, heard = watching(broker)
+    try:
+        app.start()
+        assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+        assert rows(heard, SETTINGS)[0]["throttle_silence"] == THROTTLE_SILENCE_S
+        assert any("throttle silence is the default" in line for line in said)
+    finally:
+        app.stop()
+        witness.close()
+
+
+def test_a_throttle_silence_a_person_sets_is_kept_and_outlives_a_load(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Written to `installation.yaml`, said at once, and the one the next
+    railroad loaded starts at: it is the installation's, not the railroad's
+    (#1132)."""
+    drawn(root, "facing-pair")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
+    witness.publish(SETTINGS_WANTED, {"throttle_silence": 10})
+    assert drained(
+        witness,
+        lambda: any(row["throttle_silence"] == 10 for row in rows(heard, SETTINGS)),
+    ), "the silence was never said"
+    path = root / "installation.yaml"
+    assert until(path.exists), "the silence was never kept"
+    assert AssetStore(root).installation() == {"throttle_silence": 10.0}
+    assert not (root / "layouts" / f"{NAME}.settings.yaml").exists()
+
+    witness.publish(RAILROAD_WANTED, {"railroad": "facing-pair"})
+    assert drained(
+        witness,
+        lambda: rows(heard, RAILROAD)[-1].get("name") == "facing-pair"
+        and len(rows(heard, SETTINGS)) >= 3,
+    ), "the other railroad was never loaded"
+    assert rows(heard, SETTINGS)[-1]["throttle_silence"] == 10.0
     witness.close()
 
 
@@ -622,37 +732,3 @@ def test_a_saved_drawing_that_does_not_derive_names_the_railroad_not_built(
     assert rebuilt["at"] != unbuilt["at"]
     hand.close()
     witness.close()
-
-
-@pytest.mark.parametrize("environ", [{}, {SILENCE_ENV: ""}, {SILENCE_ENV: "  "}])
-def test_no_silence_set_is_five_seconds(environ: dict[str, str]) -> None:
-    """Compose passes an unset variable through as `""`, which means the same
-    as not passing it."""
-    assert silence(environ) == 5.0
-
-
-@pytest.mark.parametrize(("said", "seconds"), [("8", 8.0), ("2", 2.0), ("60", 60.0)])
-def test_a_silence_set_is_that_many_seconds(said: str, seconds: float) -> None:
-    """Anything from 2 to 60 seconds, the range `state/settings` says it in
-    (#1130)."""
-    assert silence({SILENCE_ENV: said}) == seconds
-
-
-@pytest.mark.parametrize("said", ["soon", "1", "1.5", "61", "-3", "nan", "inf"])
-def test_a_bad_silence_stops_the_app_at_start_naming_the_variable(
-    said: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A silence the deployment got wrong is said once, at start, and the app
-    exits rather than looking for a broker: a second or less would release a
-    train between two of its throttle's `throttle_alive`, and a container in a
-    restart loop whose log names the variable is a line of the env file to
-    fix."""
-    monkeypatch.setenv(SILENCE_ENV, said)
-    monkeypatch.setattr(
-        "sys.argv",
-        ["tc49.layout", "--broker", "localhost:1", "--store", "http://localhost:1"],
-    )
-    with pytest.raises(SystemExit) as stopped:
-        main()
-    assert stopped.value.code != 0
-    assert SILENCE_ENV in capsys.readouterr().err
