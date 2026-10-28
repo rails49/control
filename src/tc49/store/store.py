@@ -33,6 +33,11 @@ clock is loaded at, `layouts/<railroad>.clock.yaml`, written by the layout
 binding when a person sets the clock (ADR-0090, decision 3). Its shape is
 `tc49.lib.fast_clock`'s, which `layout` reads it with.
 
+The **settings** are the railroad's as well, so far only its point gap,
+`layouts/<railroad>.settings.yaml`, written by the layout binding when a person
+sets them (#1126). Their shape is `tc49.lib.settings`'s, which `layout` reads
+them with.
+
 The **catalogue** is the installation's and belongs to no railroad, a model
 being what a product is (ADR-0045); a roster is read against it, since a car
 names a model and is complete only once merged onto one. Both stock documents
@@ -60,6 +65,7 @@ from tc49.lib.layout import (
 )
 from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
+from tc49.lib.settings import kept_settings
 from tc49.store import yamlfile
 from tc49.store.drawing import Drawing
 
@@ -313,16 +319,35 @@ class AssetStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(yaml.safe_dump(doc, sort_keys=False))
 
+    def settings(self, name: str) -> dict[str, Any]:
+        """One railroad's settings document (#1126), checked and answered as
+        written. A railroad with no settings file raises
+        `FileNotFoundError`: one that keeps none is loaded at the defaults,
+        which `layout` holds and this store does not."""
+        doc = self._read(self._settings_path(name))
+        kept_settings(doc)
+        return cast(dict[str, Any], doc)
+
+    def put_settings(self, doc: dict[str, Any], name: str) -> None:
+        """Create or replace one railroad's settings, checked before anything
+        is written, and dumped as the clock is: the layout binding writes
+        them and nobody's prose is in them."""
+        kept_settings(doc)
+        path = self._settings_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(doc, sort_keys=False))
+
     def copy(self, source: str, to: str) -> None:
         """Copy railroad `source`'s documents under the name `to`: its drawing,
-        and its roster, its script and its clock where it has them, each
-        drawing and roster naming itself `to` (ADR-0072, ADR-0090).
+        and its roster, its script, its clock and its settings where it has
+        them, each drawing and roster naming itself `to` (ADR-0072,
+        ADR-0090, #1126).
 
         Every document is read and validated before anything is written, so a
         refusal leaves the store as it was. A `source` with no drawing raises
-        `FileNotFoundError`, and a `to` any of whose four files exists raises
-        `FileExistsError` — a roster, a script or a clock alone is somebody's
-        railroad already, and a copy laid over it would mix two.
+        `FileNotFoundError`, and a `to` any of whose five files exists raises
+        `FileExistsError` — a roster, a script, a clock or settings alone is
+        somebody's railroad already, and a copy laid over it would mix two.
 
         Scenarios are the harness's and the catalogue is every railroad's, so
         neither is copied. Each document's file is taken as it is before the
@@ -335,11 +360,15 @@ class AssetStore:
         )
         script = self.script(source) if self._script_path(source).exists() else None
         clock = self.clock(source) if self._clock_path(source).exists() else None
+        settings = (
+            self.settings(source) if self._settings_path(source).exists() else None
+        )
         taken = (
             self._drawing_path(to),
             self._roster_path(to),
             self._script_path(to),
             self._clock_path(to),
+            self._settings_path(to),
         )
         if any(path.exists() for path in taken):
             raise FileExistsError(f"'{to}' is already a railroad")
@@ -352,10 +381,13 @@ class AssetStore:
             self.put_script(script, to)
         if clock is not None:
             self.put_clock(clock, to)
+        if settings is not None:
+            self.put_settings(settings, to)
 
     def delete_railroad(self, name: str) -> None:
         """Delete railroad `name`: its drawing, and its roster, its script,
-        its clock and its scenarios where it has them (#1073).
+        its clock, its settings and its scenarios where it has them (#1073,
+        #1126).
 
         A `name` with no drawing raises `FileNotFoundError` and deletes
         nothing — a roster or a script alone is not a railroad this deletes.
@@ -370,6 +402,7 @@ class AssetStore:
             self._roster_path(name),
             self._script_path(name),
             self._clock_path(name),
+            self._settings_path(name),
         ):
             path.unlink(missing_ok=True)
         scenarios = self._scenario_path(f"{name}/").parent
@@ -601,6 +634,9 @@ class AssetStore:
 
     def _clock_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.clock.yaml"
+
+    def _settings_path(self, name: str) -> Path:
+        return self._root / "layouts" / f"{name}.settings.yaml"
 
     def _scenario_path(self, name: str) -> Path:
         layout, _, scenario = name.partition("/")

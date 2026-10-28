@@ -199,6 +199,8 @@ def document(path: str) -> str:
             return f"{name.removesuffix('.script.py')} script"
         if name.endswith(".clock.yaml"):
             return f"{name.removesuffix('.clock.yaml')} clock"
+        if name.endswith(".settings.yaml"):
+            return f"{name.removesuffix('.settings.yaml')} settings"
     if path.startswith("catalogue/"):
         name = path.removeprefix("catalogue/")
         if name.endswith(".yaml"):
