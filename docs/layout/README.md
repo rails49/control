@@ -85,7 +85,7 @@ for the next load to overwrite.
 **How long a throttle may go silent is not a flag.** A container is configured
 by its environment, so it is `TC49_LAYOUT_THROTTLE_SILENCE` on the layout's
 service, read once at start: unset or empty is 5 s, a number of seconds
-greater than 1 is that, and anything else stops the app before it looks for a
+from 2 to 60 is that, and anything else stops the app before it looks for a
 broker, the log naming the variable ([DEPLOY.md](../DEPLOY.md#a-silent-throttle)).
 
 The broker before the documents, because a railroad the store has not got is

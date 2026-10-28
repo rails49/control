@@ -405,8 +405,8 @@ One variable on the layout's service overrides it, set in
 TC49_LAYOUT_THROTTLE_SILENCE=8
 ```
 
-It is a number of seconds greater than 1, a throttle saying it is there once
-a second. Left unset, or empty, it keeps the default. Anything else stops
+It is a number of seconds from 2 to 60, a throttle saying it is there once
+a second, and the range `tc49/layout/state/settings` says it in. Left unset, or empty, it keeps the default. Anything else stops
 `layout` at start with a log line naming the variable, and the container
 restarts on the same error until the file is fixed:
 `docker compose … logs layout` shows it.

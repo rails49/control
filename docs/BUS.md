@@ -326,7 +326,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
-| `tc49/layout/state/settings` | state | layout | the railroad's settings, so far the point gap ([#1125](https://github.com/rails49/control/issues/1125)) |
+| `tc49/layout/state/settings` | state | layout | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130)) |
 | `tc49/layout/settings_wanted` | event | any (browser) | set the railroad's settings, so far the point gap ([#1126](https://github.com/rails49/control/issues/1126)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
@@ -804,17 +804,31 @@ what a drop would cost:
   `wanted/function` row it knows of changes: its own writes, and the retained
   rows a bus that outlived it hands back at start, so a light a decoder still
   has on shows on after a restart. An unreadable row is skipped.
-- `tc49/layout/state/settings` — `point_gap`: number, seconds, `0` to `5`,
-  the time `layout` waits after a point command before it sends the next
-  point command or lets go the move waiting on it; `0` is no wait. `layout`
-  publishes it as a railroad is loaded, at the gap the railroad keeps in the
-  store, `layouts/<layout>.settings.yaml` ([LAYOUT.md](store/LAYOUT.md)), or
-  `0.5` where it keeps none; at once after it takes a `settings_wanted`; and
-  none while it stands. Loading a railroad clears it with the other `layout`
+- `tc49/layout/state/settings` — every field always present, a value nobody
+  has set being its default:
+  - `point_gap`: number, seconds, `0` to `5`, the time `layout` waits after
+    a point command before it sends the next point command or lets go the
+    move waiting on it; `0` is no wait. The gap the railroad keeps in the
+    store, `layouts/<layout>.settings.yaml` ([LAYOUT.md](store/LAYOUT.md)),
+    or `0.5` where it keeps none.
+  - `speeds`: object, the railroad's: `clear` and `caution`, each a fraction
+    of the locomotive's maximum, greater than `0` and at most `1`. So far
+    nobody sets them, so they are `clear` 0.6 and `caution` 0.3
+    ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+  - `throttle_silence`: number, seconds, `2` to `60`, how long a throttle
+    holding a train may go unheard before `layout` lets go of its trains.
+    The installation's, `TC49_LAYOUT_THROTTLE_SILENCE` or 5
+    ([DEPLOY.md](DEPLOY.md#a-silent-throttle)): it does not change with the
+    railroad, though like the rest it is on the row only while one is
+    loaded ([#1130](https://github.com/rails49/control/issues/1130)).
+
+  `layout` publishes it as a railroad is loaded; at once after it takes a
+  `settings_wanted`; and none while it stands. Loading a railroad clears it with the other `layout`
   rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-  The simulator does not publish it. The page shows it in the Settings
-  dialog's Points tab; no app reads it, `layout` holding the gap it says
+  The simulator does not publish it. The page shows the gap in the Settings
+  dialog's Points tab; no app reads it yet, `layout` holding the gap and
+  the silence it says
   ([#1125](https://github.com/rails49/control/issues/1125),
   [#1127](https://github.com/rails49/control/issues/1127)).
 - `tc49/layout/settings_wanted` — browser-writable — `point_gap`: number,
