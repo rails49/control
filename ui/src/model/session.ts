@@ -85,7 +85,8 @@ export interface RunStatus {
    *  pick (#902); a railroad not built has no dispatcher on it and never
    *  reads `true`. */
   allocated: boolean;
-  /** What a session refused, or the store not answering. Never a fault of the
+  /** What a session refused, the store or the broker not answering, or an
+   *  app behind the broker gone quiet (#1113). Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
   /** What the hardware says is wrong with the supply, in its own words,
@@ -219,6 +220,29 @@ export const HELD = 1000;
  *  ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)). */
 export const ALIVE_MS = 1000;
 
+/** The apps the page expects while the loaded railroad is built, each by
+ *  the topic it says it is up on, once a second, and by what the band calls
+ *  it. The simulator says `layout`'s in its place (BUS.md, #1113). */
+export const APPS: ReadonlyMap<string, string> = new Map([
+  ["tc49/layout/alive_confirmed", "the layout interface"],
+  ["tc49/schedule/scheduler_alive_confirmed", "the scheduler"],
+  ["tc49/dispatch/dispatcher_alive_confirmed", "the dispatcher"],
+  ["tc49/drive/driver_alive_confirmed", "the driver"],
+]);
+
+/** How long an app may go unheard before the band names it: three of its
+ *  once-a-second beats (#1113). */
+export const QUIET_MS = 3000;
+
+/** What the band says of the apps in `apps` that have gone quiet, in the
+ *  order `APPS` lists them. Every gesture sent to one of them is lost, an
+ *  event the broker does not keep, and this is what says why (#1113). */
+export function silent(apps: readonly string[]): string {
+  if (apps.length === 1) return `${apps[0]} is not answering`;
+  const last = apps[apps.length - 1];
+  return `${apps.slice(0, -1).join(", ")} and ${last} are not answering`;
+}
+
 /** A throttle id: a random string the page mints when it opens, naming the
  *  throttle that holds a train (BUS.md, `take_wanted`). From
  *  `getRandomValues` and not `randomUUID`, which a page served over plain
@@ -310,6 +334,16 @@ export class Session {
   /** The timer saying `throttle_alive`, `null` while no throttle of this
    *  page holds a train. */
   private alive: ReturnType<typeof setInterval> | null = null;
+  /** Whether the page is judging the apps: connected, with a railroad named
+   *  and built. With none loaded, or one not built, the apps say nothing and
+   *  the band already says what is wrong (#1113). */
+  private judging = false;
+  /** The timer of each app in `APPS`, by its topic, that names it once it
+   *  has gone `QUIET_MS` unheard, restarted each time it is heard. Empty
+   *  while the page judges none. */
+  private readonly quiet = new Map<string, ReturnType<typeof setTimeout>>();
+  /** The topics of the apps gone quiet, until each is heard again. */
+  private readonly missing = new Set<string>();
   /** This page's throttle ids, by the panel slot each was minted for, in
    *  the order they were minted (`throttleFor`). */
   private readonly throttles = new Map<number, string>();
@@ -493,6 +527,10 @@ export class Session {
 
   private heard(topic: string, payload: string): void {
     if (this.live === null) return;
+    if (APPS.has(topic)) {
+      this.answered(topic);
+      return;
+    }
     if (topic.startsWith(WIDGET_PREFIX)) {
       this.widgetRow(topic, payload);
       return;
@@ -551,6 +589,52 @@ export class Session {
     else rows.set(topic, payload);
     this.widgetRows = rows;
     this.hooks.notify();
+  }
+
+  /** An app said it is up: its timer starts again, and the band stops
+   *  naming it if it did. Nothing while the page judges no app. */
+  private answered(topic: string): void {
+    if (!this.judging) return;
+    this.listen(topic);
+    if (this.missing.delete(topic)) this.changed();
+  }
+
+  /** `topic`'s app given `QUIET_MS` from now to be heard. */
+  private listen(topic: string): void {
+    clearTimeout(this.quiet.get(topic));
+    this.quiet.set(
+      topic,
+      setTimeout(() => {
+        this.quiet.delete(topic);
+        this.missing.add(topic);
+        this.changed();
+      }, QUIET_MS),
+    );
+  }
+
+  /**
+   * Whether to judge the apps, brought up to date: connected, with the row
+   * naming a railroad that was built (#1113). Turning on gives every app
+   * `QUIET_MS` from now, one never heard since the page connected included:
+   * an app that is not running never says anything. Turning off forgets
+   * every timer and every app named.
+   */
+  private judge(): void {
+    const judging = this.connected && this.session !== null && !this.unbuilt;
+    if (judging === this.judging) return;
+    this.judging = judging;
+    for (const timer of this.quiet.values()) clearTimeout(timer);
+    this.quiet.clear();
+    this.missing.clear();
+    if (judging) for (const topic of APPS.keys()) this.listen(topic);
+  }
+
+  /** What the band says is wrong: the broker not answering, before any app
+   *  behind it, and otherwise each app gone quiet. */
+  private get troubled(): string | null {
+    if (this.trouble !== null || this.missing.size === 0) return this.trouble;
+    const names = [...APPS].filter(([topic]) => this.missing.has(topic));
+    return silent(names.map(([, name]) => name));
   }
 
   /** One event applied to the model. */
@@ -811,6 +895,7 @@ export class Session {
    *  object on a frame that changed nothing would redraw the whole page on
    *  every event the bus carries. */
   private settle(): void {
+    this.judge();
     const joined = this.session !== null;
     const model = joined ? this.panel : null;
     const power = joined ? (model?.power ?? this.supplied) : null;
@@ -823,7 +908,7 @@ export class Session {
       driving: model?.driving ?? null,
       built: !this.unbuilt,
       allocated: joined && this.allocated,
-      trouble: this.trouble,
+      trouble: this.troubled,
       // Nothing, with no session joined: it is the hardware's report on the
       // railroad this page is watching, as the supply's own reading is, and a
       // page that has left a session is being told nothing.

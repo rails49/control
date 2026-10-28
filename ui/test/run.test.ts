@@ -21,7 +21,7 @@ import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
 import { photoUrl, RETRY_MS, type Explained, type Layout } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
-import { brokerAt, gone } from "../src/model/session.js";
+import { APPS, brokerAt, gone } from "../src/model/session.js";
 import { VIEWS } from "../src/model/views.js";
 import {
   band,
@@ -262,6 +262,9 @@ describe("reading a roster the store would not answer for", () => {
 
       store.answering = true;
       await vi.advanceTimersByTimeAsync(RETRY_MS);
+      // The apps behind the broker are running, and say so (#1113): what
+      // the band would name otherwise is them, not the store.
+      for (const topic of APPS.keys()) Broker.last!.says(topic, {});
       await settled(shell);
 
       expect(store.reads).toBe(2);

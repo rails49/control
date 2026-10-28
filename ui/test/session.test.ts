@@ -15,7 +15,16 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ALIVE_MS, HELD, Session, type Client } from "../src/model/session.js";
+import {
+  ALIVE_MS,
+  APPS,
+  gone,
+  HELD,
+  QUIET_MS,
+  Session,
+  silent,
+  type Client,
+} from "../src/model/session.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
 
 const URL = "ws://localhost:5173/mqtt";
@@ -813,5 +822,95 @@ describe("the allocation since the row", () => {
 
     expect(stood.session.panel).toBeNull();
     expect(stood.session.status.allocated).toBe(true);
+  });
+});
+
+/** Every app on the bus says once a second that it is up, and the band names
+ *  one the page has not heard for 3 s (#1113): every gesture sent to an app
+ *  that is down is lost, and this is what says why. */
+describe("an app gone quiet", () => {
+  const [LAYOUT_UP, SCHEDULER_UP, DISPATCHER_UP, DRIVER_UP] = [...APPS.keys()];
+  const THREE = [LAYOUT_UP!, SCHEDULER_UP!, DISPATCHER_UP!];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Three of the four, heard once a second. */
+  function beating(stood: Stood, seconds: number, apps = THREE): void {
+    for (let second = 0; second < seconds; second += 1) {
+      for (const topic of apps) stood.broker.says(topic, {});
+      vi.advanceTimersByTime(1000);
+    }
+  }
+
+  it("names the one it has not heard after 3 s, and clears it once heard", () => {
+    const stood = joined();
+
+    beating(stood, 2);
+    expect(stood.session.status.trouble).toBeNull();
+    beating(stood, 1);
+    expect(stood.session.status.trouble).toBe("the driver is not answering");
+
+    beating(stood, 2);
+    expect(stood.session.status.trouble).toBe("the driver is not answering");
+
+    stood.broker.says(DRIVER_UP!, {});
+    expect(stood.session.status.trouble).toBeNull();
+    beating(stood, 2, [...APPS.keys()]);
+    expect(stood.session.status.trouble).toBeNull();
+  });
+
+  it("names each one gone quiet, in one sentence", () => {
+    const stood = joined();
+
+    beating(stood, 3, [LAYOUT_UP!, DISPATCHER_UP!]);
+
+    expect(stood.session.status.trouble).toBe(
+      "the scheduler and the driver are not answering",
+    );
+    expect(silent(["the layout interface", "the scheduler", "the driver"])).toBe(
+      "the layout interface, the scheduler and the driver are not answering",
+    );
+  });
+
+  it("names no app with no railroad loaded", () => {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "" });
+    stood.broker.opens();
+
+    vi.advanceTimersByTime(10_000);
+
+    expect(stood.session.status.trouble).toBeNull();
+  });
+
+  it("names no app on a railroad that is not built", () => {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "toy", built: false });
+    stood.broker.opens();
+
+    vi.advanceTimersByTime(10_000);
+
+    expect(stood.session.status.trouble).toBeNull();
+  });
+
+  /** The broker gone is said before any app behind it, and an app is judged
+   *  afresh once the page is back. */
+  it("says the broker first, and starts again once it is back", () => {
+    const stood = joined();
+    vi.advanceTimersByTime(QUIET_MS);
+    expect(stood.session.status.trouble).toMatch(/not answering$/);
+
+    stood.broker.closes();
+    expect(stood.session.status.trouble).toBe(gone(URL));
+
+    stood.broker.opens();
+    expect(stood.session.status.trouble).toBeNull();
+    vi.advanceTimersByTime(QUIET_MS - 1);
+    expect(stood.session.status.trouble).toBeNull();
   });
 });
