@@ -1,17 +1,19 @@
-"""The railroad's settings: what a person sets for one railroad and the
-railroad keeps, so far only the **point gap** (#1125, #1126) — and the shape
-of `tc49/layout/state/settings`, which says them beside the driver's speeds
-and the installation's throttle silence (#1130).
+"""The settings a person sets from the Settings dialog: the railroad's, its
+**point gap** and the driver's **speeds** (#1125, #1126, #1132), and the
+installation's, its **throttle silence** (#1132) — and the shape of
+`tc49/layout/state/settings`, which says them all (#1130).
 
 `layout` says them on `tc49/layout/state/settings`, takes a person's change
-on `tc49/layout/settings_wanted`, and keeps them in the store beside the
-railroad's other documents, `layouts/<railroad>.settings.yaml`. The store
-checks the document `layout` reads it with, so the shape is here and not in
-either app (ADR-0013).
+on `tc49/layout/settings_wanted`, and keeps each in the store: the railroad's
+beside its other documents, `layouts/<railroad>.settings.yaml`, and the
+installation's at the store root, `installation.yaml`, the same whatever
+railroad is loaded. The store checks each document `layout` reads it with, so
+the shapes are here and not in either app (ADR-0013).
 """
 
 import math
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 POINT_GAP_S = 0.5
@@ -30,6 +32,12 @@ SPEEDS: dict[str, float] = {"clear": 0.6, "caution": 0.3}
 locomotive's maximum, where a railroad sets none (ADR-0025, ADR-0079). The
 railroad's, since how fast its trains should run depends on its stock and
 scale (#1130)."""
+
+THROTTLE_SILENCE_S = 5.0
+"""How long a throttle holding a train may go unheard before `layout` lets go
+of its trains, in seconds, where the installation keeps none
+(`installation.yaml`, #1132). A throttle says `throttle_alive` once a second,
+so this is five of them missed."""
 
 THROTTLE_SILENCE_MIN_S = 2.0
 """The shortest throttle silence, in seconds. A throttle says
@@ -78,39 +86,106 @@ def point_gap(value: object) -> float | None:
 
 @dataclass(frozen=True)
 class KeptSettings:
-    """What a railroad keeps of its settings: the point gap, in seconds."""
+    """What a railroad keeps of its settings: the point gap, in seconds, and
+    the driver's speeds, `clear` and `caution` (#1132)."""
 
     point_gap: float = POINT_GAP_S
+    speeds: Mapping[str, float] = field(default_factory=lambda: dict(SPEEDS))
 
-    def document(self) -> dict[str, float]:
-        """The store's document, and the payload `state/settings` carries."""
-        return {"point_gap": self.point_gap}
+    def document(self) -> dict[str, object]:
+        """The store's document."""
+        return {"point_gap": self.point_gap, "speeds": dict(self.speeds)}
 
 
 def kept_settings(doc: object) -> KeptSettings:
     """The `KeptSettings` a store document says, or `ValueError` or
-    `TypeError` naming what is wrong with it: `point_gap` in range and
-    nothing else."""
+    `TypeError` naming what is wrong with it: `point_gap` in range, and
+    `speeds`, where given, `clear` and `caution` each in range, and nothing
+    else. A document without `speeds` keeps `SPEEDS` (#1132)."""
     if not isinstance(doc, dict):
-        raise TypeError("settings are a document of 'point_gap'")
+        raise TypeError("settings are a document of 'point_gap' and 'speeds'")
     fields = cast(dict[str, Any], doc)
-    if set(fields) != {"point_gap"}:
-        raise ValueError(f"settings have 'point_gap', not {sorted(map(str, fields))}")
+    if "point_gap" not in fields or not set(fields) <= {"point_gap", "speeds"}:
+        raise ValueError(
+            "settings have 'point_gap' and may have 'speeds',"
+            f" not {sorted(map(str, fields))}"
+        )
     gap = point_gap(fields["point_gap"])
     if gap is None:
         raise ValueError(
             f"settings 'point_gap' is {fields['point_gap']!r},"
             f" not a number of seconds from 0 to {POINT_GAP_MAX_S:g}"
         )
-    return KeptSettings(gap)
+    if "speeds" not in fields:
+        return KeptSettings(gap)
+    return KeptSettings(gap, _kept_speeds(fields["speeds"]))
+
+
+def _kept_speeds(stated: object) -> dict[str, float]:
+    """The speeds a settings document keeps: `clear` and `caution`, both,
+    each above 0 and at most 1, or `ValueError` or `TypeError`."""
+    if not isinstance(stated, dict):
+        raise TypeError("settings 'speeds' are a document of 'clear' and 'caution'")
+    named = cast(dict[str, Any], stated)
+    if set(named) != set(SPEEDS):
+        raise ValueError(
+            "settings 'speeds' have 'clear' and 'caution',"
+            f" not {sorted(map(str, named))}"
+        )
+    speeds: dict[str, float] = {}
+    for aspect in SPEEDS:
+        fraction = speed(named[aspect])
+        if fraction is None:
+            raise ValueError(
+                f"settings speed '{aspect}' is {named[aspect]!r},"
+                " not a fraction above 0 and at most 1"
+            )
+        speeds[aspect] = fraction
+    return speeds
+
+
+@dataclass(frozen=True)
+class KeptInstallation:
+    """What the installation keeps of its settings, `installation.yaml`: the
+    throttle silence, in seconds (#1132)."""
+
+    throttle_silence: float = THROTTLE_SILENCE_S
+
+    def document(self) -> dict[str, float]:
+        """The store's document."""
+        return {"throttle_silence": self.throttle_silence}
+
+
+def kept_installation(doc: object) -> KeptInstallation:
+    """The `KeptInstallation` a store document says, or `ValueError` or
+    `TypeError` naming what is wrong with it: `throttle_silence` in range and
+    nothing else."""
+    if not isinstance(doc, dict):
+        raise TypeError(
+            "the installation's settings are a document of 'throttle_silence'"
+        )
+    fields = cast(dict[str, Any], doc)
+    if set(fields) != {"throttle_silence"}:
+        raise ValueError(
+            "the installation's settings have 'throttle_silence',"
+            f" not {sorted(map(str, fields))}"
+        )
+    silence = throttle_silence(fields["throttle_silence"])
+    if silence is None:
+        raise ValueError(
+            f"'throttle_silence' is {fields['throttle_silence']!r}, not a number"
+            f" of seconds from {THROTTLE_SILENCE_MIN_S:g}"
+            f" to {THROTTLE_SILENCE_MAX_S:g}"
+        )
+    return KeptInstallation(silence)
 
 
 def said(kept: KeptSettings, throttle_silence_s: float) -> dict[str, object]:
     """The payload of `tc49/layout/state/settings`: the railroad's point gap
     and speeds, and the installation's throttle silence, every field always
-    present (#1130). The speeds are `SPEEDS` until a person can set them."""
+    present (#1130)."""
     return {
         "point_gap": kept.point_gap,
-        "speeds": dict(SPEEDS),
+        "speeds": dict(kept.speeds),
         "throttle_silence": throttle_silence_s,
     }

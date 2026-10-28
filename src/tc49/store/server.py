@@ -36,6 +36,8 @@ rather than to an app of its own — a `ui` package could not import
                                 is not loaded, backing the store up first
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
+    GET  /installation          the installation's settings
+    PUT  /installation          save them, replacing what was
     GET  /backup                whether the store can be backed up, is being,
                                 and what there is to restore to
     PUT  /backup                turn automated backup on or off
@@ -144,11 +146,17 @@ time. Its one caller is `layout`, writing it when a person sets the clock and
 reading it at each build, so `/clocks` is on no proxy in front of a page
 either.
 
-The **settings** routes are the same for one railroad's settings, so far its
-point gap, `layouts/<railroad>.settings.yaml`, answered and taken as
-`{"point_gap": <seconds>}` (#1126). A railroad that keeps none is a 404, and
-`layout` loads it at the defaults. Their one caller is `layout` too, so
-`/settings` is on no proxy in front of a page.
+The **settings** routes are the same for one railroad's settings, its point
+gap and the driver's speeds, `layouts/<railroad>.settings.yaml`, answered and
+taken as `{"point_gap": <seconds>, "speeds": {"clear": <fraction>,
+"caution": <fraction>}}`, `speeds` optional (#1126, #1132). A railroad that
+keeps none is a 404, and `layout` loads it at the defaults. Their one caller
+is `layout` too, so `/settings` is on no proxy in front of a page.
+
+`/installation` is the installation's settings, `installation.yaml` at the
+store root, built as `/loaded` is: `{"throttle_silence": <seconds>}`, a 404
+where there is none, and its one caller `layout`, reading it as it starts and
+writing it when a person sets it, so it is on no proxy either (#1132).
 
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
@@ -162,7 +170,8 @@ that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
 save is what arms the idle timer, which is why every `PUT` — a drawing's, a
-model's, a roster's, a script's, a clock's, a railroad's settings — tells the
+model's, a roster's, a script's, a clock's, a railroad's settings, the
+installation's — tells the
 backup it happened, the one place the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
@@ -331,6 +340,15 @@ def _route(
             return 200, {"railroad": store.loaded()}
         if method == "PUT":
             return _put_loaded(store, backup, body)
+
+    if route == "/installation":
+        if method == "GET":
+            try:
+                return 200, store.installation()
+            except FileNotFoundError:
+                return 404, {"error": "no installation settings"}
+        if method == "PUT":
+            return _put_installation(store, backup, body)
 
     if route.startswith("/backup"):
         return _backup(backup, method, route, body)
@@ -644,8 +662,8 @@ def _put_clock(store: AssetStore, backup: Backup, name: str, body: Any) -> Respo
 
 
 def _put_settings(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
-    """One railroad's settings, created or replaced: `{"point_gap":
-    <seconds>}` and nothing else (#1126).
+    """One railroad's settings, created or replaced: `point_gap`, and
+    `speeds` or none, and nothing else (#1126, #1132).
 
     The layout binding is the one writer, when a person sets them; the
     railroad is not checked for a drawing, as a clock's is not either.
@@ -660,6 +678,21 @@ def _put_settings(store: AssetStore, backup: Backup, name: str, body: Any) -> Re
     # has moved.
     backup.saved()
     return 200, {"saved": name}
+
+
+def _put_installation(store: AssetStore, backup: Backup, body: Any) -> Response:
+    """The installation's settings, created or replaced: `{"throttle_silence":
+    <seconds>}` and nothing else (#1132). The layout binding is the one
+    writer, when a person sets them."""
+    if not isinstance(body, dict):
+        return 400, {"error": "an installation settings document is required"}
+    try:
+        store.put_installation(cast(dict[str, Any], body))
+    except (ValueError, TypeError) as refused:
+        return 400, {"error": f"installation settings: {refused}"}
+    # As a railroad's settings' save does.
+    backup.saved()
+    return 200, {"saved": "installation"}
 
 
 def _copy(store: AssetStore, backup: Backup, source: str, body: Any) -> Response:

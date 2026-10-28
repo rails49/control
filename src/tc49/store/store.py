@@ -33,10 +33,15 @@ clock is loaded at, `layouts/<railroad>.clock.yaml`, written by the layout
 binding when a person sets the clock (ADR-0090, decision 3). Its shape is
 `tc49.lib.fast_clock`'s, which `layout` reads it with.
 
-The **settings** are the railroad's as well, so far only its point gap,
-`layouts/<railroad>.settings.yaml`, written by the layout binding when a person
-sets them (#1126). Their shape is `tc49.lib.settings`'s, which `layout` reads
-them with.
+The **settings** are the railroad's as well, its point gap and the driver's
+speeds, `layouts/<railroad>.settings.yaml`, written by the layout binding when a person
+sets them (#1126, #1132). Their shape is `tc49.lib.settings`'s, which
+`layout` reads them with.
+
+The **installation's settings** belong to no railroad: the throttle silence,
+`installation.yaml` at the store root, written by the layout binding when a
+person sets it and read once as it starts (#1132). Their shape is
+`tc49.lib.settings`'s too.
 
 The **catalogue** is the installation's and belongs to no railroad, a model
 being what a product is (ADR-0045); a roster is read against it, since a car
@@ -65,12 +70,15 @@ from tc49.lib.layout import (
 )
 from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
-from tc49.lib.settings import kept_settings
+from tc49.lib.settings import kept_installation, kept_settings
 from tc49.store import yamlfile
 from tc49.store.drawing import Drawing
 
 LOADED = "loaded.yaml"
 """The file at the store root recording which railroad is loaded."""
+
+INSTALLATION = "installation.yaml"
+"""The file at the store root keeping the installation's settings (#1132)."""
 
 _TIMESTAMP = "tag:yaml.org,2002:timestamp"
 """The one implicit tag this store's reader does not resolve (`_Reader`)."""
@@ -429,6 +437,22 @@ class AssetStore:
         """Record `name` as the railroad loaded, replacing what was."""
         self._root.mkdir(parents=True, exist_ok=True)
         (self._root / LOADED).write_text(yaml.safe_dump({"railroad": name}))
+
+    def installation(self) -> dict[str, Any]:
+        """The installation's settings document (#1132), checked and answered
+        as written. An installation with none raises `FileNotFoundError`:
+        `layout` runs at the defaults, which it holds and this store does
+        not."""
+        doc = self._read(self._root / INSTALLATION)
+        kept_installation(doc)
+        return cast(dict[str, Any], doc)
+
+    def put_installation(self, doc: dict[str, Any]) -> None:
+        """Create or replace the installation's settings, checked before
+        anything is written, and dumped as a railroad's settings are."""
+        kept_installation(doc)
+        self._root.mkdir(parents=True, exist_ok=True)
+        (self._root / INSTALLATION).write_text(yaml.safe_dump(doc, sort_keys=False))
 
     def catalogue(self) -> dict[str, Model]:
         """The models this installation knows, by name.

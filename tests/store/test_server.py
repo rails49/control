@@ -1357,6 +1357,91 @@ def test_hand_written_settings_that_are_not_settings_are_a_bad_request(
     assert "point_gap" in body["error"]
 
 
+def test_settings_keep_the_speeds_beside_the_gap(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """`speeds` is optional, and a document without it means the defaults
+    (#1132)."""
+    store = AssetStore(tmp_path)
+    kept = {"point_gap": 1.5, "speeds": {"clear": 0.7, "caution": 0.2}}
+    assert handle(store, backup, "PUT", "/settings/shed", kept)[0] == 200
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
+    for body in (
+        {"point_gap": 1, "speeds": {"clear": 0.7}},
+        {"point_gap": 1, "speeds": {"clear": 0, "caution": 0.2}},
+        {"point_gap": 1, "speeds": {"clear": 1.2, "caution": 0.2}},
+        {"point_gap": 1, "speeds": {"clear": 0.7, "caution": 0.2, "stop": 0}},
+        {"point_gap": 1, "speeds": [0.7, 0.2]},
+        {"speeds": {"clear": 0.7, "caution": 0.2}},
+    ):
+        assert handle(store, backup, "PUT", "/settings/shed", body)[0] == 400, body
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
+
+
+INSTALLATION = {"throttle_silence": 10.0}
+"""The installation's kept settings (#1132)."""
+
+
+def test_the_installations_settings_are_written_and_read_back(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Built as `/loaded` is, at the store root (#1132)."""
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/installation", INSTALLATION) == (
+        200,
+        {"saved": "installation"},
+    )
+    assert handle(store, backup, "GET", "/installation", None) == (200, INSTALLATION)
+    assert (tmp_path / "installation.yaml").exists()
+
+
+def test_an_installation_with_no_settings_is_not_found(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """`layout` runs at the defaults, which it holds and the store does not."""
+    status, body = handle(AssetStore(tmp_path), backup, "GET", "/installation", None)
+    assert status == 404
+    assert "installation" in body["error"]
+
+
+def test_installation_settings_that_are_not_settings_are_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    for body in (
+        None,
+        {},
+        {"throttle_silence": 1},
+        {"throttle_silence": 61},
+        {"throttle_silence": "10"},
+        {"throttle_silence": True},
+        {"throttle_silence": 10, "other": 2},
+    ):
+        assert handle(store, backup, "PUT", "/installation", body)[0] == 400, body
+    assert not (tmp_path / "installation.yaml").exists()
+
+
+def test_hand_written_installation_settings_that_are_not_are_a_bad_request(
+    tmp_path: Path, backup: Backup
+) -> None:
+    (tmp_path / "installation.yaml").write_text("throttle_silence: 100\n")
+    status, body = handle(AssetStore(tmp_path), backup, "GET", "/installation", None)
+    assert status == 400
+    assert "throttle_silence" in body["error"]
+
+
+def test_installation_settings_arm_the_backup_as_a_save_does(tmp_path: Path) -> None:
+    saved: list[bool] = []
+
+    class Saving(Backup):
+        def saved(self) -> None:
+            saved.append(True)
+
+    backup = Saving(tmp_path, log=lambda _: None)
+    handle(AssetStore(tmp_path), backup, "PUT", "/installation", INSTALLATION)
+    assert saved == [True]
+
+
 def test_a_railroad_is_copied_with_its_roster_and_script(
     store: AssetStore, tmp_path: Path, backup: Backup
 ) -> None:

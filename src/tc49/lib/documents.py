@@ -27,8 +27,9 @@ documents per build, and between builds only the roster a running app reads
 once again for a train it has not got (SYSTEM.md, "read once per build").
 The writes are the layout binding's: its record of which railroad it loaded
 (`put_loaded`, ADR-0072 decision 5), the railroad's clock when a person
-sets it (`put_clock`, ADR-0090 decision 3), and the railroad's settings when
-a person sets them (`put_settings`, #1126).
+sets it (`put_clock`, ADR-0090 decision 3), the railroad's settings when
+a person sets them (`put_settings`, #1126), and the installation's when a
+person sets those (`put_installation`, #1132).
 """
 
 import json
@@ -43,7 +44,12 @@ from urllib.parse import quote
 from tc49.lib.fast_clock import KeptClock, kept_clock
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Model, Roster
-from tc49.lib.settings import KeptSettings, kept_settings
+from tc49.lib.settings import (
+    KeptInstallation,
+    KeptSettings,
+    kept_installation,
+    kept_settings,
+)
 from tc49.lib.stock import validate_model, validate_roster
 
 FIRST_BACKOFF_S = 0.5
@@ -144,6 +150,21 @@ class Documents:
         """Keep `kept` as railroad `name`'s settings, written as `put_clock`
         writes the clock: waited for until the store answers."""
         self._put("settings", name, body=kept.document())
+
+    def installation(self) -> KeptInstallation | None:
+        """The settings the installation keeps, or None where it keeps none
+        and so runs at the defaults (#1132). One the store cannot read is a
+        `ValueError`."""
+        try:
+            return kept_installation(self._get("installation"))
+        except FileNotFoundError:
+            return None
+
+    def put_installation(self, kept: KeptInstallation) -> None:
+        """Keep `kept` as the installation's settings, written as
+        `put_loaded` writes the record: waited for until the store
+        answers."""
+        self._put("installation", body=kept.document())
 
     def loaded(self) -> str:
         """The railroad the store records as loaded, and `""` where it records

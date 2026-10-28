@@ -16,7 +16,7 @@ import pytest
 
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
-from tc49.lib.settings import KeptSettings
+from tc49.lib.settings import KeptInstallation, KeptSettings
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
@@ -214,6 +214,29 @@ def test_the_settings_a_railroad_keeps_are_what_was_put(url: str) -> None:
     assert documents.settings(RAILROAD) is None
     documents.put_settings(RAILROAD, KeptSettings(2.5))
     assert documents.settings(RAILROAD) == KeptSettings(2.5)
+
+
+def test_the_speeds_a_railroad_keeps_are_what_was_put(url: str) -> None:
+    documents = client(url)
+    kept = KeptSettings(1.0, {"clear": 0.8, "caution": 0.2})
+    documents.put_settings(RAILROAD, kept)
+    assert documents.settings(RAILROAD) == kept
+
+
+def test_the_installations_settings_are_what_was_put(url: str) -> None:
+    """None where it keeps none, which runs at the defaults (#1132)."""
+    documents = client(url)
+    assert documents.installation() is None
+    documents.put_installation(KeptInstallation(10.0))
+    assert documents.installation() == KeptInstallation(10.0)
+
+
+def test_installation_settings_the_store_cannot_read_are_raised(
+    url: str, root: Path
+) -> None:
+    (root / "installation.yaml").write_text("throttle_silence: 1\n")
+    with pytest.raises(ValueError, match="throttle_silence"):
+        client(url).installation()
 
 
 def test_kept_settings_the_store_cannot_read_are_raised(url: str, root: Path) -> None:
