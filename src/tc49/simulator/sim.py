@@ -2,10 +2,10 @@
 
 Commands in, observations out, plus ownership of time (SYSTEM.md, layout
 interface; ADR-0009, ADR-0047). The commands it responds to,
-`tc49/layout/align`, `tc49/layout/move` and `tc49/layout/power_wanted`, are
-named for it rather than for whoever sends them, and it never asks which
-component did: today the dispatcher sends one, the driver another and a page
-the third, and nothing here would change if that moved. It names its commands
+`tc49/layout/align`, `tc49/layout/move`, `tc49/layout/power_wanted` and
+`tc49/layout/settings_wanted`, are named for it rather than for whoever sends
+them, and it never asks which component did: today the dispatcher sends one,
+the driver another and a page the rest, and nothing here would change if that moved. It names its commands
 rather than filtering by prefix, which is the one exception rule 3 allows: a
 `tc49/layout/#` filter would hand it back its own sensor events. It acts on a `move` only if that train
 is standing at the transit's near end (ADR-0047): a stale redelivery
@@ -85,14 +85,30 @@ from tc49.lib.clock_row import FastClockRow
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, transit_ends
 from tc49.lib.loading import BUILT
-from tc49.lib.payload import Command, command, named_train, placement
+from tc49.lib.payload import (
+    Command,
+    command,
+    named_train,
+    placement,
+    wanted_settings,
+)
 from tc49.lib.power import TrackPower
-from tc49.lib.settings import THROTTLE_SILENCE_S, KeptSettings, said
+from tc49.lib.settings import (
+    THROTTLE_SILENCE_S,
+    KeptInstallation,
+    KeptSettings,
+    said,
+    taken,
+)
 
 CLOCK_S = 1.0
 """How often the fast clock is said, in seconds of run clock: once a real
 second live, as `layout` says it, and once a simulated second in batch, so
 the two runs say the same rows at the same stamps (ADR-0090, decision 1)."""
+
+SETTINGS = "tc49/layout/state/settings"
+"""The settings, said at each build and at once after a `settings_wanted`
+(#1133, #1140)."""
 
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
@@ -111,6 +127,8 @@ class Simulator:
         built: bool = True,
         fast: FastClockRow | None = None,
         settings: KeptSettings | None = None,
+        throttle_silence_s: float = THROTTLE_SILENCE_S,
+        keep: Callable[[KeptSettings | KeptInstallation], None] | None = None,
     ) -> None:
         """`layout`: the track this binding stands in for; what resolves a
         move's transit to the block its train must be standing in.
@@ -142,9 +160,20 @@ class Simulator:
         is the defaults, `lib.settings`'. This binding sends no point command
         and holds no throttle, so the point gap and the throttle silence are
         said and nothing here runs on them.
+
+        `throttle_silence_s`: the installation's throttle silence, said
+        beside the railroad's settings and run on by nothing here.
+
+        `keep`: where a setting a person changes on
+        `tc49/layout/settings_wanted` goes to be kept, the railroad's
+        settings or the installation's, as `layout` hands them on (#1140).
+        None keeps nothing, which is a batch run's.
         """
         self._bus = bus
         self._layout = layout
+        self._settings = settings or KeptSettings()
+        self._throttle_silence_s = throttle_silence_s
+        self._keep = keep
         self._clock = clock
         self._transit_s = transit_s
         self._clear_s = clear_s
@@ -191,6 +220,7 @@ class Simulator:
         bus.subscribe("tc49/dispatch/train_removed", self._on_removed)
         bus.subscribe("tc49/layout/power_wanted", self._on_power_wanted)
         bus.subscribe("tc49/dispatch/state/moving", self._on_moving)
+        bus.subscribe("tc49/layout/settings_wanted", self._on_settings_wanted)
         # Which railroad this binding stands in for, stated from the
         # constructor like the supply below: one broker runs one railroad and
         # a view needs to know which, and the binding of the layout interface
@@ -208,10 +238,7 @@ class Simulator:
         # The railroad's settings, stated from the constructor as `layout`
         # states them on each build: the driver prices no grant until it has
         # heard the speeds (#1133).
-        bus.publish(
-            "tc49/layout/state/settings",
-            said(settings or KeptSettings(), THROTTLE_SILENCE_S),
-        )
+        bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
 
     @property
     def position(self) -> dict[str, str]:
@@ -219,6 +246,26 @@ class Simulator:
         what a rebuild under the same name carries into the next one
         (ADR-0071), as the layout interface's own `position` is."""
         return dict(self._position)
+
+    def _on_settings_wanted(self, topic: str, payload: Payload) -> None:
+        """A person set the settings from the Settings dialog, taken by the
+        rule `layout` takes them by (`lib.settings.taken`, #1140): said at
+        once on `state/settings` and each handed to `keep`, the gap and the
+        speeds with the railroad, the silence with the installation. A
+        gesture the contract does not read is dropped whole (ADR-0034).
+        Nothing here runs on the gap or the silence; the speeds are the
+        driver's."""
+        wanted = wanted_settings(payload)
+        if wanted is None:
+            return
+        self._settings, self._throttle_silence_s, changed = taken(
+            self._settings, self._throttle_silence_s, wanted
+        )
+        self._bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        if self._keep is None:
+            return
+        for document in changed:
+            self._keep(document)
 
     def _on_moving(self, topic: str, payload: Payload) -> None:
         """Whether the dispatcher says a train is moving: what a drain ends
