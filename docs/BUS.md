@@ -326,7 +326,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
-| `tc49/layout/state/settings` | state | layout | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130)) |
+| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133)) |
 | `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds or the throttle silence, each optional ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
@@ -816,7 +816,11 @@ what a drop would cost:
     speeds the railroad keeps in `layouts/<layout>.settings.yaml`, or
     `clear` 0.6 and `caution` 0.3 where it keeps none
     ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
-    [#1132](https://github.com/rails49/control/issues/1132)).
+    [#1132](https://github.com/rails49/control/issues/1132)). The driver
+    prices each grant at the last pair it heard, from the next grant on, and
+    drops a grant until it has heard one; a row whose `speeds` does not read
+    leaves the pair it held
+    ([#1133](https://github.com/rails49/control/issues/1133)).
   - `throttle_silence`: number, seconds, `2` to `60`, how long a throttle
     holding a train may go unheard before `layout` lets go of its trains.
     The installation's, kept in `installation.yaml` at the store root, or 5
@@ -826,7 +830,9 @@ what a drop would cost:
     [#1132](https://github.com/rails49/control/issues/1132)).
 
   `layout` publishes it as a railroad is loaded; at once after it takes a
-  `settings_wanted`; and none while it stands. Loading a railroad clears it with the other `layout`
+  `settings_wanted`; and none while it stands. The simulator, in its place,
+  publishes it as a railroad is loaded, from the same document and at the
+  same defaults, and takes no `settings_wanted`. Loading a railroad clears it with the other `layout`
   rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The simulator does not publish it. The page shows the gap in the Settings

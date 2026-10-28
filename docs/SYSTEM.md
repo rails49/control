@@ -1032,29 +1032,32 @@ the utilization metric cannot see idle trains.
 
 ### Driver
 
-*Reads* nothing. *Subscribes* `tc49/dispatch/move_granted`. *Publishes*
-`move`.
+*Reads* nothing. *Subscribes* `tc49/dispatch/move_granted` and
+`tc49/layout/state/settings`. *Publishes* `move`.
 
-The driver is a **translator that holds no state and knows nothing of the
-layout**: for each granted move it immediately publishes `move`, which is the
+The driver is a **translator that holds nothing but the speeds and knows
+nothing of the layout**: for each granted move it immediately publishes `move`, which is the
 grant restated as a command. Setting the route belongs to the dispatcher, which
 publishes `align`
 ([ADR-0022](adr/0022-a-symbol-carries-its-hardware-address.md)), so a grant is
 all the driver needs in order to act.
 
 The grant carries the aspect, and turning it into the speed the command
-states is the whole of the driver's judgement: `clear` is 0.6 of a
-locomotive's maximum and `caution` 0.3, and the mapping is two numbers
-injected at construction rather than a document or a schema
-([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)),
-overridden per deployment by `TC49_DRIVER_CLEAR` and `TC49_DRIVER_CAUTION`
-on the driver's service (DEPLOY.md).
-`stop` is not in it — a grant showing it is no permission to move — so a grant
-whose aspect the driver cannot price is dropped like any other it cannot act
-on, there being no speed to fall back on that the dispatcher authorised. What
-the driver publishes is a magnitude and never a direction, which is what keeps
-it a pure function of the aspect: the grant payload and those two numbers are
-between them every field `move` needs, so the driver holds no state and reads
+states is the whole of the driver's judgement
+([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+The two speeds, `clear` and `caution`, are the railroad's: `layout` says them
+on `state/settings` as a railroad is loaded, 0.6 and 0.3 of a locomotive's
+maximum where it keeps none, and a person sets them from the Settings dialog
+([#1133](https://github.com/rails49/control/issues/1133)). The driver prices
+each grant at the last pair it heard, so a changed speed applies from the next
+grant and a train already moving keeps the speed it was given; a row whose
+`speeds` does not read is ignored. Until a pair is heard there is none, and a
+grant is dropped. `stop` is never priced — a grant showing it is no permission
+to move — so a grant whose aspect the driver cannot price is dropped like any
+other it cannot act on, there being no speed to fall back on that anyone
+authorised. What the driver publishes is a magnitude and never a direction,
+which is what keeps it a pure function of the aspect: the grant payload and
+the two speeds are between them every field `move` needs, so the driver reads
 no assets.
 
 The grant is **read** and never trusted, exactly as a gesture is (rule 4): the
