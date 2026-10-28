@@ -245,6 +245,7 @@ from tc49.lib.settings import (
     KeptInstallation,
     KeptSettings,
     said,
+    taken,
 )
 
 _log = logging.getLogger(__name__)
@@ -1282,25 +1283,14 @@ class LayoutInterface:
         wanted = wanted_settings(payload)
         if wanted is None:
             return
-        railroad = wanted.point_gap is not None or wanted.speeds is not None
-        if railroad:
-            self._settings = KeptSettings(
-                (
-                    self._settings.point_gap
-                    if wanted.point_gap is None
-                    else wanted.point_gap
-                ),
-                {**self._settings.speeds, **(wanted.speeds or {})},
-            )
-        if wanted.throttle_silence is not None:
-            self._throttle_silence_s = wanted.throttle_silence
+        self._settings, self._throttle_silence_s, changed = taken(
+            self._settings, self._throttle_silence_s, wanted
+        )
         self._bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
         if self._keep is None:
             return
-        if railroad:
-            self._keep(self._settings)
-        if wanted.throttle_silence is not None:
-            self._keep(KeptInstallation(wanted.throttle_silence))
+        for document in changed:
+            self._keep(document)
 
     def _on_take_wanted(self, topic: str, payload: Payload) -> None:
         """A throttle took a train, or the train was released (ADR-0079).

@@ -3,7 +3,9 @@
 installation's, its **throttle silence** (#1132) — and the shape of
 `tc49/layout/state/settings`, which says them all (#1130).
 
-`layout` says them on `tc49/layout/state/settings`, takes a person's change
+Both bindings of the layout interface say them on `tc49/layout/state/settings`,
+take a person's change on `tc49/layout/settings_wanted` by one rule, `taken`,
+and keep each in the store (#1140). `layout` says them on `tc49/layout/state/settings`, takes a person's change
 on `tc49/layout/settings_wanted`, and keeps each in the store: the railroad's
 beside its other documents, `layouts/<railroad>.settings.yaml`, and the
 installation's at the store root, `installation.yaml`, the same whatever
@@ -14,7 +16,10 @@ the shapes are here and not in either app (ADR-0013).
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from tc49.lib.payload import SettingsWanted
 
 POINT_GAP_S = 0.5
 """How long `layout` waits after a point command before it sends the next one
@@ -189,3 +194,25 @@ def said(kept: KeptSettings, throttle_silence_s: float) -> dict[str, object]:
         "speeds": dict(kept.speeds),
         "throttle_silence": throttle_silence_s,
     }
+
+
+def taken(
+    kept: KeptSettings, throttle_silence_s: float, wanted: "SettingsWanted"
+) -> tuple[KeptSettings, float, list[KeptSettings | KeptInstallation]]:
+    """The settings as they stand once a person's `settings_wanted` is
+    taken, the rule both bindings of the layout interface take it by
+    (#1126, #1132, #1140): the railroad's, the throttle silence, and the
+    documents to keep — the railroad's where the gesture set the gap or a
+    speed, the installation's where it set the silence. A field left out,
+    and a speed left out of `speeds`, keeps its value."""
+    changed: list[KeptSettings | KeptInstallation] = []
+    if wanted.point_gap is not None or wanted.speeds is not None:
+        kept = KeptSettings(
+            kept.point_gap if wanted.point_gap is None else wanted.point_gap,
+            {**kept.speeds, **(wanted.speeds or {})},
+        )
+        changed.append(kept)
+    if wanted.throttle_silence is not None:
+        throttle_silence_s = wanted.throttle_silence
+        changed.append(KeptInstallation(throttle_silence_s))
+    return kept, throttle_silence_s, changed
