@@ -327,7 +327,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133)) |
-| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds or the throttle silence, each optional ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131)) |
+| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds or the throttle silence, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -831,11 +831,11 @@ what a drop would cost:
 
   `layout` publishes it as a railroad is loaded; at once after it takes a
   `settings_wanted`; and none while it stands. The simulator, in its place,
-  publishes it as a railroad is loaded, from the same document and at the
-  same defaults, and takes no `settings_wanted`. Loading a railroad clears it with the other `layout`
-  rows
+  publishes it the same way, from the same documents and at the same
+  defaults ([#1140](https://github.com/rails49/control/issues/1140)).
+  Loading a railroad clears it with the other `layout` rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
-  The simulator does not publish it. The page shows the gap in the Settings
+  The page shows the gap in the Settings
   dialog's Points tab, the speeds in its Driving tab and the silence in its
   Box tab ([#1134](https://github.com/rails49/control/issues/1134)); no app
   reads it yet, `layout` holding the gap and
@@ -858,7 +858,11 @@ what a drop would cost:
   gap from the next `align` and the silence from its next check of who has
   gone silent, publishes `state/settings` at once, and keeps the gap and the
   speeds with the railroad and the silence with the installation
-  ([#1132](https://github.com/rails49/control/issues/1132)). The page
+  ([#1132](https://github.com/rails49/control/issues/1132)). The simulator,
+  in its place, takes it by the same rule, says `state/settings` at once and
+  keeps each where `layout` keeps it, and runs on neither the gap nor the
+  silence: it sends no point command and holds no throttle
+  ([#1140](https://github.com/rails49/control/issues/1140)). The page
   publishes the gap from the Settings dialog's Points tab, one speed at a
   time from its Driving tab and the silence from its Box tab, each commit
   carrying the one field committed
