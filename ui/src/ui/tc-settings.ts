@@ -34,7 +34,9 @@
  * heard, and on a commit — a change, not each keystroke — asks for what was
  * typed on `settings-wanted`, the app publishing `settings_wanted`; what
  * `gapChange` refuses is not sent, and the tab says why. The field goes on
- * showing the row, not the press (ADR-0035). **Driving** and **Box**, after
+ * showing the row, not the press (ADR-0035), except that a refused commit
+ * stays in it beside the reason until a commit is not refused or the row
+ * says a different value for it (#1137). **Driving** and **Box**, after
  * Points, do the same for the driver's speeds at clear and at caution, in
  * percent of the locomotive's top speed, and for the throttle silence, the
  * installation's whatever railroad is loaded (#1134): each commit sends the
@@ -108,6 +110,15 @@ import { settingsStyles } from "./tc-settings.styles.js";
 /** The fields of the settings tabs, each with its own reason refused. */
 type SettingField = "gap" | keyof Speeds | "silence";
 
+/** A commit a field's rule refused (#1137): the text typed, which the field
+ *  goes on showing, why it was refused, and what the row said for the field
+ *  then. */
+interface Refused {
+  readonly typed: string;
+  readonly reason: string;
+  readonly heard: string;
+}
+
 /** What the dialog says where the drawing a load would discard could not be
  *  saved first; the band's trouble chip says why (ADR-0085). */
 const UNSAVED = "the drawing could not be saved, so nothing was loaded";
@@ -176,10 +187,11 @@ export class TcSettings extends LitElement {
    *  one has gone through or the name is typed at again. */
   @state() private wrong: string | null = null;
 
-  /** Why the setting last committed in each field was not sent, in
-   *  `gapChange`'s, `speedChange`'s or `silenceChange`'s words; a field is
-   *  absent once one is sent from it or the dialog opens again. */
-  @state() private settingRefused: Partial<Record<SettingField, string>> = {};
+  /** The setting last committed in each field where it was not sent, with
+   *  why in `gapChange`'s, `speedChange`'s or `silenceChange`'s words; a
+   *  field is absent once a commit from it is not refused, the row says a
+   *  different value for it, or the dialog opens again (#1137). */
+  @state() private settingRefused: Partial<Record<SettingField, Refused>> = {};
 
   /** Whether a write is out: one at a time, so a second press cannot ask for
    *  a railroad the first is still writing. */
@@ -231,6 +243,7 @@ export class TcSettings extends LitElement {
       this.held();
     }
     this.landed();
+    this.reheard();
     if (changed.has("open") && this.open) {
       this.canTurnOff = false;
       if (this.turning !== "sending") this.turning = "idle";
@@ -388,14 +401,14 @@ export class TcSettings extends LitElement {
         max=${POINT_GAP_MAX_S}
         step="0.1"
         ?disabled=${unheard}
-        .value=${live(unheard ? "" : String(this.pointGap))}
-        @sl-change=${(event: Event) => {
-          const change = gapChange((event.target as HTMLInputElement).value, this.pointGap);
-          this.committed(
-            "gap",
-            change !== null && "sent" in change ? { sent: { point_gap: change.sent } } : change,
-          );
-        }}
+        .value=${this.shown("gap")}
+        @sl-change=${(event: Event) =>
+          this.committed("gap", event, (typed) => {
+            const change = gapChange(typed, this.pointGap);
+            return change !== null && "sent" in change
+              ? { sent: { point_gap: change.sent } }
+              : change;
+          })}
       >
         <span slot="suffix">s</span>
       </sl-input>
@@ -426,15 +439,10 @@ export class TcSettings extends LitElement {
             max="100"
             step="1"
             ?disabled=${speeds === null}
-            .value=${live(speeds === null ? "" : String(percentOf(speeds[aspect])))}
+            .value=${this.shown(aspect)}
             @sl-change=${(event: Event) =>
-              this.committed(
-                aspect,
-                speedChange(
-                  aspect,
-                  (event.target as HTMLInputElement).value,
-                  speeds === null ? null : speeds[aspect],
-                ),
+              this.committed(aspect, event, (typed) =>
+                speedChange(aspect, typed, speeds === null ? null : speeds[aspect]),
               )}
           >
             <span slot="suffix">%</span>
@@ -452,7 +460,8 @@ export class TcSettings extends LitElement {
    * before `layout` lets go of them, in seconds from
    * `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S` in steps of `1`.
    * The installation's, so it says it holds whatever railroad is loaded.
-   * Dead with a hint until the layout has said its settings.
+   * Dead with a hint until the layout has said its settings; a commit
+   * `silenceChange` refuses stays in the field, with the reason beneath it.
    */
   private box() {
     const unheard = this.throttleSilence === null;
@@ -466,12 +475,9 @@ export class TcSettings extends LitElement {
         max=${THROTTLE_SILENCE_MAX_S}
         step="1"
         ?disabled=${unheard}
-        .value=${live(unheard ? "" : String(this.throttleSilence))}
+        .value=${this.shown("silence")}
         @sl-change=${(event: Event) =>
-          this.committed(
-            "silence",
-            silenceChange((event.target as HTMLInputElement).value, this.throttleSilence),
-          )}
+          this.committed("silence", event, (typed) => silenceChange(typed, this.throttleSilence))}
       >
         <span slot="suffix">s</span>
       </sl-input>
@@ -481,22 +487,57 @@ export class TcSettings extends LitElement {
     `;
   }
 
+  /** What the row says for `field`, as its field shows it: `""` while the
+   *  row is unheard, a speed in percent. */
+  private heard(field: SettingField): string {
+    switch (field) {
+      case "gap":
+        return this.pointGap === null ? "" : String(this.pointGap);
+      case "silence":
+        return this.throttleSilence === null ? "" : String(this.throttleSilence);
+      default:
+        return this.speeds === null ? "" : String(percentOf(this.speeds[field]));
+    }
+  }
+
+  /** What `field` shows: the text of a refused commit while it stands, the
+   *  row's value otherwise. `live`, so a refused text committed again is
+   *  still there and the row's value replaces whatever was typed. */
+  private shown(field: SettingField) {
+    return live(this.settingRefused[field]?.typed ?? this.heard(field));
+  }
+
+  /** Each refused commit dropped where the row now says a different value
+   *  for its field than it did when the commit was refused. */
+  private reheard(): void {
+    const kept = Object.entries(this.settingRefused).filter(
+      ([field, refused]) => this.heard(field as SettingField) === refused.heard,
+    );
+    if (kept.length !== Object.keys(this.settingRefused).length)
+      this.settingRefused = Object.fromEntries(kept);
+  }
+
   /** Why the last commit in `field` was not sent, beneath it. */
   private refusedIn(field: SettingField) {
     const refused = this.settingRefused[field];
-    return refused === undefined ? nothing : html`<p class="hint wrong">${refused}</p>`;
+    return refused === undefined ? nothing : html`<p class="hint wrong">${refused.reason}</p>`;
   }
 
-  /** A setting committed in `field`: asked for on `settings-wanted` where
-   *  the model's rule sends it, and the reason kept where it refuses. */
+  /** What was typed in `field` committed, as `event` carries it: asked for
+   *  on `settings-wanted` where the model's `rule` sends it, and kept with
+   *  the reason where it refuses. */
   private committed(
     field: SettingField,
-    change: { sent: SettingsChange } | { refused: string } | null,
+    event: Event,
+    rule: (typed: string) => { sent: SettingsChange } | { refused: string } | null,
   ): void {
+    const typed = (event.target as HTMLInputElement).value;
+    const change = rule(typed);
     const others = { ...this.settingRefused };
     delete others[field];
     if (change !== null && "refused" in change) {
-      this.settingRefused = { ...others, [field]: change.refused };
+      const refused = { typed, reason: change.refused, heard: this.heard(field) };
+      this.settingRefused = { ...others, [field]: refused };
       return;
     }
     this.settingRefused = others;

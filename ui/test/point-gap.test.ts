@@ -102,6 +102,32 @@ describe("the Points tab", () => {
     expect(hints(dialog).some((one) => one.startsWith("the time"))).toBe(false);
   });
 
+  it("keeps a refused gap in the field with the reason, however often it is committed", async () => {
+    const { shell, dialog } = await gapped(0.8);
+    for (const _ of [1, 2]) {
+      await committed(shell, dialog, "7");
+      expect(field(dialog).value).toBe("7");
+      expect(hints(dialog)).toContain("the time between point commands is from 0 to 5 seconds");
+    }
+    expect(written()).toEqual([]);
+  });
+
+  it("shows a new gap the row says over a refused one, and no reason", async () => {
+    const { shell, dialog } = await gapped(0.8);
+    await committed(shell, dialog, "7");
+    await said(shell, STATE_SETTINGS, { at: 2, point_gap: 1.5 });
+    expect(field(dialog).value).toBe("1.5");
+    expect(hints(dialog).some((one) => one.startsWith("the time"))).toBe(false);
+  });
+
+  it("publishes a gap committed after a refused one, and drops the reason", async () => {
+    const { shell, dialog } = await gapped(0.8);
+    await committed(shell, dialog, "7");
+    await committed(shell, dialog, "1.2");
+    expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { point_gap: 1.2 } }]);
+    expect(hints(dialog).some((one) => one.startsWith("the time"))).toBe(false);
+  });
+
   it("publishes nothing where the gap committed is the one the row says", async () => {
     const { shell, dialog } = await gapped(0.8);
     await committed(shell, dialog, "0.8");
