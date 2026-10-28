@@ -84,13 +84,23 @@ both views are of one railroad, so one control asks for it. The gear is drawn
 whether or not a session is joined, and Help after it is the last thing on
 the band.
 
-The dialog has three tabs, in this order. The gear opens it on the first and
+The dialog has four tabs, in this order. The gear opens it on the first and
 the band's backup note on Backup
 ([#899](https://github.com/rails49/control/issues/899), #1075):
 
 - **Railroad** lists what the store has, asked again each time the dialog
   opens, and ticks the one that is loaded, with the name field and the two
   presses that make a railroad beneath.
+- **Points** sets the point gap
+  ([#1128](https://github.com/rails49/control/issues/1128)): one field, *Time
+  between point commands*, in seconds from `0` to `5` in steps of `0.1`, `0`
+  being no wait. It shows `point_gap` as `tc49/layout/state/settings` says it
+  and is dead, saying `the layout has not said its settings`, until that row
+  is heard. A commit — a change, not each keystroke — publishes
+  `tc49/layout/settings_wanted` with the gap typed, and nothing where it is
+  the gap the row already says; a gap outside `0`–`5`, or no number at all,
+  is not sent and the tab says why (`gapChange`, `model/settings.ts`). The
+  field goes on showing the row, not the press.
 - **Backup** is where the store is backed up and restored, drawn in the tab
   and not in a dialog of its own ([Backing the store up](#backing-the-store-up)).
 - **Shutdown** turns the box off (#745). It is there only where the
