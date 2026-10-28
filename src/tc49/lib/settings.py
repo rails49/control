@@ -12,10 +12,11 @@ import math
 from dataclasses import dataclass
 from typing import Any, cast
 
-POINT_GAP_S = 0.0
+POINT_GAP_S = 0.5
 """How long `layout` waits after a point command before it sends the next one
 or lets go the move waiting on it, in seconds, where a railroad keeps none:
-`0`, no wait (#1125)."""
+half a second, long enough for a solenoid's CDU to recharge and most of a
+stall motor's travel (#1127)."""
 
 POINT_GAP_MAX_S = 5.0
 """The longest point gap a person may set, in seconds. A point that has not

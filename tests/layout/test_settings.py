@@ -9,7 +9,7 @@ railroad. Nothing is rebuilt: the gap is used from the next `align`.
 from tc49.layout.interface import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.settings import KeptSettings
+from tc49.lib.settings import POINT_GAP_S, KeptSettings
 from tests.layout.railroad import (
     SETTINGS,
     SETTINGS_WANTED,
@@ -87,7 +87,7 @@ def test_a_gesture_that_cannot_be_read_is_dropped() -> None:
         sets(bus, payload)
     assert said == before
     assert kept == []
-    assert app.point_gap == 0.0
+    assert app.point_gap == POINT_GAP_S
 
 
 def test_an_app_built_with_a_kept_gap_starts_at_it() -> None:

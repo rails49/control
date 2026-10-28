@@ -88,7 +88,8 @@ def assembled() -> tuple[InProcessBus, LayoutInterface, Clock]:
     layout, roster = railroad(), stock()
     clock = Clock()
     bus = InProcessBus(clock)
-    app = LayoutInterface(bus, layout, roster, clock)
+    # No point gap (#1127): nothing here advances the clock for a point.
+    app = LayoutInterface(bus, layout, roster, clock, point_gap=0.0)
     Scheduler(bus, layout, {}, nonce=NONCE)
     Dispatcher(bus, layout, roster, {}, Incremental(layout, DEFAULT_K))
     Driver(bus)

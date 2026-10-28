@@ -51,7 +51,10 @@ is a train taking the wrong path (#305). It costs nothing in the ordinary
 order, the dispatcher sending an `align` with every grant. A point the `align`
 marks reported is **waited for**: the transit counts as aligned only once it
 says, on `device/point`, the position asked for, and one saying another while
-the train may still be over it stops the train (ADR-0097).
+the train may still be over it stops the train (ADR-0097). And every point
+takes time to move: only the points that change are written, one **point
+gap** apart behind whatever earlier `align` is still going out, and the move
+goes one gap after the last of them (#1127).
 
 **The near-end check.** A `move` is acted on only if that train is standing at
 the transit's near end (ADR-0047). At-least-once delivery can repeat one
@@ -181,6 +184,7 @@ interface (ADR-0030).
 """
 
 import logging
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
@@ -215,6 +219,7 @@ from tc49.lib.payload import (
     alive_throttle,
     command,
     desired_function,
+    desired_position,
     detected,
     kept_allocation,
     kept_facing,
@@ -449,7 +454,7 @@ class LayoutInterface:
         binding passes none.
 
         `point_gap`: the wait after a point command, the one the railroad
-        keeps or `lib.settings.POINT_GAP_S`, no wait, where it keeps none:
+        keeps or `lib.settings.POINT_GAP_S`, half a second, where it keeps none:
         said on `tc49/layout/state/settings` (#1125), and changed by a
         person on `tc49/layout/settings_wanted` (#1126).
 
@@ -503,6 +508,17 @@ class LayoutInterface:
         # or on those points reporting (ADR-0097).
         self._aligned: dict[str, dict[str, str]] = {}
         self._held: dict[str, Command] = {}
+        # The point gap (#1127): what each `wanted/point` row holds, this
+        # app's own writes and the rows a bus that outlived it hands back;
+        # the points still to write, in the order they were asked; when the
+        # last was written; when each address last written is taken to have
+        # moved; and the addresses each transit's `align` set, which its move
+        # waits on.
+        self._holds: dict[str, str] = {}
+        self._points_out: deque[tuple[str, str]] = deque()
+        self._point_written: float | None = None
+        self._moved_at: dict[str, float] = {}
+        self._routed: dict[str, tuple[str, ...]] = {}
         # Where each reported point last said it lies, by address: the
         # `device/point` rows, read and never written here.
         self._lies: dict[str, str] = {}
@@ -628,6 +644,7 @@ class LayoutInterface:
         bus.subscribe(FACING, self._on_facing)
         bus.subscribe(DEVICE, self._on_device)
         bus.subscribe(WANTED_FUNCTION + "/#", self._on_function_row)
+        bus.subscribe(WANTED_POINT + "/+", self._on_point_row)
 
     # -- live state, for the tests ------------------------------------------
 
@@ -667,7 +684,9 @@ class LayoutInterface:
         The same turn lets go of the trains of every throttle silent for
         `throttle_silence_s`, which is the other thing here measured against
         the clock and for the same reason: a throttle that has gone says
-        nothing more to be noticed on (ADR-0079).
+        nothing more to be noticed on (ADR-0079). And it writes the next
+        point a gap has come round for, and lets through the moves whose
+        points have had their gap (#1127), which nothing else would wake.
         """
         due = [
             (settling.at, end, settling.level)
@@ -684,6 +703,8 @@ class LayoutInterface:
         released, self._released = self._released, []
         for block in released:
             self._vacate(block)
+        self._write_points()
+        self._let_through()
         self._let_go_of_silent()
 
     # -- the two commands ---------------------------------------------------
@@ -700,8 +721,26 @@ class LayoutInterface:
         at all, and the drawing's review is where that fault is reported, not
         the wire.
 
-        Written every time and not only on change, because a hand may have
-        flipped a point since: a translator throws what it is told (ADR-0043).
+        **Only a point that changes is written, one point gap apart**
+        (#1127). A point whose `wanted/point` row already holds the position
+        asked, or will once the points before it go out, is not written
+        again: a stateless accessory packet fires a solenoid even where the
+        point already lies, and drains a shared CDU for nothing. The rest are
+        queued in route order behind every point any earlier `align` or hand
+        throw left to write, and each goes out no sooner than one gap after
+        the last point written, measured on the injected clock and written
+        from `settle` once its turn comes. A point moved by hand since is not
+        put back by this: the steel is a person's to set, and a reported
+        point says where it lies (ADR-0097).
+
+        **The move waits one gap after its last point.** The transit counts
+        as aligned only once every point its `align` names has been written
+        and a gap has passed since: a stall motor takes a second or two, and
+        a train starting from rest onto a point still moving derails. A point
+        written long enough ago is no wait, so an `align` that writes
+        nothing lets its move go at once. The gap is the one in force as each
+        point is written; a person's change applies from the next.
+
         Whether this railroad holds the transit is not asked — this app holds
         no table of points and the command carries its own — and marking a
         transit it does not hold costs nothing, a `move` naming one being
@@ -712,7 +751,7 @@ class LayoutInterface:
         of each, and the transit counts as aligned — a held `move` is let
         through — only once each has a `device/point` saying that position
         (`_on_device`). A point not reported is taken to lie where
-        `wanted/point` puts it, as before.
+        `wanted/point` puts it once the gap after its write has passed.
 
         An `align` naming no transit is a throw by hand the dispatcher let
         through (ADR-0068): its points are written like any other's, and it
@@ -729,9 +768,9 @@ class LayoutInterface:
         for point in aligning.points:
             thrown.setdefault(point.addr, point.position)
         for addr, position in thrown.items():
-            self._bus.publish(
-                device_topic(WANTED_POINT, addr), {"addr": addr, "position": position}
-            )
+            if self._will_hold(addr) != position:
+                self._points_out.append((addr, position))
+        self._write_points()
         transit = aligning.transit_id
         if transit is None:
             return
@@ -740,6 +779,7 @@ class LayoutInterface:
             for point in aligning.points
             if point.reported
         }
+        self._routed[transit] = tuple(thrown)
         waiting = self._held.pop(transit, None)
         if waiting is not None:
             self._cross(waiting)
@@ -921,6 +961,7 @@ class LayoutInterface:
         # waits for one of its own (#305). Its reported points go with the
         # crossing, which a wrong report of one stops (ADR-0097).
         reported = tuple(self._aligned.pop(transit).items())
+        self._routed.pop(transit, None)
         self._position[commanded.train] = commanded.into
         # Acted on: from here a speed written for the train is one that may
         # have taken it onto the points (#1068), and a train already running
@@ -945,12 +986,66 @@ class LayoutInterface:
             self._give(commanded.into, crossing)
 
     def _set(self, transit: str) -> bool:
-        """Whether an `align` has named the transit and each of its reported
-        points reports the position that `align` asked for (ADR-0097)."""
+        """Whether an `align` has named the transit, each of its points has
+        been written and had its gap (#1127), and each of its reported points
+        reports the position that `align` asked for (ADR-0097)."""
         asked = self._aligned.get(transit)
-        return asked is not None and all(
-            self._lies.get(addr) == position for addr, position in asked.items()
-        )
+        if asked is None:
+            return False
+        queued = {addr for addr, _position in self._points_out}
+        now = self._clock.now
+        return all(
+            addr not in queued and self._moved_at.get(addr, now) <= now
+            for addr in self._routed.get(transit, ())
+        ) and all(self._lies.get(addr) == position for addr, position in asked.items())
+
+    def _let_through(self) -> None:
+        """Every held `move` whose transit is now set, put back through the
+        rules."""
+        for transit in [t for t in self._held if self._set(t)]:
+            self._cross(self._held.pop(transit))
+
+    # -- the point gap ------------------------------------------------------
+
+    def _will_hold(self, addr: str) -> str | None:
+        """The position `addr`'s `wanted/point` row will hold once the points
+        queued go out: the last queued for it, or what the row holds now."""
+        for queued, position in reversed(self._points_out):
+            if queued == addr:
+                return position
+        return self._holds.get(addr)
+
+    def _write_points(self) -> None:
+        """Write the queued points whose turn has come, in the order they
+        were asked: each one point gap after the last point written, the gap
+        being the one in force now (#1127). A gap of `0` writes them all at
+        once."""
+        gap = self._settings.point_gap
+        now = self._clock.now
+        while self._points_out:
+            if self._point_written is not None and now < self._point_written + gap:
+                return
+            addr, position = self._points_out.popleft()
+            self._bus.publish(
+                device_topic(WANTED_POINT, addr), {"addr": addr, "position": position}
+            )
+            self._holds[addr] = position
+            self._point_written = now
+            self._moved_at[addr] = now + gap
+
+    def _on_point_row(self, topic: str, payload: Payload) -> None:
+        """A `wanted/point` row: this app's own write coming back, or one a
+        bus that outlived it hands over at start, which is what an `align`
+        asking the same position is not written over (#1127). Read rather
+        than trusted, and stamp-guarded as every state row this app reads
+        is (#240)."""
+        split = split_device(topic)
+        position = desired_position(payload)
+        if split is None or split[0] != WANTED_POINT or position is None:
+            return
+        if not self._ordering.accepts(topic, payload):
+            return
+        self._holds[split[1]] = position
 
     def _on_point(self, addr: str, payload: Payload) -> None:
         """Where a point says it lies (ADR-0097, decisions 6 and 7).
@@ -986,8 +1081,7 @@ class LayoutInterface:
                 if crossing.driving or crossing.train in self._taken:
                     self._stop(crossing.train)
                 self._crossing[block] = replace(crossing, implied=())
-        for transit in [t for t in self._held if self._set(t)]:
-            self._cross(self._held.pop(transit))
+        self._let_through()
 
     # -- the traction write -------------------------------------------------
 
