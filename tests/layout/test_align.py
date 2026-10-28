@@ -85,16 +85,16 @@ def test_a_way_that_needs_nothing_thrown_writes_nothing() -> None:
     assert written == []
 
 
-def test_a_point_already_asked_for_is_not_written_again() -> None:
-    """Only on change: a stateless accessory packet fires a solenoid even
-    where the point already lies, and drains a shared CDU for nothing
-    (#1127)."""
+def test_a_point_already_asked_for_is_written_again() -> None:
+    """Every time: `wanted/point` says what was asked, not where the point
+    lies, and a hand or a solenoid that failed to fire may have left it
+    elsewhere (#1136)."""
     bus, _app = build()
     written = points(bus)
     align(bus, "crossover", "straight")
     align(bus, "crossover", "straight")
 
-    assert [topic for topic, _ in written] == [WANTED_POINT + "/12"]
+    assert [topic for topic, _ in written] == [WANTED_POINT + "/12"] * 2
 
 
 def test_the_way_back_moves_the_shared_point_the_other_way() -> None:
