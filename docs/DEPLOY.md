@@ -377,21 +377,16 @@ repository one, so no amount of work on the box finds it.
 ### The driver's speeds
 
 The driver turns a grant's aspect into a speed, a fraction of each
-locomotive's maximum: `clear` 0.6 and `caution` 0.3
+locomotive's maximum: `clear` 0.6 and `caution` 0.3 until a person sets
+others
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
-Two variables on the driver's service override them, set in
-`/etc/rails49/deploy.env`:
-
-```sh
-TC49_DRIVER_CLEAR=0.5
-TC49_DRIVER_CAUTION=0.25
-```
-
-Each is a number in 0.0 … 1.0. One left unset, or empty, keeps its default.
-Anything else stops the driver at start with a log line naming the variable,
-and the container restarts on the same error until the file is fixed:
-`docker compose … logs driver` shows it. The driver prices every grant either
-way; whether a train's traction follows it is `layout`'s to decide.
+They are the railroad's, set on the Settings dialog's **Driving** tab and kept
+with the railroad, not anything on the box: the driver's service takes no
+environment, and the two driver variables an older `/etc/rails49/deploy.env`
+may still set are read by nothing
+([#1133](https://github.com/rails49/control/issues/1133)). A changed speed
+applies from the next grant; whether a train's traction follows it is
+`layout`'s to decide.
 
 ### A silent throttle
 
