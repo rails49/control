@@ -84,7 +84,7 @@ const NAMED_FOR = 3000;
  * Both modes light a way, and one rule emits it. The editor lights the transit
  * chosen in the netlist pane, or the way a refusal is about, in the red that
  * means derivation stopped (ADR-0024); the run view lights a committed route
- * in the two colours the dispatcher's claim on it reads in (ui/PANEL.md).
+ * in the three colours the dispatcher's claim on it reads in (ui/PANEL.md).
  *
  * A **way** and not a **route** (GLOSSARY.md): what is drawn is the path
  * through a connection, symbol by symbol and leg by leg, whoever asked for it.

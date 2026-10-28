@@ -266,9 +266,11 @@ const editing = css`
 /** What only the running surface wears: a live session painted over the
  *  drawing (ui/PANEL.md). */
 const running = css`
-  /* A committed route in two colours (ui/PANEL.md): green where the
-     dispatcher holds the lock and the train may move, cyan where the route is
-     chosen and the claim has not been made yet. The state rides on the
+  /* A committed route in three colours (ui/PANEL.md): red on the transit a
+     train is crossing, which nothing detects and the dispatcher holds as
+     occupied from the grant until the move ends; green where the dispatcher
+     holds the lock and the train may move; cyan where the route is chosen and
+     the claim has not been made yet. The state rides on the
      symbol's group and on the wire, and the rules descend from there onto the
      lit classes that already exist, so what is lit stays one answer with one
      shape.
@@ -304,6 +306,16 @@ const running = css`
   /* A throat has no block body, so it is the part of the route left with hue
      alone — and the part where which way is locked matters most. Recorded
      rather than hidden (ui/PANEL.md). */
+  .symbol.occupied .track.lit,
+  .symbol.occupied .tick.lit,
+  .wire.lit.occupied {
+    stroke: var(--wrong);
+  }
+
+  .symbol.occupied .bend.lit {
+    fill: var(--wrong);
+  }
+
   .symbol.locked .track.lit,
   .symbol.locked .tick.lit,
   .wire.lit.locked {
