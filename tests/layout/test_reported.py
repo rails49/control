@@ -3,15 +3,16 @@
 
 A point whose address is reported lies where `device/point` says, so a train
 departs over it only once it says the position the `align` asked for. From
-then until the block the train left reads vacated, a report of the other
-position stops the train, as an arrival does. A point not reported is taken
+then until the train has arrived and the block it left reads vacated, in
+either order, a report of the other position stops the train, as an arrival
+does (#1110). A point not reported is taken
 for where `wanted/point` put it, as before.
 
 The bench railroad's `to_dn` throws `12` and `13`; here `12` is reported.
 """
 
 from tc49.layout import LayoutInterface
-from tc49.lib.bus import InProcessBus
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     align,
@@ -218,3 +219,102 @@ def test_the_next_move_over_the_transit_waits_for_its_own_reports() -> None:
 
     assert speeds(written)[since:] == []
     assert app.position == {"single": "up_w"}
+
+
+def fresh(bus: InProcessBus) -> list[tuple[str, Payload]]:
+    """Every traction write from here on, without the rows already retained."""
+    written = commanded(bus)
+    bus.drain()
+    written.clear()
+    return written
+
+
+def arrived() -> tuple[InProcessBus, LayoutInterface, Clock]:
+    """`single` over `to_dn` with `12` reporting the way, from `up_w` read
+    occupied at both ends, and in `dn_e` at its near end: arrived, the block
+    it left not yet read clear."""
+    bus, app, clock = ready()
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    lies(bus, "12", "thrown")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    return bus, app, clock
+
+
+def leaves(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
+    """`up_w`'s own detectors reading clear, so it is published vacated."""
+    reads(bus, "up_w.A", "clear")
+    reads(bus, "up_w.B", "clear")
+    settle(bus, app, clock)
+
+
+def test_a_wrong_report_after_arrival_then_clear_behind_writes_nothing() -> None:
+    """The dispatcher frees the route on these two readings (ADR-0077), so
+    another route or a hand throw may move the point now (#1110)."""
+    bus, app, clock = arrived()
+    leaves(bus, app, clock)
+    written = fresh(bus)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == []
+
+
+def test_a_short_train_read_clear_behind_is_stopped_until_it_arrives() -> None:
+    """Still on the points, and the dispatcher still holds them."""
+    bus, app, clock = ready()
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    lies(bus, "12", "thrown")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    leaves(bus, app, clock)
+    written = fresh(bus)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == [("3", 0.0)]
+
+
+def test_a_wrong_report_after_clear_behind_then_arrival_writes_nothing() -> None:
+    bus, app, clock = ready()
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    lies(bus, "12", "thrown")
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
+    leaves(bus, app, clock)
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    written = fresh(bus)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == []
+
+
+def test_the_block_left_read_occupied_again_does_not_bring_the_watch_back() -> None:
+    """The next train entering it is not this crossing's tail."""
+    bus, app, clock = arrived()
+    leaves(bus, app, clock)
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    written = fresh(bus)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == []
+
+
+def test_a_wrong_report_of_a_freed_point_leaves_the_next_move_running() -> None:
+    """`single` backs out the way it came, on an `align` reporting nothing,
+    and the point it crossed before is thrown under nobody."""
+    bus, app, clock = arrived()
+    leaves(bus, app, clock)
+    faces(bus, single="dn_e.B-to-A")
+    align(bus, "crossover", "to_dn")
+    written = fresh(bus)
+    move(bus, "single", "crossover", "to_dn", "up_w", 0.4)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == [("3", 0.4)]
