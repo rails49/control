@@ -290,10 +290,12 @@ def test_a_deferred_cancellation_sweeps_nothing_either() -> None:
 
     cancel(assembly, request)
 
-    # The one thing it says is to `layout`, asking for the move back (#1068).
+    # The one thing it asks is `layout`'s, for the move back (#1068), and the
+    # picture says the cancel is held (#1117).
     assert [line["event"] for line in events(assembly.trace[len(before) :])] == [
         "cancel_wanted",
         "withdraw_wanted",
+        "allocation",
     ]
     assert len(leaves(assembly, "grant_refused")) == refusals
 
@@ -527,3 +529,28 @@ def test_a_move_withdrawn_for_another_transit_changes_nothing() -> None:
     ] * 5
     ticks(assembly, 2)  # the move runs to its sensors, as it did before
     assert [c["id"] for c in cancellations(assembly)] == [request]
+
+
+def test_a_held_cancel_is_on_the_picture_until_the_request_leaves_it() -> None:
+    """A page that connects while a cancel waits for the move it could not
+    take back is told so (#1117): the request carries `cancelling`, the block
+    that move enters as `withdraw_wanted` names it, on the picture published
+    in answer to the gesture — not on the next one some later event happens
+    to publish."""
+    assembly = whole_route()
+    request = drag(assembly, "freight_1", "yard_e.A")
+    into = entered(assembly)
+    before = assembly.trace
+
+    cancel(assembly, request)
+
+    answer = events(assembly.trace[len(before) :], "allocation")[0]
+    [held] = [each for each in answer["requests"] if each["id"] == request]
+    assert held["cancelling"] == into
+
+    ticks(assembly, 2)  # the move ends, and the request with it
+
+    assert cancellations(assembly)
+    assert all(
+        each["id"] != request for each in last(assembly, "allocation")["requests"]
+    )
