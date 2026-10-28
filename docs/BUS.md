@@ -327,7 +327,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/settings` | state | layout | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130)) |
-| `tc49/layout/settings_wanted` | event | any (browser) | set the railroad's settings, so far the point gap ([#1126](https://github.com/rails49/control/issues/1126)) |
+| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds or the throttle silence, each optional ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -831,13 +831,26 @@ what a drop would cost:
   the silence it says
   ([#1125](https://github.com/rails49/control/issues/1125),
   [#1127](https://github.com/rails49/control/issues/1127)).
-- `tc49/layout/settings_wanted` — browser-writable — `point_gap`: number,
-  seconds, `0` to `5`. A payload without `point_gap`, or with a value out of
-  range, is dropped, as any malformed gesture is. Taken whatever track power
-  and the run are doing, and a changed gap needs no rebuild. `layout` uses it
-  from the next `align`, publishes `state/settings` at once and keeps it with
-  the railroad. The page publishes it from the Settings dialog's Points tab
-  ([#1126](https://github.com/rails49/control/issues/1126)).
+- `tc49/layout/settings_wanted` — browser-writable — any of these fields, at
+  least one:
+  - `point_gap`: number, seconds, `0` to `5`.
+  - `speeds`: object with `clear`, `caution` or both, each greater than `0`
+    and at most `1`.
+  - `throttle_silence`: number, seconds, `2` to `60`.
+
+  A field left out keeps its value, and so does a speed left out of
+  `speeds`. A payload with none of the three, with an unknown field, or with
+  any value out of range is dropped whole, as any malformed gesture is. It
+  is also dropped while no railroad is loaded. Taken whatever track power
+  and the run are doing, and a change needs no rebuild. `layout` uses the
+  gap from the next `align`, publishes `state/settings` at once and keeps
+  the gap with the railroad. So far it takes only the gap: a payload
+  setting none changes nothing until `layout` keeps the speeds with the
+  railroad and the silence with the installation
+  ([#1132](https://github.com/rails49/control/issues/1132)). The page
+  publishes the gap from the Settings dialog's Points tab
+  ([#1126](https://github.com/rails49/control/issues/1126),
+  [#1131](https://github.com/rails49/control/issues/1131)).
 
 #### `schedule`
 

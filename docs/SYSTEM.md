@@ -1158,7 +1158,11 @@ loaded: the point gap, the driver's speeds, which nobody sets yet and so are
 whatever railroad is loaded
 ([#1130](https://github.com/rails49/control/issues/1130)). A person sets the
 gap with `settings_wanted`, taken at any power and with no rebuild, said at
-once, used for the next point written, and kept with the railroad in `layouts/<layout>.settings.yaml`. A
+once, used for the next point written, and kept with the railroad in `layouts/<layout>.settings.yaml`.
+The gesture may also carry the speeds and the throttle silence, each field
+optional and the whole dropped where any is out of range, but `layout`
+does not take them yet
+([#1131](https://github.com/rails49/control/issues/1131)). A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
 and nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
