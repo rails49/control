@@ -809,8 +809,9 @@ class Dispatcher:
         # The trains the rebuild left off, until a person places each one.
         self._unfit = dict(adopted.unfit)
         # The lock table's rules broken at the last check (`_check`), so only
-        # a rule newly broken drains the railroad.
-        self._broken: list[str] = []
+        # a rule newly broken drains the railroad, and `state/broken` moves
+        # only when the list does. `None` until the first check publishes it.
+        self._broken: list[str] | None = None
         # Whether a drain has been asked for (`_drain`) and `layout` has not
         # yet answered it, so nothing is granted in between (#1087).
         self._drain_asked = False
@@ -825,7 +826,9 @@ class Dispatcher:
         # read one out of an absence (ADR-0032). The disputed set closes it
         # for the same reason again: nothing has been reported yet, so the
         # set is empty, and saying so is what clears whatever the last
-        # session left standing on that topic.
+        # session left standing on that topic. The check that ends it says
+        # which of the lock table's rules are broken, `[]` where none is, for
+        # the same reason (#1118).
         self._publish_moving()
         self._publish_aspects()
         self._publish_allocation()
@@ -1723,6 +1726,10 @@ class Dispatcher:
         unexplained reading takes, and is written to stderr (ADR-0076,
         ADR-0078). Answers whether one was.
 
+        The list goes on `state/broken` whenever it differs from the last
+        one, back to `[]` once the tables agree again, so the run view can
+        say why the railroad drained when nobody pressed for it (#1118).
+
         A rule still broken from the last check does nothing, so a person who
         has looked and turned the power on again is not overruled by the next
         sweep (#811); one that clears and breaks again drains again. It does
@@ -1734,7 +1741,9 @@ class Dispatcher:
         the steps are not meant to agree with each other in between.
         """
         lines = broken(self._state)
-        new = [line for line in lines if line not in self._broken]
+        new = [line for line in lines if line not in (self._broken or [])]
+        if lines != self._broken:
+            self._publish("state/broken", {"rules": lines})
         self._broken = lines
         for line in new:
             print(f"dispatcher: lock table: {line}", file=sys.stderr, flush=True)

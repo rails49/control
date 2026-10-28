@@ -14,6 +14,7 @@
 {"time":0.0,"event":"allocation","at":0.0,"trains":{"express_2":"up_e","freight_1":"yard_w"},"crossing":{},"locks":{"up_e":"express_2","yard_w":"freight_1"},"requests":[]}
 {"time":0.0,"event":"disputed","at":0.0,"trains":[],"blocks":[]}
 {"time":0.0,"event":"unfit","at":0.0,"trains":[]}
+{"time":0.0,"event":"broken","at":0.0,"rules":[]}
 {"time":0.0,"event":"request_admitted","id":"freight_1-1","dest":["yard_e.A"],"pruned":[{"end":"yard_e.B","reason":"no_entry"}]}
 {"time":0.0,"event":"route_chosen","id":"freight_1-1","route":["yard_w","west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"],"k_tried":1}
 {"time":0.0,"event":"lock_granted","train":"freight_1","resources":["west_ladder.to_dn","dn_w","crossover.dn_straight","dn_e","east_ladder.from_dn","yard_e"]}

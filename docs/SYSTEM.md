@@ -806,7 +806,7 @@ block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
 unread. *Publishes* the eleven `tc49/dispatch/*` events, plus `state/moving`,
-`state/aspects`, `state/disputed`, `state/unfit` and `state/allocation`. The last of those is
+`state/aspects`, `state/disputed`, `state/unfit`, `state/broken` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
 so a client that joins an idle railroad has something to draw
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)).
@@ -1292,7 +1292,10 @@ rule broken now and not at the last check asks for the drain, grants nothing
 in the sweep that found it, and is written to the dispatcher's stderr as
 `dispatcher: lock table: …`. A rule still broken does not drain again, so a
 person turning the power on is honoured as it is over a dispute
-([#811](https://github.com/rails49/control/issues/811)).
+([#811](https://github.com/rails49/control/issues/811)). The broken rules
+also go on `state/broken` whenever the list changes, and the run view's band
+shows each as `dispatcher: <rule>` for as long as it is listed
+([#1118](https://github.com/rails49/control/issues/1118)).
 
 The **dispute check** is what power `off` turns on, and it is this comparison
 exactly: the block reading occupied with nothing claiming it, or the train
