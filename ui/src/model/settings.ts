@@ -270,3 +270,126 @@ export function pointGapOf(payload: Record<string, unknown>): number | null {
   if (typeof gap !== "number" || !Number.isFinite(gap)) return null;
   return gap >= 0 && gap <= POINT_GAP_MAX_S ? gap : null;
 }
+
+/** What a commit in the Settings dialog asks `layout` for: the payload of
+ *  `tc49/layout/settings_wanted`, each field optional and the one committed
+ *  alone present (#1126, #1131). */
+export interface SettingsChange {
+  point_gap?: number;
+  speeds?: Partial<Speeds>;
+  throttle_silence?: number;
+}
+
+/** The driver's speeds, each a fraction of the locomotive's top speed above
+ *  `0` and at most `1`, as `tc49/layout/state/settings` says them (#1130). */
+export interface Speeds {
+  clear: number;
+  caution: number;
+}
+
+/** The two aspects a speed is set for, in the order the Driving tab draws
+ *  them. */
+export const ASPECTS = ["clear", "caution"] as const;
+
+/** The shortest and longest throttle silence a person may set, in seconds,
+ *  as `layout` takes it (`THROTTLE_SILENCE_MIN_S`, `THROTTLE_SILENCE_MAX_S`,
+ *  `tc49.lib.settings`). */
+export const THROTTLE_SILENCE_MIN_S = 2;
+export const THROTTLE_SILENCE_MAX_S = 60;
+
+/** A speed as the Driving tab shows it: percent of the locomotive's top
+ *  speed. Rounded off at the fourth decimal so `0.07` shows `7` and not the
+ *  float `7.000000000000001`. */
+export function percentOf(fraction: number): number {
+  return Math.round(fraction * 1e6) / 1e4;
+}
+
+/**
+ * What a committed speed does (#1134), as `gapChange` answers for the point
+ * gap: `{ sent }`, the `settings_wanted` payload carrying that one speed;
+ * `{ refused }`, why nothing goes; or `null`, where nothing changed.
+ *
+ * `typed` is the field as committed, in percent of the locomotive's top
+ * speed, and `heard` the fraction `tc49/layout/state/settings` says for
+ * `aspect`, `null` while that row is unheard. The first that holds is the
+ * answer:
+ *
+ * - `heard` is `null`: the layout has not said its settings;
+ * - `typed` is not a number;
+ * - it is below `1` or above `100`: a train set to run at `0` would not run,
+ *   and none runs faster than its top speed;
+ * - it is the speed the row already says: nothing changed.
+ *
+ * The field's step of `1` is how it moves, not a rule: `45.5` goes as typed.
+ */
+export function speedChange(
+  aspect: keyof Speeds,
+  typed: string,
+  heard: number | null,
+): { sent: SettingsChange } | { refused: string } | null {
+  if (heard === null) return { refused: SETTINGS_UNHEARD };
+  const words = typed.trim();
+  const percent = Number(words);
+  if (words === "" || !Number.isFinite(percent)) {
+    return { refused: `the speed at ${aspect} is a number, in percent` };
+  }
+  if (percent < 1 || percent > 100) {
+    return { refused: `the speed at ${aspect} is from 1 to 100 percent` };
+  }
+  if (percent === percentOf(heard)) return null;
+  return { sent: { speeds: { [aspect]: percent / 100 } } };
+}
+
+/**
+ * What a committed throttle silence does (#1134): `{ sent }`, the
+ * `settings_wanted` payload carrying it alone; `{ refused }`, why nothing
+ * goes; or `null`, where nothing changed. As `speedChange`, the first that
+ * holds is the answer: the row unheard, not a number of seconds, outside
+ * `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S`, the silence the row
+ * already says.
+ */
+export function silenceChange(
+  typed: string,
+  heard: number | null,
+): { sent: SettingsChange } | { refused: string } | null {
+  if (heard === null) return { refused: SETTINGS_UNHEARD };
+  const words = typed.trim();
+  const seconds = Number(words);
+  if (words === "" || !Number.isFinite(seconds)) {
+    return { refused: "how long a throttle may go silent is a number of seconds" };
+  }
+  if (seconds < THROTTLE_SILENCE_MIN_S || seconds > THROTTLE_SILENCE_MAX_S) {
+    return {
+      refused:
+        "how long a throttle may go silent is from " +
+        `${THROTTLE_SILENCE_MIN_S} to ${THROTTLE_SILENCE_MAX_S} seconds`,
+    };
+  }
+  if (seconds === heard) return null;
+  return { sent: { throttle_silence: seconds } };
+}
+
+/** The speeds a `tc49/layout/state/settings` payload says, `null` where it
+ *  says none `layout` could have meant: `clear` and `caution` both, each
+ *  above `0` and at most `1`. */
+export function speedsOf(payload: Record<string, unknown>): Speeds | null {
+  const speeds = payload["speeds"];
+  if (typeof speeds !== "object" || speeds === null) return null;
+  const { clear, caution } = speeds as Record<string, unknown>;
+  if (!isSpeed(clear) || !isSpeed(caution)) return null;
+  return { clear, caution };
+}
+
+function isSpeed(value: unknown): value is number {
+  return typeof value === "number" && value > 0 && value <= 1;
+}
+
+/** The throttle silence a `tc49/layout/state/settings` payload says, in
+ *  seconds, `null` where it says none `layout` could have meant. */
+export function throttleSilenceOf(payload: Record<string, unknown>): number | null {
+  const silence = payload["throttle_silence"];
+  if (typeof silence !== "number") return null;
+  return silence >= THROTTLE_SILENCE_MIN_S && silence <= THROTTLE_SILENCE_MAX_S
+    ? silence
+    : null;
+}

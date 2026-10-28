@@ -14,9 +14,14 @@ import {
   copyRefusal,
   Drain,
   gapChange,
+  percentOf,
   pointGapOf,
   refusal,
   restoreRefusal,
+  silenceChange,
+  speedChange,
+  speedsOf,
+  throttleSilenceOf,
 } from "../src/model/settings.js";
 import type { Backup } from "../src/model/store.js";
 
@@ -314,6 +319,113 @@ describe("the point gap state/settings says", () => {
   it("reads none that layout could not have meant", () => {
     for (const payload of [{}, { point_gap: "1" }, { point_gap: -1 }, { point_gap: 6 }]) {
       expect(pointGapOf(payload)).toBeNull();
+    }
+  });
+});
+
+/** The Driving tab's two fields, the speeds at clear and at caution (#1134):
+ *  each in percent, sent as a fraction and alone. */
+describe("what a committed speed does", () => {
+  it("sends nothing while the layout has not said its settings", () => {
+    expect(speedChange("caution", "45", null)).toEqual({
+      refused: "the layout has not said its settings",
+    });
+  });
+
+  it("refuses what is not a number", () => {
+    for (const typed of ["", " ", "fast", "Infinity"]) {
+      expect(speedChange("clear", typed, 0.6)).toEqual({
+        refused: "the speed at clear is a number, in percent",
+      });
+    }
+  });
+
+  it("refuses a speed below 1 or above 100 percent", () => {
+    for (const typed of ["0", "0.5", "101", "-3"]) {
+      expect(speedChange("caution", typed, 0.3)).toEqual({
+        refused: "the speed at caution is from 1 to 100 percent",
+      });
+    }
+  });
+
+  it("sends the one speed changed, as a fraction", () => {
+    expect(speedChange("caution", "45", 0.3)).toEqual({ sent: { speeds: { caution: 0.45 } } });
+    expect(speedChange("clear", " 100 ", 0.6)).toEqual({ sent: { speeds: { clear: 1 } } });
+    expect(speedChange("clear", "1", 0.6)).toEqual({ sent: { speeds: { clear: 0.01 } } });
+    expect(speedChange("clear", "45.5", 0.6)).toEqual({ sent: { speeds: { clear: 0.455 } } });
+  });
+
+  it("sends nothing where the speed is the one the layout says", () => {
+    expect(speedChange("clear", "60", 0.6)).toBeNull();
+    expect(speedChange("caution", "7", 0.07)).toBeNull();
+  });
+});
+
+describe("a speed in percent", () => {
+  it("is the fraction times 100, without the float's tail", () => {
+    expect(percentOf(0.6)).toBe(60);
+    expect(percentOf(0.07)).toBe(7);
+    expect(percentOf(0.455)).toBe(45.5);
+  });
+});
+
+/** The Box tab's one field, the throttle silence (#1134). */
+describe("what a committed throttle silence does", () => {
+  it("sends nothing while the layout has not said its settings", () => {
+    expect(silenceChange("10", null)).toEqual({
+      refused: "the layout has not said its settings",
+    });
+  });
+
+  it("refuses what is not a number of seconds", () => {
+    expect(silenceChange("soon", 5)).toEqual({
+      refused: "how long a throttle may go silent is a number of seconds",
+    });
+  });
+
+  it("refuses a silence below 2 or above 60 seconds", () => {
+    for (const typed of ["1", "1.9", "61", "0"]) {
+      expect(silenceChange(typed, 5)).toEqual({
+        refused: "how long a throttle may go silent is from 2 to 60 seconds",
+      });
+    }
+  });
+
+  it("sends a silence from 2 to 60 seconds alone, the ends included", () => {
+    expect(silenceChange("10", 5)).toEqual({ sent: { throttle_silence: 10 } });
+    expect(silenceChange("2", 5)).toEqual({ sent: { throttle_silence: 2 } });
+    expect(silenceChange("60", 5)).toEqual({ sent: { throttle_silence: 60 } });
+  });
+
+  it("sends nothing where the silence is the one the layout says", () => {
+    expect(silenceChange("5", 5)).toBeNull();
+  });
+});
+
+describe("the speeds and the silence state/settings says", () => {
+  it("reads speeds with clear and caution both", () => {
+    expect(speedsOf({ speeds: { clear: 0.6, caution: 0.3 } })).toEqual({
+      clear: 0.6,
+      caution: 0.3,
+    });
+  });
+
+  it("reads no speeds that layout could not have meant", () => {
+    for (const payload of [
+      {},
+      { speeds: null },
+      { speeds: { clear: 0.6 } },
+      { speeds: { clear: 0, caution: 0.3 } },
+      { speeds: { clear: 0.6, caution: 1.2 } },
+    ]) {
+      expect(speedsOf(payload)).toBeNull();
+    }
+  });
+
+  it("reads throttle_silence in seconds, from 2 to 60", () => {
+    expect(throttleSilenceOf({ throttle_silence: 5 })).toBe(5);
+    for (const payload of [{}, { throttle_silence: "5" }, { throttle_silence: 1 }, { throttle_silence: 61 }]) {
+      expect(throttleSilenceOf(payload)).toBeNull();
     }
   });
 });
