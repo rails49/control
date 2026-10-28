@@ -581,7 +581,12 @@ browser visits and the gestures a client may publish
 this way at all.
 
 The built UI needs nginx behind the door because the door proxies and does not
-read files. That is the whole of what `web` is.
+read files. That is the whole of what `web` is, with one line of its own
+config, `deploy/nginx.conf`: `index.html`, which is also what `/` serves, is
+sent with `Cache-Control: no-cache`, so a browser asks the box again on every
+load rather than starting the build before. The files under `assets/` are
+named by a hash of their contents and are sent as nginx sends them
+([#1123](https://github.com/rails49/control/issues/1123)).
 
 ## When it does not work
 

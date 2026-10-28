@@ -55,6 +55,7 @@ services:
     restart: unless-stopped
     volumes:
       - ../ui/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     labels:
       - traefik.enable=true
       - traefik.docker.network=rails49
