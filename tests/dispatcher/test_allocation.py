@@ -13,7 +13,8 @@ from itertools import pairwise
 from typing import Any
 
 from tc49.dispatcher import Incremental
-from tests.harness import events, load, run
+from tc49.lib.inventory import OFF, ON
+from tests.harness import events, live, load, power, press, run
 
 
 def pictures(trace: str) -> list[dict[str, Any]]:
@@ -134,3 +135,85 @@ def test_a_crossing_train_is_named_by_the_transit_it_is_on() -> None:
             assert line["trains"][train] == standing[train] != granted["into"]
             return
     raise AssertionError("no picture followed a granted move")
+
+
+def picture_after(trace: str, line: dict[str, Any]) -> dict[str, Any]:
+    """The first picture published after one trace line."""
+    lines = events(trace)
+    after = lines[lines.index(line) + 1 :]
+    return next(each for each in after if each["event"] == "allocation")
+
+
+def one(picture: dict[str, Any], rid: str) -> dict[str, Any]:
+    [request] = [each for each in picture["requests"] if each["id"] == rid]
+    return request
+
+
+def test_a_request_refused_at_launch_carries_why_until_it_launches() -> None:
+    """A page that connects after a `grant_refused` is told why the train
+    waits all the same (#1117): the refusal rides on the request in the
+    retained picture, as the event carried it, and goes once it launches.
+    In the starvation scenario waiter is refused `unsafe` while squatter
+    sits idle in the block it wants, and launches once squatter leaves."""
+    trace = run(*load("single-track-meet/starvation"), Incremental)
+    refused = events(trace, "grant_refused", rid="waiter-1")[0]
+    assert refused["reason"] == "unsafe"
+
+    assert one(picture_after(trace, refused), "waiter-1")["refused"] == {
+        "reason": "unsafe",
+        "obstacles": refused["obstacles"],
+    }
+    [chosen] = events(trace, "route_chosen", rid="waiter-1")
+    assert "refused" not in one(picture_after(trace, chosen), "waiter-1")
+
+
+def test_an_underway_request_refused_its_next_move_carries_why_until_granted() -> None:
+    """The same for a train stopped mid-route: refused its next move, it
+    carries the refusal, and the move granted takes it away."""
+    trace = run(*load("reversing-loops/saturation"), Incremental)
+    lines = events(trace)
+    started: set[str] = set()
+    for at, line in enumerate(lines):
+        if line["event"] == "route_chosen":
+            started.add(line["id"])
+        if line["event"] == "grant_refused" and line["id"] in started:
+            break
+    else:
+        raise AssertionError("no underway request was refused a move")
+    rid = line["id"]
+    assert "route" in one(picture_after(trace, line), rid)
+    assert one(picture_after(trace, line), rid)["refused"] == {
+        "reason": line["reason"],
+        "obstacles": line["obstacles"],
+    }
+    granted = next(
+        each
+        for each in lines[at:]
+        if each["event"] == "move_granted" and each["id"] == rid
+    )
+    assert "refused" not in one(picture_after(trace, granted), rid)
+
+
+def test_a_refusal_repeated_with_the_same_obstacles_publishes_no_picture() -> None:
+    """A sweep that refuses a request again for the same reason moves
+    nothing in the picture, so it publishes none: express_2 wants the block
+    freight_1 stands idle in, and the power coming back `on` sweeps it into
+    the same refusal."""
+    assembly = live("crossover-yard/meet")
+    press(
+        assembly,
+        "tc49/schedule/request_wanted",
+        {"train": "express_2", "dest": ["yard_w.B"]},
+    )
+    [first] = events(assembly.trace, "grant_refused")
+    pictured = len(pictures(assembly.trace))
+
+    press(assembly, *power(OFF))
+    press(assembly, *power(ON))
+
+    [_, again] = events(assembly.trace, "grant_refused")
+    assert (again["reason"], again["obstacles"]) == (
+        first["reason"],
+        first["obstacles"],
+    )
+    assert len(pictures(assembly.trace)) == pictured

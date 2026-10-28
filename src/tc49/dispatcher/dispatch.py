@@ -98,10 +98,16 @@ class Request:
     depart: str | None
     arrivals: tuple[str, ...]  # surviving arrival ends
     phase: int  # sweeps run when admitted; the arrival-order key
-    # Whether the request has been cancelled while a move of its own was
-    # outstanding: nothing further is granted for it, and it retires as
-    # `request_cancelled` when that move's sensors finish (ADR-0049).
-    cancelled: bool = False
+    # The block the outstanding move enters, where the request has been
+    # cancelled while that move of its own was outstanding: nothing further
+    # is granted for it, and it retires as `request_cancelled` when that
+    # move's sensors finish (ADR-0049). On `state/allocation` as `cancelling`
+    # (#1117).
+    cancelling: str | None = None
+    # The latest `grant_refused` for it since its last grant, at a launch or
+    # for its next move: on `state/allocation` as `refused`, so a page that
+    # connects later is told why it waits (#1117).
+    refused: Refused | None = None
     # The ids of the train's requests chained after this one when its cancel
     # was asked: plans to carry on from where it would arrive, cancelled with
     # it. One chained after it later departs from where the train stops
@@ -114,6 +120,10 @@ class Request:
     # The id of the train's request this one follows, which it starts where
     # that one ends (ADR-0080).
     after: str | None = None
+
+    @property
+    def cancelled(self) -> bool:
+        return self.cancelling is not None
 
 
 def resolve_departure(depart: str, origin: str) -> str:
@@ -359,7 +369,9 @@ def aspects(state: State) -> dict[str, str]:
 def allocation(state: State, requests: Sequence[Request]) -> Payload:
     """The run's picture: where every train stands and which of them are
     crossing a transit, the lock table with its holders, and every request
-    still alive — carrying the route a committed one is running.
+    still alive — carrying the route a committed one is running, why one
+    waits where it was last refused, and the block a held cancel waits for
+    its move to enter (#1117).
 
     A crossing train appears in both maps: `trains` goes on naming the block
     the sensors last confirmed it in, and `crossing` names the transit that
@@ -391,6 +403,21 @@ def allocation(state: State, requests: Sequence[Request]) -> Payload:
                     {"route": routes[request.id].interleaved()}
                     if request.id in routes
                     else {}
+                ),
+                **(
+                    {}
+                    if request.refused is None
+                    else {
+                        "refused": {
+                            "reason": request.refused.reason,
+                            "obstacles": request.refused.obstacles,
+                        }
+                    }
+                ),
+                **(
+                    {}
+                    if request.cancelling is None
+                    else {"cancelling": request.cancelling}
                 ),
             }
             for request in requests
@@ -1425,8 +1452,10 @@ class Dispatcher:
                 # Deferred: it frees nothing yet and dequeues nothing, so
                 # there is nothing for a sweep to hand anybody. `layout` is
                 # asked to take the move back, which it does where nothing
-                # has driven the train since (`_withdrawn`, #1068).
-                req.cancelled = True
+                # has driven the train since (`_withdrawn`, #1068). The
+                # picture is republished all the same, so a page that
+                # connects later is told the cancel is held (#1117).
+                req.cancelling = active.outstanding.into
                 self._bus.publish(
                     WITHDRAW_WANTED,
                     {
@@ -1435,6 +1464,7 @@ class Dispatcher:
                         "into": active.outstanding.into,
                     },
                 )
+                self._publish_allocation()
                 return
             self._retire(req.train, active, Cancellation.REVOKED)
         else:
@@ -1984,6 +2014,7 @@ class Dispatcher:
                 self._ending(req, None)
             elif isinstance(result, Refused):
                 waiting.add(req.train)
+                req.refused = result
                 self._publish(
                     "grant_refused",
                     {
@@ -1997,6 +2028,7 @@ class Dispatcher:
                 self._launch(req, result)
 
     def _launch(self, req: Request, launched: Launched) -> None:
+        req.refused = None
         # The request stays where it is in the list, started (ADR-0080).
         # The strategy says what to lock and the dispatcher locks it (#761),
         # before the grant below, which reads the launch's locks to tell what
@@ -2051,6 +2083,7 @@ class Dispatcher:
 
     def _apply_move(self, active: Active, result: Move | Refused) -> None:
         if isinstance(result, Refused):
+            active.request.refused = result
             self._publish(
                 "grant_refused",
                 {
@@ -2060,6 +2093,7 @@ class Dispatcher:
                 },
             )
             return
+        active.request.refused = None
         for resource in (*result.locked, *result.ahead):
             self._state.locks[resource] = active.request.train
         for resources in (result.locked, result.ahead):
@@ -2226,8 +2260,9 @@ class Dispatcher:
 
     def _publish_allocation(self) -> None:
         """The run's picture, on a last-value topic, when any of what it
-        carries has moved. Published from the two places that move it: a
-        request joining the queue, and the grant phase that runs it."""
+        carries has moved. Published from the places that move it: a
+        request joining the queue, the grant phase that runs it, and a
+        cancel held for an outstanding move, which sweeps nothing (#1117)."""
         picture = allocation(self._state, self._requests)
         if picture != self._allocation:
             self._allocation = picture
