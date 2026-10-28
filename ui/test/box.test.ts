@@ -179,21 +179,21 @@ function shown(dialog: TcSettings): string | null {
 }
 
 describe("the dialog's tabs", () => {
-  it("are Railroad and Backup where the box cannot turn off", async () => {
+  it("are Railroad, Points and Backup where the box cannot turn off", async () => {
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(tabs(dialog)).toEqual(["Railroad", "Backup"]);
+    expect(tabs(dialog)).toEqual(["Railroad", "Points", "Backup"]);
   });
 
-  it("are Railroad, Backup and Shutdown where it can", async () => {
+  it("are Railroad, Points, Backup and Shutdown where it can", async () => {
     installed(CAN);
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(tabs(dialog)).toEqual(["Railroad", "Backup", "Shutdown"]);
+    expect(tabs(dialog)).toEqual(["Railroad", "Points", "Backup", "Shutdown"]);
   });
 
   it("open on Railroad, whichever was shown when the dialog closed", async () => {

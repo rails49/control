@@ -411,6 +411,9 @@ export class TcApp extends LitElement {
         .opened=${this.filing.opened}
         .built=${this.status.built}
         .allocated=${this.status.allocated}
+        .pointGap=${this.status.pointGap}
+        @settings-wanted=${(event: CustomEvent<number>) =>
+          this.session?.pressSettings(event.detail)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
         @railroad-arrived=${() => this.arrived()}
         @railroads-changed=${() => void this.filing.load()}

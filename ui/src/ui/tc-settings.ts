@@ -3,8 +3,9 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Three tabs, the dialog opening on the one `tab` names each time — Railroad
- * from the gear, Backup from the band's backup note (#899, #1075). **Railroad**
+ * Three tabs, four where the box can turn off, the dialog opening on the one
+ * `tab` names each time — Railroad from the gear, Backup from the band's
+ * backup note (#899, #1075). **Railroad**
  * lists what the store holds, the loaded one ticked, and a press on another
  * asks for it: it publishes `railroad_wanted` through
  * the app and stops there, and the tick moves when the layout's row names the
@@ -26,7 +27,14 @@
  * waits on the track, which it does not touch. **Backup** is a slot the
  * app fills with `tc-backup`, which draws itself in the tab rather than in a
  * dialog of its own: being sent from one dialog to another is a step that
- * does nothing. **Shutdown** turns the box off (#745), and is drawn only
+ * does nothing. **Points**, after Railroad, sets the point gap (#1128): how
+ * long `layout` waits after one point command before the next, or before the
+ * move waiting on it goes. Its one field shows `point_gap` as
+ * `tc49/layout/state/settings` says it, is dead with a hint until that row is
+ * heard, and on a commit — a change, not each keystroke — asks for what was
+ * typed on `settings-wanted`, the app publishing `settings_wanted`; what
+ * `gapChange` refuses is not sent, and the tab says why. The field goes on
+ * showing the row, not the press (ADR-0035). **Shutdown** turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
  * once more before anything is sent, and then says to unplug the box once its
@@ -45,8 +53,8 @@
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
- * **It decides nothing.** Why the Railroad tab or the Shutdown tab is refused
- * is `model/settings.ts`, and what is loaded is the row's; the app hands in
+ * **It decides nothing.** Why the Railroad tab or the Shutdown tab is
+ * refused, and what a point gap sends, is `model/settings.ts`, and what is loaded is the row's; the app hands in
  * the row and the power. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
  * whichever refused and asks for nothing, so nothing is loaded that was not
@@ -55,6 +63,7 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/icon/icon.js";
@@ -72,7 +81,10 @@ import {
   boxRefusal,
   copyRefusal,
   Drain,
+  gapChange,
+  POINT_GAP_MAX_S,
   refusal,
+  SETTINGS_UNHEARD,
   STOPPING,
   UNANSWERED,
 } from "../model/settings.js";
@@ -124,6 +136,10 @@ export class TcSettings extends LitElement {
    *  railroad, as `RunStatus.allocated` has it. */
   @property({ attribute: false }) allocated = false;
 
+  /** The point gap `tc49/layout/state/settings` says, in seconds, as
+   *  `RunStatus.pointGap` has it: `null` while the row is unheard. */
+  @property({ attribute: false }) pointGap: number | null = null;
+
   /** The tab shown when the dialog opens: Railroad from the gear, Backup
    *  from the band's backup note. */
   @property() tab: "railroad" | "backup" = "railroad";
@@ -135,6 +151,10 @@ export class TcSettings extends LitElement {
    *  in `nameTrouble`'s words, or a write, in the store's — and `null` once
    *  one has gone through or the name is typed at again. */
   @state() private wrong: string | null = null;
+
+  /** Why the point gap last committed was not sent, in `gapChange`'s
+   *  words, `null` once one is sent or the dialog opens again. */
+  @state() private gapRefused: string | null = null;
 
   /** Whether a write is out: one at a time, so a second press cannot ask for
    *  a railroad the first is still writing. */
@@ -191,6 +211,7 @@ export class TcSettings extends LitElement {
       if (this.turning !== "sending") this.turning = "idle";
       this.deleting = null;
       this.refusedOff = null;
+      this.gapRefused = null;
       void canTurnOff().then((can) => {
         this.canTurnOff = can;
       });
@@ -211,9 +232,11 @@ export class TcSettings extends LitElement {
       <look-dialog open label="Settings" @sl-after-hide=${this.close}>
         <sl-tab-group>
           <sl-tab slot="nav" panel="railroad" ?active=${!backup}>Railroad</sl-tab>
+          <sl-tab slot="nav" panel="points">Points</sl-tab>
           <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
           ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
           <sl-tab-panel name="railroad" ?active=${!backup}>${this.railroads()}</sl-tab-panel>
+          <sl-tab-panel name="points"><div class="points">${this.points()}</div></sl-tab-panel>
           <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
           ${this.canTurnOff
             ? html`<sl-tab-panel name="shutdown">
@@ -316,6 +339,58 @@ export class TcSettings extends LitElement {
         : html`<p class="hint copy">${copyRefused}</p>`}
       ${this.wrong === null ? nothing : html`<p class="hint wrong">${this.wrong}</p>`}
     `;
+  }
+
+  /**
+   * The Points tab: the point gap, in seconds from `0` to `POINT_GAP_MAX_S`
+   * in steps of `0.1`, `0` being no wait. Dead with a hint until the layout
+   * has said its settings; a commit `gapChange` refuses stays in the field,
+   * with the reason beneath it.
+   */
+  private points() {
+    const unheard = this.pointGap === null;
+    return html`
+      <sl-input
+        class="gap"
+        type="number"
+        label="Time between point commands"
+        size="small"
+        min="0"
+        max=${POINT_GAP_MAX_S}
+        step="0.1"
+        ?disabled=${unheard}
+        .value=${live(unheard ? "" : String(this.pointGap))}
+        @sl-change=${(event: Event) =>
+          this.gapping((event.target as HTMLInputElement).value)}
+      >
+        <span slot="suffix">s</span>
+      </sl-input>
+      <p class="hint">0 means no wait: each point command goes as soon as the last.</p>
+      ${unheard ? html`<p class="hint unheard">${SETTINGS_UNHEARD}</p>` : nothing}
+      ${this.gapRefused === null
+        ? nothing
+        : html`<p class="hint wrong">${this.gapRefused}</p>`}
+    `;
+  }
+
+  /** The point gap committed as `typed`: asked for on `settings-wanted`
+   *  where `gapChange` sends it, and the reason kept where it refuses. */
+  private gapping(typed: string): void {
+    const change = gapChange(typed, this.pointGap);
+    if (change === null) {
+      this.gapRefused = null;
+    } else if ("refused" in change) {
+      this.gapRefused = change.refused;
+    } else {
+      this.gapRefused = null;
+      this.dispatchEvent(
+        new CustomEvent<number>("settings-wanted", {
+          detail: change.sent,
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
   }
 
   /** The row of the railroad whose Delete was pressed: what deleting it

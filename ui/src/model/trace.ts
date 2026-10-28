@@ -99,6 +99,7 @@ export const POWER_WANTED = "tc49/layout/power_wanted";
 export const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
 export const DRIVING_WANTED = "tc49/layout/driving_wanted";
 export const CLOCK_WANTED = "tc49/layout/clock_wanted";
+export const SETTINGS_WANTED = "tc49/layout/settings_wanted";
 export const TAKE_WANTED = "tc49/layout/take_wanted";
 export const THROTTLE_ALIVE = "tc49/layout/throttle_alive";
 export const FUNCTION_WANTED = "tc49/layout/function_wanted";
@@ -250,6 +251,14 @@ export function clockWanted(change: { time?: number; speedUp?: number }): Frame 
       ...(change.speedUp === undefined ? {} : { speed_up: change.speedUp }),
     },
   };
+}
+
+/** A `settings_wanted` frame: the railroad's point gap, in seconds, as a
+ *  person set it in the Settings dialog's Points tab (#1126, #1128). `layout`
+ *  answers on `state/settings` at once, and the field shows that row and not
+ *  the press (ADR-0035). */
+export function settingsWanted(pointGap: number): Frame {
+  return { topic: SETTINGS_WANTED, payload: { point_gap: pointGap } };
 }
 
 /** A `throttle_wanted` frame: how fast a person is driving a train, `-1.0`
