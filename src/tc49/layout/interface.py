@@ -336,7 +336,8 @@ class _Crossing:
     the position asked for: every one reported that position when the move
     was let through, and one reporting another stops the train (ADR-0097).
     It goes empty once the train has arrived and the block behind has been
-    published vacated, in either order, and does not come back (#1110).
+    published vacated since the move, in either order, and does not come back
+    (#1110). `left` is whether that vacate has gone out.
     """
 
     origin: str
@@ -348,6 +349,7 @@ class _Crossing:
     driving: bool = True
     outstanding: bool = True
     reported: tuple[tuple[str, str], ...] = ()
+    left: bool = False
 
 
 @dataclass(frozen=True)
@@ -928,11 +930,11 @@ class LayoutInterface:
         this app or a throttle drives it, and the grant implying nothing more,
         so no `on` or switch to `automatic` drives it on over the point. A
         throttle may (ADR-0081): nothing holds the train against one, and the
-        same report heard again stops nothing. The watch lasts until the train
-        has arrived and the block it left reads vacated, in either order, so a
-        train that has arrived with its tail over the point is stopped too,
-        and a short train read clear behind is stopped until it arrives. After
-        that the dispatcher may free the transit, and a report stops nothing
+        same report heard again stops nothing. The points are checked until
+        the train has arrived and the block it left has been published vacated
+        since the move, in either order: a train that has arrived with its
+        tail over the point is stopped, and so is a short train read clear
+        behind that has not arrived. After that a report stops nothing
         (#1110).
 
         A report that completes a transit's reported points lets the `move`
@@ -1923,7 +1925,7 @@ class LayoutInterface:
                 BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block}
             )
             if not occupied:
-                self._unwatch(block)
+                self._left(block)
         crossing = self._crossing.get(block)
         if crossing is None or level != OCCUPIED:
             return
@@ -1941,7 +1943,7 @@ class LayoutInterface:
             if crossing.driving or crossing.train in self._taken:
                 self._stop(crossing.train)
             crossing = replace(crossing, implied=(), outstanding=False)
-            if self._occupied.get(crossing.origin) is False:
+            if crossing.left:
                 crossing = replace(crossing, reported=())
             self._crossing[block] = crossing
         if end == crossing.far:
@@ -2008,16 +2010,19 @@ class LayoutInterface:
             return
         self._occupied[block] = False
         self._bus.publish(BLOCK_VACATED, {"block": block})
-        self._unwatch(block)
+        self._left(block)
 
-    def _unwatch(self, block: str) -> None:
-        """The reported points of each arrived crossing out of `block`, just
-        published vacated, no longer watched: the dispatcher may free the
-        transit now, so a later route may move them (ADR-0077, #1110). The
-        arrival does the same where its origin already reads vacated."""
+    def _left(self, block: str) -> None:
+        """`block` just published vacated: each crossing out of it is marked
+        `left`, and one that has arrived stops checking its reported points
+        (#1110)."""
         for entered, crossing in list(self._crossing.items()):
-            if crossing.origin == block and not crossing.outstanding:
-                self._crossing[entered] = replace(crossing, reported=())
+            if crossing.origin != block:
+                continue
+            crossing = replace(crossing, left=True)
+            if not crossing.outstanding:
+                crossing = replace(crossing, reported=())
+            self._crossing[entered] = crossing
 
     def _folded(self) -> str:
         """Whether a train may move at all, folded from what the hardware

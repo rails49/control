@@ -194,9 +194,10 @@ point has a `device/point` saying the position the `align` asked for, so a
 point that fails to throw holds the train rather than sending it the wrong
 way. From when the move is let through until the train has arrived and the
 block it left reads vacated, in either order, a reported point saying another
-position stops the train, as an arrival does; a throttle may drive it on. That
-is when the dispatcher may free the transit, and the watch does not come back
-when the block left reads occupied again. A throw by hand waits for nothing
+position stops the train, as an arrival does; a throttle may drive it on. The
+vacate counts only if it is published after the move starts, as the dispatcher
+counts it, and the points are not checked again when the block left reads
+occupied again. A throw by hand waits for nothing
 ([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
 
 **The near-end check.** A `move` is acted on only if that train is standing at
