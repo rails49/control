@@ -93,6 +93,12 @@ A motorised symbol: a turnout, a single slip or a double slip. It has one motor
 and two positions ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).
 _Avoid_: switch, turnout (one kind of point)
 
+**Point gap**:
+The time after one point command before the next point command, or before the
+move that waits on it, goes ahead: one per railroad, kept with it and set from
+the Settings dialog ([SYSTEM.md](docs/SYSTEM.md)).
+_Avoid_: point delay, throw interval
+
 **Position**:
 What a point's motor is set to: `closed` or `thrown`
 ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).

@@ -1141,12 +1141,23 @@ it lies as the `align` asked, on `device/point`, before the train departs, and
 stops the train if it says otherwise before the train has arrived and the
 block it left reads vacated, in either order ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
 
+`layout` writes only the points of an `align` that change: a point whose
+`wanted/point` row already holds the position asked, or will once the points
+before it go out, is not written again, since an accessory packet fires a
+solenoid even where the point lies. The rest go out in route order, each no
+sooner than one **point gap** after the last point written by any `align`, a
+hand throw's included, so a later `align` waits behind an earlier one's
+points. The move goes ahead only once a gap has passed since the last of its
+points was written, and a reported point still waits for its `device/point`
+as well. An `align` that writes nothing lets its move go at once, and signals
+are not spaced. Time is the injected clock's, as the settling time's is.
+
 `layout` says the railroad's settings on `state/settings` as each railroad is
-loaded, so far only the **point gap**: how long it waits after a point command
-before the next one or the move waiting on it. A person sets it with
-`settings_wanted`, taken at any power and with no rebuild, said at once, and
-kept with the railroad in `layouts/<layout>.settings.yaml`. A railroad that
-keeps none is loaded at `0`, no wait, and nothing yet waits on it
+loaded, so far only the point gap. A person sets it with `settings_wanted`,
+taken at any power and with no rebuild, said at once, used for the next point
+written, and kept with the railroad in `layouts/<layout>.settings.yaml`. A
+railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
+and nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
 [#1127](https://github.com/rails49/control/issues/1127)).

@@ -394,7 +394,7 @@ point_gap: 1.5   # seconds, 0 to 5, `layout` waits after a point command
 
 The one field, and nothing else. `layout` writes it when a person sets it
 (`tc49.lib.settings`); the simulator neither reads nor writes it. A railroad
-with no settings document is loaded at a point gap of `0`, and nothing is
+with no settings document is loaded at a point gap of 0.5 s, and nothing is
 written until somebody sets it. One that does not read is said in `layout`'s
 log and treated as none. Copy and delete carry it with the clock.
 
