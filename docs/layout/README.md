@@ -143,8 +143,10 @@ on it and calls `settle()` itself.
 **The same loop says the app is up.** Once a second by the monotonic clock,
 whatever the period, it publishes `tc49/layout/alive_confirmed` with `{}`, so
 something off the box can cut track power when the box goes silent. Standing
-and reloading are outside the loop and say nothing; the simulator never says
-it ([#716](https://github.com/rails49/control/issues/716), BUS.md).
+and reloading are outside the loop and say nothing. The simulator says it in
+`layout`'s place, for the page, which names an app it has not heard for 3 s
+([#716](https://github.com/rails49/control/issues/716),
+[#1113](https://github.com/rails49/control/issues/1113), BUS.md).
 
 **Whose levels those are, on a physical railroad, is a person's.** No camera
 publishes `device/sensor` yet, so somebody types them a line at a time and

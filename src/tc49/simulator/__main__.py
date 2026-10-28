@@ -86,7 +86,7 @@ from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
-from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
+from tc49.lib.startup import PERIOD_S, RETAINED_S, Alive, command_line, connected
 from tc49.simulator.sim import Simulator
 
 CLIENT_ID = "tc49-simulator"
@@ -104,6 +104,12 @@ flagged for ADR-0030's reason — a delay this binding chose is not a distance
 divided by a speed, and the railroad it stands in for is the one thing that
 could say otherwise. The suite shortens them, a test that waited out a real
 transit spending half a minute on one move."""
+
+ALIVE_CONFIRMED = "tc49/layout/alive_confirmed"
+"""`layout`'s saying it is up, said by this binding in its place: a page names
+the layout interface when it goes quiet, on a simulated railroad as on steel
+(#1113). The devices that cut track power on it are on steel boxes only, so
+saying it here cuts nothing (#716)."""
 
 OWNED = (
     "tc49/layout/state/railroad",
@@ -181,6 +187,8 @@ class _Binding:
         self._documents = documents
         self._log = log
         self._keeping = Keeping(documents, log)
+        # Kept across builds, so the rate holds over a reload (#1113).
+        self._alive = Alive(bus, ALIVE_CONFIRMED)
 
     def read(self, railroad: str) -> _Read:
         """The drawing and the clock the railroad keeps: this binding sends
@@ -230,17 +238,23 @@ class _Binding:
             built=built,
             fast=fast,
         )
-        return _Running(simulator, self._stop, self._period_s)
+        return _Running(simulator, self._alive, self._stop, self._period_s)
 
 
 class _Running:
     """A built `Simulator` and the loop it already owns: the discrete-event
-    queue slept on a wall clock, ended by a signal or by `until`."""
+    queue slept on a wall clock, ended by a signal or by `until`, saying it is
+    up on each wait a second after the last (#1113)."""
 
     def __init__(
-        self, simulator: Simulator, stop: threading.Event, period_s: float
+        self,
+        simulator: Simulator,
+        alive: Alive,
+        stop: threading.Event,
+        period_s: float,
     ) -> None:
         self._simulator = simulator
+        self._alive = alive
         self._stop = stop
         self._period_s = period_s
 
@@ -251,15 +265,17 @@ class _Running:
     def run(self, until: Callable[[], bool]) -> None:
         self._simulator.run_live(
             self._period_s,
-            sleep=_waiting(self._stop),
+            sleep=_waiting(self._stop, self._alive),
             stop=until,
             monotonic=time.monotonic,
         )
 
 
-def _waiting(stop: threading.Event) -> Callable[[float], None]:
+def _waiting(stop: threading.Event, alive: Alive) -> Callable[[float], None]:
     """The loop's wait: a sleep a stop cuts short, which is what the other
-    apps get from `stop.wait(period_s)` at the foot of their own loops.
+    apps get from `stop.wait(period_s)` at the foot of their own loops, and
+    `alive_confirmed` said before it where a second has passed. A wait is
+    never longer than the period, so the beat keeps to the second.
 
     The deployment sets `stop` never, so a wait here runs its whole length
     there; the suite sets it, and a turn waiting out a transit would otherwise
@@ -268,6 +284,7 @@ def _waiting(stop: threading.Event) -> Callable[[float], None]:
     """
 
     def wait(seconds: float) -> None:
+        alive.say()
         stop.wait(seconds)
 
     return wait

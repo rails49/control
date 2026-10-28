@@ -19,11 +19,18 @@ from collections.abc import Iterator
 
 import pytest
 
-from tc49.driver.__main__ import main, serve
+from tc49.driver.__main__ import ALIVE_CONFIRMED, main, serve
 from tc49.driver.driver import CAUTION_ENV, CLEAR_ENV
 from tc49.lib.bus import Payload
+from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
-from tests.brokers import Broker, drained, settle
+from tests.brokers import (
+    Broker,
+    at_least_once_in_any_two_seconds,
+    beats,
+    drained,
+    settle,
+)
 
 RAILROAD = "crossover-yard"
 GRANTED = "tc49/dispatch/move_granted"
@@ -58,8 +65,9 @@ class App:
     broker first and have the app go looking for one that is not there.
     """
 
-    def __init__(self, broker: Broker) -> None:
+    def __init__(self, broker: Broker, railroad: str = RAILROAD) -> None:
         self._broker = broker
+        self._railroad = railroad
         self._bus: MqttBus | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -69,7 +77,7 @@ class App:
         self._bus = MqttBus(port=self._broker.port)
         self._thread = threading.Thread(
             target=serve,
-            args=(self._bus, RAILROAD, self._stop, 0.01),
+            args=(self._bus, self._railroad, self._stop, 0.01),
             kwargs={"log": self._log},
             daemon=True,
         )
@@ -122,17 +130,18 @@ def test_a_cold_start_says_nothing_and_stays_up(broker: Broker, app: App) -> Non
     """Against an empty broker with nothing else running: the driver comes up,
     and the bus stays silent (ADR-0059).
 
-    Silence is this app's cold start. It holds no state and reads no assets
-    (SYSTEM.md, driver footprint), so it owns no retained row to publish, and
-    a `move` before a grant would be a command the dispatcher never
-    authorised.
+    Silence is this app's cold start, but for saying it is up (#1113). It
+    holds no state and reads no assets (SYSTEM.md, driver footprint), so it
+    owns no retained row to publish, and a `move` before a grant would be a
+    command the dispatcher never authorised.
     """
     witness, heard = watching(broker)
     app.start()
 
     assert app.up.wait(10), "it never came up"
     settle(witness)
-    assert heard == [], "the driver published without a grant"
+    said = [topic for topic, _payload in heard if topic != ALIVE_CONFIRMED]
+    assert said == [], "the driver published without a grant"
     assert app.running, "the app stopped on its own"
     witness.close()
 
@@ -230,3 +239,37 @@ def test_a_bad_speed_stops_the_app_at_start_naming_the_variable(
         main()
     assert stopped.value.code != 0
     assert variable in capsys.readouterr().err
+
+
+def test_on_a_railroad_it_says_once_a_second_that_it_is_up(
+    broker: Broker, app: App
+) -> None:
+    """What a page names the driver on when it goes quiet (#1113): at least
+    once in any two seconds, so the page's 3 s has a margin, and once a second
+    on the monotonic clock rather than once a turn of a loop turning every
+    10 ms."""
+    witness, heard = watching(broker)
+    app.start()
+    assert app.up.wait(10), "it never came up"
+
+    said = beats(broker.port, ALIVE_CONFIRMED, 4.5)
+
+    assert at_least_once_in_any_two_seconds(said, 4.5), f"heard at {said}"
+    assert len(said) <= 6, f"{len(said)} in 4.5 s, where once a second is 4 or 5"
+    settle(witness)
+    assert all(payload == {} for payload in rows(heard, ALIVE_CONFIRMED))
+    witness.close()
+
+
+def test_standing_with_no_railroad_it_says_nothing(broker: Broker) -> None:
+    """A driver with no railroad loaded is not judged, and says nothing: the
+    band already says no railroad is loaded (#1113)."""
+    standing = App(broker, railroad=NO_RAILROAD)
+    try:
+        standing.start()
+        assert standing.up.wait(10), "it never came up"
+        said = beats(broker.port, ALIVE_CONFIRMED, 2.5)
+        assert said == [], f"a driver with no railroad said it was up at {said}"
+        assert standing.running, "the app stopped on its own"
+    finally:
+        standing.stop()

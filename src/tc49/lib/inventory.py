@@ -79,8 +79,15 @@ TOPICS: dict[str, Topic] = {
     # the thing wanted rather than naming itself.
     "tc49/layout/railroad_wanted": Topic(("railroad",), browser=True),
     # `layout` saying it is up, once a second while built on a railroad, for
-    # whatever cuts track power when it stops (#716). Nothing to carry.
+    # whatever cuts track power when it stops (#716), and for the page, which
+    # names an app it has not heard for 3 s (#1113). The simulator says it in
+    # `layout`'s place. Nothing to carry. The three beside it are the other
+    # apps saying the same for the page alone; each leaf names its app, a
+    # leaf being unique across the inventory.
     "tc49/layout/alive_confirmed": Topic(()),
+    "tc49/schedule/scheduler_alive_confirmed": Topic(()),
+    "tc49/dispatch/dispatcher_alive_confirmed": Topic(()),
+    "tc49/drive/driver_alive_confirmed": Topic(()),
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),

@@ -61,7 +61,7 @@ import threading
 import time
 from collections.abc import Callable
 
-from tc49.lib.bus import Payload
+from tc49.lib.bus import Bus, Payload
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus
 
 PERIOD_S = 0.1
@@ -90,6 +90,46 @@ TICK_S = 0.01
 one — the client's network thread puts a retained value in `last_values` and
 `drain` is what delivers it to a handler later — so a wait for a named row
 looks rather than being woken, and the looking is what this paces."""
+
+
+ALIVE_S = 1.0
+"""How often an app built on a railroad says it is up, in seconds of the
+monotonic clock and not in turns of its loop: a page names an app it has not
+heard for 3 s (#1113), and that bound is set against this rate, which the
+drain period must not move."""
+
+
+class Alive:
+    """An app saying it is up: `{}` on its own `alive_confirmed` topic, at
+    most once an `ALIVE_S` (#1113).
+
+    Called from the app's loop on every turn while it is built on a railroad,
+    and never while it stands, so a page judges an app only by whether it is
+    running and built. Kept across rebuilds, so the rate holds over a reload.
+    Not retained: a retained value would say "up" after the app had died.
+
+    `layout` says its own beside the fast clock (`layout/__main__.py`), being
+    the one an off-box device cuts track power on (#716); this is every other
+    app's, the simulator included, which says `layout`'s in its place.
+    """
+
+    def __init__(
+        self,
+        bus: Bus,
+        topic: str,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._bus = bus
+        self._topic = topic
+        self._monotonic = monotonic
+        self._said: float | None = None
+
+    def say(self) -> None:
+        """Say it, where a second has passed since it was last said."""
+        now = self._monotonic()
+        if self._said is None or now - self._said >= ALIVE_S:
+            self._bus.publish(self._topic, {})
+            self._said = now
 
 
 def connected(bus: MqttBus, stop: threading.Event, log: Callable[[str], None]) -> bool:

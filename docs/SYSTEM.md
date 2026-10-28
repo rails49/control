@@ -606,6 +606,12 @@ in [BUS.md](BUS.md#device-vocabulary).
     built on a railroad. Each translator that drives trains, and any device on
     the bus that cuts track power, cuts it when that event stops. Beyond that
     cut a person stops the railroad when the software cannot (ADR-0074).
+    The simulator publishes it in `layout`'s place, and the scheduler,
+    dispatcher and driver each say the same on a topic of their own. While
+    the loaded railroad is built, the band names any of the four apps the
+    page has not heard for 3 s. That is the one place an app being down is
+    handled; every other rule may assume each app is running
+    ([#1113](https://github.com/rails49/control/issues/1113)).
 22. After an `off` no point position can be trusted, because the accessory
     decoders lose power too. Every grant sets its points again. A point thrown
     by hand while power is off is stored and moves when power returns

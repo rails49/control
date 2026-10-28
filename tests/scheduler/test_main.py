@@ -17,12 +17,20 @@ import pytest
 
 from tc49.lib.bus import Payload
 from tc49.lib.documents import Documents
+from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
-from tc49.scheduler.__main__ import serve
+from tc49.scheduler.__main__ import ALIVE_CONFIRMED, serve
 from tc49.scheduler.scheduler import FACING
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, settle, until
+from tests.brokers import (
+    Broker,
+    at_least_once_in_any_two_seconds,
+    beats,
+    drained,
+    settle,
+    until,
+)
 from tests.harness import ASSETS, catalogued
 from tests.ports import free_port
 from tests.startup import WINDOW_S, a_stop_in_the_window_is_acted_on_there
@@ -94,7 +102,11 @@ class App:
     thread so the test can watch the bus while it is up."""
 
     def __init__(
-        self, broker: Broker, store: Store, retained_s: float = RETAINED_S
+        self,
+        broker: Broker,
+        store: Store,
+        retained_s: float = RETAINED_S,
+        railroad: str = RAILROAD,
     ) -> None:
         self.bus = MqttBus(port=broker.port)
         self._documents = Documents(
@@ -107,7 +119,7 @@ class App:
         for the person watching the container and no row of anyone's."""
         self._thread = threading.Thread(
             target=serve,
-            args=(self.bus, self._documents, RAILROAD, self._stop, 0.01, retained_s),
+            args=(self.bus, self._documents, railroad, self._stop, 0.01, retained_s),
             kwargs={"log": self.said.append},
             daemon=True,
         )
@@ -347,3 +359,41 @@ def test_a_stop_inside_the_retained_window_is_acted_on_there(
     store.start()
     witness, _heard = watching(broker)
     a_stop_in_the_window_is_acted_on_there(waiting, witness)
+
+
+def test_built_on_a_railroad_it_says_once_a_second_that_it_is_up(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """What a page names the scheduler on when it goes quiet (#1113): at least
+    once in any two seconds, so the page's 3 s has a margin, and once a second
+    on the monotonic clock rather than once a turn of a loop turning every
+    10 ms. Not retained, so a late subscriber is not told it is up after it
+    has died."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+
+    said = beats(broker.port, ALIVE_CONFIRMED, 4.5)
+
+    assert at_least_once_in_any_two_seconds(said, 4.5), f"heard at {said}"
+    assert len(said) <= 6, f"{len(said)} in 4.5 s, where once a second is 4 or 5"
+    assert all(payload == {} for payload in rows(heard, ALIVE_CONFIRMED))
+    witness.close()
+
+
+def test_standing_with_no_railroad_it_says_nothing(
+    broker: Broker, store: Store
+) -> None:
+    """An app built on nothing is not judged, and says nothing: the band
+    already says no railroad is loaded (#1113)."""
+    store.start()
+    standing = App(broker, store, railroad=NO_RAILROAD)
+    try:
+        standing.start()
+        assert until(lambda: standing.bus.wait_connected(0.1)), "it never connected"
+        said = beats(broker.port, ALIVE_CONFIRMED, 2.5)
+        assert said == [], f"a scheduler with no railroad said it was up at {said}"
+        assert standing.running, "the app stopped on its own"
+    finally:
+        standing.stop()

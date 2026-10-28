@@ -53,6 +53,7 @@ from tc49.lib.roster import Roster
 from tc49.lib.startup import (
     PERIOD_S,
     RETAINED_S,
+    Alive,
     command_line,
     connected,
     retained,
@@ -62,6 +63,10 @@ CLIENT_ID = "tc49-dispatcher"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (BUS.md, rule 4)."""
+
+ALIVE_CONFIRMED = "tc49/dispatch/dispatcher_alive_confirmed"
+"""The dispatcher saying it is up, once a second while built on a railroad, so
+that a page names it when it goes quiet (#1113)."""
 
 OWNED = ("tc49/dispatch/state/#",)
 """The retained rows this app writes, as a filter rather than a list: a topic
@@ -123,6 +128,7 @@ def serve(
         return
     layout, roster = read
     log(f"'{loaded.name}': {len(layout.blocks)} blocks, {len(roster.trains)} trains")
+    alive = Alive(bus, ALIVE_CONFIRMED)
     while not stop.is_set():
         retained(bus, ALLOCATION, stop, retained_s)
         # No placement of its own: a run an operator drives comes up on
@@ -151,6 +157,7 @@ def serve(
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         while not stop.is_set() and not loaded.moved:
+            alive.say()
             bus.drain()
             stop.wait(period_s)
         if not loaded.moved:
