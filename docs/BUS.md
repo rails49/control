@@ -323,6 +323,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
+| `tc49/layout/state/settings` | state | layout | the railroad's settings, so far the point gap ([#1125](https://github.com/rails49/control/issues/1125)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -799,6 +800,15 @@ what a drop would cost:
   `wanted/function` row it knows of changes: its own writes, and the retained
   rows a bus that outlived it hands back at start, so a light a decoder still
   has on shows on after a restart. An unreadable row is skipped.
+- `tc49/layout/state/settings` — `point_gap`: number, seconds, `0` to `5`,
+  the time `layout` waits after a point command before it sends the next
+  point command or lets go the move waiting on it; `0` is no wait. `layout`
+  publishes it as a railroad is loaded, `0` until a person can change it, and
+  none while it stands. Loading a railroad clears it with the other `layout`
+  rows
+  ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+  The page shows it in the Settings dialog's Points tab; no app reads it
+  ([#1125](https://github.com/rails49/control/issues/1125)).
 
 #### `schedule`
 

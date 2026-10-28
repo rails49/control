@@ -1139,6 +1139,12 @@ it lies as the `align` asked, on `device/point`, before the train departs, and
 stops the train if it says otherwise before the train has arrived and the
 block it left reads vacated, in either order ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
 
+`layout` says the railroad's settings on `state/settings` as each railroad is
+loaded, so far only the **point gap**: how long it waits after a point command
+before the next one or the move waiting on it. It is `0`, no wait, and nothing
+yet waits on it ([#1125](https://github.com/rails49/control/issues/1125),
+[#1127](https://github.com/rails49/control/issues/1127)).
+
 A second obligation guards against a stale command: the layout interface
 **acts on a `move` only if that train is standing at the transit's near end**
 ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
