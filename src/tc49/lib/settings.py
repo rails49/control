@@ -41,6 +41,18 @@ THROTTLE_SILENCE_MAX_S = 60.0
 gone, and the train it held should not roll on unwatched."""
 
 
+def speed(value: object) -> float | None:
+    """`value` as one of the driver's speeds, or None where it is not one: a
+    finite fraction of the locomotive's maximum above `0` and at most `1`
+    (#1131)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    # Written so that `nan`, which compares false with everything, fails.
+    if not 0 < value <= 1:
+        return None
+    return float(value)
+
+
 def throttle_silence(value: object) -> float | None:
     """`value` as a throttle silence, or None where it is not one: a finite
     number from `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S`."""

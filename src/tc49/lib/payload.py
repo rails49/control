@@ -155,7 +155,7 @@ from tc49.lib.inventory import (
     is_state_topic,
 )
 from tc49.lib.layout import Point
-from tc49.lib.settings import KeptSettings, point_gap
+from tc49.lib.settings import SPEEDS, point_gap, speed, throttle_silence
 
 
 @dataclass(frozen=True)
@@ -486,16 +486,68 @@ def wanted_clock(payload: object) -> ClockSet | None:
     return ClockSet(time, speed_up)
 
 
-def wanted_settings(payload: object) -> KeptSettings | None:
+@dataclass(frozen=True)
+class SettingsWanted:
+    """What a person sets from the Settings dialog (#1126, #1131): the
+    railroad's point gap, in seconds, some or all of its speeds, and the
+    installation's throttle silence, in seconds. None, and a speed left out
+    of `speeds`, leaves that setting as it is."""
+
+    point_gap: float | None = None
+    speeds: dict[str, float] | None = None
+    throttle_silence: float | None = None
+
+
+_SETTINGS_FIELDS = frozenset({"point_gap", "speeds", "throttle_silence"})
+
+
+def wanted_settings(payload: object) -> SettingsWanted | None:
     """The settings a `settings_wanted` gesture asks for, or None where it
-    asks for none: `point_gap` given and in range (`lib.settings`), or the
-    gesture is dropped whole (#1126)."""
+    asks for none.
+
+    At least one of `point_gap`, `speeds` and `throttle_silence`, nothing
+    else, and each given in range (`lib.settings`), or the gesture is
+    dropped whole: a good gap beside a bad silence is not half taken.
+    `speeds` names `clear`, `caution` or both and nothing else.
+    """
     if not isinstance(payload, dict):
         return None
-    gap = point_gap(cast(dict[str, object], payload).get("point_gap"))
-    if gap is None:
+    fields = cast(dict[str, object], payload)
+    if not fields or not set(fields) <= _SETTINGS_FIELDS:
         return None
-    return KeptSettings(gap)
+    gap: float | None = None
+    if "point_gap" in fields:
+        gap = point_gap(fields["point_gap"])
+        if gap is None:
+            return None
+    speeds: dict[str, float] | None = None
+    if "speeds" in fields:
+        speeds = _speeds(fields["speeds"])
+        if speeds is None:
+            return None
+    silence: float | None = None
+    if "throttle_silence" in fields:
+        silence = throttle_silence(fields["throttle_silence"])
+        if silence is None:
+            return None
+    return SettingsWanted(gap, speeds, silence)
+
+
+def _speeds(stated: object) -> dict[str, float] | None:
+    """The speeds a `settings_wanted` gesture sets, or None where they are
+    not speeds: some of `SPEEDS`' names, at least one, each a `speed`."""
+    if not isinstance(stated, dict):
+        return None
+    named = cast(dict[str, object], stated)
+    if not named or not set(named) <= set(SPEEDS):
+        return None
+    speeds: dict[str, float] = {}
+    for aspect, value in named.items():
+        fraction = speed(value)
+        if fraction is None:
+            return None
+        speeds[aspect] = fraction
+    return speeds
 
 
 @dataclass(frozen=True)

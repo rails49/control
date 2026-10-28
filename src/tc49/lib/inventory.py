@@ -144,10 +144,15 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/state/settings": Topic(
         (AT, "point_gap", "speeds", "throttle_silence")
     ),
-    # A person sets the railroad's settings from the Settings dialog, so far
-    # the point gap (#1126). Taken whatever track power and the run are
-    # doing, and a changed gap needs no rebuild.
-    "tc49/layout/settings_wanted": Topic(("point_gap",), browser=True),
+    # A person sets the settings from the Settings dialog: any of the point
+    # gap, the speeds and the throttle silence, at least one, each in the
+    # range `state/settings` gives it (#1126, #1131). `speeds` names
+    # `clear`, `caution` or both. A field left out keeps its value; an
+    # unknown field or a value out of range drops the gesture whole. Taken
+    # whatever track power and the run are doing, and needs no rebuild.
+    "tc49/layout/settings_wanted": Topic(
+        ("point_gap", "speeds", "throttle_silence"), browser=True
+    ),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
