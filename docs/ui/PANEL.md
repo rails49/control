@@ -103,6 +103,21 @@ arrival ends, which is where that one leaves the train. A request only
 submitted is not listed until the dispatcher's picture has it, and a rejected
 one never is; its reason is on the drawing.
 
+**A row the dispatcher refused says which train it waits for**, on a line
+under it, waiting and underway alike, for as long as the request carries
+`refused` in the picture
+([#1114](https://github.com/rails49/control/issues/1114)). A refusal means
+the train stands: the move two blocks ahead is never refused, the train runs
+at `caution` instead. Each distinct holder in `obstacles` is named once, and
+holders of one kind share a sentence, joined with "or", since any one of them
+moving may free a route. A holder with a request in the list: "waits for IC 2
+to pass", which ends by itself. A holder with none: "waits for IC 2 to leave
+B7 — give IC 2 a request", since a parked train never moves on its own
+([SAFETY.md](../dispatcher/SAFETY.md)); the block is the obstacle, or where
+the obstacle is a transit, the block the holder last stood in. A holder of
+`""`, a block that reads occupied with no train in it: "waits for B7 to read
+clear". The same note serves `unsafe`, `held` and `transit_conflict`.
+
 Each row has a **cancel**, which publishes `tc49/dispatch/cancel_wanted`
 (`{id}`) naming that request, the requests chained after it ending with it. A
 **waiting** row can be dragged to another place in the list, which publishes
