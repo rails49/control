@@ -25,6 +25,7 @@ from tc49.driver import Driver
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.settings import POINT_GAP_S
 from tc49.scheduler import Scheduler
 from tests.harness import load
 from tests.invariants import checked
@@ -153,7 +154,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
         (DRIVING, {"at": 0.0, "driving": "manual"}),
         (TAKEN, {"at": 0.0, "taken": {}}),
         (FUNCTIONS, {"at": 0.0, "functions": {}}),
-        (SETTINGS, {"at": 0.0, "point_gap": 0.0}),
+        (SETTINGS, {"at": 0.0, "point_gap": POINT_GAP_S}),
     ]
 
 

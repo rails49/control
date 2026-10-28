@@ -58,8 +58,11 @@ class OnSteel:
         clock = Clock()
         self.bus = Unstamped(clock)
         self.bus.subscribe(WANTED_TRACK, self._station)
+        # No point gap: the simulator moves a train the moment its points
+        # are set, and this suite holds the two bindings to one answer
+        # (#1127, whose gap `tests/layout` drives).
         self._app = LayoutInterface(
-            self.bus, railroad(), stock(), clock, position=position
+            self.bus, railroad(), stock(), clock, position=position, point_gap=0.0
         )
         self.bus.drain()
 

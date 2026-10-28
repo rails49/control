@@ -178,6 +178,7 @@ def wired(
     throttle_silence_s: float = THROTTLE_SILENCE_S,
     allocated: dict[str, str] | None = None,
     reread: Callable[[], Roster | None] | None = None,
+    point_gap: float = 0.0,
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
@@ -189,6 +190,10 @@ def wired(
 
     `reread`: how the app reads the roster again for a train `stock()` lacks,
     the store's answer as `__main__` hands it over (ADR-0092, decision 2).
+
+    `point_gap`: the wait after each point command (#1127), none unless a
+    suite asks: what most of these suites drive has no business with how
+    long a point takes to move, and `test_point_gap.py` drives the rest.
 
     Switched to `automatic` unless `driving` says otherwise. The app comes up
     `manual` (ADR-0079), where it writes no traction for a train no throttle
@@ -209,6 +214,7 @@ def wired(
         settling_s,
         throttle_silence_s,
         reread=reread,
+        point_gap=point_gap,
     )
     bus.drain()
     if driving == AUTOMATIC:

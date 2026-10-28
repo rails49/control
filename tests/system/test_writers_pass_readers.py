@@ -263,7 +263,8 @@ def layout_run() -> Recorded:
     clock = Clock()
     bus = InProcessBus(clock)
     seen = recording(bus)
-    LayoutInterface(bus, railroad(), stock(), clock)
+    # No point gap (#1127): the move's traction is written at once.
+    LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
     bus.drain()
     switches(bus, "automatic")
     takes(bus, "topped")

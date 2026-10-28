@@ -383,7 +383,7 @@ def test_the_facing_left_on_the_topic_is_there_at_startup() -> None:
     bus.publish(FACING, {"facing": {"single": "up_w.A-to-B"}})
     bus.drain()
 
-    app = LayoutInterface(bus, railroad(), stock(), clock)
+    app = LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
     bus.drain()
     switches(bus, AUTOMATIC)
     energised(bus)
@@ -402,7 +402,7 @@ def test_an_older_facing_delivered_late_does_not_turn_a_train_round() -> None:
     which here is a locomotive run the wrong way (#240)."""
     clock = Clock()
     bus = Unstamped(clock)
-    app = LayoutInterface(bus, railroad(), stock(), clock)
+    app = LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
     bus.drain()
     switches(bus, AUTOMATIC)
     energised(bus)

@@ -53,6 +53,7 @@ from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
 from tc49.lib.documents import Documents
 from tc49.lib.loading import BUILT, RAILROAD_WANTED
 from tc49.lib.mqtt import MqttBus
+from tc49.lib.settings import POINT_GAP_S
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
@@ -491,6 +492,19 @@ def test_a_railroad_is_loaded_at_the_settings_it_keeps(
     witness.close()
 
 
+def test_a_railroad_that_keeps_no_settings_runs_at_the_default_gap(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Half a second, and nothing kept until somebody sets it (#1127)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
+    assert rows(heard, SETTINGS)[0]["point_gap"] == POINT_GAP_S == 0.5
+    assert not (root / "layouts" / f"{NAME}.settings.yaml").exists()
+    witness.close()
+
+
 def test_settings_the_store_cannot_read_are_the_defaults(
     broker: Broker, store: Store, app: App, root: Path
 ) -> None:
@@ -500,7 +514,7 @@ def test_settings_the_store_cannot_read_are_the_defaults(
     witness, heard = watching(broker)
     app.start()
     assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings came"
-    assert rows(heard, SETTINGS)[0]["point_gap"] == 0
+    assert rows(heard, SETTINGS)[0]["point_gap"] == POINT_GAP_S
     witness.close()
 
 

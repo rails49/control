@@ -85,16 +85,16 @@ def test_a_way_that_needs_nothing_thrown_writes_nothing() -> None:
     assert written == []
 
 
-def test_the_points_are_written_again_on_every_align() -> None:
-    """Never only on change: a hand may have flipped one since, so the
-    dispatcher names the points before every grant and a translator throws
-    what it is told (ADR-0043)."""
+def test_a_point_already_asked_for_is_not_written_again() -> None:
+    """Only on change: a stateless accessory packet fires a solenoid even
+    where the point already lies, and drains a shared CDU for nothing
+    (#1127)."""
     bus, _app = build()
     written = points(bus)
     align(bus, "crossover", "straight")
     align(bus, "crossover", "straight")
 
-    assert [topic for topic, _ in written] == [WANTED_POINT + "/12"] * 2
+    assert [topic for topic, _ in written] == [WANTED_POINT + "/12"]
 
 
 def test_the_way_back_moves_the_shared_point_the_other_way() -> None:
