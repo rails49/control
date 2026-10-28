@@ -347,3 +347,83 @@ describe("a refused request's note", () => {
     ]);
   });
 });
+
+/** An underway row whose cancel the dispatcher holds: the train runs on into
+ *  the block its move enters and stops there, and only then does the row go
+ *  ([#1115](https://github.com/rails49/control/issues/1115)). */
+describe("a held cancel", () => {
+  beforeEach(brokering);
+
+  afterEach(unbrokered);
+
+  const EXPRESS: Listed = {
+    id: "e1",
+    train: "express",
+    depart: "c.A",
+    dest: ["a.B"],
+    route: ["c", "sw.side", "a"],
+  };
+
+  const CANCELLING: Listed = { ...EXPRESS, cancelling: "B7" };
+
+  async function picture(shell: TcApp, requests: Listed[]): Promise<void> {
+    await said(shell, ALLOCATION, {
+      trains: { express: "c" },
+      locks: { c: "express", "sw.side": "express", a: "express" },
+      requests,
+    });
+    await settled(shell);
+  }
+
+  async function serving(requests: Listed[]): Promise<{ shell: TcApp; element: TcRequests }> {
+    const shell = await joined();
+    await picture(shell, requests);
+    const element = running(shell).renderRoot.querySelector("tc-requests")!;
+    return { shell, element };
+  }
+
+  function states(element: TcRequests): string[] {
+    return [...element.renderRoot.querySelectorAll("li .state")].map(
+      (state) => state.textContent!.trim(),
+    );
+  }
+
+  function cancels(element: TcRequests): { disabled: boolean; title: string }[] {
+    return [...element.renderRoot.querySelectorAll<HTMLButtonElement>("li .cancel")].map(
+      (button) => ({ disabled: button.disabled, title: button.title }),
+    );
+  }
+
+  it("says where the train stops in place of underway, and its × is disabled", async () => {
+    const { element } = await serving([CANCELLING]);
+    expect(states(element)).toEqual(["cancelling — stops in B7"]);
+    expect(cancels(element)).toEqual([{ disabled: true, title: "already cancelling" }]);
+  });
+
+  it("leaves an underway row with no held cancel as it was", async () => {
+    const { element } = await serving([EXPRESS]);
+    expect(states(element)).toEqual(["underway"]);
+    expect(cancels(element)).toEqual([{ disabled: false, title: "Cancel request" }]);
+  });
+
+  /** Whether by `move_withdrawn` or by the move ending at its sensor, the
+   *  request leaves the list, and the mark with it. */
+  it("goes with the row when the request leaves the list", async () => {
+    const { shell, element } = await serving([CANCELLING]);
+    await picture(shell, []);
+    expect(states(element)).toEqual([]);
+    expect(element.requests).toEqual([]);
+  });
+
+  /** The allocation is retained, so a page that connects after the × shows
+   *  what one open at the time did. */
+  it("shows on the first picture a page has", async () => {
+    const { element } = await serving([CANCELLING]);
+    expect(element.requests.map((row) => row.cancelling)).toEqual(["B7"]);
+  });
+
+  it("is not read where `cancelling` is not a block id", async () => {
+    const { element } = await serving([{ ...EXPRESS, cancelling: 7 } as unknown as Listed]);
+    expect(states(element)).toEqual(["underway"]);
+  });
+});

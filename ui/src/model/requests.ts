@@ -17,6 +17,10 @@
  * which train it waits for, and, where that train has no request of its own
  * and so will never move, that a person has to give it one
  * ([#1114](https://github.com/rails49/control/issues/1114)).
+ *
+ * An underway request whose cancel the dispatcher holds carries the block
+ * its outstanding move enters, where the train stops before the request goes
+ * ([#1115](https://github.com/rails49/control/issues/1115)).
  */
 
 import type { EndRef } from "./panel.js";
@@ -33,6 +37,9 @@ export interface Listed {
   route?: string[];
   /** The latest `grant_refused` since its last grant, where there is one. */
   refused?: Refused;
+  /** The block the outstanding move enters, while a cancel of the request
+   *  is held for that move. */
+  cancelling?: string;
 }
 
 /** Why a request waits, as `grant_refused` said it (BUS.md): the reason, and
@@ -58,6 +65,8 @@ export interface RequestRow {
   /** Which train the request waits for, a sentence per kind of holder, on
    *  a request the dispatcher last refused. */
   note?: string[];
+  /** Where the train stops, on an underway request whose cancel is held. */
+  cancelling?: string;
 }
 
 /** The rows, one per request in list order. `standsIn` is the block a train
@@ -69,7 +78,7 @@ export function requestRows(
 ): RequestRow[] {
   const byId = new Map(requests.map((request) => [request.id, request]));
   const listed = new Set(requests.map((request) => request.train));
-  return requests.map(({ id, train, depart, dest, after, route, refused }) => ({
+  return requests.map(({ id, train, depart, dest, after, route, refused, cancelling }) => ({
     id,
     train,
     from:
@@ -84,6 +93,7 @@ export function requestRows(
     ...(refused === undefined || refused.obstacles.length === 0
       ? {}
       : { note: waitsFor(refused, listed, standsIn) }),
+    ...(cancelling === undefined ? {} : { cancelling }),
   }));
 }
 
