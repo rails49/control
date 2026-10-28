@@ -374,6 +374,68 @@ describe("request layers", () => {
     expect(model.lit().state.get("sw1")).toBe("committed");
   });
 
+  /**
+   * The third colour (#1116): nothing detects a train on a transit, so the
+   * one a train is crossing is drawn occupied from the grant until the
+   * picture drops it from `crossing`, as the dispatcher holds it all that
+   * time.
+   */
+  const crossing = (transits: Record<string, string>, locks: Record<string, string>) => ({
+    event: "allocation",
+    trains: { t1: "a", t2: "c" },
+    crossing: transits,
+    locks,
+    requests: [],
+  });
+
+  it("draws the transit a train is crossing occupied", () => {
+    const model = panel();
+    placed(model);
+    feed(model, crossing({ t1: "sw.side" }, { "sw.side": "t1", c: "t1" }));
+    const lit = model.lit();
+    expect(lit.legs.get("sw1")).toEqual(new Set(["diverging"]));
+    expect(lit.state.get("sw1")).toBe("occupied");
+    expect(lit.state.get("p1")).toBe("occupied");
+    expect([...lit.wires.values()]).toEqual(["occupied", "occupied", "occupied"]);
+  });
+
+  it("shows occupied on a symbol an occupied and a locked transit share", () => {
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      crossing({ t1: "sw.main" }, { "sw.main": "t1", "sw.side": "t2" }),
+    );
+    const lit = model.lit();
+    expect(lit.state.get("sw1")).toBe("occupied");
+    expect(lit.state.get("p1")).toBe("locked");
+    expect(lit.wires.get(wire("a.B", "sw1.toe"))).toBe("occupied");
+    expect(lit.wires.get(wire("p1.P", "c.A"))).toBe("locked");
+  });
+
+  it("keeps the transit occupied while the block it leads to reads occupied", () => {
+    // The page stops naming the train crossing at the arrival, but the move
+    // ends on both readings and the train may still stand on the points.
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      crossing({ t1: "sw.side" }, { "sw.side": "t1", c: "t1" }),
+      { event: "block_occupied", block: "c" },
+    );
+    expect(model.lit().state.get("sw1")).toBe("occupied");
+  });
+
+  it("stops drawing a transit occupied once the train is no longer crossing it", () => {
+    const model = panel();
+    placed(model);
+    feed(model, crossing({ t1: "sw.side" }, { "sw.side": "t1", c: "t1" }));
+    feed(model, crossing({}, { "sw.side": "t1", c: "t1" }));
+    expect(model.lit().state.get("sw1")).toBe("locked");
+    feed(model, crossing({}, {}));
+    expect(model.lit().state.has("sw1")).toBe(false);
+  });
+
   it("keeps a lock the dispatcher still holds after its request completes", () => {
     // Green is the ledger's answer, not the route's intersected with it, so
     // the picture never claims the railroad is freer than it is.

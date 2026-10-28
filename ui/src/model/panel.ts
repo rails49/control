@@ -46,16 +46,22 @@ export type FacingRef = string;
 
 /**
  * How strong a claim the dispatcher has on a resource a route runs over:
- * `locked` where it holds the lock and the train may move, `committed` where
- * the route is chosen and the claim has not been made yet. The same two words
- * a block view uses, so blocks, transits and wires take their colour from one
+ * `occupied` on the transit a train is crossing, which nothing detects and
+ * the dispatcher holds as occupied from the grant until the move ends;
+ * `locked` where it holds the lock and the train may move; `committed` where
+ * the route is chosen and the claim has not been made yet. The same words a
+ * block view uses, so blocks, transits and wires take their colour from one
  * rule (ui/PANEL.md).
  *
  * Named for the pair and not for one of them: ui/PANEL.md builds a request out
  * of three layers and defines the third as the locked one specifically, so a
  * union spanning the last two must not wear that layer's name.
  */
-export type Claim = "locked" | "committed";
+export type Claim = "occupied" | "locked" | "committed";
+
+/** Strongest first: where two claims land on one symbol or wire, the one
+ *  earlier here is drawn. */
+const CLAIMS: readonly Claim[] = ["occupied", "locked", "committed"];
 
 /** One block a train has ahead of it on the route it is committed to, and
  *  how strong a claim the dispatcher has on it. The two words a route is lit
@@ -383,6 +389,12 @@ export class Panel {
    *  block the sensors last confirmed it in, and this is the whole of what
    *  says it has left (#154). */
   private crossing = new Map<string, string>();
+  /** train → the transit of the move the dispatcher granted it, as the
+   *  picture's `crossing` says and nothing else does: unlike `crossing` it is
+   *  not dropped when the block the train is going to reads occupied, because
+   *  the move has not ended until both readings say so and the train may
+   *  still be on the points (#1116). */
+  private moves = new Map<string, string>();
   /** The blocks that read occupied, as `block_occupied` and `block_vacated`
    *  last said. A page that joined after a reading has not seen it, and
    *  draws the train where it last stood instead (#897). */
@@ -504,6 +516,7 @@ export class Panel {
     this.differing.clear();
     this.standing.clear();
     this.crossing.clear();
+    this.moves.clear();
     this.reads.clear();
     this.stood.clear();
     this.heading.clear();
@@ -636,6 +649,7 @@ export class Panel {
         // it has left it. Its name is drawn where the detectors say it is,
         // and in that last block where they say nothing (#897).
         this.crossing = new Map(Object.entries(crossing ?? {}));
+        this.moves = new Map(this.crossing);
         this.stood = new Map(Object.entries(trains));
         this.standing = new Map(
           Object.entries(trains)
@@ -1166,15 +1180,22 @@ export class Panel {
    * stays locked until it is released, because the dispatcher really does
    * still hold it.
    *
-   * Where a throat symbol is carried by a locked transit and a committed one
-   * at the same time, locked wins — the strongest claim that holds, as the
-   * block view rules it. That slightly overstates the committed route's leg
-   * on a shared symbol (ui/PANEL.md).
+   * A transit a train is crossing is `occupied` from the grant until the
+   * picture drops it from `crossing` (#1116), the dispatcher's own word that
+   * the move ended on both readings, and not at the first: nothing detects a
+   * train on a transit, so the dispatcher holds it as occupied all that time.
+   *
+   * Where a throat symbol is carried by transits of different claims at the
+   * same time, the strongest wins — occupied over locked over committed, as
+   * the block view rules it. That slightly overstates the weaker transit's
+   * leg on a shared symbol (ui/PANEL.md).
    */
   lit(): LitRoute {
     const legs = new Map<string, Set<string>>();
     const state = new Map<string, Claim>();
     const wires = new Map<string, Claim>();
+    const stronger = (claim: Claim, held: Claim | undefined) =>
+      held === undefined || CLAIMS.indexOf(claim) < CLAIMS.indexOf(held);
     const light = (resource: string, claim: Claim) => {
       const way = this.ways.get(resource);
       if (way === undefined) return; // a block, or a transit off this drawing
@@ -1182,12 +1203,13 @@ export class Panel {
         const taken = legs.get(symbol) ?? new Set<string>();
         taken.add(leg === "" ? WHOLE : leg);
         legs.set(symbol, taken);
-        if (claim === "locked" || !state.has(symbol)) state.set(symbol, claim);
+        if (stronger(claim, state.get(symbol))) state.set(symbol, claim);
       }
       for (const wire of way.wires) {
-        if (claim === "locked" || !wires.has(wire)) wires.set(wire, claim);
+        if (stronger(claim, wires.get(wire))) wires.set(wire, claim);
       }
     };
+    for (const transit of this.moves.values()) light(transit, "occupied");
     for (const resource of this.locks.keys()) light(resource, "locked");
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
