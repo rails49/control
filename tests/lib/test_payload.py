@@ -19,6 +19,7 @@ from tc49.lib.payload import (
     Ordering,
     Placement,
     Reorder,
+    SettingsWanted,
     Switch,
     Take,
     Throttle,
@@ -55,6 +56,7 @@ from tc49.lib.payload import (
     wanted_function,
     wanted_power,
     wanted_reorder,
+    wanted_settings,
     wanted_take,
     wanted_throttle,
 )
@@ -372,6 +374,63 @@ def test_a_clock_gesture_that_cannot_be_read_is_dropped() -> None:
     ]
     for payload in refused:
         assert wanted_clock(payload) is None, payload
+
+
+def test_a_settings_gesture_reads_as_the_fields_it_sets() -> None:
+    """The point gap, the speeds, the throttle silence or any of them; a
+    field left out keeps its value, and so does a speed left out of
+    `speeds` (#1131)."""
+    assert wanted_settings({"point_gap": 1.5}) == SettingsWanted(point_gap=1.5)
+    assert wanted_settings({"point_gap": 0}) == SettingsWanted(point_gap=0.0)
+    assert wanted_settings({"speeds": {"clear": 1}}) == SettingsWanted(
+        speeds={"clear": 1.0}
+    )
+    assert wanted_settings({"speeds": {"caution": 0.25}}) == SettingsWanted(
+        speeds={"caution": 0.25}
+    )
+    assert wanted_settings({"throttle_silence": 2}) == SettingsWanted(
+        throttle_silence=2.0
+    )
+    assert wanted_settings(
+        {
+            "point_gap": 5,
+            "speeds": {"clear": 0.7, "caution": 0.2},
+            "throttle_silence": 60,
+        }
+    ) == SettingsWanted(5.0, {"clear": 0.7, "caution": 0.2}, 60.0)
+
+
+def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
+    """None of the three fields, an unknown field, or any value out of
+    range, and the whole gesture goes: a good gap beside a bad silence is
+    not half taken (#1131)."""
+    refused: list[object] = [
+        [1],  # not an object at all
+        {},  # none of the three
+        {"gap": 1},  # an unknown field alone
+        {"point_gap": 1, "colour": "red"},  # an unknown field beside a good one
+        {"point_gap": -0.5},
+        {"point_gap": 5.5},
+        {"point_gap": True},
+        {"point_gap": None},
+        {"speeds": {}},  # neither speed
+        {"speeds": {"clear": 0}},  # not greater than 0
+        {"speeds": {"clear": 1.1}},  # past the maximum
+        {"speeds": {"caution": float("nan")}},
+        {"speeds": {"caution": "0.3"}},
+        {"speeds": {"caution": True}},
+        {"speeds": {"clear": 0.6, "stop": 0}},  # an unknown aspect
+        {"speeds": 0.6},  # not an object
+        {"throttle_silence": 1},  # shorter than a throttle's heartbeat
+        {"throttle_silence": 61},
+        {"throttle_silence": float("inf")},
+        {"throttle_silence": "5"},
+        {"throttle_silence": False},
+        {"point_gap": 1, "throttle_silence": 100},  # one bad field fails all
+        {"point_gap": 1, "speeds": {"clear": 2}},
+    ]
+    for payload in refused:
+        assert wanted_settings(payload) is None, payload
 
 
 def test_the_wanted_supply_reads_as_the_value_it_asks_for() -> None:

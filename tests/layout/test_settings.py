@@ -108,3 +108,22 @@ def test_a_gap_set_says_the_speeds_and_the_throttle_silence_with_it() -> None:
     sets(bus, {"point_gap": 1.5})
     assert bus.last_values[SETTINGS]["speeds"] == {"clear": 0.6, "caution": 0.3}
     assert bus.last_values[SETTINGS]["throttle_silence"] == 5.0
+
+
+def test_a_gap_beside_a_field_the_contract_does_not_read_is_dropped() -> None:
+    """An unknown field, or another field out of range, drops the gesture
+    whole: the gap beside it is not half taken (#1131)."""
+    bus, app, kept = kept_by_app()
+    sets(bus, {"point_gap": 1.5, "colour": "red"})
+    sets(bus, {"point_gap": 1.5, "throttle_silence": 100})
+    sets(bus, {"point_gap": 1.5, "speeds": {"clear": 2}})
+    assert kept == []
+    assert app.point_gap == POINT_GAP_S
+
+
+def test_a_gap_beside_good_speeds_and_silence_is_taken() -> None:
+    """The gap is taken; keeping the speeds and the silence is #1132's."""
+    bus, app, kept = kept_by_app()
+    sets(bus, {"point_gap": 2, "speeds": {"clear": 0.8}, "throttle_silence": 10})
+    assert kept == [KeptSettings(2.0)]
+    assert app.point_gap == 2.0

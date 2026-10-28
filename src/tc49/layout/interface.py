@@ -1286,15 +1286,19 @@ class LayoutInterface:
         (#1126): taken whatever track power and the run are doing, used from
         the next `align`, said at once on `state/settings` so every open
         page shows it, and kept with the railroad. Nothing is rebuilt. A
-        gesture with no `point_gap`, or one out of range, is dropped as any
-        malformed gesture is (ADR-0034)."""
+        gesture the contract does not read, an unknown field or a value out
+        of range, is dropped whole as any malformed gesture is (ADR-0034).
+        So far only the gap is taken: a gesture setting no gap changes
+        nothing until `layout` keeps the speeds and the silence (#1131,
+        #1132)."""
         wanted = wanted_settings(payload)
-        if wanted is None:
+        if wanted is None or wanted.point_gap is None:
             return
-        self._settings = wanted
-        self._bus.publish(SETTINGS, said(wanted, self._throttle_silence_s))
+        kept = KeptSettings(wanted.point_gap)
+        self._settings = kept
+        self._bus.publish(SETTINGS, said(kept, self._throttle_silence_s))
         if self._keep is not None:
-            self._keep(wanted)
+            self._keep(kept)
 
     def _on_take_wanted(self, topic: str, payload: Payload) -> None:
         """A throttle took a train, or the train was released (ADR-0079).
