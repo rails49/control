@@ -84,7 +84,8 @@ both views are of one railroad, so one control asks for it. The gear is drawn
 whether or not a session is joined, and Help after it is the last thing on
 the band.
 
-The dialog has four tabs, in this order. The gear opens it on the first and
+The dialog has six tabs, in this order, the last only where the box can be
+turned off. The gear opens it on the first and
 the band's backup note on Backup
 ([#899](https://github.com/rails49/control/issues/899), #1075):
 
@@ -101,6 +102,21 @@ the band's backup note on Backup
   the gap the row already says; a gap outside `0`–`5`, or no number at all,
   is not sent and the tab says why (`gapChange`, `model/settings.ts`). The
   field goes on showing the row, not the press.
+- **Driving** sets the driver's speeds
+  ([#1134](https://github.com/rails49/control/issues/1134)): two fields,
+  *Speed at clear* and *Speed at caution*, each in percent of the
+  locomotive's top speed from `1` to `100` in steps of `1`. Each shows
+  `speeds` from `tc49/layout/state/settings` times 100, and a commit publishes
+  `settings_wanted` with that one speed, the percent over 100, as
+  `speeds: {clear}` or `speeds: {caution}` (`speedChange`).
+- **Box** sets the throttle silence (#1134): one field, *Let go of a silent
+  throttle's trains after*, in seconds from `2` to `60` in steps of `1`, with
+  a hint that it applies whatever railroad is loaded. A commit publishes
+  `settings_wanted` with `throttle_silence` alone (`silenceChange`).
+
+  Both tabs read as Points does: dead with the same hint until the row is
+  heard, nothing sent for the value the row already says, and a value out of
+  range or no number not sent, the field saying why.
 - **Backup** is where the store is backed up and restored, drawn in the tab
   and not in a dialog of its own ([Backing the store up](#backing-the-store-up)).
 - **Shutdown** turns the box off (#745). It is there only where the

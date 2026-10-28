@@ -830,7 +830,9 @@ what a drop would cost:
   rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The simulator does not publish it. The page shows the gap in the Settings
-  dialog's Points tab; no app reads it yet, `layout` holding the gap and
+  dialog's Points tab, the speeds in its Driving tab and the silence in its
+  Box tab ([#1134](https://github.com/rails49/control/issues/1134)); no app
+  reads it yet, `layout` holding the gap and
   the silence it says, and the driver reading the speeds being
   [#1133](https://github.com/rails49/control/issues/1133)
   ([#1125](https://github.com/rails49/control/issues/1125),
@@ -851,9 +853,12 @@ what a drop would cost:
   gone silent, publishes `state/settings` at once, and keeps the gap and the
   speeds with the railroad and the silence with the installation
   ([#1132](https://github.com/rails49/control/issues/1132)). The page
-  publishes the gap from the Settings dialog's Points tab
+  publishes the gap from the Settings dialog's Points tab, one speed at a
+  time from its Driving tab and the silence from its Box tab, each commit
+  carrying the one field committed
   ([#1126](https://github.com/rails49/control/issues/1126),
-  [#1131](https://github.com/rails49/control/issues/1131)).
+  [#1131](https://github.com/rails49/control/issues/1131),
+  [#1134](https://github.com/rails49/control/issues/1134)).
 
 #### `schedule`
 
