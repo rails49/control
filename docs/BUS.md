@@ -772,7 +772,7 @@ what a drop would cost:
 - `tc49/layout/throttle_alive` — browser-writable — `throttle`: the id. A
   throttle publishes it once a second while it holds a train. `layout`
   releases every train of a throttle it has not heard for 5 s by default,
-  set per installation ([DEPLOY.md](DEPLOY.md#a-silent-throttle)), as
+  set per installation (`throttle_silence` on `settings_wanted`), as
   `take_wanted` with `null` would.
 - `tc49/layout/state/taken` — `taken`: map of train to throttle id. A train
   the map does not name, no throttle holds. Empty when `layout` starts. Read
@@ -812,15 +812,18 @@ what a drop would cost:
     store, `layouts/<layout>.settings.yaml` ([LAYOUT.md](store/LAYOUT.md)),
     or `0.5` where it keeps none.
   - `speeds`: object, the railroad's: `clear` and `caution`, each a fraction
-    of the locomotive's maximum, greater than `0` and at most `1`. So far
-    nobody sets them, so they are `clear` 0.6 and `caution` 0.3
-    ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
+    of the locomotive's maximum, greater than `0` and at most `1`. The
+    speeds the railroad keeps in `layouts/<layout>.settings.yaml`, or
+    `clear` 0.6 and `caution` 0.3 where it keeps none
+    ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+    [#1132](https://github.com/rails49/control/issues/1132)).
   - `throttle_silence`: number, seconds, `2` to `60`, how long a throttle
     holding a train may go unheard before `layout` lets go of its trains.
-    The installation's, `TC49_LAYOUT_THROTTLE_SILENCE` or 5
-    ([DEPLOY.md](DEPLOY.md#a-silent-throttle)): it does not change with the
-    railroad, though like the rest it is on the row only while one is
-    loaded ([#1130](https://github.com/rails49/control/issues/1130)).
+    The installation's, kept in `installation.yaml` at the store root, or 5
+    where it keeps none: it does not change with the railroad, though like
+    the rest it is on the row only while one is loaded
+    ([#1130](https://github.com/rails49/control/issues/1130),
+    [#1132](https://github.com/rails49/control/issues/1132)).
 
   `layout` publishes it as a railroad is loaded; at once after it takes a
   `settings_wanted`; and none while it stands. Loading a railroad clears it with the other `layout`
@@ -828,7 +831,8 @@ what a drop would cost:
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The simulator does not publish it. The page shows the gap in the Settings
   dialog's Points tab; no app reads it yet, `layout` holding the gap and
-  the silence it says
+  the silence it says, and the driver reading the speeds being
+  [#1133](https://github.com/rails49/control/issues/1133)
   ([#1125](https://github.com/rails49/control/issues/1125),
   [#1127](https://github.com/rails49/control/issues/1127)).
 - `tc49/layout/settings_wanted` — browser-writable — any of these fields, at
@@ -843,10 +847,9 @@ what a drop would cost:
   any value out of range is dropped whole, as any malformed gesture is. It
   is also dropped while no railroad is loaded. Taken whatever track power
   and the run are doing, and a change needs no rebuild. `layout` uses the
-  gap from the next `align`, publishes `state/settings` at once and keeps
-  the gap with the railroad. So far it takes only the gap: a payload
-  setting none changes nothing until `layout` keeps the speeds with the
-  railroad and the silence with the installation
+  gap from the next `align` and the silence from its next check of who has
+  gone silent, publishes `state/settings` at once, and keeps the gap and the
+  speeds with the railroad and the silence with the installation
   ([#1132](https://github.com/rails49/control/issues/1132)). The page
   publishes the gap from the Settings dialog's Points tab
   ([#1126](https://github.com/rails49/control/issues/1126),

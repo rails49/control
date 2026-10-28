@@ -150,6 +150,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
                                 where the backup made first fails
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
+    GET  /installation          the installation's settings; 404 where none
+    PUT  /installation          create or replace them
     GET  /backup                what backup can do here, what it needs, the
                                 repository the store is `inside`, if any, and
                                 the `railroads` each backup holds
@@ -164,8 +166,9 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
                                 changed only once that worked
     POST /backup/key            replace the store's deploy key with a new one
 
-`/loaded` is not routed to the page: only the layout binding uses it, inside
-the compose network, so traefik and the vite dev server leave it out.
+`/loaded` and `/installation` are not routed to the page: only the layout
+binding uses them, inside the compose network, so traefik and the vite dev
+server leave them out.
 
 **Two more routes sit beside those and are not the store's.** The camera app
 answers the first ([#851](https://github.com/rails49/control/issues/851)); a
@@ -270,7 +273,11 @@ LAN is still the trust boundary and a browser is not on it
   Beside it is `loaded.yaml`, the railroad the layout binding last loaded,
   which it writes and reads back as it starts so that a reboot comes up on
   the same railroad
-  ([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
+  ([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)),
+  and `installation.yaml`, the installation's settings, so far the throttle
+  silence, which the layout binding reads once as it starts and writes when
+  a person sets it
+  ([#1132](https://github.com/rails49/control/issues/1132)).
   `GET /backup` also answers how far behind the copy off the machine is, in
   `copy`: how many backups the remote has not been given — every one on the
   branch where a remote has no upstream — how long the oldest has been waiting
@@ -1153,18 +1160,21 @@ as well. An `align` that writes nothing lets its move go at once, and signals
 are not spaced. Time is the injected clock's, as the settling time's is.
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
-loaded: the point gap, the driver's speeds, which nobody sets yet and so are
-0.6 and 0.3, and the throttle silence, the installation's and the same
-whatever railroad is loaded
-([#1130](https://github.com/rails49/control/issues/1130)). A person sets the
-gap with `settings_wanted`, taken at any power and with no rebuild, said at
-once, used for the next point written, and kept with the railroad in `layouts/<layout>.settings.yaml`.
-The gesture may also carry the speeds and the throttle silence, each field
-optional and the whole dropped where any is out of range, but `layout`
-does not take them yet
-([#1131](https://github.com/rails49/control/issues/1131)). A
+loaded: the point gap and the driver's speeds, the railroad's, and the
+throttle silence, the installation's and the same whatever railroad is loaded
+([#1130](https://github.com/rails49/control/issues/1130)). A person sets any
+of them with `settings_wanted`, each field optional and the whole dropped
+where any is out of range
+([#1131](https://github.com/rails49/control/issues/1131)), taken at any
+power and with no rebuild and said at once. The gap is used for the next
+point written and the silence from the next check of who has gone silent;
+the speeds are the driver's. The gap and the speeds are kept with the
+railroad in `layouts/<layout>.settings.yaml`, the silence with the
+installation in `installation.yaml`, read once as `layout` starts
+([#1132](https://github.com/rails49/control/issues/1132)). A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
-and nothing is written until a person sets it
+and the speeds 0.6 and 0.3, an installation that keeps none at 5 s, and
+nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
 [#1127](https://github.com/rails49/control/issues/1127)).
@@ -1212,7 +1222,7 @@ writer is `layout` (rule 1), while a throttle is any number of writers, two
 tabs being two of them. `layout` comes up `manual` with no train taken, and
 publishes `state/driving`, `state/taken` and `state/functions`, which is
 where a view reads who is driving what and which functions are on. A second take of a held train is dropped, and a throttle not
-heard for 5 s by default, set per installation
+heard for 5 s by default, set per installation in `installation.yaml`
 ([DEPLOY.md](DEPLOY.md#a-silent-throttle)), has its trains released.
 
 Within a granted move, a train no throttle holds is driven on its grant's

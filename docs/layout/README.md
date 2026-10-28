@@ -82,11 +82,14 @@ railroad is loaded or created in the settings dialog, and a recorded railroad
 the store no longer has is refused as any starting point is, the record left
 for the next load to overwrite.
 
-**How long a throttle may go silent is not a flag.** A container is configured
-by its environment, so it is `TC49_LAYOUT_THROTTLE_SILENCE` on the layout's
-service, read once at start: unset or empty is 5 s, a number of seconds
-from 2 to 60 is that, and anything else stops the app before it looks for a
-broker, the log naming the variable ([DEPLOY.md](../DEPLOY.md#a-silent-throttle)).
+**How long a throttle may go silent is not a flag.** It is the
+installation's, the same whatever railroad is loaded, so it comes from
+`installation.yaml` at the store root (`GET /installation`), read once as the
+app starts, before any railroad is loaded: none is 5 s, and one that does not
+read is said in the log and treated as none. A person sets it on
+`settings_wanted`, 2 to 60 seconds, and `layout` writes it back there
+([DEPLOY.md](../DEPLOY.md#a-silent-throttle),
+[#1132](https://github.com/rails49/control/issues/1132)).
 
 The broker before the documents, because a railroad the store has not got is
 one this app **stands** on: up, naming no railroad (`""`) on
@@ -375,9 +378,10 @@ no `throttle` at all is dropped. This app states who holds which on
 `tc49/layout/state/taken`, empty at startup. A throttle publishes
 `tc49/layout/throttle_alive` once a second while it holds a train, and this app
 releases every train of a throttle it has not heard for 5 s by default
-(`THROTTLE_SILENCE_S`), set per installation
+(`THROTTLE_SILENCE_S`), set per installation in `installation.yaml`
 ([DEPLOY.md](../DEPLOY.md#a-silent-throttle)) and passed to `LayoutInterface`
-as `throttle_silence_s`, checked each time the loop calls `settle()`.
+as `throttle_silence_s`, checked each time the loop calls `settle()`. One a
+person sets on `settings_wanted` holds from the next check.
 
 **Taking a train writes nothing.** It keeps whatever speed it had and the
 person's first movement of the lever is what changes it. Writing zero on

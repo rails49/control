@@ -29,7 +29,7 @@ layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
 layouts/<layout>.script.py                      # the script its translator loads
 layouts/<layout>.clock.yaml                     # the start time and speed-up its fast clock is loaded at
-layouts/<layout>.settings.yaml                  # its settings, so far the point gap
+layouts/<layout>.settings.yaml                  # its settings: the point gap and the driver's speeds
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
@@ -385,17 +385,23 @@ the drawing, roster and script.
 
 ## Settings schema
 
-A railroad's settings, so far only its point gap
-([#1126](https://github.com/rails49/control/issues/1126)):
+A railroad's settings, its point gap and the driver's speeds
+([#1126](https://github.com/rails49/control/issues/1126),
+[#1132](https://github.com/rails49/control/issues/1132)):
 
 ```yaml
 point_gap: 1.5   # seconds, 0 to 5, `layout` waits after a point command
+speeds:          # each a fraction of the locomotive's maximum, above 0, at most 1
+  clear: 0.6
+  caution: 0.3
 ```
 
-The one field, and nothing else. `layout` writes it when a person sets it
+`point_gap` always, `speeds` with both `clear` and `caution` or not at all,
+and nothing else. `layout` writes it when a person sets either
 (`tc49.lib.settings`); the simulator neither reads nor writes it. A railroad
-with no settings document is loaded at a point gap of 0.5 s, and nothing is
-written until somebody sets it. One that does not read is said in `layout`'s
+with no settings document is loaded at a point gap of 0.5 s, and one without
+`speeds` at `clear` 0.6 and `caution` 0.3; nothing is written until somebody
+sets it. One that does not read is said in `layout`'s
 log and treated as none. Copy and delete carry it with the clock.
 
 ## Scenario schema

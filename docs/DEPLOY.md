@@ -49,9 +49,9 @@ while debugging a headless box.
 `control` adds one file of its own in that directory,
 `/etc/rails49/deploy.env`: where the store is rooted, the driver's two
 speeds if the defaults do not suit the locomotives
-([below](#the-drivers-speeds)), and how long `layout` waits on a silent
-throttle if 5 s does not suit the phones
-([below](#a-silent-throttle)). One directory rather
+([below](#the-drivers-speeds)). How long `layout` waits on a silent throttle
+is set in the Settings dialog instead ([below](#a-silent-throttle)). One
+directory rather
 than two, so the box has one place its settings sit. Which device the command
 station is on is the mirror's, `DCCEX_STATION_DEVICE` in
 [`rails49/dccex`](https://github.com/rails49/dccex)'s `compose.box.yaml`.
@@ -398,18 +398,11 @@ way; whether a train's traction follows it is `layout`'s to decide.
 `layout` releases the trains of a throttle it has not heard from for 5 s, so
 a phone gone to sleep does not leave a train running
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
-One variable on the layout's service overrides it, set in
-`/etc/rails49/deploy.env`:
-
-```sh
-TC49_LAYOUT_THROTTLE_SILENCE=8
-```
-
-It is a number of seconds from 2 to 60, a throttle saying it is there once
-a second, and the range `tc49/layout/state/settings` says it in. Left unset, or empty, it keeps the default. Anything else stops
-`layout` at start with a log line naming the variable, and the container
-restarts on the same error until the file is fixed:
-`docker compose … logs layout` shows it.
+It is not a deploy setting: a person sets it in the Settings dialog, from 2
+to 60 seconds, and `layout` keeps it in `installation.yaml` at the store
+root, the same whatever railroad is loaded and backed up with the rest of the
+store ([#1132](https://github.com/rails49/control/issues/1132)). With no
+such document it is 5 s.
 
 ### The camera's login
 
