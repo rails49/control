@@ -86,6 +86,7 @@ from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
+from tc49.lib.settings import KeptSettings
 from tc49.lib.startup import PERIOD_S, RETAINED_S, Alive, command_line, connected
 from tc49.simulator.sim import Simulator
 
@@ -115,10 +116,12 @@ OWNED = (
     "tc49/layout/state/railroad",
     "tc49/layout/state/power",
     "tc49/layout/state/clock",
+    "tc49/layout/state/settings",
 )
 """The retained rows this binding of the layout interface writes: which
-railroad it is standing in for, the supply each answered press set, and the
-fast clock. The block events it publishes as trains move are events and
+railroad it is standing in for, the supply each answered press set, the
+fast clock, and the railroad's settings, whose speeds the driver prices a
+grant at (#1133). The block events it publishes as trains move are events and
 carry no retained value to drop (ADR-0060)."""
 
 
@@ -156,14 +159,14 @@ def serve(
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
-type _Read = tuple[Layout, KeptClock | None]
-"""What a railroad is simulated from: its layout, and the clock it keeps,
-None where it keeps none."""
+type _Read = tuple[Layout, KeptClock | None, KeptSettings | None]
+"""What a railroad is simulated from: its layout, and the clock and the
+settings it keeps, each None where it keeps none."""
 
 
 class _Binding:
-    """What this binding hands the rebuild loop: two documents read, the
-    drawing and the clock, and a `Simulator` built on them. This binding's
+    """What this binding hands the rebuild loop: three documents read, the
+    drawing, the clock and the settings, and a `Simulator` built on them. This binding's
     steel is the drawing it was built from, so another railroad is another
     simulator (ADR-0030)."""
 
@@ -191,22 +194,33 @@ class _Binding:
         self._alive = Alive(bus, ALIVE_CONFIRMED)
 
     def read(self, railroad: str) -> _Read:
-        """The drawing and the clock the railroad keeps: this binding sends
-        no command, so it reads no roster."""
+        """The drawing, and the clock and the settings the railroad keeps:
+        this binding sends no command, so it reads no roster."""
         return (
             self._documents.layout(railroad),
             kept_by(self._documents, railroad, self._log),
+            self._settings(railroad),
         )
 
     def nothing(self, railroad: str) -> _Read:
         """What this binding stands in for where `railroad`'s drawing is not
         a valid drawing and there is no build to keep: no track under its
         name, the layout interface's own answer (ADR-0085, decision 4). Its
-        clock is the railroad's all the same."""
+        clock and its settings are the railroad's all the same."""
         return (
             Layout(railroad, {}, {}, frozenset(), {}),
             kept_by(self._documents, railroad, self._log),
+            self._settings(railroad),
         )
+
+    def _settings(self, railroad: str) -> KeptSettings | None:
+        """The settings `railroad` keeps, or None. Ones the store cannot read
+        are logged and are the defaults, as `layout` has them (#1133)."""
+        try:
+            return self._documents.settings(railroad)
+        except (ValueError, TypeError) as refused:
+            self._log(f"'{railroad}': {refused} — the settings are the defaults")
+            return None
 
     def layout(self, read: _Read) -> Layout:
         return read[0]
@@ -221,7 +235,7 @@ class _Binding:
         speed-up the railroad keeps or at the box's time of day at 1, and run
         on the run clock from there; what a person sets is kept with the
         railroad as `layout` keeps it (ADR-0090)."""
-        layout, kept = read
+        layout, kept, settings = read
         clock = Clock()
 
         def keep(changed: KeptClock) -> None:
@@ -237,6 +251,7 @@ class _Binding:
             clear_s=self._clear_s,
             built=built,
             fast=fast,
+            settings=settings,
         )
         return _Running(simulator, self._alive, self._stop, self._period_s)
 

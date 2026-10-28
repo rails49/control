@@ -87,6 +87,7 @@ from tc49.lib.layout import Layout, block_of, transit_ends
 from tc49.lib.loading import BUILT
 from tc49.lib.payload import Command, command, named_train, placement
 from tc49.lib.power import TrackPower
+from tc49.lib.settings import THROTTLE_SILENCE_S, KeptSettings, said
 
 CLOCK_S = 1.0
 """How often the fast clock is said, in seconds of run clock: once a real
@@ -109,6 +110,7 @@ class Simulator:
         clear_s: float = 30.0,
         built: bool = True,
         fast: FastClockRow | None = None,
+        settings: KeptSettings | None = None,
     ) -> None:
         """`layout`: the track this binding stands in for; what resolves a
         move's transit to the block its train must be standing in.
@@ -133,6 +135,13 @@ class Simulator:
         `fast`: the fast clock, read off `clock`, said once each `CLOCK_S` of
         it from the run's start (ADR-0090). A run given none says none, which
         is the research harness's: its traces are what they were.
+
+        `settings`: the railroad's settings, said on
+        `tc49/layout/state/settings` as the layout interface says them, so
+        that the driver hears the speeds it prices a grant at (#1133). None
+        is the defaults, `lib.settings`'. This binding sends no point command
+        and holds no throttle, so the point gap and the throttle silence are
+        said and nothing here runs on them.
         """
         self._bus = bus
         self._layout = layout
@@ -196,6 +205,13 @@ class Simulator:
         # comes up: a person presses ON, and the bench harness publishes
         # `power_wanted: on` before a run (ADR-0070, decision 2).
         bus.publish("tc49/layout/state/power", {"power": OFF})
+        # The railroad's settings, stated from the constructor as `layout`
+        # states them on each build: the driver prices no grant until it has
+        # heard the speeds (#1133).
+        bus.publish(
+            "tc49/layout/state/settings",
+            said(settings or KeptSettings(), THROTTLE_SILENCE_S),
+        )
 
     @property
     def position(self) -> dict[str, str]:
