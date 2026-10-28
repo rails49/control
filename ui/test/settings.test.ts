@@ -369,7 +369,7 @@ describe("a speed in percent", () => {
   });
 });
 
-/** The Box tab's one field, the throttle silence (#1134). */
+/** The Throttles tab's one field, the throttle silence (#1134). */
 describe("what a committed throttle silence does", () => {
   it("sends nothing while the layout has not said its settings", () => {
     expect(silenceChange("10", null)).toEqual({
