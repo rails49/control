@@ -287,15 +287,17 @@ lists as `reported` ([DRAWING.md](../store/DRAWING.md#hardware-ids)), the
 layout marks each of its points `reported: true`, and the panel draws it where
 its retained `tc49/layout/state/device/point/<addr>` row says
 ([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
-Before any such row it is drawn from `wanted/point`, as any other point is. A
-reported point is **marked** when it lies on a transit locked to a train and
-its report has differed from `wanted/point` for more than two seconds: a train
-waiting for it to throw, or one it stopped. A point that has reported nothing
-differs from any row. The mark is the amber a dispute wears, on its roads, lit
-or not, with what it reports written under it: *reports closed*, *reports
-thrown* or *no report*. A reported point on no locked transit is not marked,
-whatever it reports. The two seconds are the page's wall clock, on no topic,
-and the view draws again when a mark falls due with no frame arriving. Only a
+Before any such row, or after one saying neither `closed` nor `thrown`, its
+position is unknown and every road is drawn plainly, whatever `wanted/point`
+asked. A reported point is **marked** when it lies on a transit locked to a
+train and its report has differed from `wanted/point` for more than two
+seconds: a train waiting for it to throw, or one it stopped. A point that has
+reported nothing differs from any row. The mark is the amber a dispute wears,
+on its roads, lit or not, with what it reports written under it: *reports
+closed*, *reports thrown* or *no report*. A reported point on no locked
+transit is not marked, whatever it reports. The two seconds are the page's
+wall clock, on no topic, and the view draws again when a mark falls due with
+no frame arriving. Only a
 drawing whose points carry addresses can show any of this, and
 [`reversing-loops/positions`](../../bench/scenarios/reversing-loops/positions.scenario.yaml)
 is the scenario that does — one train across two junctions, which is the

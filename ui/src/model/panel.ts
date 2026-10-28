@@ -1086,13 +1086,14 @@ export class Panel {
    * mid-session is handed every row since the broker came up.
    *
    * An address the drawing lists as reported is drawn from its
-   * `device/point` row instead, once it has one: there `wanted/point` is only
-   * what was asked
+   * `device/point` row instead, and is absent until it has one: there
+   * `wanted/point` is only what was asked
    * ([ADR-0097](../../../docs/adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
    */
   positionsByAddress(): ReadonlyMap<string, Position> {
-    if (this.reports.size === 0) return this.lyingByAddress;
-    return new Map([...this.lyingByAddress, ...this.reports]);
+    if (this.reported.size === 0) return this.lyingByAddress;
+    const lying = [...this.lyingByAddress].filter(([addr]) => !this.reported.has(addr));
+    return new Map([...lying, ...this.reports]);
   }
 
   /**
