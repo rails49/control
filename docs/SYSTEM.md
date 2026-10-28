@@ -1183,7 +1183,10 @@ and the speeds 0.6 and 0.3, an installation that keeps none at 5 s, and
 nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
-[#1127](https://github.com/rails49/control/issues/1127)).
+[#1127](https://github.com/rails49/control/issues/1127)). The simulator says
+and takes them by the same rule and keeps them in the same documents, so the
+Settings dialog works on a simulated railroad; it runs on neither the gap nor
+the silence ([#1140](https://github.com/rails49/control/issues/1140)).
 
 A second obligation guards against a stale command: the layout interface
 **acts on a `move` only if that train is standing at the transit's near end**
