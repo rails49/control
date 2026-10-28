@@ -1,8 +1,8 @@
 import { css } from "lit";
 
 /**
- * The settings dialog (`tc-settings`): three tabs, the Backup tab drawn by
- * `tc-backup` and the other two laid out as below.
+ * The settings dialog (`tc-settings`): its tabs, the Backup tab drawn by
+ * `tc-backup` and the others laid out as below.
  *
  * A railroad is a row that acts where it is pressed, unlike a backup in
  * `tc-backup`, which is chosen and then restored from the press beneath the
@@ -20,6 +20,7 @@ import { css } from "lit";
  * row, and one the layout did not answer says so there, in the weight a
  * thing missing reads in. A row's trash sits at its end, and pressed, the
  * row gives way to what deleting it costs and the two presses beside it.
+ * The Points tab is one narrow field, the hints beneath it.
  */
 export const settingsStyles = css`
   .hint {
@@ -114,6 +115,10 @@ export const settingsStyles = css`
 
   .wrong {
     color: var(--unfinished);
+  }
+
+  .points sl-input {
+    max-width: 14rem;
   }
 
   .shutdown {
