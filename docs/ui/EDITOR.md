@@ -112,7 +112,7 @@ the band's backup note on Backup
   `speeds` from `tc49/layout/state/settings` times 100, and a commit publishes
   `settings_wanted` with that one speed, the percent over 100, as
   `speeds: {clear}` or `speeds: {caution}` (`speedChange`).
-- **Box** sets the throttle silence (#1134): one field, *Let go of a silent
+- **Throttles** sets the throttle silence (#1134, #1142): one field, *Let go of a silent
   throttle's trains after*, in seconds from `2` to `60` in steps of `1`, with
   a hint that it applies whatever railroad is loaded. A commit publishes
   `settings_wanted` with `throttle_silence` alone (`silenceChange`).
