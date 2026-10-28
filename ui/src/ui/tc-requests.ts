@@ -7,7 +7,9 @@
  * It sits under the roster in the run view's left pane. A row is the train,
  * where the request starts, where it ends, and `waiting` or `underway`, and,
  * under them, which train it waits for where the dispatcher refused it a
- * launch or a move (#1114).
+ * launch or a move (#1114). An underway row whose cancel the dispatcher holds
+ * says where the train stops in place of `underway`, and its cancel is off
+ * until the row goes (#1115): the train runs on into that block first.
  *
  * It works nothing out. The rows arrive as data (`Panel.requestList`), and
  * what a drag asks is `model/requests.ts`'s answer: this says which row was
@@ -60,10 +62,11 @@ export class TcRequests extends LitElement {
   }
 
   /** One request. A waiting row can be picked up; an underway one cannot,
-   *  having started. Both can be cancelled. */
+   *  having started. Both can be cancelled, once. */
   private row(request: RequestRow) {
-    const { id, train, from, to, state, note } = request;
+    const { id, train, from, to, state, note, cancelling } = request;
     const pickable = this.live && state === "waiting";
+    const said = cancelling === undefined ? state : `cancelling — stops in ${cancelling}`;
     return html`
       <li
         data-id=${id}
@@ -75,13 +78,14 @@ export class TcRequests extends LitElement {
         @pointercancel=${() => (this.held = null)}
       >
         <span class="train" title=${train}>${train}</span>
-        <span class="state">${state}</span>
+        <span class="state">${said}</span>
         <span class="way">${ends(from)} → ${ends(to)}</span>
         ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
         ${this.live
           ? html`<button
               class="cancel"
-              title="Cancel request"
+              title=${cancelling === undefined ? "Cancel request" : "already cancelling"}
+              ?disabled=${cancelling !== undefined}
               @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
               @click=${() => this.cancel(id)}
             >

@@ -119,7 +119,16 @@ the obstacle is a transit, the block the holder last stood in. A holder of
 clear". The same note serves `unsafe`, `held` and `transit_conflict`.
 
 Each row has a **cancel**, which publishes `tc49/dispatch/cancel_wanted`
-(`{id}`) naming that request, the requests chained after it ending with it. A
+(`{id}`) naming that request, the requests chained after it ending with it.
+On a row underway the dispatcher may hold the cancel: the train runs on into
+the block its move enters and stops there, and only then does the request go
+(BUS.md, `withdraw_wanted`). While the picture carries `cancelling` on the
+request, the row reads "cancelling — stops in B7" in place of *underway*, the
+block being that value, and its cancel is disabled, titled "already
+cancelling", so a second press is not sent and dropped
+([#1115](https://github.com/rails49/control/issues/1115)). The mark goes with
+the row, and a page opened after the press shows it, the picture being
+retained. A
 **waiting** row can be dragged to another place in the list, which publishes
 `tc49/dispatch/reorder_wanted` (`{id, before}`): `before` is the first waiting
 request the row lands in front of, `null` for the end. An **underway** row

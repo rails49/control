@@ -264,6 +264,9 @@ interface Request {
   /** Why the dispatcher last refused it a launch or a move, as the picture
    *  carries it until it is granted one (#1117). */
   refused?: Refused;
+  /** The block the outstanding move enters, while the picture says a cancel
+   *  is held for that move (#1117). */
+  cancelling?: string;
 }
 
 /** A rejection reason spelled out, as the spec words them (#67). The last
@@ -665,6 +668,7 @@ export class Panel {
             after?: string;
             route?: string[];
             refused?: unknown;
+            cancelling?: unknown;
           }[];
         };
         this.locks = new Map(Object.entries(locks));
@@ -689,11 +693,14 @@ export class Panel {
         );
         this.requests = new Map([
           ...refused,
-          ...requests.map(({ refused, ...request }): [string, Request] => [
+          ...requests.map(({ refused, cancelling, ...request }): [string, Request] => [
             request.id,
             {
               ...request,
               ...(readRefused(refused) ?? {}),
+              // A held cancel is in the picture until the request leaves it,
+              // so the mark goes with the row (#1115).
+              ...(typeof cancelling === "string" ? { cancelling } : {}),
               // Which ends were pruned is an admission-time fact the
               // dispatcher does not keep, so it is in no picture and this
               // page's own copy is the only one there is. A client that
