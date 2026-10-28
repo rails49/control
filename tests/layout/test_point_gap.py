@@ -14,7 +14,7 @@ adds `14` where it wants three points.
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.settings import POINT_GAP_S, KeptSettings
+from tc49.lib.settings import POINT_GAP_S, KeptInstallation, KeptSettings
 from tests.layout.railroad import (
     ALIGN,
     SETTINGS,
@@ -210,7 +210,7 @@ def test_a_reported_point_past_its_gap_still_waits_for_its_report() -> None:
 def test_a_gap_set_is_the_gap_of_the_next_point_written() -> None:
     clock = Clock()
     bus = InProcessBus(clock)
-    kept: list[KeptSettings] = []
+    kept: list[KeptSettings | KeptInstallation] = []
     app = LayoutInterface(bus, railroad(), stock(), clock, keep=kept.append)
     bus.drain()
     written = writes(bus)
@@ -236,7 +236,7 @@ def test_with_no_gap_kept_the_railroad_runs_at_half_a_second() -> None:
     and keeping nothing until a person sets one."""
     clock = Clock()
     bus = InProcessBus(clock)
-    kept: list[KeptSettings] = []
+    kept: list[KeptSettings | KeptInstallation] = []
     app = LayoutInterface(bus, railroad(), stock(), clock, keep=kept.append)
     bus.drain()
     written = writes(bus)

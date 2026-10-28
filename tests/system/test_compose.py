@@ -13,8 +13,7 @@ So the file is read here and seven rules are asserted on what it says: one
 service per app, no app run twice, nothing ordered, no service naming a
 railroad, no service claiming a device, the two bindings of the layout
 interface sharing no profile, and the deploy asking only for profiles the
-file declares; and that `layout` is handed the throttle silence an env file
-sets. The device rule is what
+file declares. The device rule is what
 makes one file both boxes': `docker compose up` on a machine with no steel
 under it starts nothing that reaches for a cable, because nothing here reaches
 for one at all. The services that did were translators, and no translator is
@@ -181,15 +180,6 @@ def test_no_service_names_a_railroad() -> None:
         for line in COMPOSE.read_text().splitlines()
         if not line.lstrip().startswith("#")
     ), "deploy/compose.yaml reads TC49_RAILROAD; nothing names a railroad at deploy time"
-
-
-def test_layout_is_passed_the_throttle_silence_from_the_env_file() -> None:
-    """How long a throttle may go silent is an installation's (docs/DEPLOY.md),
-    so the service hands `layout` whatever the env file says, and `""` where
-    it says nothing, which `layout` reads as its default."""
-    variable = "TC49_LAYOUT_THROTTLE_SILENCE"
-    environment = services()["layout"].get("environment", {})
-    assert environment.get(variable) == f"${{{variable}:-}}"
 
 
 def test_nothing_claims_a_device() -> None:

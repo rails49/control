@@ -160,7 +160,7 @@ throttle holds in `manual`, which stands at its signal. The move ending at its
 sensor writes `0.0` whoever drives, and a lever reversing a running train
 writes `0.0` until its throttle sends `0` (ADR-0084). A throttle this app has
 not heard for `THROTTLE_SILENCE_S` by default, an installation setting its
-own (docs/DEPLOY.md), lets go of its trains. A train let go of stops in
+own (`installation.yaml`, #1132), lets go of its trains. A train let go of stops in
 `manual`; in `automatic` mid-move it keeps the speed the person left until its
 move ends, or is given its grant's speed if it stands (ADR-0083), and with no
 move outstanding it is written `0.0`.
@@ -185,9 +185,10 @@ interface (ADR-0030).
 
 import logging
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
+from tc49.lib import settings
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import (
@@ -239,7 +240,13 @@ from tc49.lib.payload import (
 )
 from tc49.lib.power import TrackPower
 from tc49.lib.roster import FORWARD, MOMENTARY, Roster
-from tc49.lib.settings import POINT_GAP_S, KeptSettings, said
+from tc49.lib.settings import (
+    POINT_GAP_S,
+    SPEEDS,
+    KeptInstallation,
+    KeptSettings,
+    said,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -292,11 +299,11 @@ app's own and is on no topic: what it is worth is a property of the detectors
 a railroad has, which is why it is injected and not a constant anyone reads
 (ADR-0030)."""
 
-THROTTLE_SILENCE_S = 5.0
+THROTTLE_SILENCE_S = settings.THROTTLE_SILENCE_S
 """How long a throttle holding a train may go unheard before this app lets go
-of its trains, in seconds of the run clock, by default: an installation sets
-its own (`TC49_LAYOUT_THROTTLE_SILENCE`, docs/DEPLOY.md), and the default of
-the constructor argument that carries it. A throttle says `throttle_alive`
+of its trains, in seconds of the run clock, by default: an installation keeps
+its own in `installation.yaml` and a person sets it on `settings_wanted`
+(#1132), and the default of the constructor argument that carries it. A throttle says `throttle_alive`
 once a second, so this is five of them missed: a phone gone to sleep, a page
 closed, a network gone (ADR-0079)."""
 
@@ -404,7 +411,8 @@ class LayoutInterface:
         built: bool = True,
         reread: Callable[[], Roster | None] | None = None,
         point_gap: float = POINT_GAP_S,
-        keep: Callable[[KeptSettings], None] | None = None,
+        keep: Callable[[KeptSettings | KeptInstallation], None] | None = None,
+        speeds: Mapping[str, float] = SPEEDS,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -432,7 +440,8 @@ class LayoutInterface:
         unheard before this app lets go of its trains, `THROTTLE_SILENCE_S`
         by default. Injected because how soon a phone sleeps is a fact about
         an installation and not about this app, which `__main__` reads off
-        the environment (docs/DEPLOY.md).
+        `installation.yaml`; a person changes it on `settings_wanted`, and it
+        holds from the next check of who has gone silent (#1132).
 
         `position`: where each train stands as this app comes up, train to
         block. None from a process starting, which knows of no train until
@@ -458,10 +467,17 @@ class LayoutInterface:
         said on `tc49/layout/state/settings` (#1125), and changed by a
         person on `tc49/layout/settings_wanted` (#1126).
 
-        `keep`: where a changed setting is kept with the railroad, handed
-        the settings as they now stand. `__main__` writes them to the store
-        off the loop's thread; None keeps them nowhere, which is the
-        simulator binding's and a test's.
+        `keep`: where a changed setting is kept, handed the railroad's
+        settings as they now stand where a person changed the gap or a
+        speed, and the installation's where they changed the throttle
+        silence. `__main__` writes them to the store off the loop's thread;
+        None keeps them nowhere, which is the simulator binding's and a
+        test's.
+
+        `speeds`: the driver's `clear` and `caution`, the ones the railroad
+        keeps or `lib.settings.SPEEDS` where it keeps none, said on
+        `state/settings` and changed on `settings_wanted` (#1132). This app
+        only keeps and says them; running at them is the driver's.
         """
         self._bus = bus
         self._layout = layout
@@ -470,7 +486,7 @@ class LayoutInterface:
         self._clock = clock
         self._settling_s = settling_s
         self._throttle_silence_s = throttle_silence_s
-        self._settings = KeptSettings(point_gap)
+        self._settings = KeptSettings(point_gap, dict(speeds))
         self._keep = keep
         # Where each train stands, which is the whole of the near-end check,
         # and which way each one points, which is half of the traction write's
@@ -1282,23 +1298,39 @@ class LayoutInterface:
                 self._take_up(train)
 
     def _on_settings_wanted(self, topic: str, payload: Payload) -> None:
-        """A person set the railroad's settings from the Settings dialog
-        (#1126): taken whatever track power and the run are doing, used from
-        the next `align`, said at once on `state/settings` so every open
-        page shows it, and kept with the railroad. Nothing is rebuilt. A
-        gesture the contract does not read, an unknown field or a value out
-        of range, is dropped whole as any malformed gesture is (ADR-0034).
-        So far only the gap is taken: a gesture setting no gap changes
-        nothing until `layout` keeps the speeds and the silence (#1131,
-        #1132)."""
+        """A person set the settings from the Settings dialog (#1126,
+        #1132): taken whatever track power and the run are doing, said at
+        once on `state/settings` so every open page shows them, and each
+        kept in its document — the gap and the speeds with the railroad, the
+        throttle silence with the installation. A field left out, and a
+        speed left out of `speeds`, keeps its value. The gap is used from
+        the next `align` and the silence from the next check of who has gone
+        silent; the speeds are the driver's, and this app only keeps and
+        says them. Nothing is rebuilt. A gesture the contract does not read,
+        an unknown field or a value out of range, is dropped whole as any
+        malformed gesture is (ADR-0034)."""
         wanted = wanted_settings(payload)
-        if wanted is None or wanted.point_gap is None:
+        if wanted is None:
             return
-        kept = KeptSettings(wanted.point_gap)
-        self._settings = kept
-        self._bus.publish(SETTINGS, said(kept, self._throttle_silence_s))
-        if self._keep is not None:
-            self._keep(kept)
+        railroad = wanted.point_gap is not None or wanted.speeds is not None
+        if railroad:
+            self._settings = KeptSettings(
+                (
+                    self._settings.point_gap
+                    if wanted.point_gap is None
+                    else wanted.point_gap
+                ),
+                {**self._settings.speeds, **(wanted.speeds or {})},
+            )
+        if wanted.throttle_silence is not None:
+            self._throttle_silence_s = wanted.throttle_silence
+        self._bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        if self._keep is None:
+            return
+        if railroad:
+            self._keep(self._settings)
+        if wanted.throttle_silence is not None:
+            self._keep(KeptInstallation(wanted.throttle_silence))
 
     def _on_take_wanted(self, topic: str, payload: Payload) -> None:
         """A throttle took a train, or the train was released (ADR-0079).
