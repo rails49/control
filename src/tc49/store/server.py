@@ -26,11 +26,14 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /scripts/<railroad>    save it, as the text it is
     GET  /clocks/<railroad>     the start time and speed-up that railroad keeps
     PUT  /clocks/<railroad>     save them, replacing what was
-    POST /railroads/<from>/copy copy that railroad's drawing, roster, script
-                                and clock under the name the body gives
+    GET  /settings/<railroad>   the settings that railroad keeps
+    PUT  /settings/<railroad>   save them, replacing what was
+    POST /railroads/<from>/copy copy that railroad's drawing, roster, script,
+                                clock and settings under the name the body
+                                gives
     DELETE /railroads/<name>    delete that railroad's drawing, roster,
-                                script, clock and scenarios, if it is not
-                                loaded, backing the store up first
+                                script, clock, settings and scenarios, if it
+                                is not loaded, backing the store up first
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /backup                whether the store can be backed up, is being,
@@ -141,6 +144,12 @@ time. Its one caller is `layout`, writing it when a person sets the clock and
 reading it at each build, so `/clocks` is on no proxy in front of a page
 either.
 
+The **settings** routes are the same for one railroad's settings, so far its
+point gap, `layouts/<railroad>.settings.yaml`, answered and taken as
+`{"point_gap": <seconds>}` (#1126). A railroad that keeps none is a 404, and
+`layout` loads it at the defaults. Their one caller is `layout` too, so
+`/settings` is on no proxy in front of a page.
+
 `review` takes a *document* rather than a name because the interesting drawing is
 the one being edited, which has not been saved and may not derive. Work in
 progress is answered with 200 and a refusal inside; only a document that will
@@ -153,8 +162,8 @@ that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
 save is what arms the idle timer, which is why every `PUT` — a drawing's, a
-model's, a roster's, a script's, a clock's — tells the backup it happened, the one place
-the two meet.
+model's, a roster's, a script's, a clock's, a railroad's settings — tells the
+backup it happened, the one place the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
 `Origin` header that is not this server's own `Host` is answered 403 and
@@ -394,6 +403,16 @@ def _route(
         if method == "PUT":
             return _put_clock(store, backup, clock, body)
 
+    settings = route.removeprefix("/settings/")
+    if settings != route and "/" not in settings:
+        if method == "GET":
+            try:
+                return 200, store.settings(settings)
+            except FileNotFoundError:
+                return 404, {"error": f"no settings '{settings}'"}
+        if method == "PUT":
+            return _put_settings(store, backup, settings, body)
+
     copied = route.removeprefix("/railroads/")
     if method == "POST" and copied != route:
         source, _, verb = copied.partition("/")
@@ -620,6 +639,25 @@ def _put_clock(store: AssetStore, backup: Backup, name: str, body: Any) -> Respo
         return 400, {"error": f"clock '{name}': {refused}"}
     # As a drawing's save does: a clock set is a document of the store that
     # has moved, and the one write the clock makes (ADR-0090).
+    backup.saved()
+    return 200, {"saved": name}
+
+
+def _put_settings(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
+    """One railroad's settings, created or replaced: `{"point_gap":
+    <seconds>}` and nothing else (#1126).
+
+    The layout binding is the one writer, when a person sets them; the
+    railroad is not checked for a drawing, as a clock's is not either.
+    """
+    if not isinstance(body, dict):
+        return 400, {"error": "a settings document is required"}
+    try:
+        store.put_settings(cast(dict[str, Any], body), name)
+    except (ValueError, TypeError) as refused:
+        return 400, {"error": f"settings '{name}': {refused}"}
+    # As a clock's save does: settings set are a document of the store that
+    # has moved.
     backup.saved()
     return 200, {"saved": name}
 

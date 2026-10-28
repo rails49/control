@@ -16,6 +16,7 @@ import pytest
 
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
+from tc49.lib.settings import KeptSettings
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
@@ -205,3 +206,17 @@ def test_a_store_that_does_not_answer_reads_no_roster_and_says_so() -> None:
 
     assert reread_roster(documents, RAILROAD, said.append)() is None
     assert len(said) == 1 and "not read again" in said[0]
+
+
+def test_the_settings_a_railroad_keeps_are_what_was_put(url: str) -> None:
+    """None where it keeps none, which loads it at the defaults (#1126)."""
+    documents = client(url)
+    assert documents.settings(RAILROAD) is None
+    documents.put_settings(RAILROAD, KeptSettings(2.5))
+    assert documents.settings(RAILROAD) == KeptSettings(2.5)
+
+
+def test_kept_settings_the_store_cannot_read_are_raised(url: str, root: Path) -> None:
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text("point_gap: 9\n")
+    with pytest.raises(ValueError, match="point_gap"):
+        client(url).settings(RAILROAD)

@@ -1306,6 +1306,57 @@ def test_a_hand_written_clock_that_is_not_one_is_a_bad_request(
     assert "HH:MM" in body["error"]
 
 
+SETTINGS = {"point_gap": 1.5}
+"""A railroad's kept settings (#1126)."""
+
+
+def test_settings_are_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The route is the document, as a clock's is (#1126)."""
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/settings/shed", SETTINGS) == (
+        200,
+        {"saved": "shed"},
+    )
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, SETTINGS)
+    assert (tmp_path / "layouts" / "shed.settings.yaml").exists()
+
+
+def test_a_railroad_with_no_settings_is_not_found(
+    store: AssetStore, backup: Backup
+) -> None:
+    """A railroad that keeps none is loaded at the defaults, which `layout`
+    holds and the store does not."""
+    status, body = handle(store, backup, "GET", "/settings/crossover-yard", None)
+    assert status == 404
+    assert "crossover-yard" in body["error"]
+
+
+def test_settings_that_are_not_settings_are_refused_and_write_nothing(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    for body in (
+        None,
+        {},
+        {"point_gap": 6},
+        {"point_gap": -1},
+        {"point_gap": "1"},
+        {"point_gap": 1, "other": 2},
+    ):
+        assert handle(store, backup, "PUT", "/settings/shed", body)[0] == 400
+    assert not (tmp_path / "layouts").exists()
+
+
+def test_hand_written_settings_that_are_not_settings_are_a_bad_request(
+    tmp_path: Path, backup: Backup
+) -> None:
+    (tmp_path / "layouts").mkdir()
+    (tmp_path / "layouts" / "shed.settings.yaml").write_text("point_gap: 9\n")
+    status, body = handle(AssetStore(tmp_path), backup, "GET", "/settings/shed", None)
+    assert status == 400
+    assert "point_gap" in body["error"]
+
+
 def test_a_railroad_is_copied_with_its_roster_and_script(
     store: AssetStore, tmp_path: Path, backup: Backup
 ) -> None:
@@ -1313,6 +1364,7 @@ def test_a_railroad_is_copied_with_its_roster_and_script(
     and the drawing keeping the prose it was written with (ADR-0072)."""
     store.put_script(SCRIPT, "reversing-loops-v0")
     store.put_clock(CLOCK, "reversing-loops-v0")
+    store.put_settings(SETTINGS, "reversing-loops-v0")
     assert handle(
         store, backup, "POST", "/railroads/reversing-loops-v0/copy", {"to": "b"}
     ) == (200, {"copied": "b"})
@@ -1336,6 +1388,7 @@ def test_a_railroad_is_copied_with_its_roster_and_script(
         {"script": "b", "text": SCRIPT},
     )
     assert handle(store, backup, "GET", "/clocks/b", None) == (200, CLOCK)
+    assert handle(store, backup, "GET", "/settings/b", None) == (200, SETTINGS)
 
 
 def test_a_railroad_with_only_a_drawing_copies_only_the_drawing(
@@ -1355,6 +1408,7 @@ def test_a_railroad_with_only_a_drawing_copies_only_the_drawing(
     assert not (tmp_path / "layouts" / "b.roster.yaml").exists()
     assert not (tmp_path / "layouts" / "b.script.py").exists()
     assert not (tmp_path / "layouts" / "b.clock.yaml").exists()
+    assert not (tmp_path / "layouts" / "b.settings.yaml").exists()
 
 
 @pytest.mark.parametrize(
@@ -1364,6 +1418,7 @@ def test_a_railroad_with_only_a_drawing_copies_only_the_drawing(
         "facing-pair.roster.yaml",
         "facing-pair.script.py",
         "facing-pair.clock.yaml",
+        "facing-pair.settings.yaml",
     ],
 )
 def test_a_copy_onto_a_name_taken_by_any_document_is_a_conflict(
@@ -1379,6 +1434,8 @@ def test_a_copy_onto_a_name_taken_by_any_document_is_a_conflict(
         store.put_script(SCRIPT, "facing-pair")
     if taken.endswith(".clock.yaml"):
         store.put_clock(CLOCK, "facing-pair")
+    if taken.endswith(".settings.yaml"):
+        store.put_settings(SETTINGS, "facing-pair")
     before = {path.name: path.read_bytes() for path in layouts.glob("facing-pair.*")}
 
     status, body = handle(
@@ -1454,7 +1511,7 @@ def test_a_name_with_a_slash_in_it_is_no_copy_route(
 
 
 def _railroad_files(root: Path, name: str) -> list[Path]:
-    """Everything a railroad named `name` keeps: its four documents and its
+    """Everything a railroad named `name` keeps: its five documents and its
     scenarios' directory."""
     layouts = root / "layouts"
     return [
@@ -1462,6 +1519,7 @@ def _railroad_files(root: Path, name: str) -> list[Path]:
         layouts / f"{name}.roster.yaml",
         layouts / f"{name}.script.py",
         layouts / f"{name}.clock.yaml",
+        layouts / f"{name}.settings.yaml",
         root / "scenarios" / name,
     ]
 
@@ -1469,10 +1527,11 @@ def _railroad_files(root: Path, name: str) -> list[Path]:
 def test_a_railroad_is_deleted_with_every_document_and_scenario(
     store: AssetStore, tmp_path: Path, backup: Backup
 ) -> None:
-    """Its drawing, roster, script, clock and scenarios, and nothing of any
-    other railroad's (#1073)."""
+    """Its drawing, roster, script, clock, settings and scenarios, and
+    nothing of any other railroad's (#1073, #1126)."""
     store.put_script(SCRIPT, "reversing-loops-v0")
     store.put_clock(CLOCK, "reversing-loops-v0")
+    store.put_settings(SETTINGS, "reversing-loops-v0")
     scenarios = tmp_path / "scenarios" / "reversing-loops-v0"
     scenarios.mkdir(parents=True)
     (scenarios / "rush.scenario.yaml").write_text("scenario: rush\n")
@@ -2292,6 +2351,19 @@ def test_saving_a_clock_arms_the_idle_timer(
     the fast clock makes: the backup saves nothing while it runs (ADR-0090)."""
     driven.switch(True)
     assert handle(store, driven, "PUT", "/clocks/facing-pair-2", CLOCK)[0] == 200
+    assert [call for call in driving.calls if call[0] == "commit"] == []
+
+    clock[0] += 20.0
+    driven.due()
+    assert [call[0] for call in driving.calls if call[0] == "commit"] == ["commit"]
+
+
+def test_saving_settings_arms_the_idle_timer(
+    store: AssetStore, driven: Backup, driving: FakeGit, clock: list[float]
+) -> None:
+    """Settings set are a document of the store that moved (#1126)."""
+    driven.switch(True)
+    assert handle(store, driven, "PUT", "/settings/facing-pair-2", SETTINGS)[0] == 200
     assert [call for call in driving.calls if call[0] == "commit"] == []
 
     clock[0] += 20.0
