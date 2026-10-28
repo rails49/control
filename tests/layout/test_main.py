@@ -41,6 +41,7 @@ from tc49.layout.interface import (
     POWER,
     POWER_WANTED,
     RAILROAD,
+    SETTINGS,
     TAKE_WANTED,
     TAKEN,
     WANTED_TRACK,
@@ -482,6 +483,11 @@ def test_the_fast_clock_is_cleared_with_the_other_layout_rows() -> None:
     assert CLOCK in OWNED
 
 
+def test_the_settings_are_cleared_with_the_other_layout_rows() -> None:
+    """The next build says them again for the railroad it loads (#1125)."""
+    assert SETTINGS in OWNED
+
+
 def test_a_layout_standing_with_no_railroad_says_nothing(
     broker: Broker, store: Store
 ) -> None:
@@ -497,6 +503,7 @@ def test_a_layout_standing_with_no_railroad_says_nothing(
         listening(witness, 2.5)
         assert rows(heard, ALIVE_CONFIRMED) == [], "it said it was up on no railroad"
         assert rows(heard, CLOCK) == [], "it said the time on no railroad"
+        assert rows(heard, SETTINGS) == [], "it said settings on no railroad"
         assert app.running, "the app stopped on its own"
     finally:
         app.stop()

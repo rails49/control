@@ -368,6 +368,7 @@ describe("Ordering", () => {
       "moving",
       "power",
       "railroad",
+      "settings",
       "taken",
       "unfit",
     ]);

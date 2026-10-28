@@ -184,6 +184,7 @@ APPS = (
             "tc49/layout/state/taken",
             "tc49/layout/state/functions",
             "tc49/layout/state/clock",
+            "tc49/layout/state/settings",
             "tc49/layout/state/wanted/track",
         ),
     ),
