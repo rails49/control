@@ -724,6 +724,19 @@ reason `RETRY_MS` is read off its module. It is said on `close` as well as on
 `error`, so a page that loses the broker mid-run does not go quiet just because
 the connection opened once.
 
+**Behind the broker, each app is named when it goes quiet.** Every app says
+once a second that it is up (BUS.md, `alive_confirmed`), and every gesture sent
+to one that is down is lost, the broker keeping no event. While the loaded
+railroad is built the page expects all four, `layout` (or the simulator in its
+place), the scheduler, the dispatcher and the driver, and names in the same slot
+each one it has not heard for 3 s, one never heard since the page connected
+included: *the scheduler is not answering*. The words stay until the app is
+heard again. The broker missing is said instead of them, every app behind it
+being out of reach. With no railroad loaded, or one not built, no app is judged:
+the apps say nothing then, and the band already says what is wrong. `APPS`,
+`QUIET_MS` and `silent` in `ui/src/model/session.ts` are the list, the wait and
+the sentence ([#1113](https://github.com/rails49/control/issues/1113)).
+
 **A call to the store fails in three ways and the words say which**
 ([#411](https://github.com/rails49/control/issues/411)). *Nothing answered* —
 `fetch` rejects, the connection refused — is *the store is not answering — run
