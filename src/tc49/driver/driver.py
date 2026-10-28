@@ -1,20 +1,23 @@
-"""Driver: the stateless translator from granted moves to the command.
+"""Driver: the translator from granted moves to the command.
 
 Per granted move it immediately publishes `move`, the move itself,
 mirrored. Setting the route is the dispatcher's, which publishes `align`
-(ADR-0022), so a grant is the driver's green signal. It holds no state and
-reads no assets (SYSTEM.md, driver footprint).
+(ADR-0022), so a grant is the driver's green signal. It reads no assets
+(SYSTEM.md, driver footprint), and the one thing it holds is the speeds it
+last heard.
 
 Its whole judgement is **how fast**, and it is a pure function of the aspect
-the grant shows (ADR-0025): `SPEEDS` below, injected so that a railroad can
-say what its aspects are worth without this module being rebuilt. How fast is
-the only open question, because the turnouts are already thrown when the
-aspect clears; and it is *how fast* and not which way, direction being the
-layout interface's to compose out of geometry the driver does not hold.
+the grant shows (ADR-0025): the railroad's speeds for `clear` and `caution`,
+which `layout` says on `tc49/layout/state/settings` and a person sets from the
+Settings dialog (#1133), since how fast a railroad's trains should run depends
+on its stock and scale. How fast is the only open question, because the
+turnouts are already thrown when the aspect clears; and it is *how fast* and
+not which way, direction being the layout interface's to compose out of
+geometry the driver does not hold.
 
-The one thing it does read is the grant, and it is **read** and never trusted
-(#261): a topic under `dispatch` names the component that answers for it and
-not the process that published this frame, the bus authenticates nobody, and a
+What it reads, the grant and the row, is **read** and never trusted (#261): a
+topic under `dispatch` names the component that answers for it and not the
+process that published this frame, the bus authenticates nobody, and a
 consumer may not raise on a payload (BUS.md, rule 4). In process the
 dispatcher publishing it is a call away; under MQTT it is another process, and
 a bug there must not take the driver down.
@@ -22,71 +25,40 @@ a bug there must not take the driver down.
 
 from collections.abc import Mapping
 
-from tc49.lib import settings
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.inventory import Aspect
-from tc49.lib.payload import grant, granted_aspect
+from tc49.lib.payload import grant, granted_aspect, said_speeds
 
-SPEEDS: Mapping[str, float] = {
-    Aspect.CLEAR: settings.SPEEDS[Aspect.CLEAR],
-    Aspect.CAUTION: settings.SPEEDS[Aspect.CAUTION],
-}
-"""What each aspect is worth as a speed, a fraction of the locomotive's
-maximum (ADR-0025): `clear` 0.6 and `caution` 0.3 to start with (ADR-0079),
-the defaults `tc49/layout/state/settings` says where a railroad sets none
-(`lib.settings.SPEEDS`, #1130).
-
-`stop` is **absent rather than zero**: a grant showing it is not a permission
-to move, so there is no command to send and a mapping entry would invent one.
-
-Two numbers and not a file: the first train to move (#211) does not earn a
-format, and braking distance waits until a train has run (GOALS.md, driving).
-Injected all the same, because a railroad whose locomotives crawl at `caution`
-is a constructor argument away and not a fork of this module — and a
-deployment says so in `CLEAR_ENV` and `CAUTION_ENV`, read by `speeds`.
-"""
-
-CLEAR_ENV = "TC49_DRIVER_CLEAR"
-"""The environment variable on the driver's service that overrides the speed
-for `clear` (docs/DEPLOY.md)."""
-
-CAUTION_ENV = "TC49_DRIVER_CAUTION"
-"""The environment variable on the driver's service that overrides the speed
-for `caution` (docs/DEPLOY.md)."""
-
-
-def speeds(environ: Mapping[str, str]) -> Mapping[str, float]:
-    """`SPEEDS` with whatever the deployment's environment overrides.
-
-    Each variable is a number in 0.0 … 1.0. One unset, or empty or blank, is
-    no value at all and leaves its aspect at the default, so that compose
-    passing an unset variable through as `""` means the same thing as not
-    passing it. Anything else that is not such a number raises `ValueError`
-    naming the variable: the app stops at start rather than running trains at
-    a speed nobody configured, and the person reading why knows which line of
-    the env file to fix.
-    """
-    priced = dict(SPEEDS)
-    for aspect, variable in ((Aspect.CLEAR, CLEAR_ENV), (Aspect.CAUTION, CAUTION_ENV)):
-        said = environ.get(variable, "").strip()
-        if not said:
-            continue
-        try:
-            speed = float(said)
-        except ValueError:
-            speed = None
-        # Written so that `nan`, which compares false with everything, fails.
-        if speed is None or not 0.0 <= speed <= 1.0:
-            raise ValueError(f"{variable} is {said!r}, not a number in 0.0 … 1.0")
-        priced[aspect] = speed
-    return priced
+SETTINGS = "tc49/layout/state/settings"
+"""Where `layout` says the railroad's speeds, retained from the moment a
+railroad is loaded (#1130)."""
 
 
 class Driver:
-    def __init__(self, bus: Bus, speeds: Mapping[str, float] = SPEEDS) -> None:
+    def __init__(self, bus: Bus) -> None:
+        """Subscribed to the row before the grants, so that the retained row
+        is in hand by the time a grant can be."""
         self._bus = bus
-        self._speeds = speeds
+        # What each aspect is worth as a speed, a fraction of the
+        # locomotive's maximum (ADR-0025): the last `speeds` heard on
+        # `state/settings`, and none until one is. `stop` is never here: a
+        # grant showing it is no permission to move, so there is no command
+        # to send and an entry would invent one.
+        self._speeds: Mapping[str, float] = {}
+        bus.subscribe(SETTINGS, self._on_settings)
         bus.subscribe("tc49/dispatch/move_granted", self._on_move)
+
+    def _on_settings(self, topic: str, payload: Payload) -> None:
+        """The railroad's speeds, from the next grant on: a train already
+        moving keeps the speed its `move` gave it until its next grant.
+
+        A row whose `speeds` does not read is ignored and the speeds held
+        stay, rather than a grant being priced at half a pair or at nothing.
+        A row cleared is never handed to a handler, on either binding; it is
+        cleared on a reload, which builds a driver with no speeds anyway
+        (`__main__`)."""
+        speeds = said_speeds(payload)
+        if speeds is not None:
+            self._speeds = speeds
 
     def _on_move(self, topic: str, payload: Payload) -> None:
         """One grant restated as the command that moves the train.
@@ -107,10 +79,10 @@ class Driver:
         driver's, which knows nothing of the layout: the form of the name is
         the whole of what there is to read here.
 
-        An aspect the mapping does not carry is dropped the same way, and the
-        two aspects that reach here are the same case: `stop` reads perfectly
-        well and authorises no move, and a name from outside the enum leaves
-        nothing to run at. There is no default to fall back on — a speed this
+        An aspect the speeds do not price is dropped the same way, and the
+        three cases that reach here are one: `stop` reads perfectly well and
+        authorises no move, a name from outside the enum leaves nothing to
+        run at, and before any `state/settings` is heard nothing is priced. There is no default to fall back on — a speed this
         component invented would be authority the dispatcher never gave — and
         a drop is what a grant this driver cannot act on is worth, since it
         commands and answers nothing (BUS.md, rule 4).

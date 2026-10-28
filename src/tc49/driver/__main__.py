@@ -6,13 +6,13 @@ exits on nothing but a signal. Nothing here is ordered by anything else coming
 up first, which is why compose carries no `depends_on`.
 
 One flag, the one every compose service passes: where the broker is. **No
-`--store`**, because the driver reads no documents: it holds no state and
-reads no assets (SYSTEM.md, driver footprint), the grant and the two speeds
-being between them every field `move` needs. The two speeds are not flags
-either: a container is configured by its environment, so they are
-`TC49_DRIVER_CLEAR` and `TC49_DRIVER_CAUTION` on the driver's service
-(docs/DEPLOY.md), read once here, and a bad one stops the app before it
-looks for a broker. No railroad either, which no
+`--store`**, because the driver reads no documents: it reads no assets
+(SYSTEM.md, driver footprint), the grant and the two speeds being between them
+every field `move` needs. The two speeds are not flags either, nor its
+environment: they are the railroad's, which `layout` says on
+`tc49/layout/state/settings` and a person sets from the Settings dialog
+(#1133), so a driver comes up with none and prices nothing until it hears
+them. No railroad either, which no
 app is told (ADR-0072, decision 5): the driver holds nothing keyed to one and
 looks nothing up by its name, and follows the row that names it all the same,
 so that what a person watching the containers reads is which railroad this
@@ -34,7 +34,8 @@ grant, and beside it says only that it is up, so a cold start with no railroad
 loaded is silent and the first command anything hears from this process is a
 `move`. What is left is the broker, and then `Driver` on it:
 subscribing while connected is acknowledged before the call comes back, so the
-app is live on `move_granted` by the time it says it is up, where a
+app is live on `move_granted`, and holds whatever speeds the broker retains,
+by the time it says it is up, where a
 subscription made while disconnected would only go again with the reconnect. A
 grant is an **event** and the broker holds none, so what arrives in that gap
 is gone rather than delivered late — which is the same thing that happens to a
@@ -51,13 +52,12 @@ another process, and a bug there must not take this one down.
 """
 
 import contextlib
-import os
 import signal
 import sys
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 
-from tc49.driver.driver import SPEEDS, Driver, speeds
+from tc49.driver.driver import Driver
 from tc49.lib.loading import NO_RAILROAD, Loaded, named
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import PERIOD_S, Alive, command_line, connected
@@ -87,7 +87,6 @@ def serve(
     stop: threading.Event,
     period_s: float = PERIOD_S,
     log: Callable[[str], None] = to_stderr,
-    priced: Mapping[str, float] = SPEEDS,
 ) -> None:
     """The app and its loop: a broker, the translator on it, and a drain.
 
@@ -105,14 +104,16 @@ def serve(
     inner loop and the driver is built again — with **nothing to clear**,
     this being the one app of the five that owns no retained row, and nothing
     to read either. What a rebuild drops is the transit it was in the middle
-    of, which belongs to the railroad that is gone (ADR-0054).
+    of, which belongs to the railroad that is gone (ADR-0054), and the speeds
+    that railroad said: the new one's are heard on `state/settings` once
+    `layout` says them.
     """
     if not connected(bus, stop, log):
         return
     loaded = Loaded(railroad)
     alive = Alive(bus, ALIVE_CONFIRMED)
     while not stop.is_set():
-        Driver(bus, priced)
+        Driver(bus)
         # After the app is built and not before: the row is retained, so
         # subscribing here is handed whatever it holds, and nothing this app
         # does on the way up moves — a grant published in the instant between
@@ -145,20 +146,15 @@ def main() -> None:
         host, port = address(args.broker)
     except ValueError as refused:
         parser.error(str(refused))
-    try:
-        priced = speeds(os.environ)
-    except ValueError as refused:
-        parser.error(str(refused))
     # A signal is what ends this app, and SIGTERM is the one a container is
     # stopped with: given SIGINT's own handler it raises where the process
     # stands, so a wait for a broker that never comes up ends on it too.
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     to_stderr(f"broker {host}:{port}")
-    to_stderr(", ".join(f"{aspect} at {speed}" for aspect, speed in priced.items()))
     bus = MqttBus(host, port, client_id=CLIENT_ID)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, NO_RAILROAD, threading.Event(), priced=priced)
+            serve(bus, NO_RAILROAD, threading.Event())
     finally:
         bus.close()
 
