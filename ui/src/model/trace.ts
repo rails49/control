@@ -7,6 +7,7 @@
  * byte-identical replays — and the browser no longer reads one.
  */
 
+import type { SettingsChange } from "./settings.js";
 import type { Position } from "../symbols.generated.js";
 
 /** One bus event as the model reads it: the topic leaf, and the payload's
@@ -253,12 +254,12 @@ export function clockWanted(change: { time?: number; speedUp?: number }): Frame 
   };
 }
 
-/** A `settings_wanted` frame: the railroad's point gap, in seconds, as a
- *  person set it in the Settings dialog's Points tab (#1126, #1128). `layout`
- *  answers on `state/settings` at once, and the field shows that row and not
- *  the press (ADR-0035). */
-export function settingsWanted(pointGap: number): Frame {
-  return { topic: SETTINGS_WANTED, payload: { point_gap: pointGap } };
+/** A `settings_wanted` frame: the one setting a person committed in the
+ *  Settings dialog — the point gap, a speed or the throttle silence (#1126,
+ *  #1128, #1131, #1134). `layout` answers on `state/settings` at once, and
+ *  the field shows that row and not the press (ADR-0035). */
+export function settingsWanted(change: SettingsChange): Frame {
+  return { topic: SETTINGS_WANTED, payload: { ...change } };
 }
 
 /** A `throttle_wanted` frame: how fast a person is driving a train, `-1.0`

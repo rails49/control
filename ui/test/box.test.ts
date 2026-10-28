@@ -179,21 +179,28 @@ function shown(dialog: TcSettings): string | null {
 }
 
 describe("the dialog's tabs", () => {
-  it("are Railroad, Points and Backup where the box cannot turn off", async () => {
+  it("are Railroad, Points, Driving, Box and Backup where the box cannot turn off", async () => {
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(tabs(dialog)).toEqual(["Railroad", "Points", "Backup"]);
+    expect(tabs(dialog)).toEqual(["Railroad", "Points", "Driving", "Box", "Backup"]);
   });
 
-  it("are Railroad, Points, Backup and Shutdown where it can", async () => {
+  it("are Railroad, Points, Driving, Box, Backup and Shutdown where it can", async () => {
     installed(CAN);
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(tabs(dialog)).toEqual(["Railroad", "Points", "Backup", "Shutdown"]);
+    expect(tabs(dialog)).toEqual([
+      "Railroad",
+      "Points",
+      "Driving",
+      "Box",
+      "Backup",
+      "Shutdown",
+    ]);
   });
 
   it("open on Railroad, whichever was shown when the dialog closed", async () => {
@@ -211,13 +218,15 @@ describe("the dialog's tabs", () => {
     expect(shown(dialog)).toBe("Railroad");
   });
 
-  it("call nothing Box", async () => {
+  /** Box is the throttle silence's tab (#1134), not the old name of the
+   *  Shutdown part (#899). */
+  it("call the Shutdown tab nothing Box", async () => {
     installed(CAN);
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(dialog.renderRoot.textContent).not.toMatch(/\bBox\b/);
+    expect(part(dialog)!.textContent).not.toMatch(/\bBox\b/);
   });
 });
 

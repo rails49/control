@@ -72,6 +72,7 @@ import { Editor } from "../model/editor.js";
 import { Filing } from "../model/filing.js";
 import { Railroad } from "../model/railroad.js";
 import { brokerAt, connecting, QUIET, Session, type RunStatus } from "../model/session.js";
+import type { SettingsChange } from "../model/settings.js";
 import { Wake } from "./wake.js";
 import type { Cab } from "../model/throttle.js";
 import type { DrivingMode, Power } from "../model/trace.js";
@@ -412,7 +413,9 @@ export class TcApp extends LitElement {
         .built=${this.status.built}
         .allocated=${this.status.allocated}
         .pointGap=${this.status.pointGap}
-        @settings-wanted=${(event: CustomEvent<number>) =>
+        .speeds=${this.status.speeds}
+        .throttleSilence=${this.status.throttleSilence}
+        @settings-wanted=${(event: CustomEvent<SettingsChange>) =>
           this.session?.pressSettings(event.detail)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}
         @railroad-arrived=${() => this.arrived()}

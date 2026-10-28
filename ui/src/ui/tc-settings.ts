@@ -3,7 +3,7 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Three tabs, four where the box can turn off, the dialog opening on the one
+ * Six tabs, seven where the box can turn off, the dialog opening on the one
  * `tab` names each time — Railroad from the gear, Backup from the band's
  * backup note (#899, #1075). **Railroad**
  * lists what the store holds, the loaded one ticked, and a press on another
@@ -34,7 +34,12 @@
  * heard, and on a commit — a change, not each keystroke — asks for what was
  * typed on `settings-wanted`, the app publishing `settings_wanted`; what
  * `gapChange` refuses is not sent, and the tab says why. The field goes on
- * showing the row, not the press (ADR-0035). **Shutdown** turns the box off (#745), and is drawn only
+ * showing the row, not the press (ADR-0035). **Driving** and **Box**, after
+ * Points, do the same for the driver's speeds at clear and at caution, in
+ * percent of the locomotive's top speed, and for the throttle silence, the
+ * installation's whatever railroad is loaded (#1134): each commit sends the
+ * one field committed, as `speedChange` and `silenceChange` say.
+ * **Shutdown** turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
  * once more before anything is sent, and then says to unplug the box once its
@@ -54,7 +59,7 @@
  * and this chooses which one that is (ADR-0072, decision 1).
  *
  * **It decides nothing.** Why the Railroad tab or the Shutdown tab is
- * refused, and what a point gap sends, is `model/settings.ts`, and what is loaded is the row's; the app hands in
+ * refused, and what a point gap, a speed or the silence sends, is `model/settings.ts`, and what is loaded is the row's; the app hands in
  * the row and the power. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
  * whichever refused and asks for nothing, so nothing is loaded that was not
@@ -78,19 +83,30 @@ import { canTurnOff, turnOff } from "../model/box.js";
 import {
   ANSWER_MS,
   arrived,
+  ASPECTS,
   boxRefusal,
   copyRefusal,
   Drain,
   gapChange,
+  percentOf,
   POINT_GAP_MAX_S,
   refusal,
   SETTINGS_UNHEARD,
+  silenceChange,
+  speedChange,
   STOPPING,
+  THROTTLE_SILENCE_MAX_S,
+  THROTTLE_SILENCE_MIN_S,
+  type SettingsChange,
+  type Speeds,
   UNANSWERED,
 } from "../model/settings.js";
 import { copyRailroad, deleteRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
+
+/** The fields of the settings tabs, each with its own reason refused. */
+type SettingField = "gap" | keyof Speeds | "silence";
 
 /** What the dialog says where the drawing a load would discard could not be
  *  saved first; the band's trouble chip says why (ADR-0085). */
@@ -140,6 +156,14 @@ export class TcSettings extends LitElement {
    *  `RunStatus.pointGap` has it: `null` while the row is unheard. */
   @property({ attribute: false }) pointGap: number | null = null;
 
+  /** The driver's speeds `tc49/layout/state/settings` says, as
+   *  `RunStatus.speeds` has them: `null` while the row is unheard. */
+  @property({ attribute: false }) speeds: Speeds | null = null;
+
+  /** The throttle silence `tc49/layout/state/settings` says, in seconds, as
+   *  `RunStatus.throttleSilence` has it: `null` while the row is unheard. */
+  @property({ attribute: false }) throttleSilence: number | null = null;
+
   /** The tab shown when the dialog opens: Railroad from the gear, Backup
    *  from the band's backup note. */
   @property() tab: "railroad" | "backup" = "railroad";
@@ -152,9 +176,10 @@ export class TcSettings extends LitElement {
    *  one has gone through or the name is typed at again. */
   @state() private wrong: string | null = null;
 
-  /** Why the point gap last committed was not sent, in `gapChange`'s
-   *  words, `null` once one is sent or the dialog opens again. */
-  @state() private gapRefused: string | null = null;
+  /** Why the setting last committed in each field was not sent, in
+   *  `gapChange`'s, `speedChange`'s or `silenceChange`'s words; a field is
+   *  absent once one is sent from it or the dialog opens again. */
+  @state() private settingRefused: Partial<Record<SettingField, string>> = {};
 
   /** Whether a write is out: one at a time, so a second press cannot ask for
    *  a railroad the first is still writing. */
@@ -211,7 +236,7 @@ export class TcSettings extends LitElement {
       if (this.turning !== "sending") this.turning = "idle";
       this.deleting = null;
       this.refusedOff = null;
-      this.gapRefused = null;
+      this.settingRefused = {};
       void canTurnOff().then((can) => {
         this.canTurnOff = can;
       });
@@ -233,10 +258,14 @@ export class TcSettings extends LitElement {
         <sl-tab-group>
           <sl-tab slot="nav" panel="railroad" ?active=${!backup}>Railroad</sl-tab>
           <sl-tab slot="nav" panel="points">Points</sl-tab>
+          <sl-tab slot="nav" panel="driving">Driving</sl-tab>
+          <sl-tab slot="nav" panel="box">Box</sl-tab>
           <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
           ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
           <sl-tab-panel name="railroad" ?active=${!backup}>${this.railroads()}</sl-tab-panel>
           <sl-tab-panel name="points"><div class="points">${this.points()}</div></sl-tab-panel>
+          <sl-tab-panel name="driving"><div class="driving">${this.driving()}</div></sl-tab-panel>
+          <sl-tab-panel name="box"><div class="box">${this.box()}</div></sl-tab-panel>
           <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
           ${this.canTurnOff
             ? html`<sl-tab-panel name="shutdown">
@@ -360,37 +389,125 @@ export class TcSettings extends LitElement {
         step="0.1"
         ?disabled=${unheard}
         .value=${live(unheard ? "" : String(this.pointGap))}
-        @sl-change=${(event: Event) =>
-          this.gapping((event.target as HTMLInputElement).value)}
+        @sl-change=${(event: Event) => {
+          const change = gapChange((event.target as HTMLInputElement).value, this.pointGap);
+          this.committed(
+            "gap",
+            change !== null && "sent" in change ? { sent: { point_gap: change.sent } } : change,
+          );
+        }}
       >
         <span slot="suffix">s</span>
       </sl-input>
       <p class="hint">0 means no wait: each point command goes as soon as the last.</p>
       ${unheard ? html`<p class="hint unheard">${SETTINGS_UNHEARD}</p>` : nothing}
-      ${this.gapRefused === null
-        ? nothing
-        : html`<p class="hint wrong">${this.gapRefused}</p>`}
+      ${this.refusedIn("gap")}
     `;
   }
 
-  /** The point gap committed as `typed`: asked for on `settings-wanted`
-   *  where `gapChange` sends it, and the reason kept where it refuses. */
-  private gapping(typed: string): void {
-    const change = gapChange(typed, this.pointGap);
-    if (change === null) {
-      this.gapRefused = null;
-    } else if ("refused" in change) {
-      this.gapRefused = change.refused;
-    } else {
-      this.gapRefused = null;
-      this.dispatchEvent(
-        new CustomEvent<number>("settings-wanted", {
-          detail: change.sent,
-          bubbles: true,
-          composed: true,
-        }),
-      );
+  /**
+   * The Driving tab (#1134): the speeds at clear and at caution, each in
+   * percent of the locomotive's top speed from `1` to `100` in steps of `1`,
+   * the row's fraction times 100 and sent as the percent over 100. Dead with
+   * a hint until the layout has said its settings; a commit `speedChange`
+   * refuses stays in its field, with the reason beneath it.
+   */
+  private driving() {
+    const speeds = this.speeds;
+    return html`
+      ${ASPECTS.map(
+        (aspect) => html`
+          <sl-input
+            class=${aspect}
+            type="number"
+            label=${`Speed at ${aspect}`}
+            size="small"
+            min="1"
+            max="100"
+            step="1"
+            ?disabled=${speeds === null}
+            .value=${live(speeds === null ? "" : String(percentOf(speeds[aspect])))}
+            @sl-change=${(event: Event) =>
+              this.committed(
+                aspect,
+                speedChange(
+                  aspect,
+                  (event.target as HTMLInputElement).value,
+                  speeds === null ? null : speeds[aspect],
+                ),
+              )}
+          >
+            <span slot="suffix">%</span>
+          </sl-input>
+          ${this.refusedIn(aspect)}
+        `,
+      )}
+      <p class="hint">In percent of the locomotive's top speed.</p>
+      ${speeds === null ? html`<p class="hint unheard">${SETTINGS_UNHEARD}</p>` : nothing}
+    `;
+  }
+
+  /**
+   * The Box tab (#1134): how long a throttle holding trains may go silent
+   * before `layout` lets go of them, in seconds from
+   * `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S` in steps of `1`.
+   * The installation's, so it says it holds whatever railroad is loaded.
+   * Dead with a hint until the layout has said its settings.
+   */
+  private box() {
+    const unheard = this.throttleSilence === null;
+    return html`
+      <sl-input
+        class="silence"
+        type="number"
+        label="Let go of a silent throttle's trains after"
+        size="small"
+        min=${THROTTLE_SILENCE_MIN_S}
+        max=${THROTTLE_SILENCE_MAX_S}
+        step="1"
+        ?disabled=${unheard}
+        .value=${live(unheard ? "" : String(this.throttleSilence))}
+        @sl-change=${(event: Event) =>
+          this.committed(
+            "silence",
+            silenceChange((event.target as HTMLInputElement).value, this.throttleSilence),
+          )}
+      >
+        <span slot="suffix">s</span>
+      </sl-input>
+      ${this.refusedIn("silence")}
+      <p class="hint">This applies whatever railroad is loaded.</p>
+      ${unheard ? html`<p class="hint unheard">${SETTINGS_UNHEARD}</p>` : nothing}
+    `;
+  }
+
+  /** Why the last commit in `field` was not sent, beneath it. */
+  private refusedIn(field: SettingField) {
+    const refused = this.settingRefused[field];
+    return refused === undefined ? nothing : html`<p class="hint wrong">${refused}</p>`;
+  }
+
+  /** A setting committed in `field`: asked for on `settings-wanted` where
+   *  the model's rule sends it, and the reason kept where it refuses. */
+  private committed(
+    field: SettingField,
+    change: { sent: SettingsChange } | { refused: string } | null,
+  ): void {
+    const others = { ...this.settingRefused };
+    delete others[field];
+    if (change !== null && "refused" in change) {
+      this.settingRefused = { ...others, [field]: change.refused };
+      return;
     }
+    this.settingRefused = others;
+    if (change === null) return;
+    this.dispatchEvent(
+      new CustomEvent<SettingsChange>("settings-wanted", {
+        detail: change.sent,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   /** The row of the railroad whose Delete was pressed: what deleting it
