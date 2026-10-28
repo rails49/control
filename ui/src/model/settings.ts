@@ -216,3 +216,57 @@ export const UNANSWERED = "the layout did not answer";
 
 /** What a dialog says while a `Drain` waits, beside the stop sign. */
 export const STOPPING = "stopping trains…";
+
+/** The longest point gap a person may set, in seconds, as `layout` takes it
+ *  (`POINT_GAP_MAX_S`, `tc49.lib.settings`). */
+export const POINT_GAP_MAX_S = 5;
+
+/** What the Points tab says while `tc49/layout/state/settings` is unheard:
+ *  there is no gap to show, and nothing to change it from. */
+export const SETTINGS_UNHEARD = "the layout has not said its settings";
+
+/**
+ * What a committed point gap does (#1128): `{ sent }`, the seconds to publish
+ * on `tc49/layout/settings_wanted`; `{ refused }`, why nothing goes; or
+ * `null`, where nothing was changed and nothing is owed.
+ *
+ * `typed` is the field as committed and `heard` the `point_gap` of
+ * `tc49/layout/state/settings`, `null` while that row is unheard. The first
+ * that holds is the answer:
+ *
+ * - `heard` is `null`: the layout has not said its settings, so there is no
+ *   gap to change and nobody to say the change was taken;
+ * - `typed` is not a number of seconds;
+ * - it is below `0` or above `POINT_GAP_MAX_S`: `layout` would drop it;
+ * - it is the gap the row already says: nothing changed.
+ *
+ * The field's step of `0.1` is how it moves, not a rule: `layout` takes any
+ * number in range, so `0.25` goes as typed.
+ */
+export function gapChange(
+  typed: string,
+  heard: number | null,
+): { sent: number } | { refused: string } | null {
+  if (heard === null) return { refused: SETTINGS_UNHEARD };
+  const words = typed.trim();
+  const gap = Number(words);
+  if (words === "" || !Number.isFinite(gap)) {
+    return { refused: "the time between point commands is a number of seconds" };
+  }
+  if (gap < 0 || gap > POINT_GAP_MAX_S) {
+    return {
+      refused: `the time between point commands is from 0 to ${POINT_GAP_MAX_S} seconds`,
+    };
+  }
+  if (gap === heard) return null;
+  return { sent: gap };
+}
+
+/** The point gap a `tc49/layout/state/settings` payload says, in seconds,
+ *  `null` where it says none that `layout` could have meant: a number from
+ *  `0` to `POINT_GAP_MAX_S`. */
+export function pointGapOf(payload: Record<string, unknown>): number | null {
+  const gap = payload["point_gap"];
+  if (typeof gap !== "number" || !Number.isFinite(gap)) return null;
+  return gap >= 0 && gap <= POINT_GAP_MAX_S ? gap : null;
+}

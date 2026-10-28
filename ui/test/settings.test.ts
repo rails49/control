@@ -13,6 +13,8 @@ import {
   boxRefusal,
   copyRefusal,
   Drain,
+  gapChange,
+  pointGapOf,
   refusal,
   restoreRefusal,
 } from "../src/model/settings.js";
@@ -262,5 +264,56 @@ describe("a pick that has landed", () => {
 
   it("has without the allocation, where the row says nothing was built", () => {
     expect(arrived("otira", { ...LANDED, built: false, allocated: false })).toBe(true);
+  });
+});
+
+/** The Points tab's one field, the point gap (#1128): what a commit sends,
+ *  and what refuses it. */
+describe("what a committed point gap does", () => {
+  it("sends nothing while the layout has not said its settings", () => {
+    expect(gapChange("1.2", null)).toEqual({
+      refused: "the layout has not said its settings",
+    });
+  });
+
+  it("refuses what is not a number of seconds", () => {
+    for (const typed of ["", " ", "fast", "Infinity", "1,2"]) {
+      expect(gapChange(typed, 0.5)).toEqual({
+        refused: "the time between point commands is a number of seconds",
+      });
+    }
+  });
+
+  it("refuses a gap below 0 or above 5 seconds", () => {
+    for (const typed of ["7", "-0.1", "5.01"]) {
+      expect(gapChange(typed, 0.5)).toEqual({
+        refused: "the time between point commands is from 0 to 5 seconds",
+      });
+    }
+  });
+
+  it("sends a gap from 0 to 5 seconds, the ends included", () => {
+    expect(gapChange("1.2", 0.5)).toEqual({ sent: 1.2 });
+    expect(gapChange("0", 0.5)).toEqual({ sent: 0 });
+    expect(gapChange(" 5 ", 0.5)).toEqual({ sent: 5 });
+    expect(gapChange("0.25", 0.5)).toEqual({ sent: 0.25 });
+  });
+
+  it("sends nothing where the gap is the one the layout says", () => {
+    expect(gapChange("0.5", 0.5)).toBeNull();
+    expect(gapChange("0.50", 0.5)).toBeNull();
+  });
+});
+
+describe("the point gap state/settings says", () => {
+  it("reads point_gap in seconds", () => {
+    expect(pointGapOf({ at: 3, point_gap: 0.8 })).toBe(0.8);
+    expect(pointGapOf({ point_gap: 0 })).toBe(0);
+  });
+
+  it("reads none that layout could not have meant", () => {
+    for (const payload of [{}, { point_gap: "1" }, { point_gap: -1 }, { point_gap: 6 }]) {
+      expect(pointGapOf(payload)).toBeNull();
+    }
   });
 });
