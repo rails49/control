@@ -25,7 +25,6 @@ from tc49.driver import Driver
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.settings import POINT_GAP_S
 from tc49.scheduler import Scheduler
 from tests.harness import load
 from tests.invariants import checked
@@ -52,6 +51,7 @@ from tests.layout.railroad import (
     moves,
     railroad,
     reads,
+    settings_row,
     settle,
     speeds,
     stand,
@@ -154,7 +154,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
         (DRIVING, {"at": 0.0, "driving": "manual"}),
         (TAKEN, {"at": 0.0, "taken": {}}),
         (FUNCTIONS, {"at": 0.0, "functions": {}}),
-        (SETTINGS, {"at": 0.0, "point_gap": POINT_GAP_S}),
+        (SETTINGS, {"at": 0.0, **settings_row()}),
     ]
 
 
@@ -165,7 +165,20 @@ def test_the_point_gap_it_is_built_with_is_said_on_the_settings_row() -> None:
     bus = InProcessBus(clock)
     LayoutInterface(bus, railroad(), stock(), clock, point_gap=1.5)
     bus.drain()
-    assert bus.last_values[SETTINGS] == {"at": 0.0, "point_gap": 1.5}
+    assert bus.last_values[SETTINGS] == {"at": 0.0, **settings_row(point_gap=1.5)}
+
+
+def test_the_speeds_and_the_throttle_silence_are_said_on_the_settings_row() -> None:
+    """The railroad's speeds, which nobody sets yet and so are their
+    defaults, and the installation's throttle silence, which is the one this
+    app lets go of trains on, beside the point gap (#1130)."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    LayoutInterface(bus, railroad(), stock(), clock, throttle_silence_s=8.0)
+    bus.drain()
+    row = bus.last_values[SETTINGS]
+    assert row["speeds"] == {"clear": 0.6, "caution": 0.3}
+    assert row["throttle_silence"] == 8.0
 
 
 def test_the_value_is_retained_for_a_client_that_joins_later() -> None:

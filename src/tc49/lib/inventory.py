@@ -133,10 +133,17 @@ TOPICS: dict[str, Topic] = {
     # and the run are doing.
     "tc49/layout/clock_wanted": Topic(("time", "speed_up"), browser=True),
     # The railroad's settings as `layout` holds them, said as a railroad is
-    # loaded (#1125). `point_gap` is the seconds, 0 to 5, it waits after a
-    # point command before the next one or the move waiting on it; 0 is no
-    # wait.
-    "tc49/layout/state/settings": Topic((AT, "point_gap")),
+    # loaded (#1125), every field always present. `point_gap` is the
+    # seconds, 0 to 5, it waits after a point command before the next one or
+    # the move waiting on it; 0 is no wait. `speeds` is the railroad's
+    # `clear` and `caution`, each a fraction of the locomotive's maximum
+    # above 0 and at most 1, which the driver runs at. `throttle_silence` is
+    # the installation's seconds, 2 to 60, a throttle may go unheard before
+    # `layout` lets go of its trains, the same whatever railroad is loaded
+    # (#1130).
+    "tc49/layout/state/settings": Topic(
+        (AT, "point_gap", "speeds", "throttle_silence")
+    ),
     # A person sets the railroad's settings from the Settings dialog, so far
     # the point gap (#1126). Taken whatever track power and the run are
     # doing, and a changed gap needs no rebuild.

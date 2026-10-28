@@ -239,7 +239,7 @@ from tc49.lib.payload import (
 )
 from tc49.lib.power import TrackPower
 from tc49.lib.roster import FORWARD, MOMENTARY, Roster
-from tc49.lib.settings import POINT_GAP_S, KeptSettings
+from tc49.lib.settings import POINT_GAP_S, KeptSettings, said
 
 _log = logging.getLogger(__name__)
 
@@ -638,7 +638,7 @@ class LayoutInterface:
         # The railroad's settings, retained so that every open page shows
         # what a person can change, and said with each build: a loaded
         # railroad starts on a broker cleared of the last one's (#1125).
-        bus.publish(SETTINGS, self._settings.document())
+        bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
@@ -1292,7 +1292,7 @@ class LayoutInterface:
         if wanted is None:
             return
         self._settings = wanted
-        self._bus.publish(SETTINGS, wanted.document())
+        self._bus.publish(SETTINGS, said(wanted, self._throttle_silence_s))
         if self._keep is not None:
             self._keep(wanted)
 

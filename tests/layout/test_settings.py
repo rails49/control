@@ -17,6 +17,7 @@ from tests.layout.railroad import (
     energised,
     heard,
     railroad,
+    settings_row,
     stock,
 )
 
@@ -41,7 +42,7 @@ def test_a_gap_set_is_said_at_once_and_kept() -> None:
     bus, app, kept = kept_by_app()
     said = heard(bus, SETTINGS)
     sets(bus, {"point_gap": 1.5})
-    assert said[-1] == (SETTINGS, {"at": 0.0, "point_gap": 1.5})
+    assert said[-1] == (SETTINGS, {"at": 0.0, **settings_row(1.5)})
     assert app.point_gap == 1.5
     assert kept == [KeptSettings(1.5)]
 
@@ -53,7 +54,7 @@ def test_a_gap_is_taken_whatever_the_track_power() -> None:
     energised(bus)
     sets(bus, {"point_gap": 0})
     assert app.point_gap == 0.0
-    assert bus.last_values[SETTINGS] == {"at": 0.0, "point_gap": 0.0}
+    assert bus.last_values[SETTINGS] == {"at": 0.0, **settings_row(0.0)}
 
 
 def test_the_ends_of_the_range_are_taken() -> None:
@@ -97,4 +98,13 @@ def test_an_app_built_with_a_kept_gap_starts_at_it() -> None:
     bus.drain()
     assert app.point_gap == 3.0
     payload: Payload = bus.last_values[SETTINGS]
-    assert payload == {"at": 0.0, "point_gap": 3.0}
+    assert payload == {"at": 0.0, **settings_row(3.0)}
+
+
+def test_a_gap_set_says_the_speeds_and_the_throttle_silence_with_it() -> None:
+    """Every field is always on the row, the ones nobody changed at what
+    they were (#1130)."""
+    bus, _app, _kept = kept_by_app()
+    sets(bus, {"point_gap": 1.5})
+    assert bus.last_values[SETTINGS]["speeds"] == {"clear": 0.6, "caution": 0.3}
+    assert bus.last_values[SETTINGS]["throttle_silence"] == 5.0

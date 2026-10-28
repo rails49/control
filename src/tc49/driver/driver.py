@@ -22,13 +22,19 @@ a bug there must not take the driver down.
 
 from collections.abc import Mapping
 
+from tc49.lib import settings
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.inventory import Aspect
 from tc49.lib.payload import grant, granted_aspect
 
-SPEEDS: Mapping[str, float] = {Aspect.CLEAR: 0.6, Aspect.CAUTION: 0.3}
+SPEEDS: Mapping[str, float] = {
+    Aspect.CLEAR: settings.SPEEDS[Aspect.CLEAR],
+    Aspect.CAUTION: settings.SPEEDS[Aspect.CAUTION],
+}
 """What each aspect is worth as a speed, a fraction of the locomotive's
-maximum (ADR-0025): `clear` 0.6 and `caution` 0.3 to start with (ADR-0079).
+maximum (ADR-0025): `clear` 0.6 and `caution` 0.3 to start with (ADR-0079),
+the defaults `tc49/layout/state/settings` says where a railroad sets none
+(`lib.settings.SPEEDS`, #1130).
 
 `stop` is **absent rather than zero**: a grant showing it is not a permission
 to move, so there is no command to send and a mapping entry would invent one.

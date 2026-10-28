@@ -28,6 +28,7 @@ from tests.layout.railroad import (
     lies,
     move,
     railroad,
+    settings_row,
     settle,
     speeds,
     stand,
@@ -216,7 +217,7 @@ def test_a_gap_set_is_the_gap_of_the_next_point_written() -> None:
 
     bus.publish(SETTINGS_WANTED, {"point_gap": 1.0})
     bus.drain()
-    assert bus.last_values[SETTINGS] == {"at": 0.0, "point_gap": 1.0}
+    assert bus.last_values[SETTINGS] == {"at": 0.0, **settings_row(1.0)}
     assert kept == [KeptSettings(1.0)]
 
     bus.publish(SETTINGS_WANTED, {"point_gap": 6})
@@ -241,7 +242,7 @@ def test_with_no_gap_kept_the_railroad_runs_at_half_a_second() -> None:
     written = writes(bus)
 
     assert POINT_GAP_S == 0.5
-    assert bus.last_values[SETTINGS] == {"at": 0.0, "point_gap": 0.5}
+    assert bus.last_values[SETTINGS] == {"at": 0.0, **settings_row(0.5)}
     align(bus, "crossover", "to_dn")
     settle(bus, app, clock, after=0.25)
     assert len(written) == 1

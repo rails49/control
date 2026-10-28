@@ -71,7 +71,6 @@ wall time in the binding (ADR-0059, decision 1).
 """
 
 import contextlib
-import math
 import os
 import signal
 import sys
@@ -94,7 +93,13 @@ from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
-from tc49.lib.settings import POINT_GAP_S, KeptSettings
+from tc49.lib.settings import (
+    POINT_GAP_S,
+    THROTTLE_SILENCE_MAX_S,
+    THROTTLE_SILENCE_MIN_S,
+    KeptSettings,
+    throttle_silence,
+)
 from tc49.lib.startup import PERIOD_S, RETAINED_S, command_line, connected
 
 CLIENT_ID = "tc49-layout"
@@ -142,35 +147,30 @@ SILENCE_ENV = "TC49_LAYOUT_THROTTLE_SILENCE"
 """The environment variable on the layout's service that overrides how long a
 throttle holding a train may go unheard, in seconds (docs/DEPLOY.md)."""
 
-SILENCE_FLOOR_S = 1.0
-"""What a silence must be longer than. A throttle says `throttle_alive` once a
-second, so a silence of a second or less lets go of a train between two of
-them from a throttle that is still there."""
-
 
 def silence(environ: Mapping[str, str]) -> float:
     """`THROTTLE_SILENCE_S`, or whatever the deployment's environment says.
 
     Unset, or empty or blank, is no value at all and leaves the default, so
     that compose passing an unset variable through as `""` means the same
-    thing as not passing it. A number greater than `SILENCE_FLOOR_S` is that
-    many seconds. Anything else raises `ValueError` naming the variable: the
-    app stops at start rather than letting go of trains on a silence nobody
-    configured, and the person reading why knows which line of the env file
-    to fix.
+    thing as not passing it. A number of seconds from
+    `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S`, 2 to 60, the range
+    `state/settings` says it in (#1130), is that many seconds. Anything else
+    raises `ValueError` naming the variable: the app stops at start rather
+    than letting go of trains on a silence nobody configured, and the person
+    reading why knows which line of the env file to fix.
     """
     said = environ.get(SILENCE_ENV, "").strip()
     if not said:
         return THROTTLE_SILENCE_S
     try:
-        seconds = float(said)
+        seconds = throttle_silence(float(said))
     except ValueError:
-        seconds = math.nan
-    # Written so that `nan`, which compares false with everything, fails.
-    if not seconds > SILENCE_FLOOR_S:
+        seconds = None
+    if seconds is None:
         raise ValueError(
             f"{SILENCE_ENV} is {said!r}, not a number of seconds"
-            f" greater than {SILENCE_FLOOR_S}"
+            f" from {THROTTLE_SILENCE_MIN_S:g} to {THROTTLE_SILENCE_MAX_S:g}"
         )
     return seconds
 
