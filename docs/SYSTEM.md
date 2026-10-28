@@ -1151,16 +1151,19 @@ it lies as the `align` asked, on `device/point`, before the train departs, and
 stops the train if it says otherwise before the train has arrived and the
 block it left reads vacated, in either order ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
 
-`layout` writes only the points of an `align` that change: a point whose
-`wanted/point` row already holds the position asked, or will once the points
-before it go out, is not written again, since an accessory packet fires a
-solenoid even where the point lies. The rest go out in route order, each no
-sooner than one **point gap** after the last point written by any `align`, a
-hand throw's included, so a later `align` waits behind an earlier one's
-points. The move goes ahead only once a gap has passed since the last of its
-points was written, and a reported point still waits for its `device/point`
-as well. An `align` that writes nothing lets its move go at once, and signals
-are not spaced. Time is the injected clock's, as the settling time's is.
+`layout` writes every point of an `align` each time, whether or not its
+`wanted/point` row already holds the position asked
+([#1136](https://github.com/rails49/control/issues/1136)): the row says what
+`layout` last asked, not where the point lies, and a hand may have flipped it
+since or its solenoid failed to fire on a drained CDU. Writing it again is the
+only way to put it right, and the gap lets the CDU recharge, so a solenoid
+fired where the point already lies costs a gap and nothing else. The points go
+out in route order, each no sooner than one **point gap** after the last point
+written by any `align`, a hand throw's included, so a later `align` waits
+behind an earlier one's points. The move goes ahead only once a gap has passed
+since the last of its points was written, so an `align` with points always
+waits at least one gap, and a reported point still waits for its
+`device/point` as well. Signals are not spaced. Time is the injected clock's, as the settling time's is.
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
 loaded: the point gap and the driver's speeds, the railroad's, and the
