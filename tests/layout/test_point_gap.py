@@ -3,9 +3,10 @@ point (#1127).
 
 A point takes time to move — a stall motor a second or two, a solenoid on a
 shared CDU a recharge — and a train starting from rest onto one still moving
-derails. So `layout` writes only the points that change, one gap apart in
-route order behind whatever is still going out, and lets the move go one gap
-after the last of them. Time is the injected clock's, driven here.
+derails. So `layout` writes every point an `align` names, whether or not
+`wanted/point` already holds it (#1136), one gap apart in route order behind
+whatever is still going out, and lets the move go one gap after the last of
+them. Time is the injected clock's, driven here.
 
 The bench railroad's `to_dn` throws `12` and `13`; the suite's own `align`
 adds `14` where it wants three points.
@@ -125,35 +126,53 @@ def test_three_points_go_out_a_gap_apart_and_the_move_a_gap_after() -> None:
     assert app.position == {"single": "dn_e"}
 
 
-def test_points_already_asked_for_write_nothing_and_the_move_goes_at_once() -> None:
+def test_an_align_repeated_writes_every_point_again_a_gap_apart() -> None:
+    """`wanted/point` says what was asked, not where the point lies: a hand
+    may have flipped it since, or its solenoid failed to fire (#1136)."""
     bus, app, clock, written = ready()
     align(bus, "crossover", "to_dn")
     settle(bus, app, clock, after=GAP)
     settle(bus, app, clock, after=GAP)
-    before = len(written)
+    del written[:]
 
     align(bus, "crossover", "to_dn")
     traction = commanded(bus)
     move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
 
-    assert len(written) == before
+    assert when(written) == [("12", "thrown", 2.0)]
+    settle(bus, app, clock, after=GAP)
+    assert when(written) == [("12", "thrown", 2.0), ("13", "thrown", 3.0)]
+    settle(bus, app, clock, after=GAP / 2)
+    assert speeds(traction) == []
+    settle(bus, app, clock, after=GAP / 2)
     assert speeds(traction) == [("3", 0.6)]
 
 
-def test_points_a_bus_hands_back_are_not_written_again() -> None:
-    """What `wanted/point` holds is what the last run asked, and a point it
-    holds is not fired again by the first `align` of this one."""
+def test_points_a_bus_hands_back_are_written_again() -> None:
+    """What `wanted/point` holds is what the last run asked, not where the
+    point lies, so the first `align` of this one writes it (#1136)."""
     clock = Clock()
     bus = InProcessBus(clock)
     for addr in ("12", "13"):
         bus.publish(f"{WANTED_POINT}/{addr}", {"addr": addr, "position": "thrown"})
-    LayoutInterface(bus, railroad(), stock(), clock, point_gap=GAP)
+    app = LayoutInterface(bus, railroad(), stock(), clock, point_gap=GAP)
     bus.drain()
     written = writes(bus)
 
     align(bus, "crossover", "to_dn")
+    settle(bus, app, clock, after=GAP)
 
-    assert written == []
+    assert when(written) == [("12", "thrown", 0.0), ("13", "thrown", 1.0)]
+
+
+def test_a_hand_throw_of_a_point_already_asked_writes_it_again() -> None:
+    bus, app, clock, written = ready()
+    hand(bus, "13", "thrown")
+    settle(bus, app, clock, after=GAP)
+
+    hand(bus, "13", "thrown")
+
+    assert when(written) == [("13", "thrown", 0.0), ("13", "thrown", 1.0)]
 
 
 def test_a_second_align_waits_behind_the_first() -> None:
