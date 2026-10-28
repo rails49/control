@@ -31,7 +31,13 @@ import mqtt from "mqtt";
 import { clockOf, sameClock, type ClockChange, type FastClock } from "./clock.js";
 import type { Drawing } from "./drawing.js";
 import { Panel, type Placed } from "./panel.js";
-import { pointGapOf } from "./settings.js";
+import {
+  pointGapOf,
+  speedsOf,
+  throttleSilenceOf,
+  type SettingsChange,
+  type Speeds,
+} from "./settings.js";
 import { RETRY_MS, type Review, type TrainDoc } from "./store.js";
 import { cabs, type Cab } from "./throttle.js";
 import { WIDGET_PREFIX, type WidgetPress } from "./widgets.js";
@@ -74,6 +80,13 @@ export interface RunStatus {
    *  while no session is joined, the broker has gone or the layout has not
    *  said it (#1125). The Settings dialog's Points tab shows it (#1128). */
   pointGap: number | null;
+  /** The driver's speeds `tc49/layout/state/settings` says, as `pointGap`
+   *  is read (#1130). The Settings dialog's Driving tab shows them (#1134). */
+  speeds: Speeds | null;
+  /** The throttle silence `tc49/layout/state/settings` says, in seconds, as
+   *  `pointGap` is read (#1130). The Settings dialog's Box tab shows it
+   *  (#1134). */
+  throttleSilence: number | null;
   /** The railroad's driving mode, `null` while no session is joined or before
    *  the layout has said (ADR-0079). The band's driving control draws it. */
   driving: DrivingMode | null;
@@ -118,6 +131,8 @@ export const QUIET: RunStatus = {
   linked: false,
   power: null,
   pointGap: null,
+  speeds: null,
+  throttleSilence: null,
   driving: null,
   built: true,
   allocated: false,
@@ -324,6 +339,10 @@ export class Session {
   /** The point gap as `state/settings` last said it, read whether or not a
    *  panel model is built, as `supplied` is. */
   private gapped: number | null = null;
+  /** The speeds and the throttle silence as `state/settings` last said
+   *  them, read as `gapped` is. */
+  private sped: Speeds | null = null;
+  private silenced: number | null = null;
   private connected = false;
   private trouble: string | null = null;
   /** The railroad the model was built for, so it is rebuilt when the app loads
@@ -448,6 +467,8 @@ export class Session {
       this.supplied = null;
       this.ticked = null;
       this.gapped = null;
+      this.sped = null;
+      this.silenced = null;
       this.allocated = false;
       this.connected = true;
       this.trouble = null;
@@ -511,6 +532,8 @@ export class Session {
       this.allocated = false;
       this.ticked = null;
       this.gapped = null;
+      this.sped = null;
+      this.silenced = null;
       this.nameless = true;
       this.settle();
       this.hooks.named("");
@@ -533,6 +556,8 @@ export class Session {
       this.supplied = null;
       this.ticked = null;
       this.gapped = null;
+      this.sped = null;
+      this.silenced = null;
       this.allocated = false;
     }
     this.leave();
@@ -579,6 +604,8 @@ export class Session {
     if (event.event === "settings") {
       // The Settings dialog's alone, as the clock is the band's.
       this.gapped = pointGapOf(event);
+      this.sped = speedsOf(event);
+      this.silenced = throttleSilenceOf(event);
       this.changed();
       return;
     }
@@ -779,11 +806,12 @@ export class Session {
     this.send(railroadWanted(railroad));
   }
 
-  /** The point gap set in the Settings dialog's Points tab: one
-   *  `settings_wanted` carrying it (#1126, #1128). `layout` answers on
-   *  `state/settings`, and the tab shows that row coming back. */
-  pressSettings(pointGap: number): void {
-    this.send(settingsWanted(pointGap));
+  /** A setting committed in the Settings dialog — the point gap in its
+   *  Points tab, a speed in Driving, the throttle silence in Box: one
+   *  `settings_wanted` carrying that one (#1126, #1128, #1134). `layout`
+   *  answers on `state/settings`, and the tab shows that row coming back. */
+  pressSettings(change: SettingsChange): void {
+    this.send(settingsWanted(change));
   }
 
   /**
@@ -937,6 +965,8 @@ export class Session {
       linked: this.connected,
       power,
       pointGap: joined && this.connected ? this.gapped : null,
+      speeds: joined && this.connected ? this.sped : null,
+      throttleSilence: joined && this.connected ? this.silenced : null,
       driving: model?.driving ?? null,
       built: !this.unbuilt,
       allocated: joined && this.allocated,
@@ -1034,6 +1064,9 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.linked === now.linked &&
     was.power === now.power &&
     was.pointGap === now.pointGap &&
+    was.speeds?.clear === now.speeds?.clear &&
+    was.speeds?.caution === now.speeds?.caution &&
+    was.throttleSilence === now.throttleSilence &&
     was.driving === now.driving &&
     was.built === now.built &&
     was.allocated === now.allocated &&
