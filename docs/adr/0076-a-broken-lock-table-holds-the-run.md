@@ -2,6 +2,8 @@
 
 *Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): a broken rule drains the railroad in place of holding the run, and power on is the GO.*
 
+*Decision 2's "Nothing new goes on the bus" superseded by [#1118](https://github.com/rails49/control/issues/1118): the broken rules go on `tc49/dispatch/state/broken`, and the run view's band shows them.*
+
 Resolves the question [#761](https://github.com/rails49/control/issues/761)
 raised: what the dispatcher does when its own lock table stops agreeing with
 itself.

@@ -349,6 +349,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
+| `tc49/dispatch/state/broken` | state | dispatcher | the lock table's rules it found broken ([#1118](https://github.com/rails49/control/issues/1118)) |
 | `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
 | `tc49/ui/state/toggle/<name>` | state | any (browser) | a toggle's position ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
 | `tc49/ui/button/<name>` | event | any (browser) | a button was pressed ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
@@ -971,6 +972,14 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
   [#709](https://github.com/rails49/control/issues/709)). Read by the run
   view.
+- `tc49/dispatch/state/broken` — `rules`: sorted list of strings, one per
+  lock-table rule the dispatcher's last check found broken, the same line it
+  writes to stderr ([ADR-0076](adr/0076-a-broken-lock-table-holds-the-run.md)).
+  Published from the constructor, `[]` when nothing is broken, and again
+  whenever the list changes, back to `[]` once the tables agree again. A
+  broken rule is a bug; the run view shows each as `dispatcher: <rule>` on the
+  band, so a drain the dispatcher asked for itself says why
+  ([#1118](https://github.com/rails49/control/issues/1118)).
 - `tc49/dispatch/state/allocation` — `trains`: map of train to standing
   block; `crossing`: map of crossing train to its transit; `locks`: map of
   resource to holding train; `requests`: list of

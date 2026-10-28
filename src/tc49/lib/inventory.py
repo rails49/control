@@ -168,6 +168,8 @@ TOPICS: dict[str, Topic] = {
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
     "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
     "tc49/dispatch/state/unfit": Topic((AT, "trains")),
+    # The lock table's rules the dispatcher found broken (ADR-0076, #1118).
+    "tc49/dispatch/state/broken": Topic((AT, "rules")),
     "tc49/dispatch/state/allocation": Topic(
         (AT, "trains", "crossing", "locks", "requests")
     ),

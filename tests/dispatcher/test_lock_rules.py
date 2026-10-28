@@ -275,3 +275,53 @@ def power_on_is_honoured(
     assert dispatcher.state.crossing["express_2"] == "crossover.up_straight"
     assert broken(dispatcher.state)
     assert drains(said) == [DRAINING]
+
+
+BROKEN = "tc49/dispatch/state/broken"
+
+
+def rules(said: list[tuple[str, Payload]]) -> list[object]:
+    """Each `state/broken` row the dispatcher has published, its `rules`."""
+    return [payload["rules"] for topic, payload in said if topic == BROKEN]
+
+
+def test_the_broken_rules_are_published_and_cleared(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The rules found broken go on `state/broken`, the same lines stderr
+    gets, so the run view can say why the railroad drained (#1118). A rule
+    still broken from the last check publishes nothing new, and the tables
+    agreeing again publishes `rules: []`."""
+    bus, dispatcher, said = a_bus_dispatcher()
+    assert rules(said) and all(each == [] for each in rules(said))
+    del said[:]
+    capsys.readouterr()
+
+    del dispatcher.state.locks["up_e"]
+    deliver(
+        bus,
+        REQUEST_SUBMITTED,
+        {"id": "r-1", "train": "freight_1", "depart": "yard_w.B", "dest": ["dn_w.A"]},
+    )
+    lines = broken(dispatcher.state)
+    assert lines and rules(said) == [lines]
+    assert capsys.readouterr().err.splitlines() == [
+        f"dispatcher: lock table: {line}" for line in lines
+    ]
+
+    deliver(bus, POWER, {"power": DRAINING})
+    assert rules(said) == [lines]
+
+    dispatcher.state.locks["up_e"] = "express_2"
+    deliver(bus, POWER, {"power": ON})
+    assert rules(said) == [lines, []]
+
+
+def test_the_dispatcher_opens_with_no_rule_broken() -> None:
+    """`state/broken` is published from the constructor with `rules: []`, so
+    a joining client is served a value and the last session's list does not
+    stand (ADR-0032)."""
+    layout, roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    Dispatcher(bus, layout, roster, placement(scenario.trains), Incremental(layout, 2))
+    assert bus.last_values[BROKEN]["rules"] == []
