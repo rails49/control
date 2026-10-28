@@ -416,6 +416,9 @@ export class Panel {
    *  as the dispatcher last said (#709). Read and never derived: which
    *  trains the last build had standing is the dispatcher's alone. */
   private unfitRows: Unfit[] = [];
+  /** The lock table's rules the dispatcher last said it found broken, each
+   *  a line of its own (ADR-0076, #1118). Read and never derived. */
+  private brokenRules: string[] = [];
   /** What `state/moving` last said about any train crossing
    *  (ADR-0078), `null` where it said nothing — before the
    *  dispatcher has spoken, and for a row whose `moving` is not a boolean.
@@ -522,6 +525,7 @@ export class Panel {
     this.heading.clear();
     this.disputed = { trains: new Set(), blocks: new Set() };
     this.unfitRows = [];
+    this.brokenRules = [];
     this.movingWord = null;
     this.drivingWord = null;
     this.powerWord = null;
@@ -813,6 +817,16 @@ export class Panel {
         this.unfitRows = Array.isArray(trains) ? [...trains] : [];
         return;
       }
+      case "broken": {
+        // The rules the dispatcher found broken, whole from the topic, so
+        // last value wins and `[]` takes them off (#1118). A line that is
+        // not a non-empty string is nothing to show.
+        const { rules } = event as unknown as { rules?: unknown };
+        this.brokenRules = Array.isArray(rules)
+          ? rules.filter((rule): rule is string => typeof rule === "string" && rule !== "")
+          : [];
+        return;
+      }
       case "aspects": {
         const { aspects } = event as unknown as {
           aspects: Record<EndRef, Aspect>;
@@ -944,6 +958,13 @@ export class Panel {
    *  person and never by this model. */
   get fault(): string | null {
     return this.faultWord;
+  }
+
+  /** The lock table's rules the dispatcher last said it found broken, in
+   *  its own words (ADR-0076, #1118). A broken rule is a bug, and the reason
+   *  a drain nobody pressed for happened; the band shows each as a fault. */
+  broken(): string[] {
+    return [...this.brokenRules];
   }
 
   /** What the detectors dispute, as the dispatcher last said (#153): trains

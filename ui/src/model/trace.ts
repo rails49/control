@@ -359,6 +359,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "aspects",
   "disputed",
   "unfit",
+  "broken",
   "allocation",
   "device/track",
   "device/sensor",

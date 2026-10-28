@@ -44,6 +44,7 @@ afterEach(unbrokered);
 const STATE_POWER = "tc49/layout/state/power";
 const DEVICE_TRACK = "tc49/layout/state/device/track";
 const STATE_CLOCK = "tc49/layout/state/clock";
+const STATE_BROKEN = "tc49/dispatch/state/broken";
 const CLOCK_WANTED = "tc49/layout/clock_wanted";
 
 /** What the band reads, as text, in the order it reads it: its readings and
@@ -111,6 +112,18 @@ describe("what the band says", () => {
     await said(shell, DEVICE_TRACK, { power: "on", reason: "district B tripped" });
     expect(chips(shell)).toEqual(["district B tripped"]);
     expect(band(shell).querySelector("look-chip")!.title).toBe("district B tripped");
+  });
+
+  /** A lock-table rule the dispatcher found broken is why the railroad
+   *  drained when nobody pressed for it (#1118): a chip of its own beside the
+   *  supply's, for as long as `state/broken` lists it. */
+  it("shows each rule the dispatcher found broken as a chip, until the row clears it", async () => {
+    const shell = await joined();
+    const rule = "express_2 stands in up_e, which is locked to nobody";
+    await said(shell, STATE_BROKEN, { rules: [rule] });
+    expect(chips(shell)).toEqual([`dispatcher: ${rule}`]);
+    await said(shell, STATE_BROKEN, { rules: [] });
+    expect(chips(shell)).toEqual([]);
   });
 
   it("shows the store not answering as a chip", async () => {
