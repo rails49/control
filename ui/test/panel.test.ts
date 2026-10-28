@@ -1009,10 +1009,23 @@ describe("a reported point", () => {
     resources: ["sw.side", "c"],
   };
 
-  it("is drawn from wanted/point before any report", () => {
+  it("has no position before any report, whatever was asked", () => {
     const { model } = clocked();
     feed(model, wanted("12", "thrown"));
-    expect(model.positionsByAddress().get("12")).toBe("thrown");
+    expect(model.positionsByAddress().has("12")).toBe(false);
+  });
+
+  it("stays where it reported when asked for the other position", () => {
+    const { model } = clocked();
+    feed(model, reported("12", "closed"), wanted("12", "thrown"));
+    expect(model.positionsByAddress().get("12")).toBe("closed");
+  });
+
+  it("has no position once it reports neither closed nor thrown", () => {
+    const { model } = clocked();
+    feed(model, wanted("12", "thrown"), reported("12", "thrown"));
+    feed(model, { event: "device/point", addr: "12", position: "moving" as Position });
+    expect(model.positionsByAddress().has("12")).toBe(false);
   });
 
   it("is drawn where device/point says, whatever was asked", () => {
