@@ -132,6 +132,11 @@ TOPICS: dict[str, Topic] = {
     # speed-up, or both, at least one (ADR-0090). Taken whatever track power
     # and the run are doing.
     "tc49/layout/clock_wanted": Topic(("time", "speed_up"), browser=True),
+    # The railroad's settings as `layout` holds them, said as a railroad is
+    # loaded (#1125). `point_gap` is the seconds, 0 to 5, it waits after a
+    # point command before the next one or the move waiting on it; 0 is no
+    # wait.
+    "tc49/layout/state/settings": Topic((AT, "point_gap")),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),

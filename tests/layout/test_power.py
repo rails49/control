@@ -37,6 +37,7 @@ from tests.layout.railroad import (
     POWER_WANTED,
     RAILROAD,
     REMOVED,
+    SETTINGS,
     TAKEN,
     WANTED_TRACK,
     WANTED_TRACTION,
@@ -134,11 +135,11 @@ def hand_driven(bus: InProcessBus) -> None:
 
 def test_the_railroad_comes_up_off_before_anything_else() -> None:
     """Nothing moves and no turnout throws until a person turns it on
-    (ADR-0051). The four values are the first things the app says, and the
-    order is the honest one: which railroad this is (#371), then the supply
-    commanded off, then what the app believes about it, then who drives:
-    people, with no train in a throttle (ADR-0079), and no function on
-    (#849)."""
+    (ADR-0051). These are the first things the app says, and the order is
+    the honest one: which railroad this is (#371), then the supply commanded
+    off, then what the app believes about it, then who drives: people, with
+    no train in a throttle (ADR-0079), no function on (#849), and the
+    railroad's settings (#1125)."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = heard(bus, "tc49/#")
@@ -152,7 +153,18 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
         (DRIVING, {"at": 0.0, "driving": "manual"}),
         (TAKEN, {"at": 0.0, "taken": {}}),
         (FUNCTIONS, {"at": 0.0, "functions": {}}),
+        (SETTINGS, {"at": 0.0, "point_gap": 0.0}),
     ]
+
+
+def test_the_point_gap_it_is_built_with_is_said_on_the_settings_row() -> None:
+    """Every open page shows the gap a person can change, so it is retained
+    and said as the railroad is loaded (#1125)."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    LayoutInterface(bus, railroad(), stock(), clock, point_gap=1.5)
+    bus.drain()
+    assert bus.last_values[SETTINGS] == {"at": 0.0, "point_gap": 1.5}
 
 
 def test_the_value_is_retained_for_a_client_that_joins_later() -> None:

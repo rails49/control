@@ -261,6 +261,7 @@ POWER = "tc49/layout/state/power"
 DRIVING = "tc49/layout/state/driving"
 TAKEN = "tc49/layout/state/taken"
 FUNCTIONS = "tc49/layout/state/functions"
+SETTINGS = "tc49/layout/state/settings"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -289,6 +290,13 @@ its own (`TC49_LAYOUT_THROTTLE_SILENCE`, docs/DEPLOY.md), and the default of
 the constructor argument that carries it. A throttle says `throttle_alive`
 once a second, so this is five of them missed: a phone gone to sleep, a page
 closed, a network gone (ADR-0079)."""
+
+POINT_GAP_S = 0.0
+"""How long this app waits after a point command before it sends the next
+one or lets go the move waiting on it, in seconds, by default: `0`, no wait,
+which is what it does today. Said on `tc49/layout/state/settings` as the
+railroad is loaded, so every open page shows the gap a person can change
+(#1125)."""
 
 
 @dataclass(frozen=True)
@@ -393,6 +401,7 @@ class LayoutInterface:
         position: dict[str, str] | None = None,
         built: bool = True,
         reread: Callable[[], Roster | None] | None = None,
+        point_gap: float = POINT_GAP_S,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -440,6 +449,9 @@ class LayoutInterface:
         was not built with asks it, a train made in the stock view since the
         last build being on the store's roster and nowhere else. The simulator
         binding passes none.
+
+        `point_gap`: the wait after a point command, `POINT_GAP_S` by
+        default, said on `tc49/layout/state/settings` (#1125).
         """
         self._bus = bus
         self._layout = layout
@@ -599,6 +611,10 @@ class LayoutInterface:
         # no train rolling, and a row handed back is what the decoder was
         # last told, so it is what `state/functions` says (#849).
         bus.publish(FUNCTIONS, {"functions": {}})
+        # The railroad's settings, retained so that every open page shows
+        # what a person can change, and said with each build: a loaded
+        # railroad starts on a broker cleared of the last one's (#1125).
+        bus.publish(SETTINGS, {"point_gap": point_gap})
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
