@@ -809,13 +809,14 @@ what a drop would cost:
   point command or lets go the move waiting on it; `0` is no wait. `layout`
   publishes it as a railroad is loaded, at the gap the railroad keeps in the
   store, `layouts/<layout>.settings.yaml` ([LAYOUT.md](store/LAYOUT.md)), or
-  `0` where it keeps none; at once after it takes a `settings_wanted`; and
+  `0.5` where it keeps none; at once after it takes a `settings_wanted`; and
   none while it stands. Loading a railroad clears it with the other `layout`
   rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The simulator does not publish it. The page shows it in the Settings
-  dialog's Points tab; no app reads it
-  ([#1125](https://github.com/rails49/control/issues/1125)).
+  dialog's Points tab; no app reads it, `layout` holding the gap it says
+  ([#1125](https://github.com/rails49/control/issues/1125),
+  [#1127](https://github.com/rails49/control/issues/1127)).
 - `tc49/layout/settings_wanted` — browser-writable — `point_gap`: number,
   seconds, `0` to `5`. A payload without `point_gap`, or with a value out of
   range, is dropped, as any malformed gesture is. Taken whatever track power

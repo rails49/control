@@ -1,5 +1,7 @@
 # A reported point lies where `device/point` says, and a train waits for it
 
+*Amended by [#1127](https://github.com/rails49/control/issues/1127): a point not reported is no longer taken to lie where `wanted/point` puts it the moment it is written; the move also waits one point gap after the point's write, and a reported point waits for that gap as well as its `device/point`.*
+
 Part of [#1103](https://github.com/rails49/control/issues/1103). Supersedes
 the `device/point` clause of decision 7 of
 [ADR-0063](0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md),
