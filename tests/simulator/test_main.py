@@ -33,7 +33,14 @@ from tc49.lib.mqtt import MqttBus
 from tc49.simulator.__main__ import OWNED, serve
 from tc49.store import AssetStore
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, settle, until
+from tests.brokers import (
+    Broker,
+    at_least_once_in_any_two_seconds,
+    beats,
+    drained,
+    settle,
+    until,
+)
 from tests.harness import ASSETS
 from tests.ports import free_port
 
@@ -199,21 +206,25 @@ def test_a_cold_start_publishes_the_apps_own_rows(
     witness.close()
 
 
-def test_it_never_says_the_layout_is_up(broker: Broker, store: Store, app: App) -> None:
-    """`alive_confirmed` is what something off the box cuts track power on
-    when it stops, and the simulator drives no hardware: a running one says
-    nothing on it however long it runs (#716)."""
+def test_built_it_says_once_a_second_that_the_layout_is_up(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """`alive_confirmed` in `layout`'s place: a page names the layout
+    interface when it goes quiet, on a simulated railroad as on steel
+    (#1113). At least once in any two seconds, so the page's 3 s has a
+    margin, and once a second rather than once a turn. What cuts track power
+    on it is on steel boxes only, so here it cuts nothing (#716)."""
     store.start()
     witness, heard = watching(broker)
     app.start()
     assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
 
-    deadline = time.monotonic() + 2.5
-    while time.monotonic() < deadline:
-        witness.drain()
-        time.sleep(0.01)
+    said = beats(broker.port, ALIVE, 4.5)
 
-    assert rows(heard, ALIVE) == [], "the simulator said the layout was up"
+    assert at_least_once_in_any_two_seconds(said, 4.5), f"heard at {said}"
+    assert len(said) <= 6, f"{len(said)} in 4.5 s, where once a second is 4 or 5"
+    settle(witness)
+    assert all(payload == {} for payload in rows(heard, ALIVE))
     assert app.running, "the app stopped on its own"
     witness.close()
 

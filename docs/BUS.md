@@ -245,7 +245,9 @@ arrives from the bus
 ## Event inventory
 
 A topic is named `tc49/<component>/<leaf>`: `layout`, `schedule`,
-`dispatch` or `ui`. The component comes first because it is the component that
+`dispatch`, `drive` or `ui`. `drive` holds one topic, the driver saying it is
+up: every other topic the driver publishes is a command, which sits under the
+component that answers it. The component comes first because it is the component that
 **declares** the topic — the events it emits, and the requests it responds
 to. Naming topics this way means rule 1 can be checked by reading the name,
 `tc49/layout/*` keeps its meaning when hardware replaces the simulator, and a
@@ -299,7 +301,10 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | --- | --- | --- | --- |
 | `tc49/layout/state/railroad` | state | layout | the railroad this broker runs, `""` while the binding stands ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)), and whether anything was built from it ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)) |
 | `tc49/layout/railroad_wanted` | event | any (browser) | load this railroad, the apps staying up ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)) |
-| `tc49/layout/alive_confirmed` | event | layout | `layout` is up and built on a railroad, said once a second ([#716](https://github.com/rails49/control/issues/716)) |
+| `tc49/layout/alive_confirmed` | event | layout | `layout` is up and built on a railroad, said once a second ([#716](https://github.com/rails49/control/issues/716), [#1113](https://github.com/rails49/control/issues/1113)) |
+| `tc49/schedule/scheduler_alive_confirmed` | event | scheduler | the scheduler is up and built on a railroad, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
+| `tc49/dispatch/dispatcher_alive_confirmed` | event | dispatcher | the dispatcher is up and built on a railroad, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
+| `tc49/drive/driver_alive_confirmed` | event | driver | the driver is up with a railroad loaded, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
@@ -573,10 +578,29 @@ what a drop would cost:
   device on the bus that cuts track power
   ([rails49/.github#29](https://github.com/rails49/.github/issues/29)); what
   a consumer does then is theirs. **Not retained**: a retained value would be
-  handed to a late subscriber after the box had stopped. The simulator does
-  not publish it, driving no hardware. It is not a detector's event, so the
+  handed to a late subscriber after the box had stopped. The simulator
+  publishes it in `layout`'s place, because the page needs it on a simulated
+  railroad too; the devices that cut track power on it are on steel boxes
+  only, so there it cuts nothing. It is not a detector's event, so the
   rule below that a detector publishes no heartbeat does not reach it
-  ([#716](https://github.com/rails49/control/issues/716)).
+  ([#716](https://github.com/rails49/control/issues/716),
+  [#1113](https://github.com/rails49/control/issues/1113)).
+- `tc49/schedule/scheduler_alive_confirmed`,
+  `tc49/dispatch/dispatcher_alive_confirmed`,
+  `tc49/drive/driver_alive_confirmed` — payload `{}`. Each app publishes its
+  own as `layout` publishes `alive_confirmed`: once a second by the monotonic
+  clock from its drain loop, while it is built on a railroad, and none while
+  it stands. The driver reads no documents, so for it built is a railroad
+  loaded. **Not retained**, for the same reason. **Not marked `browser`**:
+  every page already reads `tc49/#`, and the mark would let a page say an app
+  is up when it is not. Each leaf names its app, a leaf being unique across
+  the inventory. The consumer is the page: while the loaded railroad is
+  built, it expects all four of these and `layout`'s, and names on the band
+  each app it has not heard for 3 s, one never heard since the page
+  connected included, until that app is heard again. With no railroad
+  loaded, or one not built, it judges none. This is the one place that
+  handles an app being down
+  ([#1113](https://github.com/rails49/control/issues/1113)).
 - `tc49/layout/power_wanted` — browser-writable — `power`: enum `on`,
   `draining` or `off`, the same closed set `state/power` below carries; any
   other value is dropped ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)). `layout` is what answers it, and it answers

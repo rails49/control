@@ -12,6 +12,7 @@ so a failed install has to redden the gate rather than quietly delete every
 suite built on the bus (#423). `CI` in the environment tells the two apart.
 """
 
+import itertools
 import os
 import shutil
 import socket
@@ -62,6 +63,31 @@ def settle(bus: MqttBus, seconds: float = 0.5) -> None:
     while time.monotonic() < deadline:
         bus.drain()
         time.sleep(0.01)
+
+
+def beats(port: int, topic: str, seconds: float = 4.5) -> list[float]:
+    """When `topic` arrived over a stretch of wall time, by the monotonic
+    clock, heard by a client of its own and counted from when it subscribed:
+    what an app saying it is up is held to is a rate, so the seconds have to
+    pass rather than a condition come true (#1113)."""
+    witness = MqttBus(port=port)
+    assert witness.wait_connected(), "the witness never reached the broker"
+    began = time.monotonic()
+    heard: list[float] = []
+    witness.subscribe(topic, lambda _topic, _payload: heard.append(time.monotonic()))
+    deadline = began + seconds
+    while time.monotonic() < deadline:
+        witness.drain()
+        time.sleep(0.01)
+    witness.close()
+    return [at - began for at in heard]
+
+
+def at_least_once_in_any_two_seconds(heard: list[float], seconds: float) -> bool:
+    """Whether arrivals at `heard`, seconds into a stretch of `seconds`, leave
+    no gap of two seconds: from the start, between two, or before the end."""
+    edges = [0.0, *heard, seconds]
+    return all(later - earlier < 2.0 for earlier, later in itertools.pairwise(edges))
 
 
 class Broker:

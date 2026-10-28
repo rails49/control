@@ -21,8 +21,9 @@ already owns, the facing (`tc49/schedule/state/facing`). A railroad the store
 does not have leaves it **standing** — up, with no railroad, built on the
 first one the row names that the store can give (#564, `lib/loading.py`).
 
-Then the loop, which is a drain and a sleep. `Scheduler` is handed a `Bus` and
-nothing else changes in the package: what a run an operator drives has is a
+Then the loop, which is a drain and a sleep, and `alive_confirmed` once a
+second by the monotonic clock while it is built (#1113); standing, it says
+nothing. `Scheduler` is handed a `Bus` and nothing else changes in the package: what a run an operator drives has is a
 railroad and a person placing trains on it — no facing seed and no timetable,
 those being the harness's (ADR-0036).
 """
@@ -39,6 +40,7 @@ from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.startup import (
     PERIOD_S,
     RETAINED_S,
+    Alive,
     command_line,
     connected,
     retained,
@@ -49,6 +51,10 @@ CLIENT_ID = "tc49-scheduler"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (BUS.md, rule 4)."""
+
+ALIVE_CONFIRMED = "tc49/schedule/scheduler_alive_confirmed"
+"""The scheduler saying it is up, once a second while built on a railroad, so
+that a page names it when it goes quiet (#1113)."""
 
 OWNED = ("tc49/schedule/state/#",)
 """The retained rows this app writes, as a filter rather than a list: a
@@ -99,6 +105,7 @@ def serve(
     if layout is None:
         return
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
+    alive = Alive(bus, ALIVE_CONFIRMED)
     while not stop.is_set():
         retained(bus, FACING, stop, retained_s)
         Scheduler(bus, layout)
@@ -111,6 +118,7 @@ def serve(
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         while not stop.is_set() and not loaded.moved:
+            alive.say()
             bus.drain()
             stop.wait(period_s)
         if not loaded.moved:

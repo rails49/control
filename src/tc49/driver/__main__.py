@@ -29,9 +29,10 @@ The startup order is `lib/startup.py`'s, shortened at both ends. **No
 documents**, so nothing to wait for from the store: an app that reads nothing
 cannot be brought up in the wrong order with respect to one that serves
 documents. **No rows of its own**, so nothing retained is published or waited
-for — the driver publishes exactly one topic and only ever in answer to a
-grant, so a cold start is silent and the first thing anything hears from this
-process is a `move`. What is left is the broker, and then `Driver` on it:
+for — the driver commands on exactly one topic and only ever in answer to a
+grant, and beside it says only that it is up, so a cold start with no railroad
+loaded is silent and the first command anything hears from this process is a
+`move`. What is left is the broker, and then `Driver` on it:
 subscribing while connected is acknowledged before the call comes back, so the
 app is live on `move_granted` by the time it says it is up, where a
 subscription made while disconnected would only go again with the reconnect. A
@@ -40,7 +41,9 @@ is gone rather than delivered late — which is the same thing that happens to a
 grant made while this container is being restarted, and why the dispatcher
 re-grants rather than the driver remembering.
 
-Then the loop, which is a drain and a sleep. `Driver` is handed a `Bus` and
+Then the loop, which is a drain and a sleep, and `alive_confirmed` once a
+second by the monotonic clock while a railroad is loaded (#1113): the one thing
+this app says that is not a `move`. `Driver` is handed a `Bus` and
 nothing else in the package changes: which binding it got is this file's
 business, and a grant that cannot be read is dropped on the broker exactly as
 it was in one process (#261, BUS.md rule 4) — under MQTT the publisher is
@@ -57,12 +60,19 @@ from collections.abc import Callable, Mapping
 from tc49.driver.driver import SPEEDS, Driver, speeds
 from tc49.lib.loading import NO_RAILROAD, Loaded, named
 from tc49.lib.mqtt import MqttBus, address
-from tc49.lib.startup import PERIOD_S, command_line, connected
+from tc49.lib.startup import PERIOD_S, Alive, command_line, connected
 
 CLIENT_ID = "tc49-driver"
 """What this app calls itself to the broker, so its log names an app rather
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (BUS.md, rule 4)."""
+
+
+ALIVE_CONFIRMED = "tc49/drive/driver_alive_confirmed"
+"""The driver saying it is up, once a second while a railroad is loaded, so
+that a page names it when it goes quiet (#1113). The one topic under
+`tc49/drive/`: every other one the driver publishes is a command, which sits
+under the component that answers it (BUS.md)."""
 
 
 def to_stderr(line: str) -> None:
@@ -100,6 +110,7 @@ def serve(
     if not connected(bus, stop, log):
         return
     loaded = Loaded(railroad)
+    alive = Alive(bus, ALIVE_CONFIRMED)
     while not stop.is_set():
         Driver(bus, priced)
         # After the app is built and not before: the row is retained, so
@@ -111,6 +122,9 @@ def serve(
         built = loaded.name
         log(f"up on {named(built)}, draining every {period_s}s")
         while not stop.is_set() and not loaded.moved:
+            # Standing, it is built on nothing and says nothing (#1113).
+            if loaded.name != NO_RAILROAD:
+                alive.say()
             bus.drain()
             stop.wait(period_s)
         if not loaded.moved:
