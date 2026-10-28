@@ -36,9 +36,10 @@
  * `gapChange` refuses is not sent, and the tab says why. The field goes on
  * showing the row, not the press (ADR-0035), except that a refused commit
  * stays in it beside the reason until a commit is not refused or the row
- * says a different value for it (#1137). **Driving** and **Box**, after
- * Points, do the same for the driver's speeds at clear and at caution, in
- * percent of the locomotive's top speed, and for the throttle silence, the
+ * says a different value for it (#1137). **Driving** and **Throttles**
+ * (#1142), after Points, do the same for the driver's speeds at clear and
+ * at caution, in percent of the locomotive's top speed, and for the
+ * throttle silence, the
  * installation's whatever railroad is loaded (#1134): each commit sends the
  * one field committed, as `speedChange` and `silenceChange` say.
  * **Shutdown** turns the box off (#745), and is drawn only
@@ -272,13 +273,13 @@ export class TcSettings extends LitElement {
           <sl-tab slot="nav" panel="railroad" ?active=${!backup}>Railroad</sl-tab>
           <sl-tab slot="nav" panel="points">Points</sl-tab>
           <sl-tab slot="nav" panel="driving">Driving</sl-tab>
-          <sl-tab slot="nav" panel="box">Box</sl-tab>
+          <sl-tab slot="nav" panel="throttles">Throttles</sl-tab>
           <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
           ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
           <sl-tab-panel name="railroad" ?active=${!backup}>${this.railroads()}</sl-tab-panel>
           <sl-tab-panel name="points"><div class="points">${this.points()}</div></sl-tab-panel>
           <sl-tab-panel name="driving"><div class="driving">${this.driving()}</div></sl-tab-panel>
-          <sl-tab-panel name="box"><div class="box">${this.box()}</div></sl-tab-panel>
+          <sl-tab-panel name="throttles"><div class="throttles">${this.throttles()}</div></sl-tab-panel>
           <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
           ${this.canTurnOff
             ? html`<sl-tab-panel name="shutdown">
@@ -456,14 +457,14 @@ export class TcSettings extends LitElement {
   }
 
   /**
-   * The Box tab (#1134): how long a throttle holding trains may go silent
-   * before `layout` lets go of them, in seconds from
+   * The Throttles tab (#1134, #1142): how long a throttle holding trains
+   * may go silent before `layout` lets go of them, in seconds from
    * `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S` in steps of `1`.
    * The installation's, so it says it holds whatever railroad is loaded.
    * Dead with a hint until the layout has said its settings; a commit
    * `silenceChange` refuses stays in the field, with the reason beneath it.
    */
-  private box() {
+  private throttles() {
     const unheard = this.throttleSilence === null;
     return html`
       <sl-input

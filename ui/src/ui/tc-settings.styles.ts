@@ -20,7 +20,7 @@ import { css } from "lit";
  * row, and one the layout did not answer says so there, in the weight a
  * thing missing reads in. A row's trash sits at its end, and pressed, the
  * row gives way to what deleting it costs and the two presses beside it.
- * The Points, Driving and Box tabs are narrow fields, the hints beneath
+ * The Points, Driving and Throttles tabs are narrow fields, the hints beneath
  * them.
  */
 export const settingsStyles = css`
@@ -120,7 +120,7 @@ export const settingsStyles = css`
 
   .points sl-input,
   .driving sl-input,
-  .box sl-input {
+  .throttles sl-input {
     max-width: 14rem;
   }
 

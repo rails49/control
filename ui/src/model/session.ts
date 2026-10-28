@@ -84,8 +84,8 @@ export interface RunStatus {
    *  is read (#1130). The Settings dialog's Driving tab shows them (#1134). */
   speeds: Speeds | null;
   /** The throttle silence `tc49/layout/state/settings` says, in seconds, as
-   *  `pointGap` is read (#1130). The Settings dialog's Box tab shows it
-   *  (#1134). */
+   *  `pointGap` is read (#1130). The Settings dialog's Throttles tab
+   *  shows it (#1134, #1142). */
   throttleSilence: number | null;
   /** The railroad's driving mode, `null` while no session is joined or before
    *  the layout has said (ADR-0079). The band's driving control draws it. */
@@ -807,7 +807,7 @@ export class Session {
   }
 
   /** A setting committed in the Settings dialog — the point gap in its
-   *  Points tab, a speed in Driving, the throttle silence in Box: one
+   *  Points tab, a speed in Driving, the throttle silence in Throttles: one
    *  `settings_wanted` carrying that one (#1126, #1128, #1134). `layout`
    *  answers on `state/settings`, and the tab shows that row coming back. */
   pressSettings(change: SettingsChange): void {
