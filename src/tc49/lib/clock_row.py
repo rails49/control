@@ -17,7 +17,7 @@ from tc49.lib.bus import Bus, Payload
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
 from tc49.lib.payload import wanted_clock
-from tc49.lib.settings import KeptInstallation, KeptSettings
+from tc49.lib.settings import THROTTLE_SILENCE_S, KeptInstallation, KeptSettings
 
 type Kept = KeptClock | KeptSettings | KeptInstallation
 """What `Keeping` writes: a railroad's clock or settings, or the
@@ -162,3 +162,16 @@ def loaded(
     else:
         fast = kept.started(monotonic())
     return FastClockRow(bus, fast, kept, monotonic, keep)
+
+
+def silence(documents: Documents, log: Callable[[str], None]) -> float:
+    """The throttle silence the installation keeps, in seconds, or
+    `THROTTLE_SILENCE_S` where it keeps none. One the store cannot read is
+    said and run as none would be, as a railroad's clock is: a setting is no
+    reason not to come up (#1132)."""
+    try:
+        kept = documents.installation()
+    except (ValueError, TypeError) as refused:
+        log(f"{refused} — the throttle silence is the default")
+        return THROTTLE_SILENCE_S
+    return THROTTLE_SILENCE_S if kept is None else kept.throttle_silence

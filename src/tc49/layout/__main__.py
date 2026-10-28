@@ -83,12 +83,11 @@ from collections.abc import Callable, Sequence
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
-    THROTTLE_SILENCE_S,
     WANTED_TRACTION,
     LayoutInterface,
 )
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import FastClockRow, Keeping, kept_by, loaded
+from tc49.lib.clock_row import FastClockRow, Keeping, kept_by, loaded, silence
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
@@ -137,19 +136,6 @@ TRACTION = f"{WANTED_TRACTION}/#"
 """Every traction row, which is what has to be on the broker's way here before
 the app is built on it. A filter and not a topic: a row exists for each
 address a previous process wrote to, and this app holds no list of which."""
-
-
-def silence(documents: Documents, log: Callable[[str], None]) -> float:
-    """The throttle silence the installation keeps, in seconds, or
-    `THROTTLE_SILENCE_S` where it keeps none. One the store cannot read is
-    said and run as none would be, as a railroad's clock is: a setting is no
-    reason not to come up (#1132)."""
-    try:
-        kept = documents.installation()
-    except (ValueError, TypeError) as refused:
-        log(f"{refused} — the throttle silence is the default")
-        return THROTTLE_SILENCE_S
-    return THROTTLE_SILENCE_S if kept is None else kept.throttle_silence
 
 
 def to_stderr(line: str) -> None:
