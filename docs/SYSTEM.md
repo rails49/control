@@ -1153,9 +1153,12 @@ as well. An `align` that writes nothing lets its move go at once, and signals
 are not spaced. Time is the injected clock's, as the settling time's is.
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
-loaded, so far only the point gap. A person sets it with `settings_wanted`,
-taken at any power and with no rebuild, said at once, used for the next point
-written, and kept with the railroad in `layouts/<layout>.settings.yaml`. A
+loaded: the point gap, the driver's speeds, which nobody sets yet and so are
+0.6 and 0.3, and the throttle silence, the installation's and the same
+whatever railroad is loaded
+([#1130](https://github.com/rails49/control/issues/1130)). A person sets the
+gap with `settings_wanted`, taken at any power and with no rebuild, said at
+once, used for the next point written, and kept with the railroad in `layouts/<layout>.settings.yaml`. A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
 and nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
