@@ -3,8 +3,8 @@
 `layout` drives steel and `simulator` stands in for it, and a client on the
 bus is not to tell which is running (ADR-0030, ADR-0070). Every case here runs
 against both, and reads what both expose: where each train stands
-(`position`), and what each says on `state/railroad`, `state/power` and
-`state/settings`. What
+(`position`), and what each says on `state/railroad`, `state/power`,
+`state/unknown_sensors` and `state/settings`. What
 only one binding does — the layout's fold, align hold and traction writes, the
 simulator's sensor timing — stays in that binding's own suite.
 
@@ -36,6 +36,7 @@ from tests.layout.railroad import (
     REMOVED,
     SETTINGS,
     SETTINGS_WANTED,
+    UNKNOWN_SENSORS,
     WANTED_TRACK,
     Unstamped,
     align,
@@ -148,6 +149,13 @@ def test_it_comes_up_naming_its_railroad_with_the_power_off(build: Build) -> Non
     binding = build()
     assert binding.bus.last_values[RAILROAD]["name"] == "bench"
     assert power(binding) == "off"
+
+
+def test_it_comes_up_saying_no_sensor_is_unknown(build: Build) -> None:
+    """Said from the constructor, so a client that joins is served a value
+    (ADR-0032). The list is empty here: `layout` has nothing that fills it yet
+    and the simulator has no sensors (#1148)."""
+    assert build().bus.last_values[UNKNOWN_SENSORS]["sensors"] == []
 
 
 # -- the near-end check and the rails ----------------------------------------

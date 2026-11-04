@@ -110,12 +110,13 @@ OWNED = (
     "tc49/layout/state/functions",
     "tc49/layout/state/clock",
     "tc49/layout/state/settings",
+    "tc49/layout/state/unknown_sensors",
     "tc49/layout/state/wanted/#",
 )
 """The retained rows this app writes: which railroad is loaded, the supply as
 it observes it, the driving mode, which throttle holds which train, which of
-each train's functions are on, the fast clock, the railroad's settings, and
-every desired row under `wanted/` — one per address a railroad's wiring
+each train's functions are on, the fast clock, the railroad's settings, the
+sensors that are not reporting, and every desired row under `wanted/` — one per address a railroad's wiring
 decides. The observed rows under `device/` are
 **not** here: they belong to whatever answers for that address, which is
 hardware and not this app (ADR-0043, ADR-0058), and a reload leaves them to

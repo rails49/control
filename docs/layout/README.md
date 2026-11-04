@@ -45,7 +45,8 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track`,
 `tc49/layout/state/power`, `tc49/layout/state/driving`,
-`tc49/layout/state/taken` and `tc49/layout/state/functions`.
+`tc49/layout/state/taken`, `tc49/layout/state/functions` and
+`tc49/layout/state/unknown_sensors`.
 
 The facing is the one topic here that is nobody's hardware and nobody's
 command: it is the scheduler's state, and this app reads it because the sign of

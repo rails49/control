@@ -185,6 +185,7 @@ APPS = (
             "tc49/layout/state/functions",
             "tc49/layout/state/clock",
             "tc49/layout/state/settings",
+            "tc49/layout/state/unknown_sensors",
             "tc49/layout/state/wanted/track",
         ),
     ),
@@ -197,6 +198,7 @@ APPS = (
             "tc49/layout/state/power",
             "tc49/layout/state/clock",
             "tc49/layout/state/settings",
+            "tc49/layout/state/unknown_sensors",
         ),
     ),
 )

@@ -279,6 +279,7 @@ DRIVING = "tc49/layout/state/driving"
 TAKEN = "tc49/layout/state/taken"
 FUNCTIONS = "tc49/layout/state/functions"
 SETTINGS = "tc49/layout/state/settings"
+UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -653,6 +654,10 @@ class LayoutInterface:
         # what a person can change, and said with each build: a loaded
         # railroad starts on a broker cleared of the last one's (#1125).
         bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        # Which sensors are not reporting, said so a client that joins is
+        # served a value rather than left to read one out of an absence
+        # (ADR-0032). Nothing fills the list yet (#1151).
+        bus.publish(UNKNOWN_SENSORS, {"sensors": []})
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
