@@ -21,6 +21,8 @@ import {
   silenceChange,
   speedChange,
   speedsOf,
+  sensorSilenceChange,
+  sensorSilenceOf,
   throttleSilenceOf,
 } from "../src/model/settings.js";
 import type { Backup } from "../src/model/store.js";
@@ -402,6 +404,41 @@ describe("what a committed throttle silence does", () => {
   });
 });
 
+/** The Sensors tab's one field, the sensor silence (#1149). */
+describe("what a committed sensor silence does", () => {
+  it("sends nothing while the layout has not said its settings", () => {
+    expect(sensorSilenceChange("10", null)).toEqual({
+      refused: "the layout has not said its settings",
+    });
+  });
+
+  it("refuses what is not a number of seconds", () => {
+    for (const typed of ["soon", ""]) {
+      expect(sensorSilenceChange(typed, 3)).toEqual({
+        refused: "how long a sensor may go unheard is a number of seconds",
+      });
+    }
+  });
+
+  it("refuses a silence below 2 or above 60 seconds", () => {
+    for (const typed of ["1", "1.9", "61", "0"]) {
+      expect(sensorSilenceChange(typed, 3)).toEqual({
+        refused: "how long a sensor may go unheard is from 2 to 60 seconds",
+      });
+    }
+  });
+
+  it("sends a silence from 2 to 60 seconds alone, the ends included", () => {
+    expect(sensorSilenceChange("10", 3)).toEqual({ sent: { sensor_silence: 10 } });
+    expect(sensorSilenceChange("2", 3)).toEqual({ sent: { sensor_silence: 2 } });
+    expect(sensorSilenceChange("60", 3)).toEqual({ sent: { sensor_silence: 60 } });
+  });
+
+  it("sends nothing where the silence is the one the layout says", () => {
+    expect(sensorSilenceChange("3", 3)).toBeNull();
+  });
+});
+
 describe("the speeds and the silence state/settings says", () => {
   it("reads speeds with clear and caution both", () => {
     expect(speedsOf({ speeds: { clear: 0.6, caution: 0.3 } })).toEqual({
@@ -419,6 +456,13 @@ describe("the speeds and the silence state/settings says", () => {
       { speeds: { clear: 0.6, caution: 1.2 } },
     ]) {
       expect(speedsOf(payload)).toBeNull();
+    }
+  });
+
+  it("reads sensor_silence in seconds, from 2 to 60", () => {
+    expect(sensorSilenceOf({ sensor_silence: 3 })).toBe(3);
+    for (const payload of [{}, { sensor_silence: "3" }, { sensor_silence: 1 }, { sensor_silence: 61 }]) {
+      expect(sensorSilenceOf(payload)).toBeNull();
     }
   });
 

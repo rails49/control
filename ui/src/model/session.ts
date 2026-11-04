@@ -33,6 +33,7 @@ import type { Drawing } from "./drawing.js";
 import { Panel, type Placed } from "./panel.js";
 import {
   pointGapOf,
+  sensorSilenceOf,
   speedsOf,
   throttleSilenceOf,
   type SettingsChange,
@@ -88,6 +89,9 @@ export interface RunStatus {
    *  `pointGap` is read (#1130). The Settings dialog's Throttles tab
    *  shows it (#1134, #1142). */
   throttleSilence: number | null;
+  /** The sensor silence `tc49/layout/state/settings` says, in seconds, as
+   *  `pointGap` is read. The Settings dialog's Sensors tab shows it (#1149). */
+  sensorSilence: number | null;
   /** The railroad's driving mode, `null` while no session is joined or before
    *  the layout has said (ADR-0079). The band's driving control draws it. */
   driving: DrivingMode | null;
@@ -134,6 +138,7 @@ export const QUIET: RunStatus = {
   pointGap: null,
   speeds: null,
   throttleSilence: null,
+  sensorSilence: null,
   driving: null,
   built: true,
   allocated: false,
@@ -340,10 +345,11 @@ export class Session {
   /** The point gap as `state/settings` last said it, read whether or not a
    *  panel model is built, as `supplied` is. */
   private gapped: number | null = null;
-  /** The speeds and the throttle silence as `state/settings` last said
-   *  them, read as `gapped` is. */
+  /** The speeds and the two silences as `state/settings` last said them,
+   *  read as `gapped` is. */
   private sped: Speeds | null = null;
   private silenced: number | null = null;
+  private sensorsSilenced: number | null = null;
   private connected = false;
   private trouble: string | null = null;
   /** The railroad the model was built for, so it is rebuilt when the app loads
@@ -475,6 +481,7 @@ export class Session {
       this.gapped = null;
       this.sped = null;
       this.silenced = null;
+      this.sensorsSilenced = null;
       this.allocated = false;
       this.connected = true;
       this.trouble = null;
@@ -540,6 +547,7 @@ export class Session {
       this.gapped = null;
       this.sped = null;
       this.silenced = null;
+      this.sensorsSilenced = null;
       this.nameless = true;
       this.settle();
       this.hooks.named("");
@@ -564,6 +572,7 @@ export class Session {
       this.gapped = null;
       this.sped = null;
       this.silenced = null;
+      this.sensorsSilenced = null;
       this.allocated = false;
     }
     this.leave();
@@ -613,6 +622,7 @@ export class Session {
       this.gapped = pointGapOf(event);
       this.sped = speedsOf(event);
       this.silenced = throttleSilenceOf(event);
+      this.sensorsSilenced = sensorSilenceOf(event);
       this.changed();
       return;
     }
@@ -827,8 +837,9 @@ export class Session {
   }
 
   /** A setting committed in the Settings dialog — the point gap in its
-   *  Points tab, a speed in Driving, the throttle silence in Throttles: one
-   *  `settings_wanted` carrying that one (#1126, #1128, #1134). `layout`
+   *  Points tab, a speed in Driving, the throttle silence in Throttles, the
+   *  sensor silence in Sensors: one `settings_wanted` carrying that one
+   *  (#1126, #1128, #1134, #1149). `layout`
    *  answers on `state/settings`, and the tab shows that row coming back. */
   pressSettings(change: SettingsChange): void {
     this.send(settingsWanted(change));
@@ -987,6 +998,7 @@ export class Session {
       pointGap: joined && this.connected ? this.gapped : null,
       speeds: joined && this.connected ? this.sped : null,
       throttleSilence: joined && this.connected ? this.silenced : null,
+      sensorSilence: joined && this.connected ? this.sensorsSilenced : null,
       driving: model?.driving ?? null,
       built: !this.unbuilt,
       allocated: joined && this.allocated,
@@ -1087,6 +1099,7 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.speeds?.clear === now.speeds?.clear &&
     was.speeds?.caution === now.speeds?.caution &&
     was.throttleSilence === now.throttleSilence &&
+    was.sensorSilence === now.sensorSilence &&
     was.driving === now.driving &&
     was.built === now.built &&
     was.allocated === now.allocated &&

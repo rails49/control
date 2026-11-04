@@ -120,7 +120,8 @@ export const settingsStyles = css`
 
   .points sl-input,
   .driving sl-input,
-  .throttles sl-input {
+  .throttles sl-input,
+  .sensors sl-input {
     max-width: 14rem;
   }
 
