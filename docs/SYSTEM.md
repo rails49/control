@@ -1012,7 +1012,9 @@ whole waiting set, run where the lock table or the waiting set changes: a
 request admitted, a vacate, the power reading `on` again. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
 reaches an unsafe state; under MQTT a sensor that arrives late delays a grant
-rather than producing a wrong one.
+rather than producing a wrong one. After a failure leaves a train unable to
+finish, only that train and those needing its blocks wait
+([SAFETY.md](dispatcher/SAFETY.md#why-it-is-deadlock-free)).
 
 The aspect of every signalled block end goes on the `state/aspects` state
 topic, republished whenever any of them changes. Signal heads, the panel and a

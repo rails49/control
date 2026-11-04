@@ -93,11 +93,20 @@ takes to get there. This costs throughput, not safety: the refused train waits
 holding only its block, and the holder can always complete the crossing
 without waiting on anyone, which is all Lemma 1 asks.
 
+The check is asked of a `safety_view`. Where `safe()` over all active trains
+holds, that is all of them. Where it does not, `finishable` finds the largest
+set of active trains that can all finish, with the rest frozen where they stand
+and holding what they hold; ties go to the first set in sorted order, so runs
+stay reproducible. A train outside the set, other than the one asking, leaves
+the view, and the blocks it stands in and holds join the idle blocks. The train
+asking stays in the view, judged against the set.
+
 Complexity is `O(2ⁿ · n · L)` for `n` active trains with remaining routes of
 length `≤ L`. At model-railroad train counts this is a few thousand route
 walks per event. If `n` ever grows past comfort, the polynomial — and more
 conservative — orderings of Reveliotis et al. are the fallback; see the
-survey's §2.
+survey's §2. The search for `finishable` runs only after `safe()` is false, so
+a run with no failure costs one call of `safe()` for it.
 
 ## When it runs
 
@@ -173,12 +182,27 @@ the analysis.
 Feasibility only ever requires certain blocks to be unoccupied, and releases
 only unoccupy blocks.
 
-**Invariant — every reachable state is safe.** The empty dispatch is
-trivially safe. Every transition is a checked grant (safe by construction), a
-checked launch (likewise), or a physical advance and release (safe by
-Lemma 2). By induction no unsafe state is reachable. A deadlocked state is
-unsafe: in a circular wait no train can be first in any ordering, since each
-needs a block held by a train frozen behind it. Hence no deadlock.
+**Invariant — every reachable state is safe, until a failure.** The empty
+dispatch is trivially safe. Every transition is a checked grant (safe by
+construction), a checked launch (likewise), or a physical advance and release
+(safe by Lemma 2). By induction no unsafe state is reachable by these. A
+deadlocked state is unsafe: in a circular wait no train can be first in any
+ordering, since each needs a block held by a train frozen behind it. Hence no
+deadlock.
+
+A failure is the one thing outside that induction: a block that comes to read
+occupied on a train's route, or a train placed where another must pass. The
+dispatcher dispatches on the state it knows, so a failure can leave trains
+unable to finish, and that is accepted.
+
+**After a failure** the argument covers the trains that can still finish. The
+trains of `finishable` are safe with the rest frozen, which are permanent
+obstacles to them, and the invariant and Progress below hold over that set. A
+grant is checked against the whole set with the train asking added, so no grant
+makes the set smaller, and a train outside it joins by being granted. The other
+trains wait, and nothing here says that they finish: they may stand in a circular
+wait of their own. What frees them is the block reading clear or a person
+moving a train.
 
 **Progress.** In any reachable state with an unfinished train, take a witness
 ordering `t₁…tₖ`. Every block on `rem(t₁)` is free or held by `t₁` itself,
@@ -236,6 +260,13 @@ and each is worth a test.
   ([ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),
   which is orthogonal to safety: the order only chooses which *safe* grant is
   tried first and can never make an unsafe grant reachable.
+- **A train that cannot finish stops only itself.** Where a train's route
+  crosses a permanent obstacle or another stuck train's block, `safe()` over
+  all active trains is false for every grant to every train. So the trains
+  outside `finishable` leave the check: only they, and any train needing what
+  they stand in or hold, wait. The train asking is refused `unsafe` if its own
+  route is blocked, naming what blocks it. Where nothing has failed the set is
+  every active train and the check is unchanged.
 
 ## Rigor
 
