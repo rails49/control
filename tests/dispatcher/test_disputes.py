@@ -4,9 +4,9 @@ On power-up the detectors assert straight away, anonymously but at once, and
 that is exactly the moment the restored placement is least trustworthy: the
 steel has stood unwatched since the last session, long enough for a stalled
 train to have been lifted out of a tunnel by hand (GLOSSARY.md, recovery). So
-while power reads `off` the dispatcher compares the two and names the
-contradictions — a train standing in a block that reads clear, and a block
-that reads occupied with nothing claiming it.
+the dispatcher compares the two and names the contradictions — a train standing
+in a block that reads clear, and a block that reads occupied with nothing
+claiming it — at every power value (#1154).
 
 It resolves nothing: occupancy is anonymous, so the check only points and a
 person ends every entry with a `placement_wanted`. And **silence is not a
@@ -24,7 +24,7 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import InProcessBus, Payload
-from tc49.lib.inventory import AT, OFF, ON
+from tc49.lib.inventory import AT, DRAINING, OFF, ON
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
 from tests.harness import load, power, retaining
@@ -182,29 +182,26 @@ def test_the_opening_statement_carries_the_set() -> None:
     assert disputed(bus) == {"trains": [], "blocks": []}
 
 
-def test_power_on_is_allowed_and_empties_the_set() -> None:
-    """The person decides, not the check: a dispute never keeps the power
-    off. What it does end is the comparison — a routing dispatcher's
-    placement follows the sensors move by move, and the picture the check
-    was made against is one the operator has accepted."""
+def test_power_on_is_allowed_and_keeps_the_set() -> None:
+    """A dispute never keeps the power off, and the power says nothing about
+    the steel: what the detectors contradict is still contradicted with the
+    power on, and a person is still told (#1154)."""
     bus, dispatcher = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
     press(bus, *power(ON))
 
     assert dispatcher.state.power == ON
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
 
 
-def test_power_off_again_asks_the_detectors_again() -> None:
-    """The check belongs to power `off` rather than to a restart: a person
-    who turns the railroad off mid-evening is looking at it for the same
-    reason."""
+@pytest.mark.parametrize("value", [ON, DRAINING, OFF])
+def test_the_set_is_the_same_at_every_power_value(value: str) -> None:
     bus, _ = restored(MOVED)
-    reports(bus, occupied=("dn_w",), clear=("dn_e",))
     press(bus, *power(ON))
+    reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
-    press(bus, *power(OFF))
+    press(bus, *power(value))
 
     assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
 
@@ -217,6 +214,7 @@ def test_a_crossing_train_leaves_no_dispute_behind_it() -> None:
     connection (#154) — and saying it twice would say it wrongly."""
     crossing = {**MOVED, "crossing": {"freight_1": "crossover.dn_straight"}}
     bus, _ = restored(crossing)
+    press(bus, *power(ON))
 
     reports(bus, clear=("dn_e",))
 

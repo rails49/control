@@ -270,7 +270,7 @@ def test_a_block_published_occupied_again_counts_both_its_ends() -> None:
     changes again — a car left standing, a detector stuck occupied — is out of
     the fold for good, and the block behind the next train is published
     vacated while the steel still reads occupied. A level no move explains is
-    still a level (ADR-0048), so it holds the run (#331)."""
+    still a level, so it is reported (#331, #1154)."""
     bus, app, clock = wired()
     energised(bus)
     stand(bus, "freight_1", "up_w")
@@ -321,9 +321,9 @@ def test_a_block_reads_occupied_while_either_of_its_ends_does() -> None:
 def test_a_level_no_move_explains_still_publishes_its_own_occupancy() -> None:
     """A hand putting a locomotive down is how every session starts, and a
     detector asserting on dirt looks the same from here. What to make of a
-    reading nothing accounts for is the dispatcher's judgement — it holds the
-    run and names the block for a person to walk (ADR-0048) — so this app
-    publishes the occupancy and nothing else."""
+    reading nothing accounts for is the dispatcher's judgement — it names the
+    block for a person to walk (#1154) — so this app publishes the occupancy
+    and nothing else."""
     bus, app, clock = wired()
     energised(bus)
     seen = occupancy(bus)

@@ -1,16 +1,14 @@
-"""A detector reading no granted move accounts for (ADR-0048, #260).
+"""A detector reading no granted move accounts for (ADR-0048, #260, #1154).
 
 Occupancy is anonymous, so the dispatcher recovers the train from its own lock
 table: the block's holder, and the move that holder has outstanding. A reading
 the table does not explain — a hand putting a locomotive on a detected block,
-a train pushed while the supply was off, a detector asserting on dirt — says
-the table has stopped describing the steel.
-
-It **drains the railroad**: the dispatcher asks `layout` for `draining`, as a
-person's press would (ADR-0078), and once the supply is off the dispute check
-names what the reading contradicts for a person to walk. It does not raise:
-the frame is well formed, and a handler that raised would take the app off
-the bus for an ordinary act of a person's hand (BUS.md, rule 4).
+a train lifted off, a detector asserting on dirt — is a failure where it
+happens, and **the rest keeps running**: the reading is named on
+`state/disputed` for a person, no train is sent into a block that reads
+occupied, and a train whose block reads clear takes no grant. It does not
+raise: the frame is well formed, and a handler that raised would take the app
+off the bus for an ordinary act of a person's hand (BUS.md, rule 4).
 
 Driven at the bus, on a railroad standing still with no timetable at all —
 which is exactly the railroad a hand reaches onto.
@@ -18,10 +16,9 @@ which is exactly the railroad a hand reaches onto.
 
 import pytest
 
-from tc49.bench.runner import DEFAULT_K, Assembly, assemble_live, placement
-from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.lib.bus import InProcessBus, Payload
-from tc49.lib.clock import Clock
+from tc49.bench.runner import Assembly, assemble_live
+from tc49.dispatcher import FullRoute, Incremental
+from tc49.lib.bus import Payload
 from tc49.lib.inventory import AT, DRAINING, OFF, ON
 from tc49.lib.scenario import TrainSpec
 from tests.harness import POWER, drains, events, load, power, press, run
@@ -29,9 +26,8 @@ from tests.harness import POWER, drains, events, load, power, press, run
 OCCUPIED = "tc49/layout/block_occupied"
 VACATED = "tc49/layout/block_vacated"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
+REQUEST_WANTED = "tc49/schedule/request_wanted"
 DISPUTED = "tc49/dispatch/state/disputed"
-REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
-POWER_WANTED = "tc49/layout/power_wanted"
 
 STOOD = {
     "freight_1": TrainSpec("yard_w", "A-to-B"),
@@ -56,14 +52,6 @@ def reading(assembly: Assembly, topic: str, block: str) -> None:
     press(assembly, topic, {"block": block})
 
 
-def drained(assembly: Assembly) -> None:
-    """`layout` answering the drain, and switching the supply off once
-    nothing is moving (ADR-0078). Stated here because the binding's half of
-    it is the layout's to test."""
-    press(assembly, *power(DRAINING))
-    press(assembly, *power(OFF))
-
-
 def disputed(assembly: Assembly) -> Payload:
     """The last value of the topic, which is what the panel points a person
     at (ADR-0032), without the stamp the binding put on it (#240)."""
@@ -74,89 +62,179 @@ def disputed(assembly: Assembly) -> Payload:
     }
 
 
-def test_a_block_no_grant_accounts_for_drains_the_railroad(
+def ask(assembly: Assembly, train: str, dest: str) -> None:
+    press(assembly, REQUEST_WANTED, {"train": train, "dest": [dest]})
+
+
+def granted(assembly: Assembly) -> list[tuple[str, str]]:
+    """Each move granted so far: the train and the block it was sent into."""
+    return [
+        (line["train"], line["into"]) for line in events(assembly.trace, "move_granted")
+    ]
+
+
+def test_a_block_no_grant_accounts_for_is_named_and_others_run(
     standing: Assembly,
 ) -> None:
-    """The case the decision exists for: a hand puts a locomotive on a
-    detected block while the power is on. The dispatcher asks for a drain,
-    and once `layout` answers, nothing more commits and no signalled end goes
-    on showing `clear` over a railroad the dispatcher can no longer account
-    for."""
-    reading(standing, OCCUPIED, "up_w")
-    assert drains(standing) == [DRAINING]
-
-    press(standing, *power(DRAINING))
-    shown = events(standing.trace, "aspects")[-1]["aspects"]
-    assert set(shown.values()) == {"stop"}
-
-
-def test_the_drain_names_the_block_for_a_person_to_walk(standing: Assembly) -> None:
-    """The drain alone would say only that something is wrong. The dispute
-    check is published once the power is off and is this comparison exactly,
-    so the reading that stopped the railroad is the entry the person is sent
-    to (#153). Nothing is moving here, so the binding answers the drain with
-    the supply off at once (ADR-0078)."""
+    """A hand puts a locomotive on a detected block with the power on. No
+    drain is asked and a person is told. A train elsewhere is granted, and a
+    train whose way lies through that block is not sent into it."""
     reading(standing, OCCUPIED, "up_w")
 
-    assert standing.bus.last_values[POWER]["power"] == OFF
+    assert drains(standing) == []
+    assert standing.bus.last_values[POWER]["power"] == ON
     assert disputed(standing) == {"trains": [], "blocks": ["up_w"]}
 
+    ask(standing, "freight_1", "dn_w.A")
+    assert granted(standing) == [("freight_1", "dn_w")]
 
-def test_a_block_reading_clear_with_a_train_in_it_drains_the_railroad(
+    ask(standing, "express_2", "up_w.B")
+    assert ("express_2", "up_w") not in granted(standing)
+
+
+def test_the_block_opens_when_it_reads_clear(standing: Assembly) -> None:
+    """The reading goes as it came, and the train waiting on it goes: a sweep
+    runs for it, with no person's hand needed."""
+    reading(standing, OCCUPIED, "up_w")
+    ask(standing, "express_2", "up_w.B")
+    assert granted(standing) == []
+
+    reading(standing, VACATED, "up_w")
+
+    assert disputed(standing) == {"trains": [], "blocks": []}
+    assert granted(standing) == [("express_2", "up_w")]
+
+
+def test_a_block_reading_clear_under_a_standing_train_stops_only_that_train(
     standing: Assembly,
 ) -> None:
-    """The other direction, and the same sentence: a block the dispatcher
-    believes a train stands in reports empty. Where that train went is not
-    something a reading can say, which is why the answer is to stop and name
-    it rather than to guess."""
+    """The other direction: a train lifted off, or a detector dropping out
+    under it. Where it went is not something a reading can say, so it takes no
+    grant and is named, and another train is granted."""
     reading(standing, VACATED, "yard_w")
-    assert drains(standing) == [DRAINING]
 
-    drained(standing)
+    assert drains(standing) == []
     assert disputed(standing) == {"trains": ["freight_1"], "blocks": []}
 
+    ask(standing, "freight_1", "dn_w.A")
+    ask(standing, "express_2", "up_w.B")
 
-def test_the_railroad_runs_again_once_a_person_has_said_what_it_is(
+    assert granted(standing) == [("express_2", "up_w")]
+
+
+def test_a_placement_clears_the_entry_and_the_train_runs(standing: Assembly) -> None:
+    """A person has walked to it and says where it stands. The request it was
+    waiting on goes with the placement (ADR-0049), so the next one is granted."""
+    reading(standing, VACATED, "yard_w")
+
+    press(standing, PLACEMENT_WANTED, {"train": "freight_1", "block": "dn_w"})
+
+    assert disputed(standing) == {"trains": [], "blocks": []}
+    ask(standing, "freight_1", "dn_e.A")
+    assert granted(standing) == [("freight_1", "dn_e")]
+
+
+def test_placing_a_train_into_a_block_last_read_clear_does_not_dispute_it(
     standing: Assembly,
 ) -> None:
-    """The whole recovery, which is what makes the drain an answer rather
-    than a stop: the person walks to the block, sees the locomotive somebody
-    put there, says so, and turns the power on. The dispatcher places nothing
-    itself — occupancy is anonymous, so it has no train to place (#153)."""
+    """The clear reading is from before the person's word. A detector that
+    still reads clear publishes nothing, so nothing else would end the entry,
+    and this is the way out for one that has failed under a train: lift it
+    and put it back."""
+    reading(standing, VACATED, "yard_w")
+
+    press(standing, PLACEMENT_WANTED, {"train": "freight_1", "block": None})
+    press(standing, PLACEMENT_WANTED, {"train": "freight_1", "block": "yard_w"})
+
+    assert disputed(standing) == {"trains": [], "blocks": []}
+    ask(standing, "freight_1", "dn_w.A")
+    assert granted(standing) == [("freight_1", "dn_w")]
+
+
+def test_a_placement_on_the_stray_block_resolves_it(standing: Assembly) -> None:
+    """The person walks to the block, sees the locomotive somebody put there,
+    and says so. The dispatcher places nothing itself: occupancy is anonymous,
+    so it has no train to place (#153)."""
     reading(standing, OCCUPIED, "up_w")
-    drained(standing)
 
     press(standing, PLACEMENT_WANTED, {"train": "shunter", "block": "up_w"})
+
     assert disputed(standing) == {"trains": [], "blocks": []}
 
-    press(standing, *power(ON))
-    press(
-        standing,
-        "tc49/schedule/request_wanted",
-        {"train": "freight_1", "dest": ["yard_e.A"]},
-    )
-    assert events(standing.trace, "route_chosen")
-    assert drains(standing) == [DRAINING]
+
+def test_a_train_reading_occupied_again_takes_its_grant(standing: Assembly) -> None:
+    """A dirty wheel: the detector drops out and comes back. Nobody had to do
+    anything, and the waiting request is granted when it does."""
+    reading(standing, VACATED, "yard_w")
+    ask(standing, "freight_1", "dn_w.A")
+    assert granted(standing) == []
+
+    reading(standing, OCCUPIED, "yard_w")
+
+    assert disputed(standing) == {"trains": [], "blocks": []}
+    assert granted(standing) == [("freight_1", "dn_w")]
 
 
-def test_a_detector_restating_its_level_drains_nothing(standing: Assembly) -> None:
+@pytest.mark.parametrize("strategy", [Incremental, FullRoute])
+def test_an_active_train_waits_at_its_signal(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """Partway along a route, stopped in a block by a drain, its detector drops
+    out. Power on again grants it nothing until the block reads occupied, and
+    its route stays its own."""
+    layout, roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, roster, STOOD, strategy)
+    ask(assembly, "freight_1", "yard_e.A")
+    reading(assembly, OCCUPIED, "dn_w")
+    press(assembly, *power(DRAINING))
+    reading(assembly, VACATED, "yard_w")
+    state = assembly.dispatcher.state
+    assert state.block_of["freight_1"] == "dn_w"
+    assert "freight_1" not in state.crossing
+    assert "freight_1" in state.active
+
+    reading(assembly, VACATED, "dn_w")
+    press(assembly, *power(ON))
+
+    assert granted(assembly) == [("freight_1", "dn_w")]
+    assert disputed(assembly) == {"trains": ["freight_1"], "blocks": []}
+    assert "freight_1" in state.active
+
+    reading(assembly, OCCUPIED, "dn_w")
+
+    assert granted(assembly) == [("freight_1", "dn_w"), ("freight_1", "dn_e")]
+
+
+def test_a_crossing_train_whose_origin_reads_clear_is_not_disputed(
+    standing: Assembly,
+) -> None:
+    """The ordinary railroad: a train that has left its block and not yet read
+    occupied in the next is what the picture already says, with the power on."""
+    ask(standing, "freight_1", "dn_w.A")
+
+    reading(standing, VACATED, "yard_w")
+
+    assert "freight_1" in standing.dispatcher.state.crossing
+    assert disputed(standing) == {"trains": [], "blocks": []}
+
+
+def test_a_detector_restating_its_level_changes_nothing(standing: Assembly) -> None:
     """A reading is a level, so a repeat is an at-least-once redelivery and a
-    no-op (ADR-0047). A binding that restates what it already said must not
-    stop a railroad a person has just looked at and turned on."""
+    no-op (ADR-0047)."""
     reading(standing, OCCUPIED, "up_w")
-    drained(standing)
-    press(standing, PLACEMENT_WANTED, {"train": "shunter", "block": "up_w"})
-    press(standing, *power(ON))
+    before = len(events(standing.trace, "disputed"))
 
     reading(standing, OCCUPIED, "up_w")
 
-    assert drains(standing) == [DRAINING]
+    assert len(events(standing.trace, "disputed")) == before
+    assert drains(standing) == []
 
 
-def test_a_railroad_already_off_is_not_drained(standing: Assembly) -> None:
-    """Nothing changes for a railroad already off: `draining` is answered
-    from `on` alone, and the reading is the dispute check's business."""
-    press(standing, *power(OFF))
+@pytest.mark.parametrize("value", [DRAINING, OFF])
+def test_a_reading_with_the_power_not_on_is_named_too(
+    standing: Assembly, value: str
+) -> None:
+    press(standing, *power(value))
 
     reading(standing, OCCUPIED, "up_w")
 
@@ -164,67 +242,14 @@ def test_a_railroad_already_off_is_not_drained(standing: Assembly) -> None:
     assert disputed(standing) == {"trains": [], "blocks": ["up_w"]}
 
 
-def test_the_readings_a_granted_move_explains_drain_nothing() -> None:
+def test_the_readings_a_granted_move_explains_ask_for_nothing() -> None:
     """The ordinary railroad, untouched: every reading a scenario produces
-    reports on a move the dispatcher granted, so nothing asks for a drain and
-    the requests complete."""
+    reports on a move the dispatcher granted, so nothing is disputed and the
+    requests complete."""
     trace = run(*load("crossover-yard/meet"))
 
     assert [line["power"] for line in events(trace, "power_wanted")] == [ON]
     assert len(events(trace, "request_completed")) == 3
-
-
-def test_nothing_is_granted_between_asking_for_a_drain_and_the_answer(
-    standing: Assembly,
-) -> None:
-    """The dispatcher reads `on` until `layout` answers the drain it asked
-    for, and a request arriving in that window is not granted: the table it
-    would be granted from is the one the reading just said is wrong (#1087).
-    Both are put on the bus before either is delivered, so the request lands
-    before the answer, as it can on a broker."""
-    standing.bus.publish(OCCUPIED, {"block": "up_w"})
-    standing.bus.publish(
-        "tc49/schedule/request_wanted",
-        {"train": "freight_1", "dest": ["yard_e.A"]},
+    assert all(
+        not line["trains"] and not line["blocks"] for line in events(trace, "disputed")
     )
-    standing.bus.drain()
-
-    assert drains(standing) == [DRAINING]
-    assert not events(standing.trace, "move_granted")
-
-
-def test_a_person_pressing_on_ends_a_drain_nobody_answered() -> None:
-    """A dispatcher with no `layout` on its bus: the drain it asks for is
-    never answered and power goes on reading `on`. Nothing is granted until a
-    person presses `on`, which acknowledges the fault (ADR-0078, decision 7,
-    #1087)."""
-    bus = InProcessBus(Clock())
-    layout, roster, scenario = load("crossover-yard/meet")
-    Dispatcher(
-        bus, layout, roster, placement(scenario.trains), FullRoute(layout, DEFAULT_K)
-    )
-    granted: list[Payload] = []
-    bus.subscribe(
-        "tc49/dispatch/move_granted", lambda _, payload: granted.append(payload)
-    )
-
-    for topic, payload in (
-        (POWER, {"power": ON}),
-        (OCCUPIED, {"block": "up_w"}),
-        (
-            REQUEST_SUBMITTED,
-            {
-                "id": "r-1",
-                "train": "freight_1",
-                "depart": "yard_w.B",
-                "dest": ["dn_w.A"],
-            },
-        ),
-    ):
-        bus.publish(topic, payload)
-        bus.drain()
-    assert granted == []
-
-    bus.publish(POWER_WANTED, {"power": ON})
-    bus.drain()
-    assert [payload["id"] for payload in granted] == ["r-1"]

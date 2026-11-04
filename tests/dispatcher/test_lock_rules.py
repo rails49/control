@@ -22,6 +22,9 @@ from tc49.lib.layout import Layout
 from tests.harness import POWER, POWER_WANTED, load
 
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
+UNREADABLE_READING = "tc49/layout/block_occupied"
+"""With no block in the payload it changes nothing, and the check every event
+ends in is what finds the table broken, ahead of the request behind it."""
 
 
 def a_route(layout: Layout) -> Route:
@@ -256,6 +259,32 @@ def test_a_newly_broken_rule_drains_the_railroad_once(
     ), errors
 
     power_on_is_honoured(bus, dispatcher, said)
+
+
+def test_nothing_is_granted_between_asking_for_a_drain_and_the_answer() -> None:
+    """The dispatcher reads `on` until `layout` answers the drain it asked
+    for, and a request arriving in that window is not granted: the table it
+    would be granted from is the one just found wrong (#1087). A person
+    pressing `on` ends a drain nobody answered, which acknowledges the fault
+    (ADR-0078, decision 7)."""
+    bus, dispatcher, said = a_bus_dispatcher()
+    del dispatcher.state.locks["up_e"]
+    request: Payload = {
+        "id": "r-1",
+        "train": "freight_1",
+        "depart": "yard_w.B",
+        "dest": ["dn_w.A"],
+    }
+    bus.publish(UNREADABLE_READING, {})
+    bus.publish(REQUEST_SUBMITTED, request)
+    bus.drain()
+
+    assert drains(said) == [DRAINING]
+    assert dispatcher.state.crossing == {}
+
+    deliver(bus, POWER_WANTED, {"power": ON})
+
+    assert dispatcher.state.crossing == {"freight_1": "west_ladder.to_dn"}
 
 
 def power_on_is_honoured(

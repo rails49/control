@@ -464,7 +464,7 @@ def test_nothing_is_commanded_while_the_rails_are_dead() -> None:
 def test_an_unexplained_reading_stops_nobody() -> None:
     """A level no move explains publishes its own block's occupancy and
     nothing else: there is no crossing to arrive, so no car is told to stand
-    (ADR-0048)."""
+    (#1154)."""
     bus, app, clock = wired()
     energised(bus)
     written = commanded(bus)

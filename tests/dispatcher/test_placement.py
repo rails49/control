@@ -288,10 +288,9 @@ def test_a_placement_over_an_outstanding_move_retires_the_request_at_once() -> N
     move the sensors may never answer, so the request retires at the gesture
     and the train is stood where they say it is (ADR-0049).
 
-    A sensor that does arrive afterwards explains nothing and drains the
-    railroad (ADR-0048) — which is the right answer to a detector firing
-    under a train somebody has moved by hand, and a no-op here because the
-    power is already off.
+    A sensor that does arrive afterwards explains nothing and is named on
+    `state/disputed` (#1154), which is the right answer to a detector firing
+    under a train somebody has moved by hand.
     """
     layout, _roster, _ = load("crossover-yard/meet")
     assembly = assemble_live(layout, STOCK, two_trains(), FullRoute)

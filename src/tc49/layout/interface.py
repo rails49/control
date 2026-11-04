@@ -1520,7 +1520,7 @@ class LayoutInterface:
         train up a few centimetres at a platform with no request made. Leaving
         the block is the person's to avoid: nothing here stops a held train at
         its block's ends, and one that leaves is a reading no move explains,
-        which drains the railroad (ADR-0048). The end of a granted move still
+        which is named for a person (#1154). The end of a granted move still
         writes `0.0` (`_settled`), and the next frame drives the train on.
 
         Four things drop a gesture, and none of them is an error to answer:
@@ -2010,8 +2010,8 @@ class LayoutInterface:
         The address is the block end the detector watches, the report's
         `addr`, and whether it names an end of this railroad is not asked: a
         reading for an end no block here has folds into a block nothing above
-        will claim, and the dispatcher already holds the run on a reading it
-        cannot explain (ADR-0048).
+        will claim, and the dispatcher already names a reading it
+        cannot explain (#1154).
         """
         level = detected(payload)
         said, self._said[end] = self._said.get(end), level

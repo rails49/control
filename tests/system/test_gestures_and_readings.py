@@ -14,7 +14,7 @@ holds here. The invariants over what the bus shows hold too
 
 The readings are what the layout interface publishes, standing in for
 hardware that reports a block emptying under a standing train or filling
-with nothing there (ADR-0048). The simulator is the binding: the physical one
+with nothing there (#1154). The simulator is the binding: the physical one
 publishes the same two events.
 """
 
