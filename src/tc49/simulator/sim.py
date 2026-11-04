@@ -344,21 +344,25 @@ class Simulator:
         taken off the layout is `train_removed`, which names the train alone
         (ADR-0039) — so there is no steel to stand anywhere.
 
-        The train's earlier readings and pending readings are forgotten, and
-        it is no longer mid-move (#677): a head lifted short of the far
-        detector never reaches it, and a tail lifted off the near one has
-        nothing left to clear. Nothing is published: the block it left is not
-        read clear and the block it is put in is not read occupied.
+        Its pending readings are forgotten, and it is no longer mid-move
+        (#677): a head lifted short of the far detector never reaches it, and
+        a tail lifted off the near one has nothing left to clear. Each block
+        its own detectors last read occupied for it reads clear, the steel
+        having left it, as `_on_removed` has it: left reading occupied, the
+        block would stand disputed with nothing to end it (#1154). The block
+        it is put in is not read occupied: no detector here read it there.
         """
         placed = placement(payload)
         if placed is None or placed.block is None:
             return
         train = placed.train
-        self._occupied.pop(train, None)
         self._events = [event for event in self._events if event[3] != train]
         heapify(self._events)
         self._rolling.discard(train)
         self._position[train] = placed.block
+        for block in self._occupied.pop(train, []):
+            if block != placed.block:
+                self._bus.publish("tc49/layout/block_vacated", {"block": block})
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train off the layout (#170), in any run state

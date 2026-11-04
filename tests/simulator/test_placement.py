@@ -184,6 +184,23 @@ def test_a_train_placed_after_a_move_clears_nothing_when_lifted() -> None:
     assert seen == []
 
 
+def test_a_train_placed_away_reads_the_block_it_left_clear() -> None:
+    """Its detector read it occupied in `dn_w`, and a hand lifted it off and
+    put it in `up_w`. The steel has left `dn_w`, and left reading occupied it
+    would stand disputed with no detector to end it (#1154). `up_w` is not read
+    occupied: no detector here read it there."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 2)
+
+    seen = occupancy(bus)
+    place(bus, "freight_1", "up_w")
+
+    assert seen == [("tc49/layout/block_vacated", {"block": "dn_w"})]
+
+
 def test_a_train_placed_between_blocks_reaches_no_detector() -> None:
     """Placed after the `move` and before its head reading: the head never
     reaches the far detector and the tail has nothing left to clear, so
