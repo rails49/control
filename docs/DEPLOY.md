@@ -399,6 +399,10 @@ root, the same whatever railroad is loaded and backed up with the rest of the
 store ([#1132](https://github.com/rails49/control/issues/1132)). With no
 such document it is 5 s.
 
+The sensor silence, how long a sensor may go unheard, is set and kept the same
+way, beside it in the same document, and is 3 s where the document says none
+([#1149](https://github.com/rails49/control/issues/1149)).
+
 ### The camera's login
 
 The camera app reads each camera car's camera with Basic auth
