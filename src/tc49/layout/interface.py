@@ -228,6 +228,7 @@ from tc49.lib.payload import (
     observed_position,
     placement,
     reported_reason,
+    reported_sensor,
     shown_aspects,
     supply,
     wanted_driving,
@@ -283,7 +284,7 @@ WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
 WANTED_SIGNAL = "tc49/layout/state/wanted/signal"
 WANTED_TRACK = "tc49/layout/state/wanted/track"
-DEVICE_SENSOR = "tc49/layout/state/device/sensor"
+SENSOR = "tc49/layout/sensor"
 DEVICE_TRACK = "tc49/layout/state/device/track"
 DEVICE_LINK = "tc49/layout/state/device/link"
 DEVICE_POINT = "tc49/layout/state/device/point"
@@ -656,6 +657,7 @@ class LayoutInterface:
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
         bus.subscribe(DEVICE, self._on_device)
+        bus.subscribe(SENSOR, self._on_sensor)
         bus.subscribe(WANTED_FUNCTION + "/#", self._on_function_row)
 
     # -- live state, for the tests ------------------------------------------
@@ -1917,12 +1919,11 @@ class LayoutInterface:
             self._give(*flight)
 
     def _on_device(self, topic: str, payload: Payload) -> None:
-        """What the hardware reports about itself. Four of the five rows are
+        """What the hardware reports about itself. Three of the four rows are
         read: the supply, each publisher's link to the hardware it drives,
-        each detector's level at the block end it watches, and where each
-        point lies, which a `move` over a reported point waits for and a
-        wrong report stops a train on (`_on_point`, ADR-0097). Nothing here
-        publishes a `device/point`.
+        and where each point lies, which a `move` over a reported point waits
+        for and a wrong report stops a train on (`_on_point`, ADR-0097).
+        Nothing here publishes a `device/point`.
 
         One passes by unread rather than being taken for something else. A
         `device/refused` is the publisher's report that the
@@ -1937,18 +1938,12 @@ class LayoutInterface:
 
         Every row is stamp-guarded for one reason (#240): two values of one
         topic delivered backwards would leave the older standing, which on a
-        sensor row is a block end reading clear after the reading that said a
-        train is on it.
+        link row is a publisher reading up after it said it is down.
         """
         split = split_device(topic)
         if split is None:
             return
         row, address = split
-        if row == DEVICE_SENSOR:
-            if not self._ordering.accepts(topic, payload):
-                return
-            self._on_reading(address, payload)
-            return
         if row == DEVICE_POINT:
             if not self._ordering.accepts(topic, payload):
                 return
@@ -1967,6 +1962,14 @@ class LayoutInterface:
         self._publish_power()
 
     # -- the occupancy fold -------------------------------------------------
+
+    def _on_sensor(self, _topic: str, payload: Payload) -> None:
+        """A report on a sensor. An event, so no stamp to guard (BUS.md, rule
+        2), and the next report re-asserts the level within a second anyway.
+        A report naming no sensor is about nothing and is dropped."""
+        end = reported_sensor(payload)
+        if end is not None:
+            self._on_reading(end, payload)
 
     def _on_reading(self, end: str, payload: Payload) -> None:
         """One detector's level at one block end, held rather than acted on.
@@ -1988,8 +1991,8 @@ class LayoutInterface:
         nothing in the system branches on it (BUS.md, *what the hardware
         reports back*).
 
-        The address is the block end the detector watches, taken from the
-        topic, and whether it names an end of this railroad is not asked: a
+        The address is the block end the detector watches, the report's
+        `addr`, and whether it names an end of this railroad is not asked: a
         reading for an end no block here has folds into a block nothing above
         will claim, and the dispatcher already holds the run on a reading it
         cannot explain (ADR-0048).

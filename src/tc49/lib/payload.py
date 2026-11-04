@@ -55,7 +55,7 @@ the first payload here read by whatever drives the track rather than by an app
 on the bus's other side, so the simulator and a hardware binding
 read the one reading (ADR-0030).
 
-The **sensor** row is read here for that same reason (#288): `layout` folds a
+The **sensor** report is read here for that same reason (#288): `layout` folds a
 block's two detectors into `block_occupied` and `block_vacated`, so the level
 a detector states and the reason it gives for saying nothing are read on the
 way in, where the occupancy events those become are read on the way out.
@@ -743,9 +743,23 @@ def occupancy(payload: object) -> str | None:
     return block if isinstance(block, str) else None
 
 
+def reported_sensor(payload: object) -> str | None:
+    """The sensor a report names, `<block>.<end>`, or None for a report that
+    names none it could be: such a report is about nothing, and is dropped.
+    Whether the railroad has that block is not asked here (`layout`, ADR-0048).
+    """
+    if not isinstance(payload, dict):
+        return None
+    addr = cast(dict[str, object], payload).get("addr")
+    if not isinstance(addr, str):
+        return None
+    block, _dot, end = addr.partition(".")
+    return addr if block and end in ("A", "B") else None
+
+
 def detected(payload: object) -> str:
-    """What one detector says it sees at the block end its row is addressed
-    by: `occupied`, `clear` or `unknown`, and `unknown` for a row that cannot
+    """What one detector says it sees at the block end its report names:
+    `occupied`, `clear` or `unknown`, and `unknown` for a report that cannot
     be read.
 
     The third reader here that answers a value rather than `None`, and it

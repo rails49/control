@@ -54,7 +54,7 @@ TAKEN = "tc49/layout/state/taken"
 FUNCTIONS = "tc49/layout/state/functions"
 SETTINGS = "tc49/layout/state/settings"
 SETTINGS_WANTED = "tc49/layout/settings_wanted"
-DEVICE_SENSOR = "tc49/layout/state/device/sensor"
+SENSOR = "tc49/layout/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -432,7 +432,7 @@ def reads(bus: InProcessBus, end: str, level: str, reason: str | None = None) ->
     payload: Payload = {"addr": end, "occupancy": level}
     if reason is not None:
         payload["reason"] = reason
-    bus.publish(f"{DEVICE_SENSOR}/{end}", payload)
+    bus.publish(SENSOR, payload)
     bus.drain()
 
 

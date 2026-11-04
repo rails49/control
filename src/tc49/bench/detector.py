@@ -1,12 +1,12 @@
 """A person at the keyboard where the camera will be (#315).
 
-Nothing publishes `tc49/layout/state/device/sensor/<block>.<end>` on a
+Nothing publishes `tc49/layout/sensor` on a
 physical railroad. The detector is a camera that lives outside this repository
 and publishes nothing yet, so a `move` on the steel has nothing to complete
 it, and the first train would cross into a block the system never hears about.
 
 For the first train a person supplies the readings. A line typed on the input
-this is given is published as the row the detector it stands in for would
+this is given is published as the report the detector it stands in for would
 write:
 
     C3.A occupied
@@ -18,9 +18,9 @@ and the settling time sees a typed level as it would see a detector's. That is
 the whole of the point: nothing downstream knows a person typed it.
 
 **Not a bus contract change.** The topic and the payload are BUS.md's
-already and this writes what a detector writes, on the writing role a detector
-holds (ADR-0035). **Not a panel gesture** either: a device row carries no
-browser mark and is nothing a page publishes (ADR-0034). This
+already and this writes what a detector writes. **Not a panel gesture** either:
+the topic carries no browser mark and is nothing a page publishes (ADR-0034).
+This
 stands in for hardware until a camera publishes, and it is meant to be as easy
 to delete as it was to write — this module, the `tc49 readings` entry point
 below it and their tests, and nothing above the layout interface touched.
@@ -28,8 +28,8 @@ below it and their tests, and nothing above the layout interface touched.
 **A client of the broker, and not an app** (ADR-0059, decision 5). `serve`
 below is `tc49 readings`: a process that connects to the broker the railroad
 runs on, reads the railroad's layout off the store's HTTP face to know which
-block ends there are, and publishes what a person types — the same rows on the
-same topic, reaching `layout` over the broker like the camera will. It stays
+block ends there are, and publishes what a person types — the same reports on
+the same topic, reaching `layout` over the broker like the camera will. It stays
 in `bench` because what it stands in for is hardware: a camera on a box of
 its own is what replaces it, and an app is not (CLAUDE.md, *Apps*).
 
@@ -45,14 +45,14 @@ from collections.abc import Callable
 from typing import TextIO
 
 from tc49.lib.bus import Bus
-from tc49.lib.inventory import CLEAR, OCCUPIED, UNKNOWN, device_topic
+from tc49.lib.inventory import CLEAR, OCCUPIED, UNKNOWN
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import PERIOD_S, connected
 
-SENSOR = "tc49/layout/state/device/sensor"
-"""The row a reading goes on, which is `DEVICE_TOPICS`' key for it: this
-publishes a detector's row and invents nothing (tested)."""
+SENSOR = "tc49/layout/sensor"
+"""The topic a reading goes on, which is `TOPICS`' key for it: this publishes
+a detector's report and invents nothing (tested)."""
 
 LEVELS = (OCCUPIED, CLEAR, UNKNOWN)
 """What a person may say a block end reads, and the whole of it: the three
@@ -68,20 +68,19 @@ reads."""
 CLIENT_ID = "tc49-readings"
 """What `tc49 readings` calls itself to the broker, so a person reading the
 broker's log finds the keyboard rather than a random string. Nothing in the
-contract reads it: a topic has one writing role and no payload says who
-published (BUS.md, rule 4)."""
+contract reads it: no payload says who published (BUS.md, rule 4)."""
 
 
 class HandFed:
     """The detector a person is standing in for: a typed line published as the
-    row a camera would write.
+    report a camera would write.
 
     Bound to a **railroad**, because the address is a block end of that
     railroad and a typo at the bench must not look like a detector: a reading
     for a block nothing has is one the dispatcher cannot explain, and an
     unexplained reading holds the run
     ([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)).
-    `layout` deliberately does not ask — a row that arrives there has a
+    `layout` deliberately does not ask — a report that arrives there has a
     detector behind it, and folding it is that app's work either way — so the
     asking belongs here, at the keyboard, where the answer is a line to
     retype.
@@ -92,8 +91,7 @@ class HandFed:
     `stop`, and making the input non-blocking instead would leave the
     operator's terminal that way after the process ended. So the thread does
     the one thing that blocks and hands the line over; `typed()` is what
-    publishes, on the loop's own thread, which is what keeps a state topic off
-    every thread but that one (`lib/inventory.py`, `INBOUND`).
+    publishes, on the loop's own thread.
     """
 
     def __init__(self, bus: Bus, layout: Layout, lines: TextIO, out: TextIO) -> None:
@@ -193,9 +191,7 @@ class HandFed:
         if level.lower() not in LEVELS:
             return f"'{level}' is no level — {', '.join(LEVELS[:-1])} or {LEVELS[-1]}"
         at = f"{block}.{end.upper()}"
-        self._bus.publish(
-            device_topic(SENSOR, at), {"addr": at, "occupancy": level.lower()}
-        )
+        self._bus.publish(SENSOR, {"addr": at, "occupancy": level.lower()})
         return None
 
     def _report(self, what: str) -> None:
@@ -232,9 +228,8 @@ def serve(
     at the keyboard must not look like a detector (ADR-0048), which is what
     `reads` checks it against.
 
-    Nothing is drained. This publishes and reads nothing — a detector holds a
-    writing role and no reading one (ADR-0035) — so the turn is the queue the
-    reader thread fills and no other.
+    Nothing is drained. This publishes and reads nothing, so the turn is the
+    queue the reader thread fills and no other.
 
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. A person ends it by typing Ctrl-D, which is the input ending, or

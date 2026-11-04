@@ -37,11 +37,11 @@ from tests.invariants import checked
 from tests.layout.railroad import (
     ALLOCATION,
     DEVICE_LINK,
-    DEVICE_SENSOR,
     DEVICE_TRACK,
     DRIVING_WANTED,
     POINTS,
     POWER_WANTED,
+    SENSOR,
     TAKE_WANTED,
     THROTTLE_ALIVE,
     THROTTLE_WANTED,
@@ -327,7 +327,7 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
     def reading(self, data: st.DataObject, level: str) -> None:
         """A detector's level at any end, which no train need have caused."""
         end = data.draw(self.ends())
-        self.press(f"{DEVICE_SENSOR}/{end}", {"addr": end, "occupancy": level})
+        self.press(SENSOR, {"addr": end, "occupancy": level})
 
     @precondition(
         lambda self: bool(self.app._crossing)  # pyright: ignore[reportPrivateUsage]
@@ -350,7 +350,7 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
             level = "occupied"
         note(f"{crossing.train}: {step}")
         for end in ends:
-            self.press(f"{DEVICE_SENSOR}/{end}", {"addr": end, "occupancy": level})
+            self.press(SENSOR, {"addr": end, "occupancy": level})
 
     @rule(addr=st.sampled_from(ADDRS), position=st.sampled_from(["closed", "thrown"]))
     def point_reports(self, addr: str, position: str) -> None:

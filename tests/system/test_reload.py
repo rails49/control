@@ -22,7 +22,7 @@ gives: what a container does when the row moves is what is under test, and
 the sentence each app prints when it is up on the new railroad is how a test
 knows the reload has finished.
 
-The one thing here that is not a process is the publisher of `device/sensor`:
+The one thing here that is not a process is the publisher of `tc49/layout/sensor`:
 there is none to start, and what it stands in for is the rule ADR-0063 states
 — the names it publishes its sensors under are the drawing's, so it follows
 the row like every other app that reads the store.
@@ -285,7 +285,7 @@ def knows(root: Path, railroad: str, block: str, end: str, name: str) -> None:
 
 
 class Watching:
-    """A publisher of `device/sensor`: the name the hardware knows each block
+    """A publisher of `tc49/layout/sensor`: the name the hardware knows each block
     end's sensor by, read off the drawing in the store, and the follower every
     app that reads the store has (ADR-0063, ADR-0060).
 

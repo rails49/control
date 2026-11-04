@@ -31,7 +31,7 @@ ALLOCATION = "tc49/dispatch/state/allocation"
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
 POINT = "tc49/layout/state/wanted/point"
 TRACK = "tc49/layout/state/wanted/track"
-SENSOR = "tc49/layout/state/device/sensor"
+SENSOR = "tc49/layout/sensor"
 OBSERVED_POINT = "tc49/layout/state/device/point"
 OBSERVED_TRACK = "tc49/layout/state/device/track"
 LINK = "tc49/layout/state/device/link"
@@ -312,20 +312,22 @@ def test_the_observed_rows_state_their_fields_in_order() -> None:
     """What a detector and a translator write back (#282): the observed half
     of the device vocabulary, each row's fields in the order the contract
     gives them, past the stamp every state row leads with."""
-    assert DEVICE_TOPICS[SENSOR].fields == (AT, "addr", "occupancy", "reason")
     assert DEVICE_TOPICS[OBSERVED_POINT].fields == (AT, "addr", "position")
     assert DEVICE_TOPICS[OBSERVED_TRACK].fields == (AT, "power", "reason")
     assert DEVICE_TOPICS[LINK].fields == (AT, "id", "link", "detail")
     assert DEVICE_TOPICS[REFUSED].fields == (AT, "id", "addr", "detail")
 
 
-def test_a_sensor_is_addressed_by_the_block_end_it_watches() -> None:
-    """`<block>.<end>` and never a camera's own identifier (#194), one topic
-    per sensor and never a whole-railroad map: a map would make one camera the
-    writer of every sensor on the railroad, and a second camera could then not
-    join (ADR-0035)."""
-    assert device_topic(SENSOR, "A1.b") == "tc49/layout/state/device/sensor/A1.b"
-    assert split_device("tc49/layout/state/device/sensor/A1.b") == (SENSOR, "A1.b")
+def test_a_sensor_report_is_an_event_naming_its_sensor_in_the_payload() -> None:
+    """Whoever watches a sensor reports it at least once a second, so nothing
+    is retained and nothing old waits on the broker after a restart. No `at`,
+    an event carrying no stamp, nothing says who sent it, and a page publishes
+    none (#1147)."""
+    assert not is_state_topic(SENSOR)
+    assert SENSOR not in DEVICE_TOPICS
+    assert split_device(SENSOR) is None
+    assert TOPICS[SENSOR].fields == ("addr", "occupancy", "reason")
+    assert not TOPICS[SENSOR].browser
 
 
 def test_a_link_is_keyed_by_whatever_the_publisher_calls_itself() -> None:

@@ -47,6 +47,7 @@ from tc49.lib.payload import (
     placement,
     power,
     reported_reason,
+    reported_sensor,
     said_speeds,
     shown_aspects,
     stamp,
@@ -707,14 +708,14 @@ def test_a_payload_naming_no_block_reads_as_none() -> None:
         assert occupancy(payload) is None, payload
 
 
-def test_a_sensor_row_reads_as_the_level_the_detector_states() -> None:
-    """Presence is a level and the row states one of three words for it. What
+def test_a_sensor_report_reads_as_the_level_the_detector_states() -> None:
+    """Presence is a level and a report states one of three words for it. What
     a block's two of them become is `layout`'s fold (#288)."""
     for level in ("occupied", "clear", "unknown"):
         assert detected({"addr": "up_w.B", "occupancy": level}) == level
 
 
-def test_a_sensor_row_that_cannot_be_read_is_no_information_about_that_end() -> None:
+def test_a_sensor_report_that_cannot_be_read_says_nothing_of_that_end() -> None:
     """The third reader that answers a value rather than None, falling the way
     its own axis does: `unknown` is what the contract calls no information, and
     a frame that cannot be read carries none (#181, #288)."""
@@ -730,6 +731,26 @@ def test_a_sensor_row_that_cannot_be_read_is_no_information_about_that_end() -> 
     ]
     for payload in refused:
         assert detected(payload) == "unknown", payload
+
+
+def test_a_report_names_a_sensor_or_it_is_about_nothing() -> None:
+    """`<block>.<end>`, and a block has two ends. Whether this railroad has
+    the block is not this reader's to ask."""
+    assert reported_sensor({"addr": "up_w.B", "occupancy": "clear"}) == "up_w.B"
+    refused: list[object] = [
+        None,
+        "up_w.B",
+        {},
+        {"addr": None},
+        {"addr": 7},
+        {"addr": ""},
+        {"addr": "up_w"},
+        {"addr": ".A"},
+        {"addr": "up_w."},
+        {"addr": "up_w.C"},
+    ]
+    for payload in refused:
+        assert reported_sensor(payload) is None, payload
 
 
 def test_a_reason_is_read_where_one_is_given_and_never_demanded() -> None:

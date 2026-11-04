@@ -77,13 +77,14 @@ def test_the_glossary_names_topics_at_all() -> None:
 def test_a_prefix_holds_where_the_inventory_has_a_topic_under_it() -> None:
     assert inventoried("tc49/layout/state/wanted/")
     assert inventoried("tc49/layout/state/device/")
-    assert inventoried("tc49/layout/state/device/sensor/")
+    assert inventoried("tc49/layout/state/device/point/")
     assert inventoried("tc49/")
     assert not inventoried("tc49/layout/state/nowhere/")
 
 
 def test_a_whole_topic_holds_only_where_it_is_a_row() -> None:
     assert inventoried("tc49/dispatch/state/allocation")
-    assert inventoried("tc49/layout/state/device/sensor")
+    assert inventoried("tc49/layout/state/device/point")
+    assert inventoried("tc49/layout/sensor")
     assert not inventoried("tc49/dispatch/state/alloc")
     assert not inventoried("tc49/layout/state/device")

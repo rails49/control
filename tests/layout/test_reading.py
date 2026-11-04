@@ -18,7 +18,6 @@ from tests.layout.railroad import (
     ASPECTS,
     BLOCK_OCCUPIED,
     DEVICE_LINK,
-    DEVICE_SENSOR,
     DEVICE_TRACK,
     DRIVING,
     DRIVING_WANTED,
@@ -30,6 +29,7 @@ from tests.layout.railroad import (
     POWER_WANTED,
     RAILROAD,
     REMOVED,
+    SENSOR,
     SETTINGS,
     TAKE_WANTED,
     TAKEN,
@@ -197,7 +197,7 @@ def test_a_refusal_passes_by_unread_and_is_for_a_person() -> None:
 
 
 def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
-    """The third of the observed rows, and it falls the third way: `unknown`
+    """A sensor report falls the third way: `unknown`
     is the contract's own word for no information, so a frame that cannot be
     read leaves the end reading exactly what it last actually said and
     produces no edge (#288)."""
@@ -208,8 +208,10 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
     for payload in UNREADABLE:
-        bus.publish(DEVICE_SENSOR + "/up_e.A", cast(Payload, payload))
+        bus.publish(SENSOR, cast(Payload, payload))
         bus.drain()
+    bus.publish(SENSOR, {"addr": "up_e.A", "occupancy": "lit"})
+    bus.drain()
     settle(bus, app, clock)
 
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
