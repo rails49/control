@@ -11,7 +11,12 @@ import pytest
 
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.settings import THROTTLE_SILENCE_S, KeptInstallation, KeptSettings
+from tc49.lib.settings import (
+    SENSOR_SILENCE_S,
+    THROTTLE_SILENCE_S,
+    KeptInstallation,
+    KeptSettings,
+)
 from tc49.simulator import Simulator
 from tests.harness import load
 
@@ -37,6 +42,7 @@ def test_a_railroad_that_keeps_no_settings_says_the_defaults() -> None:
         "point_gap": 0.5,
         "speeds": {"clear": 0.6, "caution": 0.3},
         "throttle_silence": THROTTLE_SILENCE_S,
+        "sensor_silence": SENSOR_SILENCE_S,
     }
 
 
@@ -47,6 +53,7 @@ def test_a_railroad_that_keeps_its_speeds_says_them() -> None:
         "point_gap": 1.0,
         "speeds": {"clear": 0.5, "caution": 0.25},
         "throttle_silence": THROTTLE_SILENCE_S,
+        "sensor_silence": SENSOR_SILENCE_S,
     }
 
 
@@ -57,7 +64,11 @@ class Built:
     """A simulator on the bench railroad, and every document it was handed
     to keep (#1140)."""
 
-    def __init__(self, throttle_silence_s: float = THROTTLE_SILENCE_S) -> None:
+    def __init__(
+        self,
+        throttle_silence_s: float = THROTTLE_SILENCE_S,
+        sensor_silence_s: float = SENSOR_SILENCE_S,
+    ) -> None:
         layout, _roster, _scenario = load("crossover-yard/meet")
         clock = Clock()
         self.bus = InProcessBus(clock)
@@ -68,6 +79,7 @@ class Built:
             clock,
             throttle_silence_s=throttle_silence_s,
             keep=self.kept.append,
+            sensor_silence_s=sensor_silence_s,
         )
         self.bus.drain()
 
@@ -91,6 +103,7 @@ def test_a_speed_a_person_sets_is_said_at_once_and_kept_with_the_railroad() -> N
         "point_gap": 0.5,
         "speeds": {"clear": 0.5, "caution": 0.3},
         "throttle_silence": THROTTLE_SILENCE_S,
+        "sensor_silence": SENSOR_SILENCE_S,
     }
     assert built.kept == [KeptSettings(0.5, {"clear": 0.5, "caution": 0.3})]
 
@@ -110,12 +123,30 @@ def test_a_simulator_says_the_throttle_silence_it_is_built_with() -> None:
     assert Built(throttle_silence_s=10.0).said["throttle_silence"] == 10.0
 
 
+def test_a_sensor_silence_a_person_sets_is_said_and_kept_with_the_installation() -> (
+    None
+):
+    """Beside the throttle silence as it stands: this binding reads no sensor
+    report, so it keeps and says the silence and runs on nothing (#1149)."""
+    built = Built()
+    built.wanted({"throttle_silence": 8})
+    built.wanted({"sensor_silence": 10})
+    assert built.said["sensor_silence"] == 10.0
+    assert built.kept[-1] == KeptInstallation(8.0, 10.0)
+
+
+def test_a_simulator_says_the_sensor_silence_it_is_built_with() -> None:
+    assert Built(sensor_silence_s=10.0).said["sensor_silence"] == 10.0
+
+
 @pytest.mark.parametrize(
     "payload",
     [
         {"speeds": {"clear": 0}},
         {"speeds": {"clear": 0.5}, "colour": "red"},
         {"point_gap": 1.0, "throttle_silence": 1},
+        {"sensor_silence": 1},
+        {"sensor_silence": 61},
         {},
         "clear",
     ],

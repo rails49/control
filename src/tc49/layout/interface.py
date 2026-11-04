@@ -309,6 +309,10 @@ its own in `installation.yaml` and a person sets it on `settings_wanted`
 once a second, so this is five of them missed: a phone gone to sleep, a page
 closed, a network gone (ADR-0079)."""
 
+SENSOR_SILENCE_S = settings.SENSOR_SILENCE_S
+"""How long a sensor may go unheard, in seconds, by default: an installation
+keeps its own, which a person sets on `settings_wanted` (#1149)."""
+
 
 @dataclass(frozen=True)
 class _Crossing:
@@ -415,6 +419,7 @@ class LayoutInterface:
         point_gap: float = POINT_GAP_S,
         keep: Callable[[KeptSettings | KeptInstallation], None] | None = None,
         speeds: Mapping[str, float] = SPEEDS,
+        sensor_silence_s: float = SENSOR_SILENCE_S,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -444,6 +449,12 @@ class LayoutInterface:
         an installation and not about this app, which `__main__` reads off
         `installation.yaml`; a person changes it on `settings_wanted`, and it
         holds from the next check of who has gone silent (#1132).
+
+        `sensor_silence_s`: how long a sensor may go unheard,
+        `SENSOR_SILENCE_S` by default, the installation's as the throttle
+        silence is. Kept and said and not yet run on (#1151); `__main__` reads
+        it off `installation.yaml` and a person changes it on
+        `settings_wanted` (#1149).
 
         `position`: where each train stands as this app comes up, train to
         block. None from a process starting, which knows of no train until
@@ -487,7 +498,7 @@ class LayoutInterface:
         self._reread = reread
         self._clock = clock
         self._settling_s = settling_s
-        self._throttle_silence_s = throttle_silence_s
+        self._installation = KeptInstallation(throttle_silence_s, sensor_silence_s)
         self._settings = KeptSettings(point_gap, dict(speeds))
         self._keep = keep
         # Where each train stands, which is the whole of the near-end check,
@@ -653,7 +664,7 @@ class LayoutInterface:
         # The railroad's settings, retained so that every open page shows
         # what a person can change, and said with each build: a loaded
         # railroad starts on a broker cleared of the last one's (#1125).
-        bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        bus.publish(SETTINGS, said(self._settings, self._installation))
         # Which sensors are not reporting, said so a client that joins is
         # served a value rather than left to read one out of an absence
         # (ADR-0032). Nothing fills the list yet (#1151).
@@ -1280,20 +1291,20 @@ class LayoutInterface:
         #1132): taken whatever track power and the run are doing, said at
         once on `state/settings` so every open page shows them, and each
         kept in its document — the gap and the speeds with the railroad, the
-        throttle silence with the installation. A field left out, and a
-        speed left out of `speeds`, keeps its value. The gap is used from
-        the next `align` and the silence from the next check of who has gone
+        two silences with the installation. A field left out, and a speed
+        left out of `speeds`, keeps its value. The gap is used from the next
+        `align` and the throttle silence from the next check of who has gone
         silent; the speeds are the driver's, and this app only keeps and
-        says them. Nothing is rebuilt. A gesture the contract does not read,
+        says them, as it does the sensor silence until #1151. Nothing is rebuilt. A gesture the contract does not read,
         an unknown field or a value out of range, is dropped whole as any
         malformed gesture is (ADR-0034)."""
         wanted = wanted_settings(payload)
         if wanted is None:
             return
-        self._settings, self._throttle_silence_s, changed = taken(
-            self._settings, self._throttle_silence_s, wanted
+        self._settings, self._installation, changed = taken(
+            self._settings, self._installation, wanted
         )
-        self._bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        self._bus.publish(SETTINGS, said(self._settings, self._installation))
         if self._keep is None:
             return
         for document in changed:
@@ -1392,7 +1403,7 @@ class LayoutInterface:
         silent = {
             throttle
             for throttle, at in self._heard.items()
-            if self._clock.now - at >= self._throttle_silence_s
+            if self._clock.now - at >= self._installation.throttle_silence
         }
         for train, throttle in list(self._taken.items()):
             if throttle in silent:

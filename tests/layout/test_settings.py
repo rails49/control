@@ -1,6 +1,7 @@
 """The settings a person sets from the Settings dialog on
 `tc49/layout/settings_wanted`: the railroad's point gap and speeds (#1126,
-#1132), and the installation's throttle silence (#1132).
+#1132), and the installation's throttle silence (#1132) and sensor silence
+(#1149).
 
 `layout` takes the gesture whatever track power and the run are doing, says
 the settings at once on `state/settings`, and hands each to be kept in its
@@ -10,11 +11,22 @@ silence from the next check of who has gone silent, and the speeds are the
 driver's.
 """
 
+from pathlib import Path
+from typing import cast
+
+import pytest
+
 from tc49.layout.interface import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import MANUAL
-from tc49.lib.settings import POINT_GAP_S, KeptInstallation, KeptSettings
+from tc49.lib.settings import (
+    POINT_GAP_S,
+    KeptInstallation,
+    KeptSettings,
+    kept_installation,
+)
+from tc49.store import AssetStore
 from tests.layout.railroad import (
     SETTINGS,
     SETTINGS_WANTED,
@@ -147,6 +159,7 @@ def test_a_gap_beside_good_speeds_and_silence_is_taken_with_them() -> None:
         "point_gap": 2.0,
         "speeds": {"clear": 0.8, "caution": 0.3},
         "throttle_silence": 10.0,
+        "sensor_silence": 3.0,
     }
 
 
@@ -184,6 +197,7 @@ def test_a_speed_set_is_kept_with_the_railroad_beside_what_was_not_set() -> None
             "point_gap": 1.5,
             "speeds": {"clear": 0.6, "caution": 0.2},
             "throttle_silence": 5.0,
+            "sensor_silence": 3.0,
         },
     )
     assert app.point_gap == 1.5
@@ -196,6 +210,72 @@ def test_a_throttle_silence_set_is_kept_with_the_installation() -> None:
     sets(bus, {"throttle_silence": 10})
     assert kept == [KeptInstallation(10.0)]
     assert said[-1] == (SETTINGS, {"at": 0.0, **settings_row(throttle_silence=10)})
+
+
+def test_a_sensor_silence_set_is_said_at_once_and_kept_with_the_installation() -> None:
+    """Beside the throttle silence as it stands, which is the same document,
+    and not with the railroad (#1149)."""
+    bus, _app, kept = kept_by_app()
+    said = heard(bus, SETTINGS)
+    sets(bus, {"throttle_silence": 8})
+    sets(bus, {"sensor_silence": 10})
+    assert kept[-1] == KeptInstallation(8.0, 10.0)
+    assert said[-1] == (
+        SETTINGS,
+        {"at": 0.0, **settings_row(throttle_silence=8, sensor_silence=10)},
+    )
+
+
+def test_a_throttle_silence_set_keeps_the_sensor_silence_as_it_stands() -> None:
+    """Either one set writes the whole document, so the other survives
+    (#1149)."""
+    bus, _app, kept = kept_by_app()
+    sets(bus, {"sensor_silence": 10})
+    sets(bus, {"throttle_silence": 8})
+    assert kept[-1] == KeptInstallation(8.0, 10.0)
+
+
+def test_a_sensor_silence_kept_is_the_one_a_layout_built_afterwards_says(
+    tmp_path: Path,
+) -> None:
+    """Through `installation.yaml` and the store's own check, as `__main__`
+    carries it (#1149)."""
+    bus, _app, kept = kept_by_app()
+    sets(bus, {"sensor_silence": 10})
+    store = AssetStore(tmp_path)
+    store.put_installation(cast(KeptInstallation, kept[-1]).document())
+    assert (tmp_path / "installation.yaml").exists()
+
+    read = kept_installation(store.installation())
+    clock = Clock()
+    later = InProcessBus(clock)
+    LayoutInterface(
+        later, railroad(), stock(), clock, sensor_silence_s=read.sensor_silence
+    )
+    later.drain()
+    assert later.last_values[SETTINGS]["sensor_silence"] == 10.0
+
+
+def test_a_layout_built_with_no_sensor_silence_says_three_seconds() -> None:
+    """A report comes at least once a second, so one missed is no failure
+    (#1149)."""
+    bus, _app, _kept = kept_by_app()
+    assert bus.last_values[SETTINGS]["sensor_silence"] == 3.0
+
+
+@pytest.mark.parametrize("silence", [1, 61])
+def test_a_sensor_silence_out_of_range_changes_nothing(silence: int) -> None:
+    """Dropped whole: nothing said and nothing kept, a good field beside it
+    included (#1149)."""
+    bus, app, kept = kept_by_app()
+    said = heard(bus, SETTINGS)
+    bus.drain()
+    before = list(said)
+    sets(bus, {"sensor_silence": silence})
+    sets(bus, {"point_gap": 2, "sensor_silence": silence})
+    assert said == before
+    assert kept == []
+    assert app.point_gap == POINT_GAP_S
 
 
 def test_a_throttle_silence_set_is_the_one_trains_are_let_go_of_on() -> None:

@@ -23,7 +23,7 @@ from tc49.driver.__main__ import ALIVE_CONFIRMED, serve
 from tc49.lib.bus import Payload
 from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
-from tc49.lib.settings import THROTTLE_SILENCE_S, KeptSettings, said
+from tc49.lib.settings import KeptInstallation, KeptSettings, said
 from tests.brokers import (
     Broker,
     at_least_once_in_any_two_seconds,
@@ -131,7 +131,7 @@ def settings(hand: MqttBus) -> None:
     """`state/settings` as `layout` says it on a loaded railroad, the default
     speeds among it: retained, so a driver that comes up later hears it, and
     without it a grant moves nothing (#1133)."""
-    hand.publish(SETTINGS, said(KeptSettings(), THROTTLE_SILENCE_S))
+    hand.publish(SETTINGS, said(KeptSettings(), KeptInstallation()))
 
 
 def test_a_cold_start_says_nothing_and_stays_up(broker: Broker, app: App) -> None:

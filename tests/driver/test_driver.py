@@ -17,7 +17,7 @@ from typing import cast
 from tc49.driver import Driver
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.settings import SPEEDS, THROTTLE_SILENCE_S, KeptSettings, said
+from tc49.lib.settings import SPEEDS, KeptInstallation, KeptSettings, said
 
 GRANTED = "tc49/dispatch/move_granted"
 MOVE = "tc49/layout/move"
@@ -59,7 +59,7 @@ def grant(bus: InProcessBus, payload: object) -> None:
 def settings(bus: InProcessBus, speeds: Mapping[str, float] = SPEEDS) -> None:
     """`state/settings` as `layout` says it, the railroad's speeds `speeds`."""
     kept = KeptSettings(speeds=dict(speeds))
-    bus.publish(SETTINGS, cast(Payload, said(kept, THROTTLE_SILENCE_S)))
+    bus.publish(SETTINGS, cast(Payload, said(kept, KeptInstallation())))
     bus.drain()
 
 
@@ -221,7 +221,7 @@ def test_a_row_whose_speeds_do_not_read_leaves_the_speeds_as_they_were() -> None
     Driver(bus)
     settings(bus, {"clear": 0.5, "caution": 0.25})
 
-    row = said(KeptSettings(), THROTTLE_SILENCE_S)
+    row = said(KeptSettings(), KeptInstallation())
     for bad in (
         {**row, "speeds": {"clear": 1.5, "caution": 0.25}},
         {**row, "speeds": {"clear": 0.5, "caution": 0}},

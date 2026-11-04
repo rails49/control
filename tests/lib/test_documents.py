@@ -13,10 +13,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
-from tc49.lib.settings import KeptInstallation, KeptSettings
+from tc49.lib.settings import SENSOR_SILENCE_S, KeptInstallation, KeptSettings
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
@@ -229,6 +230,34 @@ def test_the_installations_settings_are_what_was_put(url: str) -> None:
     assert documents.installation() is None
     documents.put_installation(KeptInstallation(10.0))
     assert documents.installation() == KeptInstallation(10.0)
+
+
+def test_the_installations_sensor_silence_is_kept_beside_the_throttle_silence(
+    url: str, root: Path
+) -> None:
+    """Each document says both, so setting one leaves the other (#1149)."""
+    documents = client(url)
+    documents.put_installation(KeptInstallation(10.0, 20.0))
+    assert documents.installation() == KeptInstallation(10.0, 20.0)
+    assert yaml.safe_load((root / "installation.yaml").read_text()) == {
+        "throttle_silence": 10.0,
+        "sensor_silence": 20.0,
+    }
+
+
+def test_an_installation_kept_before_the_sensor_silence_reads_at_the_default(
+    url: str, root: Path
+) -> None:
+    """A box that set its throttle silence before there was a sensor silence
+    keeps what it set and comes up at the default for the rest (#1149)."""
+    (root / "installation.yaml").write_text("throttle_silence: 12\n")
+    assert client(url).installation() == KeptInstallation(12.0, SENSOR_SILENCE_S)
+
+
+def test_a_sensor_silence_the_store_cannot_read_is_raised(url: str, root: Path) -> None:
+    (root / "installation.yaml").write_text("sensor_silence: 1\n")
+    with pytest.raises(ValueError, match="sensor_silence"):
+        client(url).installation()
 
 
 def test_installation_settings_the_store_cannot_read_are_raised(

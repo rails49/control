@@ -154,8 +154,8 @@ keeps none is a 404, and `layout` loads it at the defaults. Their one caller
 is `layout` too, so `/settings` is on no proxy in front of a page.
 
 `/installation` is the installation's settings, `installation.yaml` at the
-store root, built as `/loaded` is: `{"throttle_silence": <seconds>}`, a 404
-where there is none, and its one caller `layout`, reading it as it starts and
+store root, built as `/loaded` is: `{"throttle_silence": <seconds>,
+"sensor_silence": <seconds>}`, either optional, a 404 where there is none, and its one caller `layout`, reading it as it starts and
 writing it when a person sets it, so it is on no proxy either (#1132).
 
 `review` takes a *document* rather than a name because the interesting drawing is
@@ -681,9 +681,9 @@ def _put_settings(store: AssetStore, backup: Backup, name: str, body: Any) -> Re
 
 
 def _put_installation(store: AssetStore, backup: Backup, body: Any) -> Response:
-    """The installation's settings, created or replaced: `{"throttle_silence":
-    <seconds>}` and nothing else (#1132). The layout binding is the one
-    writer, when a person sets them."""
+    """The installation's settings, created or replaced: `throttle_silence`,
+    `sensor_silence` or both, in seconds, and nothing else (#1132, #1149). The
+    layout binding is the one writer, when a person sets them."""
     if not isinstance(body, dict):
         return 400, {"error": "an installation settings document is required"}
     try:

@@ -400,15 +400,19 @@ def test_a_settings_gesture_reads_as_the_fields_it_sets() -> None:
             "throttle_silence": 60,
         }
     ) == SettingsWanted(5.0, {"clear": 0.7, "caution": 0.2}, 60.0)
+    assert wanted_settings({"sensor_silence": 2}) == SettingsWanted(sensor_silence=2.0)
+    assert wanted_settings({"sensor_silence": 60}) == SettingsWanted(
+        sensor_silence=60.0
+    )
 
 
 def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
-    """None of the three fields, an unknown field, or any value out of
+    """None of the four fields, an unknown field, or any value out of
     range, and the whole gesture goes: a good gap beside a bad silence is
     not half taken (#1131)."""
     refused: list[object] = [
         [1],  # not an object at all
-        {},  # none of the three
+        {},  # none of the four
         {"gap": 1},  # an unknown field alone
         {"point_gap": 1, "colour": "red"},  # an unknown field beside a good one
         {"point_gap": -0.5},
@@ -430,6 +434,13 @@ def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
         {"throttle_silence": False},
         {"point_gap": 1, "throttle_silence": 100},  # one bad field fails all
         {"point_gap": 1, "speeds": {"clear": 2}},
+        {"sensor_silence": 1},  # one missed report is not a failure
+        {"sensor_silence": 61},
+        {"sensor_silence": float("nan")},
+        {"sensor_silence": "3"},
+        {"sensor_silence": True},
+        {"sensor_silence": None},
+        {"throttle_silence": 5, "sensor_silence": 100},  # one bad field fails all
     ]
     for payload in refused:
         assert wanted_settings(payload) is None, payload

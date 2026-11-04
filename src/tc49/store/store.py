@@ -38,9 +38,10 @@ speeds, `layouts/<railroad>.settings.yaml`, written by the layout binding when a
 sets them (#1126, #1132). Their shape is `tc49.lib.settings`'s, which
 `layout` reads them with.
 
-The **installation's settings** belong to no railroad: the throttle silence,
-`installation.yaml` at the store root, written by the layout binding when a
-person sets it and read once as it starts (#1132). Their shape is
+The **installation's settings** belong to no railroad: the throttle silence
+and the sensor silence, `installation.yaml` at the store root, written by the
+layout binding when a person sets one and read once as it starts (#1132,
+#1149). Their shape is
 `tc49.lib.settings`'s too.
 
 The **catalogue** is the installation's and belongs to no railroad, a model

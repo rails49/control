@@ -152,18 +152,19 @@ TOPICS: dict[str, Topic] = {
     # above 0 and at most 1, which the driver runs at. `throttle_silence` is
     # the installation's seconds, 2 to 60, a throttle may go unheard before
     # `layout` lets go of its trains, the same whatever railroad is loaded
-    # (#1130).
+    # (#1130). `sensor_silence` is the installation's too, 2 to 60 seconds a
+    # sensor may go unheard (#1149).
     "tc49/layout/state/settings": Topic(
-        (AT, "point_gap", "speeds", "throttle_silence")
+        (AT, "point_gap", "speeds", "throttle_silence", "sensor_silence")
     ),
     # A person sets the settings from the Settings dialog: any of the point
-    # gap, the speeds and the throttle silence, at least one, each in the
+    # gap, the speeds and the two silences, at least one, each in the
     # range `state/settings` gives it (#1126, #1131). `speeds` names
     # `clear`, `caution` or both. A field left out keeps its value; an
     # unknown field or a value out of range drops the gesture whole. Taken
     # whatever track power and the run are doing, and needs no rebuild.
     "tc49/layout/settings_wanted": Topic(
-        ("point_gap", "speeds", "throttle_silence"), browser=True
+        ("point_gap", "speeds", "throttle_silence", "sensor_silence"), browser=True
     ),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
