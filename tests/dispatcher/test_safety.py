@@ -1,6 +1,6 @@
 """Direct unit tests for safe() on hand-built states (SAFETY.md)."""
 
-from tc49.dispatcher.safety import safe
+from tc49.dispatcher.safety import finishable, safe
 
 
 def test_empty_dispatch_is_trivially_safe() -> None:
@@ -91,3 +91,72 @@ def test_a_train_is_not_obstructed_by_what_it_holds() -> None:
     # t has locked the rest of its own route. A held block obstructs everyone
     # but its holder, exactly as cur does.
     assert safe(cur={"t": "A"}, rem={"t": ["Y", "B"]}, idle=[], held={"t": ["Y", "B"]})
+
+
+def test_all_finish_when_the_state_is_safe() -> None:
+    assert finishable(
+        cur={"t": "A", "u": "X"},
+        rem={"t": ["X", "B"], "u": ["C"]},
+        idle=[],
+        held={"t": [], "u": []},
+    ) == {"t", "u"}
+
+
+def test_a_train_crossing_an_obstacle_is_left_out() -> None:
+    assert finishable(
+        cur={"t": "X", "u": "P"},
+        rem={"t": ["Y"], "u": ["Q"]},
+        idle=["Y"],
+        held={"t": [], "u": []},
+    ) == {"u"}
+
+
+def test_those_left_out_block_as_frozen_trains_do() -> None:
+    # t cannot finish. u needs the block t stands in and v the block t holds,
+    # so neither can either, and w is clear of it all.
+    assert finishable(
+        cur={"t": "X", "u": "P", "v": "R", "w": "M"},
+        rem={"t": ["H", "S"], "u": ["X"], "v": ["H"], "w": ["N"]},
+        idle=["S"],
+        held={"t": ["H"], "u": [], "v": [], "w": []},
+    ) == {"w"}
+
+
+def test_a_circular_wait_is_left_out_whole() -> None:
+    assert finishable(
+        cur={"t": "A", "u": "B", "v": "M"},
+        rem={"t": ["B"], "u": ["A"], "v": ["N"]},
+        idle=[],
+        held={"t": [], "u": [], "v": []},
+    ) == {"v"}
+
+
+def test_a_tie_goes_to_the_first_set_in_sorted_order() -> None:
+    assert finishable(
+        cur={"u": "B", "t": "A"},
+        rem={"u": ["D"], "t": ["D"]},
+        idle=[],
+        held={"t": [], "u": []},
+    ) == {"t"}
+
+
+def test_a_larger_set_beats_an_earlier_smaller_one() -> None:
+    # t ends on D, which u and v cross, and crosses E and F, where they end, so
+    # t finishes with neither. {t} sorts first, and {u, v} is larger.
+    assert finishable(
+        cur={"t": "A", "u": "B", "v": "C"},
+        rem={"t": ["E", "F", "D"], "u": ["D", "E"], "v": ["D", "F"]},
+        idle=[],
+        held={"t": [], "u": [], "v": []},
+    ) == {"u", "v"}
+
+
+def test_nobody_can_finish() -> None:
+    assert (
+        finishable(cur={"t": "A"}, rem={"t": ["X"]}, idle=["X"], held={"t": []})
+        == frozenset()
+    )
+
+
+def test_no_active_trains() -> None:
+    assert finishable(cur={}, rem={}, idle=[], held={}) == frozenset()

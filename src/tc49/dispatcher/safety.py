@@ -9,9 +9,15 @@ Reveliotis et al. are the documented fallback.
 
 Transits do not appear: by Lemma 1 they are never held across a wait.
 Transit conflicts are instantaneous admissibility at the grant, not here.
+
+Every reachable state is safe until a failure: a block that comes to read
+occupied on a train's route, say. After one, some trains may be unable to
+finish, and `finishable` names those that still can. The argument then covers
+them, and only the others wait.
 """
 
 from collections.abc import Iterable, Mapping, Sequence
+from itertools import combinations
 
 
 def safe(
@@ -50,3 +56,31 @@ def safe(
         return memo[done]
 
     return safe_from(frozenset())
+
+
+def finishable(
+    cur: Mapping[str, str],
+    rem: Mapping[str, Sequence[str]],
+    idle: Iterable[str],
+    held: Mapping[str, Sequence[str]],
+) -> frozenset[str]:
+    """The largest set of active trains that can all finish, with the rest
+    frozen where they stand and holding what they hold: permanent obstacles
+    to the set. Ties go to the first set in sorted order, so runs stay
+    reproducible. Takes `safe()`'s inputs, and costs one call of it when every
+    active train can finish."""
+    idle_blocks = list(idle)
+    if safe(cur, rem, idle_blocks, held):
+        return frozenset(cur)
+    active = sorted(cur)
+    for size in range(len(active) - 1, 0, -1):
+        for group in combinations(active, size):
+            frozen = [b for t in active if t not in group for b in (cur[t], *held[t])]
+            if safe(
+                {t: cur[t] for t in group},
+                {t: rem[t] for t in group},
+                [*idle_blocks, *frozen],
+                {t: held[t] for t in group},
+            ):
+                return frozenset(group)
+    return frozenset()
