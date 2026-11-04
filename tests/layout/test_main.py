@@ -29,11 +29,11 @@ from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
     BLOCK_OCCUPIED,
-    DEVICE_SENSOR,
     DRIVING,
     POWER,
     POWER_WANTED,
     RAILROAD,
+    SENSOR,
     SETTINGS,
     SETTINGS_WANTED,
     TAKE_WANTED,
@@ -342,7 +342,7 @@ def test_a_level_settles_on_seconds_passing(
 
     detector = MqttBus(port=broker.port)
     assert detector.wait_connected()
-    detector.publish(f"{DEVICE_SENSOR}/{END}", {"addr": END, "occupancy": "occupied"})
+    detector.publish(SENSOR, {"addr": END, "occupancy": "occupied"})
 
     assert drained(
         witness, lambda: rows(heard, BLOCK_OCCUPIED) != []

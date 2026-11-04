@@ -1,10 +1,10 @@
 """The hand-fed detector: a person's typed readings where a camera's will be
 (#315).
 
-Nothing publishes `tc49/layout/state/device/sensor` on a physical railroad, so
-a `move` on the steel has nothing to complete it. A line a person types is
-published as the row a detector would write — and what these assert is that it
-is *that* row, indistinguishable downstream: `layout` folds a typed pair into
+Nothing publishes `tc49/layout/sensor` on a physical railroad, so a `move` on
+the steel has nothing to complete it. A line a person types is published as the
+report a detector would write — and what these assert is that it is *that*
+report, indistinguishable downstream: `layout` folds a typed pair into
 `block_occupied` and `block_vacated` exactly as it folds a camera's, debounce
 and all.
 
@@ -28,7 +28,7 @@ from tc49.layout import LayoutInterface
 from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import DEVICE_TOPICS
+from tc49.lib.inventory import TOPICS, is_state_topic
 from tc49.lib.layout import Layout, block_of, opposite_end
 from tests.harness import a_railroad
 
@@ -58,27 +58,27 @@ def hand_fed(
 
 
 def sensed(bus: InProcessBus) -> list[tuple[str, Payload]]:
-    """Every sensor row published from here on, in order. Drained here rather
+    """Every sensor report published from here on, in order. Drained here rather
     than by the detector: publishing is all it does, and the loop that owns
-    the run is what carries a row to whoever reads it."""
+    the run is what carries a report to whoever reads it."""
     seen: list[tuple[str, Payload]] = []
-    bus.subscribe(SENSOR + "/#", lambda topic, payload: seen.append((topic, payload)))
+    bus.subscribe(SENSOR, lambda topic, payload: seen.append((topic, payload)))
     return seen
 
 
 # -- what a line is ----------------------------------------------------------
 
 
-def test_the_row_a_reading_goes_on_is_the_one_the_inventory_declares() -> None:
-    """This publishes a detector's row and invents nothing: the topic is a
-    `DEVICE_TOPICS` key, so a contract change here would be caught as one."""
-    assert SENSOR in DEVICE_TOPICS
+def test_the_topic_a_reading_goes_on_is_the_one_the_inventory_declares() -> None:
+    """This publishes a detector's report and invents nothing: the topic is a
+    `TOPICS` key and an event, so a contract change here would be caught as one."""
+    assert SENSOR in TOPICS
+    assert not is_state_topic(SENSOR)
 
 
-def test_a_typed_line_reaches_the_sensor_row_with_the_level_on_it() -> None:
+def test_a_typed_line_reaches_the_sensor_topic_with_the_level_on_it() -> None:
     """The whole of what this is for: `<block>.<end> <level>` published as the
-    row a camera would write, addressed by the block end and repeating the
-    address in the payload as every device row does."""
+    report a camera would write, the payload naming the block end."""
     layout, _roster = a_railroad()
     detector, bus, _out = hand_fed(layout)
     end = f"{a_block(layout)}.A"
@@ -88,9 +88,7 @@ def test_a_typed_line_reaches_the_sensor_row_with_the_level_on_it() -> None:
     bus.drain()
 
     assert len(published) == 1
-    topic, payload = published[0]
-    assert topic == f"{SENSOR}/{end}"
-    assert payload["addr"] == end and payload["occupancy"] == "occupied"
+    assert published[0] == (SENSOR, {"addr": end, "occupancy": "occupied"})
 
 
 @pytest.mark.parametrize("level", LEVELS)
@@ -119,8 +117,8 @@ def test_the_closed_words_are_taken_in_either_case_and_the_block_is_not() -> Non
     assert detector.reads(f"{block}.a OCCUPIED") is None
     bus.drain()
     assert published[0] == (
-        f"{SENSOR}/{block}.A",
-        {"at": 0.0, "addr": f"{block}.A", "occupancy": "occupied"},
+        SENSOR,
+        {"addr": f"{block}.A", "occupancy": "occupied"},
     )
     assert detector.reads(f"{block.upper() + block}.A clear") is not None
 
@@ -191,7 +189,7 @@ def test_a_malformed_line_is_said_where_the_person_typed_it() -> None:
     assert waits_for(detector, bus, published)
 
     assert "nonesuch" in out.getvalue()
-    assert published[0][0] == f"{SENSOR}/{block}.A"
+    assert published[0][1]["addr"] == f"{block}.A"
 
 
 def waits_for(

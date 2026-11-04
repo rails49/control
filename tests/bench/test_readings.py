@@ -5,15 +5,15 @@ typed line reached `layout` by being published into a Python object beside it.
 With every app in a container of its own (ADR-0059, decision 5) the person at
 the keyboard is a client like the camera that will replace them: it connects
 to the broker, reads the railroad off the store's HTTP face to know which
-block ends there are, and publishes the row a detector would write.
+block ends there are, and publishes the report a detector would write.
 
 Against a real broker on a real socket, because that is what is under test.
 The loop runs on a thread here and is ended with the event `serve` takes or by
 the input ending; in the deployment it is the main thread, and the person ends
 it by typing Ctrl-D or Ctrl-C.
 
-What these assert is the row on the broker — read by another client, which is
-where a detector's readings are visible from. That the row is the one the
+What these assert is the report on the broker — read by another client, which is
+where a detector's readings are visible from. That the topic is the one the
 inventory declares, and that a typo is refused rather than published, is
 `test_detector.py`'s and is not repeated.
 """
@@ -169,21 +169,18 @@ def watching(broker: Broker) -> tuple[MqttBus, list[tuple[str, Payload]]]:
     return bus, heard
 
 
-def rows(heard: list[tuple[str, Payload]], topic: str) -> list[Payload]:
-    """What arrived on one topic, in the order it arrived."""
-    return [payload for said, payload in heard if said == topic]
+def reports(heard: list[tuple[str, Payload]], end: str) -> list[Payload]:
+    """What arrived about one sensor, in the order it arrived."""
+    return [
+        payload for said, payload in heard if said == SENSOR and payload["addr"] == end
+    ]
 
 
-def test_a_typed_line_reaches_the_broker_as_the_retained_sensor_row(
+def test_a_typed_line_reaches_the_broker_as_a_sensor_report(
     broker: Broker, layout: Layout, keyboard: Keyboard, client: Client
 ) -> None:
     """The whole of what this is for: a person types `<block>.<end> <level>`
-    at one process and another reads the row a camera would have written.
-
-    Retained, because it is a state topic and the broker keeps the last value
-    of one — so a client that connects *after* the line was typed is told the
-    level too, which is what a layout interface restarting under a railroad
-    somebody has already walked around depends on (ADR-0059, decision 3).
+    at one process and another reads the report a camera would have written.
     """
     witness, heard = watching(broker)
     client.start()
@@ -193,17 +190,10 @@ def test_a_typed_line_reaches_the_broker_as_the_retained_sensor_row(
     keyboard.types(f"{end} occupied")
 
     assert drained(
-        witness, lambda: rows(heard, f"{SENSOR}/{end}") != []
+        witness, lambda: reports(heard, end) != []
     ), "the typed line never reached the broker"
-    published = rows(heard, f"{SENSOR}/{end}")[-1]
+    published = reports(heard, end)[-1]
     assert published["addr"] == end and published["occupancy"] == "occupied"
-
-    later, kept = watching(broker)
-    assert drained(
-        later, lambda: rows(kept, f"{SENSOR}/{end}") != []
-    ), "the broker was not holding the row for whoever came next"
-    assert rows(kept, f"{SENSOR}/{end}")[-1]["occupancy"] == "occupied"
-    later.close()
     witness.close()
 
 
@@ -231,7 +221,7 @@ def test_it_comes_up_against_a_broker_that_is_not_there_yet(
     end = f"{a_block(layout)}.B"
     keyboard.types(f"{end} clear")
     assert drained(
-        witness, lambda: rows(heard, f"{SENSOR}/{end}") != []
+        witness, lambda: reports(heard, end) != []
     ), "nothing typed after the broker came up reached it"
     witness.close()
 
@@ -252,9 +242,9 @@ def test_a_typo_is_said_where_it_was_typed_and_the_keyboard_stays_up(
     keyboard.types(f"{end} occupied")
 
     assert drained(
-        witness, lambda: rows(heard, f"{SENSOR}/{end}") != []
+        witness, lambda: reports(heard, end) != []
     ), "the line after the typo never reached the broker"
-    assert rows(heard, f"{SENSOR}/nonesuch.A") == []
+    assert reports(heard, "nonesuch.A") == []
     assert "nonesuch" in client.said.getvalue()
     assert client.running, "a typo took the keyboard down"
     witness.close()
@@ -280,9 +270,9 @@ def test_the_input_ending_ends_it_with_the_last_line_published(
 
     assert until(lambda: not client.running, 10), "it outlived its own input"
     assert drained(
-        witness, lambda: rows(heard, f"{SENSOR}/{end}") != []
+        witness, lambda: reports(heard, end) != []
     ), "the last line typed was dropped on the way out"
-    assert rows(heard, f"{SENSOR}/{end}")[-1]["occupancy"] == "occupied"
+    assert reports(heard, end)[-1]["occupancy"] == "occupied"
     witness.close()
 
 
@@ -301,7 +291,7 @@ def test_a_stop_ends_it_with_nothing_published_after(
     keyboard.types(f"{end} occupied")
 
     settle(witness)
-    assert rows(heard, f"{SENSOR}/{end}") == []
+    assert reports(heard, end) == []
 
 
 # -- the command a person types ----------------------------------------------
@@ -387,9 +377,9 @@ def test_the_command_reads_the_railroad_off_the_store_and_publishes_to_the_broke
     )
 
     assert drained(
-        witness, lambda: rows(heard, f"{SENSOR}/{end}") != []
+        witness, lambda: reports(heard, end) != []
     ), "the command published nothing to the broker it was given"
-    assert rows(heard, f"{SENSOR}/{end}")[-1]["addr"] == end
+    assert reports(heard, end)[-1]["addr"] == end
     witness.close()
 
 

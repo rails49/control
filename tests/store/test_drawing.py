@@ -855,7 +855,7 @@ def test_a_sensor_keyed_by_the_lowercase_end_letter_is_refused() -> None:
 
 def test_naming_a_sensor_moves_nothing_in_the_layout() -> None:
     """A hardware address does not reach the derived layout, exactly as a
-    point's does not: what publishes `device/sensor` reads the drawing."""
+    point's does not: what publishes `tc49/layout/sensor` reads the drawing."""
     assert derive(watched(A="LS12", B="LS13")) == derive(spanned())
 
 

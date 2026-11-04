@@ -90,6 +90,11 @@ TOPICS: dict[str, Topic] = {
     "tc49/drive/driver_alive_confirmed": Topic(()),
     "tc49/layout/block_occupied": Topic(("block",)),
     "tc49/layout/block_vacated": Topic(("block",)),
+    # Whatever watches a sensor reports it at least once a second, changed or
+    # not, and at once on a change: `addr` is the sensor, `<block>.<end>`, and
+    # `reason` rides only with `unknown`. One topic, the payload naming the
+    # sensor, and nothing says who sent a report (#1147).
+    "tc49/layout/sensor": Topic(("addr", "occupancy", "reason")),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),
     "tc49/layout/state/power": Topic((AT, "power")),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
@@ -213,9 +218,6 @@ DEVICE_TOPICS: dict[str, Topic] = {
     "tc49/layout/state/wanted/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/wanted/signal": Topic((AT, "addr", "aspect"), address="addr"),
     "tc49/layout/state/wanted/track": Topic((AT, "power")),
-    "tc49/layout/state/device/sensor": Topic(
-        (AT, "addr", "occupancy", "reason"), address="addr"
-    ),
     "tc49/layout/state/device/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/device/track": Topic((AT, "power", "reason")),
     "tc49/layout/state/device/link": Topic((AT, "id", "link", "detail"), address="id"),
@@ -239,16 +241,14 @@ does not reach the bus, so there is one railroad-wide power desired and one
 observed, and a translator maps it onto however many districts it drives
 (#217).
 
-A **sensor** is addressed by the block end it watches, ``<block>.<end>``,
+A **sensor** is not among them: its reports are an event, ``tc49/layout/sensor``
+in ``TOPICS``. It is addressed by the block end it watches, ``<block>.<end>``,
 never by a camera's own identifier, and by that on every railroad, so a trace
 is comparable between installations. The drawing carries the name the hardware
 knows each sensor by, one per block end and defaulting to that same string,
-and whoever publishes the row reads it from the store, so the name reaches no
+and whoever publishes a report reads it from the store, so the name reaches no
 payload and nothing above the layout interface learns detector geometry (#194,
-ADR-0043, ADR-0063). One topic per
-sensor and never a whole-railroad map — a map would make one camera the writer
-of every sensor on the railroad, and a second camera could then not join
-(ADR-0035).
+ADR-0043, ADR-0063).
 
 `wanted/function`'s ``value`` is a **boolean**, where every other desired
 row carries a name or a number. A function is one bit on the wire wherever it
@@ -418,9 +418,8 @@ the way every unreadable state frame falls."""
 OCCUPIED = "occupied"
 CLEAR = "clear"
 UNKNOWN = "unknown"
-"""The three values of ``occupancy`` on
-``tc49/layout/state/device/sensor/<block>.<end>``: what one detector sees at
-the block end it watches.
+"""The three values of ``occupancy`` on ``tc49/layout/sensor``: what a detector
+sees at the block end the report names.
 
 A **level** and not an edge — presence is a thing that can be asked for at any
 time — so the pair a block's two detectors report is what `layout` folds into

@@ -26,9 +26,9 @@ from tc49.scheduler import Scheduler
 from tests.harness import load
 from tests.invariants import checked
 from tests.layout.railroad import (
-    DEVICE_SENSOR,
     FACING,
     POWER_WANTED,
+    SENSOR,
     WANTED_POINT,
     WANTED_TRACTION,
     Unstamped,
@@ -468,7 +468,7 @@ def test_an_unexplained_reading_stops_nobody() -> None:
     bus, app, clock = wired()
     energised(bus)
     written = commanded(bus)
-    bus.publish(f"{DEVICE_SENSOR}/dn_e.A", {"addr": "dn_e.A", "occupancy": "occupied"})
+    bus.publish(SENSOR, {"addr": "dn_e.A", "occupancy": "occupied"})
     bus.drain()
     settle(bus, app, clock)
 

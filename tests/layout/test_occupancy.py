@@ -1,4 +1,4 @@
-"""Levels in, edges out: the fold from `device/sensor` (#288).
+"""Levels in, edges out: the fold from `tc49/layout/sensor` (#288).
 
 A detector reports presence at one block end, and presence is a level that can
 be asked for at any time. What everything above the layout interface reads is
@@ -13,23 +13,18 @@ all without making the suite wait for it.
 
 import logging
 
-from tc49.layout import LayoutInterface
-from tc49.lib.clock import Clock
 from tests.layout.railroad import (
     BLOCK_OCCUPIED,
     BLOCK_VACATED,
-    DEVICE_SENSOR,
-    Unstamped,
+    SENSOR,
     align,
     elapse,
     energised,
     move,
     occupancy,
-    railroad,
     reads,
     settle,
     stand,
-    stock,
     wired,
 )
 
@@ -456,28 +451,52 @@ def test_a_move_that_was_not_acted_on_leaves_no_crossing_behind() -> None:
     assert seen == [(BLOCK_OCCUPIED, {"block": "dn_e"})]
 
 
-def test_a_reading_older_than_the_one_held_is_ignored() -> None:
-    """Delivered backwards, the older value would leave a block end reading
-    clear after the reading that said a train is on it — and the row keeps its
-    last message, so it would stand for good (#240)."""
-    clock = Clock()
-    bus = Unstamped(clock)
-    app = LayoutInterface(bus, railroad(), stock(), clock)
-    bus.drain()
+def test_a_report_folds_on_the_addr_it_names() -> None:
+    """One topic, and the payload names the sensor: the level lands on the end
+    `addr` says, and the block that end belongs to is the one published."""
+    bus, app, clock = wired()
     seen = occupancy(bus)
 
-    bus.publish(
-        DEVICE_SENSOR + "/up_e.A",
-        {"at": 20.0, "addr": "up_e.A", "occupancy": "occupied"},
-    )
-    bus.publish(
-        DEVICE_SENSOR + "/up_e.A",
-        {"at": 10.0, "addr": "up_e.A", "occupancy": "clear"},
-    )
+    bus.publish(SENSOR, {"addr": "up_e.B", "occupancy": "occupied"})
     bus.drain()
     settle(bus, app, clock)
 
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
+
+
+def test_the_same_level_reported_ten_times_publishes_one_event() -> None:
+    """A detector says its level at least once a second, changed or not, so a
+    repeat is the ordinary case and a no-op (#1147)."""
+    bus, app, clock = wired()
+    seen = occupancy(bus)
+
+    for _report in range(10):
+        reads(bus, "up_e.A", "occupied")
+        settle(bus, app, clock)
+
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
+
+
+def test_a_report_naming_no_sensor_is_dropped() -> None:
+    """Nothing to fold it into: no `addr`, or one that is no `<block>.<end>`."""
+    bus, app, clock = wired()
+    seen = occupancy(bus)
+
+    for addr in (None, 7, "", "up_e", ".A", "up_e.", "up_e.C"):
+        bus.publish(SENSOR, {"addr": addr, "occupancy": "occupied"})
+        bus.drain()
+    settle(bus, app, clock)
+
+    assert seen == []
+
+
+def test_a_report_is_an_event_and_nothing_waits_on_the_broker() -> None:
+    """Not retained: after a restart nothing old is replayed (#1147)."""
+    bus, _app, _clock = wired()
+
+    reads(bus, "up_e.A", "occupied")
+
+    assert SENSOR not in bus.last_values
 
 
 def test_nothing_settles_while_the_clock_stands_still() -> None:
