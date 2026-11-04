@@ -25,6 +25,7 @@ import {
   silent,
   type Client,
 } from "../src/model/session.js";
+import { Panel } from "../src/model/panel.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
 
 const URL = "ws://localhost:5173/mqtt";
@@ -45,12 +46,16 @@ interface Stood {
   broker: Broker;
   names: string[];
   answering: boolean;
+  /** How many times the page has been told to redraw. */
+  notified: number;
 }
 
 function standing(): Stood {
-  const stood = { names: [] as string[], answering: true } as Stood;
+  const stood = { names: [] as string[], answering: true, notified: 0 } as Stood;
   stood.session = new Session(URL, (url): Client => new Broker(url), {
-    notify: () => {},
+    notify: () => {
+      stood.notified++;
+    },
     named: (railroad) => {
       stood.names.push(railroad);
       if (stood.answering) answer(stood, railroad);
@@ -448,6 +453,119 @@ describe("the rows that arrive before the documents", () => {
     answer(stood, "toy");
 
     expect(stood.session.status.driving).toBe("manual");
+  });
+});
+
+/** Whatever watches a sensor reports it at least once a second, changed or
+ *  not (BUS.md), so most reports say what the page already shows: those add
+ *  no line and cause no redraw, and a change does both (#1147). The page's
+ *  lines are the frames it takes into the model, and those it holds until the
+ *  documents land. */
+describe("a sensor report", () => {
+  const SENSOR = "tc49/layout/sensor";
+  const report = (occupancy: string, addr = "a.A") => ({ addr, occupancy });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** The lines taken into the model from here on. */
+  const lines = () => vi.spyOn(Panel.prototype, "apply");
+
+  it("adds one line for ten identical reports, and redraws once", () => {
+    const stood = joined();
+    const applied = lines();
+    const notified = stood.notified;
+
+    stood.broker.says(SENSOR, report("occupied"));
+    const status = stood.session.status;
+    const cabs = stood.session.cabs;
+    const detected = new Map(stood.session.panel!.detected());
+    for (let i = 0; i < 9; i++) stood.broker.says(SENSOR, report("occupied"));
+
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(stood.notified).toBe(notified + 1);
+    expect(stood.session.status).toBe(status);
+    expect(stood.session.cabs).toBe(cabs);
+    expect(stood.session.panel!.detected()).toEqual(detected);
+    expect(detected.get("a.A")).toBe("occupied");
+  });
+
+  it("adds a line and redraws for a changed level", () => {
+    const stood = joined();
+    stood.broker.says(SENSOR, report("occupied"));
+    const applied = lines();
+    const notified = stood.notified;
+
+    stood.broker.says(SENSOR, report("clear"));
+
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(stood.notified).toBe(notified + 1);
+    expect(stood.session.panel!.detected().get("a.A")).toBe("clear");
+  });
+
+  it("goes by sensor: another end's first report is a change", () => {
+    const stood = joined();
+    stood.broker.says(SENSOR, report("occupied"));
+    const applied = lines();
+
+    stood.broker.says(SENSOR, report("occupied", "a.B"));
+
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(stood.session.panel!.detected().get("a.B")).toBe("occupied");
+  });
+
+  it("counts a word it cannot read as the unknown it shows", () => {
+    const stood = joined();
+    stood.broker.says(SENSOR, report("unknown"));
+    const applied = lines();
+    const notified = stood.notified;
+
+    stood.broker.says(SENSOR, report("lit"));
+
+    expect(applied).not.toHaveBeenCalled();
+    expect(stood.notified).toBe(notified);
+  });
+
+  it("does nothing for a report naming no sensor", () => {
+    const stood = joined();
+    const applied = lines();
+    const notified = stood.notified;
+
+    stood.broker.says(SENSOR, { occupancy: "occupied" });
+
+    expect(applied).not.toHaveBeenCalled();
+    expect(stood.notified).toBe(notified);
+  });
+
+  /** Before the documents land nothing is drawn, and a railroad whose
+   *  documents never land would otherwise fill the buffer with repeats and
+   *  crowd out the rows it is there for. */
+  it("does not crowd the rows held until the documents land", () => {
+    const stood = standing();
+    stood.answering = false;
+    stood.broker.opens();
+    for (let i = 0; i <= HELD; i++) stood.broker.says(SENSOR, report("occupied"));
+    stood.broker.says(STATE_DRIVING, { driving: "automatic" });
+    stood.broker.says(RAILROAD, { name: "toy" });
+
+    answer(stood, "toy");
+
+    expect(stood.session.status.driving).toBe("automatic");
+    expect(stood.session.panel!.detected().get("a.A")).toBe("occupied");
+  });
+
+  /** The new connection's model starts over, so the first report on it is
+   *  no repeat of anything the page now shows. */
+  it("is shown again after the broker comes back", () => {
+    const stood = joined();
+    stood.broker.says(SENSOR, report("occupied"));
+
+    stood.broker.opens();
+    expect(stood.session.panel!.detected().size).toBe(0);
+    stood.broker.says(SENSOR, report("occupied"));
+
+    expect(stood.session.panel!.detected().get("a.A")).toBe("occupied");
   });
 });
 

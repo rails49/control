@@ -48,6 +48,7 @@ import {
   Live,
   powerWanted,
   railroadWanted,
+  sensorReport,
   settingsWanted,
   takeWanted,
   throttleAlive,
@@ -361,6 +362,9 @@ export class Session {
    *  no second delivery of them, so a page that dropped them would show an
    *  empty railroad until something happened to be published. */
   private held: TraceEvent[] | null = null;
+  /** Sensor → the level last taken for it, since this connection or this
+   *  panel began: what tells a report that repeats it from a change (`repeats`). */
+  private sensors = new Map<string, string>();
   /** The cabs as last answered, written out: the array is built afresh on
    *  every frame, so what one frame's answer is compared against is its
    *  text. */
@@ -434,6 +438,7 @@ export class Session {
     } else if (name !== this.built) {
       this.panel = new Panel(layout, explain, drawing!.wires);
       this.built = name;
+      this.sensors.clear();
       for (const event of this.held ?? []) this.applied(event);
       this.held = null;
     }
@@ -463,6 +468,7 @@ export class Session {
       // connection left in the model that no retained row will replace goes
       // first — an event is reported once and never comes round again.
       this.panel?.reset();
+      this.sensors.clear();
       this.widgetRows = new Map();
       this.supplied = null;
       this.ticked = null;
@@ -580,6 +586,7 @@ export class Session {
     }
     const event = this.live.read(topic, payload);
     if (event === null) return;
+    if (event.event === "sensor" && this.repeats(event)) return;
     if (topic === RAILROAD) {
       const name = event["name"];
       if (typeof name !== "string") return;
@@ -622,6 +629,19 @@ export class Session {
     }
     this.applied(event);
     this.changed();
+  }
+
+  /**
+   * Whether a sensor report changes nothing: it names no sensor, or says the
+   * level already taken for it. A detector reports each sensor at least once
+   * a second whether it changed or not (BUS.md), so this is most of what
+   * arrives, and it stops here: no line held or applied, and no redraw.
+   */
+  private repeats(event: TraceEvent): boolean {
+    const report = sensorReport(event);
+    if (report === null || this.sensors.get(report.addr) === report.level) return true;
+    this.sensors.set(report.addr, report.level);
+    return false;
   }
 
   /**

@@ -1700,8 +1700,8 @@ describe("what the hardware says about the supply", () => {
 });
 
 /**
- * What each block end's detector reads (#898): the `device/sensor` row
- * addressed by that end, kept as it came so the run view can show it while
+ * What each block end's detector reads (#898): the `sensor` report
+ * naming that end, kept as it came so the run view can show it while
  * the layout is being debugged. Read and never folded: which blocks are
  * occupied is `layout`'s fold into `block_occupied`, and this is the reading
  * underneath it.
@@ -1711,13 +1711,13 @@ describe("what the detectors read", () => {
     expect(panel().detected().size).toBe(0);
   });
 
-  it("keeps each end's reading by the end its row names", () => {
+  it("keeps each end's reading by the end its report names", () => {
     const model = panel();
     feed(
       model,
-      { event: "device/sensor", addr: "a.A", occupancy: "occupied" },
-      { event: "device/sensor", addr: "a.B", occupancy: "clear" },
-      { event: "device/sensor", addr: "b.A", occupancy: "unknown", reason: "camera down" },
+      { event: "sensor", addr: "a.A", occupancy: "occupied" },
+      { event: "sensor", addr: "a.B", occupancy: "clear" },
+      { event: "sensor", addr: "b.A", occupancy: "unknown", reason: "camera down" },
     );
     expect(model.detected()).toEqual(
       new Map([
@@ -1732,45 +1732,27 @@ describe("what the detectors read", () => {
     const model = panel();
     feed(
       model,
-      { event: "device/sensor", addr: "a.A", occupancy: "occupied" },
-      { event: "device/sensor", addr: "a.A", occupancy: "clear" },
+      { event: "sensor", addr: "a.A", occupancy: "occupied" },
+      { event: "sensor", addr: "a.A", occupancy: "clear" },
     );
     expect(model.detected().get("a.A")).toBe("clear");
   });
 
   /** A word outside the three is a detector this page cannot read, which
-   *  is what `unknown` says; a row with no address is about no end. */
-  it("reads a word it does not know as unknown, and a row with no end as nothing", () => {
+   *  is what `unknown` says; a report with no address is about no end. */
+  it("reads a word it does not know as unknown, and a report with no end as nothing", () => {
     const model = panel();
     feed(
       model,
-      { event: "device/sensor", addr: "a.A", occupancy: "lit" },
-      { event: "device/sensor", occupancy: "occupied" },
+      { event: "sensor", addr: "a.A", occupancy: "lit" },
+      { event: "sensor", occupancy: "occupied" },
     );
     expect(model.detected()).toEqual(new Map([["a.A", "unknown"]]));
   });
 
-  /** Ordered end by end: a retained row for one end is handed over as the
-   *  page joins, whatever later reading another end has already sent. */
-  it("orders each end's readings against that end's alone", () => {
-    const model = panel();
-    feed(
-      model,
-      { event: "device/sensor", at: 20, addr: "a.A", occupancy: "occupied" },
-      { event: "device/sensor", at: 5, addr: "b.A", occupancy: "clear" },
-      { event: "device/sensor", at: 10, addr: "a.A", occupancy: "clear" },
-    );
-    expect(model.detected()).toEqual(
-      new Map([
-        ["a.A", "occupied"],
-        ["b.A", "clear"],
-      ]),
-    );
-  });
-
   it("is forgotten when the model starts over", () => {
     const model = panel();
-    feed(model, { event: "device/sensor", addr: "a.A", occupancy: "occupied" });
+    feed(model, { event: "sensor", addr: "a.A", occupancy: "occupied" });
     model.reset();
     expect(model.detected().size).toBe(0);
   });

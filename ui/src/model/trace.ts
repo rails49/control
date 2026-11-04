@@ -42,7 +42,7 @@ const DEVICE = "tc49/layout/state/";
  *
  *  The same name `tc49.lib.trace` gives a device row, and for the same reason:
  *  the address is trailing levels a railroad's wiring decides, so the leaf of
- *  `tc49/layout/state/device/sensor/b.A` is `b.A` and says nothing, and
+ *  `tc49/layout/state/device/point/5` is `5` and says nothing, and
  *  `track` alone would not say which half of the vocabulary a frame is from —
  *  `wanted/track` is what `layout` asked the hardware for and `device/track`
  *  is what the hardware answered (ADR-0043). */
@@ -339,6 +339,20 @@ export interface Submission {
 }
 
 
+/** What a `sensor` report says: which sensor, and the level the page shows
+ *  for it, or `null` for a report naming none. A word outside the three is a
+ *  detector this page cannot read, which is what `unknown` says (BUS.md). */
+export function sensorReport(
+  event: TraceEvent,
+): { addr: string; level: "occupied" | "clear" | "unknown" } | null {
+  const { addr, occupancy } = event as unknown as { addr?: unknown; occupancy?: unknown };
+  if (typeof addr !== "string" || addr === "") return null;
+  return {
+    addr,
+    level: occupancy === "occupied" || occupancy === "clear" ? occupancy : "unknown",
+  };
+}
+
 /** The names of the state topics: the events that carry a last value rather
  *  than reporting something that happened (BUS.md, rule 2).
  *
@@ -346,7 +360,7 @@ export interface Submission {
  *  which is all `Live` keeps of a frame. The list is the state rows of
  *  `tc49.lib.inventory` and cannot drift from them: a Python test reads it
  *  out of this file and asserts the two match. The device rows are here only
- *  where a view reads one, which is `device/track`, `device/sensor` and
+ *  where a view reads one, which is `device/track` and
  *  `device/point` (ADR-0097) — a
  *  device topic is named by its row and the address under it rather than by a
  *  leaf, so the one a view reads is named as `Live` names it
@@ -373,7 +387,6 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "broken",
   "allocation",
   "device/track",
-  "device/sensor",
   "device/point",
 ]);
 
@@ -426,8 +439,8 @@ export class Ordering {
 
 /** Which topic a state value is a value of: its name, and for a device row
  *  addressed under that name the address too, which the payload's `addr`
- *  repeats (BUS.md). Two detectors are two topics, and a retained reading
- *  at one end must not lose to a later one at another (#898). */
+ *  repeats (BUS.md). Two points are two topics, and a retained position
+ *  of one must not lose to a later one of another. */
 function topicOf(event: TraceEvent): string {
   const addr = event["addr"];
   return event.event.startsWith("device/") && typeof addr === "string"

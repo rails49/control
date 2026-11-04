@@ -82,10 +82,10 @@ describe("Live", () => {
     const live = new Live();
     expect(
       live.read(
-        "tc49/layout/state/device/sensor/b.A",
+        "tc49/layout/state/device/point/5",
         JSON.stringify({ addr: "b.A", occupancy: "occupied" }),
       )!.event,
-    ).toBe("device/sensor");
+    ).toBe("device/point");
   });
 
   /** Only the device vocabulary is named that way. Everything else under the
@@ -349,8 +349,7 @@ describe("Ordering", () => {
    *  device rows a view reads are among them under the name `Live` gives
    *  each: a state row like the rest, so a pair delivered backwards must not
    *  leave a trip on the band after the hardware has stopped saying so
-   *  (#602), nor a detector's older reading at its block end (#898), nor a
-   *  reported point's older position (ADR-0097). */
+   *  (#602), nor a reported point's older position (ADR-0097). */
   it("names every state topic a view is shown", () => {
     expect([...STATE_NAMES].sort()).toEqual([
       "allocation",
@@ -358,7 +357,6 @@ describe("Ordering", () => {
       "broken",
       "clock",
       "device/point",
-      "device/sensor",
       "device/track",
       "disputed",
       "driving",
@@ -389,18 +387,26 @@ describe("Ordering", () => {
   });
 
   /** A device row addressed under its name is one topic per address, so a
-   *  reading at one block end is ordered against that end's alone (#898). */
-  it("orders a detector's readings by the end it watches", () => {
+   *  position of one point is ordered against that point's alone. */
+  it("orders a device row by its address", () => {
     const ordering = new Ordering();
-    const sensor = (at: number, addr: string) => ({
-      event: "device/sensor",
+    const point = (at: number, addr: string) => ({
+      event: "device/point",
       at,
       addr,
-      occupancy: "clear",
+      position: "closed",
     });
-    expect(ordering.accepts(sensor(20, "a.A"))).toBe(true);
-    expect(ordering.accepts(sensor(10, "b.B"))).toBe(true);
-    expect(ordering.accepts(sensor(10, "a.A"))).toBe(false);
+    expect(ordering.accepts(point(20, "5"))).toBe(true);
+    expect(ordering.accepts(point(10, "6"))).toBe(true);
+    expect(ordering.accepts(point(10, "5"))).toBe(false);
+  });
+
+  /** A sensor report is an event, so nothing is held against it. */
+  it("takes every sensor report", () => {
+    const ordering = new Ordering();
+    const report = { event: "sensor", addr: "a.A", occupancy: "clear" };
+    expect(ordering.accepts(report)).toBe(true);
+    expect(ordering.accepts(report)).toBe(true);
   });
 });
 
