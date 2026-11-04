@@ -17,7 +17,7 @@ from hypothesis import strategies as st
 
 from tc49.dispatcher import FullRoute, Incremental
 from tc49.dispatcher.dispatch import Request, State, broken, effective_departure
-from tc49.dispatcher.locking import congested, safety_view
+from tc49.dispatcher.locking import congested, state_view
 from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.safety import safe
 from tc49.lib.bus import Payload
@@ -72,12 +72,12 @@ def test_safety_invariant_holds_after_every_grant(
 
     def check(topic: str, payload: Payload) -> None:
         assert safe(
-            *safety_view(assembly.dispatcher.state)
+            *state_view(assembly.dispatcher.state)
         ), f"unsafe state after granting {payload}"
 
     assembly.bus.subscribe("tc49/dispatch/move_granted", check)
     assembly.simulator.run(TICK_LIMIT)
-    assert safe(*safety_view(assembly.dispatcher.state))
+    assert safe(*state_view(assembly.dispatcher.state))
 
 
 @pytest.mark.parametrize("strategy", [Incremental, FullRoute])
@@ -230,7 +230,7 @@ def test_the_rules_hold_in_any_order_mqtt_delivers(
         if built and subscriber is built[0].dispatcher:
             state = built[0].dispatcher.state
             assert broken(state) == [], f"after {topic} {payload}"
-            assert safe(*safety_view(state)), f"unsafe state after {topic} {payload}"
+            assert safe(*state_view(state)), f"unsafe state after {topic} {payload}"
 
     def choose(n: int) -> int:
         return data.draw(st.integers(0, n - 1))

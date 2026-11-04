@@ -6,8 +6,10 @@ any moment, and detector readings no train caused, and the bugs those inputs
 made were found by review rather than by a test (#806, #836, #811, #791).
 This drives them as a Hypothesis state machine over the live assembly: each
 step is one gesture, one reading or one turn of the live loop, and after
-every message the bus delivers the lock table's rules hold, and after every
-grant `safe()` does (#1042). The invariants over what the bus shows hold too
+every message the bus delivers the lock table's rules hold (#1042), and a
+train granted a move has no permanent obstacle on what is left of its route
+(#1150): a reading or a placement can leave `safe()` false, so it is not what
+holds here. The invariants over what the bus shows hold too
 (`tests/invariants.py`, ADR-0096).
 
 The readings are what the layout interface publishes, standing in for
@@ -30,8 +32,7 @@ from hypothesis.stateful import (
 
 from tc49.dispatcher import Incremental
 from tc49.dispatcher.dispatch import broken
-from tc49.dispatcher.locking import safety_view
-from tc49.dispatcher.safety import safe
+from tc49.dispatcher.locking import state_view
 from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
@@ -81,9 +82,11 @@ class GesturesAndReadings(RuleBasedStateMachine):
             ), f"after {topic} {payload}"
 
         def grant(topic: str, payload: Payload) -> None:
-            assert safe(
-                *safety_view(self.assembly.dispatcher.state)
-            ), f"unsafe state after granting {payload}"
+            state = self.assembly.dispatcher.state
+            train = str(payload["train"])
+            if train in state.active:
+                _cur, rem, idle, _held = state_view(state)
+                assert not set(rem[train]) & set(idle), f"after granting {payload}"
 
         bus.subscribe("tc49/dispatch/request_submitted", collect)
         bus.subscribe("#", lock_table)
