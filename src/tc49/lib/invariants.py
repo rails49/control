@@ -897,7 +897,6 @@ class Record:
         self.placing: dict[str, _Move] = {}  # train -> its move, while placed
         self.cancelled: set[str] = set()  # ids cancelled while a move ran
         self.turns: Counter[str] = Counter()  # facing changes a train is owed
-        self.unexplained: list[str] = []  # readings since a drain was asked
         self.placed_over: dict[str, str] = {}  # a block left, to its holder
         self.awaited: dict[str, str] = {}  # end -> aspect a grant showed
         self.cut_wanted = False  # `power_wanted: off` since power changed
@@ -1021,7 +1020,6 @@ class Record:
                 self.keeps.clear()
             elif wanted == DRAINING:
                 self.drain_wanted = True
-                self.unexplained.clear()
             elif wanted == ON:
                 self.cut = False
         elif topic == POWER:
@@ -1095,17 +1093,6 @@ class Record:
                 self.moves[train] = replace(move, left=True)
             elif occupied and move.into == block:
                 self.moves[train] = replace(move, arrived=True)
-        if power(self.rows.get(POWER)) != ON:
-            return
-        if occupied and block not in self.locks:
-            self.unexplained.append(f"{block} reads occupied and nothing claims it")
-        if not occupied:
-            for train, standing in sorted(self.trains.items()):
-                move = self.moves.get(train)
-                if standing == block and (move is None or move.origin != block):
-                    self.unexplained.append(
-                        f"{train}'s block {block} reads clear with no move leaving it"
-                    )
 
     def _granted(self, payload: object) -> None:
         granted, rid = grant(payload), readable_id(payload)
@@ -1155,6 +1142,8 @@ class Record:
                 self.placed_over[before] = holder
         self.locks[block] = train
         self.trains[train] = block
+        if self.occupied.get(block) is False:
+            del self.occupied[block]
         self.crossing.pop(train, None)
         self.moves.pop(train, None)
         self.placing.pop(train, None)
@@ -1494,45 +1483,29 @@ def adr_0047_traction_from_the_near_end(
     return lines
 
 
-def adr_0048_unexplained_drains(
-    record: Record, view: View, topic: str, payload: Payload
-) -> list[str]:
-    """With power `on`, a block reading occupied that nothing claims, or a
-    placed train whose block reads clear with no move to explain it, is
-    followed by `power_wanted: draining`
-    ([ADR-0048](../../../docs/adr/0048-an-unexplained-reading-holds-the-run.md),
-    as amended by ADR-0078)."""
-    if topic != QUIET:
-        return []
-    return [f"{line}, and no drain was asked" for line in record.unexplained]
-
-
 def adr_0048_disputed_lists_contradictions(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
     """`disputed` lists exactly the placed trains whose block reads clear and
-    the occupied blocks nothing claims, and is empty unless power reads `off`
-    ([ADR-0048](../../../docs/adr/0048-an-unexplained-reading-holds-the-run.md),
-    as amended by ADR-0080)."""
+    the occupied blocks nothing claims, at every power value (#1154, amending
+    [ADR-0048](../../../docs/adr/0048-an-unexplained-reading-holds-the-run.md))."""
     if topic != QUIET or DISPUTED not in record.rows:
         return []
     listed = _disputed(record.rows[DISPUTED])
     if listed is None:
         return ["disputed cannot be read"]
-    expected: tuple[list[str], list[str]] = ([], [])
-    if power(record.rows.get(POWER)) == OFF:
-        expected = (
-            sorted(
-                train
-                for train, block in record.trains.items()
-                if train not in record.crossing and record.occupied.get(block) is False
-            ),
-            sorted(
-                block
-                for block, occupied in record.occupied.items()
-                if occupied and block not in record.locks
-            ),
-        )
+    expected = (
+        sorted(
+            train
+            for train, block in record.trains.items()
+            if train not in record.crossing and record.occupied.get(block) is False
+        ),
+        sorted(
+            block
+            for block, occupied in record.occupied.items()
+            if occupied and block not in record.locks
+        ),
+    )
     if listed == expected:
         return []
     return [f"disputed lists {listed}, not {expected}"]
@@ -1998,18 +1971,8 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0048",
-        "With power `on`, a block reading occupied that nothing claims, or a"
-        " placed train whose block reads clear with no move to explain it, is"
-        " followed by `power_wanted: draining`.",
-        (BLOCK_OCCUPIED, BLOCK_VACATED, ALLOCATION, MOVE_GRANTED, LOCK_GRANTED)
-        + (LOCK_RELEASED, TRAIN_PLACED, POWER, POWER_WANTED),
-        adr_0048_unexplained_drains,
-    ),
-    HistoryInvariant(
-        "0048",
         "`disputed` lists exactly the placed trains whose block reads clear and"
-        " the occupied blocks nothing claims, and is empty unless power reads"
-        " `off`.",
+        " the occupied blocks nothing claims, at every power value.",
         (DISPUTED, ALLOCATION, POWER, BLOCK_OCCUPIED, BLOCK_VACATED)
         + (LOCK_GRANTED, LOCK_RELEASED, TRAIN_PLACED),
         adr_0048_disputed_lists_contradictions,

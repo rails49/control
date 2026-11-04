@@ -222,7 +222,7 @@ def typos(layout: Layout) -> list[Typo]:
 def test_a_line_that_is_not_a_reading_is_reported_and_published_nowhere() -> None:
     """A typo at the bench must not look like a detector: a reading for a
     block end this railroad has not is one nothing above can explain, and an
-    unexplained reading holds the run (ADR-0048). So it is answered in words
+    unexplained reading goes in front of a person as a dispute (#1154). So it is answered in words
     naming what was wrong, and nothing goes on the bus."""
     layout, _roster = a_railroad()
     detector, bus, _out = hand_fed(layout)

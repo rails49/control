@@ -87,8 +87,7 @@ class HandFed:
     Bound to a **railroad**, because the address is a block end of that
     railroad and a typo at the bench must not look like a detector: a reading
     for a block nothing has is one the dispatcher cannot explain, and an
-    unexplained reading holds the run
-    ([ADR-0048](docs/adr/0048-an-unexplained-reading-holds-the-run.md)).
+    unexplained reading goes in front of a person as a dispute (#1154).
     `layout` deliberately does not ask — a report that arrives there has a
     detector behind it, and folding it is that app's work either way — so the
     asking belongs here, at the keyboard, where the answer is a line to

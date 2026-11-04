@@ -255,7 +255,7 @@ def test_a_typo_is_said_where_it_was_typed_and_the_keyboard_stays_up(
 ) -> None:
     """A reading for a block nothing has is one the dispatcher could not
     explain, so it is refused at the keyboard where the answer is a line to
-    retype (ADR-0048) — and refused rather than raised, this being a person
+    retype (#1154) — and refused rather than raised, this being a person
     typing beside a running railroad."""
     witness, heard = watching(broker)
     client.start()

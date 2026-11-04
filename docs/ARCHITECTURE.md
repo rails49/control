@@ -471,7 +471,7 @@ person's gestures, and detector readings no train caused, at any moment of a
 live run. It is a Hypothesis state machine over `assemble_live` with a drawn
 case's trains standing, and each step is one of a drag, a cancel, a reorder, a
 point thrown, a power press, a placement, a dropout under a standing train, a
-reading in any block (ADR-0048), or one turn of the live loop; ids are drawn
+reading in any block (#1154), or one turn of the live loop; ids are drawn
 from those the scheduler minted plus one nobody did. After every message the
 bus delivers the lock table's rules hold (`broken()` is empty), and a train
 granted a move has no permanent obstacle on what is left of its route. `safe()`

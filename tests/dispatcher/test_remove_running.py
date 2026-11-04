@@ -5,8 +5,7 @@
 train held is released at once, except each block that still reads occupied:
 that one stays held by the train until a detector says it is clear, and the
 transit it was crossing stays held until both its blocks have opened. The
-clear reading that opens such a block is explained — it releases the block and
-does not drain the railroad.
+clear reading that opens such a block is explained — it releases the block.
 
 Driven at the bus, with the detector readings pressed by hand where a test
 wants a level the simulator has not reported. The simulator stands in for the
@@ -19,7 +18,7 @@ never made, which nothing lifts until the test says so.
 from typing import Any, cast
 
 from tc49.bench.runner import Assembly
-from tc49.lib.inventory import DRAINING, OFF, ON
+from tc49.lib.inventory import OFF, ON
 from tests.harness import drains, events, live, minted, power, press, ticks
 
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
@@ -43,6 +42,10 @@ def reading(assembly: Assembly, topic: str, block: str) -> None:
 
 def last(assembly: Assembly, leaf: str) -> dict[str, Any]:
     return events(assembly.trace, leaf)[-1]
+
+
+def disputes(assembly: Assembly) -> dict[str, Any]:
+    return last(assembly, "disputed")
 
 
 def locks(assembly: Assembly) -> dict[str, str]:
@@ -69,16 +72,12 @@ def standing() -> Assembly:
     """`crossover-yard/meet` with the power on, freight_1 standing in `yard_w`
     where the scenario put it, and its detector pressed occupied: a train at
     rest with a detector under it that the simulator never read, so nothing
-    lifts it until the test does. The drain that first reading asks for
-    (ADR-0048) ends at once, nothing moving, and a person turning the power
-    on again acknowledges it (ADR-0078)."""
+    lifts it until the test does."""
     assembly = live("crossover-yard/meet")
     reading(assembly, OCCUPIED, "yard_w")
     state = assembly.dispatcher.state
     assert state.block_of["freight_1"] == "yard_w"
     assert state.reported["yard_w"] is True
-    assert drains(assembly) == [DRAINING]
-    press(assembly, POWER_WANTED, {"power": ON})
     return assembly
 
 
@@ -112,7 +111,7 @@ def test_a_block_reading_occupied_stays_held_until_it_reads_clear() -> None:
 
     assert released(assembly)[-1] == ["yard_w"]
     assert "yard_w" not in locks(assembly)
-    assert drains(assembly) == [DRAINING]  # the first reading's, and no other
+    assert drains(assembly) == []
 
 
 def test_a_train_the_simulator_moved_comes_off_in_one_cascade() -> None:
@@ -229,13 +228,13 @@ def test_a_removal_under_power_off_keeps_an_occupied_block_as_under_on() -> None
     assert locks(assembly)["yard_w"] == "freight_1"
     reading(assembly, VACATED, "yard_w")
     assert released(assembly)[-1] == ["yard_w"]
-    assert drains(assembly) == [DRAINING]
+    assert drains(assembly) == []
 
 
 def test_a_put_back_train_is_a_standing_train_again() -> None:
     """Once the residual lock is a standing lock, a clear reading under it is
-    what ADR-0048 says it is: a train the dispatcher believes stands there
-    and the detector says does not."""
+    a dispute (#1154): a train the dispatcher believes stands there and the
+    detector says does not."""
     assembly = standing()
     press(assembly, *power(OFF))
     remove(assembly, "freight_1")
@@ -244,22 +243,22 @@ def test_a_put_back_train_is_a_standing_train_again() -> None:
 
     reading(assembly, VACATED, "yard_w")
 
-    assert drains(assembly) == [DRAINING, DRAINING]
+    assert drains(assembly) == []
+    assert disputes(assembly)["trains"] == ["freight_1"]
     assert locks(assembly)["yard_w"] == "freight_1"
 
 
-def test_a_clear_reading_under_a_standing_train_still_drains() -> None:
+def test_a_clear_reading_under_a_standing_train_is_still_a_dispute() -> None:
     """A detector dropping out under a dirty wheel reads the same as a lift,
-    and only a removal says which it was (ADR-0048, ADR-0069): a removed
-    train's residue elsewhere explains nothing here."""
+    and only a removal says which it was (ADR-0069, #1154): a removed train's
+    residue elsewhere explains nothing here."""
     assembly = standing()
     remove(assembly, "freight_1")
     reading(assembly, OCCUPIED, "up_e")
-    assert drains(assembly) == [DRAINING, DRAINING]
-    press(assembly, POWER_WANTED, {"power": ON})
 
     reading(assembly, VACATED, "up_e")
 
-    assert drains(assembly) == [DRAINING, DRAINING, DRAINING]
+    assert drains(assembly) == []
+    assert disputes(assembly)["trains"] == ["express_2"]
     assert locks(assembly)["up_e"] == "express_2"
     assert locks(assembly)["yard_w"] == "freight_1"

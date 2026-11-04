@@ -60,7 +60,6 @@ from tc49.lib.invariants import (
     adr_0047_no_grant_while_crossing,
     adr_0047_traction_from_the_near_end,
     adr_0048_disputed_lists_contradictions,
-    adr_0048_unexplained_drains,
     adr_0049_no_grant_after_cancel,
     adr_0049_placed_has_no_request,
     adr_0052_no_traction_without_facing,
@@ -613,16 +612,9 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         [placed("single", "up_e"), *STARTED],
     ),
     (
-        adr_0048_unexplained_drains,
-        MEET,
-        ON | PLACED,
-        [read("loop_up"), (POWER_WANTED, {"power": "draining"})],
-        [read("loop_up")],
-    ),
-    (
         adr_0048_disputed_lists_contradictions,
         MEET,
-        {POWER: {"power": "off"}, DISPUTED: {"trains": [], "blocks": []}} | PLACED,
+        ON | {DISPUTED: {"trains": [], "blocks": []}} | PLACED,
         [
             read("west_1", False),
             read("loop_up"),
@@ -880,7 +872,7 @@ def test_which_history_invariants_are_cross_app() -> None:
     }
     assert not cross_app(by_name["adr_0002_route_is_fixed"])
     assert not cross_app(by_name["adr_0080_placed_into_a_free_block"])
-    assert cross_app(by_name["adr_0048_unexplained_drains"])
+    assert cross_app(by_name["adr_0048_disputed_lists_contradictions"])
     assert cross_app(by_name["adr_0019_facing_turns_on_a_move"])
     assert not cross_app(by_name["adr_0084_sign_changes_through_zero"])
     assert not cross_app(by_name["adr_0078_cut_leaves_the_railroad_at_rest"])
