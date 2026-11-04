@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 from tc49.layout import LayoutInterface
-from tc49.layout.interface import SETTLING_S, THROTTLE_SILENCE_S
+from tc49.layout.interface import SENSOR_SILENCE_S, SETTLING_S, THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
@@ -175,14 +175,17 @@ class Unstamped(InProcessBus):
 
 
 def settings_row(
-    point_gap: float = POINT_GAP_S, throttle_silence: float = THROTTLE_SILENCE_S
+    point_gap: float = POINT_GAP_S,
+    throttle_silence: float = THROTTLE_SILENCE_S,
+    sensor_silence: float = SENSOR_SILENCE_S,
 ) -> Payload:
     """What `state/settings` says, less its stamp, for an app with this gap
-    and silence and the speeds nobody has set (#1125, #1130)."""
+    and these silences and the speeds nobody has set (#1125, #1130, #1149)."""
     return {
         "point_gap": point_gap,
         "speeds": {"clear": 0.6, "caution": 0.3},
         "throttle_silence": throttle_silence,
+        "sensor_silence": sensor_silence,
     }
 
 

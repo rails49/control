@@ -397,8 +397,10 @@ def test_the_settings_a_person_sets_are_said_the_same(build: Build) -> None:
         {"speeds": {"clear": 0.5}},
         {"point_gap": 1.0, "speeds": {"caution": 0.2}},
         {"throttle_silence": 10},
+        {"sensor_silence": 20},
         {"speeds": {"clear": 0}},
         {"point_gap": 2.0, "colour": "red"},
+        {"sensor_silence": 1},
     ]:
         binding.bus.publish(SETTINGS_WANTED, wanted)
         binding.bus.drain()
@@ -406,4 +408,5 @@ def test_the_settings_a_person_sets_are_said_the_same(build: Build) -> None:
         "point_gap": 1.0,
         "speeds": {"clear": 0.5, "caution": 0.2},
         "throttle_silence": 10.0,
+        "sensor_silence": 20.0,
     }

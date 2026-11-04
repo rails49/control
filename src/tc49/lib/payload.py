@@ -155,7 +155,13 @@ from tc49.lib.inventory import (
     is_state_topic,
 )
 from tc49.lib.layout import Point
-from tc49.lib.settings import SPEEDS, point_gap, speed, throttle_silence
+from tc49.lib.settings import (
+    SPEEDS,
+    point_gap,
+    sensor_silence,
+    speed,
+    throttle_silence,
+)
 
 
 @dataclass(frozen=True)
@@ -490,23 +496,26 @@ def wanted_clock(payload: object) -> ClockSet | None:
 class SettingsWanted:
     """What a person sets from the Settings dialog (#1126, #1131): the
     railroad's point gap, in seconds, some or all of its speeds, and the
-    installation's throttle silence, in seconds. None, and a speed left out
-    of `speeds`, leaves that setting as it is."""
+    installation's throttle silence and sensor silence (#1149), in seconds.
+    None, and a speed left out of `speeds`, leaves that setting as it is."""
 
     point_gap: float | None = None
     speeds: dict[str, float] | None = None
     throttle_silence: float | None = None
+    sensor_silence: float | None = None
 
 
-_SETTINGS_FIELDS = frozenset({"point_gap", "speeds", "throttle_silence"})
+_SETTINGS_FIELDS = frozenset(
+    {"point_gap", "speeds", "throttle_silence", "sensor_silence"}
+)
 
 
 def wanted_settings(payload: object) -> SettingsWanted | None:
     """The settings a `settings_wanted` gesture asks for, or None where it
     asks for none.
 
-    At least one of `point_gap`, `speeds` and `throttle_silence`, nothing
-    else, and each given in range (`lib.settings`), or the gesture is
+    At least one of `point_gap`, `speeds`, `throttle_silence` and
+    `sensor_silence`, nothing else, and each given in range (`lib.settings`), or the gesture is
     dropped whole: a good gap beside a bad silence is not half taken.
     `speeds` names `clear`, `caution` or both and nothing else.
     """
@@ -530,7 +539,12 @@ def wanted_settings(payload: object) -> SettingsWanted | None:
         silence = throttle_silence(fields["throttle_silence"])
         if silence is None:
             return None
-    return SettingsWanted(gap, speeds, silence)
+    sensor: float | None = None
+    if "sensor_silence" in fields:
+        sensor = sensor_silence(fields["sensor_silence"])
+        if sensor is None:
+            return None
+    return SettingsWanted(gap, speeds, silence, sensor)
 
 
 def _speeds(stated: object) -> dict[str, float] | None:

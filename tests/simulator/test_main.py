@@ -30,7 +30,7 @@ from tc49.lib.bus import Payload
 from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
 from tc49.lib.documents import Documents
 from tc49.lib.mqtt import MqttBus
-from tc49.lib.settings import POINT_GAP_S, THROTTLE_SILENCE_S
+from tc49.lib.settings import POINT_GAP_S, SENSOR_SILENCE_S, THROTTLE_SILENCE_S
 from tc49.simulator.__main__ import OWNED, serve
 from tc49.store import AssetStore
 from tc49.store.server import make_server
@@ -409,7 +409,10 @@ def test_a_throttle_silence_a_person_sets_is_kept_and_said_by_the_next_simulator
         witness.publish(SETTINGS_WANTED, {"throttle_silence": 10})
         path = root / "installation.yaml"
         assert until(path.exists), "the silence was never kept"
-        assert AssetStore(root).installation() == {"throttle_silence": 10.0}
+        assert AssetStore(root).installation() == {
+            "throttle_silence": 10.0,
+            "sensor_silence": SENSOR_SILENCE_S,
+        }
         assert not (root / "layouts" / f"{RAILROAD_NAME}.settings.yaml").exists()
     finally:
         first.stop()
@@ -433,6 +436,45 @@ def test_a_throttle_silence_a_person_sets_is_kept_and_said_by_the_next_simulator
         witness.close()
 
 
+def test_a_sensor_silence_a_person_sets_is_kept_and_said_by_the_next_simulator(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """Written to `installation.yaml`, and the one a simulator started
+    afterwards reads and says, as `layout` does (#1149)."""
+    store.start()
+    first = App(broker, store)
+    witness, heard = watching(broker)
+    try:
+        first.start()
+        assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings"
+        witness.publish(SETTINGS_WANTED, {"sensor_silence": 10})
+        assert until((root / "installation.yaml").exists), "never kept"
+        assert AssetStore(root).installation() == {
+            "throttle_silence": THROTTLE_SILENCE_S,
+            "sensor_silence": 10.0,
+        }
+    finally:
+        first.stop()
+        # The row the first one left would say 10 whatever the next one read.
+        witness.clear(SETTINGS)
+        settle(witness)
+        witness.close()
+
+    witness, heard = watching(broker)
+    second = App(broker, store)
+    try:
+        second.start()
+        assert drained(
+            witness,
+            lambda: any(
+                row.get("sensor_silence") == 10 for row in rows(heard, SETTINGS)
+            ),
+        ), "the next simulator never said the kept silence"
+    finally:
+        second.stop()
+        witness.close()
+
+
 def test_a_throttle_silence_the_store_cannot_read_is_the_default(
     broker: Broker, store: Store, root: Path
 ) -> None:
@@ -446,7 +488,7 @@ def test_a_throttle_silence_the_store_cannot_read_is_the_default(
         app.start()
         assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings"
         assert rows(heard, SETTINGS)[0]["throttle_silence"] == THROTTLE_SILENCE_S
-        assert any("throttle silence is the default" in line for line in said)
+        assert any("installation's settings are the defaults" in line for line in said)
     finally:
         app.stop()
         witness.close()

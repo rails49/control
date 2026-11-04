@@ -1,6 +1,6 @@
 {"time":0.0,"event":"railroad","at":0.0,"name":"crossover-yard","built":true}
 {"time":0.0,"event":"power","at":0.0,"power":"off"}
-{"time":0.0,"event":"settings","at":0.0,"point_gap":0.5,"speeds":{"clear":0.6,"caution":0.3},"throttle_silence":5.0}
+{"time":0.0,"event":"settings","at":0.0,"point_gap":0.5,"speeds":{"clear":0.6,"caution":0.3},"throttle_silence":5.0,"sensor_silence":3.0}
 {"time":0.0,"event":"unknown_sensors","at":0.0,"sensors":[]}
 {"time":0.0,"event":"power_wanted","power":"on"}
 {"time":0.0,"event":"power","at":0.0,"power":"on"}

@@ -94,6 +94,7 @@ from tc49.lib.payload import (
 )
 from tc49.lib.power import TrackPower
 from tc49.lib.settings import (
+    SENSOR_SILENCE_S,
     THROTTLE_SILENCE_S,
     KeptInstallation,
     KeptSettings,
@@ -133,6 +134,7 @@ class Simulator:
         settings: KeptSettings | None = None,
         throttle_silence_s: float = THROTTLE_SILENCE_S,
         keep: Callable[[KeptSettings | KeptInstallation], None] | None = None,
+        sensor_silence_s: float = SENSOR_SILENCE_S,
     ) -> None:
         """`layout`: the track this binding stands in for; what resolves a
         move's transit to the block its train must be standing in.
@@ -163,10 +165,13 @@ class Simulator:
         that the driver hears the speeds it prices a grant at (#1133). None
         is the defaults, `lib.settings`'. This binding sends no point command
         and holds no throttle, so the point gap and the throttle silence are
-        said and nothing here runs on them.
+        said and nothing here runs on them, nor on the sensor silence.
 
         `throttle_silence_s`: the installation's throttle silence, said
         beside the railroad's settings and run on by nothing here.
+
+        `sensor_silence_s`: the installation's sensor silence, the same
+        (#1149).
 
         `keep`: where a setting a person changes on
         `tc49/layout/settings_wanted` goes to be kept, the railroad's
@@ -176,7 +181,7 @@ class Simulator:
         self._bus = bus
         self._layout = layout
         self._settings = settings or KeptSettings()
-        self._throttle_silence_s = throttle_silence_s
+        self._installation = KeptInstallation(throttle_silence_s, sensor_silence_s)
         self._keep = keep
         self._clock = clock
         self._transit_s = transit_s
@@ -242,7 +247,7 @@ class Simulator:
         # The railroad's settings, stated from the constructor as `layout`
         # states them on each build: the driver prices no grant until it has
         # heard the speeds (#1133).
-        bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        bus.publish(SETTINGS, said(self._settings, self._installation))
         # No sensor is unknown, stated so a client on this binding is served
         # the value it would be served on `layout` (ADR-0032, #1148).
         bus.publish(UNKNOWN_SENSORS, {"sensors": []})
@@ -258,17 +263,17 @@ class Simulator:
         """A person set the settings from the Settings dialog, taken by the
         rule `layout` takes them by (`lib.settings.taken`, #1140): said at
         once on `state/settings` and each handed to `keep`, the gap and the
-        speeds with the railroad, the silence with the installation. A
+        speeds with the railroad, the silences with the installation. A
         gesture the contract does not read is dropped whole (ADR-0034).
-        Nothing here runs on the gap or the silence; the speeds are the
+        Nothing here runs on the gap or the silences; the speeds are the
         driver's."""
         wanted = wanted_settings(payload)
         if wanted is None:
             return
-        self._settings, self._throttle_silence_s, changed = taken(
-            self._settings, self._throttle_silence_s, wanted
+        self._settings, self._installation, changed = taken(
+            self._settings, self._installation, wanted
         )
-        self._bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        self._bus.publish(SETTINGS, said(self._settings, self._installation))
         if self._keep is None:
             return
         for document in changed:

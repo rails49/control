@@ -7,9 +7,17 @@ from typing import cast
 
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import CLOCK, CLOCK_WANTED, FastClockRow, kept_by, loaded
+from tc49.lib.clock_row import (
+    CLOCK,
+    CLOCK_WANTED,
+    FastClockRow,
+    kept_by,
+    kept_by_installation,
+    loaded,
+)
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock
+from tc49.lib.settings import KeptInstallation, kept_installation
 
 
 class Monotonic:
@@ -161,3 +169,46 @@ def test_a_clock_document_the_store_cannot_read_is_said_and_read_as_none() -> No
     assert logged == [
         "'yard': clock 'start' is 750 — the clock starts at the box's time"
     ]
+
+
+class _Installation:
+    """A store answering for the installation's settings and nothing else."""
+
+    def __init__(self, doc: object) -> None:
+        self._doc = doc
+
+    def installation(self) -> KeptInstallation | None:
+        return None if self._doc is None else kept_installation(self._doc)
+
+
+def _installation_of(doc: object) -> tuple[KeptInstallation, list[str]]:
+    """What the installation is read as from `doc`, and what was said of it."""
+    said: list[str] = []
+    documents = cast(Documents, _Installation(doc))
+    return kept_by_installation(documents, said.append), said
+
+
+def test_an_installation_that_keeps_nothing_is_at_the_defaults() -> None:
+    assert _installation_of(None) == (KeptInstallation(), [])
+
+
+def test_an_installation_is_read_with_both_silences() -> None:
+    doc = {"throttle_silence": 12, "sensor_silence": 10}
+    assert _installation_of(doc) == (KeptInstallation(12.0, 10.0), [])
+
+
+def test_an_installation_kept_with_the_throttle_silence_alone_still_reads() -> None:
+    """As a box that set it before there was a sensor silence has it (#1149)."""
+    assert _installation_of({"throttle_silence": 12}) == (
+        KeptInstallation(12.0),
+        [],
+    )
+
+
+def test_an_installation_the_store_cannot_read_is_said_and_is_the_defaults() -> None:
+    """A setting is no reason not to come up (#1132, #1149)."""
+    kept, said = _installation_of({"throttle_silence": 12, "sensor_silence": 1})
+    assert kept == KeptInstallation()
+    assert len(said) == 1
+    assert "sensor_silence" in said[0]
+    assert "installation's settings are the defaults" in said[0]

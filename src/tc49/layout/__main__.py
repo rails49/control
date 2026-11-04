@@ -64,7 +64,7 @@ The railroad's settings, its point gap and the driver's speeds, go the same
 way: read at each build from `layouts/<layout>.settings.yaml`, the defaults
 where it keeps none or keeps some the store cannot read, set with
 `tc49/layout/settings_wanted` and written by the same thread (#1126, #1132),
-which writes the installation's throttle silence too.
+which writes the installation's throttle silence and sensor silence too.
 
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
@@ -87,7 +87,13 @@ from tc49.layout.interface import (
     LayoutInterface,
 )
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import FastClockRow, Keeping, kept_by, loaded, silence
+from tc49.lib.clock_row import (
+    FastClockRow,
+    Keeping,
+    kept_by,
+    kept_by_installation,
+    loaded,
+)
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
@@ -164,9 +170,9 @@ def serve(
     `railroad` is where this app starts **where the store records nothing**
     (`Answering.recorded`), read once the broker is there.
 
-    The installation's throttle silence is read before that, once: it is the
-    same whatever railroad is loaded, and a person setting it changes it for
-    every build after (#1132).
+    The installation's settings, its throttle silence and sensor silence, are
+    read before that, once: they are the same whatever railroad is loaded,
+    and a person setting one changes it for every build after (#1132, #1149).
 
     The desired rows go with the railroad that is left — a speed for a
     locomotive the new railroad does not have, a position for a point it
@@ -174,9 +180,12 @@ def serve(
     """
     if not connected(bus, stop, log):
         return
-    quiet_s = silence(documents, log)
-    log(f"a throttle silent for {quiet_s:g}s lets go of its trains")
-    binding = _Binding(bus, documents, stop, period_s, quiet_s, log)
+    installation = kept_by_installation(documents, log)
+    log(
+        f"a throttle silent for {installation.throttle_silence:g}s lets go of its"
+        " trains"
+    )
+    binding = _Binding(bus, documents, stop, period_s, installation, log)
     rebuilding(bus, documents, railroad, stop, binding, log, period_s, RETAINED_S)
 
 
@@ -198,14 +207,14 @@ class _Binding:
         documents: Documents,
         stop: threading.Event,
         period_s: float,
-        throttle_silence_s: float,
+        installation: KeptInstallation,
         log: Callable[[str], None],
     ) -> None:
         self._bus = bus
         self._documents = documents
         self._stop = stop
         self._period_s = period_s
-        self._throttle_silence_s = throttle_silence_s
+        self._installation = installation
         self._log = log
         self._keeping = Keeping(documents, log)
 
@@ -258,15 +267,15 @@ class _Binding:
         not built with (ADR-0092, decision 2). It starts at the settings
         the railroad keeps, the defaults where it keeps none, and a person's
         change to them is kept with the railroad (#1126). A throttle silence
-        a person sets is kept with the installation and is the one every
-        later build starts at (#1132)."""
+        or a sensor silence a person sets is kept with the installation and
+        is the one every later build starts at (#1132, #1149)."""
         retained(self._bus, self._stop)
         layout, roster, kept, settings = read
         clock = Clock()
 
         def keep_settings(changed: KeptSettings | KeptInstallation) -> None:
             if isinstance(changed, KeptInstallation):
-                self._throttle_silence_s = changed.throttle_silence
+                self._installation = changed
             self._keeping.keep(layout.name, changed)
 
         app = LayoutInterface(
@@ -274,13 +283,14 @@ class _Binding:
             layout,
             roster,
             clock,
-            throttle_silence_s=self._throttle_silence_s,
+            throttle_silence_s=self._installation.throttle_silence,
             position=position,
             built=built,
             reread=reread_roster(self._documents, layout.name, self._log),
             point_gap=(settings or KeptSettings()).point_gap,
             keep=keep_settings,
             speeds=(settings or KeptSettings()).speeds,
+            sensor_silence_s=self._installation.sensor_silence,
         )
 
         def keep(changed: KeptClock) -> None:
