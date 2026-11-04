@@ -123,6 +123,66 @@ def test_the_closed_words_are_taken_in_either_case_and_the_block_is_not() -> Non
     assert detector.reads(f"{block.upper() + block}.A clear") is not None
 
 
+def test_a_typed_level_is_published_again_after_each_second() -> None:
+    """A sensor is reported at least once a second, changed or not, and a
+    person types once: this says it again until they type something else."""
+    layout, _roster = a_railroad()
+    detector, bus, _out = hand_fed(layout)
+    end = f"{a_block(layout)}.A"
+    published = sensed(bus)
+    detector.repeats(100.0)
+    assert detector.reads(f"{end} occupied") is None
+    bus.drain()
+    assert len(published) == 1
+
+    detector.repeats(100.9)
+    bus.drain()
+    assert len(published) == 1
+
+    for count, now in enumerate((101.0, 102.0, 103.0), start=2):
+        detector.repeats(now)
+        bus.drain()
+        assert len(published) == count
+    assert published[-1] == (SENSOR, {"addr": end, "occupancy": "occupied"})
+
+
+def test_what_is_repeated_is_the_level_typed_last() -> None:
+    layout, _roster = a_railroad()
+    detector, bus, _out = hand_fed(layout)
+    end = f"{a_block(layout)}.A"
+    published = sensed(bus)
+
+    assert detector.reads(f"{end} occupied") is None
+    assert detector.reads(f"{end} clear") is None
+    detector.repeats(1.0)
+    bus.drain()
+
+    assert [payload["occupancy"] for _topic, payload in published] == [
+        "occupied",
+        "clear",
+        "clear",
+    ]
+
+
+def test_a_sensor_nobody_typed_is_never_reported() -> None:
+    """Only what a person said: this knows nothing about any other sensor."""
+    layout, _roster = a_railroad()
+    detector, bus, _out = hand_fed(layout)
+    block = a_block(layout)
+    published = sensed(bus)
+
+    detector.repeats(1.0)
+    bus.drain()
+    assert published == []
+
+    assert detector.reads(f"{block}.A occupied") is None
+    assert detector.reads(f"{block}.C occupied") is not None
+    for now in (2.0, 3.0, 4.0):
+        detector.repeats(now)
+    bus.drain()
+    assert {payload["addr"] for _topic, payload in published} == {f"{block}.A"}
+
+
 def test_a_blank_line_is_a_person_pressing_return_and_is_nothing() -> None:
     layout, _roster = a_railroad()
     detector, bus, _out = hand_fed(layout)
