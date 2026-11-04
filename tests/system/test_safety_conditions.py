@@ -1,4 +1,4 @@
-"""The six conditions closing SAFETY.md, one scenario each (#29).
+"""The seven conditions closing SAFETY.md, one scenario each (#29).
 
 That doc gathers them under *Boundary conditions*, its own sense of the
 word rather than the contract's grant boundary (#118), which is why this
@@ -16,8 +16,13 @@ Every one of these runs under `Incremental`: `FullRoute` never consults
 
 from typing import Any
 
+from tc49.bench.runner import assemble_live
 from tc49.dispatcher import Incremental
-from tests.harness import events, load, run
+from tc49.lib.inventory import ON
+from tc49.lib.scenario import TrainSpec
+from tests.harness import POWER_WANTED, events, load, power, press, run, ticks
+
+REQUEST_WANTED = "tc49/schedule/request_wanted"
 
 
 def trace_of(scenario_id: str) -> str:
@@ -191,3 +196,39 @@ def test_starvation_shows_up_in_max_latency_and_the_run_still_drains() -> None:
     ]
     assert refused_at
     assert all(at <= chosen["time"] for at in refused_at)
+
+
+def test_a_train_that_cannot_finish_stops_only_itself() -> None:
+    # Boundary condition 7, live rather than from a scenario file, since a
+    # failure is what a detector does to a running railroad. stuck is under way
+    # for C6 when C3b, on its route and held by nobody, reads occupied. The
+    # drain ends with its move, a person turns the power on, and it waits at
+    # CE2 naming the block. running, on track clear of it, launches and
+    # finishes.
+    layout, roster, _ = load("reversing-loops/saturation")
+    stuck, running = "t1", "t3"
+    trains = {
+        stuck: TrainSpec("C1", "B-to-A"),
+        running: TrainSpec("C2", "A-to-B"),
+    }
+    assembly = assemble_live(layout, roster, trains, Incremental)
+    press(assembly, *power(ON))
+    press(assembly, REQUEST_WANTED, {"train": stuck, "dest": ["C6.A"]})
+    assert "C3b" in events(assembly.trace, "route_chosen")[-1]["route"]
+
+    press(assembly, "tc49/layout/block_occupied", {"block": "C3b"})
+    ticks(assembly, 5)
+    press(assembly, POWER_WANTED, {"power": ON})
+    press(assembly, REQUEST_WANTED, {"train": running, "dest": ["CW.B"]})
+    ticks(assembly, 20)
+
+    submitted = {
+        line["train"]: line["id"]
+        for line in events(assembly.trace, "request_submitted")
+    }
+    assert events(assembly.trace, "request_completed", rid=submitted[running])
+    assert not events(assembly.trace, "request_completed", rid=submitted[stuck])
+    assert assembly.dispatcher.state.block_of[stuck] == "CE2"
+    last = events(assembly.trace, "grant_refused", rid=submitted[stuck])[-1]
+    assert last["reason"] == "unsafe"
+    assert last["obstacles"] == [{"resource": "C3b", "holder": ""}]

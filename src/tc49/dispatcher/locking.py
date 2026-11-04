@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from tc49.dispatcher.routing import Route, candidates
-from tc49.dispatcher.safety import safe
+from tc49.dispatcher.safety import finishable, safe
 from tc49.lib.inventory import Refusal
 from tc49.lib.layout import Layout
 
@@ -303,11 +303,11 @@ class Incremental:
         return [transit, into]
 
 
-def safety_view(
+def state_view(
     state: ReadOnlyState, skip: str | None = None
 ) -> tuple[dict[str, str], dict[str, list[str]], list[str], dict[str, list[str]]]:
-    """The safe() inputs for the current state, excluding `skip` (the train
-    whose tentative position the caller supplies), if any.
+    """The safe() inputs for the current state with every active train in
+    them, excluding `skip`, if any.
 
     What a train holds ahead is read off the lock table rather than off the
     strategy's depth, so the check describes the state it is given whatever
@@ -327,6 +327,29 @@ def safety_view(
         if train not in state.active and train != skip
     ]
     idle += standing_still(state)
+    return cur, rem, idle, held
+
+
+def safety_view(
+    state: ReadOnlyState, skip: str | None = None
+) -> tuple[dict[str, str], dict[str, list[str]], list[str], dict[str, list[str]]]:
+    """What a grant is checked against, excluding `skip` (the train whose
+    tentative position the caller supplies), if any.
+
+    The largest set of trains that can all finish is judged on the current
+    state, with no train skipped. Any other train, unless it is the one asking,
+    leaves the check and its blocks are idle obstacles: one stuck train stops
+    only itself and those that need its blocks (#1150). The one asking is
+    judged as ever, against that set and these obstacles.
+
+    With every active train able to finish this is `state_view`, so
+    `safe(*safety_view(state))` always holds. To ask whether a state is safe,
+    use `state_view`."""
+    able = finishable(*state_view(state))
+    cur, rem, idle, held = state_view(state, skip)
+    for train in sorted(set(cur) - able):
+        idle += [cur.pop(train), *held.pop(train)]
+        del rem[train]
     return cur, rem, idle, held
 
 
