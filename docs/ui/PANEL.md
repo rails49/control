@@ -278,9 +278,10 @@ second time, so a colour and its wash cannot drift apart.
 **Each block end shows what its detector reads**
 ([#898](https://github.com/rails49/control/issues/898)), for a person
 debugging the layout. A small square sits inside the block's rectangle at each
-end, read off that end's `tc49/layout/state/device/sensor/<block>.<end>` row:
+end, read off the `tc49/layout/sensor` reports naming that end:
 filled for `occupied`, hollow for `clear`, grey for `unknown` or for an end no
-row has named yet. The squares are always drawn on a run and never in the Edit
+report has named yet. A report repeating the level already shown for that end
+adds nothing and redraws nothing, and a change does both. The squares are always drawn on a run and never in the Edit
 view. They are square and in ink rather than round, red or green, because the
 signals at the same ends are round red and green lamps. They are the readings,
 not the picture: a block's colour still comes from `block_occupied` and
@@ -713,13 +714,13 @@ comes back on that one
 **That box sees only what somebody types.** No camera publishes a detector's
 level on a physical railroad yet, so for the first train a person supplies the
 readings: a line typed at `tc49 readings` — `<block>.<end> <level>`, the levels
-being `occupied`, `clear` and `unknown` — is published as the row a detector
-would write, and `layout` folds a typed pair into `block_occupied` and
+being `occupied`, `clear` and `unknown` — is published as the report a detector
+would write, said again each second, and `layout` folds a typed pair into `block_occupied` and
 `block_vacated` exactly as it folds a camera's
 ([#315](https://github.com/rails49/control/issues/315)). The panel is told
-nothing about who typed it: what it is served is the sensor row, retained like
-any other, and the arrival that follows. **It is not a panel gesture** — a
-device row is not one of the browser-writable rows — and a page grows no
+nothing about who typed it: what it is served is the sensor report, an event like
+any other, and the arrival that follows. **It is not a panel gesture** — the
+topic is not one of the browser-writable ones — and a page grows no
 control for one: a detector stands in
 for hardware, not for a person's hand. Until a camera publishes, an arrival
 nobody types never comes, so a granted move rolls on; the run comes up
@@ -991,8 +992,8 @@ Until the station has said where power stands the control is dead and says
 health area beside the store and the broker
 ([#602](https://github.com/rails49/control/issues/602)). The session reads
 `tc49/layout/state/device/track` into the panel model
-(`ui/src/model/panel.ts`), one of the three device rows a view reads with
-`device/sensor` and `device/point` above, and keeps the free-text `reason` alone: `power` there is one translator's
+(`ui/src/model/panel.ts`), one of the two device rows a view reads with
+`device/point` above, and keeps the free-text `reason` alone: `power` there is one translator's
 reading of its own hardware, and what the picture draws is the railroad-wide
 `state/power` that `layout` folds it into. The reason is what nothing else
 carries. A district reaches no topic, so a trip the command station cut itself

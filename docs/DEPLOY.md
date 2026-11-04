@@ -417,7 +417,7 @@ today, so nothing sets either. Both are read once, as the app starts.
 
 ### Typing the block readings
 
-No camera publishes `tc49/layout/state/device/sensor` yet, so on a physical
+No camera publishes `tc49/layout/sensor` yet, so on a physical
 railroad the levels that complete a move are typed by a person. That keyboard
 is a client of the broker like any app, and runs from a checkout rather than
 from compose — it is one process reading one terminal's input, and nothing

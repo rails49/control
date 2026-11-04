@@ -474,7 +474,7 @@ supply)
 One block end being watched, `<block>.<end>`. A block has two, and the drawing
 defines them. It reads `occupied`, `clear` or `unknown`, and `unknown` until a
 report arrives and again once reports stop
-([BUS.md](docs/BUS.md#device-vocabulary)).
+([BUS.md](docs/BUS.md#event-inventory)).
 _Avoid_: detector (what reports on it)
 
 **Detector**:
