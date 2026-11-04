@@ -308,6 +308,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/schedule/scheduler_alive_confirmed` | event | scheduler | the scheduler is up and built on a railroad, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/dispatch/dispatcher_alive_confirmed` | event | dispatcher | the dispatcher is up and built on a railroad, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/drive/driver_alive_confirmed` | event | driver | the driver is up with a railroad loaded, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
+| `tc49/layout/sensor` | event | any | what one sensor reads, from whatever watches it, at least once a second ([#1147](https://github.com/rails49/control/issues/1147)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
@@ -364,7 +365,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
-| Layout interface | `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/settings_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
+| Layout interface | `tc49/layout/sensor`, `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/settings_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
 | Translator | `tc49/layout/state/wanted/#`, **and** `tc49/layout/state/railroad` where it publishes sensors, **and** `tc49/layout/state/clock` where it passes the fast clock to its hardware |
 | Trace tap | `tc49/#` |
 
@@ -373,7 +374,7 @@ Every app but the layout interface also subscribes
 other than the build it is running, which is a railroad being loaded under it
 (ADR-0060, #688, above) — and never on a row saying `built: false`, from which
 nothing was built (ADR-0085). A translator does so where it reads the store: one publishing
-`device/sensor` reads the names the hardware knows those sensors by out of
+`tc49/layout/sensor` reads the names the hardware knows those sensors by out of
 the drawing, and those are a railroad's (ADR-0063, below). One that reads
 nothing does not, hardware needing no layout. The layout interface does not
 either, being the row's writer: it follows
@@ -565,6 +566,15 @@ what a drop would cost:
   already has, and the layout interface never writes `off` of its own accord.
   A railroad the store cannot give is refused the same way and the running
   one is unchanged.
+- `tc49/layout/sensor` — `addr`, the sensor, `<block>.<end>`; `occupancy`,
+  `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with
+  `unknown`. Each sensor is reported at least once a second, changed or not,
+  and at once on a change. An event and not retained, so after a restart
+  nothing old waits on the broker and the next report says the level. Anything
+  may publish it, and nothing says who sent a report or asks: `control` does not
+  care which detector watches a sensor. `layout` folds it, dropping a report
+  whose `addr` is unreadable, and the page shows it, a repeat of the level
+  already shown adding no line and causing no redraw.
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
@@ -1210,13 +1220,13 @@ stop. Steps, speed tables and every wire protocol stay inside a translator
 (ADR-0043).
 
 **What the hardware reports back.** The observed half, written by whatever
-watches or drives the thing addressed — a detector for a sensor, a translator
-for the addresses it drives — and never by `layout`, which reads these rows
-rather than writing them.
+drives the thing addressed — a translator for the addresses it drives — and
+never by `layout`, which reads these rows rather than writing them. A sensor is
+not among them: its reports are an event, `tc49/layout/sensor`
+([event inventory](#event-inventory)).
 
 | Topic | Payload | Values |
 | --- | --- | --- |
-| `tc49/layout/state/device/sensor/<block>.<end>` | `addr`, `occupancy`, `reason` | `occupancy` `occupied`, `clear` or `unknown`; `reason` *optional*, free text, only with `unknown` |
 | `tc49/layout/state/device/point/<addr>` | `addr`, `position` | `position` `closed` or `thrown` |
 | `tc49/layout/state/device/track` | `power`, `reason` | `power` `on` or `off`; `reason` *optional*, free text |
 | `tc49/layout/state/device/link/<id>` | `id`, `link`, `detail` | `link` `up` or `down`; `detail` *optional*, free text |
@@ -1314,10 +1324,10 @@ no layout
 ([ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md),
 decision 5): the rule narrows rather than gaining an exception.
 
-**A detector publishes a level change and nothing else** — no heartbeat, no
-periodic restatement, no map on a timer. Retention is what a late subscriber
-gets, so there is **no state-inquiry request**, the same answer the topics
-above give and for the same reason: a feature nothing needs is overhead.
+**A detector reports each sensor at least once a second, changed or not, and
+at once on a change.** Nothing is retained, so the next repeat is what a late
+subscriber gets, and there is **no state-inquiry request**, the same answer the
+topics above give and for the same reason: a feature nothing needs is overhead.
 `unknown` is a value and not an absence. The camera knows *why* it cannot say
 — no model, not calibrated, drift — and `reason` carries that for a person to
 read, while a consumer treats `unknown` as no information about that end.
@@ -1362,12 +1372,12 @@ publishes nothing, and each translator's own doc says which those are.
 It is for a UI, for a person to read, and nothing branches on it.
 
 Two of the observed rows are published today, both by a translator:
-`device/track` and `device/link`, which are two of the three `layout` reads
-and the two `state/power` is folded from. The third is `device/sensor`, whose
-publisher is a detector and lives outside this repository — until one does, a
-person supplies the readings a physical run has no other source of, typing
-them a line at a time on the writing role a detector holds, at a client of the
-broker like the camera that will replace it
+`device/track` and `device/link`, the two `state/power` is folded from. What
+`layout` folds occupancy from is `tc49/layout/sensor`, whose publisher is a
+detector and lives outside this repository — until one does, a person supplies the readings a
+physical run has no other source of, typing them a line at a time at a client
+of the broker like the camera that will replace it, which repeats each typed
+level once a second
 ([#315](https://github.com/rails49/control/issues/315),
 [#379](https://github.com/rails49/control/issues/379),
 [bench/detector.py](../src/tc49/bench/detector.py)); `device/point` and

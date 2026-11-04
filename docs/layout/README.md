@@ -152,9 +152,9 @@ and reloading are outside the loop and say nothing. The simulator says it in
 [#1113](https://github.com/rails49/control/issues/1113), BUS.md).
 
 **Whose levels those are, on a physical railroad, is a person's.** No camera
-publishes `device/sensor` yet, so somebody types them a line at a time and
-what they type is published as the row a detector would write, by
-`tc49 readings` — that keyboard as a client of the broker beside this app
+publishes `tc49/layout/sensor` yet, so somebody types them a line at a time and
+what they type is published as the report a detector would write, and said
+again each second, by `tc49 readings` — that keyboard as a client of the broker beside this app
 rather than in one process with it
 ([#315](https://github.com/rails49/control/issues/315),
 [#379](https://github.com/rails49/control/issues/379)). This app is told
