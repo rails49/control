@@ -470,10 +470,16 @@ the track, and its magnitude is a fraction of the locomotive's maximum
 _Avoid_: throttle (a person's control), motive power, traction power (the track
 supply)
 
+**Sensor**:
+One block end being watched, `<block>.<end>`. A block has two, and the drawing
+defines them. It reads `occupied`, `clear` or `unknown`, and `unknown` until a
+report arrives and again once reports stop
+([BUS.md](docs/BUS.md#device-vocabulary)).
+_Avoid_: detector (what reports on it)
+
 **Detector**:
-What watches a block end, its sensor, and publishes `occupied`, `clear` or
-`unknown` on one retained state topic per sensor, addressed by
-`<block>.<end>` ([BUS.md](docs/BUS.md#device-vocabulary)).
+Whatever reports on sensors, one or many. `control` does not ask which one sent
+a report.
 _Avoid_: camera (the device one kind is built on), block detector, sensor (the
 block end watched)
 
