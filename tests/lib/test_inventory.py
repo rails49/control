@@ -44,6 +44,7 @@ THROTTLE_ALIVE = "tc49/layout/throttle_alive"
 TAKEN = "tc49/layout/state/taken"
 FUNCTION_WANTED = "tc49/layout/function_wanted"
 FUNCTIONS = "tc49/layout/state/functions"
+UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 DRIVING = "tc49/layout/state/driving"
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -165,6 +166,14 @@ def test_a_throttle_switches_a_function_and_layout_states_which_are_on() -> None
     assert FUNCTIONS.startswith("tc49/layout/")
     assert TOPICS[FUNCTIONS].fields == (AT, "functions")
     assert FUNCTIONS not in INBOUND
+
+
+def test_the_sensors_not_reporting_are_state_no_page_writes() -> None:
+    """Which sensors are not reporting is what the binding running says, and a
+    page only reads it (#1148)."""
+    assert is_state_topic(UNKNOWN_SENSORS)
+    assert TOPICS[UNKNOWN_SENSORS].fields == (AT, "sensors")
+    assert UNKNOWN_SENSORS not in INBOUND
 
 
 def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
