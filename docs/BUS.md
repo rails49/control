@@ -328,8 +328,8 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
-| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133)) |
-| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds or the throttle silence, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140)) |
+| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence and sensor silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133), [#1149](https://github.com/rails49/control/issues/1149)) |
+| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds, the throttle silence or the sensor silence, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140), [#1149](https://github.com/rails49/control/issues/1149)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -856,6 +856,13 @@ what a drop would cost:
     the rest it is on the row only while one is loaded
     ([#1130](https://github.com/rails49/control/issues/1130),
     [#1132](https://github.com/rails49/control/issues/1132)).
+  - `sensor_silence`: number, seconds, `2` to `60`, how long a sensor may go
+    unheard. The installation's as the throttle silence is, kept beside it in
+    `installation.yaml`, or 3 where it keeps none: a report comes at least
+    once a second, so one missed report is not a failure. `layout` keeps and
+    says it and does not run on it yet
+    ([#1149](https://github.com/rails49/control/issues/1149),
+    [#1151](https://github.com/rails49/control/issues/1151)).
 
   `layout` publishes it as a railroad is loaded; at once after it takes a
   `settings_wanted`; and none while it stands. The simulator, in its place,
@@ -864,9 +871,11 @@ what a drop would cost:
   Loading a railroad clears it with the other `layout` rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The page shows the gap in the Settings
-  dialog's Points tab, the speeds in its Driving tab and the silence in its
-  Throttles tab ([#1134](https://github.com/rails49/control/issues/1134),
-  [#1142](https://github.com/rails49/control/issues/1142)); no app
+  dialog's Points tab, the speeds in its Driving tab, the throttle silence in
+  its Throttles tab and the sensor silence in its Sensors tab
+  ([#1134](https://github.com/rails49/control/issues/1134),
+  [#1142](https://github.com/rails49/control/issues/1142),
+  [#1149](https://github.com/rails49/control/issues/1149)); no app
   reads it yet, `layout` holding the gap and
   the silence it says, and the driver reading the speeds being
   [#1133](https://github.com/rails49/control/issues/1133)
@@ -878,26 +887,30 @@ what a drop would cost:
   - `speeds`: object with `clear`, `caution` or both, each greater than `0`
     and at most `1`.
   - `throttle_silence`: number, seconds, `2` to `60`.
+  - `sensor_silence`: number, seconds, `2` to `60`.
 
   A field left out keeps its value, and so does a speed left out of
-  `speeds`. A payload with none of the three, with an unknown field, or with
+  `speeds`. A payload with none of the four, with an unknown field, or with
   any value out of range is dropped whole, as any malformed gesture is. It
   is also dropped while no railroad is loaded. Taken whatever track power
   and the run are doing, and a change needs no rebuild. `layout` uses the
   gap from the next `align` and the silence from its next check of who has
   gone silent, publishes `state/settings` at once, and keeps the gap and the
-  speeds with the railroad and the silence with the installation
-  ([#1132](https://github.com/rails49/control/issues/1132)). The simulator,
+  speeds with the railroad and the two silences with the installation
+  ([#1132](https://github.com/rails49/control/issues/1132),
+  [#1149](https://github.com/rails49/control/issues/1149)). The simulator,
   in its place, takes it by the same rule, says `state/settings` at once and
   keeps each where `layout` keeps it, and runs on neither the gap nor the
-  silence: it sends no point command and holds no throttle
+  silences: it sends no point command and holds no throttle
   ([#1140](https://github.com/rails49/control/issues/1140)). The page
   publishes the gap from the Settings dialog's Points tab, one speed at a
-  time from its Driving tab and the silence from its Throttles tab, each commit
-  carrying the one field committed
+  time from its Driving tab, the throttle silence from its Throttles tab and
+  the sensor silence from its Sensors tab, each commit carrying the one field
+  committed
   ([#1126](https://github.com/rails49/control/issues/1126),
   [#1131](https://github.com/rails49/control/issues/1131),
-  [#1134](https://github.com/rails49/control/issues/1134)).
+  [#1134](https://github.com/rails49/control/issues/1134),
+  [#1149](https://github.com/rails49/control/issues/1149)).
 
 #### `schedule`
 

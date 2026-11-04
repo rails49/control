@@ -1167,26 +1167,31 @@ waits at least one gap, and a reported point still waits for its
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
 loaded: the point gap and the driver's speeds, the railroad's, and the
-throttle silence, the installation's and the same whatever railroad is loaded
-([#1130](https://github.com/rails49/control/issues/1130)). A person sets any
+throttle silence and the sensor silence, the installation's and the same
+whatever railroad is loaded
+([#1130](https://github.com/rails49/control/issues/1130),
+[#1149](https://github.com/rails49/control/issues/1149)). A person sets any
 of them with `settings_wanted`, each field optional and the whole dropped
 where any is out of range
 ([#1131](https://github.com/rails49/control/issues/1131)), taken at any
 power and with no rebuild and said at once. The gap is used for the next
-point written and the silence from the next check of who has gone silent;
-the speeds are the driver's. The gap and the speeds are kept with the
-railroad in `layouts/<layout>.settings.yaml`, the silence with the
+point written and the throttle silence from the next check of who has gone
+silent; the speeds are the driver's, and nothing runs on the sensor silence
+yet ([#1151](https://github.com/rails49/control/issues/1151)). The gap and the
+speeds are kept with the
+railroad in `layouts/<layout>.settings.yaml`, the two silences with the
 installation in `installation.yaml`, read once as `layout` starts
-([#1132](https://github.com/rails49/control/issues/1132)). A
+([#1132](https://github.com/rails49/control/issues/1132),
+[#1149](https://github.com/rails49/control/issues/1149)). A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
-and the speeds 0.6 and 0.3, an installation that keeps none at 5 s, and
+and the speeds 0.6 and 0.3, an installation that keeps none at 5 s and 3 s, and
 nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
 [#1127](https://github.com/rails49/control/issues/1127)). The simulator says
 and takes them by the same rule and keeps them in the same documents, so the
 Settings dialog works on a simulated railroad; it runs on neither the gap nor
-the silence ([#1140](https://github.com/rails49/control/issues/1140)).
+the silences ([#1140](https://github.com/rails49/control/issues/1140)).
 
 A second obligation guards against a stale command: the layout interface
 **acts on a `move` only if that train is standing at the transit's near end**

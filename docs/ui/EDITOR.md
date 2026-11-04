@@ -84,7 +84,7 @@ both views are of one railroad, so one control asks for it. The gear is drawn
 whether or not a session is joined, and Help after it is the last thing on
 the band.
 
-The dialog has six tabs, in this order, the last only where the box can be
+The dialog has seven tabs, in this order, the last only where the box can be
 turned off. The gear opens it on the first and
 the band's backup note on Backup
 ([#899](https://github.com/rails49/control/issues/899), #1075):
@@ -116,8 +116,13 @@ the band's backup note on Backup
   throttle's trains after*, in seconds from `2` to `60` in steps of `1`, with
   a hint that it applies whatever railroad is loaded. A commit publishes
   `settings_wanted` with `throttle_silence` alone (`silenceChange`).
+- **Sensors** sets the sensor silence
+  ([#1149](https://github.com/rails49/control/issues/1149)): one field, *Call a sensor unknown once unheard for*, in
+  seconds from `2` to `60` in steps of `1`, with the same hint. A commit
+  publishes `settings_wanted` with `sensor_silence` alone
+  (`sensorSilenceChange`).
 
-  Both tabs read as Points does: dead with the same hint until the row is
+  These tabs read as Points does: dead with the same hint until the row is
   heard, nothing sent for the value the row already says, and a value out of
   range or no number not sent, the field keeping it and saying why.
 - **Backup** is where the store is backed up and restored, drawn in the tab
