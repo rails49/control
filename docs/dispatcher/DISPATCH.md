@@ -340,7 +340,9 @@ on that block is reconsidered.
 Every grant is `safe()`-checked before it commits, so arrival order picks
 among options that were all safe and never reaches an unsafe state; under a
 future MQTT transport a straggling sensor delays a grant, conservative and
-safe, never an unsafe one.
+safe, never an unsafe one. After a failure leaves a train unable to finish,
+only that train and those needing its blocks wait
+([SAFETY.md](SAFETY.md#why-it-is-deadlock-free)).
 
 **The sweep is the grant phase**, run where the lock table or the waiting
 set changes: a request admitted, a vacate releasing what a move held, the

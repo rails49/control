@@ -473,9 +473,11 @@ case's trains standing, and each step is one of a drag, a cancel, a reorder, a
 point thrown, a power press, a placement, a dropout under a standing train, a
 reading in any block (ADR-0048), or one turn of the live loop; ids are drawn
 from those the scheduler minted plus one nobody did. After every message the
-bus delivers the lock table's rules hold (`broken()` is empty), and after
-every grant `safe()` does. It checks only what holds after each message, not
-that a request ever ends.
+bus delivers the lock table's rules hold (`broken()` is empty), and a train
+granted a move has no permanent obstacle on what is left of its route. `safe()`
+is not asserted here, because a reading or a placement can leave it false
+([SAFETY.md](dispatcher/SAFETY.md#why-it-is-deadlock-free)). It checks only what
+holds after each message, not that a request ever ends.
 
 `test_layout_stateful` does the same with `layout` as the binding, which the
 simulator's unaddressed trains never drive. It is a Hypothesis state machine
