@@ -110,6 +110,10 @@ SETTINGS = "tc49/layout/state/settings"
 """The settings, said at each build and at once after a `settings_wanted`
 (#1133, #1140)."""
 
+UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+"""The sensors that are not reporting, said at each build and never changed:
+this binding publishes occupancy directly and has no sensors (#1148)."""
+
 # One scheduled sensor event: fires at a time, in scheduling order among
 # equals, and says which train's head or tail passed which detector.
 _Event = tuple[float, int, str, str, str]  # (time, seq, leaf, train, block)
@@ -239,6 +243,9 @@ class Simulator:
         # states them on each build: the driver prices no grant until it has
         # heard the speeds (#1133).
         bus.publish(SETTINGS, said(self._settings, self._throttle_silence_s))
+        # No sensor is unknown, stated so a client on this binding is served
+        # the value it would be served on `layout` (ADR-0032, #1148).
+        bus.publish(UNKNOWN_SENSORS, {"sensors": []})
 
     @property
     def position(self) -> dict[str, str]:

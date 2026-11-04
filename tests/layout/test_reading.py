@@ -35,6 +35,7 @@ from tests.layout.railroad import (
     TAKEN,
     THROTTLE_ALIVE,
     THROTTLE_WANTED,
+    UNKNOWN_SENSORS,
     WANTED_TRACK,
     align,
     build,
@@ -217,13 +218,14 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
 
 
-def test_a_fresh_app_has_said_seven_things_and_no_more() -> None:
+def test_a_fresh_app_has_said_eight_things_and_no_more() -> None:
     """It subscribes the observed half of the device vocabulary and writes
     the desired half, bar the function rows it reads back (#849), and a fresh
     bus holds none, so there is no cascade to come up out of: a fresh
     railroad is which railroad it is (#371), the supply commanded off, the
     app saying it believes it is, the railroad `manual`, no train in a
-    throttle, no function on, and its settings (#1125)."""
+    throttle, no function on, its settings (#1125), and no sensor unknown
+    (#1148)."""
     bus, _app = build(driving=MANUAL)
     assert set(bus.last_values) == {
         RAILROAD,
@@ -233,4 +235,5 @@ def test_a_fresh_app_has_said_seven_things_and_no_more() -> None:
         TAKEN,
         FUNCTIONS,
         SETTINGS,
+        UNKNOWN_SENSORS,
     }

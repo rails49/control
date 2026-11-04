@@ -39,6 +39,7 @@ from tests.layout.railroad import (
     REMOVED,
     SETTINGS,
     TAKEN,
+    UNKNOWN_SENSORS,
     WANTED_TRACK,
     WANTED_TRACTION,
     align,
@@ -139,8 +140,8 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     (ADR-0051). These are the first things the app says, and the order is
     the honest one: which railroad this is (#371), then the supply commanded
     off, then what the app believes about it, then who drives: people, with
-    no train in a throttle (ADR-0079), no function on (#849), and the
-    railroad's settings (#1125)."""
+    no train in a throttle (ADR-0079), no function on (#849), the railroad's
+    settings (#1125), and no sensor unknown (#1148)."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = heard(bus, "tc49/#")
@@ -155,6 +156,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
         (TAKEN, {"at": 0.0, "taken": {}}),
         (FUNCTIONS, {"at": 0.0, "functions": {}}),
         (SETTINGS, {"at": 0.0, **settings_row()}),
+        (UNKNOWN_SENSORS, {"at": 0.0, "sensors": []}),
     ]
 
 

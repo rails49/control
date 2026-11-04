@@ -123,11 +123,13 @@ OWNED = (
     "tc49/layout/state/power",
     "tc49/layout/state/clock",
     "tc49/layout/state/settings",
+    "tc49/layout/state/unknown_sensors",
 )
 """The retained rows this binding of the layout interface writes: which
 railroad it is standing in for, the supply each answered press set, the
-fast clock, and the railroad's settings, whose speeds the driver prices a
-grant at (#1133). The block events it publishes as trains move are events and
+fast clock, the railroad's settings, whose speeds the driver prices a
+grant at (#1133), and the sensors that are not reporting, which here is none
+(#1148). The block events it publishes as trains move are events and
 carry no retained value to drop (ADR-0060)."""
 
 
