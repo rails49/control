@@ -28,6 +28,7 @@ import { requestRows, type Refused, type RequestRow } from "./requests.js";
 import type { Explained, Layout } from "./store.js";
 import {
   Ordering,
+  sensorReport,
   type DrivingMode,
   type Gesture,
   type PointWanted,
@@ -389,7 +390,7 @@ export class Panel {
   private locks = new Map<string, string>();
   /** block end → the aspect its signal shows, last as the dispatcher said. */
   private shown = new Map<EndRef, Aspect>();
-  /** block end → what its detector last read, off its `device/sensor` row
+  /** block end → what its detector last read, off the `sensor` event
    *  (#898). The reading under `block_occupied` and `block_vacated`, kept
    *  for a person debugging the layout and never folded here: that fold is
    *  `layout`'s. */
@@ -458,7 +459,7 @@ export class Panel {
   private powerWord: Power | null = null;
   /** What the hardware says is wrong with the supply, in its own words,
    *  `null` where it says nothing (BUS.md, device vocabulary). Read off
-   *  `device/track`, which with `device/sensor` is a device row a view reads: `power` there
+   *  `device/track`, a device row a view reads: `power` there
    *  is folded into `state/power` above and `powerWord` is what the picture
    *  draws, and the free-text `reason` beside it is the only place a tripped
    *  district or a participant that cannot reach the supply can be said — a
@@ -764,20 +765,11 @@ export class Panel {
         this.faultWord = typeof reason === "string" && reason !== "" ? reason : null;
         return;
       }
-      case "device/sensor": {
-        // One detector's reading at the block end the row is addressed by,
-        // which the payload's `addr` repeats (BUS.md). A word outside the
-        // three is a detector this page cannot read, which is what `unknown`
-        // says; a row naming no end is about nothing on the drawing.
-        const { addr, occupancy } = event as unknown as {
-          addr?: unknown;
-          occupancy?: unknown;
-        };
-        if (typeof addr !== "string" || addr === "") return;
-        this.readings.set(
-          addr,
-          occupancy === "occupied" || occupancy === "clear" ? occupancy : "unknown",
-        );
+      case "sensor": {
+        // One detector's reading at the block end the report names (BUS.md);
+        // a report naming no end is about nothing on the drawing.
+        const report = sensorReport(event);
+        if (report !== null) this.readings.set(report.addr, report.level);
         return;
       }
       case "taken": {
@@ -1127,7 +1119,7 @@ export class Panel {
   }
 
   /**
-   * What each block end's detector reads, exactly as its `device/sensor` row
+   * What each block end's detector reads, exactly as its last `sensor` report
    * said (#898): the readings `layout` folds into `block_occupied` and
    * `block_vacated`, shown for a person debugging the layout. An end no row
    * has named is absent.
