@@ -278,6 +278,7 @@ export interface SettingsChange {
   point_gap?: number;
   speeds?: Partial<Speeds>;
   throttle_silence?: number;
+  sensor_silence?: number;
 }
 
 /** The driver's speeds, each a fraction of the locomotive's top speed above
@@ -296,6 +297,12 @@ export const ASPECTS = ["clear", "caution"] as const;
  *  `tc49.lib.settings`). */
 export const THROTTLE_SILENCE_MIN_S = 2;
 export const THROTTLE_SILENCE_MAX_S = 60;
+
+/** The shortest and longest sensor silence a person may set, in seconds, as
+ *  `layout` takes it (`SENSOR_SILENCE_MIN_S`, `SENSOR_SILENCE_MAX_S`,
+ *  `tc49.lib.settings`). */
+export const SENSOR_SILENCE_MIN_S = 2;
+export const SENSOR_SILENCE_MAX_S = 60;
 
 /** A speed as the Driving tab shows it: percent of the locomotive's top
  *  speed. Rounded off at the fourth decimal so `0.07` shows `7` and not the
@@ -369,6 +376,35 @@ export function silenceChange(
   return { sent: { throttle_silence: seconds } };
 }
 
+/**
+ * What a committed sensor silence does (#1149), as `silenceChange` answers
+ * for the throttle silence: `{ sent }`, the `settings_wanted` payload carrying
+ * it alone; `{ refused }`, why nothing goes; or `null`, where nothing changed.
+ * The first that holds is the answer: the row unheard, not a number of
+ * seconds, outside `SENSOR_SILENCE_MIN_S` to `SENSOR_SILENCE_MAX_S`, the
+ * silence the row already says.
+ */
+export function sensorSilenceChange(
+  typed: string,
+  heard: number | null,
+): { sent: SettingsChange } | { refused: string } | null {
+  if (heard === null) return { refused: SETTINGS_UNHEARD };
+  const words = typed.trim();
+  const seconds = Number(words);
+  if (words === "" || !Number.isFinite(seconds)) {
+    return { refused: "how long a sensor may go unheard is a number of seconds" };
+  }
+  if (seconds < SENSOR_SILENCE_MIN_S || seconds > SENSOR_SILENCE_MAX_S) {
+    return {
+      refused:
+        "how long a sensor may go unheard is from " +
+        `${SENSOR_SILENCE_MIN_S} to ${SENSOR_SILENCE_MAX_S} seconds`,
+    };
+  }
+  if (seconds === heard) return null;
+  return { sent: { sensor_silence: seconds } };
+}
+
 /** The speeds a `tc49/layout/state/settings` payload says, `null` where it
  *  says none `layout` could have meant: `clear` and `caution` both, each
  *  above `0` and at most `1`. */
@@ -392,4 +428,12 @@ export function throttleSilenceOf(payload: Record<string, unknown>): number | nu
   return silence >= THROTTLE_SILENCE_MIN_S && silence <= THROTTLE_SILENCE_MAX_S
     ? silence
     : null;
+}
+
+/** The sensor silence a `tc49/layout/state/settings` payload says, in
+ *  seconds, `null` where it says none `layout` could have meant (#1149). */
+export function sensorSilenceOf(payload: Record<string, unknown>): number | null {
+  const silence = payload["sensor_silence"];
+  if (typeof silence !== "number") return null;
+  return silence >= SENSOR_SILENCE_MIN_S && silence <= SENSOR_SILENCE_MAX_S ? silence : null;
 }

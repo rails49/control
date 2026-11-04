@@ -255,8 +255,8 @@ export function clockWanted(change: { time?: number; speedUp?: number }): Frame 
 }
 
 /** A `settings_wanted` frame: the one setting a person committed in the
- *  Settings dialog — the point gap, a speed or the throttle silence (#1126,
- *  #1128, #1131, #1134). `layout` answers on `state/settings` at once, and
+ *  Settings dialog — the point gap, a speed or a silence (#1126, #1128,
+ *  #1131, #1134, #1149). `layout` answers on `state/settings` at once, and
  *  the field shows that row and not the press (ADR-0035). */
 export function settingsWanted(change: SettingsChange): Frame {
   return { topic: SETTINGS_WANTED, payload: { ...change } };

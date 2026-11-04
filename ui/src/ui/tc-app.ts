@@ -415,6 +415,7 @@ export class TcApp extends LitElement {
         .pointGap=${this.status.pointGap}
         .speeds=${this.status.speeds}
         .throttleSilence=${this.status.throttleSilence}
+        .sensorSilence=${this.status.sensorSilence}
         @settings-wanted=${(event: CustomEvent<SettingsChange>) =>
           this.session?.pressSettings(event.detail)}
         @railroad-wanted=${(event: CustomEvent<string>) => this.wanting(event.detail)}

@@ -3,7 +3,7 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Six tabs, seven where the box can turn off, the dialog opening on the one
+ * Seven tabs, eight where the box can turn off, the dialog opening on the one
  * `tab` names each time — Railroad from the gear, Backup from the band's
  * backup note (#899, #1075). **Railroad**
  * lists what the store holds, the loaded one ticked, and a press on another
@@ -41,7 +41,9 @@
  * at caution, in percent of the locomotive's top speed, and for the
  * throttle silence, the
  * installation's whatever railroad is loaded (#1134): each commit sends the
- * one field committed, as `speedChange` and `silenceChange` say.
+ * one field committed, as `speedChange` and `silenceChange` say. **Sensors**,
+ * after Throttles, does the same for the sensor silence, the installation's
+ * too (#1149, `sensorSilenceChange`).
  * **Shutdown** turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
@@ -62,7 +64,7 @@
  * and this chooses which one that is (ADR-0072, decision 1).
  *
  * **It decides nothing.** Why the Railroad tab or the Shutdown tab is
- * refused, and what a point gap, a speed or the silence sends, is `model/settings.ts`, and what is loaded is the row's; the app hands in
+ * refused, and what a point gap, a speed or a silence sends, is `model/settings.ts`, and what is loaded is the row's; the app hands in
  * the row and the power. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
  * whichever refused and asks for nothing, so nothing is loaded that was not
@@ -94,6 +96,9 @@ import {
   percentOf,
   POINT_GAP_MAX_S,
   refusal,
+  SENSOR_SILENCE_MAX_S,
+  SENSOR_SILENCE_MIN_S,
+  sensorSilenceChange,
   SETTINGS_UNHEARD,
   silenceChange,
   speedChange,
@@ -109,7 +114,7 @@ import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
 
 /** The fields of the settings tabs, each with its own reason refused. */
-type SettingField = "gap" | keyof Speeds | "silence";
+type SettingField = "gap" | keyof Speeds | "silence" | "sensorSilence";
 
 /** A commit a field's rule refused (#1137): the text typed, which the field
  *  goes on showing, why it was refused, and what the row said for the field
@@ -176,6 +181,10 @@ export class TcSettings extends LitElement {
    *  `RunStatus.throttleSilence` has it: `null` while the row is unheard. */
   @property({ attribute: false }) throttleSilence: number | null = null;
 
+  /** The sensor silence `tc49/layout/state/settings` says, in seconds, as
+   *  `RunStatus.sensorSilence` has it: `null` while the row is unheard. */
+  @property({ attribute: false }) sensorSilence: number | null = null;
+
   /** The tab shown when the dialog opens: Railroad from the gear, Backup
    *  from the band's backup note. */
   @property() tab: "railroad" | "backup" = "railroad";
@@ -189,8 +198,8 @@ export class TcSettings extends LitElement {
   @state() private wrong: string | null = null;
 
   /** The setting last committed in each field where it was not sent, with
-   *  why in `gapChange`'s, `speedChange`'s or `silenceChange`'s words; a
-   *  field is absent once a commit from it is not refused, the row says a
+   *  why in the words of `gapChange`, `speedChange`, `silenceChange` or
+   *  `sensorSilenceChange`; a field is absent once a commit from it is not refused, the row says a
    *  different value for it, or the dialog opens again (#1137). */
   @state() private settingRefused: Partial<Record<SettingField, Refused>> = {};
 
@@ -274,12 +283,14 @@ export class TcSettings extends LitElement {
           <sl-tab slot="nav" panel="points">Points</sl-tab>
           <sl-tab slot="nav" panel="driving">Driving</sl-tab>
           <sl-tab slot="nav" panel="throttles">Throttles</sl-tab>
+          <sl-tab slot="nav" panel="sensors">Sensors</sl-tab>
           <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
           ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
           <sl-tab-panel name="railroad" ?active=${!backup}>${this.railroads()}</sl-tab-panel>
           <sl-tab-panel name="points"><div class="points">${this.points()}</div></sl-tab-panel>
           <sl-tab-panel name="driving"><div class="driving">${this.driving()}</div></sl-tab-panel>
           <sl-tab-panel name="throttles"><div class="throttles">${this.throttles()}</div></sl-tab-panel>
+          <sl-tab-panel name="sensors"><div class="sensors">${this.sensors()}</div></sl-tab-panel>
           <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
           ${this.canTurnOff
             ? html`<sl-tab-panel name="shutdown">
@@ -488,6 +499,37 @@ export class TcSettings extends LitElement {
     `;
   }
 
+  /**
+   * The Sensors tab (#1149): how long a sensor may go unheard, in seconds
+   * from `SENSOR_SILENCE_MIN_S` to `SENSOR_SILENCE_MAX_S` in steps of `1`. The
+   * installation's, as the throttle silence is, and read as that tab reads.
+   */
+  private sensors() {
+    const unheard = this.sensorSilence === null;
+    return html`
+      <sl-input
+        class="silence"
+        type="number"
+        label="Call a sensor unknown once unheard for"
+        size="small"
+        min=${SENSOR_SILENCE_MIN_S}
+        max=${SENSOR_SILENCE_MAX_S}
+        step="1"
+        ?disabled=${unheard}
+        .value=${this.shown("sensorSilence")}
+        @sl-change=${(event: Event) =>
+          this.committed("sensorSilence", event, (typed) =>
+            sensorSilenceChange(typed, this.sensorSilence),
+          )}
+      >
+        <span slot="suffix">s</span>
+      </sl-input>
+      ${this.refusedIn("sensorSilence")}
+      <p class="hint">This applies whatever railroad is loaded.</p>
+      ${unheard ? html`<p class="hint unheard">${SETTINGS_UNHEARD}</p>` : nothing}
+    `;
+  }
+
   /** What the row says for `field`, as its field shows it: `""` while the
    *  row is unheard, a speed in percent. */
   private heard(field: SettingField): string {
@@ -496,6 +538,8 @@ export class TcSettings extends LitElement {
         return this.pointGap === null ? "" : String(this.pointGap);
       case "silence":
         return this.throttleSilence === null ? "" : String(this.throttleSilence);
+      case "sensorSilence":
+        return this.sensorSilence === null ? "" : String(this.sensorSilence);
       default:
         return this.speeds === null ? "" : String(percentOf(this.speeds[field]));
     }
