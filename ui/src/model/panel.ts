@@ -817,11 +817,10 @@ export class Panel {
         return;
       }
       case "disputed": {
-        // Where the placement and the detectors contradict each other, while
-        // the run is held (#153). Last-value like every other state topic, so
-        // this replaces the set rather than adding to it — which is how it
-        // empties as a person walks the railroad placing trains, and how a
-        // release clears it.
+        // Where the placement and the detectors contradict each other, at
+        // every power value (#153, #1154). Last-value like every other state
+        // topic, so this replaces the set rather than adding to it — which is
+        // how it empties as a person walks the railroad placing trains.
         const { trains, blocks } = event as unknown as {
           trains: string[];
           blocks: string[];
@@ -989,11 +988,18 @@ export class Panel {
 
   /** What the detectors dispute, as the dispatcher last said (#153): trains
    *  standing in a block that reads clear, and blocks that read occupied with
-   *  nothing claiming them. Empty unless the run is held, so a release is
-   *  where this is worth reading — it is what the person is deciding to
-   *  accept, and the marks go with the hold. */
+   *  nothing claiming them, at every power value (#1154). */
   disputes(): { trains: string[]; blocks: string[] } {
     return { trains: [...this.disputed.trains], blocks: [...this.disputed.blocks] };
+  }
+
+  /** The same set in words, one fault per entry: the band shows each, so a
+   *  person is told while the others run (#1154). */
+  disputeFaults(): string[] {
+    return [
+      ...[...this.disputed.blocks].map((block) => `${block}: occupied with no train`),
+      ...[...this.disputed.trains].map((train) => `${train}: its block reads clear`),
+    ];
   }
 
   /** The trains the last rebuild under the same name took off the layout,

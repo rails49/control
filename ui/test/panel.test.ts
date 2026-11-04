@@ -1266,7 +1266,7 @@ describe("where a train is named", () => {
 });
 
 /**
- * What the detectors dispute (#153). While the run is held the dispatcher
+ * What the detectors dispute (#153). At every power value the dispatcher
  * compares its placement against the occupancy the layout has reported and
  * publishes the two contradictions; the panel marks them, because they are
  * where a person is sent first. It judges none of it — which blocks were
@@ -1580,9 +1580,27 @@ describe("the detectors' dispute", () => {
     expect(model.blocks().get("b")?.dispute).toBeUndefined();
   });
 
-  /** The same set in one answer, which is what a release reads: the marks go
-   *  with the hold, so the words are the only record of what was outstanding
-   *  when it was let go (#153). */
+  it("marks them with the power on", () => {
+    const model = panel();
+    feed(
+      model,
+      STANDING,
+      { event: "power", power: "on" },
+      { event: "disputed", trains: ["t1"], blocks: ["b"] },
+    );
+    expect(model.blocks().get("a")?.dispute).toBe("clear");
+    expect(model.blocks().get("b")?.dispute).toBe("occupied");
+  });
+
+  it("says each in words for the band, blocks first", () => {
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    expect(model.disputeFaults()).toEqual([
+      "b: occupied with no train",
+      "t1: its block reads clear",
+    ]);
+  });
+
   it("hands back what is outstanding, trains and blocks apart", () => {
     const model = panel();
     feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });

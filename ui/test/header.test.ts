@@ -45,6 +45,7 @@ const STATE_POWER = "tc49/layout/state/power";
 const DEVICE_TRACK = "tc49/layout/state/device/track";
 const STATE_CLOCK = "tc49/layout/state/clock";
 const STATE_BROKEN = "tc49/dispatch/state/broken";
+const STATE_DISPUTED = "tc49/dispatch/state/disputed";
 const CLOCK_WANTED = "tc49/layout/clock_wanted";
 
 /** What the band reads, as text, in the order it reads it: its readings and
@@ -125,6 +126,20 @@ describe("what the band says", () => {
     await said(shell, STATE_BROKEN, { rules: [] });
     expect(chips(shell)).toEqual([]);
   });
+
+  /** A person is told what the detectors contradict while the others run
+   *  (#1154), at every power value, one chip per entry. */
+  it.each(["on", "draining", "off"])(
+    "shows each dispute as a chip with power %s, until the row clears it",
+    async (power) => {
+      const shell = await joined();
+      await said(shell, STATE_POWER, { power });
+      await said(shell, STATE_DISPUTED, { trains: ["t1"], blocks: ["b"] });
+      expect(chips(shell)).toEqual(["b: occupied with no train", "t1: its block reads clear"]);
+      await said(shell, STATE_DISPUTED, { trains: [], blocks: [] });
+      expect(chips(shell)).toEqual([]);
+    },
+  );
 
   it("shows the store not answering as a chip", async () => {
     serving({ broken: new Error("connection refused") });

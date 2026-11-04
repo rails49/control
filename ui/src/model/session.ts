@@ -124,6 +124,9 @@ export interface RunStatus {
    *  line of its own, empty where it says none is (ADR-0076, #1118). The
    *  band shows each as a fault beside the supply's. */
   broken: readonly string[];
+  /** What the detectors dispute, one fault per entry in words the panel model
+   *  wrote (#1154). The band shows each until the row clears it. */
+  disputes: readonly string[];
   /** The trains the run has on the layout, by name. The stock screen marks
    *  their rows "on the layout" (ui/STOCK.md). */
   placed: readonly string[];
@@ -145,6 +148,7 @@ export const QUIET: RunStatus = {
   trouble: null,
   fault: null,
   broken: [],
+  disputes: [],
   placed: [],
 };
 
@@ -1008,6 +1012,7 @@ export class Session {
       // page that has left a session is being told nothing.
       fault: model?.fault ?? null,
       broken: model?.broken() ?? [],
+      disputes: model?.disputeFaults() ?? [],
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
@@ -1106,6 +1111,7 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.trouble === now.trouble &&
     was.fault === now.fault &&
     same(was.broken, now.broken) &&
+    same(was.disputes, now.disputes) &&
     same(was.placed, now.placed)
   );
 }
