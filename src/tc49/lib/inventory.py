@@ -95,6 +95,13 @@ TOPICS: dict[str, Topic] = {
     # `reason` rides only with `unknown`. One topic, the payload naming the
     # sensor, and nothing says who sent a report (#1147).
     "tc49/layout/sensor": Topic(("addr", "occupancy", "reason")),
+    # The sensors that are not reporting, from the binding that is running:
+    # `sensors` is a list sorted by `sensor`, each `{sensor, reason, reported}`,
+    # `sensor` being `<block>.<end>`, `reason` free text for a person, and
+    # `reported` true where it has read `occupied` or `clear` since this
+    # `layout` started, which tells one that stopped from one never heard
+    # (#1148).
+    "tc49/layout/state/unknown_sensors": Topic((AT, "sensors")),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),
     "tc49/layout/state/power": Topic((AT, "power")),
     "tc49/layout/align": Topic(("connection", "transit", "points")),

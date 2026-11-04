@@ -369,6 +369,7 @@ describe("Ordering", () => {
       "settings",
       "taken",
       "unfit",
+      "unknown_sensors",
     ]);
   });
 

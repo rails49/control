@@ -309,6 +309,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/dispatcher_alive_confirmed` | event | dispatcher | the dispatcher is up and built on a railroad, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/drive/driver_alive_confirmed` | event | driver | the driver is up with a railroad loaded, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/layout/sensor` | event | any | what one sensor reads, from whatever watches it, at least once a second ([#1147](https://github.com/rails49/control/issues/1147)) |
+| `tc49/layout/state/unknown_sensors` | state | layout, simulator | the sensors that are not reporting ([#1148](https://github.com/rails49/control/issues/1148)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
@@ -575,6 +576,23 @@ what a drop would cost:
   care which detector watches a sensor. `layout` folds it, dropping a report
   whose `addr` is unreadable, and the page shows it, a repeat of the level
   already shown adding no line and causing no redraw.
+- `tc49/layout/state/unknown_sensors` — `sensors`: a list sorted by `sensor`,
+  each `{sensor, reason, reported}`. `sensor` is `<block>.<end>`. `reason` is
+  free text for a person, and no consumer branches on it. `reported` is a
+  boolean, true where this sensor has reported `occupied` or `clear` since this
+  `layout` started, which separates a sensor that stopped reporting from one
+  never heard. Published from the constructor, so a client that joins is served
+  a value ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)),
+  and whenever the list changes. The simulator, in its place, publishes it empty
+  and never changes it: it publishes occupancy directly and has no sensors. Its
+  consumers are the dispatcher, which takes the block of each listed sensor out
+  of use, and the page, which tells a person. A dispatcher with no row yet treats
+  no sensor as unknown, and a payload that cannot be read is dropped and the last
+  value stands ([#1148](https://github.com/rails49/control/issues/1148)). So far
+  `layout` says the list empty and neither consumer reads it
+  ([#1151](https://github.com/rails49/control/issues/1151),
+  [#1152](https://github.com/rails49/control/issues/1152),
+  [#1153](https://github.com/rails49/control/issues/1153)).
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
