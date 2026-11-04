@@ -197,6 +197,30 @@ def test_a_typed_line_reaches_the_broker_as_a_sensor_report(
     witness.close()
 
 
+def test_a_typed_level_goes_on_reaching_the_broker(
+    broker: Broker, layout: Layout, keyboard: Keyboard, client: Client
+) -> None:
+    """Typed once and reported again without a keyboard: a client connecting
+    after the line was typed is told the level by the next report, the topic
+    being an event and the broker keeping nothing of it (#1147)."""
+    client.start()
+    assert client.up.wait(10), "it never came up"
+    end = f"{a_block(layout)}.A"
+    witness, heard = watching(broker)
+    keyboard.types(f"{end} occupied")
+    assert drained(
+        witness, lambda: reports(heard, end) != []
+    ), "the typed line never reached the broker"
+
+    later, kept = watching(broker)
+    assert drained(
+        later, lambda: reports(kept, end) != []
+    ), "nothing repeated the level for whoever came next"
+    assert reports(kept, end)[-1]["occupancy"] == "occupied"
+    later.close()
+    witness.close()
+
+
 def test_it_comes_up_against_a_broker_that_is_not_there_yet(
     broker: Broker, layout: Layout, keyboard: Keyboard, client: Client
 ) -> None:

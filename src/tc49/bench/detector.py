@@ -12,6 +12,10 @@ write:
     C3.A occupied
     C3.B clear
 
+A sensor is reported at least once a second, changed or not, so the last level
+typed for each sensor is said again every second until another is typed. A
+sensor nobody has typed is not reported.
+
 `layout` folds the two ends into `block_occupied` and `block_vacated` exactly
 as it folds a camera's ([#288](https://github.com/rails49/control/issues/288)),
 and the settling time sees a typed level as it would see a detector's. That is
@@ -41,6 +45,7 @@ file of readings running out are both the detector being taken away.
 import queue
 import sys
 import threading
+import time
 from collections.abc import Callable
 from typing import TextIO
 
@@ -53,6 +58,10 @@ from tc49.lib.startup import PERIOD_S, connected
 SENSOR = "tc49/layout/sensor"
 """The topic a reading goes on, which is `TOPICS`' key for it: this publishes
 a detector's report and invents nothing (tested)."""
+
+REPORT_S = 1.0
+"""Seconds between two reports of a typed level, which is the contract's rate
+(BUS.md, `tc49/layout/sensor`)."""
 
 LEVELS = (OCCUPIED, CLEAR, UNKNOWN)
 """What a person may say a block end reads, and the whole of it: the three
@@ -111,6 +120,10 @@ class HandFed:
         # reads this to end with its input: the keyboard is the whole of its
         # work, and the railroad it publishes to runs on without one.
         self.ended = threading.Event()
+        # Sensor -> the level last typed for it, which is what `repeats` says
+        # again and every sensor it says anything about.
+        self._levels: dict[str, str] = {}
+        self._due = 0.0
 
     def opens(self) -> None:
         """Start reading, which the loop's owner does once it is running.
@@ -191,8 +204,20 @@ class HandFed:
         if level.lower() not in LEVELS:
             return f"'{level}' is no level — {', '.join(LEVELS[:-1])} or {LEVELS[-1]}"
         at = f"{block}.{end.upper()}"
+        self._levels[at] = level.lower()
         self._bus.publish(SENSOR, {"addr": at, "occupancy": level.lower()})
         return None
+
+    def repeats(self, now: float) -> None:
+        """Every typed level said again, where a second has passed since they
+        last were. A level typed in between is reported early, which is
+        allowed: the rate is at least once a second. `now` is seconds on any
+        clock that does not jump, the caller's."""
+        if now < self._due:
+            return
+        self._due = now + REPORT_S
+        for sensor, level in self._levels.items():
+            self._bus.publish(SENSOR, {"addr": sensor, "occupancy": level})
 
     def _report(self, what: str) -> None:
         self._out.write(f"  {what}\n")
@@ -229,7 +254,7 @@ def serve(
     `reads` checks it against.
 
     Nothing is drained. This publishes and reads nothing, so the turn is the
-    queue the reader thread fills and no other.
+    queue the reader thread fills and the levels due again, and no other.
 
     `stop` is how a caller that is not a signal ends the loop, which is the
     suite. A person ends it by typing Ctrl-D, which is the input ending, or
@@ -246,6 +271,7 @@ def serve(
     )
     while not stop.is_set() and not detector.ended.is_set():
         detector.typed()
+        detector.repeats(time.monotonic())
         stop.wait(period_s)
     # One turn after the reader thread finished: the line typed last is on the
     # queue by the time `ended` is set, and it is as much a reading as any
