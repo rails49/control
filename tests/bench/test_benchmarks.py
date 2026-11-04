@@ -30,9 +30,10 @@ from tc49.bench.cli import bench
 from tc49.bench.metrics import Metrics, metrics
 from tc49.bench.runner import DEFAULT_K, STRATEGIES, run_scenario
 from tc49.bench.sweep import ARRIVALS, station_of
+from tc49.dispatcher import Incremental
 from tc49.lib.layout import block_of
 from tc49.lib.scenario import RequestSpec, Scenario
-from tests.harness import ROOT, load
+from tests.harness import ROOT, events, load
 
 EXPECTED = ROOT / "benchmarks" / "expected"
 
@@ -118,6 +119,27 @@ def test_batch_trace_is_pinned_byte_identical() -> None:
     if os.environ.get("TC49_REGEN_GOLDENS"):
         path.write_text(trace)
     assert path.read_text() == trace
+
+
+def test_incremental_grants_are_pinned_where_nothing_has_failed() -> None:
+    """The batch trace above runs `FullRoute`, which never consults `safe()`.
+    This pins what `Incremental` grants and refuses over the most contended
+    scenario, recorded before `safety_view` learned to leave out a train that
+    cannot finish (#1150): with no failure, every active train can finish and
+    the search never runs, so not one grant may move. Regenerate like the
+    goldens, with TC49_REGEN_GOLDENS=1, and read the diff before committing
+    it."""
+    layout, roster, scenario = load("reversing-loops/saturation")
+    trace = run_scenario(layout, roster, scenario, Incremental, DEFAULT_K)
+    grants = "".join(
+        f"{json.dumps(line)}\n"
+        for line in events(trace)
+        if line["event"] in ("move_granted", "lock_granted", "grant_refused")
+    )
+    path = EXPECTED / "reversing-loops-saturation.grants.jsonl"
+    if os.environ.get("TC49_REGEN_GOLDENS"):
+        path.write_text(grants)
+    assert path.read_text() == grants
 
 
 def test_a_two_block_route_leaves_incremental_nothing_to_withhold() -> None:
