@@ -310,6 +310,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/drive/driver_alive_confirmed` | event | driver | the driver is up with a railroad loaded, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/layout/sensor` | event | any | what one sensor reads, from whatever watches it, at least once a second ([#1147](https://github.com/rails49/control/issues/1147)) |
 | `tc49/layout/state/unknown_sensors` | state | layout, simulator | the sensors that are not reporting ([#1148](https://github.com/rails49/control/issues/1148)) |
+| `tc49/layout/state/settled/sensor/<block>.<end>` | state | layout | what one sensor has read for the settling time ([#1168](https://github.com/rails49/control/issues/1168)) |
 | `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
 | `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
@@ -603,6 +604,22 @@ what a drop would cost:
   nothing new sweeps nothing, and a change sweeps
   ([#1152](https://github.com/rails49/control/issues/1152)). The page shows it
   ([#1153](https://github.com/rails49/control/issues/1153)).
+- `tc49/layout/state/settled/sensor/<block>.<end>` — `addr`: the sensor,
+  `<block>.<end>`, as on the topic. `occupancy`: `occupied` or `clear`. `layout`
+  publishes it each time a level has stood for the settling time, a new one or
+  one that takes the sensor off `state/unknown_sensors`, which may equal the last
+  and which a consumer treats as a repeat. A flip that goes back inside the
+  settling time publishes nothing. `unknown` is not a value of this row: while a
+  sensor is listed its row stands at the last settled level, and a sensor that has
+  settled no level since `layout` started has no row. A sensor not on the drawing
+  gets a row like any other, judging it being the reader's, bar a name holding `+`
+  or `#`, which no topic can carry. Two sensors settling together publish in the
+  order they came due, and nothing may depend on that order: the bus promises none
+  between two topics. A cold start clears the rows, on the way up and on each load
+  of a railroad, including a rebuild under the same name, so no reading from the
+  last run is read as current. A row with an unreadable payload is dropped by
+  whoever reads it and the last value stands
+  ([#1168](https://github.com/rails49/control/issues/1168)).
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
