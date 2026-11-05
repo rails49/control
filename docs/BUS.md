@@ -311,8 +311,6 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/sensor` | event | any | what one sensor reads, from whatever watches it, at least once a second ([#1147](https://github.com/rails49/control/issues/1147)) |
 | `tc49/layout/state/unknown_sensors` | state | layout, simulator | the sensors that are not reporting ([#1148](https://github.com/rails49/control/issues/1148)) |
 | `tc49/layout/state/settled/sensor/<block>.<end>` | state | layout, simulator | what one sensor has read for the settling time ([#1168](https://github.com/rails49/control/issues/1168), [#1170](https://github.com/rails49/control/issues/1170)) |
-| `tc49/layout/block_occupied` | event | layout | a detector saw a block fill |
-| `tc49/layout/block_vacated` | event | layout | a block is empty: both its ends read clear, or the move this app carried out named it the block behind a train now fully into the block ahead ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/state/power` | state | layout | on, draining or off: whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/align` | command | any | throw these points, and authorise the transit it names, if any |
@@ -579,7 +577,7 @@ what a drop would cost:
   point it watches until its tail has left it, and `unknown` may be reported at
   any time. `control` does not guard this: a `clear` reported between two cars
   is taken for the train's tail
-  ([#1167](https://github.com/rails49/control/issues/1167)). `layout` folds it,
+  ([#1167](https://github.com/rails49/control/issues/1167)). `layout` settles it,
   believing every report and dropping one whose `addr` is unreadable, and the
   page shows it, a repeat of the level already shown adding no line and causing
   no redraw.
@@ -625,15 +623,6 @@ what a drop would cost:
   rows as `layout` does; a sensor of a block a drawing names with `+` or `#` has
   no row there either
   ([#1170](https://github.com/rails49/control/issues/1170)).
-- `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
-  block a detector reported on. Anonymous: no train field, because a detector
-  cannot name one. A detector reports a **level**, so a repeated reading
-  re-asserts what a consumer already holds and at-least-once delivery needs
-  no counter; the usual physical order is occupied then vacated, the head
-  into the next block before the tail clears the last
-  ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)),
-  and a train shorter than the gap between two blocks' detectors gives the
-  other ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 - `tc49/layout/alive_confirmed` — payload `{}`. `layout` publishes it once a
   second, by the monotonic clock and not once a turn, from its drain loop
   while it is built on a railroad; a `layout` that is standing, or reloading
@@ -1290,8 +1279,7 @@ do not reach the bus: there is one railroad-wide desired power, and a
 translator maps it onto however many districts its hardware has. Above the
 layout interface the railroad-wide answer stays `tc49/layout/state/power`,
 unchanged; `device/track` below it is what one translator reads off its own
-hardware, and how the two meet is `layout`'s, as the fold from sensors into
-`block_occupied` and `block_vacated` is.
+hardware, and how the two meet is `layout`'s.
 
 **Speed is a fraction, never a decoder step.** The sign is direction along the
 track and the magnitude is the fraction of that locomotive's maximum; `0.0` is
@@ -1410,9 +1398,9 @@ topics above give and for the same reason: a feature nothing needs is overhead.
 `unknown` is a value and not an absence. The camera knows *why* it cannot say
 — no model, not calibrated, drift — and `reason` carries that for a person to
 read. A consumer takes no level from it: `layout` holds the level last said and
-creates no occupancy event, lists the sensor on `state/unknown_sensors` once
-`unknown` has stood for the settling time, holds back the block's vacate, and
-stops the train it is driving towards that sensor
+writes no row, lists the sensor on `state/unknown_sensors` once `unknown` has
+stood for the settling time, and stops the train it is driving towards a block
+with both sensors listed
 ([#1151](https://github.com/rails49/control/issues/1151)).
 
 **`link` is where a broken link becomes observable.** A participant that knows
@@ -1456,7 +1444,7 @@ It is for a UI, for a person to read, and nothing branches on it.
 
 Two of the observed rows are published today, both by a translator:
 `device/track` and `device/link`, the two `state/power` is folded from. What
-`layout` folds occupancy from is `tc49/layout/sensor`, whose publisher is a
+`layout` settles readings from is `tc49/layout/sensor`, whose publisher is a
 detector and lives outside this repository — until one does, a person supplies the readings a
 physical run has no other source of, typing them a line at a time at a client
 of the broker like the camera that will replace it, which repeats each typed
@@ -1465,9 +1453,8 @@ level once a second
 [#379](https://github.com/rails49/control/issues/379),
 [bench/detector.py](../src/tc49/bench/detector.py)); `device/point` and
 `device/refused` are declared and written by nobody, the second being each
-translator's own implementation issue. Folding a block's two sensors into
-`block_occupied` and `block_vacated` is `layout`'s own work, and so is the
-**settling time** a new level is held for before it is acted on — a number
+translator's own implementation issue. The
+**settling time** a new level is held for before it is acted on is `layout`'s own work — a number
 private to that app, on no topic, so nothing above the layout interface is
 told there is a debounce at all
 ([layout/README.md](layout/README.md)).

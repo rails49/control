@@ -95,8 +95,8 @@ One turn of the machine (ADR-0047):
    granted moves, `align` before each, so the route is set before anything
    moves.
 3. The driver turns each grant it sees into a `move`.
-4. The layout interface executes it and reports occupancy: the head into the
-   next block, then the tail off the last one.
+4. The layout interface executes it and reports what its sensors read: the head
+   into the next block, then the tail off the last one.
 5. The later of the two readings releases the origin block and the transit,
    ends the move, and the sweep it triggers grants whatever that freed.
 
@@ -1009,9 +1009,8 @@ The rule covers what the **layout** publishes too, for a second reason. No
 page writes those topics, but the binding is another process on the broker,
 and a bug in it must not take the dispatcher down.
 The two observations fail in opposite directions. A `state/power` payload that
-cannot be read counts as `off` ([Track power](#track-power)). An occupancy frame that cannot be read is dropped: it is a reading
-nobody made, so the block stays one the layout has said nothing about, and
-silence is not a clear reading
+cannot be read counts as `off` ([Track power](#track-power)). A settled row that cannot be read is dropped: it is a reading
+nobody made, so the last value stands, and silence is not a clear reading
 ([#181](https://github.com/rails49/control/issues/181)).
 
 The dispatcher's semantics are [DISPATCH.md](dispatcher/DISPATCH.md) and
@@ -1122,13 +1121,12 @@ app but the UI makes
 `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
 `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
 `tc49/schedule/state/facing`, `tc49/layout/sensor` and `tc49/layout/state/device/#`. *Publishes*
-`state/railroad`, the sensor events, `move_withdrawn`, `state/power`,
+`state/railroad`, `state/settled/sensor/<block>.<end>`, `move_withdrawn`, `state/power`,
 `state/unknown_sensors` and the desired half of the device vocabulary
 ([BUS.md](BUS.md#device-vocabulary)).
 
 That is the **role's** footprint, and its two bindings meet all of it. The
-core app `layout` folds a block's two detectors into the sensor events and
-debounces the levels on the way
+core app `layout` holds each sensor's level, settles it and passes it on
 ([layout/README.md](layout/README.md)); the simulator answers the
 two commands and the two placement facts, publishes the sensors from delays of
 its own
@@ -1141,26 +1139,20 @@ The layout interface is where the system meets the track: **commands in,
 observations out**, and it owns time. What it publishes is exactly what
 hardware can produce: anonymous occupancy sensors and track power. It never
 says which train it saw, because a detector cannot report that. The
-dispatcher recovers identity from its own lock table. A block has **two
-detectors, both inside the interface**: a train entering trips the far
-block's entry sensor with its head and its far sensor once it is fully in, so
-the interface publishes `block_occupied` on the way in and `block_vacated`
-for the block behind once the tail clears — usually occupied then vacated
-(ADR-0047). A train with no further grant runs on and stops at the far sensor,
+dispatcher recovers identity from its own lock table, which is also the record
+of which block is occupied: the interface keeps none. A train entering a block
+trips its entry sensor with its head and its far sensor once it is fully in, and
+each reading goes out on `state/settled/sensor/<block>.<end>`. A train with no
+further grant runs on and stops at the far sensor,
 and a train at `clear` whose far signal shows `stop` drops to the railroad's
 `caution` speed once its head is in
 ([#1169](https://github.com/rails49/control/issues/1169)). A `move` that goes back
-out by the end the train came in at is held until that stop. A block's own detectors going clear publish its vacate as well, so
-a train shorter than the gap to the next block's entry detector, or a dead
-detector there, gives the other order, and the dispatcher takes either
-([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+out by the end the train came in at is held until that stop.
 
 **A sensor not reporting reads unknown**, from the start of `layout` until it
 first reports a level and again after `sensor_silence` with no report or once it
 reports `unknown`, and `state/unknown_sensors` lists it. `unknown` creates no
-occupancy event, so the lock table stays correct: the level held stands, and a
-block's vacate waits until neither of its sensors is unknown, other than the one
-from a completed move. The train `layout` is driving into a block with both
+row, so the lock table stays correct: the level held stands. The train `layout` is driving into a block with both
 sensors unknown stops, and carries on by itself when one returns and does not say
 it has arrived, in `automatic` with the power on or draining. One unknown sensor
 stops nothing: the far sensor stops the train, or with that one unknown the entry
@@ -1372,9 +1364,9 @@ run clock once a second of it, and the clock is no event. A batch run
 one
 ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 
-Sensor events report moves only. Initial occupancy is never published: the
-dispatcher's standing locks come from its own placement, and the occupancy
-topics are event topics, facts that happened, not state.
+A settled row says what a sensor read, and nothing of which train or block that
+was. Initial occupancy is never published: the dispatcher's standing locks come
+from its own placement.
 
 **Track power** is the one observation that is not a sensor, and
 `power_wanted` is the one command a binding checks against current state. Both

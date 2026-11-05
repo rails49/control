@@ -40,8 +40,7 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/state/device/#` and
 `tc49/layout/state/wanted/function/#`, the function rows it writes, read back.
 
-*Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
-`tc49/layout/state/wanted/traction/<addr>`,
+*Publishes* `tc49/layout/state/wanted/traction/<addr>`,
 `tc49/layout/state/wanted/function/<addr>/<number>`,
 `tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track`,
@@ -161,9 +160,9 @@ again each second, by `tc49 readings` — that keyboard as a client of the broke
 rather than in one process with it
 ([#315](https://github.com/rails49/control/issues/315),
 [#379](https://github.com/rails49/control/issues/379)). This app is told
-nothing about it: a typed level settles, folds and completes a crossing
-exactly as a camera's does, which is the whole of what standing in for
-hardware means — and it is the reason the fold is tested against typed levels
+nothing about it: a typed level settles, goes out on its row and completes a
+crossing exactly as a camera's does, which is the whole of what standing in for
+hardware means — and it is the reason settling is tested against typed levels
 as readily as against a detector's.
 
 A box runs `python -m tc49.simulator` where it does not run
@@ -573,69 +572,32 @@ every signalled end, so the retained value this app is handed on subscribing is
 the seed. Two ends sharing one address are two writes to one topic and the last
 stands, which is what one output driving two heads does.
 
-## Occupancy
+## Sensors
 
-**Levels in, edges out.** A detector reports presence at one block end, and
+**Levels in, levels out.** A detector reports presence at one block end, and
 presence is a level that can be asked for at any time; the bus carries the
 changes because it is an event bus
-([#243](https://github.com/rails49/control/issues/243)). So this app holds the
-level at each block end and publishes `block_occupied` or `block_vacated` only
-where a level moves. A repeated level re-asserts what is already held and is a
-no-op, which is the whole of what at-least-once delivery needs here: no
-counter, no dedup.
+([#243](https://github.com/rails49/control/issues/243)). So this app holds each
+sensor's level, settles it and passes it on, on
+`state/settled/sensor/<block>.<end>`. A repeated level re-asserts what is already
+held and is a no-op, which is the whole of what at-least-once delivery needs
+here: no counter, no dedup.
 
-**A block reads occupied while either of its ends does.** Both of a block's
-detectors stay inside the interface
-([SYSTEM.md](../SYSTEM.md#layout-interface)), so what the pair answers together
-is one occupancy, and a change in that fold is the block's own event. It is
-published whether or not a move explains it: a hand putting a locomotive down
-is how every session starts, and what to make of a reading nothing accounts for
-is the dispatcher's judgement — it names the block for a
-person to walk
-([#1154](https://github.com/rails49/control/issues/1154)) — not this
-app's.
-
-**The block behind is named by the move.** A train entering block Y trips Y's
-first detector with its head and its second once it is fully in. The first is
-`block_occupied(Y)`; the second is `block_vacated(X)`, and X is the block this
-app's own accepted `move` left. That is the one event no detector could
-produce: occupancy is anonymous, and nothing below the interface knows what is
-behind a train. So the usual physical order is **occupied then vacated**
-(ADR-0047). The block behind also reads clear when its own detectors do, so a
-train shorter than the gap to the next block's entry detector gives the other
-order. The dispatcher follows a move by `state/settled/sensor` and reads neither
-([#1171](https://github.com/rails49/control/issues/1171)).
+**A block reads nothing here.** A sensor watches a point near a block end, and
+this app keeps no record of which block is occupied. The dispatcher's lock table
+is that record, followed from these rows
+([#1171](https://github.com/rails49/control/issues/1171),
+[#1173](https://github.com/rails49/control/issues/1173)). A level goes out whether
+or not a move explains it: a hand putting a locomotive down is how every session
+starts, and what to make of a reading nothing accounts for is the dispatcher's
+judgement — it names the block for a person to walk
+([#1154](https://github.com/rails49/control/issues/1154)) — not this app's.
 
 Which end of the entered block the train comes in at is the end across the
 transit, read off the layout from the `move` that was carried out. The block's
 *far* end is a different thing — its second sensor, the one a train trips once
 it is fully in — and the two are opposite ends of the one block
 ([#279](https://github.com/rails49/control/issues/279)).
-
-**One departure is one release.** The same departure reaches this app twice —
-as the move it carried out, which is what names the block behind, and as that
-block's own detectors going clear, which is the tail leaving — and which
-settles first is a race, the train being out of X at the instant it is fully
-into Y. So whichever arrives first publishes the `block_vacated` and the other
-says nothing: what this app has said about each block is one record, written by
-whichever rule publishes it, and the occupied levels X still holds when the
-move releases it are the train that left and are **spent** by that release
-rather than folded back into a train standing there
-([#311](https://github.com/rails49/control/issues/311)). A block released this
-way is recorded clear and not forgotten, so it reads occupied again the
-ordinary way, by a change in the fold.
-
-**A spent end counts again.** What a release spends is the ends of X reading
-occupied at the moment it runs, and they count again as soon as that
-departure is over: when the end itself settles a level of its own, and when X
-is published occupied again, which un-spends *both* of its ends — a new train
-standing in X ends the previous departure's account. Otherwise an end that was
-spent and never changes again — a car left standing, a detector stuck occupied
-— would be out of the fold for good, and the block behind the next train would
-be published vacated while the steel still reads occupied. A level no move
-explains is still a level, and holding the run on it is the point
-([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md),
-[#331](https://github.com/rails49/control/issues/331)).
 
 **The debounce.** A camera-based detector runs at 2–8 Hz with no debounce of
 its own and is biased towards reporting occupied, so a new level is held for a
@@ -651,7 +613,7 @@ break under a train is asked of whatever reports
 ([BUS.md](../BUS.md#event-inventory),
 [#1167](https://github.com/rails49/control/issues/1167)).
 
-**`unknown` gives no level for that end.** No edge comes of it, it does not
+**`unknown` gives no level for that end.** No row comes of it, it does not
 discard the level the end last actually had, and it does not cancel a level that
 is settling. The `reason` beside it is logged once per transition into
 `unknown`, for a person: the detector knows why it cannot say — no model, not
@@ -667,7 +629,7 @@ with its `reason` or `no reason given`. A level within that time cancels it. An
 `occupied` or `clear` that has stood for the settling time takes the sensor off
 and makes `reported` true, even a level equal to the one held. The row goes out
 once a call to `settle()`, only where the list changed. A report naming a sensor
-not on the drawing folds as any other and is never listed.
+not on the drawing settles as any other and is never listed.
 
 **What a sensor has settled on is kept**, one row per sensor, on
 `state/settled/sensor/<block>.<end>`
@@ -676,13 +638,6 @@ publishes it, including one that takes a sensor off the list and equals the last
 While a sensor is listed its row stands at the last level, and a sensor with no
 settled level since this app started has none. Coming up and each load of a
 railroad clear the rows, so no reading of the last run is read as current.
-
-**A listed sensor holds back its block's vacate.** A block's vacate goes out only
-where neither of its sensors is listed and neither reads occupied, since a train
-may stand under the one nobody can hear: after a restart, the first `clear` of a
-block says nothing until its other sensor reports `clear`. `occupied` from either
-goes out at once, and the vacate from a completed move (`_release`, `_vacate`)
-does not wait.
 
 **The train stops with both sensors listed.** While both sensors of the block a
 crossing enters are listed, and the crossing is outstanding and no throttle holds

@@ -172,8 +172,8 @@ src/tc49/
   layout/       interface.py  LayoutInterface — the physical layout
                               interface: align before move, the near-end
                               check, nothing while the rails are dead, the
-                              device vocabulary out, a block's two debounced
-                              detectors folded into the occupancy events, and
+                              device vocabulary out, each sensor's level
+                              settled and passed on, and
                               the traction write, whose sign is the train's
                               facing composed with each car's orientation
                               (docs/layout/README.md)
