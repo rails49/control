@@ -46,8 +46,9 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/state/wanted/point/<addr>`,
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track`,
 `tc49/layout/state/power`, `tc49/layout/state/driving`,
-`tc49/layout/state/taken`, `tc49/layout/state/functions` and
-`tc49/layout/state/unknown_sensors`.
+`tc49/layout/state/taken`, `tc49/layout/state/functions`,
+`tc49/layout/state/unknown_sensors` and
+`tc49/layout/state/settled/sensor/<block>.<end>`.
 
 The facing is the one topic here that is nobody's hardware and nobody's
 command: it is the scheduler's state, and this app reads it because the sign of
@@ -612,6 +613,14 @@ with its `reason` or `no reason given`. A level within that time cancels it. An
 and makes `reported` true, even a level equal to the one held. The row goes out
 once a call to `settle()`, only where the list changed. A report naming a sensor
 not on the drawing folds as any other and is never listed.
+
+**What a sensor has settled on is kept**, one row per sensor, on
+`state/settled/sensor/<block>.<end>`
+([#1168](https://github.com/rails49/control/issues/1168)). Each level that stands
+publishes it, including one that takes a sensor off the list and equals the last.
+While a sensor is listed its row stands at the last level, and a sensor with no
+settled level since this app started has none. Coming up and each load of a
+railroad clear the rows, so no reading of the last run is read as current.
 
 **A listed sensor holds back its block's vacate.** A block's vacate goes out only
 where neither of its sensors is listed and neither reads occupied, since a train
