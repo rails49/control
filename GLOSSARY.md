@@ -368,7 +368,8 @@ _Avoid_: shutdown, wind-down, quiesce, finish the route (formerly)
 **Moving**:
 Some train is crossing, so cutting the track supply now would strand it. A
 train standing in a block, at a signal partway along its route or anywhere
-else, is not moving. It is a boolean beside power, not a fourth value
+else, is not moving, and nor is one `layout` has stopped at an unknown entry
+sensor. It is a boolean beside power, not a fourth value
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: busy, in motion, rolling, quiet, still (say not moving)
 
@@ -401,6 +402,10 @@ It goes on **Disputed** for a person and the rest keeps running
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 (one cause of such a reading)
+
+**Out of use**:
+The [org glossary](https://github.com/rails49/.github/blob/main/GLOSSARY.md)'s word. Here: a block or transit the dispatcher grants nothing into, out of or through, or a train it grants nothing to, while a failure holds on it: a sensor `unknown` (#1152), a block reading occupied with no train claiming it (ADR-0077), or a train whose block reads clear (#1154). What resumes use is the org's [OPERATING.md](https://github.com/rails49/.github/blob/main/docs/OPERATING.md).
+_Avoid_: blocked, disabled, failed
 
 **Active / idle train**:
 A train is active while it has a committed route, launched and not yet

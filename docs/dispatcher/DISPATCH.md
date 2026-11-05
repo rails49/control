@@ -52,6 +52,29 @@ one: `stop` to Halt, `caution` to Warnung (proceed, the next signal shows
 stop), `clear` to Fahrt. The panel draws them as system N and the throttle as
 system L
 ([ADR-0094](../adr/0094-caution-is-warnung-the-panel-draws-system-n-and-the-throttle-system-l.md)).
+A signal over a move into or out of a block out of use shows `stop`, and depth
+counts only up to the first such block ([#1152](https://github.com/rails49/control/issues/1152)).
+
+### Out of use
+
+A block is **out of use** while either of its sensors is on
+`tc49/layout/state/unknown_sensors`: the dispatcher treats it as if it did not
+exist, and the rest of the railroad runs ([#1152](https://github.com/rails49/control/issues/1152)). No row means none.
+
+- **Nothing in.** `State.obstacle` answers `held` for it, with holder `""` where
+  nobody holds it, as for a block reading occupied, whoever asks. There is no
+  refusal reason of its own.
+- **Nothing out.** A train standing in one is refused `held`, naming that block,
+  at a launch and at each grant.
+- **No route through.** The route chooser leaves such routes out (*Route
+  selection*).
+- **A committed route stays.** A train whose route crosses the block is not
+  rerouted ([ADR-0002](../adr/0002-fixed-route-per-request.md)). It waits at its
+  signal with its route and its locks, and a person can cancel its request.
+- **Placing does not ask.** A placement on a block out of use is accepted.
+
+The list changing runs a sweep, so a sensor returning routes at once with no
+press.
 
 ### Requests
 
@@ -203,22 +226,28 @@ topology ordering; #33 made it congestion-aware. The chooser:
    The arrival ends are unordered and equally acceptable, so the ordering below
    decides between them; the request states no preference among them.
 2. Consider only routes whose every block fits the train.
-3. Order by transit count — which under the simulator is travel time, since
+3. Leave out any route with a block **out of use** beyond its origin, before
+   the budget `k` is spent, so another route is found. Where that leaves none
+   and step 2 found one, the launch is refused `held`, naming the first such
+   block on the first of them, and the request waits: a request is rejected
+   `unreachable` only where no route exists whatever the sensors say
+   ([#1152](https://github.com/rails49/control/issues/1152)).
+4. Order by transit count — which under the simulator is travel time, since
    every transit costs the same fixed delays regardless of length.
-4. Break ties on congestion: the number of route blocks beyond the origin that
+5. Break ties on congestion: the number of route blocks beyond the origin that
    are locked by another train — idle holders included — lie on the
    committed remaining route of another active train, or read occupied with
    nobody standing in them: unheld, or residue
    ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
-5. Break remaining ties on the lexicographically smallest block-id sequence,
+6. Break remaining ties on the lexicographically smallest block-id sequence,
    so repeated runs are bit-identical.
 
 `k` is a single budget over that merged list, not a budget per arrival end, so
 it keeps its plain meaning: how many alternatives a launch may try before
 staying pending.
 
-Step 4 is what keeps equidistant candidates from concentrating. Arrival ends
-on parallel tracks of one station tend to tie at step 3 — a station is reached
+Step 5 is what keeps equidistant candidates from concentrating. Arrival ends
+on parallel tracks of one station tend to tie at step 4 — a station is reached
 by the same line whichever of its tracks the train ends on — and before #33
 the lexicographic tie-break alone decided which `k` got tried, so every train
 tried the same smallest-id tracks first. That bias was measured twice: as the
