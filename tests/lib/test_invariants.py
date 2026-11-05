@@ -1316,6 +1316,101 @@ def test_a_move_held_for_a_reported_point_has_not_begun_at_its_entry_sensor() ->
     assert record.under_way("single")
 
 
+THROTTLED: Rows = RUNNING | {TAKEN: {"taken": {"single": "t-1"}}}
+"""`single` running under a person's throttle."""
+
+
+def test_a_person_running_past_the_entry_sensor_begins_the_move_at_the_report() -> None:
+    """Head in first and the point after: nothing else begins the move, a
+    throttle-held train getting no speed from `layout`, which still writes the
+    `0.0` at the far sensor (#1179)."""
+    run = [TO_DN, REPORTED, moved(), sensor("dn_e.A"), lies("12", "thrown")]
+    far = sensor("dn_e.B")
+
+    assert breaches_over(
+        adr_0081_arrival_stops_the_train, BENCH, THROTTLED, [*run, far]
+    )
+    assert (
+        breaches_over(
+            adr_0081_arrival_stops_the_train,
+            BENCH,
+            THROTTLED,
+            [*run, far, wrote("3", 0.0)],
+        )
+        == []
+    )
+
+
+def test_the_point_reporting_first_begins_the_move_at_the_entry_sensor() -> None:
+    run = [TO_DN, REPORTED, moved(), lies("12", "thrown"), sensor("dn_e.A")]
+    far = sensor("dn_e.B")
+
+    assert breaches_over(
+        adr_0081_arrival_stops_the_train, BENCH, THROTTLED, [*run, far]
+    )
+    assert (
+        breaches_over(
+            adr_0081_arrival_stops_the_train,
+            BENCH,
+            THROTTLED,
+            [*run, far, wrote("3", 0.0)],
+        )
+        == []
+    )
+
+
+def test_a_report_begins_nothing_for_a_train_no_throttle_holds() -> None:
+    """This app drives it, so its speed write is what begins the move."""
+    record = _heard(TO_DN, REPORTED, moved(), sensor("dn_e.A"), lies("12", "thrown"))
+
+    assert record.started == {}
+    assert "single" in record.commanded
+
+
+def test_a_report_begins_no_move_held_for_reversing() -> None:
+    """The move under way goes on owing its stop at its own far sensor."""
+    record = Record(RAILROADS[BENCH], THROTTLED, STOCK[BENCH])
+    for topic, payload in [
+        TO_DN,
+        ALIGNED,
+        moved(),
+        sensor("dn_e.A"),
+        REPORTED,
+        BACK,
+        sensor("up_w.B"),
+        lies("12", "thrown"),
+    ]:
+        record.observe(topic, payload)
+
+    assert record.started["single"].far == "dn_e.B"
+    assert "single" in record.commanded
+
+
+def test_a_report_of_another_position_begins_nothing() -> None:
+    """The move still waits for the position its `align` asked."""
+    record = Record(RAILROADS[BENCH], THROTTLED, STOCK[BENCH])
+    for topic, payload in [
+        TO_DN,
+        REPORTED,
+        moved(),
+        sensor("dn_e.A"),
+        lies("12", "closed"),
+    ]:
+        record.observe(topic, payload)
+
+    assert record.started == {}
+    assert record.waits("single")
+
+
+def test_a_report_begins_nothing_before_the_head_is_in() -> None:
+    record = Record(RAILROADS[BENCH], THROTTLED, STOCK[BENCH])
+    for topic, payload in [TO_DN, REPORTED, moved(), lies("12", "thrown")]:
+        record.observe(topic, payload)
+
+    assert record.started == {}
+    assert "single" in record.commanded
+
+
 def test_every_history_invariant_has_its_cases() -> None:
     assert [invariant.breaches for invariant in HISTORY_INVARIANTS] == [
         case[0] for case in HISTORY_CASES
