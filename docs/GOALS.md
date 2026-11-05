@@ -166,6 +166,14 @@ a person backing a train at a platform changes nothing. The last line also
 covers a train placed beyond the sensor it would leave by, and a reading missed
 while a sensor was not reporting.
 
+Where the entry sensor is `unknown` as the train passes, the far sensor reading
+`occupied` says the head is in. A request ends when the whole train is in its
+last block, or when the far sensor reads `occupied` if the entry sensor was not
+seen to clear. A transit left that way stays occupied until the train's next
+move or a placement. A train reversing starts only after its last request has
+ended, so it is never sent back over its own tail
+([#1171](https://github.com/rails49/control/issues/1171)).
+
 How far ahead it has locked is exactly what the train's signal says, because
 stopping takes distance:
 

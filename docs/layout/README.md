@@ -603,8 +603,8 @@ produce: occupancy is anonymous, and nothing below the interface knows what is
 behind a train. So the usual physical order is **occupied then vacated**
 (ADR-0047). The block behind also reads clear when its own detectors do, so a
 train shorter than the gap to the next block's entry detector gives the other
-order; the dispatcher ends a move on both readings in either
-([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+order. The dispatcher follows a move by `state/settled/sensor` and reads neither
+([#1171](https://github.com/rails49/control/issues/1171)).
 
 Which end of the entered block the train comes in at is the end across the
 transit, read off the layout from the `move` that was carried out. The block's

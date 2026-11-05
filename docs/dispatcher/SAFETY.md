@@ -20,14 +20,14 @@ collision mechanism, and it is not one.
   anything — it only vetoes grants that the lock table would otherwise make.
 
 A consequence worth stating: a train mid-transit from `X` to `Y` holds
-`{X, T, Y}`, and its lock on `X` is released only once `block_vacated(X)` —
-the sensor confirming the train has fully cleared it — and
-`block_occupied(Y)` have both arrived, in either order
-([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
-Real trains straddle the boundary, and a short one can stand between the two
-blocks' detectors on the connection's points; the release rule handles both
-without the dispatcher knowing. The simulator publishes the two
-in the same order, `block_vacated(X)` a fixed delay after `block_occupied(Y)`
+`{X, T, Y}`. Its lock on `X` is released once the sensor at the end it leaves by
+reads occupied then clear, or occupied at the grant and then clear, and its lock on
+`T` once the sensor at the end it enters by reads occupied then clear, with anything
+of that train's still behind it
+([#1171](https://github.com/rails49/control/issues/1171)). Real trains straddle the
+boundary, and a short one can stand between the two blocks' sensors on the
+connection's points; the rule handles both without the dispatcher knowing how long
+the train is. The simulator publishes the same readings on its own fixed delays
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)),
 so the two behave identically.
 
@@ -57,6 +57,13 @@ so the two behave identically.
 *stops as soon as it physically can*, and by Lemma 1 that is always the far
 block. Its origin therefore counts as free. This is sound — the release is
 guaranteed, not hoped for — and strictly more permissive than counting both.
+
+A train whose next move is granted with its tail behind it is mid-transit too, so
+`cur(t)` is still the block it is crossing into, whether the tail is in `Y`, on `T`
+or in `X`. A train that fits that block is wholly in it by the time it stops, so what
+is behind it is released. An idle train's blocks are every block on its `occupied`
+list, not only the one it stands in
+([#1171](https://github.com/rails49/control/issues/1171)).
 
 `held(t)` is empty whenever a grant locks no further than `cur(t)`. It is read
 off the lock table rather than off the strategy's depth, so the check
@@ -181,6 +188,12 @@ So it can always complete the crossing and release the transit without waiting
 on any train. Every *waiting* train therefore waits while occupying only a
 block, and any circular wait is a cycle of block-holders. Transits drop out of
 the analysis.
+
+The one exception is a transit left occupied by a train that passed its entry
+sensor while that sensor was `unknown`: it is held by a train that waits, until that
+train's next move or a placement. That takes a sensor failure as the train passed,
+and only that train and those needing the transit wait, as
+[#1150](https://github.com/rails49/control/issues/1150) says of a stuck train.
 
 **Lemma 2 (release monotonicity).** If a state is safe with witness ordering
 `W`, any state reached by releasing resources is safe with the *same* `W`.
