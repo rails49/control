@@ -1128,6 +1128,26 @@ def test_a_move_a_person_ran_past_its_entry_sensor_has_no_start_left() -> None:
     assert record.started["single"].far == "dn_e.B"
 
 
+def test_a_move_held_for_a_reported_point_has_not_begun_at_its_entry_sensor() -> None:
+    """A person ran the train in while `layout` holds the move for a point not
+    yet reported (ADR-0097, decision 6): released then it is owed a 0, the move
+    having not started, until the point says where it lies (#1170)."""
+    aligned: tuple[str, Payload] = (
+        ALIGN,
+        {
+            "connection": "crossover",
+            "transit": "to_dn",
+            "points": [{"addr": "12", "position": "thrown", "reported": True}],
+        },
+    )
+    moving = [TO_DN, aligned, (TAKEN, {"taken": {"single": "t-1"}}), moved()]
+    record = _heard(*moving, sensor("dn_e.A"))
+
+    assert record.started == {}
+    assert record.waits("single")
+    assert record.under_way("single")
+
+
 def test_every_history_invariant_has_its_cases() -> None:
     assert [invariant.breaches for invariant in HISTORY_INVARIANTS] == [
         case[0] for case in HISTORY_CASES
