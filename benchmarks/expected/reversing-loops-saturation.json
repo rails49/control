@@ -5,25 +5,25 @@
     "FullRoute": {
       "status": "ok",
       "makespan": 1440.0,
-      "seconds": 1440.0,
+      "seconds": 1470.0,
       "completed": 18,
       "rejected": 0,
       "mean_latency": 770.0,
       "max_latency": 1440.0,
-      "mean_utilization": 0.391,
-      "moves_per_minute": 1.4167,
+      "mean_utilization": 0.3878,
+      "moves_per_minute": 1.3878,
       "stalls": []
     },
     "Incremental": {
       "status": "ok",
       "makespan": 1140.0,
-      "seconds": 1140.0,
+      "seconds": 1170.0,
       "completed": 18,
       "rejected": 0,
       "mean_latency": 633.3333,
       "max_latency": 1140.0,
-      "mean_utilization": 0.3782,
-      "moves_per_minute": 1.7895,
+      "mean_utilization": 0.3742,
+      "moves_per_minute": 1.7436,
       "stalls": []
     }
   }
