@@ -589,7 +589,8 @@ what a drop would cost:
   never heard. Published from the constructor, so a client that joins is served
   a value ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)),
   and whenever the list changes. The simulator, in its place, publishes it empty
-  and never changes it: it publishes occupancy directly and has no sensors. Its
+  and never changes it: it publishes the settled row,
+  `tc49/layout/state/settled/sensor/<block>.<end>`, itself, and no report reaches it. Its
   consumers are the dispatcher, which takes the block of each listed sensor out
   of use, and the page, which tells a person. A dispatcher with no row yet treats
   no sensor as unknown, and a payload that cannot be read is dropped and the last

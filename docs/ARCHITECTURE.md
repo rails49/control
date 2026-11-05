@@ -506,7 +506,7 @@ An invariant over one app's rows is asserted after every message, by a
 subscriber on `#`; one over several apps' rows (`cross_app`) each time
 `drain()` returns with nothing left to deliver. ADR-0026's holds only under
 `Incremental`, and the check is told the strategy. The history invariants
-read a `Record` of the messages as well, a block's occupancy among them. On
+read a `Record` of the messages as well, each sensor's settled row among them. On
 the in-process bus a subscriber on `#` keeps it and checks each message
 before recording it, and once more with nothing left to deliver, where a rule
 that one message follows another is breached. Under `InterleavingBus` each
