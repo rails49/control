@@ -1026,7 +1026,8 @@ before the arrival releases nothing and holds nothing, and the arrival then
 ends the move; and a clear reading on a block nobody holds is explained and
 sweeps ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)). The grant pass is a **sweep** over the
 whole waiting set, run where the lock table or the waiting set changes: a
-request admitted, a vacate, the power reading `on` again. Every grant is `safe()`-checked
+request admitted, a vacate, the power reading `on` again, the list of unknown
+sensors changing. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
 reaches an unsafe state; under MQTT a sensor that arrives late delays a grant
 rather than producing a wrong one. After a failure leaves a train unable to
