@@ -290,11 +290,18 @@ def test_a_batch_run_stops_at_quiescence_and_not_one_event_before() -> None:
     both_trains_move(bus)
     simulator.run()
 
-    assert sorted(addr for _at, addr, _level in seen) == sorted(
-        ["yard_w.B", "dn_w.A", "yard_w.B", "dn_w.A", "dn_w.B"]
-        + ["up_e.B", "yard_e.A", "up_e.B", "yard_e.A", "yard_e.B"]
-    )
-    assert seen[-1][0] == TRANSIT_S + 2 * CLEAR_S
+    assert seen == [
+        (0.0, "yard_w.B", "occupied"),
+        (0.0, "up_e.B", "occupied"),
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (TRANSIT_S, "yard_e.A", "occupied"),
+        (TRANSIT_S + CLEAR_S, "yard_w.B", "clear"),
+        (TRANSIT_S + CLEAR_S, "up_e.B", "clear"),
+        (TRANSIT_S + 2 * CLEAR_S, "dn_w.A", "clear"),
+        (TRANSIT_S + 2 * CLEAR_S, "dn_w.B", "occupied"),
+        (TRANSIT_S + 2 * CLEAR_S, "yard_e.A", "clear"),
+        (TRANSIT_S + 2 * CLEAR_S, "yard_e.B", "occupied"),
+    ]
     assert clock.now == TRANSIT_S + 2 * CLEAR_S
 
 
@@ -306,12 +313,18 @@ def test_a_run_that_ended_left_no_train_rolling() -> None:
     seen = readings(bus, clock)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     simulator.run()
+    started = clock.now
 
     seen.clear()
     move(bus, "freight_1", "crossover.dn_straight", "dn_e")
     simulator.run()
 
-    assert ("dn_e.A", "occupied") in [(addr, level) for _at, addr, level in seen]
+    assert seen == [
+        (started + TRANSIT_S, "dn_e.A", "occupied"),
+        (started + TRANSIT_S + CLEAR_S, "dn_w.B", "clear"),
+        (started + TRANSIT_S + 2 * CLEAR_S, "dn_e.A", "clear"),
+        (started + TRANSIT_S + 2 * CLEAR_S, "dn_e.B", "occupied"),
+    ]
 
 
 def test_a_live_run_keeps_waiting_after_the_last_train_has_arrived() -> None:
