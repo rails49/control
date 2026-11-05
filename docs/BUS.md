@@ -354,7 +354,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing other than one stopped at an unknown entry sensor, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
-| `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
+| `tc49/dispatch/state/disputed` | state | dispatcher | the blocks that read occupied with no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
 | `tc49/dispatch/state/broken` | state | dispatcher | the lock table's rules it found broken ([#1118](https://github.com/rails49/control/issues/1118)) |
 | `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
@@ -979,9 +979,8 @@ payload is read defensively, and one that fails the read is dropped.
   answer. `null` is accepted at any power
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
   [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  A block reading occupied that nothing claims is on `state/disputed` until the
-  drag claims it ([#1154](https://github.com/rails49/control/issues/1154)). A placement forgets a clear reading on the block it
-  names, so the next reading settles it.
+  A block reading occupied that no train explains is on `state/disputed` until
+  the drag places a train there ([#1154](https://github.com/rails49/control/issues/1154)).
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
   end. A request waiting is cancelled at once, and so is one underway with no
   move outstanding. One with a move outstanding is granted nothing further
@@ -1043,7 +1042,8 @@ payload is read defensively, and one that fails the read is dropped.
   `transit_conflict`, the set `tc49.lib.inventory.Refusal`; `obstacles`: list
   of `{resource, holder}` — the block or transit that blocked a candidate, and
   the train holding it. `held` is a block or transit held by another train
-  (`Refusal.HELD`), never the run. A grant not made because power is not `on`
+  (`Refusal.HELD`), never the run. `holder` is `""` for a block on
+  `state/disputed`, whoever holds its lock ([#1164](https://github.com/rails49/control/issues/1164)). A grant not made because power is not `on`
   is not announced here
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;
@@ -1076,12 +1076,16 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/state/aspects` — `aspects`: map of signalled block end to
   aspect. An end nothing ever leaves does not appear.
-- `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
-  in a block that reads clear; `blocks`: sorted list of blocks reading
-  occupied with nothing claiming them. Computed at every power value, leaving
-  out a crossing train and a block with a lock on it ([#1154](https://github.com/rails49/control/issues/1154)). A train on
-  `trains` takes no grant until a placement or a reading resolves it; the page
-  shows each entry on the band and on the drawing.
+- `tc49/dispatch/state/disputed` — `blocks`: sorted list of blocks that read
+  occupied with no train explaining the reading, computed at every power value
+  ([#1154](https://github.com/rails49/control/issues/1154), [#1164](https://github.com/rails49/control/issues/1164)). A train explains it when it is recorded in the block, when the
+  block is the origin or the arrival block of its outstanding move, when the
+  block is residue of its removal
+  ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)),
+  or when the block is at either end of the transit a restored crossing names.
+  A lock held ahead explains nothing, and a clear reading disputes nothing.
+  Nothing is granted into a block on the list, the holder's own move included;
+  the page shows each on the band and on the drawing.
 - `tc49/dispatch/state/unfit` — `trains`: list of `{train, block, why}`, in
   train order: each train the last rebuild under the same railroad name took
   off the layout, the block it stood in, and `why` — `gone` where the new

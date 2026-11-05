@@ -54,12 +54,11 @@ system L
 ([ADR-0094](../adr/0094-caution-is-warnung-the-panel-draws-system-n-and-the-throttle-system-l.md)).
 A signal over a move into or out of a block out of use shows `stop`, and depth
 counts only up to the first such block ([#1152](https://github.com/rails49/control/issues/1152)).
-A locked block that reads occupied counts the same way, since no train is sent
-into it. Every end along the route of a train on `state/disputed`, or of one
-refused its next move, shows `stop`, since that train is not sent on, and its
-signals return in the sweep that grants it
+A disputed block counts the same way, since no train is sent into it ([#1164](https://github.com/rails49/control/issues/1164)).
+Every end along the route of a train refused its next move shows `stop`, since
+that train is not sent on, and its signals return in the sweep that grants it
 ([#1160](https://github.com/rails49/control/issues/1160)). A grant reads the same
-depth, so a train with an occupied block two ahead runs at `caution`.
+depth, so a train with a disputed block two ahead runs at `caution`.
 
 ### Out of use
 
@@ -370,7 +369,9 @@ releases the origin block and the transit, ends the move and completes the
 request. Usually that is the `block_vacated`, the tail clearing after the
 head arrives; a train shorter than the gap between one block's exit detector
 and the next block's entry detector reads clear behind first, and that
-vacate releases nothing and grants nothing. Between
+vacate releases nothing and grants nothing. An origin reading clear at the grant
+hears no vacate, so that reading counts and the arrival ends the move, unless
+the train has read occupied on its way out and not clear again ([#1164](https://github.com/rails49/control/issues/1164)). Between
 the two the train is between blocks and takes no further grant. A clear
 reading on a block nobody holds is explained and sweeps, so a train waiting
 on that block is reconsidered.
@@ -450,13 +451,13 @@ same independence bought a different way
 ([#1154](https://github.com/rails49/control/issues/1154), in place of the drain of
 [ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)). The
 dispatcher recovers train identity from its lock table, so a `block_occupied`
-with nothing claiming the block, or a `block_vacated` of a block it believes a
-train stands in, says the table has stopped describing the steel there — a hand
+no train explains says the table has stopped describing the steel there — a hand
 putting a locomotive down, a train driven out of its block, a detector
 asserting on dirt. A block reading occupied is an obstacle no train is sent into
-([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)),
-and a train whose block reads clear takes no grant until a placement or an
-occupied reading resolves it. A person is told and the others run. Nothing is
+([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+A clear reading under a train says nothing, since a short train stands between
+its block's sensors, and the train is granted as any other ([#1164](https://github.com/rails49/control/issues/1164)). A person is
+told and the others run. Nothing is
 guessed: occupancy is anonymous, so there is no train to place. It does not
 raise, a payload never being a reason to leave the bus (BUS.md, rule 4).
 
@@ -480,13 +481,14 @@ person turning the power on is honoured
 and breaks later drains again.
 
 **The detectors are asked at every power value** ([#1154](https://github.com/rails49/control/issues/1154)). The sensor readings the layout has
-reported are compared against the placement, and the two contradictions — a
-train standing in a block that reads clear, a block reading occupied with
-nothing claiming it — go out on `tc49/dispatch/state/disputed` for a person to
-walk. Comparing commits nothing, and a reading that explains no granted move
-is the check's whole subject. They place what they find. A crossing train and a
-block with a lock take no part. Blocks nothing has reported on take no
-part either, so a layout binding that publishes no occupancy disputes nothing
+reported are compared against the placement, and each block reading occupied
+that no train explains goes out on `tc49/dispatch/state/disputed` for a person
+to walk ([#1164](https://github.com/rails49/control/issues/1164)). Comparing commits nothing. They place what they find. A train
+explains a reading in the block it is recorded in, the origin and arrival of its
+outstanding move, residue of its removal, and either end of the transit a
+restored crossing names, and a lock held ahead explains nothing. A clear reading
+disputes nothing. Blocks nothing has reported on take no
+part, so a layout binding that publishes no occupancy disputes nothing
 ([#153](https://github.com/rails49/control/issues/153)).
 
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds

@@ -892,8 +892,7 @@ Naming a **block** puts the train there. The block has to exist, fit the
 train, and be free of every claim: no lock on it, and not on a committed
 route, which under `Incremental` are not the same set. That is what makes a
 placement safe while the dispatcher routes: no grant is about to send a train
-into a free block. A clear reading on the block is forgotten, the person's word
-being later than it, and the next reading settles the block. Where the train stands
+into a free block. Where the train stands
 now is not a precondition at all. A train adopted with no placement is exactly
 the one a person has to say something about, and it has no standing lock to
 move, only one to take. Having accepted, the dispatcher moves the train's
@@ -960,26 +959,33 @@ stays used for the session; no id ever resumes
 
 **At every power value it publishes what the detectors dispute**
 ([#1154](https://github.com/rails49/control/issues/1154)), on `state/disputed`:
-the trains its own placement stands in a block the layout reports clear, and
-the blocks the layout reports occupied with nothing claiming them. At power-up
+the blocks the layout reports occupied with no train explaining the reading
+([#1164](https://github.com/rails49/control/issues/1164)). A train explains it when it is recorded in the block, when the block
+is the origin or the arrival block of its outstanding move, when the block is
+residue of its removal, or when the block is at either end of the transit a
+restored crossing names. A lock held ahead explains nothing. At power-up
 every detector reports at once and anonymously, which is the moment a restored
-placement is least trustworthy. Naming the two contradictions means a person
-checks a handful of trains rather than walking the whole railroad.
+placement is least trustworthy. Naming the blocks means a person checks a
+handful rather than walking the whole railroad.
+
+**A clear reading disputes nothing.** A short train stands between its block's
+two sensors and both read clear, so it is granted as any other. A detector
+states a change of level, so no vacate comes for an origin that reads clear at
+the grant, and that reading counts for the move: the arrival ends it, unless the
+train has read occupied on its way out and not clear again
+([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 
 The set **resolves nothing**, because no sensor says *which* train it saw. A
-person ends each entry with a `placement_wanted`, and the set empties as they
-do. Only blocks the layout has actually reported on take part. **Silence is
+person ends each entry with a `placement_wanted`, or the block reads clear, and
+the set empties as they do. Only blocks the layout has actually reported on take part. **Silence is
 not a clear reading**, so a binding that reports no occupancy at all disputes
-nothing rather than disputing the whole railroad. A train the picture says is
-crossing takes no part either, standing in no block, and nor does a block with
-a lock on it. Turning the power on with entries outstanding is allowed, and the
-set stands. A block disputed for reading occupied is not entered until it reads
-clear
-([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)),
-and a train disputed for its block reading clear takes no grant, whether it is
-partway along a route or waiting to start, until a placement or an occupied
-reading ends the entry. The others run
-([#153](https://github.com/rails49/control/issues/153)).
+nothing rather than disputing the whole railroad. Turning the power on with
+entries outstanding is allowed, and the set stands. A disputed block is not
+entered until it reads clear, by the train holding its lock either
+([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)):
+that train's refusal names holder `""`, since what stands there is nobody's
+train, and its signal shows `stop`. The others run
+([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)).
 
 It is also the **only component that checks a payload**. A browser can publish
 anything at all, nothing standing between it and the broker, so the dispatcher
@@ -1357,14 +1363,14 @@ put it. It is not a command, and nothing moves on it.
 A reading no granted move accounts for **stops nothing but what it is about**
 ([#1154](https://github.com/rails49/control/issues/1154), in place of the drain of
 [ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). The dispatcher
-recovers train identity from its lock table, so a `block_occupied` with
-nothing claiming the block, or a `block_vacated` of a block it believes a
-train stands in — a hand putting a locomotive down, a train driven out of its
+recovers train identity from its lock table, so a `block_occupied` no train
+explains — a hand putting a locomotive down, a train driven out of its
 block, a detector asserting on dirt — says the table has stopped describing the
 steel there. The reading goes on `state/disputed`, a person is told, and a sweep
-runs. A block reading occupied is an obstacle no train is sent into, and a
-train whose block reads clear takes no grant, so neither relies on the rest of
-the railroad stopping.
+runs. A block reading occupied is an obstacle no train is sent into, so it does
+not rely on the rest of the railroad stopping. A `block_vacated` under a train
+that stands there says nothing, since a short train stands between its block's
+sensors, and the train is granted as any other.
 It guesses nothing: occupancy is anonymous, so there is no train to place. It
 does not raise either, a payload never being a reason to leave the bus
 (rule 4).
@@ -1387,9 +1393,8 @@ shows each as `dispatcher: <rule>` for as long as it is listed
 ([#1118](https://github.com/rails49/control/issues/1118)).
 
 The **dispute check** is this comparison exactly: the block reading occupied
-with nothing claiming it, or the train whose block reads clear, is named on
-`state/disputed` for a person to walk. They place what they find, and a reading
-that agrees with the picture ends an entry too.
+that no train explains is named on `state/disputed` for a person to walk. They
+place what they find, and a clear reading ends an entry too.
 
 For a placement the simulator reads clear each block its own detectors last read
 occupied for the train and reads nothing occupied, so a train it stands anywhere
