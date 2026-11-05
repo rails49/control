@@ -1120,6 +1120,17 @@ a train shorter than the gap to the next block's entry detector, or a dead
 detector there, gives the other order, and the dispatcher takes either
 ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 
+**A sensor not reporting reads unknown**, from the start of `layout` until it
+first reports a level and again after `sensor_silence` with no report or once it
+reports `unknown`, and `state/unknown_sensors` lists it. `unknown` creates no
+occupancy event, so the lock table stays correct: the level held stands, and a
+block's vacate waits until neither of its sensors is unknown, other than the one
+from a completed move. The train `layout` is driving towards an unknown entry
+sensor stops, and carries on by itself when that sensor reports `clear`, in
+`automatic` with the power on or draining; `occupied` is the arrival. A train a
+throttle holds is never stopped for this
+([#1151](https://github.com/rails49/control/issues/1151)).
+
 Commands name a **transit** rather than a piece of hardware. An `align` names
 a connection and a transit, and carries the points that transit needs as
 address-and-position pairs, so an adapter throws what it is told and holds no
@@ -1180,8 +1191,9 @@ where any is out of range
 ([#1131](https://github.com/rails49/control/issues/1131)), taken at any
 power and with no rebuild and said at once. The gap is used for the next
 point written and the throttle silence from the next check of who has gone
-silent; the speeds are the driver's, and nothing runs on the sensor silence
-yet ([#1151](https://github.com/rails49/control/issues/1151)). The gap and the
+silent, as is the sensor silence for who has gone unheard
+([#1151](https://github.com/rails49/control/issues/1151)); the speeds are the
+driver's. The gap and the
 speeds are kept with the
 railroad in `layouts/<layout>.settings.yaml`, the two silences with the
 installation in `installation.yaml`, read once as `layout` starts

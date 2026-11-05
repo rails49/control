@@ -228,15 +228,14 @@ Collision safety rests on that, since the lock table keeps two trains apart
 only if the track the dispatcher thinks it set is the track that is there. A
 physical railroad guarantees neither. Points fail to throw and report nothing,
 so a route that failed to set looks correct
-([ADR-0017](adr/0017-turnout-position-is-inferred-by-the-panel.md)). Detectors
-bounce, drop out, and read dirty wheels as an empty block. A decoder misses its
+([ADR-0017](adr/0017-turnout-position-is-inferred-by-the-panel.md)). A decoder misses its
 packet, a locomotive stalls, or someone lifts a train off the track by hand.
 Collision safety is the property that matters when these happen, and it is the
 one the current argument does not cover.
 
 **Hardware is assumed perfect**, and that is a decision rather than an
 oversight. Every one of these failures has answers — reported point position,
-detector redundancy, a plausibility check of sensor events against the lock
+a plausibility check of sensor events against the lock
 table, a watchdog on a transit that takes too long, an emergency stop — and
 every answer costs. Which of them earns its cost depends on which failures
 actually bite, that is not knowable until there is a layout to learn it from,
@@ -244,6 +243,12 @@ and no hardware is running yet, so the set worth working on is empty. The
 failures are written down here rather than worked on, so the day hardware
 appears the effort starts from a list instead of from a surprise under a
 running train.
+
+**A sensor that stops reporting takes its block out of use, and the rest of the
+railroad runs.** The sensor reads unknown until it reports again, a person is
+told, and what to do is theirs. Normal running resumes by itself when it returns.
+Failures are expected and intermittent, and no single failure stops the railroad.
+Other hardware is still assumed perfect.
 
 **The operator is assumed to leave the railroad to the app**, and that is a
 decision of the same kind. The app is correct about the railroad it is told
