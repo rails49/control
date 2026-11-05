@@ -220,7 +220,8 @@ class State:
         grants nothing into, out of or through one, and a train already on a
         route through one waits at its signal, keeping its route (ADR-0002).
         Placing does not ask: `free` and `_judged` answer as they did, and a
-        placement on a block out of use is accepted."""
+        placement on a block out of use is accepted. This covers the sensor
+        cause; GLOSSARY.md, **Out of use**, lists every cause."""
         return frozenset(block_of(sensor) for sensor in self.unknown_sensors)
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
