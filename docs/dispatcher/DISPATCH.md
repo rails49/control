@@ -70,7 +70,7 @@ This section covers the sensor cause; [GLOSSARY.md](../../GLOSSARY.md)'s
 **Out of use** lists every cause.
 
 - **Nothing in.** `State.obstacle` answers `held` for it, with holder `""` where
-  nobody holds it, as for a block reading occupied, whoever asks. There is no
+  nobody holds it, as for a block with a sensor reading occupied, whoever asks. There is no
   refusal reason of its own.
 - **Nothing out.** A train standing in one is refused `held`, naming that block,
   at a launch and at each grant.
@@ -460,7 +460,7 @@ same independence bought a different way
 dispatcher recovers train identity from its lock table, so a sensor reading occupied
 that no train explains says the table has stopped describing the steel there — a hand
 putting a locomotive down, a train driven out of its block, a detector
-asserting on dirt. A block reading occupied is an obstacle no train is sent into
+asserting on dirt. A block with a sensor reading occupied is an obstacle no train is sent into
 ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 A clear reading under a train says nothing, since a short train stands between
 its block's sensors, and the train is granted as any other ([#1164](https://github.com/rails49/control/issues/1164)). A person is
@@ -489,7 +489,7 @@ person turning the power on is honoured
 and breaks later drains again.
 
 **The detectors are asked at every power value** ([#1154](https://github.com/rails49/control/issues/1154)). The sensor readings the layout has
-reported are compared against the placement, and each block reading occupied
+reported are compared against the placement, and each block with a sensor reading occupied
 that no train explains goes out on `tc49/dispatch/state/disputed` for a person
 to walk ([#1164](https://github.com/rails49/control/issues/1164)). Comparing commits nothing. They place what they find. A train
 explains a reading in a block on its `occupied` list, the `into` of its outstanding

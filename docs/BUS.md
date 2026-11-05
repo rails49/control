@@ -353,7 +353,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/state/moving` | state | dispatcher | whether any train has a move not yet ended, other than one stopped with both its sensors unknown, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
-| `tc49/dispatch/state/disputed` | state | dispatcher | the blocks that read occupied with no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
+| `tc49/dispatch/state/disputed` | state | dispatcher | the blocks with a sensor reading occupied and no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
 | `tc49/dispatch/state/broken` | state | dispatcher | the lock table's rules it found broken ([#1118](https://github.com/rails49/control/issues/1118)) |
 | `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
@@ -1005,7 +1005,7 @@ payload is read defensively, and one that fails the read is dropped.
   answer. `null` is accepted at any power
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
   [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  A block reading occupied that no train explains is on `state/disputed` until
+  A block with a sensor reading occupied that no train explains is on `state/disputed` until
   the drag places a train there ([#1154](https://github.com/rails49/control/issues/1154)).
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
   end. A request waiting is cancelled at once, and so is one underway with no
