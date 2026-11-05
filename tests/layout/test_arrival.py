@@ -22,6 +22,7 @@ from tests.layout.railroad import (
     POWER_WANTED,
     REMOVED,
     SETTINGS_WANTED,
+    UNKNOWN_SENSORS,
     align,
     commanded,
     drains,
@@ -165,6 +166,20 @@ def test_the_far_sensor_stops_a_train_with_no_further_grant() -> None:
 
     rig.read(FAR)
     assert rig.wrote() == [("8", 0.0), ("4", 0.0)]
+
+
+def test_a_move_that_was_not_acted_on_leaves_no_crossing_behind() -> None:
+    """The train stands in `w`, which is not this transit's near end, so the
+    move is dropped and the far sensor of the block it names ends nothing. The
+    facing names `x`, so the near end is all that refuses it."""
+    rig = Rig()
+    faces(rig.bus, single="x.A-to-B")
+    rig.crosses("y")
+
+    rig.read("y.B")
+
+    assert rig.app.position["single"] == "w"
+    assert rig.wrote() == []
 
 
 def test_the_far_sensor_deletes_the_crossing() -> None:
@@ -536,6 +551,23 @@ def test_a_move_out_through_the_far_end_is_not_held() -> None:
     assert rig.wrote() == given()
 
 
+def test_a_further_move_through_the_far_end_takes_the_held_move_with_it() -> None:
+    """The far sensor is no arrival once the train is carried through, so no
+    `0.0`, and `_cross` drops the held move, its near block being behind the
+    train. The next far sensor stops the train and starts nothing."""
+    rig, every = reversing()
+    onward(rig)
+    assert speeds(every) == [("3", CLEAR), ("3", CLEAR)]
+
+    rig.read(FAR)
+    assert speeds(every) == [("3", CLEAR), ("3", CLEAR)]
+    assert rig.app.position["single"] == "y"
+
+    rig.read("y.B")
+    assert speeds(every) == [("3", CLEAR), ("3", CLEAR), ("3", 0.0)]
+    assert rig.app.position["single"] == "y"
+
+
 def test_a_second_move_for_the_transit_replaces_the_one_held() -> None:
     rig, every = reversing()
     rig.backs(speed=CAUTION)
@@ -605,6 +637,225 @@ def test_a_withdrawal_drops_the_move_held() -> None:
 
     assert rig.app.position["single"] == "x"
     assert all(speed == 0.0 for _addr, speed in rig.wrote())
+
+
+def asks_back(rig: Rig, into: str = "w") -> list[tuple[str, Payload]]:
+    """The dispatcher asking for the held move back, and every answer from here
+    on. The transit is the one the move back over `wx` crosses."""
+    answered = heard(rig.bus, MOVE_WITHDRAWN)
+    rig.bus.publish(
+        WITHDRAW_WANTED, {"train": "single", "transit": "wx.t", "into": into}
+    )
+    rig.bus.drain()
+    return answered
+
+
+THE_MOVE_BACK = {"train": "single", "transit": "wx.t", "into": "w"}
+
+
+def test_a_withdrawal_with_the_train_running_waits_for_the_far_sensor() -> None:
+    rig, every = reversing()
+    answered = asks_back(rig)
+    assert answered == []
+    assert speeds(every) == given()
+
+    rig.read(ENTRY)
+    rig.read(ENTRY, "clear")
+    assert answered == []
+    assert speeds(every) == given()
+
+    rig.read(FAR)
+
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    assert speeds(every)[0] == ("3", CLEAR)
+    assert {speed for _addr, speed in speeds(every)[1:]} == {0.0}
+    assert rig.app.position["single"] == "x"
+
+
+def test_a_withdrawal_with_the_far_sensor_unknown_waits_for_the_entry_sensor() -> None:
+    rig, every = reversing()
+    rig.unknown(FAR)
+    answered = asks_back(rig)
+    rig.read(ENTRY)
+    assert answered == []
+
+    rig.read(ENTRY, "clear")
+
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    assert {speed for _addr, speed in speeds(every)[1:]} == {0.0}
+    assert rig.app.position["single"] == "x"
+
+
+def test_a_withdrawal_with_the_far_sensor_going_unknown_answers_after_the_list() -> (
+    None
+):
+    """The answer goes out after the list that says why the train stopped."""
+    rig, every = reversing()
+    asks_back(rig)
+    rig.read(ENTRY)
+    rig.read(ENTRY, "clear")
+    told: list[str] = []
+    for topic in (UNKNOWN_SENSORS, MOVE_WITHDRAWN):
+        rig.bus.subscribe(topic, lambda topic, _payload: told.append(topic))
+    rig.bus.drain()
+    told.clear()
+
+    rig.unknown(FAR)
+
+    assert told[-1] == MOVE_WITHDRAWN
+    assert told.count(MOVE_WITHDRAWN) == 1
+    assert UNKNOWN_SENSORS in told
+    assert {speed for _addr, speed in speeds(every)[1:]} == {0.0}
+    assert rig.app.position["single"] == "x"
+
+
+def test_a_withdrawal_with_a_throttle_taking_the_train_answers_at_the_far_sensor() -> (
+    None
+):
+    rig, _every = reversing()
+    answered = asks_back(rig)
+    takes(rig.bus, "single")
+    turns(rig.bus, "single", 0.4)
+    rig.takes_out()
+    assert answered == []
+
+    rig.read(FAR)
+
+    assert {speed for _addr, speed in rig.takes_out()} == {0.0}
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    turns(rig.bus, "single", 0.4)
+    assert rig.wrote() == given(0.4)
+
+
+def test_a_withdrawal_across_a_cut_answers_at_the_far_sensor() -> None:
+    rig, every = reversing()
+    answered = asks_back(rig)
+    rig.bus.publish(POWER_WANTED, {"power": "off"})
+    rig.bus.drain()
+    rig.bus.publish(POWER_WANTED, {"power": "on"})
+    rig.bus.drain()
+    energised(rig.bus)
+    assert answered == []
+    assert speeds(every)[-1] == ("3", CLEAR)
+    every.clear()
+
+    rig.read(FAR)
+
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    assert every and {speed for _addr, speed in speeds(every)} == {0.0}
+    assert rig.app.position["single"] == "x"
+
+
+@pytest.mark.parametrize(
+    "topic, payload",
+    [
+        (PLACED, {"train": "single", "block": "z"}),
+        (REMOVED, {"train": "single"}),
+    ],
+)
+def test_a_placement_and_a_removal_take_the_withdrawal_with_the_move(
+    topic: str, payload: Payload
+) -> None:
+    rig, every = reversing()
+    answered = asks_back(rig)
+    rig.bus.publish(topic, payload)
+    rig.bus.drain()
+    every.clear()
+
+    rig.read(FAR)
+
+    assert answered == []
+    assert every == []
+
+
+def test_a_placement_leaves_no_withdrawal_for_the_same_move_granted_later() -> None:
+    rig, every = reversing()
+    answered = asks_back(rig)
+    stand(rig.bus, "single", "w")
+    faces(rig.bus, single="w.A-to-B")
+    rig.crosses()
+    faces(rig.bus, single="x.A-to-B")
+    rig.backs()
+
+    rig.read(FAR)
+
+    assert answered == []
+    assert speeds(every)[-1] == ("3", -CLEAR)
+
+
+def test_a_withdrawal_naming_another_into_is_not_kept() -> None:
+    rig, every = reversing()
+    answered = asks_back(rig, into="z")
+
+    rig.read(FAR)
+
+    assert answered == []
+    assert speeds(every)[-2:] == [("3", 0.0), ("3", -CLEAR)]
+    assert rig.app.position["single"] == "w"
+
+
+def test_a_second_move_naming_another_into_leaves_the_withdrawal_standing() -> None:
+    """Its near end is in the block the train left, so `_cross` drops it and
+    the move asked back is still the one held."""
+    rig, every = reversing()
+    answered = asks_back(rig)
+    align(rig.bus, "wx", "t")
+    move(rig.bus, "single", "wx", "t", "x", CAUTION)
+    assert answered == []
+    assert speeds(every) == given()
+
+    rig.read(FAR)
+
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    assert {speed for _addr, speed in speeds(every)[1:]} == {0.0}
+
+
+def test_a_running_train_whose_move_is_not_held_gets_no_answer() -> None:
+    rig = crossing()
+    answered = heard(rig.bus, MOVE_WITHDRAWN)
+    rig.bus.publish(
+        WITHDRAW_WANTED, {"train": "single", "transit": "wx.t", "into": "x"}
+    )
+    rig.bus.drain()
+    assert answered == []
+    assert rig.wrote() == []
+
+    rig.read(FAR)
+
+    assert answered == []
+
+
+def test_a_withdrawal_with_both_sensors_gone_stands_until_the_arrival() -> None:
+    rig, every = reversing()
+    answered = asks_back(rig)
+    rig.unknown(ENTRY, FAR)
+    assert answered == []
+    assert speeds(every)[-1] == ("3", 0.0)
+
+    rig.read(FAR)
+
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    assert {speed for _addr, speed in speeds(every)[1:]} == {0.0}
+
+
+def test_a_second_ask_answered_standing_leaves_no_withdrawal_behind() -> None:
+    """Answered at once by the train standing, so the next move back over that
+    transit is not the one this ask was about."""
+    rig, every = reversing()
+    answered = asks_back(rig)
+    rig.unknown(ENTRY, FAR)
+    rig.bus.publish(WITHDRAW_WANTED, THE_MOVE_BACK)
+    rig.bus.drain()
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+
+    rig.read(FAR)
+    faces(rig.bus, single="x.A-to-B")
+    rig.bus.drain()
+    every.clear()
+    rig.backs()
+
+    assert [payload for _topic, payload in answered] == [THE_MOVE_BACK]
+    assert speeds(every) == given(-CLEAR)
 
 
 @pytest.mark.parametrize(

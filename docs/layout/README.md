@@ -346,7 +346,12 @@ the `0.0` and the speed: nothing reports that a train has stopped,
 [ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md) rejected a
 fixed wait as a guess at CV4, and it measured a decoder ramping through 0 with no
 jolt. A withdrawal, a placement and a removal drop the held move as they drop the
-other waiting moves, and a second `move` for the same transit replaces it. Under
+other waiting moves, and a second `move` for the same transit replaces it. A
+withdrawal asked while the train runs takes effect at the arrival: stopping the
+train earlier could leave it on the points, so it runs on to its far sensor, stops
+there and the move never starts, `move_withdrawn` going out after the `0.0`
+([#1176](https://github.com/rails49/control/issues/1176)). A placement or a removal
+before then takes the ask with the move, with no answer. Under
 `off` the move is kept first, and judged again on `on`. A train a throttle holds is
 not held, since no speed is written for it: the person reverses with the lever.
 
@@ -595,8 +600,8 @@ judgement — it names the block for a person to walk
 
 Which end of the entered block the train comes in at is the end across the
 transit, read off the layout from the `move` that was carried out. The block's
-*far* end is a different thing — its second sensor, the one a train trips once
-it is fully in — and the two are opposite ends of the one block
+*far* end is a different thing — its second sensor, the one a train's head
+reaches last — and the two are opposite ends of the one block
 ([#279](https://github.com/rails49/control/issues/279)).
 
 **The debounce.** A camera-based detector runs at 2–8 Hz with no debounce of

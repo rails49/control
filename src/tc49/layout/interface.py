@@ -585,6 +585,9 @@ class LayoutInterface:
         # The moves that go back out by the end their train came in at, one
         # per transit, each put back through the rules at the arrival (#1169).
         self._reversing: dict[str, Command] = {}
+        # The `withdraw_wanted` for a move in `_reversing` asked with its train
+        # running, one per transit, answered at the arrival (#1176).
+        self._unwanted: dict[str, Withdrawal] = {}
         # What each signalled end last showed, read for the `caution` drop: an
         # end it does not name reads `stop` (#1169).
         self._aspects: Mapping[str, str] = {}
@@ -890,7 +893,10 @@ class LayoutInterface:
 
         No withdrawal is taken while the train is running, whatever state its
         move is in: a train rolling under a throttle may be on the points
-        whether its move was acted on, held or not yet here. Otherwise a move
+        whether its move was acted on, held or not yet here. The one exception
+        is a move held for its train's arrival: that train stops at its far
+        sensor anyway, so the ask is kept with nothing written, and `_put_back`
+        answers it there instead of acting on the move (#1176). Otherwise a move
         held for its `align`, a facing, the power or the arrival before it has
         not been acted on, so it is never driven. Taken back, it is dropped as `_forget` drops it,
         the train given `0.0` unless a throttle holds it, and
@@ -909,11 +915,19 @@ class LayoutInterface:
             return
         train, transit, into = wanted.train, wanted.transit, wanted.into
         if self._running(train):
+            reversing = self._reversing.get(transit)
+            if (
+                reversing is not None
+                and reversing.train == train
+                and reversing.into == into
+            ):
+                self._unwanted[transit] = wanted
             return
         for waiting in (self._held, self._unfaced, self._kept, self._reversing):
             held = waiting.get(transit)
             if held is not None and held.train == train and held.into == into:
                 del waiting[transit]
+                self._unwanted.pop(transit, None)
                 self._withdraw(wanted)
                 return
         crossed = [
@@ -1953,10 +1967,16 @@ class LayoutInterface:
     def _forget(self, train: str) -> None:
         """Every move of the train's this app holds dropped: its crossings, and
         the moves waiting on an `align`, a facing, the power or an arrival.
-        With them goes what a `withdraw_wanted` is judged on: a train set down by hand starts
-        a fresh account (#1068)."""
+        With them goes what a `withdraw_wanted` is judged on and any ask kept
+        for the arrival, unanswered: a train set down by hand starts a fresh
+        account (#1068, #1176)."""
         self._driven.discard(train)
         self._withdrawing.pop(train, None)
+        self._unwanted = {
+            transit: wanted
+            for transit, wanted in self._unwanted.items()
+            if wanted.train != train
+        }
         self._crossing = {
             block: crossing
             for block, crossing in self._crossing.items()
@@ -2382,11 +2402,21 @@ class LayoutInterface:
 
     def _put_back(self, train: str) -> None:
         """The moves held for this train's arrival back through the rules,
-        after its `0.0` and with no wait (`_reverses`, #1169)."""
+        after its `0.0` and with no wait (`_reverses`, #1169), except one asked
+        back while the train ran, which is withdrawn and never starts (#1176).
+        """
         for transit, commanded in list(self._reversing.items()):
             if commanded.train == train:
                 del self._reversing[transit]
-                self._cross(commanded)
+                ask = self._unwanted.pop(transit, None)
+                if (
+                    ask is not None
+                    and ask.train == commanded.train
+                    and ask.into == commanded.into
+                ):
+                    self._withdraw(ask)
+                else:
+                    self._cross(commanded)
 
     def _carry_on(self, block: str, crossing: _Crossing) -> None:
         """A sensor back after both were gone, so the train that stopped for it

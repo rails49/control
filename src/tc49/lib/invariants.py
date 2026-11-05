@@ -1237,7 +1237,8 @@ class Record:
         whoever was driving: no speed written from here is its start, the train
         being past its near end (a train a throttle held, then released). Bar
         one waiting for a reported point, which `layout` has not started however
-        far a person ran the train (ADR-0097, decision 6, #1170)."""
+        far a person ran the train (ADR-0097, decision 6, #1170), until the
+        point reports (`_lies`)."""
         level = detected(payload)
         if level == UNKNOWN:
             return
@@ -1289,12 +1290,12 @@ class Record:
         if granted is None or rid is None:
             return
         ends = transit_ends(self.layout, granted.into, granted.transit)
-        # None is sent into a block reading occupied, so a reading that says so
-        # now was in flight when the grant was made, and the dispatcher hears it
-        # after: for this move too (#1154). Occupancy is anonymous, so it takes
-        # the second for the head in and its picture runs ahead of the steel:
-        # what the picture says of where this move starts is not a judgement on
-        # `layout`, which drives from where the train is.
+        # None is sent into a block with a sensor reading occupied, so a reading
+        # that says so now was in flight when the grant was made, and the
+        # dispatcher hears it after: for this move too (#1154). Occupancy is
+        # anonymous, so it takes the second for the head in and its picture runs
+        # ahead of the steel: what the picture says of where this move starts is
+        # not a judgement on `layout`, which drives from where the train is.
         crossed = granted.into in self._reading_occupied()
         moves = [move for move in self.moves.get(granted.train, []) if not move.at_far]
         self.moves[granted.train] = [*moves, self._followed(rid, granted, ends)]
@@ -1404,7 +1405,12 @@ class Record:
     def _lies(self, addr: str, payload: object) -> None:
         """A point saying where it lies: a position other than the one a
         started move's `align` asked of it stops that train, which is then no
-        longer kept running by a release (ADR-0097, decision 7)."""
+        longer kept running by a release (ADR-0097, decision 7).
+
+        The report a move waited for begins it where a person has already run
+        the train's head in: `_sensor` left it for this, and no speed from
+        `layout` will. A train this app drives is left alone, its speed write
+        being the start (#1179)."""
         position = observed_position(payload)
         if position is None or self.lies.get(addr) == position:
             return
@@ -1415,6 +1421,17 @@ class Record:
             ):
                 self.halted.add(train)
                 self.keeps.discard(train)
+        holders = taken(self.rows.get(TAKEN))
+        for train, commanded in list(self.commanded.items()):
+            ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
+            if (
+                train in holders
+                and ends is not None
+                and self.readings.get(ends[0]) is True
+                and not self._reverses(train, commanded)
+                and not self.waits(train)
+            ):
+                self._begun(train, commanded)
 
     def waits(self, train: str) -> bool:
         """Whether the train's `move`, heard and not yet driven, waits for a

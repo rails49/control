@@ -126,7 +126,8 @@ SETTINGS = "tc49/layout/state/settings"
 
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 """The sensors that are not reporting, said at each build and never changed:
-this binding publishes occupancy directly and has no sensors (#1148)."""
+this binding publishes the settled row itself and no report reaches it (#1148,
+#1173)."""
 
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 """What each sensor reads, the row `layout` publishes, said here as the steel

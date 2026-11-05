@@ -525,9 +525,9 @@ def allocation(state: State, requests: Sequence[Request]) -> Payload:
 
 
 def disputed(state: State) -> Payload:
-    """The blocks that read occupied with no train explaining the reading
-    (#153, #1164, #1171). A block reads occupied while either of its sensors
-    does. A train explains it when any of these holds:
+    """The blocks with a sensor reading occupied and no train explaining the
+    reading (#153, #1164, #1171). Either of a block's sensors is enough. A train
+    explains the reading when any of these holds:
 
     1. the block is on its `occupied` list;
     2. the block is the arrival block of its outstanding move;
@@ -549,7 +549,7 @@ def disputed(state: State) -> Payload:
     and the steel has stood unwatched since (GLOSSARY.md, recovery). Naming
     the blocks turns walking the whole railroad into checking a handful. It
     **resolves** nothing: the check points, and a person ends every entry with
-    a `placement_wanted`, or the block reads clear.
+    a `placement_wanted`, or the block's sensors read clear.
 
     **At every power value** (#1154): a hand or a throttle can make one with
     the power on, the others run, and the person has to be told while they do.
@@ -1830,12 +1830,13 @@ class Dispatcher:
         on a detected block, a train pushed while the supply was off, a cut of
         cars a broken coupling left standing, a detector asserting on dirt —
         they differ for the person recovering and not here. What each leaves is
-        held apart without stopping anything: a block reading occupied is an
-        obstacle no train is sent into (ADR-0077). It does not raise: the frame
-        is well formed and a handler that raised would take the app off the bus
-        for an ordinary act of a person's hand (BUS.md, rule 4). Nothing is
-        placed: occupancy is anonymous, so there is no train to place, and a
-        person walks to what the set names and places what they find.
+        held apart without stopping anything: a block with a sensor reading
+        occupied is an obstacle no train is sent into (ADR-0077). It does not
+        raise: the frame is well formed and a handler that raised would take
+        the app off the bus for an ordinary act of a person's hand (BUS.md,
+        rule 4). Nothing is placed: occupancy is anonymous, so there is no
+        train to place, and a person walks to what the set names and places
+        what they find.
 
         Every reading ends in a sweep, for whatever it released or disputed.
         """

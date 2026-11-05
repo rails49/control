@@ -982,7 +982,7 @@ later move's entry sensor clearing
 ([#1171](https://github.com/rails49/control/issues/1171)).
 
 The set **resolves nothing**, because no sensor says *which* train it saw. A
-person ends each entry with a `placement_wanted`, or the block reads clear, and
+person ends each entry with a `placement_wanted`, or the block's sensors read clear, and
 the set empties as they do. Only blocks the layout has actually reported on take part. **Silence is
 not a clear reading**, so a binding that reports no occupancy at all disputes
 nothing rather than disputing the whole railroad. Turning the power on with
@@ -1141,7 +1141,7 @@ hardware can produce: anonymous occupancy sensors and track power. It never
 says which train it saw, because a detector cannot report that. The
 dispatcher recovers identity from its own lock table, which is also the record
 of which block is occupied: the interface keeps none. A train entering a block
-trips its entry sensor with its head and its far sensor once it is fully in, and
+trips its entry sensor with its head and its far sensor when its head reaches it, and
 each reading goes out on `state/settled/sensor/<block>.<end>`. A train with no
 further grant runs on and stops at the far sensor,
 and a train at `clear` whose far signal shows `stop` drops to the railroad's
@@ -1386,7 +1386,7 @@ recovers train identity from its lock table, so a sensor reading occupied that n
 train explains — a hand putting a locomotive down, a train driven out of its
 block, a detector asserting on dirt — says the table has stopped describing the
 steel there. The reading goes on `state/disputed`, a person is told, and a sweep
-runs. A block reading occupied is an obstacle no train is sent into, so it does
+runs. A block with a sensor reading occupied is an obstacle no train is sent into, so it does
 not rely on the rest of the railroad stopping. A clear reading under a train
 that stands there says nothing, since a short train stands between its block's
 sensors, and the train is granted as any other.
@@ -1411,7 +1411,7 @@ also go on `state/broken` whenever the list changes, and the run view's band
 shows each as `dispatcher: <rule>` for as long as it is listed
 ([#1118](https://github.com/rails49/control/issues/1118)).
 
-The **dispute check** is this comparison exactly: the block reading occupied
+The **dispute check** is this comparison exactly: the block with a sensor reading occupied
 that no train explains is named on `state/disputed` for a person to walk. They
 place what they find, and a clear reading ends an entry too.
 

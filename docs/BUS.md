@@ -353,7 +353,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/state/moving` | state | dispatcher | whether any train has a move not yet ended, other than one stopped with both its sensors unknown, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
-| `tc49/dispatch/state/disputed` | state | dispatcher | the blocks that read occupied with no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
+| `tc49/dispatch/state/disputed` | state | dispatcher | the blocks with a sensor reading occupied and no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
 | `tc49/dispatch/state/unfit` | state | dispatcher | the trains the last rebuild under the same name took off the layout, and why ([#709](https://github.com/rails49/control/issues/709)) |
 | `tc49/dispatch/state/broken` | state | dispatcher | the lock table's rules it found broken ([#1118](https://github.com/rails49/control/issues/1118)) |
 | `tc49/ui/state/text/<name>` | state | any | the text a text widget shows ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-control-carries-its-payload-without-reading-it.md)) |
@@ -589,7 +589,8 @@ what a drop would cost:
   never heard. Published from the constructor, so a client that joins is served
   a value ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)),
   and whenever the list changes. The simulator, in its place, publishes it empty
-  and never changes it: it publishes occupancy directly and has no sensors. Its
+  and never changes it: it publishes the settled row,
+  `tc49/layout/state/settled/sensor/<block>.<end>`, itself, and no report reaches it. Its
   consumers are the dispatcher, which takes the block of each listed sensor out
   of use, and the page, which tells a person. A dispatcher with no row yet treats
   no sensor as unknown, and a payload that cannot be read is dropped and the last
@@ -722,7 +723,10 @@ what a drop would cost:
   `0.0`, which a decoder keeps — or if `layout` has written a non-zero speed
   to any of its addressed cars since, from the move or from a throttle. No
   withdrawal is taken while the train is running, whatever state the move is
-  in. Otherwise a move `layout` holds for an `align`, a facing, the power or
+  in, except a move held for that train's arrival: the ask is kept, and at the
+  arrival the train is told `0.0`, the move never starts and `move_withdrawn`
+  answers ([#1176](https://github.com/rails49/control/issues/1176)). Otherwise
+  a move `layout` holds for an `align`, a facing, the power or
   the arrival before it
   has not been acted on and is taken back where its `into` matches too, and
   one acted on is taken back
@@ -730,7 +734,8 @@ what a drop would cost:
   stood in and, unless a throttle holds it, told `0.0`. A move not there yet
   is answered at once and the train's next `move` dropped if it names that
   transit and `into`; a `train_placed` or `train_removed` clears that.
-  Dropped, with no answer, where the train is running, where it has been
+  Dropped, with no answer, where the train is running with its move not held for
+  the arrival, where it has been
   driven since the move was acted on, where its entry sensor has read occupied, and where
   the train already stands in the block the move enters. A frame without a
   string `into` is unreadable and dropped. The simulator answers none: it
@@ -1000,7 +1005,7 @@ payload is read defensively, and one that fails the read is dropped.
   answer. `null` is accepted at any power
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
   [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  A block reading occupied that no train explains is on `state/disputed` until
+  A block with a sensor reading occupied that no train explains is on `state/disputed` until
   the drag places a train there ([#1154](https://github.com/rails49/control/issues/1154)).
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
   end. A request waiting is cancelled at once, and so is one underway with no

@@ -6,8 +6,8 @@
  * and a trace replay or the broker's own feed the same `apply`, which is what
  * lets the live panel consume this model unchanged.
  *
- * Everything is derived the way the dispatcher derives it: occupancy events
- * are anonymous, so an occupied block's train is the holder of its lock.
+ * The train on a block comes from the dispatcher: a sensor names no train,
+ * and `occupied` on `tc49/dispatch/state/allocation` does.
  * Nothing here computes topology — which legs a transit's way takes comes
  * from the store's `/review`, handed in at construction, and which wires it
  * runs over from the rule `inspect.wiresOn` transcribes from the store.
@@ -178,9 +178,9 @@ export interface BlockView {
   /** The end the occupying train faces, as the scheduler says. */
   toward?: string;
   /** What the detectors say about this block where the dispatcher has said
-   *  that contradicts its own placement (#153): `clear` under a train
-   *  standing here, `occupied` with nothing claiming it. Absent otherwise,
-   *  which covers both agreement and a block nothing has reported on. */
+   *  that contradicts its own placement (#153): `occupied` with nothing
+   *  claiming it. Absent otherwise, which covers both agreement and a block
+   *  nothing has reported on. */
   dispute?: "occupied";
   /** Set where `state/unknown_sensors` lists either of this block's sensors,
    *  stopped or never heard alike (#1153). */
