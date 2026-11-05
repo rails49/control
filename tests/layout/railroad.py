@@ -196,6 +196,8 @@ def wired(
     allocated: dict[str, str] | None = None,
     reread: Callable[[], Roster | None] | None = None,
     point_gap: float = 0.0,
+    sensor_silence_s: float = SENSOR_SILENCE_S,
+    reporting: bool = True,
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
@@ -211,6 +213,14 @@ def wired(
     `point_gap`: the wait after each point command (#1127), none unless a
     suite asks: what most of these suites drive has no business with how
     long a point takes to move, and `test_point_gap.py` drives the rest.
+
+    `sensor_silence_s`: how long a sensor may go unheard before it reads
+    unknown (#1151).
+
+    `reporting`: every sensor having reported `clear` and that level having
+    stood, so a train this app drives is not stopped for a sensor nobody has
+    heard (#1151). False for a suite asking what an app that has heard nothing
+    does, or one whose fold starts from no level.
 
     Switched to `automatic` unless `driving` says otherwise. The app comes up
     `manual` (ADR-0079), where it writes no traction for a train no throttle
@@ -232,8 +242,15 @@ def wired(
         throttle_silence_s,
         reread=reread,
         point_gap=point_gap,
+        sensor_silence_s=sensor_silence_s,
     )
     bus.drain()
+    if reporting:
+        report(bus)
+        settle(bus, app, clock, settling_s)
+        # Back to where it started, these suites reading times from zero: the
+        # reports stand as heard at zero, and the silence runs from there.
+        clock.now = 0.0
     if driving == AUTOMATIC:
         switches(bus, AUTOMATIC)
     return bus, app, clock
@@ -438,6 +455,27 @@ def reads(bus: InProcessBus, end: str, level: str, reason: str | None = None) ->
         payload["reason"] = reason
     bus.publish(SENSOR, payload)
     bus.drain()
+
+
+def sensors() -> list[str]:
+    """Every sensor of the bench railroad, sorted as the row sorts them."""
+    return sorted(f"{block}.{end}" for block in document()["blocks"] for end in "AB")
+
+
+def unheard() -> list[Payload]:
+    """What the row says of the bench railroad with nothing heard (#1151)."""
+    return [
+        {"sensor": end, "reason": "no report since start", "reported": False}
+        for end in sensors()
+    ]
+
+
+def report(bus: InProcessBus, level: str = "clear", but: tuple[str, ...] = ()) -> None:
+    """The detectors' once-a-second report, every sensor saying `level` bar
+    those named in `but`."""
+    for end in sensors():
+        if end not in but:
+            reads(bus, end, level)
 
 
 def elapse(clock: Clock, seconds: float) -> None:

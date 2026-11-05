@@ -75,10 +75,11 @@ def test_the_first_level_an_end_settles_says_what_the_block_reads() -> None:
     to whoever reads the events, so the first settled level is news whichever
     way it falls — a block whose ends read clear is a block reported clear,
     which is what a dispute check has to compare against (#153)."""
-    bus, app, clock = wired()
+    bus, app, clock = wired(reporting=False)
     seen = occupancy(bus)
 
     reads(bus, "up_e.A", "clear")
+    reads(bus, "up_e.B", "clear")
     settle(bus, app, clock)
 
     assert seen == [(BLOCK_VACATED, {"block": "up_e"})]
@@ -135,7 +136,7 @@ def test_a_train_crossing_publishes_the_two_events_in_the_order_the_steel_makes(
     second once it is fully in. The first is `block_occupied(Y)` and the second
     is `block_vacated(X)` — the block behind, which no detector can name and
     the move this app carried out does. Occupied then vacated (ADR-0047)."""
-    bus, app, clock = wired()
+    bus, app, clock = wired(reporting=False)
     energised(bus)
     stand(bus, "freight_1", "up_w")
     align(bus, "crossover", "to_dn")
@@ -157,7 +158,7 @@ def test_the_second_sensor_reports_the_block_behind_only_once() -> None:
     """The crossing is finished by the reading that ends it, so a detector
     that goes on saying the same thing says nothing more about the block the
     train left."""
-    bus, app, clock = wired()
+    bus, app, clock = wired(reporting=False)
     energised(bus)
     stand(bus, "freight_1", "up_w")
     align(bus, "crossover", "to_dn")
@@ -394,7 +395,7 @@ def test_two_ends_coming_due_together_publish_in_the_order_they_arrived() -> Non
     """One call to `settle` may find more than one level due, and the order
     they go out in is the order the detectors reported them: the head before
     the tail, which is what keeps occupied ahead of vacated."""
-    bus, app, clock = wired()
+    bus, app, clock = wired(reporting=False)
     energised(bus)
     stand(bus, "freight_1", "up_w")
     align(bus, "crossover", "to_dn")

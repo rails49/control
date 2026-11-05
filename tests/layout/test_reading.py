@@ -224,8 +224,8 @@ def test_a_fresh_app_has_said_eight_things_and_no_more() -> None:
     bus holds none, so there is no cascade to come up out of: a fresh
     railroad is which railroad it is (#371), the supply commanded off, the
     app saying it believes it is, the railroad `manual`, no train in a
-    throttle, no function on, its settings (#1125), and no sensor unknown
-    (#1148)."""
+    throttle, no function on, its settings (#1125), and every sensor unknown
+    (#1148, #1151)."""
     bus, _app = build(driving=MANUAL)
     assert set(bus.last_values) == {
         RAILROAD,

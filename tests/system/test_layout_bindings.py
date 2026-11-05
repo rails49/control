@@ -44,6 +44,7 @@ from tests.layout.railroad import (
     railroad,
     stand,
     stock,
+    unheard,
 )
 
 
@@ -151,11 +152,12 @@ def test_it_comes_up_naming_its_railroad_with_the_power_off(build: Build) -> Non
     assert power(binding) == "off"
 
 
-def test_it_comes_up_saying_no_sensor_is_unknown(build: Build) -> None:
+def test_it_comes_up_saying_which_sensors_are_unknown(build: Build) -> None:
     """Said from the constructor, so a client that joins is served a value
-    (ADR-0032). The list is empty here: `layout` has nothing that fills it yet
-    and the simulator has no sensors (#1148)."""
-    assert build().bus.last_values[UNKNOWN_SENSORS]["sensors"] == []
+    (ADR-0032). Which ones is the binding's: `layout` has heard none of its
+    sensors (#1151), and the simulator has none (#1148)."""
+    row = build().bus.last_values[UNKNOWN_SENSORS]["sensors"]
+    assert row == (unheard() if build is OnSteel else [])
 
 
 # -- the near-end check and the rails ----------------------------------------

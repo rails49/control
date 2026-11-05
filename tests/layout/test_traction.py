@@ -43,6 +43,7 @@ from tests.layout.railroad import (
     railroad,
     reads,
     removed,
+    report,
     settle,
     speeds,
     stand,
@@ -385,6 +386,8 @@ def test_the_facing_left_on_the_topic_is_there_at_startup() -> None:
 
     app = LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
     bus.drain()
+    report(bus)
+    settle(bus, app, clock)
     switches(bus, AUTOMATIC)
     energised(bus)
     stand(bus, "single", "up_w")
@@ -404,6 +407,8 @@ def test_an_older_facing_delivered_late_does_not_turn_a_train_round() -> None:
     bus = Unstamped(clock)
     app = LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
     bus.drain()
+    report(bus)
+    settle(bus, app, clock)
     switches(bus, AUTOMATIC)
     energised(bus)
     stand(bus, "single", "up_w")
@@ -595,7 +600,9 @@ def runs_every_move(binding: type[InProcessBus]) -> None:
     clock = Clock()
     bus = binding(clock)
     stood = placement(scenario.trains)
-    app = LayoutInterface(bus, layout, addressed, clock, position=stood)
+    app = LayoutInterface(
+        bus, layout, addressed, clock, position=stood, sensor_silence_s=60.0
+    )
     Scheduler(bus, layout, facing(layout, scenario.trains), nonce=NONCE)
     dispatcher = Dispatcher(
         bus, layout, addressed, stood, Incremental(layout, DEFAULT_K)
@@ -608,6 +615,10 @@ def runs_every_move(binding: type[InProcessBus]) -> None:
     granted = heard(bus, MOVE_GRANTED)
     completed = heard(bus, REQUEST_COMPLETED)
     written = commanded(bus)
+    for block in layout.blocks:
+        for end in (f"{block}.A", f"{block}.B"):
+            reads(bus, end, "occupied" if block in stood.values() else "clear")
+    settle(bus, app, clock)
 
     bus.publish(
         "tc49/schedule/request_wanted", {"train": "freight_1", "dest": ["yard_e.A"]}
