@@ -56,6 +56,10 @@ ALIVE = "tc49/layout/alive_confirmed"
 POWER_WANTED = "tc49/layout/power_wanted"
 SETTINGS = "tc49/layout/state/settings"
 SETTINGS_WANTED = "tc49/layout/settings_wanted"
+RAILROAD_WANTED = "tc49/layout/railroad_wanted"
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
+END = "up_w.A"
+SETTLED = f"{SETTLED_SENSOR}/{END}"
 
 TRANSIT_S = 0.05
 CLEAR_S = 0.1
@@ -254,7 +258,7 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
 ) -> None:
     """The loop is what makes the app an app, and this one is both halves of
     it at once: a press of ON, a hand's placement and a granted move are
-    drained, the two sensor events are scheduled on the delays, and the
+    drained, its readings are scheduled on the delays, and the
     seconds pass on a wall clock until each fires — the head into the
     destination first and the tail off the origin after it, the only order
     the physical railroad can produce (ADR-0047).
@@ -369,6 +373,79 @@ def test_the_fast_clock_is_cleared_with_the_other_rows_it_owns() -> None:
     """A railroad loaded starts on a broker holding nothing of the last one
     (ADR-0060), the clock included: the next build starts it again."""
     assert CLOCK in OWNED
+
+
+def test_the_settled_readings_are_cleared_with_the_other_rows_it_owns() -> None:
+    """A load's dropped takes the filter, there being a row per sensor and no
+    list of which (#1170)."""
+    assert "tc49/layout/state/settled/#" in OWNED
+
+
+def test_a_settled_reading_the_last_process_left_is_gone_coming_up(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """A restarted simulator holds no train, so a row a train it forgot left
+    occupied would stand with nothing ever to read it clear, and the row's
+    contract is that a cold start clears it (#1168, #1170)."""
+    store.start()
+    left = MqttBus(port=broker.port)
+    assert left.wait_connected()
+    left.publish(SETTLED, {"addr": END, "occupancy": "occupied"})
+    assert until(lambda: SETTLED in left.last_values)
+    left.close()
+
+    witness, heard = watching(broker)
+    app.start()
+
+    assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
+    settle(witness)
+    late, _ = watching(broker)
+    settle(late)
+    assert SETTLED not in late.last_values, "the last run's reading is still held"
+    late.close()
+    witness.close()
+
+
+def test_a_load_of_another_railroad_clears_the_settled_readings(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Another railroad's name for a sensor says nothing here (#1170). The train
+    leaves a row behind by moving, as on any run of this binding."""
+    drawn(root, "facing-pair")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, POWER) != []), "it never came up"
+
+    witness.publish(POWER_WANTED, {"power": "on"})
+    assert drained(witness, lambda: rows(heard, POWER)[-1]["power"] == "on")
+    witness.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
+    assert drained(witness, lambda: rows(heard, PLACED) != [])
+    witness.publish(
+        MOVE,
+        {
+            "train": "freight_1",
+            "connection": "west_ladder",
+            "transit": "to_dn",
+            "into": "dn_w",
+        },
+    )
+    far = f"{SETTLED_SENSOR}/dn_w.B"
+    assert drained(witness, lambda: far in witness.last_values), "it never arrived"
+
+    witness.publish(POWER_WANTED, {"power": "off"})
+    assert drained(witness, lambda: rows(heard, POWER)[-1]["power"] == "off")
+    witness.publish(RAILROAD_WANTED, {"railroad": "facing-pair"})
+
+    assert drained(
+        witness, lambda: rows(heard, RAILROAD)[-1].get("name") == "facing-pair"
+    ), "the railroad was never loaded"
+    settle(witness)
+    late, _ = watching(broker)
+    settle(late)
+    assert far not in late.last_values, "the reading outlived the load"
+    late.close()
+    witness.close()
 
 
 def test_a_speed_a_person_sets_is_said_and_kept_with_the_railroad(

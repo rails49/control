@@ -27,6 +27,7 @@ from tests.harness import build, events, load
 POWER = "tc49/layout/state/power"
 POWER_WANTED = "tc49/layout/power_wanted"
 SENSORS = ("tc49/layout/block_occupied", "tc49/layout/block_vacated")
+SETTLED = "tc49/layout/state/settled/sensor/#"
 
 TRANSIT_S = 10.0
 CLEAR_S = 5.0
@@ -72,6 +73,18 @@ def stamped(bus: InProcessBus, clock: Clock) -> list[tuple[float, str, str]]:
                 (clock.now, leaf(topic), str(payload["block"]))
             ),
         )
+    return seen
+
+
+def readings(bus: InProcessBus, clock: Clock) -> list[tuple[float, str, str]]:
+    """Every settled reading with the run clock's reading as it was published."""
+    seen: list[tuple[float, str, str]] = []
+    bus.subscribe(
+        SETTLED,
+        lambda topic, payload: seen.append(
+            (clock.now, str(payload["addr"]), str(payload["occupancy"]))
+        ),
+    )
     return seen
 
 
@@ -126,6 +139,50 @@ def test_a_transit_under_way_at_a_cut_goes_on_at_on_with_the_time_it_had_left() 
         (26.0, "block_occupied", "dn_w"),
         (26.0 + CLEAR_S, "block_vacated", "yard_w"),
     ]
+
+
+def test_a_cut_delays_each_reading_by_the_time_the_supply_was_off_in_order() -> None:
+    """Started at 0 and cut from 4 to 20: the reading at the start has gone, and
+    each after it lands sixteen seconds late, keeping its order (#832, #1170)."""
+    bus, clock, sim = simulator()
+    press(bus, {"power": "on"})
+    seen = readings(bus, clock)
+    move(bus)
+
+    presses = {4.0: "off", 20.0: "on"}
+
+    def sleep(seconds: float) -> None:
+        word = presses.pop(clock.now + seconds, None)
+        if word is not None:
+            bus.publish(POWER_WANTED, {"power": word})
+
+    sim.run_live(2.0, sleep=sleep, stop=lambda: clock.now >= 50.0)
+
+    assert seen == [
+        (0.0, "yard_w.B", "occupied"),
+        (26.0, "dn_w.A", "occupied"),
+        (26.0 + CLEAR_S, "yard_w.B", "clear"),
+        (26.0 + 2 * CLEAR_S, "dn_w.A", "clear"),
+        (26.0 + 2 * CLEAR_S, "dn_w.B", "occupied"),
+    ]
+
+
+def test_a_cut_as_a_move_starts_delays_its_first_reading_too() -> None:
+    """Every reading is on the queue: one due at the moment of a cut waits for
+    the supply with the rest (#832, #1170)."""
+    bus, clock, sim = simulator()
+    press(bus, {"power": "on"})
+    seen = readings(bus, clock)
+    move(bus)
+    press(bus, {"power": "off"})
+    sim.run()
+    assert seen == []
+
+    clock.advance(20.0)
+    press(bus, {"power": "on"})
+    sim.run()
+    assert seen[0] == (20.0, "yard_w.B", "occupied")
+    assert seen[1] == (20.0 + TRANSIT_S, "dn_w.A", "occupied")
 
 
 def test_a_batch_run_ends_where_every_queued_event_is_waiting() -> None:

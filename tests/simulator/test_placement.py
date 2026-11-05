@@ -10,8 +10,11 @@ would live across a container's restart is open and not this app's to invent
 ([ADR-0059](../../docs/adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 3, `tc49/simulator/__main__.py`).
 
-Driven at the layout interface: a `move` command in, sensor events out.
+Driven at the layout interface: a `move` command in, sensor events out, and
+the settled reading of each sensor beside them (#1170).
 """
+
+from dataclasses import replace
 
 from tc49.bench.runner import placement, powered
 from tc49.lib.bus import InProcessBus, Payload
@@ -25,7 +28,7 @@ MOVE = "tc49/layout/move"
 
 
 def simulator(bus: InProcessBus, layout: Layout, stood: dict[str, str]) -> Simulator:
-    """The binding under test, with zero delays: a move's two sensor events
+    """The binding under test, with zero delays: a move's readings
     fire on the next tick rather than a simulated minute out. Powered, as a
     person powers a box that has just come up (ADR-0070)."""
     return powered(
@@ -71,16 +74,16 @@ def timed(bus: InProcessBus, layout: Layout, stood: dict[str, str]) -> Simulator
 
 
 def step(sim: Simulator, readings: int) -> None:
-    """Turns of the live loop, each sleeping one delay and so firing the one
-    reading due at its end."""
-    ticks = 0
+    """Turns of the live loop until it has slept `readings` delays, each
+    firing what is due at its end. A turn that sleeps nothing, firing what a
+    `move` read at its start, is not one of them."""
+    slept = 0
 
-    def stop() -> bool:
-        nonlocal ticks
-        ticks += 1
-        return ticks > readings
+    def sleep(seconds: float) -> None:
+        nonlocal slept
+        slept += seconds > 0.0
 
-    sim.run_live(10.0, sleep=lambda _: None, stop=stop)
+    sim.run_live(10.0, sleep=sleep, stop=lambda: slept >= readings)
 
 
 def remove(bus: InProcessBus, train: str) -> None:
@@ -94,6 +97,118 @@ def occupancy(bus: InProcessBus) -> list[tuple[str, Payload]]:
     for topic in ("tc49/layout/block_occupied", "tc49/layout/block_vacated"):
         bus.subscribe(topic, lambda topic, payload: seen.append((topic, payload)))
     return seen
+
+
+def settled(bus: InProcessBus) -> list[tuple[str, str]]:
+    """Each settled reading from now on, the sensor and its level. A test
+    subscribes before the move, since a late subscriber is handed the rows
+    this binding has published already."""
+    seen: list[tuple[str, str]] = []
+    bus.subscribe(
+        "tc49/layout/state/settled/sensor/#",
+        lambda topic, payload: seen.append(
+            (str(payload["addr"]), str(payload["occupancy"]))
+        ),
+    )
+    return seen
+
+
+def test_a_removal_reads_clear_every_sensor_read_occupied_for_the_train() -> None:
+    """Halfway to its tail clearing: `yard_w.B` and `dn_w.A` read occupied for
+    it, so each reads clear, and nothing of the move fires after (#1170)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    seen = settled(bus)
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 1)
+    assert seen == [("yard_w.B", "occupied"), ("dn_w.A", "occupied")]
+
+    seen.clear()
+    remove(bus, "freight_1")
+    assert seen == [("yard_w.B", "clear"), ("dn_w.A", "clear")]
+
+    seen.clear()
+    step(sim, 3)
+    assert seen == []
+
+
+def test_a_placement_reads_clear_every_sensor_read_occupied_for_the_train() -> None:
+    """The same for a hand putting it down elsewhere, and the block it is put
+    in reads nothing: no sensor here read it there (#1170)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    seen = settled(bus)
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 1)
+
+    seen.clear()
+    place(bus, "freight_1", "up_w")
+    assert seen == [("yard_w.B", "clear"), ("dn_w.A", "clear")]
+
+    seen.clear()
+    step(sim, 3)
+    assert seen == []
+
+
+def test_a_placement_in_the_block_a_train_stands_in_clears_its_far_sensor() -> None:
+    """Every sensor read occupied for it reads clear, and the block event stays
+    silent as it was, the block not having emptied (#1170)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    seen = settled(bus)
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    step(sim, 3)
+    assert seen[-1] == ("dn_w.B", "occupied")
+
+    seen.clear()
+    events = occupancy(bus)
+    place(bus, "freight_1", "dn_w")
+    assert seen == [("dn_w.B", "clear")]
+    assert events == []
+
+
+def test_a_train_placed_reads_nothing_and_moved_reads_its_exit_at_the_start() -> None:
+    """A train only placed publishes no row, and its first move reads the
+    sensor it leaves by occupied at once (#1170)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    bus = InProcessBus(Clock())
+    sim = timed(bus, layout, placement(scenario.trains))
+    seen = settled(bus)
+    place(bus, "freight_1", "up_w")
+    assert seen == []
+
+    move(bus, "freight_1", "crossover.up_to_dn", "dn_e")
+    sim.run_live(10.0, sleep=lambda _: None, stop=lambda: seen != [])
+    assert seen == [("up_w.B", "occupied")]
+
+
+def test_a_block_named_with_a_wildcard_gets_no_row_and_keeps_its_event() -> None:
+    """A drawing may name a block anything but `.` and `/`, and a broker's
+    client raises on a wildcard in a topic (#1168, BUS.md): that sensor has no
+    row, and the block event goes out as it does for any other (#1170)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    wild = replace(
+        layout,
+        blocks={**layout.blocks, "dn+w": layout.blocks["dn_w"]},
+        connections={
+            "west_ladder": replace(
+                layout.connections["west_ladder"],
+                transits={"to_dn": ("dn+w.A", "yard_w.B")},
+            )
+        },
+    )
+    bus = InProcessBus(Clock())
+    sim = timed(bus, wild, placement(scenario.trains))
+    seen = settled(bus)
+    events = occupancy(bus)
+    move(bus, "freight_1", "west_ladder.to_dn", "dn+w")
+    step(sim, 3)
+
+    assert seen == [("yard_w.B", "occupied"), ("yard_w.B", "clear")]
+    assert ("tc49/layout/block_occupied", {"block": "dn+w"}) in events
 
 
 def test_a_lifted_train_clears_the_block_it_moved_into() -> None:

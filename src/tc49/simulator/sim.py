@@ -25,12 +25,26 @@ id (ADR-0034). The reading itself is `lib.payload`'s, and whether the names
 it read name anything on this railroad is `lib.layout`'s.
 
 It mimics what real trains do, with fixed delays standing in for travel
-time. On a `move` it schedules `block_occupied(destination)` after the
-transit delay and `block_vacated(origin)` after a second one — the head
-reaching the far detector, then the tail clearing the near one, which is
-the physical order (ADR-0047). Both delays are configurable, private to
-this app, and never on any topic (ADR-0030). No RNG: transit times are
-fixed, so a run is reproducible by construction.
+time, and publishes what the sensors at a train's block ends would read on
+steel, on the row `layout` publishes (`state/settled/sensor`, #1170). For a
+move out of block X through end `e`, into block Y through end `f`, started at
+`t`, with `far` the end of Y opposite `f`:
+
+- at `t`, `X.e` reads occupied;
+- at `t + transit_s`, `Y.f` reads occupied: the head is in, the train stands
+  in Y for its next `move`, and `block_occupied(Y)` goes out;
+- a clearing delay later, `X.e` and any other sensor of X last read occupied
+  for this train read clear: the tail is past, and `block_vacated(X)` goes out
+  (ADR-0047);
+- a clearing delay after that, `Y.f` reads clear, and then `Y.far` occupied
+  where no later move of this train has started. A later move out through `f`
+  holds `f` occupied instead, until its own tail is past.
+
+A reading equal to the last one published for that sensor publishes nothing.
+This binding has no train lengths, no roster and no notion of where a train
+is inside a block, so the same two delays stand in for all of it. Both are
+configurable, private to this app, and never on any topic (ADR-0030). No RNG:
+transit times are fixed, so a run is reproducible by construction.
 
 It answers the band's **power** presses as the layout interface does
 (ADR-0070). It comes up `off`, and states on `state/power` the last `on` or
@@ -41,7 +55,7 @@ layout keeps too. A `move` starts while the supply is on, which a drain
 leaves it; one arriving while the supply is off is **kept**, as the layout
 keeps it, and put back through the same checks when the supply is next on
 (#863). A move under way follows the supply, as a train on steel does (#832): a drain leaves the supply
-on, so it runs to its sensors, and while the supply is off its sensor events
+on, so it runs to its sensors, and while the supply is off its readings
 wait, firing at ON with the time they had left — a train a cut left between
 blocks finishes its move when the power comes back.
 
@@ -82,8 +96,8 @@ from heapq import heapify, heappop, heappush
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.clock_row import FastClockRow
-from tc49.lib.inventory import DRAINING, OFF, ON
-from tc49.lib.layout import Layout, block_of, transit_ends
+from tc49.lib.inventory import DRAINING, OFF, ON, device_topic
+from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
 from tc49.lib.loading import BUILT
 from tc49.lib.payload import (
     Command,
@@ -115,9 +129,25 @@ UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 """The sensors that are not reporting, said at each build and never changed:
 this binding publishes occupancy directly and has no sensors (#1148)."""
 
-# One scheduled sensor event: fires at a time, in scheduling order among
-# equals, and says which train's head or tail passed which detector.
-_Event = tuple[float, int, str, str, str]  # (time, seq, leaf, train, block)
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
+"""What each sensor reads, the row `layout` publishes, said here as the steel
+would have it so that nothing above can tell the bindings apart (#1170)."""
+
+OCCUPIED = "occupied"
+CLEAR = "clear"
+
+# What a scheduled event is the passing of, one per step of the module
+# docstring's list but the last, which is two, a later move dropping `_AT_FAR`
+# alone. The sensor the event names gives the block.
+_LEAVING = "leaving"  # the exit sensor reads occupied
+_HEAD_IN = "head_in"  # the entry sensor reads occupied; the train stands
+_TAIL_OUT = "tail_out"  # the block left reads clear
+_PAST_ENTRY = "past_entry"  # the entry sensor reads clear
+_AT_FAR = "at_far"  # the far sensor reads occupied
+
+# One scheduled reading: fires at a time, in scheduling order among equals, and
+# says what of which train passed which sensor.
+_Event = tuple[float, int, str, str, str]  # (time, seq, what, train, sensor)
 
 
 class Simulator:
@@ -149,8 +179,9 @@ class Simulator:
         rebuild under the same railroad name is given the last build's, less
         any train whose block the new drawing lacks (ADR-0071).
 
-        `transit_s` and `clear_s`: the fixed delays — head to the far
-        detector, then tail past the near one.
+        `transit_s` and `clear_s`: the fixed delays — head to the sensor it
+        enters by, then tail past the one it left by, and then past the one it
+        entered by.
 
         `built`: whether `layout` is what the railroad's drawing derives to,
         said on `tc49/layout/state/railroad` as the layout interface says it
@@ -201,6 +232,10 @@ class Simulator:
         # clears (ADR-0069 decision 7). A block a train was put in and never
         # read occupied for it is not here.
         self._occupied: dict[str, list[str]] = {}
+        # The same for the sensors under it, and what each sensor last read on
+        # the row: a reading equal to that publishes nothing (#1170).
+        self._sensors: dict[str, list[str]] = {}
+        self._reading: dict[str, str] = {}
         # The word this binding last stated on `state/power`, the last `on`
         # or `off` it applied, and the run clock's reading when that supply
         # last went off: what the waiting events are moved later by when it
@@ -299,7 +334,7 @@ class Simulator:
         supply, so the supply is the last `on` or `off` applied, which a drain
         leaves on, and `draining` stands over it until the drain ends (#752).
 
-        The scheduled sensor events follow the supply, as a train on steel
+        The scheduled readings follow the supply, as a train on steel
         does (#832): a drain leaves it on, so a transit under way runs to its
         sensors. The supply going off stops them where they are, and coming
         back on moves each one later by the time it was off, so a transit goes
@@ -314,8 +349,8 @@ class Simulator:
             elif supply == ON:
                 waited = self._clock.now - self._cut_at
                 self._events = [
-                    (at + waited, seq, leaf, train, block)
-                    for at, seq, leaf, train, block in self._events
+                    (at + waited, seq, what, train, sensor)
+                    for at, seq, what, train, sensor in self._events
                 ]
                 heapify(self._events)
             self._supply = supply
@@ -350,15 +385,15 @@ class Simulator:
         its own detectors last read occupied for it reads clear, the steel
         having left it, as `_on_removed` has it: left reading occupied, the
         block would stand disputed with nothing to end it (#1154). The block
-        it is put in is not read occupied: no detector here read it there.
+        it is put in is not read occupied: no detector here read it there. Each
+        sensor last read occupied for it reads clear, that block's as well: a
+        hand has it, and no sensor here knows where in the block it was put.
         """
         placed = placement(payload)
         if placed is None or placed.block is None:
             return
         train = placed.train
-        self._events = [event for event in self._events if event[3] != train]
-        heapify(self._events)
-        self._rolling.discard(train)
+        self._lifted(train)
         self._position[train] = placed.block
         for block in self._occupied.pop(train, []):
             if block != placed.block:
@@ -375,23 +410,30 @@ class Simulator:
         dropped — a head lifted short of the far detector never reaches it,
         and a tail lifted off the near one has nothing left to clear. A block
         the train was put in and never read occupied for reads nothing: no
-        detector here ever said it was there.
+        detector here ever said it was there. So with each sensor.
         """
         train = named_train(payload)
         if train is None:
             return
+        self._lifted(train)
         self._position.pop(train, None)
-        self._rolling.discard(train)
-        self._events = [event for event in self._events if event[3] != train]
-        heapify(self._events)
         for block in self._occupied.pop(train, []):
             self._bus.publish("tc49/layout/block_vacated", {"block": block})
 
-    def _near_end(self, commanded: Command) -> str | None:
-        """The block a train must stand in to take this move's transit: the
-        block across it from the one the command says the train is entering,
-        or None where this railroad has no such transit or that transit
-        reaches neither end of the block named.
+    def _lifted(self, train: str) -> None:
+        """A hand has the train: it is no longer mid-move, nothing scheduled
+        for it fires, and each sensor last read occupied for it reads clear."""
+        self._rolling.discard(train)
+        self._events = [event for event in self._events if event[3] != train]
+        heapify(self._events)
+        for sensor in self._sensors.pop(train, []):
+            self._read(sensor, CLEAR)
+
+    def _ends(self, commanded: Command) -> tuple[str, str] | None:
+        """The two ends this move's transit joins, the one the train enters by
+        and the one it leaves by: the second is the near end, whose block the
+        train must stand in. None where this railroad has no such transit or
+        that transit reaches neither end of the block named.
 
         The command states the connection and a bare transit and the layout
         names a transit qualified, so it asks with `Command.transit_id`.
@@ -399,14 +441,11 @@ class Simulator:
         there is no track over that transit into that block — and neither is
         an error to raise on but a command with nowhere to go (rule 4).
         """
-        ends = transit_ends(self._layout, commanded.into, commanded.transit_id)
-        return None if ends is None else block_of(ends[1])
+        return transit_ends(self._layout, commanded.into, commanded.transit_id)
 
     def _on_move(self, topic: str, payload: Payload) -> None:
-        """One transit accepted: the train starts rolling and its two sensor
-        events are scheduled — the head into the destination after the
-        transit delay, the tail off the origin after the clearing one. A
-        move whose train is not standing at the transit's near end is stale
+        """One transit accepted: the train starts rolling and its readings are
+        scheduled, as the module docstring has them. A move whose train is not standing at the transit's near end is stale
         — redelivered after arrival, mid-move, or overtaken by a hand's
         placement — and is ignored (ADR-0047). A command that cannot be read,
         or that names a transit this railroad does not hold, goes the same
@@ -435,36 +474,92 @@ class Simulator:
 
     def _start(self, commanded: Command) -> None:
         """The checks a move meets at the moment it starts, and the start: its
-        train must stand at the transit's near end and not be rolling."""
-        train, into = commanded.train, commanded.into
-        origin = self._near_end(commanded)
-        if origin is None:
+        train must stand at the transit's near end and not be rolling, which it
+        is until its head is in. Every reading goes on the queue, the first as
+        well, so a cut delays it with the rest (#832).
+
+        The train leaves the move before it behind: it will not reach that
+        move's far sensor, and it does not clear the sensor it is now going out
+        by until its own tail is past."""
+        ends = self._ends(commanded)
+        if ends is None:
             return
-        if train in self._rolling or self._position.get(train) != origin:
+        train = commanded.train
+        entry, exit_ = ends
+        if train in self._rolling or self._position.get(train) != block_of(exit_):
             return
         self._rolling.add(train)
-        occupied_at = self._clock.now + self._transit_s
-        self._schedule(occupied_at, "block_occupied", train, into)
-        self._schedule(occupied_at + self._clear_s, "block_vacated", train, origin)
+        self._events = [
+            (at, seq, what, each, sensor)
+            for at, seq, what, each, sensor in self._events
+            if each != train
+            or not (what == _AT_FAR or (what == _PAST_ENTRY and sensor == exit_))
+        ]
+        heapify(self._events)
+        now = self._clock.now
+        head_in = now + self._transit_s
+        tail_out = head_in + self._clear_s
+        past_entry = tail_out + self._clear_s
+        self._schedule(now, _LEAVING, train, exit_)
+        self._schedule(head_in, _HEAD_IN, train, entry)
+        self._schedule(tail_out, _TAIL_OUT, train, exit_)
+        self._schedule(past_entry, _PAST_ENTRY, train, entry)
+        self._schedule(past_entry, _AT_FAR, train, opposite_end(entry))
 
-    def _schedule(self, at: float, leaf: str, train: str, block: str) -> None:
-        heappush(self._events, (at, self._seq, leaf, train, block))
+    def _schedule(self, at: float, what: str, train: str, sensor: str) -> None:
+        heappush(self._events, (at, self._seq, what, train, sensor))
         self._seq += 1
 
     def _fire(self, event: _Event) -> None:
-        """One detector speaks. The head arriving is when the train's
-        position moves, and the tail clearing is when it stops rolling and
-        stands again."""
-        _at, _seq, leaf, train, block = event
+        """One sensor speaks, and the block event that goes with it. The head
+        arriving is when the train's position moves and when it stops rolling
+        and stands again. The tail clearing is when the block left reads
+        clear, and the row goes first, as `layout` has it."""
+        _at, _seq, what, train, sensor = event
+        block = block_of(sensor)
         read = self._occupied.setdefault(train, [])
-        if leaf == "block_occupied":
+        if what == _HEAD_IN:
             self._position[train] = block
-            read.append(block)
-        else:
             self._rolling.discard(train)
+            read.append(block)
+            self._read_occupied(train, sensor)
+            self._bus.publish("tc49/layout/block_occupied", {"block": block})
+        elif what == _TAIL_OUT:
             if block in read:
                 read.remove(block)
-        self._bus.publish(f"tc49/layout/{leaf}", {"block": block})
+            for held in list(self._sensors.get(train, [])):
+                if block_of(held) == block:
+                    self._read_clear(train, held)
+            self._bus.publish("tc49/layout/block_vacated", {"block": block})
+        elif what == _PAST_ENTRY:
+            self._read_clear(train, sensor)
+        else:
+            self._read_occupied(train, sensor)
+
+    def _read_occupied(self, train: str, sensor: str) -> None:
+        held = self._sensors.setdefault(train, [])
+        if sensor not in held:
+            held.append(sensor)
+        self._read(sensor, OCCUPIED)
+
+    def _read_clear(self, train: str, sensor: str) -> None:
+        held = self._sensors.get(train, [])
+        if sensor in held:
+            held.remove(sensor)
+        self._read(sensor, CLEAR)
+
+    def _read(self, sensor: str, level: str) -> None:
+        """`state/settled/sensor`, where the level differs from the last, and
+        for a name a topic can carry: a drawing may name a block with a
+        wildcard, and a broker's client raises on one in a topic, which would
+        take this app down over a block it can otherwise run (BUS.md, rule
+        4)."""
+        if self._reading.get(sensor) == level or "+" in sensor or "#" in sensor:
+            return
+        self._reading[sensor] = level
+        self._bus.publish(
+            device_topic(SETTLED_SENSOR, sensor), {"addr": sensor, "occupancy": level}
+        )
 
     def run(self, event_limit: int = 100_000) -> None:
         """Batch: jump the clock event to event and stop at quiescence —

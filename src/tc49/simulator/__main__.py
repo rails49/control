@@ -37,8 +37,11 @@ opinion about how often it takes what the broker's network thread left
 waiting, and what a transit costs is this binding's own stand-in for travel
 time rather than a number a person restarts a container to change (ADR-0030).
 
-The startup order is `lib/startup.py`'s, and its third step is empty here:
-**no rows of a previous process to adopt, and no steel standing before it.**
+The startup order is `lib/startup.py`'s, and its third step holds one thing
+here, as in `layout`: the settled readings a previous process left are cleared,
+the train that left each being a train this process does not hold (#1170).
+Otherwise **no rows of a previous process to adopt, and no steel standing before
+it.**
 Retained state lives in the broker and nowhere else (ADR-0059, decision 3),
 which leaves this binding's placement file — the steel's own memory, on no
 topic and in no inventory (ADR-0030) — with nowhere to live in a container, so
@@ -92,7 +95,7 @@ from tc49.lib.clock_row import Keeping, kept_by, kept_by_installation, loaded
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
-from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
+from tc49.lib.loading import NO_RAILROAD, Running, dropped, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.settings import KeptInstallation, KeptSettings
 from tc49.lib.startup import PERIOD_S, RETAINED_S, Alive, command_line, connected
@@ -106,7 +109,8 @@ writing role and no payload says who published (BUS.md, rule 4)."""
 TRANSIT_S = 30.0
 CLEAR_S = 30.0
 """The two fixed delays a deployed simulator carries a train on: the head
-reaching the far detector, then the tail clearing the near one. Stated here
+reaching the sensor it enters by, then the tail clearing the sensor it left by
+and, a second `CLEAR_S` on, the one it entered by. Stated here
 rather than left to the constructor's defaults so that what a transit costs on
 a running box is read off the process that runs it, and passed in rather than
 flagged for ADR-0030's reason — a delay this binding chose is not a distance
@@ -120,19 +124,26 @@ the layout interface when it goes quiet, on a simulated railroad as on steel
 (#1113). The devices that cut track power on it are on steel boxes only, so
 saying it here cuts nothing (#716)."""
 
+SETTLED = "tc49/layout/state/settled/#"
+"""Every settled reading, the rows a cold start clears: a filter, as there is a
+row for each sensor a previous process read and this app holds no list of
+which."""
+
 OWNED = (
     "tc49/layout/state/railroad",
     "tc49/layout/state/power",
     "tc49/layout/state/clock",
     "tc49/layout/state/settings",
     "tc49/layout/state/unknown_sensors",
+    SETTLED,
 )
 """The retained rows this binding of the layout interface writes: which
 railroad it is standing in for, the supply each answered press set, the
 fast clock, the railroad's settings, whose speeds the driver prices a
-grant at (#1133), and the sensors that are not reporting, which here is none
-(#1148). The block events it publishes as trains move are events and
-carry no retained value to drop (ADR-0060)."""
+grant at (#1133), the sensors that are not reporting, which here is none
+(#1148), and the settled reading of each sensor under `settled/` (#1170). The
+block events it publishes as trains move are events and carry no retained
+value to drop (ADR-0060)."""
 
 
 def to_stderr(line: str) -> None:
@@ -165,6 +176,7 @@ def serve(
     """
     if not connected(bus, stop, log):
         return
+    dropped(bus, (SETTLED,), stop, RETAINED_S)
     installation = kept_by_installation(documents, log)
     binding = _Binding(
         bus, documents, stop, period_s, transit_s, clear_s, installation, log

@@ -177,16 +177,24 @@ def ticks(
     just before the turn each is keyed to. Each turn advances the run clock
     to the next scheduled sensor event and fires it, so a turn is "the next
     thing the railroad does" — or a quiet step, on a railroad with nothing
-    scheduled.
+    scheduled. A turn that sleeps nothing, firing what a `move` read at its
+    start, is not one of them: it is part of the command before it.
 
     The live loop rather than the batch one: it does not stop on quiescence,
     which is exactly what a test of a railroad standing still needs.
     """
     now = 0
     plan = at or {}
+    waited = True
+
+    def sleep(seconds: float) -> None:
+        nonlocal waited
+        waited = seconds > 0.0
 
     def stop() -> bool:
         nonlocal now
+        if not waited:
+            return False
         if now >= count:
             return True
         if now in plan:
@@ -196,7 +204,7 @@ def ticks(
 
     # A period longer than any delay, so each turn's step reaches the next
     # scheduled event exactly; the sleep is injected away.
-    assembly.simulator.run_live(3600.0, sleep=lambda _: None, stop=stop)
+    assembly.simulator.run_live(3600.0, sleep=sleep, stop=stop)
 
 
 POWER = "tc49/layout/state/power"
