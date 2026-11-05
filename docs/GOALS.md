@@ -175,9 +175,10 @@ Who drives is the railroad's **driving mode**, and the railroad comes up
 `manual`: people drive every train from throttles. In `automatic` the app
 drives every train no throttle holds. At most one throttle holds a train, and
 it drives the train at any time, granted move or not. The end of a granted move
-still stops the train at its sensor, and a train driven out of its block drains
-the railroad
-([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+still stops the train at its sensor, and a train driven out of its block is
+named for a person while the others run
+([#1154](https://github.com/rails49/control/issues/1154),
+[ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
 [ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
 
 A person driving looks out of the window. An automated driver has to be told
@@ -247,9 +248,9 @@ running train.
 **The operator is assumed to leave the railroad to the app**, and that is a
 decision of the same kind. The app is correct about the railroad it is told
 about, and a person can change the steel without saying so. Some of that it
-sees: a detector reading no granted move accounts for drains the railroad and names
-what it contradicts for a person to walk
-([ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). Most of it it
+sees: a detector reading no granted move accounts for is named for a person to
+walk, no train is sent into a block that reads occupied, a train whose block
+reads clear takes no grant, and the others run ([#1154](https://github.com/rails49/control/issues/1154)). Most of it it
 cannot. Nothing detects a train driven from a throttle the app does not know
 about, and asking for power off with a train in hand is a user error it does
 not guard (`GLOSSARY.md`, **Moving**).

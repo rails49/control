@@ -975,8 +975,9 @@ payload is read defensively, and one that fails the read is dropped.
   answer. `null` is accepted at any power
   ([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md),
   [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-  With power `on`, a block reading occupied that nothing claims is an
-  unexplained reading as before, so the drag comes before the cars go down.
+  A block reading occupied that nothing claims is on `state/disputed` until the
+  drag claims it ([#1154](https://github.com/rails49/control/issues/1154)). A placement forgets a clear reading on the block it
+  names, so the next reading settles it.
 - `tc49/dispatch/cancel_wanted` — browser-writable — `id`: the request to
   end. A request waiting is cancelled at once, and so is one underway with no
   move outstanding. One with a move outstanding is granted nothing further
@@ -1069,8 +1070,10 @@ payload is read defensively, and one that fails the read is dropped.
   aspect. An end nothing ever leaves does not appear.
 - `tc49/dispatch/state/disputed` — `trains`: sorted list of trains standing
   in a block that reads clear; `blocks`: sorted list of blocks reading
-  occupied with nothing claiming them. Both empty unless power reads `off`
-  ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+  occupied with nothing claiming them. Computed at every power value, leaving
+  out a crossing train and a block with a lock on it ([#1154](https://github.com/rails49/control/issues/1154)). A train on
+  `trains` takes no grant until a placement or a reading resolves it; the page
+  shows each entry on the band and on the drawing.
 - `tc49/dispatch/state/unfit` — `trains`: list of `{train, block, why}`, in
   train order: each train the last rebuild under the same railroad name took
   off the layout, the block it stood in, and `why` — `gone` where the new

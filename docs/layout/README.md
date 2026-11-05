@@ -410,8 +410,8 @@ refuse there, since no sign is composed. When the move ends at its sensor this
 app writes `0.0` whether it or a throttle was driving, and a train nobody drove
 is told nothing; the next lever frame drives the train on. Leaving the block is
 the person's responsibility: nothing stops a held train at its block's ends,
-and one that leaves is a reading no move explains, which drains the railroad
-(ADR-0048).
+and one that leaves is a reading no move explains, which is named for a person
+while the others run ([#1154](https://github.com/rails49/control/issues/1154)).
 
 **The lever** is `tc49/layout/throttle_wanted`, a speed in −1.0 … 1.0 signed
 for the train — positive nose-first — and the `throttle` turning it. It reaches
@@ -533,9 +533,9 @@ detectors stay inside the interface
 is one occupancy, and a change in that fold is the block's own event. It is
 published whether or not a move explains it: a hand putting a locomotive down
 is how every session starts, and what to make of a reading nothing accounts for
-is the dispatcher's judgement — it holds the run and names the block for a
+is the dispatcher's judgement — it names the block for a
 person to walk
-([ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)) — not this
+([#1154](https://github.com/rails49/control/issues/1154)) — not this
 app's.
 
 **The block behind is named by the move.** A train entering block Y trips Y's

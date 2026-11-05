@@ -380,9 +380,10 @@ _Avoid_: abort, kill, delete, revoke (one of the three reasons), rejection
 (which refuses a request before it is queued)
 
 **Disputed**:
-Where the placement and the detectors contradict each other while power is
-off: a train whose block reads clear, or a block reading occupied with
-nothing claiming it. The set points a person at each and resolves nothing
+Where the placement and the detectors contradict each other, at every power
+value: a train whose block reads clear, or a block reading occupied with
+nothing claiming it. The set points a person at each and resolves nothing. A
+train on it takes no grant and no train is sent into a block on it
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: mismatch, discrepancy, error, conflict (two transits that may not be
 in use at once)
@@ -396,7 +397,8 @@ _Avoid_: invalid, orphaned, disputed (a placement against the detectors)
 **Unexplained reading**:
 A detector reading no granted move accounts for: a `block_occupied` with
 nothing claiming the block, or a `block_vacated` of a block a train stands in.
-It drains the railroad ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+It goes on **Disputed** for a person and the rest keeps running
+([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 (one cause of such a reading)
 
