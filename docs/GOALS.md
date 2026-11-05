@@ -146,8 +146,9 @@ block, and may have to wait there — and **two is what buys full speed**. Two i
 also the most that is ever asked for: a third block ahead shows the same aspect
 as the second, so it buys nothing and holds track another train may be waiting
 for ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)). A locked block
-that reads occupied does not count as locked ahead, and a train whose own block
-reads clear shows `stop`, since neither is sent on.
+that reads occupied does not count as locked ahead, since no train is sent into
+it. A train whose own block reads clear, or that is refused its next move, shows
+`stop`.
 
 The waiting requests are a **list** a person can see, and the dispatcher
 serves them in its order: an earlier request gets the first claim, and a later

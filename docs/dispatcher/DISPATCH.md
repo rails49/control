@@ -55,8 +55,9 @@ system L
 A signal over a move into or out of a block out of use shows `stop`, and depth
 counts only up to the first such block ([#1152](https://github.com/rails49/control/issues/1152)).
 A locked block that reads occupied counts the same way, since no train is sent
-into it, and every end along the route of a train on `state/disputed` shows
-`stop`, since that train takes no grant
+into it. Every end along the route of a train on `state/disputed`, or of one
+refused its next move, shows `stop`, since that train is not sent on, and its
+signals return in the sweep that grants it
 ([#1160](https://github.com/rails49/control/issues/1160)). A grant reads the same
 depth, so a train with an occupied block two ahead runs at `caution`.
 

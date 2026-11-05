@@ -1,6 +1,6 @@
 # Every signal along a train's locked blocks shows its aspect, and a passed signal shows stop
 
-*Decision 1 superseded in part by [#1160](https://github.com/rails49/control/issues/1160): depth counts only up to a locked block that reads occupied, and a train on `state/disputed` shows `stop` along its route. See [DISPATCH.md](../dispatcher/DISPATCH.md#aspects).*
+*Decision 1 superseded in part by [#1160](https://github.com/rails49/control/issues/1160): depth counts only up to a locked block that reads occupied, and a train on `state/disputed` or refused its next move shows `stop` along its route. See [DISPATCH.md](../dispatcher/DISPATCH.md#aspects).*
 
 Part of [#1024](https://github.com/rails49/control/issues/1024). Qualifies
 [ADR-0025](0025-a-signal-is-what-the-dispatcher-tells-the-driver.md).
