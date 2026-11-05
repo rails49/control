@@ -29,12 +29,15 @@ HONEST: Payload = {
 `west_ladder.to_dn` joins `yard_w.B` to `dn_w.A`."""
 
 
-def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
-    """The occupancy events alone — not `tc49/layout/+`, which would sweep up
-    the commands these tests publish."""
-    seen: list[tuple[str, Payload]] = []
-    for topic in ("tc49/layout/block_occupied", "tc49/layout/block_vacated"):
-        bus.subscribe(topic, lambda topic, payload: seen.append((topic, payload)))
+def sensors(bus: InProcessBus) -> list[tuple[str, object]]:
+    """Each settled reading from here on, the sensor and its level."""
+    seen: list[tuple[str, object]] = []
+    bus.subscribe(
+        "tc49/layout/state/settled/sensor/#",
+        lambda _topic, payload: seen.append(
+            (str(payload["addr"]), payload["occupancy"])
+        ),
+    )
     return seen
 
 
@@ -57,7 +60,7 @@ def test_a_command_carrying_a_field_the_binding_does_not_know_still_moves() -> N
 
     send(bus, MOVE, {**HONEST, "aspect": "clear", "id": "freight_1-1"})
     tick(sim)
-    assert ("tc49/layout/block_occupied", {"block": "dn_w"}) in seen
+    assert ("dn_w.A", "occupied") in seen
 
 
 def test_a_placement_that_cannot_be_read_moves_no_steel() -> None:
@@ -65,7 +68,7 @@ def test_a_placement_that_cannot_be_read_moves_no_steel() -> None:
     so a frame claiming to be one is a frame claiming to have lifted a
     locomotive. Where the steel stands is what none of these touches and the
     honest placement after them does, read off the block the next move
-    vacates.
+    leaves.
 
     A null block is dropped with the unreadable ones: the fact never carries
     one — a train off the layout is `train_removed` — so a null says nothing
@@ -90,7 +93,7 @@ def test_a_placement_that_cannot_be_read_moves_no_steel() -> None:
     seen = sensors(bus)
     send(bus, MOVE, HONEST)
     tick(sim)
-    assert ("tc49/layout/block_vacated", {"block": "yard_w"}) in seen
+    assert ("yard_w.B", "clear") in seen
 
     send(bus, "tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     send(
@@ -104,7 +107,7 @@ def test_a_placement_that_cannot_be_read_moves_no_steel() -> None:
         },
     )
     tick(sim)
-    assert ("tc49/layout/block_vacated", {"block": "up_w"}) in seen
+    assert ("up_w.B", "clear") in seen
 
 
 def test_a_removal_that_cannot_be_read_takes_no_steel_away() -> None:
@@ -118,7 +121,7 @@ def test_a_removal_that_cannot_be_read_takes_no_steel_away() -> None:
     seen = sensors(bus)
     send(bus, MOVE, HONEST)
     tick(sim)
-    assert ("tc49/layout/block_vacated", {"block": "yard_w"}) in seen
+    assert ("yard_w.B", "clear") in seen
 
 
 def test_an_align_carrying_anything_at_all_is_harmless() -> None:
@@ -132,4 +135,4 @@ def test_an_align_carrying_anything_at_all_is_harmless() -> None:
         send(bus, "tc49/layout/align", payload)
     send(bus, MOVE, HONEST)
     tick(sim)
-    assert ("tc49/layout/block_occupied", {"block": "dn_w"}) in seen
+    assert ("dn_w.A", "occupied") in seen

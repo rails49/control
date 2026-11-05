@@ -79,13 +79,23 @@ def dragged() -> Assembly:
     return assembly
 
 
+def blocks_read_occupied(assembly: Assembly) -> set[str]:
+    """Every block a sensor has read occupied in: the one the train left, and
+    each its head has reached since."""
+    return {
+        block_of(line["addr"])
+        for line in events(assembly.trace, "settled/sensor")
+        if line["occupancy"] == "occupied"
+    }
+
+
 def cut_off_crossing() -> Assembly:
     """That run cut off two blocks along: the train has left the block the
     scenario places it in, and the grant that took it out of the last one has
     not been sensed yet — so it is also crossing, which is the placement the
     retained picture has the least to say about and the most to mark."""
     assembly = dragged()
-    tick_until(assembly, lambda: len(events(assembly.trace, "block_occupied")) >= 2)
+    tick_until(assembly, lambda: len(blocks_read_occupied(assembly)) >= 3)
     return assembly
 
 

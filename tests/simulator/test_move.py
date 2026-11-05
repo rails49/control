@@ -12,20 +12,11 @@ Driven at the layout interface: a `move` command in, sensor events out.
 """
 
 from tc49.bench.runner import placement
-from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.simulator import Simulator
 from tests.harness import load
-from tests.simulator.test_placement import move, simulator, tick
-
-
-def sensors(bus: InProcessBus) -> list[tuple[str, Payload]]:
-    """The occupancy events alone — not `tc49/layout/+`, which would sweep
-    up the boundary each tick publishes."""
-    seen: list[tuple[str, Payload]] = []
-    for topic in ("tc49/layout/block_vacated", "tc49/layout/block_occupied"):
-        bus.subscribe(topic, lambda topic, payload: seen.append((topic, payload)))
-    return seen
+from tests.simulator.test_placement import move, settled, simulator, tick
 
 
 def build() -> tuple[InProcessBus, Simulator]:
@@ -38,11 +29,11 @@ def test_a_live_move_still_moves() -> None:
     """The check refuses stale commands, not fresh ones: a train standing at
     the near end crosses exactly as before."""
     bus, sim = build()
-    seen = sensors(bus)
+    seen = settled(bus)
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     tick(sim)
-    assert ("tc49/layout/block_vacated", {"block": "yard_w"}) in seen
-    assert ("tc49/layout/block_occupied", {"block": "dn_w"}) in seen
+    assert ("yard_w.B", "clear") in seen
+    assert ("dn_w.A", "occupied") in seen
 
 
 def test_a_stale_move_reads_no_sensor() -> None:

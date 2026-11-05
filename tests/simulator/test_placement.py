@@ -17,7 +17,7 @@ the settled reading of each sensor beside them (#1170).
 from dataclasses import replace
 
 from tc49.bench.runner import placement, powered
-from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import TOPICS
 from tc49.lib.layout import Layout
@@ -91,14 +91,6 @@ def remove(bus: InProcessBus, train: str) -> None:
     bus.drain()
 
 
-def occupancy(bus: InProcessBus) -> list[tuple[str, Payload]]:
-    """The two detector readings alone."""
-    seen: list[tuple[str, Payload]] = []
-    for topic in ("tc49/layout/block_occupied", "tc49/layout/block_vacated"):
-        bus.subscribe(topic, lambda topic, payload: seen.append((topic, payload)))
-    return seen
-
-
 def settled(bus: InProcessBus) -> list[tuple[str, str]]:
     """Each settled reading from now on, the sensor and its level. A test
     subscribes before the move, since a late subscriber is handed the rows
@@ -110,6 +102,15 @@ def settled(bus: InProcessBus) -> list[tuple[str, str]]:
             (str(payload["addr"]), str(payload["occupancy"]))
         ),
     )
+    return seen
+
+
+def from_here(bus: InProcessBus) -> list[tuple[str, str]]:
+    """`settled` for a test subscribing after the move, past the rows it is
+    handed for that."""
+    seen = settled(bus)
+    bus.drain()
+    seen.clear()
     return seen
 
 
@@ -153,8 +154,7 @@ def test_a_placement_reads_clear_every_sensor_read_occupied_for_the_train() -> N
 
 
 def test_a_placement_in_the_block_a_train_stands_in_clears_its_far_sensor() -> None:
-    """Every sensor read occupied for it reads clear, and the block event stays
-    silent as it was, the block not having emptied (#1170)."""
+    """Every sensor read occupied for it reads clear (#1170)."""
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
     sim = timed(bus, layout, placement(scenario.trains))
@@ -164,10 +164,8 @@ def test_a_placement_in_the_block_a_train_stands_in_clears_its_far_sensor() -> N
     assert seen[-1] == ("dn_w.B", "occupied")
 
     seen.clear()
-    events = occupancy(bus)
     place(bus, "freight_1", "dn_w")
     assert seen == [("dn_w.B", "clear")]
-    assert events == []
 
 
 def test_a_train_placed_reads_nothing_and_moved_reads_its_exit_at_the_start() -> None:
@@ -185,10 +183,10 @@ def test_a_train_placed_reads_nothing_and_moved_reads_its_exit_at_the_start() ->
     assert seen == [("up_w.B", "occupied")]
 
 
-def test_a_block_named_with_a_wildcard_gets_no_row_and_keeps_its_event() -> None:
+def test_a_block_named_with_a_wildcard_gets_no_row() -> None:
     """A drawing may name a block anything but `.` and `/`, and a broker's
     client raises on a wildcard in a topic (#1168, BUS.md): that sensor has no
-    row, and the block event goes out as it does for any other (#1170)."""
+    row (#1170)."""
     layout, _roster, scenario = load("crossover-yard/meet")
     wild = replace(
         layout,
@@ -203,33 +201,31 @@ def test_a_block_named_with_a_wildcard_gets_no_row_and_keeps_its_event() -> None
     bus = InProcessBus(Clock())
     sim = timed(bus, wild, placement(scenario.trains))
     seen = settled(bus)
-    events = occupancy(bus)
     move(bus, "freight_1", "west_ladder.to_dn", "dn+w")
     step(sim, 3)
 
     assert seen == [("yard_w.B", "occupied"), ("yard_w.B", "clear")]
-    assert ("tc49/layout/block_occupied", {"block": "dn+w"}) in events
 
 
 def test_a_lifted_train_clears_the_block_it_moved_into() -> None:
     """The simulator stands in for the hand (ADR-0069 decision 7): its own
-    detector last read the train occupied in `dn_w`, so lifting it off reads
-    that block clear."""
+    detector last read the train occupied at `dn_w.A`, so lifting it off reads
+    that sensor clear."""
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
     sim = timed(bus, layout, placement(scenario.trains))
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     step(sim, 2)
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     remove(bus, "freight_1")
-    assert seen == [("tc49/layout/block_vacated", {"block": "dn_w"})]
+    assert ("dn_w.A", "clear") in seen
 
 
 def test_a_train_lifted_across_a_transit_clears_both_blocks() -> None:
-    """Head in `dn_e`, tail still over `dn_w`: both read occupied for it, so
-    both read clear when it comes off, and the tail reading it had scheduled
-    never fires — there is no tail left to clear the near detector."""
+    """Head in `dn_e`, tail still over `dn_w`: a sensor of each read occupied
+    for it, so each reads clear when it comes off, and the tail reading it had
+    scheduled never fires — there is no tail left to clear the near detector."""
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
     sim = timed(bus, layout, placement(scenario.trains))
@@ -238,19 +234,19 @@ def test_a_train_lifted_across_a_transit_clears_both_blocks() -> None:
     move(bus, "freight_1", "crossover.dn_straight", "dn_e")
     step(sim, 1)
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     remove(bus, "freight_1")
     step(sim, 2)
-    assert sorted(seen, key=str) == [
-        ("tc49/layout/block_vacated", {"block": "dn_e"}),
-        ("tc49/layout/block_vacated", {"block": "dn_w"}),
-    ]
+    assert ("dn_e.A", "clear") in seen
+    assert ("dn_w.B", "clear") in seen
+    assert all(level == "clear" for _sensor, level in seen)
 
 
 def test_a_train_lifted_before_its_head_reading_clears_its_origin_alone() -> None:
     """It moved into `dn_w` and has set off again, but the head has not
-    reached `dn_e`: only `dn_w` was read occupied for it, so only `dn_w`
-    reads clear, and neither of the move's readings fires afterwards."""
+    reached `dn_e`: only sensors of `dn_w` and the block before it were read
+    occupied for it, so `dn_e` reads nothing, and neither of the move's readings
+    fires afterwards."""
     layout, _roster, scenario = load("crossover-yard/meet")
     bus = InProcessBus(Clock())
     sim = timed(bus, layout, placement(scenario.trains))
@@ -258,10 +254,12 @@ def test_a_train_lifted_before_its_head_reading_clears_its_origin_alone() -> Non
     step(sim, 2)
     move(bus, "freight_1", "crossover.dn_straight", "dn_e")
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     remove(bus, "freight_1")
     step(sim, 2)
-    assert seen == [("tc49/layout/block_vacated", {"block": "dn_w"})]
+    assert ("dn_w.A", "clear") in seen
+    assert all(level == "clear" for _sensor, level in seen)
+    assert not [sensor for sensor, _level in seen if sensor.startswith("dn_e")]
 
 
 def test_a_train_lifted_where_it_was_placed_reads_nothing() -> None:
@@ -273,7 +271,7 @@ def test_a_train_lifted_where_it_was_placed_reads_nothing() -> None:
     bus.publish("tc49/dispatch/train_placed", {"train": "freight_1", "block": "up_w"})
     bus.drain()
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     remove(bus, "freight_1")
     assert seen == []
 
@@ -294,7 +292,7 @@ def test_a_train_placed_after_a_move_clears_nothing_when_lifted() -> None:
     step(sim, 2)
     place(bus, "freight_1", "up_w")
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     remove(bus, "freight_1")
     assert seen == []
 
@@ -310,10 +308,11 @@ def test_a_train_placed_away_reads_the_block_it_left_clear() -> None:
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     step(sim, 2)
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     place(bus, "freight_1", "up_w")
 
-    assert seen == [("tc49/layout/block_vacated", {"block": "dn_w"})]
+    assert ("dn_w.A", "clear") in seen
+    assert all(level == "clear" for _sensor, level in seen)
 
 
 def test_a_train_placed_between_blocks_reaches_no_detector() -> None:
@@ -326,7 +325,7 @@ def test_a_train_placed_between_blocks_reaches_no_detector() -> None:
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     place(bus, "freight_1", "up_w")
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     step(sim, 2)
     assert seen == []
     assert sim._position["freight_1"] == "up_w"  # pyright: ignore[reportPrivateUsage]
@@ -341,10 +340,11 @@ def test_a_train_placed_between_blocks_takes_its_next_move() -> None:
     move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
     place(bus, "freight_1", "up_w")
 
-    seen = occupancy(bus)
+    seen = from_here(bus)
     move(bus, "freight_1", "crossover.up_to_dn", "dn_e")
     step(sim, 2)
     assert seen == [
-        ("tc49/layout/block_occupied", {"block": "dn_e"}),
-        ("tc49/layout/block_vacated", {"block": "up_w"}),
+        ("up_w.B", "occupied"),
+        ("dn_e.A", "occupied"),
+        ("up_w.B", "clear"),
     ]
