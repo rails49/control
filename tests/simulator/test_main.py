@@ -49,8 +49,6 @@ RAILROAD_NAME = "crossover-yard"
 RAILROAD = "tc49/layout/state/railroad"
 POWER = "tc49/layout/state/power"
 MOVE = "tc49/layout/move"
-OCCUPIED = "tc49/layout/block_occupied"
-VACATED = "tc49/layout/block_vacated"
 PLACED = "tc49/dispatch/train_placed"
 ALIVE = "tc49/layout/alive_confirmed"
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -296,9 +294,13 @@ def test_it_carries_a_train_across_a_transit_it_finds_on_the_broker(
         },
     )
 
-    assert drained(witness, lambda: rows(heard, VACATED) != []), "nothing moved"
-    assert rows(heard, OCCUPIED)[-1]["block"] == "dn_w"
-    assert rows(heard, VACATED)[-1]["block"] == "yard_w"
+    head = f"{SETTLED_SENSOR}/dn_w.A"
+    tail = f"{SETTLED_SENSOR}/yard_w.B"
+    assert drained(
+        witness,
+        lambda: [row["occupancy"] for row in rows(heard, tail)][-1:] == ["clear"],
+    ), "nothing moved"
+    assert rows(heard, head)[0]["occupancy"] == "occupied"
     assert app.running, "the app stopped on its own"
     hand.close()
     witness.close()

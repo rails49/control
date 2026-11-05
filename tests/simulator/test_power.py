@@ -20,13 +20,11 @@ from collections.abc import Callable
 from tc49.bench.runner import placement
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
-from tc49.lib.inventory import leaf
 from tc49.simulator import Simulator
 from tests.harness import build, events, load
 
 POWER = "tc49/layout/state/power"
 POWER_WANTED = "tc49/layout/power_wanted"
-SENSORS = ("tc49/layout/block_occupied", "tc49/layout/block_vacated")
 SETTLED = "tc49/layout/state/settled/sensor/#"
 
 TRANSIT_S = 10.0
@@ -64,15 +62,17 @@ def press(bus: InProcessBus, payload: Payload) -> None:
 
 
 def stamped(bus: InProcessBus, clock: Clock) -> list[tuple[float, str, str]]:
-    """Every sensor event with the run clock's reading as it was published."""
+    """The head reaching `dn_w.A` and the tail clearing `yard_w.B`, the readings
+    of `move` that a supply going off delays, with the run clock's reading as
+    each was published."""
     seen: list[tuple[float, str, str]] = []
-    for topic in SENSORS:
-        bus.subscribe(
-            topic,
-            lambda topic, payload: seen.append(
-                (clock.now, leaf(topic), str(payload["block"]))
-            ),
-        )
+
+    def kept(_topic: str, payload: Payload) -> None:
+        reading = (str(payload["addr"]), str(payload["occupancy"]))
+        if reading in (("dn_w.A", "occupied"), ("yard_w.B", "clear")):
+            seen.append((clock.now, *reading))
+
+    bus.subscribe(SETTLED, kept)
     return seen
 
 
@@ -136,8 +136,8 @@ def test_a_transit_under_way_at_a_cut_goes_on_at_on_with_the_time_it_had_left() 
     sim.run_live(2.0, sleep=sleep, stop=lambda: clock.now >= 40.0)
 
     assert seen == [
-        (26.0, "block_occupied", "dn_w"),
-        (26.0 + CLEAR_S, "block_vacated", "yard_w"),
+        (26.0, "dn_w.A", "occupied"),
+        (26.0 + CLEAR_S, "yard_w.B", "clear"),
     ]
 
 
@@ -229,8 +229,8 @@ def test_a_transit_under_way_at_a_drain_runs_to_its_sensors() -> None:
     sim.run_live(2.0, sleep=sleep, stop=lambda: clock.now >= 40.0)
 
     assert seen == [
-        (TRANSIT_S, "block_occupied", "dn_w"),
-        (TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (TRANSIT_S + CLEAR_S, "yard_w.B", "clear"),
     ]
 
 
@@ -252,8 +252,8 @@ def test_a_move_granted_while_draining_runs_to_its_sensors_and_the_drain_ends_of
     bus.drain()
 
     assert seen == [
-        (TRANSIT_S, "block_occupied", "dn_w"),
-        (TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (TRANSIT_S + CLEAR_S, "yard_w.B", "clear"),
     ]
     assert said == ["draining", "off"]
 
@@ -281,8 +281,8 @@ def test_a_move_granted_while_off_is_kept_and_runs_at_on() -> None:
     press(bus, {"power": "on"})
     sim.run()
     assert seen == [
-        (20.0 + TRANSIT_S, "block_occupied", "dn_w"),
-        (20.0 + TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+        (20.0 + TRANSIT_S, "dn_w.A", "occupied"),
+        (20.0 + TRANSIT_S + CLEAR_S, "yard_w.B", "clear"),
     ]
 
 
@@ -328,6 +328,6 @@ def test_a_drain_ends_off_and_on_resumes_what_off_left() -> None:
 
     assert said == ["on", "draining", "off", "on"]
     assert seen == [
-        (TRANSIT_S, "block_occupied", "dn_w"),
-        (23.0, "block_vacated", "yard_w"),
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (23.0, "yard_w.B", "clear"),
     ]

@@ -7,7 +7,7 @@ interface; ADR-0009, ADR-0047). The commands it responds to,
 them, and it never asks which component did: today the dispatcher sends one,
 the driver another and a page the rest, and nothing here would change if that moved. It names its commands
 rather than filtering by prefix, which is the one exception rule 3 allows: a
-`tc49/layout/#` filter would hand it back its own sensor events. It acts on a `move` only if that train
+`tc49/layout/#` filter would hand it back its own rows. It acts on a `move` only if that train
 is standing at the transit's near end (ADR-0047): a stale redelivery
 arrives after the train has left, so it is a no-op on state alone — no
 clock, no stamp, no agreement between apps.
@@ -31,11 +31,10 @@ move out of block X through end `e`, into block Y through end `f`, started at
 `t`, with `far` the end of Y opposite `f`:
 
 - at `t`, `X.e` reads occupied;
-- at `t + transit_s`, `Y.f` reads occupied: the head is in, the train stands
-  in Y for its next `move`, and `block_occupied(Y)` goes out;
+- at `t + transit_s`, `Y.f` reads occupied: the head is in, and the train stands
+  in Y for its next `move`;
 - a clearing delay later, `X.e` and any other sensor of X last read occupied
-  for this train read clear: the tail is past, and `block_vacated(X)` goes out
-  (ADR-0047);
+  for this train read clear: the tail is past (ADR-0047);
 - a clearing delay after that, `Y.f` reads clear, and then `Y.far` occupied
   where no later move of this train has started. A later move out through `f`
   holds `f` occupied instead, until its own tail is past.
@@ -227,13 +226,11 @@ class Simulator:
         # The moves granted while the supply is off, one per train, each put
         # back through `_start` when it is next on (#863).
         self._kept: dict[str, Command] = {}
-        # Per train, the blocks this binding's own detectors last read
-        # occupied for it, in the order they were read: what a hand lifting it
-        # clears (ADR-0069 decision 7). A block a train was put in and never
-        # read occupied for it is not here.
-        self._occupied: dict[str, list[str]] = {}
-        # The same for the sensors under it, and what each sensor last read on
-        # the row: a reading equal to that publishes nothing (#1170).
+        # Per train, the sensors this binding last read occupied for it, in the
+        # order they were read: what a hand lifting it clears (ADR-0069 decision
+        # 7). A block a train was put in and never read occupied for has none
+        # here. And what each sensor last read on the row: a reading equal to
+        # that publishes nothing (#1170).
         self._sensors: dict[str, list[str]] = {}
         self._reading: dict[str, str] = {}
         # The word this binding last stated on `state/power`, the last `on`
@@ -371,8 +368,8 @@ class Simulator:
         railroad the steel simply is where the hand left it and nobody has to
         say so; the simulator stands in for the steel, so it has to be told,
         and `train_placed` is the dispatcher having accepted that it was.
-        Without it the next `move` would vacate the block the train used to
-        be in and the sensors would describe a railroad nobody is on.
+        Without it the next `move` would start from the block the train used
+        to be in and the sensors would describe a railroad nobody is on.
 
         The fact is read like any other payload, and one naming no block is
         dropped with the rest: `train_placed` never carries a null — a train
@@ -381,13 +378,12 @@ class Simulator:
 
         Its pending readings are forgotten, and it is no longer mid-move
         (#677): a head lifted short of the far detector never reaches it, and
-        a tail lifted off the near one has nothing left to clear. Each block
-        its own detectors last read occupied for it reads clear, the steel
-        having left it, as `_on_removed` has it: left reading occupied, the
-        block would stand disputed with nothing to end it (#1154). The block
-        it is put in is not read occupied: no detector here read it there. Each
-        sensor last read occupied for it reads clear, that block's as well: a
-        hand has it, and no sensor here knows where in the block it was put.
+        a tail lifted off the near one has nothing left to clear. Each sensor
+        last read occupied for it reads clear, the steel having left it, as
+        `_on_removed` has it: left reading occupied, the block would stand
+        disputed with nothing to end it (#1154). That goes for the block it is
+        put in as well: a hand has it, and no sensor here knows where in the
+        block it was put.
         """
         placed = placement(payload)
         if placed is None or placed.block is None:
@@ -395,9 +391,6 @@ class Simulator:
         train = placed.train
         self._lifted(train)
         self._position[train] = placed.block
-        for block in self._occupied.pop(train, []):
-            if block != placed.block:
-                self._bus.publish("tc49/layout/block_vacated", {"block": block})
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train off the layout (#170), in any run state
@@ -405,20 +398,18 @@ class Simulator:
 
         The other half of `_on_placed`: the steel is no longer there, so the
         simulator forgets where it was, and stands in for the hand that took
-        it (decision 7). Every block its own detectors last read occupied for
-        the train reads clear, and the readings it had scheduled for it are
-        dropped — a head lifted short of the far detector never reaches it,
-        and a tail lifted off the near one has nothing left to clear. A block
-        the train was put in and never read occupied for reads nothing: no
-        detector here ever said it was there. So with each sensor.
+        it (decision 7). Every sensor last read occupied for the train reads
+        clear, and the readings it had scheduled for it are dropped — a head
+        lifted short of the far detector never reaches it, and a tail lifted
+        off the near one has nothing left to clear. A block the train was put
+        in and never read occupied for reads nothing: no detector here ever
+        said it was there.
         """
         train = named_train(payload)
         if train is None:
             return
         self._lifted(train)
         self._position.pop(train, None)
-        for block in self._occupied.pop(train, []):
-            self._bus.publish("tc49/layout/block_vacated", {"block": block})
 
     def _lifted(self, train: str) -> None:
         """A hand has the train: it is no longer mid-move, nothing scheduled
@@ -511,26 +502,19 @@ class Simulator:
         self._seq += 1
 
     def _fire(self, event: _Event) -> None:
-        """One sensor speaks, and the block event that goes with it. The head
-        arriving is when the train's position moves and when it stops rolling
-        and stands again. The tail clearing is when the block left reads
-        clear, and the row goes first, as `layout` has it."""
+        """One sensor speaks. The head arriving is when the train's position
+        moves and when it stops rolling and stands again. The tail clearing is
+        when each sensor of the block left reads clear."""
         _at, _seq, what, train, sensor = event
         block = block_of(sensor)
-        read = self._occupied.setdefault(train, [])
         if what == _HEAD_IN:
             self._position[train] = block
             self._rolling.discard(train)
-            read.append(block)
             self._read_occupied(train, sensor)
-            self._bus.publish("tc49/layout/block_occupied", {"block": block})
         elif what == _TAIL_OUT:
-            if block in read:
-                read.remove(block)
             for held in list(self._sensors.get(train, [])):
                 if block_of(held) == block:
                     self._read_clear(train, held)
-            self._bus.publish("tc49/layout/block_vacated", {"block": block})
         elif what == _PAST_ENTRY:
             self._read_clear(train, sensor)
         else:

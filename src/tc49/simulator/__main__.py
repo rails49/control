@@ -141,9 +141,8 @@ OWNED = (
 railroad it is standing in for, the supply each answered press set, the
 fast clock, the railroad's settings, whose speeds the driver prices a
 grant at (#1133), the sensors that are not reporting, which here is none
-(#1148), and the settled reading of each sensor under `settled/` (#1170). The
-block events it publishes as trains move are events and carry no retained
-value to drop (ADR-0060)."""
+(#1148), and the settled reading of each sensor under `settled/` (#1170)
+(ADR-0060)."""
 
 
 def to_stderr(line: str) -> None:

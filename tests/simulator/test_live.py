@@ -42,7 +42,7 @@ def test_a_sleep_is_cut_to_the_next_scheduled_event() -> None:
 
 
 def test_a_live_session_reads_the_sensors_a_batch_session_reads() -> None:
-    """The row, like the block events, lands on the same stamps live and in
+    """The row lands on the same stamps live and in
     batch, so a live run is the benchmark's run with its waits slept (#1170)."""
     layout, _roster, scenario = load("crossover-yard/meet")
     batch = build(layout, _roster, scenario)

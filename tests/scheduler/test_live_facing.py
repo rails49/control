@@ -7,7 +7,7 @@ from tc49.lib.layout import block_of, facing_ends
 from tests.harness import events, live, press, ticks
 
 WANTED = "tc49/schedule/request_wanted"
-SENSORS = ("block_occupied", "block_vacated")
+SENSOR = "settled/sensor"
 
 
 def settled(trace: str) -> list[dict[str, Any]]:
@@ -26,7 +26,7 @@ def settled(trace: str) -> list[dict[str, Any]]:
 
     for line in events(trace):
         event = line["event"]
-        if event in SENSORS:
+        if event == SENSOR:
             snapshot()
         elif event == "facing":
             now["facing"] = line["facing"]
@@ -51,7 +51,7 @@ def test_the_facing_points_at_the_signal_the_grant_cleared() -> None:
     throttle behind a green signal (#1025).
 
     Two trains, each dragged nose-first over more than one move, so grants
-    land both before and after the vacate that ends the move ahead."""
+    land both before and after the reading that ends the move ahead."""
     assembly = live("crossover-yard/meet")
     press(assembly, WANTED, {"train": "freight_1", "dest": ["dn_e.A", "dn_e.B"]})
     press(assembly, WANTED, {"train": "express_2", "dest": ["yard_w.B"]})

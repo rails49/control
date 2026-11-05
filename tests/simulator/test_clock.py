@@ -64,13 +64,12 @@ def build(
         CLOCK,
         lambda topic, payload: said.append((clock.now, leaf(topic), payload["time"])),
     )
-    for topic in ("tc49/layout/block_occupied", "tc49/layout/block_vacated"):
-        bus.subscribe(
-            topic,
-            lambda topic, payload: said.append(
-                (clock.now, leaf(topic), payload["block"])
-            ),
-        )
+    bus.subscribe(
+        "tc49/layout/state/settled/sensor/#",
+        lambda _topic, payload: said.append(
+            (clock.now, payload["addr"], payload["occupancy"])
+        ),
+    )
     bus.publish(
         "tc49/layout/move",
         {
@@ -105,16 +104,19 @@ def test_a_batch_run_says_the_clock_once_a_second_of_run_clock() -> None:
     simulator.run()
     assert said == [
         (0.0, "clock", SEVEN),
+        (0.0, "yard_w.B", "occupied"),
         (1.0, "clock", SEVEN + 1),
         (2.0, "clock", SEVEN + 2),
         (3.0, "clock", SEVEN + 3),
-        (3.0, "block_occupied", "dn_w"),
+        (3.0, "dn_w.A", "occupied"),
         (4.0, "clock", SEVEN + 4),
         (5.0, "clock", SEVEN + 5),
-        (5.5, "block_vacated", "yard_w"),
+        (5.5, "yard_w.B", "clear"),
         (6.0, "clock", SEVEN + 6),
         (7.0, "clock", SEVEN + 7),
         (8.0, "clock", SEVEN + 8),
+        (8.0, "dn_w.A", "clear"),
+        (8.0, "dn_w.B", "occupied"),
     ]
 
 
