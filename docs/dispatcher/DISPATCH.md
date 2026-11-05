@@ -519,12 +519,12 @@ behind it, the backward-propagating start wave real trains have. Minimum
 latency is the travel time of the route's transits; the degenerate request's
 launch-and-complete is the zero-transit case.
 
-**Sensors are anonymous.** The layout interface reports only
-`block_occupied(block)` and `block_vacated(block)`, with no train identity —
-the least a block-occupancy sensor can be asked to produce. The dispatcher
-recovers identity from its own lock table, which already records the grantee of
-every block. This is what lets a simulator and a physical layout drive the
-dispatcher the same way.
+**Sensors are anonymous.** The dispatcher reads only what each sensor at a block
+end has settled at, `occupied` or `clear`, on `state/settled/sensor`, with no train
+identity — the least a block-end sensor can be asked to produce. It recovers identity
+from the moves it granted, each of which names the sensors it expects
+([#1171](https://github.com/rails49/control/issues/1171)). This is what lets a
+simulator and a physical layout drive the dispatcher the same way.
 
 ## Locking
 
