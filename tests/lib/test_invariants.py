@@ -839,6 +839,15 @@ def test_a_history_invariant_holds_and_is_breached(
     assert len(breaches_over(breaches, layout_id, rows, breached)) == 1
 
 
+def test_a_reading_crossing_a_grant_counts_for_its_move() -> None:
+    """Both readings on the bus when the grant was made: the dispatcher hears
+    them after it, so they are the two the move ends on (#1154)."""
+    crossed = [read("west_1", False), read("w_main"), GRANT, LEFT]
+    assert (
+        breaches_over(adr_0077_move_ends_on_both_readings, MEET, PLACED, crossed) == []
+    )
+
+
 def test_every_history_invariant_has_its_cases() -> None:
     assert [invariant.breaches for invariant in HISTORY_INVARIANTS] == [
         case[0] for case in HISTORY_CASES

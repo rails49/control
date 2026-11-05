@@ -898,6 +898,7 @@ class Record:
         self.cancelled: set[str] = set()  # ids cancelled while a move ran
         self.turns: Counter[str] = Counter()  # facing changes a train is owed
         self.heard_occupied: set[str] = set()  # read so at the last quiet, and since
+        self.overrun: set[str] = set()  # trains a reading crossed the grant of
         self.placed_over: dict[str, str] = {}  # a block left, to its holder
         self.awaited: dict[str, str] = {}  # end -> aspect a grant showed
         self.cut_wanted = False  # `power_wanted: off` since power changed
@@ -1107,7 +1108,27 @@ class Record:
             return
         ends = transit_ends(self.layout, granted.into, granted.transit)
         origin = None if ends is None else block_of(ends[1])
-        self.moves[granted.train] = _Move(rid, granted.transit, granted.into, origin)
+        # A train with a block reading clear takes no grant, and none is sent
+        # into a block reading occupied, so a reading of either that says so
+        # now was in flight when the grant was made, and the dispatcher hears
+        # it after: for this move, as the two it ends on (#1154). Occupancy is
+        # anonymous, so it takes the second for the arrival and its picture
+        # runs ahead of the steel until the move ends: what the picture says of
+        # where this move starts is not a judgement on `layout`, which drives
+        # from where the train is.
+        crossed = bool(self.occupied.get(granted.into))
+        self.moves[granted.train] = _Move(
+            rid,
+            granted.transit,
+            granted.into,
+            origin,
+            left=origin is not None and self.occupied.get(origin) is False,
+            arrived=crossed,
+        )
+        if crossed:
+            self.overrun.add(granted.train)
+        else:
+            self.overrun.discard(granted.train)
         self.granted[granted.train] = (granted.transit, granted_aspect(payload))
         self.crossing[granted.train] = granted.transit
         self.turns[granted.train] += 1
@@ -1479,6 +1500,8 @@ def adr_0047_traction_from_the_near_end(
         return []
     lines: list[str] = []
     for train, commanded in record.starts(written[0]):
+        if train in record.overrun:
+            continue
         ends = transit_ends(view.layout, commanded.into, commanded.transit_id)
         near = None if ends is None else block_of(ends[1])
         standing = record.trains.get(train)
@@ -1594,6 +1617,8 @@ def adr_0052_no_traction_without_facing(
         return []
     lines: list[str] = []
     for train, commanded in record.starts(written[0]):
+        if train in record.overrun:
+            continue
         ends = transit_ends(view.layout, commanded.into, commanded.transit_id)
         if ends is not None and record.composed(train, ends[1]) is None:
             facing = (kept_facing(record.rows.get(FACING)) or {}).get(train)
