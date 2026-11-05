@@ -219,7 +219,7 @@ def test_a_lifted_train_clears_the_block_it_moved_into() -> None:
 
     seen = from_here(bus)
     remove(bus, "freight_1")
-    assert ("dn_w.A", "clear") in seen
+    assert seen == [("dn_w.A", "clear")]
 
 
 def test_a_train_lifted_across_a_transit_clears_both_blocks() -> None:
@@ -237,9 +237,7 @@ def test_a_train_lifted_across_a_transit_clears_both_blocks() -> None:
     seen = from_here(bus)
     remove(bus, "freight_1")
     step(sim, 2)
-    assert ("dn_e.A", "clear") in seen
-    assert ("dn_w.B", "clear") in seen
-    assert all(level == "clear" for _sensor, level in seen)
+    assert seen == [("dn_w.B", "clear"), ("dn_e.A", "clear")]
 
 
 def test_a_train_lifted_before_its_head_reading_clears_its_origin_alone() -> None:
@@ -257,9 +255,7 @@ def test_a_train_lifted_before_its_head_reading_clears_its_origin_alone() -> Non
     seen = from_here(bus)
     remove(bus, "freight_1")
     step(sim, 2)
-    assert ("dn_w.A", "clear") in seen
-    assert all(level == "clear" for _sensor, level in seen)
-    assert not [sensor for sensor, _level in seen if sensor.startswith("dn_e")]
+    assert seen == [("dn_w.A", "clear")]
 
 
 def test_a_train_lifted_where_it_was_placed_reads_nothing() -> None:
@@ -311,8 +307,7 @@ def test_a_train_placed_away_reads_the_block_it_left_clear() -> None:
     seen = from_here(bus)
     place(bus, "freight_1", "up_w")
 
-    assert ("dn_w.A", "clear") in seen
-    assert all(level == "clear" for _sensor, level in seen)
+    assert seen == [("dn_w.A", "clear")]
 
 
 def test_a_train_placed_between_blocks_reaches_no_detector() -> None:
