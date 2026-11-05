@@ -414,7 +414,10 @@ export class TcCanvas extends LitElement {
             ${target?.block === name ? arriving(target.ends) : nothing}
           </g>
           ${this.label(name, spec, lone.get(name))}
-          ${unset.has(name) ? this.unaddressed(spec) : nothing}
+          ${unset.has(name) ? this.ring("unaddressed", spec) : nothing}
+          ${this.running?.blocks.get(name)?.unknownSensor === true
+            ? this.ring("unknown-sensor", spec)
+            : nothing}
         </g>
       `;
     });
@@ -508,11 +511,15 @@ export class TcCanvas extends LitElement {
    * Which symbols wear one is `Editor.unaddressed`, read off the open drawing:
    * no review is asked, so the mark clears as soon as the drawing has the
    * address, which is when the properties dialog applies its draft.
+   *
+   * A block with a sensor not reporting wears one on a run (#1153): a ring
+   * rides beside the outline a dispute wears and whatever state the block is
+   * in, and takes nothing from either.
    */
-  private unaddressed(spec: SymbolSpec): unknown {
+  private ring(mark: "unaddressed" | "unknown-sensor", spec: SymbolSpec): unknown {
     const [c, r] = spec.at ?? [0, 0];
     const { w, h } = placed(spec).footprint;
-    return svg`<rect class="unaddressed"
+    return svg`<rect class=${mark}
       x=${c + RING.inset} y=${r + RING.inset}
       width=${w - 2 * RING.inset} height=${h - 2 * RING.inset}
       rx=${RING.radius} />`;

@@ -655,3 +655,33 @@ describe("the trains a rebuild took off", () => {
     expect(unfit(shell)).toEqual([]);
   });
 });
+
+/**
+ * The mark on the drawing (#1153): either kind of listed sensor, in the
+ * symbol's own group, and gone with the row.
+ */
+describe("a block with a sensor not reporting", () => {
+  const UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors";
+
+  const marked = (shell: TcApp): string[] =>
+    [...running(shell).renderRoot.querySelectorAll("tc-canvas")]
+      .flatMap((canvas) => [...canvas.renderRoot.querySelectorAll(".unknown-sensor")])
+      .map((mark) => mark.closest("g.symbol")!.getAttribute("data-symbol")!);
+
+  it.each([true, false])("is marked with reported %s, and no other is", async (reported) => {
+    const shell = await joined();
+    await said(shell, UNKNOWN_SENSORS, {
+      sensors: [{ sensor: "a.A", reason: "no report", reported }],
+    });
+    expect(marked(shell)).toEqual(["a"]);
+  });
+
+  it("loses the mark once the row no longer lists it", async () => {
+    const shell = await joined();
+    await said(shell, UNKNOWN_SENSORS, {
+      sensors: [{ sensor: "a.A", reason: "no report", reported: true }],
+    });
+    await said(shell, UNKNOWN_SENSORS, { sensors: [] });
+    expect(marked(shell)).toEqual([]);
+  });
+});
