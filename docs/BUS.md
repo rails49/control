@@ -578,8 +578,8 @@ what a drop would cost:
   already shown adding no line and causing no redraw.
 - `tc49/layout/state/unknown_sensors` — `sensors`: a list sorted by `sensor`,
   each `{sensor, reason, reported}`. `sensor` is `<block>.<end>`. `reason` is
-  free text for a person, and no consumer branches on it. `reported` is a
-  boolean, true where this sensor has reported `occupied` or `clear` since this
+  free text for a person: no consumer acts on what the text says, and the page
+  groups sensors whose text is equal. `reported` is a boolean, true where this sensor has reported `occupied` or `clear` since this
   `layout` started, which separates a sensor that stopped reporting from one
   never heard. Published from the constructor, so a client that joins is served
   a value ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)),
