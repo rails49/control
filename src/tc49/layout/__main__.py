@@ -97,7 +97,7 @@ from tc49.lib.clock_row import (
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
-from tc49.lib.loading import NO_RAILROAD, Running, rebuilding
+from tc49.lib.loading import NO_RAILROAD, Running, cleared, rebuilding
 from tc49.lib.mqtt import MqttBus, address
 from tc49.lib.roster import Roster
 from tc49.lib.settings import KeptInstallation, KeptSettings
@@ -108,6 +108,11 @@ CLIENT_ID = "tc49-layout"
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (BUS.md, rule 4)."""
 
+SETTLED = "tc49/layout/state/settled/#"
+"""Every settled reading, the rows a cold start clears: a filter, as there is a
+row for each sensor a previous process heard and this app holds no list of
+which."""
+
 OWNED = (
     "tc49/layout/state/railroad",
     "tc49/layout/state/power",
@@ -117,12 +122,14 @@ OWNED = (
     "tc49/layout/state/clock",
     "tc49/layout/state/settings",
     "tc49/layout/state/unknown_sensors",
+    SETTLED,
     "tc49/layout/state/wanted/#",
 )
 """The retained rows this app writes: which railroad is loaded, the supply as
 it observes it, the driving mode, which throttle holds which train, which of
 each train's functions are on, the fast clock, the railroad's settings, the
-sensors that are not reporting, and every desired row under `wanted/` — one per address a railroad's wiring
+sensors that are not reporting, the settled reading of each sensor under
+`settled/`, and every desired row under `wanted/` — one per address a railroad's wiring
 decides. The observed rows under `device/` are
 **not** here: they belong to whatever answers for that address, which is
 hardware and not this app (ADR-0043, ADR-0058), and a reload leaves them to
@@ -372,10 +379,17 @@ def retained(
     The dispatcher's allocation is waited for in the same window: it is where
     the app takes each train's position from, `train_placed` being an event
     the broker does not keep (#960).
+
+    The settled readings are handed over in that window too, and cleared: the
+    one thing a reload's `dropped` does not reach is the way up, and after a
+    restart every sensor is on `state/unknown_sensors` until it settles, so no
+    reading of the last run may be read as current (#1168).
     """
     bus.subscribe(TRACTION, lambda _topic, _payload: None)
     bus.subscribe(ALLOCATION, lambda _topic, _payload: None)
+    bus.subscribe(SETTLED, lambda _topic, _payload: None)
     stop.wait(timeout_s)
+    cleared(bus, (SETTLED,))
 
 
 def main() -> None:
