@@ -764,11 +764,39 @@ def reported_sensor(payload: object) -> str | None:
     """
     if not isinstance(payload, dict):
         return None
-    addr = cast(dict[str, object], payload).get("addr")
-    if not isinstance(addr, str):
+    return _sensor(cast(dict[str, object], payload).get("addr"))
+
+
+def _sensor(stated: object) -> str | None:
+    if not isinstance(stated, str):
         return None
-    block, _dot, end = addr.partition(".")
-    return addr if block and end in ("A", "B") else None
+    block, _dot, end = stated.partition(".")
+    return stated if block and end in ("A", "B") else None
+
+
+def unknown_sensors(payload: object) -> frozenset[str] | None:
+    """The sensors `state/unknown_sensors` lists, or None for a row that cannot
+    be read, which is dropped and leaves the last value standing (BUS.md).
+
+    All of it or none: one entry that names no sensor drops the row, because a
+    list read in part would put a block back in use that nobody has heard from.
+    `reason` and `reported` are a person's, and nothing here branches on them.
+    Whether the railroad has the block is not asked here, as in `reported_sensor`.
+    """
+    if not isinstance(payload, dict):
+        return None
+    entries = cast(dict[str, object], payload).get("sensors")
+    if not isinstance(entries, list):
+        return None
+    listed: set[str] = set()
+    for entry in cast(list[object], entries):
+        if not isinstance(entry, dict):
+            return None
+        sensor = _sensor(cast(dict[str, object], entry).get("sensor"))
+        if sensor is None:
+            return None
+        listed.add(sensor)
+    return frozenset(listed)
 
 
 def detected(payload: object) -> str:

@@ -53,6 +53,7 @@ from tc49.lib.payload import (
     stamp,
     supply,
     taken,
+    unknown_sensors,
     wanted_clock,
     wanted_driving,
     wanted_function,
@@ -762,6 +763,29 @@ def test_a_report_names_a_sensor_or_it_is_about_nothing() -> None:
     ]
     for payload in refused:
         assert reported_sensor(payload) is None, payload
+
+
+def test_the_unknown_sensors_row_reads_as_the_sensors_it_lists() -> None:
+    """The reason and whether it ever reported are a person's, so only the
+    sensor is read, and an entry that cannot be read is the whole row dropped:
+    half a list would put a block back in use nobody heard from."""
+    entry = {"sensor": "up_w.B", "reason": "no report since start", "reported": False}
+    assert unknown_sensors({"at": 1.0, "sensors": [entry]}) == {"up_w.B"}
+    assert unknown_sensors({"sensors": []}) == frozenset()
+    refused: list[object] = [
+        None,
+        "up_w.B",
+        {},
+        {"sensors": None},
+        {"sensors": "up_w.B"},
+        {"sensors": ["up_w.B"]},
+        {"sensors": [{}]},
+        {"sensors": [{"sensor": 7}]},
+        {"sensors": [{"sensor": "up_w"}]},
+        {"sensors": [entry, {"sensor": "up_w.C"}]},
+    ]
+    for payload in refused:
+        assert unknown_sensors(payload) is None, payload
 
 
 def test_a_reason_is_read_where_one_is_given_and_never_demanded() -> None:
