@@ -181,7 +181,7 @@ export interface BlockView {
    *  that contradicts its own placement (#153): `clear` under a train
    *  standing here, `occupied` with nothing claiming it. Absent otherwise,
    *  which covers both agreement and a block nothing has reported on. */
-  dispute?: "clear" | "occupied";
+  dispute?: "occupied";
   /** Set where `state/unknown_sensors` lists either of this block's sensors,
    *  stopped or never heard alike (#1153). */
   unknownSensor?: true;
@@ -473,7 +473,7 @@ export class Panel {
    *  said (#153). Read and never derived: which blocks the layout has
    *  reported on at all is knowledge only the dispatcher holds, and a panel
    *  working it out would call every unreported block clear. */
-  private disputed = { trains: new Set<string>(), blocks: new Set<string>() };
+  private disputed = new Set<string>();
   /** The trains the last rebuild under the same name took off the layout,
    *  as the dispatcher last said (#709). Read and never derived: which
    *  trains the last build had standing is the dispatcher's alone. */
@@ -588,7 +588,7 @@ export class Panel {
     this.reads.clear();
     this.stood.clear();
     this.heading.clear();
-    this.disputed = { trains: new Set(), blocks: new Set() };
+    this.disputed = new Set();
     this.unfitRows = [];
     this.brokenRules = [];
     this.unknownRows = [];
@@ -860,15 +860,12 @@ export class Panel {
         return;
       }
       case "disputed": {
-        // Where the placement and the detectors contradict each other, at
-        // every power value (#153, #1154). Last-value like every other state
-        // topic, so this replaces the set rather than adding to it — which is
-        // how it empties as a person walks the railroad placing trains.
-        const { trains, blocks } = event as unknown as {
-          trains: string[];
-          blocks: string[];
-        };
-        this.disputed = { trains: new Set(trains), blocks: new Set(blocks) };
+        // The blocks that read occupied with no train explaining them, at
+        // every power value (#153, #1154, #1164). Last-value like every other
+        // state topic, so this replaces the set rather than adding to it —
+        // which is how it empties as a person walks the railroad placing trains.
+        const { blocks } = event as unknown as { blocks: string[] };
+        this.disputed = new Set(blocks);
         return;
       }
       case "unfit": {
@@ -1037,20 +1034,19 @@ export class Panel {
     return [...this.brokenRules];
   }
 
-  /** What the detectors dispute, as the dispatcher last said (#153): trains
-   *  standing in a block that reads clear, and blocks that read occupied with
-   *  nothing claiming them, at every power value (#1154). */
-  disputes(): { trains: string[]; blocks: string[] } {
-    return { trains: [...this.disputed.trains], blocks: [...this.disputed.blocks] };
+  /** What the detectors dispute, as the dispatcher last said (#153): the blocks
+   *  that read occupied with no train explaining them, at every power value
+   *  (#1154, #1164). */
+  disputes(): { blocks: string[] } {
+    return { blocks: [...this.disputed] };
   }
 
   /** The same set in words, one fault per entry: the band shows each, so a
    *  person is told while the others run (#1154). */
   disputeFaults(): string[] {
-    return [
-      ...[...this.disputed.blocks].map((block) => `${block}: occupied with no train`),
-      ...[...this.disputed.trains].map((train) => `${train}: its block reads clear`),
-    ];
+    return [...this.disputed].map(
+      (block) => `${block}: a sensor reads occupied and no train is there`,
+    );
   }
 
   /** The sensors not reporting in words, for the band (#1153). Those that
@@ -1131,13 +1127,10 @@ export class Panel {
       // What the detectors dispute rides on the block whatever else is true
       // of it, rather than being a fifth state: a dispute is about the block
       // being other than the picture says, so hiding the picture behind it
-      // would take away the half a person is checking. Never both readings —
-      // one detector says one thing.
-      const dispute: Pick<BlockView, "dispute"> = this.disputed.blocks.has(block)
+      // would take away the half a person is checking.
+      const dispute: Pick<BlockView, "dispute"> = this.disputed.has(block)
         ? { dispute: "occupied" }
-        : train !== undefined && this.disputed.trains.has(train)
-          ? { dispute: "clear" }
-          : {};
+        : {};
       const marks: Pick<BlockView, "dispute" | "unknownSensor"> = unknown.has(block)
         ? { ...dispute, unknownSensor: true }
         : dispute;

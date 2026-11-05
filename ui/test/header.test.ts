@@ -136,9 +136,9 @@ describe("what the band says", () => {
     async (power) => {
       const shell = await joined();
       await said(shell, STATE_POWER, { power });
-      await said(shell, STATE_DISPUTED, { trains: ["t1"], blocks: ["b"] });
-      expect(chips(shell)).toEqual(["b: occupied with no train", "t1: its block reads clear"]);
-      await said(shell, STATE_DISPUTED, { trains: [], blocks: [] });
+      await said(shell, STATE_DISPUTED, { blocks: ["b"] });
+      expect(chips(shell)).toEqual(["b: a sensor reads occupied and no train is there"]);
+      await said(shell, STATE_DISPUTED, { blocks: [] });
       expect(chips(shell)).toEqual([]);
     },
   );

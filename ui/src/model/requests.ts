@@ -104,7 +104,8 @@ export function requestRows(
  *
  * - a train with a request of its own will pass by itself;
  * - a train with none never moves, so a person has to give it a request;
- * - a block held by no train waits for its detector to read clear.
+ * - a block held by no train, holder `""`, waits for a sensor of it to read
+ *   clear, whoever holds its lock where it is disputed (#1164).
  */
 function waitsFor(
   refused: Refused,
@@ -125,7 +126,9 @@ function waitsFor(
     const leaving = [...parked].map(([holder, block]) => `${holder} to leave ${block}`);
     sentences.push(`waits for ${or(leaving)} — give ${or([...parked.keys()])} a request`);
   }
-  if (clearing.size > 0) sentences.push(`waits for ${or([...clearing])} to read clear`);
+  if (clearing.size > 0) {
+    sentences.push(`waits for a sensor of ${or([...clearing])} to read clear`);
+  }
   return sentences;
 }
 

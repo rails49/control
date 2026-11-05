@@ -1372,12 +1372,12 @@ describe("the sensors not reporting", () => {
         locks: { a: "t1" },
         requests: [],
       },
-      { event: "disputed", trains: ["t1"], blocks: [] },
+      { event: "disputed", blocks: ["a"] },
       row(stopped("a.A")),
     );
     expect(model.blocks().get("a")).toMatchObject({
       state: "occupied",
-      dispute: "clear",
+      dispute: "occupied",
       unknownSensor: true,
     });
   });
@@ -1685,25 +1685,36 @@ describe("the detectors' dispute", () => {
     requests: [],
   };
 
-  it("says the block under a disputed train reads clear", () => {
+  it("marks a block held ahead whatever the block's state", () => {
     const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: [] });
+    feed(model, STANDING, { event: "disputed", blocks: ["a"] });
     expect(model.blocks().get("a")).toMatchObject({
       state: "occupied",
       train: "t1",
-      dispute: "clear",
+      dispute: "occupied",
     });
+  });
+
+  it("reads a row with a trains key without it", () => {
+    // A row left by a dispatcher from before #1164: `trains` says nothing here.
+    const model = panel();
+    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    expect(model.disputes()).toEqual({ blocks: ["b"] });
+    expect(model.disputeFaults()).toEqual([
+      "b: a sensor reads occupied and no train is there",
+    ]);
+    expect(model.blocks().get("a")?.dispute).toBeUndefined();
   });
 
   it("says a disputed block reads occupied, with nothing in it", () => {
     const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: [], blocks: ["b"] });
+    feed(model, STANDING, { event: "disputed", blocks: ["b"] });
     expect(model.blocks().get("b")).toEqual({ state: "free", dispute: "occupied" });
   });
 
   it("marks nothing else on the railroad", () => {
     const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    feed(model, STANDING, { event: "disputed", blocks: ["b"] });
     expect(model.blocks().get("c")?.dispute).toBeUndefined();
   });
 
@@ -1714,18 +1725,16 @@ describe("the detectors' dispute", () => {
     feed(
       model,
       STANDING,
-      { event: "disputed", trains: ["t1"], blocks: ["b"] },
-      { event: "disputed", trains: [], blocks: [] },
+      { event: "disputed", blocks: ["b"] },
+      { event: "disputed", blocks: [] },
     );
-    expect(model.blocks().get("a")?.dispute).toBeUndefined();
     expect(model.blocks().get("b")?.dispute).toBeUndefined();
   });
 
   it("is forgotten when the model starts over", () => {
     const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    feed(model, STANDING, { event: "disputed", blocks: ["b"] });
     model.reset();
-    expect(model.blocks().get("a")?.dispute).toBeUndefined();
     expect(model.blocks().get("b")?.dispute).toBeUndefined();
   });
 
@@ -1735,29 +1744,28 @@ describe("the detectors' dispute", () => {
       model,
       STANDING,
       { event: "power", power: "on" },
-      { event: "disputed", trains: ["t1"], blocks: ["b"] },
+      { event: "disputed", blocks: ["b"] },
     );
-    expect(model.blocks().get("a")?.dispute).toBe("clear");
     expect(model.blocks().get("b")?.dispute).toBe("occupied");
   });
 
-  it("says each in words for the band, blocks first", () => {
+  it("says each in words for the band", () => {
     const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
+    feed(model, STANDING, { event: "disputed", blocks: ["b", "c"] });
     expect(model.disputeFaults()).toEqual([
-      "b: occupied with no train",
-      "t1: its block reads clear",
+      "b: a sensor reads occupied and no train is there",
+      "c: a sensor reads occupied and no train is there",
     ]);
   });
 
-  it("hands back what is outstanding, trains and blocks apart", () => {
+  it("hands back what is outstanding", () => {
     const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
-    expect(model.disputes()).toEqual({ trains: ["t1"], blocks: ["b"] });
+    feed(model, STANDING, { event: "disputed", blocks: ["b"] });
+    expect(model.disputes()).toEqual({ blocks: ["b"] });
   });
 
   it("is outstanding in nothing where the two agree", () => {
-    expect(panel().disputes()).toEqual({ trains: [], blocks: [] });
+    expect(panel().disputes()).toEqual({ blocks: [] });
   });
 });
 

@@ -816,15 +816,14 @@ export class TcCanvas extends LitElement {
   /** What the detectors dispute, in words under the block it is about: the
    *  reading that contradicts the picture, since the picture itself is already
    *  on screen (#153). These are where a person is sent first, so they say
-   *  which of the two contradictions this is rather than only that something is
-   *  wrong. */
+   *  what the reading is rather than only that something is wrong. */
   private disputes(): unknown {
     return [...(this.running?.blocks ?? [])].map(([name, view]) => {
       const spec = this.document.symbols[name];
       if (spec === undefined || view.dispute === undefined) return nothing;
       const { x, y } = centreOf(spec);
       return svg`<text class="note disputed" x=${x} y=${y + 1}>
-        reads ${view.dispute}
+        sensor ${view.dispute}
       </text>`;
     });
   }
