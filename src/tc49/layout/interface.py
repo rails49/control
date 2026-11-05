@@ -291,6 +291,7 @@ TAKEN = "tc49/layout/state/taken"
 FUNCTIONS = "tc49/layout/state/functions"
 SETTINGS = "tc49/layout/state/settings"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -2153,12 +2154,24 @@ class LayoutInterface:
             },
         )
 
+    def _publish_settled(self, end: str, level: str) -> None:
+        """`state/settled/sensor`, for a name a topic can carry. A report may
+        name anything (ADR-0048) and this is where a name stops being a payload:
+        a broker's client raises on a wildcard in a topic, which would take this
+        app down on whoever typed it (BUS.md, rule 4)."""
+        if "+" not in end and "#" not in end:
+            self._bus.publish(
+                device_topic(SETTLED_SENSOR, end), {"addr": end, "occupancy": level}
+            )
+
     def _settled(self, end: str, level: str) -> None:
         """A level that has stood for the settling time, turned into whatever
         events it is worth.
 
-        It takes the sensor off the list, if it was on it (#1151). Then three
-        things come of it. A **block** reads occupied while either of its ends
+        It is the sensor's own row, each time, the level taking a sensor off
+        the list being a repeat where it equals the last (#1168). It takes the
+        sensor off the list, if it was on it (#1151). Then three things come of
+        it. A **block** reads occupied while either of its ends
         does, and a change in that fold is the block's own occupancy event —
         the block a hand put a locomotive on, as much as the block a train was
         granted, since a level no move explains is still a level and judging it
@@ -2188,6 +2201,7 @@ class LayoutInterface:
         amending ADR-0047).
         """
         self._level[end] = level
+        self._publish_settled(end, level)
         came_back = self._unknown.pop(end, None) is not None
         # This end has just said something of its own, so whatever a departure
         # spent of it is spent no longer.

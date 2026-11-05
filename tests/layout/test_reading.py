@@ -225,8 +225,9 @@ def test_a_fresh_app_has_said_eight_things_and_no_more() -> None:
     railroad is which railroad it is (#371), the supply commanded off, the
     app saying it believes it is, the railroad `manual`, no train in a
     throttle, no function on, its settings (#1125), and every sensor unknown
-    (#1148, #1151)."""
-    bus, _app = build(driving=MANUAL)
+    (#1148, #1151). A settled reading is not one of them: nothing has been heard
+    (#1168)."""
+    bus, _app, _clock = wired(driving=MANUAL, reporting=False)
     assert set(bus.last_values) == {
         RAILROAD,
         WANTED_TRACK,

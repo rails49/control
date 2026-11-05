@@ -57,6 +57,7 @@ NAME = "crossover-yard"
 END = "up_w.A"
 BLOCK = "up_w"
 TRACTION = f"{WANTED_TRACTION}/3"
+SETTLED = f"tc49/layout/state/settled/sensor/{END}"
 
 
 @pytest.fixture
@@ -708,6 +709,89 @@ def test_the_fast_clock_is_cleared_with_the_other_layout_rows() -> None:
 def test_the_settings_are_cleared_with_the_other_layout_rows() -> None:
     """The next build says them again for the railroad it loads (#1125)."""
     assert SETTINGS in OWNED
+
+
+def test_a_settled_reading_the_last_process_left_is_gone_coming_up(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """Every sensor is on `state/unknown_sensors` until it settles after a
+    restart, so no reading of the last run is read as current (#1168)."""
+    store.start()
+    left = MqttBus(port=broker.port)
+    assert left.wait_connected()
+    left.publish(SETTLED, {"addr": END, "occupancy": "occupied"})
+    assert until(lambda: SETTLED in left.last_values)
+    left.close()
+
+    witness, heard = watching(broker)
+    app.start()
+
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
+    settle(witness)
+    late, _ = watching(broker)
+    settle(late)
+    assert SETTLED not in late.last_values, "the last run's reading is still held"
+    late.close()
+    witness.close()
+
+
+@pytest.mark.parametrize("railroad", ["facing-pair", NAME])
+def test_a_load_clears_the_settled_readings(
+    broker: Broker, store: Store, app: App, root: Path, railroad: str
+) -> None:
+    """Another railroad's name for a sensor says nothing here, and a rebuild
+    under the same name starts every sensor on the list again (#1168)."""
+    drawn(root, "facing-pair")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
+
+    def reported() -> bool:
+        """A report sent before `layout` subscribes is lost, and a sensor
+        reports again (#1147)."""
+        witness.publish(SENSOR, {"addr": END, "occupancy": "occupied"})
+        return SETTLED in witness.last_values
+
+    assert drained(witness, reported), "the reading never settled"
+    assert witness.last_values[SETTLED]["occupancy"] == "occupied"
+    built = rows(heard, RAILROAD)[-1]["at"]
+
+    witness.publish(RAILROAD_WANTED, {"railroad": railroad})
+
+    assert drained(
+        witness,
+        lambda: rows(heard, RAILROAD)[-1]["at"] != built
+        and rows(heard, RAILROAD)[-1].get("name") == railroad
+        and rows(heard, RAILROAD)[-1].get(BUILT) is True,
+    ), "the railroad was never loaded"
+    settle(witness)
+    late, _ = watching(broker)
+    settle(late)
+    assert SETTLED not in late.last_values, "the reading outlived the load"
+    late.close()
+    witness.close()
+
+
+def test_a_report_naming_a_wildcard_does_not_take_the_app_down(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """A name that reaches a topic is a name a broker's client can refuse with
+    a raise, and whoever typed it must not be able to end the app (#1168)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, TAKEN) != []), "it never came up"
+
+    def reported() -> bool:
+        witness.publish(SENSOR, {"addr": "up+w.A", "occupancy": "occupied"})
+        return rows(heard, BLOCK_OCCUPIED) == [{"block": "up+w"}]
+
+    assert drained(witness, reported), "the report never folded"
+    settle(witness)
+
+    assert app.running, "the app stopped on a report"
+    witness.close()
 
 
 def test_a_layout_standing_with_no_railroad_says_nothing(
