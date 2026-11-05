@@ -39,6 +39,7 @@ from tc49.lib.invariants import (
     TRAIN_PLACED,
     TRAIN_REMOVED,
     UNFIT,
+    UNKNOWN_SENSORS,
     WANTED_POINT,
     WANTED_TRACK,
     WANTED_TRACTION,
@@ -428,10 +429,39 @@ def test_an_unreadable_row_breaks_no_reader() -> None:
         invariant.breaches(view(BENCH, rows))
 
 
+def test_a_crossing_stopped_at_an_unknown_entry_sensor_is_not_moving() -> None:
+    """`layout` stopped it, so the row reads false with the crossing still on
+    the picture. Only the entry sensor counts, and only for a move a route says
+    (#1152)."""
+    rows = started({"west_1": "t1", "west_throat.from_1": "t1", "w_main": "t1"}) | {
+        MOVING: {"moving": False}
+    }
+    rows[ALLOCATION] = {**rows[ALLOCATION], "crossing": {"t1": "west_throat.from_1"}}
+    listed = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.A"}]}}
+    far = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.B"}]}}
+
+    assert adr_0062_moving_while_crossing(view(MEET, rows | listed)) == []
+    assert adr_0062_moving_while_crossing(view(MEET, rows | far))
+    assert adr_0062_moving_while_crossing(view(MEET, rows))
+
+
+def test_depth_counts_up_to_a_block_out_of_use_in_the_aspects() -> None:
+    """Two ahead locked from west_1, but the second is out of use: `caution`
+    there, and `stop` at the signal over the move into it (#1152)."""
+    rows = started(AHEAD_TWO) | {
+        POWER: {"power": "on"},
+        ASPECTS: {"aspects": {"west_1.B": "caution", "w_main.B": "stop"}},
+    }
+    listed = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "loop_up.A"}]}}
+
+    assert adr_0093_aspects_along_the_locks(view(MEET, rows | listed)) == []
+    assert adr_0093_aspects_along_the_locks(view(MEET, rows))
+
+
 def test_an_invariant_over_one_apps_topics_is_not_cross_app() -> None:
     by_name = {invariant.breaches.__name__: invariant for invariant in INVARIANTS}
     assert not cross_app(by_name["adr_0076_placed_holds_its_block"])
-    assert not cross_app(by_name["adr_0062_moving_while_crossing"])
+    assert cross_app(by_name["adr_0062_moving_while_crossing"])
     assert cross_app(by_name["adr_0039_unplaced_has_no_facing"])
     assert cross_app(by_name["adr_0093_stop_without_power"])
     assert not cross_app(by_name["adr_0089_one_train_a_throttle"])
