@@ -141,17 +141,18 @@ the drop. The rows and what a drag asks are worked out in
 was let go.
 
 **A train's name is drawn in each block it occupies**, whatever the block's
-colour: every block the train holds in the picture's `locks` that reads
-occupied on `block_occupied` and `block_vacated`. A train passing from one
-block to the next is named in the old block, then in both, then in the new
-one. Where none of the blocks it holds reads occupied — a page that joined
-after the readings, or a detector that has dropped out — it is named in the
-block it last stood in, the one `trains` names. The picture's `crossing` says
-a train has left that block for a transit; the block keeps its lock and its
-colour, and loses the arrow
+colour: every block on its list in the picture's `occupied`. A train passing
+from one block to the next is named in the old block, then in both, then in
+the new one. With no block on its list, its tail having left one block before
+its head reached the next, it is named in the block `trains` gives, marked as
+crossing if `crossing` names it. The arrow shows only in the block the
+scheduler's facing names
 ([#154](https://github.com/rails49/control/issues/154),
-[#897](https://github.com/rails49/control/issues/897)). A train the run has
-taken off is named nowhere, though the blocks it reads occupied in stay held.
+[#897](https://github.com/rails49/control/issues/897),
+[#1172](https://github.com/rails49/control/issues/1172)). A train the run has
+taken off has no list and is named nowhere; what it leaves held stays locked
+track with no marker
+([ADR-0069](../adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
 
 **A block shows its train's photo in place of the name** where there is one:
 the model photo of the train's first locomotive, the one the roster pane
@@ -191,6 +192,17 @@ no sensors wired yet wears it on every block. The dispatcher has such a block ou
 ([DISPATCH.md](../dispatcher/DISPATCH.md#out-of-use)); the mark is why a train
 waits there.
 
+**A block's colour comes from the picture**, `tc49/dispatch/state/allocation`,
+so a page opened at any moment draws what every other page draws. `occupied`
+gives each train's blocks and transits, tail to head: a block on a list is
+occupied, and stays so with both its sensors clear. A lock on no list is held
+ahead, or the residue of a train taken off, and draws locked. A value written
+before `occupied` existed draws each train's list as its `trains` block and
+the transit `crossing` names. Where a train is, for the roster and for a drop,
+is `trains` less `crossing`. Between pictures, `lock_released` takes a resource
+off the train's list and `train_placed` sets the list to the one block
+([#1172](https://github.com/rails49/control/issues/1172)).
+
 A request renders in three layers, each appearing when the bus first makes it
 true. **Requested** (from `request_submitted`): the train, its departure end,
 and the candidate arrival ends, endpoints only, since no route exists yet and
@@ -218,18 +230,16 @@ already emits lit legs last, so a crossing unlit wire cannot half hide one.
 
 **It lights in three colours**, keyed to what the dispatcher is doing:
 
-- **Red**, the occupancy colour, on the transit a train is **crossing**, from
-  the grant of the move until the move ends
-  ([#1116](https://github.com/rails49/control/issues/1116)). Nothing detects
-  a train on a transit: between leaving one block and reading occupied in the
-  next it may be anywhere from inside the first to across the points, and a
-  short one can stand on the points with both blocks reading clear
+- **Red**, the occupancy colour, on each transit on a train's `occupied` list
+  ([#1116](https://github.com/rails49/control/issues/1116),
+  [#1172](https://github.com/rails49/control/issues/1172)). Nothing detects
+  a train on a transit: between one block and the next it may be anywhere from
+  inside the first to across the points, and a short one can stand on the
+  points with both sensors reading clear
   ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)). The
-  dispatcher holds the transit as occupied all that time, and the picture
-  shows it: one red stretch from where the train stood to where it is going.
-  The page reads it off the picture's `crossing` and keeps it until the
-  dispatcher drops it there, when the head is in
-  ([#1171](https://github.com/rails49/control/issues/1171)). The blocks either side keep following their detectors.
+  dispatcher holds the transit as occupied until the tail is seen to leave it
+  ([#1171](https://github.com/rails49/control/issues/1171)), and the page keeps
+  it lit until the picture drops it from the list.
 - **Green** where the dispatcher holds a **lock**. The train may move here.
 - **Cyan** where the resource is on a committed route and is **not** locked.
   The route is chosen; the claim has not been made yet.
@@ -256,9 +266,9 @@ claim the railroad is freer than it is.
 
 Three precedence rules, written down rather than left to the rendering order:
 
-- **Occupancy outranks both.** The block a train stands in keeps its
+- **Occupancy outranks both.** A block on a train's `occupied` list keeps its
   occupancy colour and the route's green begins at the first block beyond the
-  train. A standing train holds a lock too, so this is a choice rather than
+  train. An occupied block is locked too, so this is a choice rather than
   an oversight.
 - **The strongest claim wins on a shared symbol.** A throat symbol or wire
   carried by transits of different claims at the same time shows the
@@ -289,10 +299,8 @@ report has named yet. A report repeating the level already shown for that end
 adds nothing and redraws nothing, and a change does both. The squares are always drawn on a run and never in the Edit
 view. They are square and in ink rather than round, red or green, because the
 signals at the same ends are round red and green lamps. They are the readings,
-not the picture: a block's colour still comes from `block_occupied` and
-`block_vacated`, which `layout` folds the two readings into, and those carry
-no train identity. Train identity is reconstructed from `lock_granted`,
-exactly as the dispatcher does. Direction is not derived
+not the picture: a block's colour and the train in it come from the picture's
+`occupied`, never from a square. Direction is not derived
 here at all: it is the train's **facing**, read off
 `tc49/schedule/state/facing`, which the scheduler keeps from the entry end of
 each granted transit and from a committed route's departure end
@@ -368,7 +376,7 @@ but red: the dispatcher knows the committed route, so it knows the exit of
 each block from where the train stands through the last it has locked, and
 lights those; every other end shows `stop` because nothing is locked beyond it
 for a train that would leave by it, and a signal the train has passed goes back
-to `stop` as soon as the train reads occupied in the block beyond (ADR-0093). And the middle aspect, which the binary derivation could not
+to `stop` as soon as the train's head is in the block beyond (ADR-0093). And the middle aspect, which the binary derivation could not
 produce at all: the dispatcher counts the depth, so `caution` and `clear` are
 simply two different counts.
 
@@ -495,7 +503,8 @@ removed, or when its row is picked up again
 ([#1011](https://github.com/rails49/control/issues/1011)).
 
 Placing is **live at any power**, and **only onto a free block**: no train
-standing there, no other train's lock on it, and on no other train's
+standing there, on no train's `occupied` list, since a train's tail is not a
+place to drop another, no other train's lock on it, and on no other train's
 remaining route, read from `tc49/dispatch/state/allocation` — the
 dispatcher's own rule, `DispatchState.free()`
 ([ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md),
@@ -721,11 +730,11 @@ comes back on that one
 level on a physical railroad yet, so for the first train a person supplies the
 readings: a line typed at `tc49 readings` — `<block>.<end> <level>`, the levels
 being `occupied`, `clear` and `unknown` — is published as the report a detector
-would write, said again each second, and `layout` folds a typed pair into `block_occupied` and
-`block_vacated` exactly as it folds a camera's
+would write, said again each second, and `layout` settles it exactly as it
+settles a camera's
 ([#315](https://github.com/rails49/control/issues/315)). The panel is told
 nothing about who typed it: what it is served is the sensor report, an event like
-any other, and the arrival that follows. **It is not a panel gesture** — the
+any other, and the picture that follows. **It is not a panel gesture** — the
 topic is not one of the browser-writable ones — and a page grows no
 control for one: a detector stands in
 for hardware, not for a person's hand. Until a camera publishes, an arrival
