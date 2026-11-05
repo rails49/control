@@ -588,7 +588,12 @@ that window is never seen upstream. The settling time is **configuration**: a
 constructor argument, 300 ms by default, because what it is worth is a fact
 about the detectors a railroad has and not something this app can know
 (ADR-0030). It is on no topic, and nothing above the interface is told there is
-a debounce at all.
+a debounce at all. The settling time filters a flicker. It does not make up for
+a detector that reads `clear` between cars: a gap that outlasts it is a `clear`
+like any other, and is taken for the train's tail. Reading `occupied` without a
+break under a train is asked of whatever reports
+([BUS.md](../BUS.md#event-inventory),
+[#1167](https://github.com/rails49/control/issues/1167)).
 
 **`unknown` gives no level for that end.** No edge comes of it, it does not
 discard the level the end last actually had, and it does not cancel a level that

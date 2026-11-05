@@ -573,9 +573,15 @@ what a drop would cost:
   and at once on a change. An event and not retained, so after a restart
   nothing old waits on the broker and the next report says the level. Anything
   may publish it, and nothing says who sent a report or asks: `control` does not
-  care which detector watches a sensor. `layout` folds it, dropping a report
-  whose `addr` is unreadable, and the page shows it, a repeat of the level
-  already shown adding no line and causing no redraw.
+  care which detector watches a sensor. What it asks of any publisher: a sensor
+  reads `occupied` without a break from the moment a train's head reaches the
+  point it watches until its tail has left it, and `unknown` may be reported at
+  any time. `control` does not guard this: a `clear` reported between two cars
+  is taken for the train's tail
+  ([#1167](https://github.com/rails49/control/issues/1167)). `layout` folds it,
+  believing every report and dropping one whose `addr` is unreadable, and the
+  page shows it, a repeat of the level already shown adding no line and causing
+  no redraw.
 - `tc49/layout/state/unknown_sensors` — `sensors`: a list sorted by `sensor`,
   each `{sensor, reason, reported}`. `sensor` is `<block>.<end>`. `reason` is
   free text for a person: no consumer acts on what the text says, and the page
