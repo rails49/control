@@ -184,7 +184,7 @@ def test_a_cold_start_publishes_the_apps_own_rows(
     assert set(rows(heard, ASPECTS)[-1]["aspects"].values()) == {"stop"}
     picture = rows(heard, ALLOCATION)[-1]
     assert (picture["trains"], picture["locks"], picture["requests"]) == ({}, {}, [])
-    assert rows(heard, DISPUTED)[-1]["trains"] == []
+    assert rows(heard, DISPUTED)[-1]["blocks"] == []
     assert app.running, "the app stopped on its own"
     witness.close()
 

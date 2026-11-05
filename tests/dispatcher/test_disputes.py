@@ -4,9 +4,8 @@ On power-up the detectors assert straight away, anonymously but at once, and
 that is exactly the moment the restored placement is least trustworthy: the
 steel has stood unwatched since the last session, long enough for a stalled
 train to have been lifted out of a tunnel by hand (GLOSSARY.md, recovery). So
-the dispatcher compares the two and names the contradictions — a train standing
-in a block that reads clear, and a block that reads occupied with nothing
-claiming it — at every power value (#1154).
+the dispatcher names each block that reads occupied with no train explaining it,
+at every power value (#1154, #1164). A clear reading disputes nothing.
 
 It resolves nothing: occupancy is anonymous, so the check only points and a
 person ends every entry with a `placement_wanted`. And **silence is not a
@@ -101,7 +100,7 @@ def disputed(bus: InProcessBus) -> Payload:
     served — the panel that points a person at the railroad (ADR-0032).
 
     Without the stamp the binding put on it (#240): what is asserted here is
-    which trains and blocks the set names, and when the value was published
+    which blocks the set names, and when the value was published
     is the ordering rule's business and `tests/lib/test_bus.py`'s."""
     return {key: value for key, value in bus.last_values[DISPUTED].items() if key != AT}
 
@@ -111,16 +110,16 @@ def press(bus: InProcessBus, topic: str, payload: Payload) -> None:
     bus.drain()
 
 
-def test_a_train_moved_by_hand_disputes_the_two_blocks() -> None:
+def test_a_train_moved_by_hand_disputes_the_block_it_sits_in() -> None:
     """The case the check exists for: the picture says `freight_1` is in
-    `dn_e` and it is standing in `dn_w`. Exactly two entries — the block it
-    left, now reading clear, and the block it sits in, now reading occupied
-    with nothing claiming it."""
+    `dn_e` and it is standing in `dn_w`. The block it sits in reads occupied
+    with no train explaining it. The block it left reads clear, which says
+    nothing (#1164)."""
     bus, _ = restored(MOVED)
 
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
-    assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
+    assert disputed(bus) == {"blocks": ["dn_w"]}
 
 
 def test_a_picture_the_detectors_agree_with_disputes_nothing() -> None:
@@ -130,7 +129,7 @@ def test_a_picture_the_detectors_agree_with_disputes_nothing() -> None:
 
     reports(bus, occupied=("up_w", "dn_e"), clear=("up_e", "dn_w", "yard_w", "yard_e"))
 
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
 
 
 def test_a_layout_reporting_no_occupancy_disputes_nothing() -> None:
@@ -140,7 +139,7 @@ def test_a_layout_reporting_no_occupancy_disputes_nothing() -> None:
     dispute on every restore."""
     bus, _ = restored(MOVED)
 
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
 
 
 def test_a_block_the_layout_has_not_reported_takes_no_part() -> None:
@@ -151,19 +150,19 @@ def test_a_block_the_layout_has_not_reported_takes_no_part() -> None:
 
     reports(bus, occupied=("dn_e",))
 
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
 
 
-def test_placing_the_train_resolves_both_entries() -> None:
+def test_placing_the_train_resolves_the_entry() -> None:
     """The set empties as the railroad is walked: a person who has looked
-    says where the train stands, and both halves of its dispute go — the
-    block it now stands in is the block that reads occupied."""
+    says where the train stands, and the block it now stands in is the block
+    that reads occupied."""
     bus, _ = restored(MOVED)
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
     press(bus, PLACEMENT_WANTED, {"train": "freight_1", "block": "dn_w"})
 
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
 
 
 def test_the_opening_statement_carries_the_set() -> None:
@@ -171,7 +170,7 @@ def test_the_opening_statement_carries_the_set() -> None:
     a joining client is served the set rather than left to read one out of an
     absence, and a value the last session left is cleared rather than
     standing over this one's railroad (ADR-0032)."""
-    stale = {"trains": ["freight_1"], "blocks": ["dn_w"]}
+    stale = {"blocks": ["dn_w"]}
     layout, roster, scenario = load("crossover-yard/meet")
     bus = retaining({ALLOCATION: MOVED, DISPUTED: stale})
     Dispatcher(
@@ -179,7 +178,7 @@ def test_the_opening_statement_carries_the_set() -> None:
     )
     bus.drain()
 
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
 
 
 def test_power_on_is_allowed_and_keeps_the_set() -> None:
@@ -192,7 +191,7 @@ def test_power_on_is_allowed_and_keeps_the_set() -> None:
     press(bus, *power(ON))
 
     assert dispatcher.state.power == ON
-    assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
+    assert disputed(bus) == {"blocks": ["dn_w"]}
 
 
 @pytest.mark.parametrize("value", [ON, DRAINING, OFF])
@@ -203,7 +202,7 @@ def test_the_set_is_the_same_at_every_power_value(value: str) -> None:
 
     press(bus, *power(value))
 
-    assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
+    assert disputed(bus) == {"blocks": ["dn_w"]}
 
 
 def test_a_crossing_train_leaves_no_dispute_behind_it() -> None:
@@ -218,17 +217,40 @@ def test_a_crossing_train_leaves_no_dispute_behind_it() -> None:
 
     reports(bus, clear=("dn_e",))
 
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
+
+
+@pytest.mark.parametrize("block", ["dn_w", "dn_e"])
+def test_a_restored_crossing_explains_either_end_of_its_transit(block: str) -> None:
+    """`freight_1` came back up crossing from `dn_e` to `dn_w`, with no move
+    behind the hint. The picture says it is on that transit, so a reading at
+    either end is that train (#1164)."""
+    crossing = {**MOVED, "crossing": {"freight_1": "crossover.dn_straight"}}
+    bus, _ = restored(crossing)
+
+    reports(bus, occupied=(block,))
+
+    assert disputed(bus) == {"blocks": []}
+
+
+def test_a_crossing_hint_the_drawing_lacks_explains_nothing() -> None:
+    """A picture is kept through a rebuild (ADR-0071), and the transit it names
+    may be gone. The reading is heard all the same."""
+    crossing = {**MOVED, "crossing": {"freight_1": "gone.nowhere"}}
+    bus, _ = restored(crossing)
+
+    reports(bus, occupied=("dn_w",))
+
+    assert disputed(bus) == {"blocks": ["dn_w"]}
 
 
 def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block() -> None:
     """The other side of the per-train adoption of #164.
 
-    `freight_1` had both its answers taken, so it is placed nowhere and the
-    check has no block of its own to read against: a train off the layout
-    stands in nothing and contradicts nothing. The steel is still somewhere,
-    though, and wherever it reads occupied nothing claims it — so it comes
-    out as the stray *block* it is, which is exactly where a person is sent.
+    `freight_1` had both its answers taken, so it is placed nowhere. The steel
+    is still somewhere, though, and wherever it reads occupied no train explains
+    it — so it comes out as the stray *block* it is, which is exactly where a
+    person is sent.
     """
     parked = {**MOVED, "trains": {"express_2": "yard_w", "freight_1": "dn_e"}}
     bus, dispatcher = restored(parked, added={"local_3": "dn_e"})
@@ -236,7 +258,7 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block() -> None:
 
     reports(bus, occupied=("dn_e", "dn_w"), clear=("up_e", "up_w"))
 
-    assert disputed(bus) == {"trains": [], "blocks": ["dn_w"]}
+    assert disputed(bus) == {"blocks": ["dn_w"]}
 
 
 @pytest.mark.parametrize(
@@ -268,7 +290,7 @@ def test_an_occupancy_frame_that_cannot_be_read_is_dropped(payload: object) -> N
     press(bus, OCCUPIED, cast(Payload, payload))
 
     assert dispatcher.state.reported == reported
-    assert disputed(bus) == {"trains": [], "blocks": []}
+    assert disputed(bus) == {"blocks": []}
 
 
 def test_a_dropped_frame_leaves_the_next_reading_readable() -> None:
@@ -280,4 +302,4 @@ def test_a_dropped_frame_leaves_the_next_reading_readable() -> None:
     press(bus, OCCUPIED, cast(Payload, {"block": 42}))
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
-    assert disputed(bus) == {"trains": ["freight_1"], "blocks": ["dn_w"]}
+    assert disputed(bus) == {"blocks": ["dn_w"]}

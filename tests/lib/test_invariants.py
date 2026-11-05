@@ -6,7 +6,7 @@ bench railroad of `tests/layout/railroad.py`, which has points and addressed
 locomotives where the library's railroads have neither."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -458,20 +458,34 @@ def test_depth_counts_up_to_a_block_reading_occupied_in_the_aspects() -> None:
     assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows, [])
 
 
-def test_a_disputed_train_lights_nothing_in_the_aspects() -> None:
-    """It takes no grant, so `stop` is the right answer along its route, and
-    anything else is a breach (#1160)."""
-    rows = started(AHEAD_TWO) | {
-        POWER: {"power": "on"},
-        DISPUTED: {"trains": ["t1"], "blocks": []},
-    }
-    stopped = {ASPECTS: {"aspects": {"west_1.B": "stop", "w_main.B": "stop"}}}
+def test_a_clear_reading_under_a_train_leaves_its_aspects_lit() -> None:
+    """A clear reading disputes nothing, so the signals along its route show
+    what its locks say (#1164)."""
+    rows = started(AHEAD_TWO) | {POWER: {"power": "on"}}
     lit = {ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}}}
 
     assert (
-        breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | stopped, []) == []
+        breaches_over(
+            adr_0093_aspects_along_the_locks, MEET, rows | lit, [read("west_1", False)]
+        )
+        == []
     )
-    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | lit, [])
+
+
+def test_depth_counts_past_a_block_a_train_explains_in_the_aspects() -> None:
+    """The block ahead reads occupied and is the residue of the train's own
+    removal, so it is explained and depth counts on through it (#1164)."""
+    rows = started(AHEAD_TWO) | {POWER: {"power": "on"}}
+    lit = {ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}}}
+    lifted = [
+        (TRAIN_REMOVED, {"train": "t1"}),
+        placed("t1", "west_1"),
+        read("loop_up"),
+    ]
+
+    assert (
+        breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | lit, lifted) == []
+    )
 
 
 def test_a_train_refused_its_next_move_lights_nothing_in_the_aspects() -> None:
@@ -695,11 +709,11 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
     (
         adr_0048_disputed_lists_contradictions,
         MEET,
-        ON | {DISPUTED: {"trains": [], "blocks": []}} | PLACED,
+        ON | {DISPUTED: {"blocks": []}} | PLACED,
         [
             read("west_1", False),
             read("loop_up"),
-            (DISPUTED, {"trains": ["t1"], "blocks": ["loop_up"]}),
+            (DISPUTED, {"blocks": ["loop_up"]}),
         ],
         [read("west_1", False), read("loop_up")],
     ),
@@ -1017,3 +1031,105 @@ def test_a_placement_clears_a_withdrawal_waiting_for_its_move() -> None:
         record.observe(topic, payload)
 
     assert list(record.commanded) == ["single"]
+
+
+NONE_DISPUTED: Payload = {"blocks": []}
+DISPUTES: Rows = {DISPUTED: NONE_DISPUTED} | PLACED
+
+
+def test_a_row_with_a_trains_key_is_a_breach_of_disputed() -> None:
+    """The row is blocks only (#1164), whatever else it gets right."""
+    assert breaches_over(
+        adr_0048_disputed_lists_contradictions,
+        MEET,
+        DISPUTES,
+        [(DISPUTED, {"trains": [], "blocks": []})],
+    ) == ["disputed cannot be read"]
+
+
+def test_a_block_held_ahead_is_named_and_missing_it_is_a_breach() -> None:
+    """A lock explains nothing, so a reading on a block held ahead is on the
+    row, and a row without it is breached (#1164)."""
+    rows = started(AHEAD_TWO) | {DISPUTED: NONE_DISPUTED}
+    stray = read("loop_up")
+
+    assert breaches_over(adr_0048_disputed_lists_contradictions, MEET, rows, [stray])
+    assert (
+        breaches_over(
+            adr_0048_disputed_lists_contradictions,
+            MEET,
+            rows,
+            [stray, (DISPUTED, {"blocks": ["loop_up"]})],
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "messages"),
+    [
+        pytest.param(DISPUTES, [read("west_1")], id="recorded in the block"),
+        pytest.param(DISPUTES, [GRANT, read("west_1")], id="the move's origin"),
+        pytest.param(DISPUTES, [GRANT, read("w_main")], id="the move's arrival"),
+        pytest.param(
+            {
+                DISPUTED: {"blocks": []},
+                ALLOCATION: allocation(locks={"w_main": "t1"}),
+            },
+            [read("w_main")],
+            id="residue in the rows",
+        ),
+        pytest.param(
+            {
+                DISPUTED: {"blocks": []},
+                ALLOCATION: allocation(
+                    {"t1": "west_1"}, locks={"west_1": "t1", "w_main": "t1"}
+                ),
+            },
+            [(TRAIN_REMOVED, {"train": "t1"}), read("w_main")],
+            id="residue of a removal",
+        ),
+        pytest.param(
+            {
+                DISPUTED: {"blocks": []},
+                ALLOCATION: allocation(
+                    {"t1": "w_main"},
+                    {"t1": "west_throat.from_1"},
+                    locks={"w_main": "t1"},
+                ),
+            },
+            [read("west_1")],
+            id="a restored crossing",
+        ),
+    ],
+)
+def test_a_block_a_train_explains_is_no_dispute(rows: Rows, messages: Messages) -> None:
+    """Each of the four explained cases: an empty row holds, and one listing the
+    block is breached (#1164)."""
+    block = cast(dict[str, str], messages[-1][1])["block"]
+    assert (
+        breaches_over(adr_0048_disputed_lists_contradictions, MEET, rows, messages)
+        == []
+    )
+    assert breaches_over(
+        adr_0048_disputed_lists_contradictions,
+        MEET,
+        rows,
+        [*messages, (DISPUTED, {"blocks": [block]})],
+    )
+
+
+def test_a_clear_reading_is_no_dispute() -> None:
+    """Not on the row at any power value, and a row naming it is breached
+    (#1164)."""
+    clear = read("west_1", False)
+    assert (
+        breaches_over(adr_0048_disputed_lists_contradictions, MEET, DISPUTES, [clear])
+        == []
+    )
+    assert breaches_over(
+        adr_0048_disputed_lists_contradictions,
+        MEET,
+        DISPUTES,
+        [clear, (DISPUTED, {"blocks": ["west_1"]})],
+    )

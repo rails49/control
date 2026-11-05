@@ -200,7 +200,7 @@ TOPICS: dict[str, Topic] = {
     # end a drain (ADR-0078).
     "tc49/dispatch/state/moving": Topic((AT, "moving")),
     "tc49/dispatch/state/aspects": Topic((AT, "aspects")),
-    "tc49/dispatch/state/disputed": Topic((AT, "trains", "blocks")),
+    "tc49/dispatch/state/disputed": Topic((AT, "blocks")),
     "tc49/dispatch/state/unfit": Topic((AT, "trains")),
     # The lock table's rules the dispatcher found broken (ADR-0076, #1118).
     "tc49/dispatch/state/broken": Topic((AT, "rules")),
