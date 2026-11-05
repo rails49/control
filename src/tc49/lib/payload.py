@@ -133,7 +133,7 @@ binding publishes, in `lib.bus`.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
 
 from tc49.lib.fast_clock import DAY_S
@@ -767,6 +767,17 @@ def reported_sensor(payload: object) -> str | None:
     return _sensor(cast(dict[str, object], payload).get("addr"))
 
 
+def settled_reading(payload: object) -> tuple[str, bool] | None:
+    """The sensor a `state/settled/sensor` row names and whether it reads
+    occupied, or None for a row that states neither: such a row is dropped, and
+    the last value stands (#1168). `unknown` is no value of this row."""
+    sensor = reported_sensor(payload)
+    level = detected(payload)
+    if sensor is None or level == UNKNOWN:
+        return None
+    return sensor, level == OCCUPIED
+
+
 def _sensor(stated: object) -> str | None:
     if not isinstance(stated, str):
         return None
@@ -1292,6 +1303,9 @@ class KeptAllocation:
     that a restart takes: where each train stood, and which transit was
     taking it out of the block it stands in.
 
+    `occupied` is read here too: what each train occupies, tail to head, an
+    entry at a time, none where the value has no such map (#1171).
+
     `locks` and `requests` are not here, and their absence is the adoption
     policy's rather than the reading's: a restart rebuilds the lock table one
     block per train and comes up with an empty queue (ADR-0033, #123), so
@@ -1301,6 +1315,10 @@ class KeptAllocation:
 
     trains: dict[str, str]  # train -> the block it is standing in
     crossing: dict[str, str]  # train -> the transit taking it out of there
+    # train -> what it occupies, tail to head
+    occupied: dict[str, tuple[str, ...]] = field(
+        default_factory=dict[str, tuple[str, ...]]
+    )
 
 
 def kept_allocation(payload: object) -> KeptAllocation | None:
@@ -1334,7 +1352,22 @@ def kept_allocation(payload: object) -> KeptAllocation | None:
     return KeptAllocation(
         _named(cast(dict[object, object], trains)),
         _named(cast(dict[object, object], crossing)),
+        _occupying(fields.get("occupied")),
     )
+
+
+def _occupying(stated: object) -> dict[str, tuple[str, ...]]:
+    """What each train occupies, per train and per entry: an entry that is no
+    string costs itself, and a train whose value is no list costs that train."""
+    if not isinstance(stated, dict):
+        return {}
+    return {
+        train: tuple(
+            entry for entry in cast(list[object], listed) if isinstance(entry, str)
+        )
+        for train, listed in cast(dict[object, object], stated).items()
+        if isinstance(train, str) and isinstance(listed, list)
+    }
 
 
 def _named(stated: dict[object, object]) -> dict[str, str]:
