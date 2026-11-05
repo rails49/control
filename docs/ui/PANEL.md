@@ -183,6 +183,16 @@ derives none of it — which blocks the layout has reported on at all is
 knowledge only the dispatcher holds, and a panel working it out would call
 every block nothing has said anything about clear.
 
+**A block with a sensor not reporting wears a mark.** Each block
+`tc49/layout/state/unknown_sensors` lists either sensor of, whether it stopped
+or was never heard, wears a dashed grey ring
+([#1153](https://github.com/rails49/control/issues/1153)). A ring beside the
+outline rather than a stroke on it, so a disputed block wears both and the
+state of the block still reads. Grey rather than amber, because a railroad with
+no sensors wired yet wears it on every block. The dispatcher has such a block out of use
+([DISPATCH.md](../dispatcher/DISPATCH.md#out-of-use)); the mark is why a train
+waits there.
+
 A request renders in three layers, each appearing when the bus first makes it
 true. **Requested** (from `request_submitted`): the train, its departure end,
 and the candidate arrival ends, endpoints only, since no route exists yet and
@@ -1016,6 +1026,21 @@ what tells that drain from a person's press or a trip.
 long as `tc49/dispatch/state/disputed` lists it, whichever way power stands
 ([#1154](https://github.com/rails49/control/issues/1154)). The railroad runs on around one of these, so the band is what says
 one is there when the block it is about is out of sight.
+
+**Beside those, the sensors not reporting**, off
+`tc49/layout/state/unknown_sensors`, in any view and whichever way power
+stands ([#1153](https://github.com/rails49/control/issues/1153)). Sensors with
+`reported: true` have stopped and are a fault in any driving mode, one chip per
+`reason`: `C3.A, C3.B: no report for 3 s`, or `12 sensors: no report for 3 s`
+past four. Sensors with `reported: false` have never been heard, which is what
+a railroad with no sensors wired yet looks like, so they say nothing in `manual`
+and one chip while `state/driving` reads `automatic`, when trains depend on
+them: `automatic: 12 of 40 blocks have no sensor report`, counting blocks with
+such a sensor out of all the drawing's blocks. A chip goes when the row no longer
+lists its sensors, and the row's two changes are the frames a short outage
+leaves behind. A row that cannot be read is ignored and the last value stands,
+one bad entry dropping the whole row. The band only tells: the person acts with
+the tools they already have.
 
 **The power toggle and the stop sign command power**, on
 `tc49/layout/power_wanted`

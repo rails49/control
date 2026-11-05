@@ -595,8 +595,8 @@ what a drop would cost:
   the settling time; a sensor not on the drawing is never listed
   ([#1151](https://github.com/rails49/control/issues/1151)). A row that lists
   nothing new sweeps nothing, and a change sweeps
-  ([#1152](https://github.com/rails49/control/issues/1152)). So far the page does
-  not read it ([#1153](https://github.com/rails49/control/issues/1153)).
+  ([#1152](https://github.com/rails49/control/issues/1152)). The page shows it
+  ([#1153](https://github.com/rails49/control/issues/1153)).
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
