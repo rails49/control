@@ -167,9 +167,9 @@ export interface BlockView {
   state: "free" | "occupied" | "locked" | "committed";
   /** The train standing, holding or heading here, where one is. */
   train?: string;
-  /** The train whose name this block carries, whatever its colour: a block
-   *  the train holds that reads occupied, or the block it last stood in
-   *  where none it holds does (#897). One train can name two blocks while it
+  /** The train whose name this block carries, whatever its colour: a block on
+   *  the train's `occupied` list, or the block `trains` gives where none on
+   *  the list is one (#897, #1172). One train can name two blocks while it
    *  passes from one to the next, and a press on either takes hold of it. */
   named?: string;
   /** Set where the train named here is crossing a transit: no block is its
@@ -430,9 +430,8 @@ export class Panel {
   /** block end → the aspect its signal shows, last as the dispatcher said. */
   private shown = new Map<EndRef, Aspect>();
   /** block end → what its detector last read, off the `sensor` event
-   *  (#898). The reading under `block_occupied` and `block_vacated`, kept
-   *  for a person debugging the layout and never folded here: that fold is
-   *  `layout`'s. */
+   *  (#898). Kept for a person debugging the layout: a block's colour does
+   *  not come from it (#1172). */
   private readings = new Map<EndRef, Reading>();
   /** address → the position its `wanted/point` row last said: what was
    *  asked, and where a point lies unless its address is reported. */
@@ -451,19 +450,13 @@ export class Panel {
    *  block the sensors last confirmed it in, and this is the whole of what
    *  says it has left (#154). */
   private crossing = new Map<string, string>();
-  /** train → the transit of the move the dispatcher granted it, as the
-   *  picture's `crossing` says and nothing else does: unlike `crossing` it is
-   *  not dropped when the block the train is going to reads occupied, because
-   *  the move has not ended until both readings say so and the train may
-   *  still be on the points (#1116). */
-  private moves = new Map<string, string>();
-  /** The blocks that read occupied, as `block_occupied` and `block_vacated`
-   *  last said. A page that joined after a reading has not seen it, and
-   *  draws the train where it last stood instead (#897). */
-  private reads = new Set<string>();
-  /** train → the block it last stood in: `trains` in the picture, and the
-   *  block a sensor last confirmed it arriving in. Every train the run has
-   *  placed is here, crossing or not, and a train it has taken off is not. */
+  /** train → the blocks and transits it occupies, tail to head, as the
+   *  picture's `occupied` says (#1172). A lock on no train's list is held
+   *  ahead. */
+  private occupied = new Map<string, string[]>();
+  /** train → the block it last stood in: `trains` in the picture. Every train
+   *  the run has placed is here, crossing or not, and a train it has taken off
+   *  is not. */
   private stood = new Map<string, string>();
   /** train → the block it faces out of and the end its facing runs to, as
    *  the scheduler last said. Read, never derived: facing is scheduler state
@@ -525,8 +518,7 @@ export class Panel {
    *  joined after it has none. */
   private refusals = new Map<string, string>();
   /** Whether the opening picture has arrived: a lock on a block before it is
-   *  the run's opening placement, there being no occupancy event for a
-   *  train that never moved. The dispatcher publishes `allocation` right
+   *  the run's opening placement. The dispatcher publishes `allocation` right
    *  after the standing locks, so the picture is the marker. */
   private started = false;
   /** The stamp held against each state leaf: what keeps the later of two
@@ -584,8 +576,7 @@ export class Panel {
     this.differing.clear();
     this.standing.clear();
     this.crossing.clear();
-    this.moves.clear();
-    this.reads.clear();
+    this.occupied.clear();
     this.stood.clear();
     this.heading.clear();
     this.disputed = new Set();
@@ -635,6 +626,7 @@ export class Panel {
           if (!this.started && resource in this.layout.blocks) {
             this.standing.set(resource, train);
             this.stood.set(train, resource);
+            this.occupied.set(train, [...(this.occupied.get(train) ?? []), resource]);
           }
         }
         return;
@@ -647,25 +639,12 @@ export class Panel {
         for (const resource of resources) {
           if (this.locks.get(resource) === train) this.locks.delete(resource);
         }
-        return;
-      }
-      case "block_occupied": {
-        const { block } = event as unknown as { block: string };
-        this.reads.add(block);
-        const holder = this.locks.get(block);
-        if (holder === undefined) return;
-        this.standing.set(block, holder);
-        if (this.stood.has(holder)) this.stood.set(holder, block);
-        // Arrived, so no longer crossing: the same sensor the dispatcher
-        // drops its own mark on. Waiting for the next picture instead would
-        // leave the train crossing for a frame after it plainly got there.
-        this.crossing.delete(holder);
-        return;
-      }
-      case "block_vacated": {
-        const { block } = event as unknown as { block: string };
-        this.reads.delete(block);
-        this.standing.delete(block);
+        // Off the list at once, so released track is not drawn occupied until
+        // the next picture.
+        const listed = this.occupied.get(train);
+        if (listed !== undefined) {
+          this.occupied.set(train, listed.filter((entry) => !resources.includes(entry)));
+        }
         return;
       }
       case "wanted/point": {
@@ -700,9 +679,10 @@ export class Panel {
         // facing is not in it and stays where the scheduler's own topic put
         // it — facing is scheduler state and on no dispatcher topic at all
         // (ADR-0019).
-        const { trains, crossing, locks, requests } = event as unknown as {
+        const { trains, crossing, occupied, locks, requests } = event as unknown as {
           trains: Record<string, string>;
           crossing?: Record<string, string>;
+          occupied?: Record<string, string[]>;
           locks: Record<string, string>;
           requests: {
             id: string;
@@ -718,10 +698,20 @@ export class Panel {
         this.locks = new Map(Object.entries(locks));
         // A crossing train is named in both maps and stands in neither block:
         // `trains` says which one the sensors last confirmed, `crossing` says
-        // it has left it. Its name is drawn where the detectors say it is,
-        // and in that last block where they say nothing (#897).
+        // it has left it. Its name is drawn in each block on its list, and in
+        // that last block where the list has none (#897, #1172).
         this.crossing = new Map(Object.entries(crossing ?? {}));
-        this.moves = new Map(this.crossing);
+        // A retained value from before `occupied` still draws: each train's
+        // list is its `trains` block and the transit `crossing` names.
+        this.occupied =
+          occupied !== undefined
+            ? new Map(Object.entries(occupied))
+            : new Map(
+                Object.entries(trains).map(([train, block]): [string, string[]] => {
+                  const transit = this.crossing.get(train);
+                  return [train, transit === undefined ? [block] : [block, transit]];
+                }),
+              );
         this.stood = new Map(Object.entries(trains));
         this.standing = new Map(
           Object.entries(trains)
@@ -933,8 +923,12 @@ export class Panel {
       }
       case "train_placed":
       case "train_removed": {
-        const { train } = event as unknown as { train?: unknown };
-        if (typeof train === "string") this.refusals.delete(train);
+        const { train, block } = event as unknown as { train?: unknown; block?: unknown };
+        if (typeof train !== "string") return;
+        this.refusals.delete(train);
+        if (event.event === "train_placed" && typeof block === "string") {
+          this.occupied.set(train, [block]);
+        }
         return;
       }
       case "request_submitted": {
@@ -1097,9 +1091,9 @@ export class Panel {
   }
 
   /** Every block of the layout, at the strongest state that holds for it:
-   *  a train standing there, a lock holding it, a committed route heading
-   *  through it, or nothing. Occupancy outranks both route states — a
-   *  standing train is still a lock, and the picture must never lose which
+   *  on a train's `occupied` list, a lock holding it, a committed route heading
+   *  through it, or nothing. Occupancy outranks both route states — an
+   *  occupied block is still a lock, and the picture must never lose which
    *  block a train is actually in (ui/PANEL.md). */
   blocks(): Map<string, BlockView> {
     const committed = new Map<string, string>();
@@ -1109,11 +1103,15 @@ export class Panel {
         if (resource in this.layout.blocks) committed.set(resource, request.train);
       }
     }
+    const occupying = new Map<string, string>();
+    for (const [train, listed] of this.occupied) {
+      for (const entry of listed) occupying.set(entry, train);
+    }
     const names = this.names();
     const unknown = new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor)));
     const views = new Map<string, BlockView>();
     for (const block of Object.keys(this.layout.blocks)) {
-      const train = this.standing.get(block);
+      const train = occupying.get(block);
       // The name rides on the block whatever its colour, as the dispute does:
       // a train in a block its route has lit is still the thing worth reading
       // there, and what a press on it takes hold of (#897).
@@ -1162,29 +1160,25 @@ export class Panel {
   /**
    * block → the train whose name it carries (ui/PANEL.md, #897).
    *
-   * A train is named in every block it holds that reads occupied, so one
-   * passing from one block to the next is in the old one, then both, then
-   * the new one. Where none it holds reads occupied — a page that joined
-   * after the readings, or a detector that has dropped out under it — it is
-   * named in the block it last stood in. Only trains the
+   * A train is named in each block on its `occupied` list, so one passing
+   * from one block to the next is in the old one, then both, then the new one.
+   * With no block on its list, its tail having left one before its head reached
+   * the next, it is named in the block `trains` gives (#1172). Only trains the
    * run has placed are named: one it took off keeps its blocks until they
    * read clear, as locked track and no marker (ADR-0069).
    */
   private names(): Map<string, string> {
-    const held = new Map<string, string[]>();
-    for (const [resource, train] of this.locks) {
-      if (!(resource in this.layout.blocks) || !this.reads.has(resource)) continue;
-      held.set(train, [...(held.get(train) ?? []), resource]);
-    }
     const names = new Map<string, string>();
     for (const [train, last] of this.stood) {
-      for (const block of held.get(train) ?? [last]) {
+      const listed = (this.occupied.get(train) ?? []).filter(
+        (entry) => entry in this.layout.blocks,
+      );
+      for (const block of listed.length > 0 ? listed : [last]) {
         if (!names.has(block)) names.set(block, train);
       }
     }
     return names;
   }
-
 
   /**
    * What each signalled block end is showing, exactly as the dispatcher said
@@ -1201,9 +1195,8 @@ export class Panel {
 
   /**
    * What each block end's detector reads, exactly as its last `sensor` report
-   * said (#898): the readings `layout` folds into `block_occupied` and
-   * `block_vacated`, shown for a person debugging the layout. An end no row
-   * has named is absent.
+   * said (#898), shown for a person debugging the layout. An end no row has
+   * named is absent.
    */
   detected(): ReadonlyMap<EndRef, Reading> {
     return this.readings;
@@ -1303,10 +1296,9 @@ export class Panel {
    * stays locked until it is released, because the dispatcher really does
    * still hold it.
    *
-   * A transit a train is crossing is `occupied` from the grant until the
-   * picture drops it from `crossing` (#1116), the dispatcher's own word that
-   * the move ended on both readings, and not at the first: nothing detects a
-   * train on a transit, so the dispatcher holds it as occupied all that time.
+   * A transit on a train's `occupied` list is `occupied` until the picture
+   * drops it there, the dispatcher's own word that the tail has been seen to
+   * leave it (#1116, #1172): nothing detects a train on a transit.
    *
    * Where a throat symbol is carried by transits of different claims at the
    * same time, the strongest wins — occupied over locked over committed, as
@@ -1332,7 +1324,9 @@ export class Panel {
         if (stronger(claim, wires.get(wire))) wires.set(wire, claim);
       }
     };
-    for (const transit of this.moves.values()) light(transit, "occupied");
+    for (const listed of this.occupied.values()) {
+      for (const resource of listed) light(resource, "occupied");
+    }
     for (const resource of this.locks.keys()) light(resource, "locked");
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
@@ -1352,8 +1346,7 @@ export class Panel {
    * holding a transit, which is as on the layout as a train gets.
    *
    * A train whose head is in the next block while its tail has not cleared
-   * the last is named against both, and is one train: the newer block wins,
-   * `standing` being written in the order the sensors reported.
+   * the last occupies both, and is one row: the block `trains` gives.
    */
   placed(): Placed[] {
     const where = new Map<string, string | null>();
@@ -1469,9 +1462,10 @@ export class Panel {
   }
 
   /**
-   * Whether `train` may be put in `block` by hand: no train stands there, no
-   * other train holds its lock, and it is on no other train's remaining
-   * route — the dispatcher's `DispatchState.free()`, read off
+   * Whether `train` may be put in `block` by hand: no train stands there, it
+   * is on no train's `occupied` list, a train's tail not being a place to drop
+   * another, no other train holds its lock, and it is on no other train's
+   * remaining route — the dispatcher's `DispatchState.free()`, read off
    * `state/allocation` (BUS.md, `placement_wanted`). Power is not asked: a
    * placement is accepted at any power (ADR-0080).
    *
@@ -1483,6 +1477,9 @@ export class Panel {
    */
   free(block: string, train: string): boolean {
     if (this.standing.has(block)) return false;
+    for (const listed of this.occupied.values()) {
+      if (listed.includes(block)) return false;
+    }
     const holder = this.locks.get(block);
     if (holder !== undefined && holder !== train) return false;
     const where = new Map<string, string | null>();

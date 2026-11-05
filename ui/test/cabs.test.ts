@@ -145,7 +145,7 @@ describe("a move outstanding", () => {
     feed(model, GRANTED);
     expect(drive(model)[0]).toMatchObject({ train: "t1", granted: true });
 
-    feed(model, { event: "block_occupied", block: "b" });
+    feed(model, { ...GRANTED, trains: { t1: "b" }, crossing: {}, occupied: { t1: ["j.over", "b"] } });
     expect(drive(model)[0]).toMatchObject({ granted: false });
   });
 

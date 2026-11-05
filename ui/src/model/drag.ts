@@ -375,7 +375,7 @@ function strayed(press: { screen: Point; touch: boolean }, screen: Point): boole
  * The train whose name is on the block under a point, where one is — and that
  * block.
  *
- * A train's name is in every block it holds that reads occupied, whatever the
+ * A train's name is in every block on its `occupied` list, whatever the
  * block's colour (model/panel.ts), so one passing from one block to the next
  * answers in both. The press that takes hold of a train and the right-click
  * that offers to turn one around ask this same question of the same point
