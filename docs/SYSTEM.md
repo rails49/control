@@ -1341,12 +1341,22 @@ The control loop that carries out a `move` — throttle up, watch the detector,
 stop — stays private hardware configuration.
 
 The **simulator** is a discrete-event engine: on an accepted
-`move` it schedules the two sensor events on fixed delays of its own, and it
+`move` it schedules what the sensors at the train's block ends would read on
+steel, on fixed delays of its own, and it
 owns pacing and termination — a batch run jumps the clock event to event and
 stops when nothing is scheduled, nothing pending and no train rolling
 ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)); live mode sleeps the same
 spans and never terminates. That stop rule is the simulator's pacing rather than
 part of the bus contract, and a hardware adapter never terminates at all.
+For a move out through end `e`, into block Y through end `f`, started at `t`:
+`e` reads occupied at `t`; `f` reads occupied at `t + transit`, when the train
+stands in Y and takes its next `move`; `e` reads clear a clearing delay later;
+and a clearing delay after that `f` reads clear and, where no later move of the
+train has started, the far end of Y reads occupied. It publishes these on
+`state/settled/sensor/<block>.<end>`, `layout`'s row, beside the two block
+events
+([#1170](https://github.com/rails49/control/issues/1170)), and it has no train
+lengths and no notion of where a train is inside a block.
 It says the fast clock as `layout` does, when it is given one, read off its
 run clock once a second of it, and the clock is no event. A batch run
 (`bench`) gives it none, so it publishes no clock and stops without waiting on
@@ -1404,9 +1414,9 @@ The **dispute check** is this comparison exactly: the block reading occupied
 that no train explains is named on `state/disputed` for a person to walk. They
 place what they find, and a clear reading ends an entry too.
 
-For a placement the simulator reads clear each block its own detectors last read
-occupied for the train and reads nothing occupied, so a train it stands anywhere
-is disputed by nothing it says. The rule is written for the layout that detects
+For a placement the simulator reads clear each block and each sensor its own
+detectors last read occupied for the train and reads nothing occupied, so a train
+it stands anywhere is disputed by nothing it says. The rule is written for the layout that detects
 occupancy, which is the binding that decides
 ([ADR-0030](adr/0030-the-physical-railroad-is-the-normative-binding.md)).
 
