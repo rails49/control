@@ -434,10 +434,14 @@ uv run tc49 readings --broker 127.0.0.1:1883 \
   --railroad <the railroad the box is running> --store http://127.0.0.1:8765
 ```
 
-Type `<block>.<end> <level>` a line at a time; `ctrl-c` ends it, and the
-railroad goes on running without it. The apps themselves are the compose
-services above and are already up; which of `layout` and `simulator` a box
-runs is what makes it steel or a simulation, and neither is started by hand.
+Type `<block>.<end> <level>` a line at a time; it repeats each typed level, and
+`ctrl-c` ends it. Ending it silences every sensor it typed: each is listed on
+`tc49/layout/state/unknown_sensors` once `sensor_silence` has passed, and its
+block is out of use until something reports that sensor again. A sensor nobody
+has typed is listed from the start, so its block is out of use from the start.
+The apps keep running. They are the compose services above and are already up;
+which of `layout` and `simulator` a box runs is what makes it steel or a
+simulation, and neither is started by hand.
 
 ### The router
 
