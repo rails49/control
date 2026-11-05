@@ -1105,7 +1105,7 @@ app but the UI makes
 *Subscribes* `tc49/layout/align`,
 `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/dispatch/train_placed` /
 `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
-`tc49/schedule/state/facing` and `tc49/layout/state/device/#`. *Publishes*
+`tc49/schedule/state/facing`, `tc49/layout/sensor` and `tc49/layout/state/device/#`. *Publishes*
 `state/railroad`, the sensor events, `move_withdrawn`, `state/power`,
 `state/unknown_sensors` and the desired half of the device vocabulary
 ([BUS.md](BUS.md#device-vocabulary)).

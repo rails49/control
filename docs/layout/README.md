@@ -36,7 +36,8 @@ this app throws what it is told and holds no table of its own.
 `tc49/dispatch/train_placed`, `tc49/dispatch/train_removed`,
 `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
 `tc49/dispatch/state/allocation`, read once as it starts,
-`tc49/schedule/state/facing`, `tc49/layout/state/device/#` and
+`tc49/schedule/state/facing`, `tc49/layout/sensor`,
+`tc49/layout/state/device/#` and
 `tc49/layout/state/wanted/function/#`, the function rows it writes, read back.
 
 *Publishes* `tc49/layout/block_occupied`, `tc49/layout/block_vacated`,
