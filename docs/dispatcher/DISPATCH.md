@@ -383,7 +383,8 @@ only that train and those needing its blocks wait
 
 **The sweep is the grant phase**, run where the lock table or the waiting
 set changes: a request admitted, a vacate releasing what a move held, the
-power reading `on` again, a request cancelled or moved in the list. A sweep covers the
+power reading `on` again, a request cancelled or moved in the list, the list of
+unknown sensors changing. A sweep covers the
 active trains and the whole list, so a refused train is reconsidered exactly
 when the resource it waited on frees — no backstop timer.
 
