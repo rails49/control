@@ -3,8 +3,8 @@ ADR-0062, #822, #844).
 
 `layout` ends a drain by switching the supply off, and the moment it may is
 the first at which nothing is moving. The dispatcher, which knows what is
-granted, states it on a row of its own: true while any train is **crossing**
-(GLOSSARY.md, **Moving**). It is a boolean beside power and not a value of it —
+granted, states it on a row of its own: true from the grant of a move until it
+has ended (GLOSSARY.md, **Moving**, #1171). It is a boolean beside power and not a value of it —
 a drain can be moving, because a move already granted runs to its sensor, and
 a train standing partway along its route, or `on` with nothing granted, is
 not.
@@ -119,8 +119,8 @@ def test_a_train_standing_partway_along_its_route_is_not_moving() -> None:
     assert movings(assembly)[-1] is False
     assert not state.crossing
     assert "freight_1" in state.active
-    assert state.block_of["freight_1"] == "dn_w"
+    assert state.block_of["freight_1"] == "dn_e"
     assert state.active["freight_1"].route.blocks[-1] == "yard_e"
-    assert {"dn_w", "crossover.dn_straight", "dn_e"} <= {
+    assert {"dn_e", "east_ladder.from_dn", "yard_e"} <= {
         resource for resource, holder in state.locks.items() if holder == "freight_1"
     }

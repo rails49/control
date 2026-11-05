@@ -124,8 +124,8 @@ def test_concurrent_pair_held_simultaneously_and_undeclared_pairs_never() -> Non
         held_spans(trace, "crossover.dn_to_up"),
     )
     assert_no_conflicting_transits_overlap(trace, layout)
-    [refused] = events(trace, "grant_refused")
-    assert refused["reason"] == "transit_conflict"
+    refused = events(trace, "grant_refused")
+    assert {line["reason"] for line in refused} == {"transit_conflict"}
 
 
 def test_shared_destination_refusal_names_the_committed_train() -> None:
@@ -178,17 +178,19 @@ def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     # Incremental — so t2's candidate over the up line sorts first for both.
     assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 1]
     assert [line["k_tried"] for line in events(incremental, "route_chosen")] == [1, 1]
-    # Two transits each, run in parallel: at the default 30 s delays the
-    # last tail clears 120 simulated seconds in, and the last sensor reads
-    # its train at the far end a clearing delay after that.
-    assert final_time(full) == 150.0
-    assert final_time(incremental) == 150.0
+    # Two transits each, run in parallel, the second granted as the head is in:
+    # at the default 30 s delays the last head is in 60 simulated seconds in,
+    # and its entry sensor clears, and the far sensor reads, two clearing delays
+    # after that.
+    assert final_time(full) == 120.0
+    assert final_time(incremental) == 120.0
 
 
 def test_transits_are_never_held_across_a_wait() -> None:
     # Lemma 1 made observable: under Incremental every lock grant beyond the
     # startup standing locks is one transit with its far block, atomically,
-    # and every release is the origin block with its transit, atomically.
+    # and every release is a block the tail has left, or a transit with
+    # whatever of the train is still behind it (#1171).
     layout, _roster, scenario = load("crossover-yard/meet")
     trace = run(layout, _roster, scenario, Incremental)
     for line in events(trace, "lock_granted"):
@@ -199,8 +201,7 @@ def test_transits_are_never_held_across_a_wait() -> None:
         assert "." in resources[0] and "." not in resources[1]
     for line in events(trace, "lock_released"):
         resources = line["resources"]
-        assert len(resources) == 2
-        assert "." not in resources[0] and "." in resources[1]
+        assert resources == [resources[0]] or "." in resources[-1]
 
 
 def a_state(layout: Layout, route: Route, locks: dict[str, str]) -> State:

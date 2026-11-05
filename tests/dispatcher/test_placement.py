@@ -586,7 +586,6 @@ def test_a_placement_into_a_committed_block_is_dropped() -> None:
     }
     assembly = assemble_live(layout, STOCK, stood, Incremental)
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-    ticks(assembly, 1)
     press(assembly, *power(OFF))
 
     picture = last(assembly, "allocation")

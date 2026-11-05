@@ -26,11 +26,10 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.inventory import AT, DRAINING, OFF, ON
 from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import load, power, retaining
+from tests.harness import load, power, retaining, settled
 
 DISPUTED = "tc49/dispatch/state/disputed"
-OCCUPIED = "tc49/layout/block_occupied"
-VACATED = "tc49/layout/block_vacated"
+SETTLED = "tc49/layout/state/settled/sensor/dn_w.A"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 
 MOVED: dict[str, Any] = {
@@ -89,9 +88,9 @@ def reports(
     """The detectors asserting, as a layout binding that reads them reports:
     a block it says nothing about is in neither list."""
     for block in occupied:
-        bus.publish(OCCUPIED, {"block": block})
+        bus.publish(*settled(f"{block}.A"))
     for block in clear:
-        bus.publish(VACATED, {"block": block})
+        bus.publish(*settled(f"{block}.A", False))
     bus.drain()
 
 
@@ -263,12 +262,25 @@ def test_a_train_adoption_placed_nowhere_is_disputed_as_a_block() -> None:
 
 @pytest.mark.parametrize(
     "payload",
-    [None, {}, {"block": None}, {"block": 42}, "dn_w", ["dn_w"]],
+    [
+        None,
+        {},
+        {"addr": "dn_w.A"},
+        {"addr": None, "occupancy": "occupied"},
+        {"addr": 42, "occupancy": "occupied"},
+        {"addr": "dn_w", "occupancy": "occupied"},
+        {"addr": "dn_w.A", "occupancy": "unknown"},
+        "dn_w",
+        ["dn_w"],
+    ],
     ids=[
         "no payload",
         "no field",
+        "no level",
         "null",
         "not a name",
+        "not a sensor",
+        "not a level of the row",
         "not an object",
         "a list of fields",
     ],
@@ -279,17 +291,17 @@ def test_an_occupancy_frame_that_cannot_be_read_is_dropped(payload: object) -> N
 
     Once the bus is not in-process a binding's bug can put anything on these
     leaves, and a bare subscript would have raised on some of these and
-    written a key that is not a block name for `{"block": 42}`. The frame is
+    written a key that is not a sensor for `{"addr": 42}`. The frame is
     dropped instead, leaving the block one the layout has said nothing
     about — what such a block is worth to the check is GLOSSARY.md,
     *disputed* (#153).
     """
     bus, dispatcher = restored(MOVED)
-    reported = dict(dispatcher.state.reported)
+    readings = dict(dispatcher.state.readings)
 
-    press(bus, OCCUPIED, cast(Payload, payload))
+    press(bus, SETTLED, cast(Payload, payload))
 
-    assert dispatcher.state.reported == reported
+    assert dispatcher.state.readings == readings
     assert disputed(bus) == {"blocks": []}
 
 
@@ -299,7 +311,7 @@ def test_a_dropped_frame_leaves_the_next_reading_readable() -> None:
     had the bad frame never arrived."""
     bus, _ = restored(MOVED)
 
-    press(bus, OCCUPIED, cast(Payload, {"block": 42}))
+    press(bus, SETTLED, cast(Payload, {"addr": 42, "occupancy": "occupied"}))
     reports(bus, occupied=("dn_w",), clear=("dn_e",))
 
     assert disputed(bus) == {"blocks": ["dn_w"]}

@@ -37,7 +37,7 @@ from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
 from tests.generate import ENDS, fixture_yaml, scenarios
-from tests.harness import Assembly, assemble_live, press, ticks
+from tests.harness import Assembly, assemble_live, press, settled, ticks
 from tests.invariants import check as check_invariants
 
 UNMINTED = "nobody-minted-this"
@@ -177,13 +177,11 @@ class GesturesAndReadings(RuleBasedStateMachine):
     @rule(data=st.data())
     def dropout(self, data: st.DataObject) -> None:
         held = sorted(set(self.assembly.dispatcher.state.block_of.values()))
-        self.press(
-            "tc49/layout/block_vacated", {"block": data.draw(st.sampled_from(held))}
-        )
+        self.press(*settled(f"{data.draw(st.sampled_from(held))}.A", False))
 
     @rule(data=st.data())
     def reading(self, data: st.DataObject) -> None:
-        self.press("tc49/layout/block_occupied", {"block": data.draw(self.blocks())})
+        self.press(*settled(f"{data.draw(self.blocks())}.A"))
 
     @rule()
     def time_passes(self) -> None:

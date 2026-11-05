@@ -2,16 +2,15 @@
 
 import json
 from collections.abc import Mapping
-from typing import cast
 
 from tc49.bench.runner import placement
 from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, block_of, departure_end, transit_ends
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
-from tests.harness import events, load, run, stock
+from tests.harness import events, load, run, settled, stock
 
 
 def test_meet_completes_all_requests_and_quiesces() -> None:
@@ -457,16 +456,13 @@ def test_a_level_re_asserted_is_an_at_least_once_no_op() -> None:
             "dest": ["yard_e.A"],
         },
     )
-    bus.publish("tc49/layout/block_occupied", {"block": "dn_w"})
-    bus.publish("tc49/layout/block_vacated", {"block": "yard_w"})
+    bus.publish(*settled("dn_w.A"))
+    bus.publish(*settled("yard_w.B", False))
     bus.drain()
     said = list(seen)
 
-    for repeat in (
-        ("tc49/layout/block_occupied", {"block": "dn_w"}),
-        ("tc49/layout/block_vacated", {"block": "yard_w"}),
-    ):
-        bus.publish(*cast(tuple[str, Payload], repeat))
+    for repeat in (settled("dn_w.A"), settled("yard_w.B", False)):
+        bus.publish(*repeat)
     bus.drain()
     assert seen == said
 
