@@ -792,10 +792,15 @@ has to be seeded before the first sensor event, and `request_submitted`
 carries no length.
 
 Where a **`state/allocation` value survived a restart** the placement comes
-from it instead. Its `trains` and `crossing` are adopted before the standing
-locks are published. Lengths still come from the roster, and `locks` and
-`requests` are not adopted at all, so the lock table is rebuilt with one block
-per train and the queue comes back empty.
+from it instead. Its `trains`, `crossing` and `occupied` are adopted before the
+standing locks are published: `occupied` per train and per entry, only for a train
+that kept its restored position and only an entry this railroad has and no other
+train has taken, with the train's own block appended if absent. Each entry is locked
+and published with the standing locks, a value with no `occupied` adopts none, and
+what is on a list stays occupied until the train's next move or a placement
+([#1171](https://github.com/rails49/control/issues/1171)). Lengths still come from
+the roster, and `locks` and `requests` are not adopted at all, so what a train holds
+ahead is not rebuilt, no move is followed, and the queue comes back empty.
 
 That value is **read** like any other payload: rule 4 does not exempt the
 moment a retained one is read, and a value that states no picture at all
@@ -949,8 +954,10 @@ it has not seen yet counts as carried out where the train already stands in
 the block the move enters, and is otherwise taken back and its late `move`
 dropped. It says so on `tc49/layout/move_withdrawn`; the request
 then retires as `request_cancelled` at once, keeping the block the train never
-left. Otherwise it retires when `block_vacated` says the move it was already
-making is over
+left. A cancel with the head in asks nothing, and with its newest move ended it
+retires at once. Otherwise it retires when that move's entry sensor clears or its
+far sensor reads occupied, keeping what the train is on and giving up what it holds
+ahead
 ([#1068](https://github.com/rails49/control/issues/1068),
 [#1076](https://github.com/rails49/control/issues/1076),
 [#1080](https://github.com/rails49/control/issues/1080)). A cancelled id
@@ -969,11 +976,10 @@ placement is least trustworthy. Naming the blocks means a person checks a
 handful rather than walking the whole railroad.
 
 **A clear reading disputes nothing.** A short train stands between its block's
-two sensors and both read clear, so it is granted as any other. A detector
-states a change of level, so no vacate comes for an origin that reads clear at
-the grant, and that reading counts for the move: the arrival ends it, unless the
-train has read occupied on its way out and not clear again
-([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+two sensors and both read clear, so it is granted as any other. A block is released
+from under a train only by its exit sensor reading occupied then clear, or by a
+later move's entry sensor clearing
+([#1171](https://github.com/rails49/control/issues/1171)).
 
 The set **resolves nothing**, because no sensor says *which* train it saw. A
 person ends each entry with a `placement_wanted`, or the block reads clear, and
@@ -1022,18 +1028,21 @@ a departure block its train is not standing in gets one of those answers,
 `wrong_origin`, rather than raising, because the submitter may be a browser
 ([ADR-0021](adr/0021-a-bad-request-is-answered-not-raised.md)).
 
-Sensor events are **applied where they land** (ADR-0047). A reading that
-re-asserts the level the dispatcher already holds is an at-least-once repeat
-and a no-op. A change either explains a granted move — `block_occupied`
-records where the train arrived, `block_vacated` releases the origin block
-and the transit, ends the move and completes the request — or explains
-nothing, which is the dispute check's subject and sweeps ([#1154](https://github.com/rails49/control/issues/1154)). A move ends on both readings in either order: a vacate
-before the arrival releases nothing and holds nothing, and the arrival then
-ends the move; and a clear reading on a block nobody holds is explained and
-sweeps ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)). The grant pass is a **sweep** over the
-whole waiting set, run where the lock table or the waiting set changes: a
-request admitted, a vacate, the power reading `on` again, the list of unknown
-sensors changing. Every grant is `safe()`-checked
+Sensor readings are **applied where they land** (ADR-0047). The dispatcher reads
+`tc49/layout/state/settled/sensor/<block>.<end>`, and a reading that re-asserts the
+level it already holds is an at-least-once repeat and a no-op. A change is taken
+against every move that expects that sensor
+([#1171](https://github.com/rails49/control/issues/1171)). For a move out of X
+through `e`, over T, into Y through `f`: the grant puts T on what the train occupies;
+`X.e` occupied then clear, or occupied at the grant and then clear, releases X; `Y.f`
+occupied says the head is in, so Y is occupied and the train may be granted its next
+move; `Y.f` then clear releases T with anything of that train's still behind it, and
+ends the request at its last block. The far sensor of Y reading occupied says the
+head is in where `f` said nothing, and ends the request too. Any other reading
+changes nothing for any train, so a person backing a train at a platform moves
+nothing. Every changed reading ends in a **sweep** over the whole waiting set, as does
+anything else that changes the lock table or the waiting set: a request admitted, the
+power reading `on` again, the list of unknown sensors changing. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
 reaches an unsafe state; under MQTT a sensor that arrives late delays a grant
 rather than producing a wrong one. After a failure leaves a train unable to
@@ -1381,12 +1390,12 @@ put it. It is not a command, and nothing moves on it.
 A reading no granted move accounts for **stops nothing but what it is about**
 ([#1154](https://github.com/rails49/control/issues/1154), in place of the drain of
 [ADR-0048](adr/0048-an-unexplained-reading-holds-the-run.md)). The dispatcher
-recovers train identity from its lock table, so a `block_occupied` no train
-explains — a hand putting a locomotive down, a train driven out of its
+recovers train identity from its lock table, so a sensor reading occupied that no
+train explains — a hand putting a locomotive down, a train driven out of its
 block, a detector asserting on dirt — says the table has stopped describing the
 steel there. The reading goes on `state/disputed`, a person is told, and a sweep
 runs. A block reading occupied is an obstacle no train is sent into, so it does
-not rely on the rest of the railroad stopping. A `block_vacated` under a train
+not rely on the rest of the railroad stopping. A clear reading under a train
 that stands there says nothing, since a short train stands between its block's
 sensors, and the train is granted as any other.
 It guesses nothing: occupancy is anonymous, so there is no train to place. It

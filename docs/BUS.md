@@ -352,7 +352,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/placement_refused` | event | dispatcher | a placement not accepted, and why ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)) |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing other than one stopped at an unknown entry sensor, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
+| `tc49/dispatch/state/moving` | state | dispatcher | whether any train has a move not yet ended, other than one stopped with both its sensors unknown, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | the blocks that read occupied with no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
@@ -1091,16 +1091,15 @@ payload is read defensively, and one that fails the read is dropped.
   view's roster pane, which says it under the train's row
   ([#1011](https://github.com/rails49/control/issues/1011)).
 - `tc49/dispatch/train_removed` — `train`.
-- `tc49/dispatch/state/moving` — `moving`: boolean, true while any train is
-  crossing and false otherwise: from the grant of a move until the sensor says
-  the train arrived in the move's `into` block, and while a restored crossing
-  hint names it ([#123](https://github.com/rails49/control/issues/123)). A
-  train standing in a block, at a signal partway along its route or anywhere
-  else, is not moving, so on a route of several moves it goes true and false
-  once per move ([#844](https://github.com/rails49/control/issues/844)). A move
-  whose entry sensor is on `state/unknown_sensors`, the near end of its `into`
-  block, does not count, `layout` having stopped that train; one with only the
-  far sensor listed does
+- `tc49/dispatch/state/moving` — `moving`: boolean, true from the grant of a move
+  until its entry sensor clears or its far sensor reads occupied, and while a
+  restored crossing hint names a train
+  ([#123](https://github.com/rails49/control/issues/123),
+  [#1171](https://github.com/rails49/control/issues/1171)). A train standing in a
+  block, at a signal partway along its route or anywhere else, is not moving
+  ([#844](https://github.com/rails49/control/issues/844)). A move with both those
+  sensors on `state/unknown_sensors` does not count, `layout` having stopped that
+  train; one with only one of them listed does
   ([#1152](https://github.com/rails49/control/issues/1152)).
   Republished when it changes. A
   reader takes an unreadable value as `true`
@@ -1140,8 +1139,10 @@ payload is read defensively, and one that fails the read is dropped.
   band, so a drain the dispatcher asked for itself says why
   ([#1118](https://github.com/rails49/control/issues/1118)).
 - `tc49/dispatch/state/allocation` — `trains`: map of train to standing
-  block; `crossing`: map of crossing train to its transit; `locks`: map of
-  resource to holding train; `requests`: list of
+  block; `crossing`: map of crossing train to its transit, from the grant until
+  the head is in; `locks`: map of resource to holding train; `occupied`: map of
+  train to the blocks and transits it occupies, tail to head; a lock on no train's
+  list is held ahead; `requests`: list of
   `{id, train, depart, dest, after, route, refused, cancelling}` in **list order**, the order the
   dispatcher serves them
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),

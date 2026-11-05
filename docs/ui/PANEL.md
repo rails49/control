@@ -228,8 +228,8 @@ already emits lit legs last, so a crossing unlit wire cannot half hide one.
   dispatcher holds the transit as occupied all that time, and the picture
   shows it: one red stretch from where the train stood to where it is going.
   The page reads it off the picture's `crossing` and keeps it until the
-  dispatcher drops it there, when the move ends on both readings, not at the
-  arrival alone. The blocks either side keep following their detectors.
+  dispatcher drops it there, when the head is in
+  ([#1171](https://github.com/rails49/control/issues/1171)). The blocks either side keep following their detectors.
 - **Green** where the dispatcher holds a **lock**. The train may move here.
 - **Cyan** where the resource is on a committed route and is **not** locked.
   The route is chosen; the claim has not been made yet.

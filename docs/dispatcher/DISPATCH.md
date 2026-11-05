@@ -46,7 +46,8 @@ A signal shows one of three aspects, read off how far beyond its block the
 dispatcher has locked for the train that will reach it; the table is in
 [GOALS.md](../GOALS.md#dispatching) (ADR-0025). Every exit along a train's
 locked blocks is lit, from the block the train is recorded in to the last it
-holds, and a passed signal goes to `stop` once the block beyond reads occupied
+holds, and a passed signal goes to `stop` once the tail has left its block or the
+head is in the block beyond, whichever is first
 ([ADR-0093](../adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)). Each aspect answers to an SBB
 one: `stop` to Halt, `caution` to Warnung (proceed, the next signal shows
 stop), `clear` to Fahrt. The panel draws them as system N and the throttle as
@@ -243,8 +244,8 @@ topology ordering; #33 made it congestion-aware. The chooser:
    every transit costs the same fixed delays regardless of length.
 5. Break ties on congestion: the number of route blocks beyond the origin that
    are locked by another train — idle holders included — lie on the
-   committed remaining route of another active train, or read occupied with
-   nobody standing in them: unheld, or residue
+   committed remaining route of another active train, or have a sensor reading
+   occupied with nobody standing in them: unheld, or residue
    ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
 6. Break remaining ties on the lexicographically smallest block-id sequence,
    so repeated runs are bit-identical.
@@ -339,15 +340,17 @@ what keeps the avoidance layer the single place deadlock is reasoned about.
 With a set of arrival ends the refusal is rarer but unchanged in kind: the
 launch waits only when *every* candidate is refused, not merely the first.
 
-A request completes as its final transit finishes: the trailing transit and
-origin block release, and the train parks holding only its standing lock.
-Latency is completion time − arrival time.
+A request completes when its train is wholly in its last block: its entry sensor
+clears, which releases the trailing transit and anything behind it, or its far sensor
+reads occupied where the entry sensor said nothing. The train parks holding its
+standing lock and whatever it was still seen to be on. Latency is completion time −
+arrival time.
 
-A request **cancelled** ends the same way and short of the arrival: everything
-its train holds is released except the block it stands in, and the train parks
-holding only its standing lock wherever along the route it had got to
+A request **cancelled** ends the same way and short of the arrival: what its train
+holds ahead is released and what it is on is not, and the train parks wherever along
+the route it had got to
 ([ADR-0049](../adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
-A cancellation that lands while a move is outstanding is deferred to the
+A cancellation that lands before its newest move has ended is deferred to the
 sensors that end that move — nothing on the bus retracts a `move` already
 sent — and nothing further is granted in the meantime. It contributes no
 latency: there is no arrival to measure to.
@@ -359,22 +362,28 @@ The dispatcher grants on **the events that arrive**
 there is no grant beat, no sensor buffer and no clock — a simulator and a
 physical railroad drive it the same way, each pacing its own sensor stream.
 
-**A reading applies where it lands.** A detector reports a level, so a
-repeated reading re-asserts what the dispatcher already holds and is an
-at-least-once no-op. A move ends on both its readings — its origin reads
-clear and its arrival block reads occupied — in either order
-([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
-`block_occupied` records where the train arrived; the later of the two
-releases the origin block and the transit, ends the move and completes the
-request. Usually that is the `block_vacated`, the tail clearing after the
-head arrives; a train shorter than the gap between one block's exit detector
-and the next block's entry detector reads clear behind first, and that
-vacate releases nothing and grants nothing. An origin reading clear at the grant
-hears no vacate, so that reading counts and the arrival ends the move, unless
-the train has read occupied on its way out and not clear again ([#1164](https://github.com/rails49/control/issues/1164)). Between
-the two the train is between blocks and takes no further grant. A clear
-reading on a block nobody holds is explained and sweeps, so a train waiting
-on that block is reconsidered.
+**A reading applies where it lands.** A sensor reports a level on
+`state/settled/sensor`, so a repeated reading re-asserts what the dispatcher already
+holds and is an at-least-once no-op. A changed reading is taken against each move
+that expects that sensor, oldest first
+([#1171](https://github.com/rails49/control/issues/1171)). For a move out of `X`
+through `e`, over `T`, into `Y` through `f`:
+
+| Reading | The table |
+| --- | --- |
+| the move is granted | `T` is occupied |
+| `X.e` occupied then clear, or occupied at the grant and then clear | `X` is released |
+| `Y.f` occupied | `Y` is occupied, and the train may be granted its next move |
+| `Y.f` then clear | `T` is released, with anything of that train's still behind it |
+
+A long train runs through blocks without stopping, its next move granted while its
+tail is behind it. A short train reads clear behind first, which releases `X` and
+records it in `Y`, and holds `T` until `Y.f` clears. A train that passed `f` while `f`
+was `unknown` is in by its far sensor, and leaves `T` occupied until its next move or
+a placement. A request ends at the last row, or when `Y`'s far sensor reads occupied
+if the tail was never seen to clear `f`. A train's next request starts only once its
+last has ended, so a train reversing is never sent back over its own tail. Any other
+reading changes nothing, and each changed reading sweeps.
 Every grant is `safe()`-checked before it commits, so arrival order picks
 among options that were all safe and never reaches an unsafe state; under a
 future MQTT transport a straggling sensor delays a grant, conservative and
@@ -383,7 +392,7 @@ only that train and those needing its blocks wait
 ([SAFETY.md](SAFETY.md#why-it-is-deadlock-free)).
 
 **The sweep is the grant phase**, run where the lock table or the waiting
-set changes: a request admitted, a vacate releasing what a move held, the
+set changes: a request admitted, a reading releasing what a move held, the
 power reading `on` again, a request cancelled or moved in the list, the list of
 unknown sensors changing. A sweep covers the
 active trains and the whole list, so a refused train is reconsidered exactly
@@ -438,10 +447,8 @@ over live track — or worse, routing over dead track. The later `at` wins and
 the earlier value is ignored, quietly and with the frame on the trace like
 any other (BUS.md, the bus;
 [#240](https://github.com/rails49/control/issues/240)). The sensor leaves
-beside it are compared against nothing: a detector reports a level, so a
-repeat re-asserts what the dispatcher already holds, and the readings of one
-boundary are sorted before they are acted on — vacated first, then occupied
-— so a grant never depends on delivery order at all
+beside it take the same guard, one stamp per sensor, and a repeat re-asserts what
+the dispatcher already holds
 ([ADR-0047](../adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
 A request is keyed by a unique id and a duplicate is dropped, which is the
 same independence bought a different way
@@ -450,8 +457,8 @@ same independence bought a different way
 **A reading no grant explains stops only what it is about**
 ([#1154](https://github.com/rails49/control/issues/1154), in place of the drain of
 [ADR-0048](../adr/0048-an-unexplained-reading-holds-the-run.md)). The
-dispatcher recovers train identity from its lock table, so a `block_occupied`
-no train explains says the table has stopped describing the steel there — a hand
+dispatcher recovers train identity from its lock table, so a sensor reading occupied
+that no train explains says the table has stopped describing the steel there — a hand
 putting a locomotive down, a train driven out of its block, a detector
 asserting on dirt. A block reading occupied is an obstacle no train is sent into
 ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
@@ -463,10 +470,11 @@ raise, a payload never being a reason to leave the bus (BUS.md, rule 4).
 
 **A lock table that stops agreeing with itself drains the railroad**
 ([ADR-0076](../adr/0076-a-broken-lock-table-holds-the-run.md)), being a bug in the
-software rather than a failure on the railroad. The four maps
+software rather than a failure on the railroad. The maps
 that say where each train is and what it holds keep rules between them — a
 placed train holds the lock on its block, every lock is a placed train's or
-residue, an idle train holds its block and its residue and nothing more, an
+residue, each entry on a train's `occupied` list is locked to it, an idle train
+holds its block, its residue and its `occupied` list and nothing more, an
 active train holds and is crossing what its outstanding move took, and no two
 trains' locked transits conflict — and the dispatcher checks them after every
 event and before every grant pass. A rule newly broken publishes
@@ -484,15 +492,16 @@ and breaks later drains again.
 reported are compared against the placement, and each block reading occupied
 that no train explains goes out on `tc49/dispatch/state/disputed` for a person
 to walk ([#1164](https://github.com/rails49/control/issues/1164)). Comparing commits nothing. They place what they find. A train
-explains a reading in the block it is recorded in, the origin and arrival of its
-outstanding move, residue of its removal, and either end of the transit a
-restored crossing names, and a lock held ahead explains nothing. A clear reading
+explains a reading in a block on its `occupied` list, the `into` of its outstanding
+move, residue of its removal, and either end of the transit a restored crossing
+names, and a lock held ahead explains nothing
+([#1171](https://github.com/rails49/control/issues/1171)). A clear reading
 disputes nothing. Blocks nothing has reported on take no
 part, so a layout binding that publishes no occupancy disputes nothing
 ([#153](https://github.com/rails49/control/issues/153)).
 
 **Lock footprint.** A train moving from `X` through `T` into `Y` holds
-`{X, T, Y}` for the move and releases `X` and `T` atomically on arrival. `T`
+`{X, T, Y}` for the move, and releases `X` and `T` each on its own reading. `T`
 and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 
@@ -503,9 +512,8 @@ Draining work in progress before admitting new holders favours makespan and
 mirrors the progress argument of [SAFETY.md](SAFETY.md): advancing the head of
 the witness ordering is always safe, while launching adds a resource holder.
 
-**Handoff follows the later of the two readings.** A lock a move held is
-released by the reading that ends it — the `block_vacated`, unless the vacate
-came first and the `block_occupied` ahead ends it — and the sweep that reading
+**Handoff follows the reading that releases.** A lock a move held is released by the
+reading that shows the train off it, and the sweep that reading
 triggers is where the waiting train is granted — a convoy flows as each tail clears the block
 behind it, the backward-propagating start wave real trains have. Minimum
 latency is the travel time of the route's transits; the degenerate request's

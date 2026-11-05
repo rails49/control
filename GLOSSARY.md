@@ -376,10 +376,11 @@ when none is moving. A person turning power back on ends it
 _Avoid_: shutdown, wind-down, quiesce, finish the route (formerly)
 
 **Moving**:
-Some train is crossing, so cutting the track supply now would strand it. A
-train standing in a block, at a signal partway along its route or anywhere
-else, is not moving, and nor is one `layout` has stopped at an unknown entry
-sensor. It is a boolean beside power, not a fourth value
+Some train has a move between its grant and its entry sensor clearing or its far
+sensor reading occupied, or a restored crossing, so cutting the track supply now
+would strand it. A train standing in a block, at a signal partway along its route
+or anywhere else, is not moving, nor is one `layout` has stopped with both its
+sensors `unknown`. It is a boolean beside power, not a fourth value
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: busy, in motion, rolling, quiet, still (say not moving)
 
