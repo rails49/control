@@ -53,8 +53,10 @@ from tc49.lib.inventory import (
     AUTOMATIC,
     DRAINING,
     MANUAL,
+    OCCUPIED,
     OFF,
     ON,
+    UNKNOWN,
     Aspect,
     device_topic,
     is_state_topic,
@@ -67,6 +69,7 @@ from tc49.lib.layout import (
     connected_end,
     end_letter,
     facing_ends,
+    opposite_end,
     transit_ends,
 )
 from tc49.lib.payload import (
@@ -77,6 +80,7 @@ from tc49.lib.payload import (
     commanded_power,
     desired_position,
     desired_speed,
+    detected,
     driving,
     grant,
     granted_aspect,
@@ -106,6 +110,7 @@ UNFIT = "tc49/dispatch/state/unfit"
 FACING = "tc49/schedule/state/facing"
 POWER = "tc49/layout/state/power"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 DISPUTED = "tc49/dispatch/state/disputed"
 ROUTE_CHOSEN = "tc49/dispatch/route_chosen"
 MOVE_GRANTED = "tc49/dispatch/move_granted"
@@ -137,6 +142,7 @@ DEVICE_LINK = "tc49/layout/state/device/link"
 DEVICE_POINT = "tc49/layout/state/device/point"
 
 EVERY_TRACTION = f"{WANTED_TRACTION}/+"
+EVERY_SETTLED = f"{SETTLED_SENSOR}/+"
 EVERY_POINT = f"{WANTED_POINT}/+"
 EVERY_LINK = f"{DEVICE_LINK}/+"
 EVERY_REPORT = f"{DEVICE_POINT}/+"
@@ -640,29 +646,6 @@ def adr_0076_crossing_is_placed(view: View) -> list[str]:
     ]
 
 
-def adr_0079_manual_untaken_stands(view: View) -> list[str]:
-    """In `manual`, a placed train no throttle holds has traction 0 unless it
-    is crossing, finishing the move it had when the railroad went to `manual`
-    ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
-    as amended by ADR-0081)."""
-    if driving(view.rows.get(DRIVING)) != MANUAL:
-        return []
-    holders, crossing = taken(view.rows.get(TAKEN)), _crossing(view)
-    speeds = _traction(view.rows)
-    lines: list[str] = []
-    for train in sorted(_trains(view)):
-        if train in holders or train in crossing:
-            continue
-        running = {
-            addr: speeds[addr]
-            for addr, _orientation in _addresses(view.roster, train)
-            if speeds.get(addr, 0.0) != 0.0
-        }
-        if running:
-            lines.append(f"{train} stands in manual with no throttle at {running}")
-    return lines
-
-
 def adr_0080_after_follows(view: View) -> list[str]:
     """A request chained with `after` is listed after the request it follows
     ([ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
@@ -804,13 +787,6 @@ INVARIANTS: tuple[Invariant, ...] = (
         adr_0076_crossing_is_placed,
     ),
     Invariant(
-        "0079",
-        "In `manual`, a placed train no throttle holds has traction 0 unless"
-        " it is crossing.",
-        (DRIVING, TAKEN, EVERY_TRACTION, ALLOCATION),
-        adr_0079_manual_untaken_stands,
-    ),
-    Invariant(
         "0080",
         "A request chained with `after` is listed after the request it follows.",
         (ALLOCATION,),
@@ -840,12 +816,44 @@ quiet without it."""
 
 
 @dataclass(frozen=True)
+class _Going:
+    """How far a move has come by its block's two sensors (#1169)."""
+
+    far: str  # the sensor it stops at; the one across the block is its entry
+    head_in: bool = False  # the entry sensor has settled occupied
+    tail_in: bool = False  # and has then settled clear
+    reached: bool = False  # the far sensor has settled occupied
+
+    def read(self, end: str, occupied: bool) -> "_Going":
+        """This, with one sensor's settled level heard."""
+        if end == self.far:
+            return replace(self, reached=self.reached or occupied)
+        if end != opposite_end(self.far):
+            return self
+        if occupied:
+            return replace(self, head_in=True)
+        return replace(self, tail_in=self.tail_in or self.head_in)
+
+    def over(self, listed: frozenset[str]) -> bool:
+        """Whether this says the move has arrived, the sensors listed being on
+        `state/unknown_sensors`."""
+        return self.reached or (self.tail_in and self.far in listed)
+
+
+@dataclass(frozen=True)
 class _Started:
-    """A move whose traction `layout` has written, until it arrives."""
+    """A move `layout` has begun, its traction written or its head in the
+    block, until it arrives."""
 
     into: str
+    going: _Going
     signs: dict[str, float]  # addr -> +1.0 or -1.0, the sign the move gives it
     reported: tuple[tuple[str, str], ...] = ()  # its align's reported points
+
+    @property
+    def far(self) -> str:
+        """The far sensor of the block it enters, where it owes its 0."""
+        return self.going.far
 
 
 @dataclass(frozen=True)
@@ -914,6 +922,7 @@ class Record:
         self.listed: tuple[str, ...] = ()  # the last allocation's ids, in order
         self.routes: dict[str, tuple[str, ...]] = {}  # id -> route, once chosen
         self.moves: dict[str, _Move] = {}  # train -> its move not yet ended
+        self.going: dict[str, _Going] = {}  # train -> its last grant, until there
         self.placing: dict[str, _Move] = {}  # train -> its move, while placed
         self.cancelled: set[str] = set()  # ids cancelled while a move ran
         self.turns: Counter[str] = Counter()  # facing changes a train is owed
@@ -1018,6 +1027,7 @@ class Record:
                 self.commanded.pop(train, None)
                 self.withdrawn.pop(train, None)
                 self.started.pop(train, None)
+                self.going.pop(train, None)
                 self.keeps.discard(train)
                 for addr, _orientation in _addresses(self.roster, train):
                     self.removed[addr] = train
@@ -1056,6 +1066,7 @@ class Record:
                 if commanded is None or commanded.transit_id != withdrawn.transit:
                     self.withdrawn[train] = (withdrawn.transit, withdrawn.into)
                 self.started.pop(train, None)
+                self.going.pop(train, None)
         elif topic == CANCEL_WANTED:
             rid = readable_id(payload)
             if any(move.id == rid for move in self.moves.values()):
@@ -1111,8 +1122,12 @@ class Record:
             self.starting.discard(WANTED_TRACK)
         elif topic == TAKEN:
             self._let_go(payload)
+        elif topic == UNKNOWN_SENSORS:
+            self._over(unknown_sensors(payload) or frozenset())
         elif (split := split_device(topic)) is not None and split[0] == DEVICE_POINT:
             self._lies(split[1], payload)
+        elif split is not None and split[0] == SETTLED_SENSOR:
+            self._sensor(split[1], payload)
         elif (written := _written(topic, payload)) is not None:
             self._wrote(*written)
         if is_state_topic(topic):
@@ -1141,20 +1156,64 @@ class Record:
         self.occupied[block] = occupied
         if not occupied:
             self.heard_occupied.discard(block)
-        if occupied:
-            # The arrival: the move's sensor, where `layout` stops the train.
-            speeds = _traction(self.rows)
-            for train, started in list(self.started.items()):
-                if started.into == block:
-                    del self.started[train]
-                    for addr, _orientation in _addresses(self.roster, train):
-                        if speeds.get(addr, 0.0) != 0.0:
-                            self.arrived[addr] = train
         for train, move in self.moves.items():
             if not occupied and move.origin == block:
                 self.moves[train] = replace(move, left=True)
             elif occupied and move.into == block:
                 self.moves[train] = replace(move, arrived=True)
+
+    def _sensor(self, end: str, payload: object) -> None:
+        """A sensor's settled level (#1168): how far each move has come, and
+        the far sensor's being occupied is the arrival, where `layout` stops
+        the train. A further move replaces `started`, so nothing is owed for
+        the block it passed through (#1169).
+
+        A move still waiting to start whose head is in its block has begun,
+        whoever was driving: no speed written from here is its start, the train
+        being past its near end (a train a throttle held, then released)."""
+        level = detected(payload)
+        if level == UNKNOWN:
+            return
+        occupied = level == OCCUPIED
+        for train, commanded in list(self.commanded.items()):
+            ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
+            if (
+                occupied
+                and ends is not None
+                and ends[0] == end
+                and not self._reverses(train, commanded)
+            ):
+                self._begun(train, commanded)
+        self.going = {
+            train: going.read(end, occupied) for train, going in self.going.items()
+        }
+        speeds = _traction(self.rows)
+        for train, started in list(self.started.items()):
+            going = started.going.read(end, occupied)
+            self.started[train] = replace(
+                started,
+                going=going,
+                reported=() if going.tail_in else started.reported,
+            )
+            if going.reached:
+                for addr, _orientation in _addresses(self.roster, train):
+                    if speeds.get(addr, 0.0) != 0.0:
+                        self.arrived[addr] = train
+        self._over(unknown_sensors(self.rows.get(UNKNOWN_SENSORS)) or frozenset())
+
+    def _over(self, listed: frozenset[str]) -> None:
+        """Every move that has now arrived forgotten, `listed` being what
+        `state/unknown_sensors` says."""
+        self.going = {
+            train: going
+            for train, going in self.going.items()
+            if not going.over(listed)
+        }
+        self.started = {
+            train: started
+            for train, started in self.started.items()
+            if not started.going.over(listed)
+        }
 
     def _granted(self, payload: object) -> None:
         granted, rid = grant(payload), readable_id(payload)
@@ -1186,6 +1245,10 @@ class Record:
         self.granted[granted.train] = (granted.transit, granted_aspect(payload))
         self.crossing[granted.train] = granted.transit
         self.turns[granted.train] += 1
+        if ends is None:
+            self.going.pop(granted.train, None)
+        else:
+            self.going[granted.train] = _Going(opposite_end(ends[0]))
         aspect = granted_aspect(payload)
         if ends is not None and aspect is not None:
             shown = shown_aspects(self.rows.get(ASPECTS)) or {}
@@ -1215,6 +1278,8 @@ class Record:
             self.withdrawn.pop(placed.train, None)
         if placed is None or placed.block is None:
             return
+        self.started.pop(placed.train, None)
+        self.going.pop(placed.train, None)
         train, block = placed.train, placed.block
         before = self.trains.get(train)
         if before is not None:
@@ -1280,22 +1345,36 @@ class Record:
         return any(self.lies.get(addr) != position for addr, position in asked.items())
 
     def under_way(self, train: str) -> bool:
-        """Whether the train has a move granted that has not reached the
-        block it enters."""
-        move = self.moves.get(train)
-        return move is not None and not move.arrived
+        """Whether the train has a move under way, by rule 11: from the grant
+        until the far sensor settles occupied, or the entry sensor has settled
+        occupied then clear with the far sensor on `state/unknown_sensors`, or
+        the next move, placement or removal (#1169)."""
+        return train in self.going
 
     def starts(self, addr: str) -> list[tuple[str, Command]]:
         """The moves a nonzero speed on `addr` starts: each `move` heard and
-        not yet driven, of a train no throttle holds whose cars carry `addr`.
-        """
+        not yet driven, of a train no throttle holds whose cars carry `addr`,
+        bar one held for reversing, a `caution` drop not being its start
+        (#1169)."""
         holders = taken(self.rows.get(TAKEN))
         return [
             (train, commanded)
             for train, commanded in sorted(self.commanded.items())
             if train not in holders
             and any(each == addr for each, _ in _addresses(self.roster, train))
+            and not self._reverses(train, commanded)
         ]
+
+    def _reverses(self, train: str, commanded: Command) -> bool:
+        """Whether this move goes back out by the end the train's move still
+        under way came in at, which `layout` holds until that one arrives."""
+        started = self.started.get(train)
+        ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
+        return (
+            started is not None
+            and ends is not None
+            and ends[1] == opposite_end(started.far)
+        )
 
     def composed(self, train: str, near: str) -> dict[str, float] | None:
         """The sign each addressed car of `train` is given by a move departing
@@ -1349,14 +1428,30 @@ class Record:
             return
         self.signs[addr] = speed
         for train, commanded in self.starts(addr):
-            del self.commanded[train]
-            asked = self.aligned.pop(commanded.transit_id, {})
-            ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
-            signs = None if ends is None else self.composed(train, ends[1])
-            self.started[train] = _Started(
-                commanded.into, signs or {}, tuple(asked.items())
-            )
-            self.halted.discard(train)
+            self._begun(train, commanded)
+
+    def _begun(self, train: str, commanded: Command) -> None:
+        """The move is `layout`'s to finish from here, so it owes its stop at
+        its far sensor, and its reported points are checked until its tail is
+        in (ADR-0097)."""
+        del self.commanded[train]
+        asked = self.aligned.pop(commanded.transit_id, {})
+        self.halted.discard(train)
+        ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
+        if ends is None:
+            self.started.pop(train, None)
+            return
+        signs = self.composed(train, ends[1])
+        far = opposite_end(ends[0])
+        going = self.going.get(train, _Going(far))
+        if going.far != far:
+            going = _Going(far)
+        self.started[train] = _Started(
+            commanded.into,
+            going,
+            signs or {},
+            () if going.tail_in else tuple(asked.items()),
+        )
 
     def _let_go(self, payload: object) -> None:
         """A `state/taken`: each train it no longer names was let go of, and
@@ -1856,6 +1951,33 @@ def adr_0078_cut_leaves_the_railroad_at_rest(
     return []
 
 
+def adr_0079_manual_untaken_stands(
+    record: Record, view: View, topic: str, payload: Payload
+) -> list[str]:
+    """In `manual`, a placed train no throttle holds has traction 0 unless it
+    has a move under way, finishing the move it had when the railroad went to
+    `manual`
+    ([ADR-0079](../../../docs/adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
+    as amended by ADR-0081). A history invariant because a train running on to
+    its far sensor has left the dispatcher's crossing (#1169)."""
+    if topic != QUIET or driving(view.rows.get(DRIVING)) != MANUAL:
+        return []
+    holders = taken(view.rows.get(TAKEN))
+    speeds = _traction(view.rows)
+    lines: list[str] = []
+    for train in sorted(_trains(view)):
+        if train in holders or record.under_way(train):
+            continue
+        running = {
+            addr: speeds[addr]
+            for addr, _orientation in _addresses(view.roster, train)
+            if speeds.get(addr, 0.0) != 0.0
+        }
+        if running:
+            lines.append(f"{train} stands in manual with no throttle at {running}")
+    return lines
+
+
 def adr_0079_holder_changes_by_release(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
@@ -1930,17 +2052,17 @@ def adr_0080_placed_into_a_free_block(
 def adr_0081_arrival_stops_the_train(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
-    """When a move `layout` drove reaches its sensor, `layout` writes 0 for
-    the train whoever drives it
+    """When a move `layout` drove reaches its far sensor, `layout` writes 0
+    for the train whoever drives it
     ([ADR-0081](../../../docs/adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)):
     before any other speed on its cars."""
     written = _written(topic, payload)
     if written is not None and written[1] != 0.0 and written[0] in record.arrived:
         train = record.arrived[written[0]]
-        return [f"{train}'s car {written[0]} written {written[1]} at its sensor"]
+        return [f"{train}'s car {written[0]} written {written[1]} at its far sensor"]
     if topic != QUIET:
         return []
-    return _owed(record.arrived, "reached its sensor")
+    return _owed(record.arrived, "reached its far sensor")
 
 
 def adr_0081_release_in_automatic(
@@ -2115,7 +2237,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "0052",
         "A car's traction is positive when the move is nose-first and the car"
         " is `forward`, or propelled and `reverse`, and negative otherwise.",
-        (EVERY_TRACTION, MOVE, FACING, TAKEN, BLOCK_OCCUPIED, TRAIN_REMOVED),
+        (EVERY_TRACTION, MOVE, FACING, TAKEN, EVERY_SETTLED, TRAIN_REMOVED),
         adr_0052_sign_composed,
     ),
     HistoryInvariant(
@@ -2198,6 +2320,14 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0079",
+        "In `manual`, a placed train no throttle holds has traction 0 unless it"
+        " has a move under way.",
+        (DRIVING, TAKEN, EVERY_TRACTION, ALLOCATION, MOVE_GRANTED, EVERY_SETTLED)
+        + (UNKNOWN_SENSORS, MOVE_WITHDRAWN, TRAIN_PLACED, TRAIN_REMOVED),
+        adr_0079_manual_untaken_stands,
+    ),
+    HistoryInvariant(
+        "0079",
         "The throttle holding a train never changes to another without a" " release.",
         (TAKEN,),
         adr_0079_holder_changes_by_release,
@@ -2219,9 +2349,9 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0081",
-        "When a move `layout` drove reaches its sensor, `layout` writes 0 for"
-        " the train whoever drives it.",
-        (MOVE, EVERY_TRACTION, TAKEN, BLOCK_OCCUPIED, TRAIN_REMOVED),
+        "When a move `layout` drove reaches its far sensor, `layout` writes 0"
+        " for the train whoever drives it.",
+        (MOVE, EVERY_TRACTION, TAKEN, EVERY_SETTLED, UNKNOWN_SENSORS, TRAIN_REMOVED),
         adr_0081_arrival_stops_the_train,
     ),
     HistoryInvariant(
@@ -2230,7 +2360,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         " with dead rails; with a move outstanding and live rails it keeps a"
         " nonzero speed.",
         (TAKEN, DRIVING, POWER, POWER_WANTED, EVERY_TRACTION)
-        + (MOVE_GRANTED, BLOCK_OCCUPIED, LOCK_RELEASED, TRAIN_REMOVED),
+        + (MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, TRAIN_REMOVED),
         adr_0081_release_in_automatic,
     ),
     HistoryInvariant(

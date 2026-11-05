@@ -336,20 +336,6 @@ CASES: list[tuple[Callable[[View], list[str]], str, Rows, Rows]] = [
         {ALLOCATION: allocation(crossing={"t1": "west_throat.from_1"})},
     ),
     (
-        adr_0079_manual_untaken_stands,
-        BENCH,
-        CROSSING
-        | {
-            DRIVING: {"driving": "manual"},
-            traction("3"): {"addr": "3", "speed": 0.3},
-        },
-        {
-            ALLOCATION: allocation({"single": "up_w"}, locks={"up_w": "single"}),
-            DRIVING: {"driving": "manual"},
-            traction("3"): {"addr": "3", "speed": 0.3},
-        },
-    ),
-    (
         adr_0080_after_follows,
         MEET,
         {ALLOCATION: allocation(requests=[request("r1"), request("r2", after="r1")])},
@@ -569,6 +555,22 @@ CHOSEN: tuple[str, Payload] = (ROUTE_CHOSEN, {"id": "r1", "route": ROUTE})
 
 def read(block: str, occupied: bool = True) -> tuple[str, Payload]:
     return (BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block})
+
+
+def sensor(end: str, occupied: bool = True) -> tuple[str, Payload]:
+    """A sensor's settled level (#1168)."""
+    return (
+        f"tc49/layout/state/settled/sensor/{end}",
+        {"addr": end, "occupancy": "occupied" if occupied else "clear"},
+    )
+
+
+def listing(*ends: str) -> tuple[str, Payload]:
+    """`state/unknown_sensors`, naming these."""
+    return (
+        "tc49/layout/state/unknown_sensors",
+        {"sensors": [{"sensor": end, "reason": "x", "reported": True} for end in ends]},
+    )
 
 
 def placed(train: str, block: str) -> tuple[str, Payload]:
@@ -848,6 +850,17 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         ],
     ),
     (
+        adr_0079_manual_untaken_stands,
+        BENCH,
+        STANDING
+        | {
+            DRIVING: {"driving": "manual"},
+            traction("3"): {"addr": "3", "speed": 0.3},
+        },
+        [TO_DN],
+        [TO_DN, sensor("dn_e.B")],
+    ),
+    (
         adr_0079_holder_changes_by_release,
         BENCH,
         {TAKEN: {"taken": {"single": "t-1"}}},
@@ -888,8 +901,8 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         adr_0081_arrival_stops_the_train,
         BENCH,
         STANDING,
-        [*STARTED, read("dn_e"), wrote("3", 0.0)],
-        [*STARTED, read("dn_e")],
+        [*STARTED, sensor("dn_e.B"), wrote("3", 0.0)],
+        [*STARTED, sensor("dn_e.B")],
     ),
     (
         adr_0081_release_in_automatic,
@@ -949,6 +962,170 @@ def test_a_reading_crossing_a_grant_counts_for_its_move() -> None:
     assert (
         breaches_over(adr_0077_move_ends_on_both_readings, MEET, PLACED, crossed) == []
     )
+
+
+def test_the_entry_sensor_owes_no_stop() -> None:
+    """A train stops at its far sensor, so one running past its entry sensor
+    breaks nothing, even with its block's own event out (#1169)."""
+    run = [*STARTED, read("dn_e"), sensor("dn_e.A"), sensor("dn_e.A", False)]
+
+    assert breaches_over(adr_0081_arrival_stops_the_train, BENCH, STANDING, run) == []
+
+
+def test_a_further_move_owes_nothing_for_the_block_it_passed() -> None:
+    """A further move replaces what was started, so the far sensor it passes
+    owes no stop; the block it now enters does (#1169)."""
+    rows: Rows = {
+        ALLOCATION: allocation({"single": "west_1"}),
+        FACING: {"facing": {"single": "west_1.A-to-B"}},
+    }
+    record = Record(RAILROADS[MEET], rows, STOCK[BENCH])
+    onward: Messages = [
+        (
+            MOVE,
+            {
+                "train": "single",
+                "connection": "west_throat",
+                "transit": "from_1",
+                "into": "w_main",
+                "speed": 0.3,
+            },
+        ),
+        wrote("3", 0.3),
+        (FACING, {"facing": {"single": "w_main.A-to-B"}}),
+        (
+            MOVE,
+            {
+                "train": "single",
+                "connection": "west_switch",
+                "transit": "to_up",
+                "into": "loop_up",
+                "speed": 0.3,
+            },
+        ),
+        wrote("3", 0.3),
+        sensor("w_main.B"),
+    ]
+    for topic, payload in onward:
+        record.observe(topic, payload)
+
+    assert record.arrived == {}
+    record.observe(*sensor("loop_up.B"))
+    assert record.arrived == {"3": "single"}
+
+
+def _heard(*messages: tuple[str, Payload]) -> Record:
+    """A record of `single` on the bench, having heard these."""
+    record = Record(RAILROADS[BENCH], STANDING, STOCK[BENCH])
+    for topic, payload in messages:
+        record.observe(topic, payload)
+    return record
+
+
+def test_a_move_is_under_way_from_the_grant_to_its_far_sensor() -> None:
+    """Rule 11: past the entry sensor and past the tail it is still going."""
+    assert not _heard().under_way("single")
+    assert _heard(TO_DN).under_way("single")
+    assert _heard(TO_DN, sensor("dn_e.A")).under_way("single")
+    assert _heard(TO_DN, sensor("dn_e.A"), sensor("dn_e.A", False)).under_way("single")
+    assert _heard(TO_DN, sensor("dn_e.A", False)).under_way("single")
+    assert not _heard(TO_DN, sensor("dn_e.B")).under_way("single")
+
+
+def test_a_move_reading_nothing_at_its_far_sensor_ends_on_its_entry_sensor() -> None:
+    """With the far sensor listed the tail clearing is the arrival, whichever
+    comes first; with it listed and the tail not in, it goes on."""
+    head = sensor("dn_e.A")
+    tail = sensor("dn_e.A", False)
+    gone = listing("dn_e.B")
+
+    assert _heard(TO_DN, gone, head).under_way("single")
+    assert not _heard(TO_DN, gone, head, tail).under_way("single")
+    assert not _heard(TO_DN, head, tail, gone).under_way("single")
+    assert _heard(TO_DN, gone, tail).under_way("single")
+    assert _heard(TO_DN, head, tail, listing("dn_e.A")).under_way("single")
+
+
+def test_a_move_stops_being_under_way_on_a_placement_or_a_removal() -> None:
+    assert not _heard(TO_DN, placed("single", "up_e")).under_way("single")
+    assert not _heard(TO_DN, (TRAIN_REMOVED, {"train": "single"})).under_way("single")
+
+
+BACK: tuple[str, Payload] = (
+    MOVE,
+    {
+        "train": "single",
+        "connection": "crossover",
+        "transit": "to_dn",
+        "into": "up_w",
+        "speed": 0.3,
+    },
+)
+"""`single` asked back out by the end it came into dn_e at."""
+
+
+def test_a_move_held_for_reversing_is_not_started_by_a_caution_drop() -> None:
+    """A speed written with it held is the drop, on the move under way: only
+    the arrival lets the held move start (#1169)."""
+    record = _heard(*STARTED, sensor("dn_e.A"), BACK)
+
+    assert record.starts("3") == []
+    record.observe(*wrote("3", 0.3))
+    assert "single" in record.commanded
+
+    record.observe(*sensor("dn_e.B"))
+    assert [train for train, _commanded in record.starts("3")] == ["single"]
+
+
+def test_a_move_out_through_the_far_end_is_not_held() -> None:
+    onward: tuple[str, Payload] = (
+        MOVE,
+        {
+            "train": "single",
+            "connection": "crossover",
+            "transit": "straight",
+            "into": "up_e",
+            "speed": 0.3,
+        },
+    )
+    assert [train for train, _ in _heard(*STARTED, onward).starts("3")] == ["single"]
+
+
+def test_reported_points_are_checked_until_the_tail_is_in() -> None:
+    """Its entry sensor occupied then clear, and the train is past the points
+    whatever the block behind says (ADR-0097, #1169)."""
+    aligned: tuple[str, Payload] = (
+        ALIGN,
+        {
+            "connection": "crossover",
+            "transit": "to_dn",
+            "points": [{"addr": "12", "position": "thrown", "reported": True}],
+        },
+    )
+    at_point: tuple[str, Payload] = (
+        "tc49/layout/state/device/point/12",
+        {"addr": "12", "position": "thrown"},
+    )
+    run = [TO_DN, aligned, at_point, moved(), wrote("3", 0.3)]
+    assert _heard(*run, sensor("dn_e.A")).started["single"].reported == (
+        ("12", "thrown"),
+    )
+    assert (
+        _heard(*run, sensor("dn_e.A"), sensor("dn_e.A", False))
+        .started["single"]
+        .reported
+        == ()
+    )
+
+
+def test_a_move_a_person_ran_past_its_entry_sensor_has_no_start_left() -> None:
+    """Released after its head is in, the train has left its near end, so the
+    speed it is given next is no start from there (#1169)."""
+    moving = [TO_DN, ALIGNED, (TAKEN, {"taken": {"single": "t-1"}}), moved()]
+    record = _heard(*moving, sensor("dn_e.A"))
+
+    assert record.commanded == {}
+    assert record.started["single"].far == "dn_e.B"
 
 
 def test_every_history_invariant_has_its_cases() -> None:
