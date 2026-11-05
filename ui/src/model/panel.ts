@@ -182,6 +182,45 @@ export interface BlockView {
    *  standing here, `occupied` with nothing claiming it. Absent otherwise,
    *  which covers both agreement and a block nothing has reported on. */
   dispute?: "clear" | "occupied";
+  /** Set where `state/unknown_sensors` lists either of this block's sensors,
+   *  stopped or never heard alike (#1153). */
+  unknownSensor?: true;
+}
+
+/** One sensor `state/unknown_sensors` lists (BUS.md). */
+interface UnknownSensor {
+  sensor: string;
+  /** Free text for a person, and what the band groups by. */
+  reason: string;
+  /** Whether it has reported a level since `layout` started: one that has
+   *  stopped, against one never heard. */
+  reported: boolean;
+}
+
+/** More sensors than this under one reason are counted rather than named. */
+const NAMED_SENSORS = 4;
+
+/** What `state/unknown_sensors` lists, or `null` for a row that cannot be read.
+ *  All of it or none, as the dispatcher reads it (`lib/payload.py`): a list read
+ *  in part would take a fault off the band while the sensor is still silent. */
+function readUnknownSensors(sensors: unknown): UnknownSensor[] | null {
+  if (!Array.isArray(sensors)) return null;
+  const read: UnknownSensor[] = [];
+  for (const entry of sensors as unknown[]) {
+    const { sensor, reason, reported } = (entry ?? {}) as Partial<
+      Record<keyof UnknownSensor, unknown>
+    >;
+    if (
+      typeof sensor !== "string" ||
+      !/^.+\.[AB]$/.test(sensor) ||
+      typeof reason !== "string" ||
+      typeof reported !== "boolean"
+    ) {
+      return null;
+    }
+    read.push({ sensor, reason, reported });
+  }
+  return read;
 }
 
 /**
@@ -442,6 +481,9 @@ export class Panel {
   /** The lock table's rules the dispatcher last said it found broken, each
    *  a line of its own (ADR-0076, #1118). Read and never derived. */
   private brokenRules: string[] = [];
+  /** The sensors `layout` last said are not reporting, whole from the row
+   *  (#1153). Read and never derived: the silence is `layout`'s to time. */
+  private unknownRows: UnknownSensor[] = [];
   /** What `state/moving` last said about any train crossing
    *  (ADR-0078), `null` where it said nothing — before the
    *  dispatcher has spoken, and for a row whose `moving` is not a boolean.
@@ -549,6 +591,7 @@ export class Panel {
     this.disputed = { trains: new Set(), blocks: new Set() };
     this.unfitRows = [];
     this.brokenRules = [];
+    this.unknownRows = [];
     this.movingWord = null;
     this.drivingWord = null;
     this.powerWord = null;
@@ -846,6 +889,14 @@ export class Panel {
           : [];
         return;
       }
+      case "unknown_sensors": {
+        // The sensors not reporting, whole from the topic, so last value wins
+        // and `[]` takes them off (#1153). A row that cannot be read is dropped
+        // and the last value stands (BUS.md).
+        const read = readUnknownSensors(event["sensors"]);
+        if (read !== null) this.unknownRows = read;
+        return;
+      }
       case "aspects": {
         const { aspects } = event as unknown as {
           aspects: Record<EndRef, Aspect>;
@@ -1002,6 +1053,33 @@ export class Panel {
     ];
   }
 
+  /** The sensors not reporting in words, for the band (#1153). Those that
+   *  stopped are a fault in any driving mode, one line per reason. Those never
+   *  heard are what a railroad with no sensors wired yet looks like, so they
+   *  are one line and only while `automatic` depends on them. */
+  unknownSensorFaults(): string[] {
+    const stopped = new Map<string, string[]>();
+    for (const { sensor, reason, reported } of this.unknownRows) {
+      if (reported) stopped.set(reason, [...(stopped.get(reason) ?? []), sensor]);
+    }
+    const faults = [...stopped].map(([reason, sensors]) =>
+      sensors.length > NAMED_SENSORS
+        ? `${sensors.length} sensors: ${reason}`
+        : `${sensors.join(", ")}: ${reason}`,
+    );
+    if (this.drivingWord !== "automatic") return faults;
+    const unheard = new Set(
+      this.unknownRows
+        .filter(({ reported }) => !reported)
+        .map(({ sensor }) => blockOf(sensor))
+        .filter((block) => block in this.layout.blocks),
+    );
+    const total = Object.keys(this.layout.blocks).length;
+    return unheard.size === 0
+      ? faults
+      : [...faults, `automatic: ${unheard.size} of ${total} blocks have no sensor report`];
+  }
+
   /** The trains the last rebuild under the same name took off the layout,
    *  each with the block it stood in and why, as the dispatcher last said
    *  (#709). Empty until a rebuild leaves one off, and again once each is
@@ -1036,6 +1114,7 @@ export class Panel {
       }
     }
     const names = this.names();
+    const unknown = new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor)));
     const views = new Map<string, BlockView>();
     for (const block of Object.keys(this.layout.blocks)) {
       const train = this.standing.get(block);
@@ -1059,27 +1138,30 @@ export class Panel {
         : train !== undefined && this.disputed.trains.has(train)
           ? { dispute: "clear" }
           : {};
+      const marks: Pick<BlockView, "dispute" | "unknownSensor"> = unknown.has(block)
+        ? { ...dispute, unknownSensor: true }
+        : dispute;
       if (train !== undefined) {
         const heading = this.heading.get(train);
         views.set(block, {
           state: "occupied",
           train,
           ...(heading?.block === block ? { toward: heading.toward } : {}),
-          ...naming, ...dispute,
+          ...naming, ...marks,
         });
         continue;
       }
       const holder = this.locks.get(block);
       if (holder !== undefined) {
-        views.set(block, { state: "locked", train: holder, ...naming, ...dispute });
+        views.set(block, { state: "locked", train: holder, ...naming, ...marks });
         continue;
       }
       const expecting = committed.get(block);
       if (expecting !== undefined) {
-        views.set(block, { state: "committed", train: expecting, ...naming, ...dispute });
+        views.set(block, { state: "committed", train: expecting, ...naming, ...marks });
         continue;
       }
-      views.set(block, { state: "free", ...naming, ...dispute });
+      views.set(block, { state: "free", ...naming, ...marks });
     }
     return views;
   }

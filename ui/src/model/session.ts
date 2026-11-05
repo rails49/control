@@ -127,6 +127,9 @@ export interface RunStatus {
   /** What the detectors dispute, one fault per entry in words the panel model
    *  wrote (#1154). The band shows each until the row clears it. */
   disputes: readonly string[];
+  /** The sensors not reporting, in words the panel model wrote (#1153). The
+   *  band shows each until the row clears it. */
+  unknownSensors: readonly string[];
   /** The trains the run has on the layout, by name. The stock screen marks
    *  their rows "on the layout" (ui/STOCK.md). */
   placed: readonly string[];
@@ -149,6 +152,7 @@ export const QUIET: RunStatus = {
   fault: null,
   broken: [],
   disputes: [],
+  unknownSensors: [],
   placed: [],
 };
 
@@ -1013,6 +1017,7 @@ export class Session {
       fault: model?.fault ?? null,
       broken: model?.broken() ?? [],
       disputes: model?.disputeFaults() ?? [],
+      unknownSensors: model?.unknownSensorFaults() ?? [],
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
@@ -1112,6 +1117,7 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.fault === now.fault &&
     same(was.broken, now.broken) &&
     same(was.disputes, now.disputes) &&
+    same(was.unknownSensors, now.unknownSensors) &&
     same(was.placed, now.placed)
   );
 }

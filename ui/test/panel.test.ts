@@ -1273,6 +1273,155 @@ describe("where a train is named", () => {
  * reported on at all is knowledge only the dispatcher has.
  */
 /**
+ * The sensors not reporting (#1153). `layout` lists them and says why; the
+ * panel words them for a person and marks their blocks. A sensor that stopped
+ * is a fault wherever the railroad stands; one never heard is what a railroad
+ * with no sensors wired yet looks like, so it is said only where a train
+ * depends on it.
+ */
+describe("the sensors not reporting", () => {
+  const unheard = (sensor: string, reason = "no report since start") => ({
+    sensor,
+    reason,
+    reported: false,
+  });
+  const stopped = (sensor: string, reason = "no report for 3 s") => ({
+    sensor,
+    reason,
+    reported: true,
+  });
+  const row = (...sensors: unknown[]) => ({ event: "unknown_sensors", sensors });
+
+  it("says those that stopped, grouped by reason", () => {
+    const model = panel();
+    feed(
+      model,
+      row(stopped("a.A"), stopped("a.B"), stopped("b.A", "camera offline"), stopped("c.B")),
+    );
+    expect(model.unknownSensorFaults()).toEqual([
+      "a.A, a.B, c.B: no report for 3 s",
+      "b.A: camera offline",
+    ]);
+  });
+
+  it("takes the fault off once the row no longer lists them", () => {
+    const model = panel();
+    feed(model, row(stopped("a.A")), row());
+    expect(model.unknownSensorFaults()).toEqual([]);
+  });
+
+  it("names four in a group, and counts five", () => {
+    const model = panel();
+    const listed = ["a.A", "a.B", "b.A", "b.B", "c.A"].map((sensor) => stopped(sensor));
+    feed(model, row(...listed.slice(0, 4)));
+    expect(model.unknownSensorFaults()).toEqual(["a.A, a.B, b.A, b.B: no report for 3 s"]);
+    feed(model, row(...listed));
+    expect(model.unknownSensorFaults()).toEqual(["5 sensors: no report for 3 s"]);
+  });
+
+  it("says nothing of those never heard in manual, or before the mode is said", () => {
+    const model = panel();
+    feed(model, row(unheard("a.A")));
+    expect(model.unknownSensorFaults()).toEqual([]);
+    feed(model, { event: "driving", driving: "manual" });
+    expect(model.unknownSensorFaults()).toEqual([]);
+  });
+
+  it("says one line of those never heard in automatic, counting blocks", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "driving", driving: "automatic" },
+      row(unheard("a.A"), unheard("a.B"), unheard("b.A")),
+    );
+    expect(model.unknownSensorFaults()).toEqual([
+      "automatic: 2 of 3 blocks have no sensor report",
+    ]);
+  });
+
+  it("says both kinds together, those that stopped first", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "driving", driving: "automatic" },
+      row(unheard("a.A"), stopped("b.A")),
+    );
+    expect(model.unknownSensorFaults()).toEqual([
+      "b.A: no report for 3 s",
+      "automatic: 1 of 3 blocks have no sensor report",
+    ]);
+  });
+
+  it("marks a block with either kind listed, and no other", () => {
+    const model = panel();
+    feed(model, row(unheard("a.A"), stopped("b.B")));
+    const blocks = model.blocks();
+    expect(blocks.get("a")?.unknownSensor).toBe(true);
+    expect(blocks.get("b")?.unknownSensor).toBe(true);
+    expect(blocks.get("c")?.unknownSensor).toBeUndefined();
+  });
+
+  it("marks a block over whatever state it is in, beside a dispute", () => {
+    const model = panel();
+    feed(
+      model,
+      {
+        event: "allocation",
+        trains: { t1: "a" },
+        crossing: {},
+        locks: { a: "t1" },
+        requests: [],
+      },
+      { event: "disputed", trains: ["t1"], blocks: [] },
+      row(stopped("a.A")),
+    );
+    expect(model.blocks().get("a")).toMatchObject({
+      state: "occupied",
+      dispute: "clear",
+      unknownSensor: true,
+    });
+  });
+
+  it("takes the mark off once the row no longer lists it", () => {
+    const model = panel();
+    feed(model, row(stopped("a.A")), row());
+    expect(model.blocks().get("a")?.unknownSensor).toBeUndefined();
+  });
+
+  /** A list read in part would take a fault off the band while the sensor is
+   *  still silent, so the row is all or nothing, as the dispatcher reads it. */
+  it.each([
+    ["no list", { event: "unknown_sensors" }],
+    ["a list that is not one", { event: "unknown_sensors", sensors: "a.A" }],
+    ["an entry that is no object", row(stopped("b.A"), "a.A")],
+    ["an entry naming no sensor", row(stopped("b.A"), { reason: "x", reported: true })],
+    ["a sensor of no end", row(stopped("b.A"), stopped("a"))],
+    ["a sensor of another end", row(stopped("b.A"), stopped("a.C"))],
+    ["a reason that is no string", row(stopped("b.A"), { ...stopped("a.A"), reason: 3 })],
+    ["a reported that is no boolean", row(stopped("b.A"), { ...stopped("a.A"), reported: 1 })],
+  ])("ignores an unreadable row: %s", (_, unreadable) => {
+    const model = panel();
+    feed(model, row(stopped("a.B")), unreadable);
+    expect(model.unknownSensorFaults()).toEqual(["a.B: no report for 3 s"]);
+    expect(model.blocks().get("b")?.unknownSensor).toBeUndefined();
+  });
+
+  it("forgets the list on a reset", () => {
+    const model = panel();
+    feed(model, row(stopped("a.A")));
+    model.reset();
+    expect(model.unknownSensorFaults()).toEqual([]);
+    expect(model.blocks().get("a")?.unknownSensor).toBeUndefined();
+  });
+
+  it("keeps the later of two rows delivered backwards", () => {
+    const model = panel();
+    feed(model, { ...row(), at: 2 }, { ...row(stopped("a.A")), at: 1 });
+    expect(model.unknownSensorFaults()).toEqual([]);
+  });
+});
+
+/**
  * Which trains are on the layout, and where each of them stands (#169).
  *
  * The roster pane lists them and the stock view's length guard reads them, and
