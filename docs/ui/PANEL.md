@@ -115,8 +115,8 @@ to pass", which ends by itself. A holder with none: "waits for IC 2 to leave
 B7 — give IC 2 a request", since a parked train never moves on its own
 ([SAFETY.md](../dispatcher/SAFETY.md)); the block is the obstacle, or where
 the obstacle is a transit, the block the holder last stood in. A holder of
-`""`, a block that reads occupied with no train in it: "waits for B7 to read
-clear". The same note serves `unsafe`, `held` and `transit_conflict`.
+`""`, a block that reads occupied with no train explaining it: "waits for a
+sensor of B7 to read clear". The same note serves `unsafe`, `held` and `transit_conflict`.
 
 Each row has a **cancel**, which publishes `tc49/dispatch/cancel_wanted`
 (`{id}`) naming that request, the requests chained after it ending with it.
@@ -166,13 +166,11 @@ train up, as a press on the name does.
 
 **What the detectors dispute is marked on the block it is about.** At every
 power value ([#1154](https://github.com/rails49/control/issues/1154)) the dispatcher compares its placement against the occupancy the
-layout has reported and publishes the two contradictions on
-`tc49/dispatch/state/disputed`: a train standing in a block that reads clear,
-and a block that reads occupied with nothing claiming it
-([#153](https://github.com/rails49/control/issues/153)). Each wears an amber
+layout has reported and publishes on `tc49/dispatch/state/disputed` each block
+that reads occupied with no train explaining it
+([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)). Each wears an amber
 outline over whatever state it already has, and the reading that contradicts
-the picture is written under the block in words: *reads clear*, *reads
-occupied*. The outline rides over the state rather than replacing it, because
+the picture is written under the block in words: *sensor occupied*. The outline rides over the state rather than replacing it, because
 the dispute is that the block is other than the picture says and the picture
 is the half a person is checking. Amber, not the red a rejection wears:
 nothing is broken, and the railroad is as likely to be right as the software.
@@ -1023,7 +1021,7 @@ bug, and the dispatcher drains the railroad on one
 what tells that drain from a person's press or a trip.
 
 **Beside those, each thing the detectors dispute**, as
-`<block>: occupied with no train` or `<train>: its block reads clear`, for as
+`<block>: a sensor reads occupied and no train is there`, for as
 long as `tc49/dispatch/state/disputed` lists it, whichever way power stands
 ([#1154](https://github.com/rails49/control/issues/1154)). The railroad runs on around one of these, so the band is what says
 one is there when the block it is about is out of sight.
