@@ -162,6 +162,15 @@ def events(
     ]
 
 
+def settled(sensor: str, occupied: bool = True) -> tuple[str, Payload]:
+    """The topic and payload of one sensor's settled reading, as a layout binding
+    publishes it (#1168): `press(assembly, *settled("dn_w.A"))`."""
+    return (
+        f"tc49/layout/state/settled/sensor/{sensor}",
+        {"addr": sensor, "occupancy": "occupied" if occupied else "clear"},
+    )
+
+
 def press(assembly: Assembly, topic: str, payload: Payload) -> None:
     """A gesture as a page puts it on the bus, delivered on its own drain."""
     assembly.bus.publish(topic, payload)

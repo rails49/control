@@ -139,7 +139,9 @@ def test_the_restarted_run_carries_no_route_and_no_request() -> None:
     assert picture(again)["requests"] == []
     assert events(again.trace, "route_chosen") == []
     assert picture(again)["locks"] == {
-        block: train for train, block in picture(again)["trains"].items()
+        entry: train
+        for train, listed in picture(again)["occupied"].items()
+        for entry in listed
     }
 
 

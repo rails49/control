@@ -19,16 +19,16 @@ from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
 from tc49.lib.scenario import TrainSpec
-from tests.harness import events, load, power, press, run, ticks
+from tests.harness import events, load, power, press, run, settled, ticks
 from tests.invariants import check
 
 ASPECTS = "tc49/dispatch/state/aspects"
 DISPUTED = "tc49/dispatch/state/disputed"
-OCCUPIED = "tc49/layout/block_occupied"
+OCCUPIED = True
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
-VACATED = "tc49/layout/block_vacated"
+VACATED = False
 
 
 def a_route(layout: Layout) -> Route:
@@ -190,7 +190,7 @@ def test_power_going_off_and_on_both_republish_the_aspects() -> None:
     that grants nothing is a green light over a train that will not be let
     past it."""
     assembly = assemble(*load("crossover-yard/meet"))
-    ticks(assembly, 2)
+    ticks(assembly, 1)
     before = [line["aspects"] for line in events(assembly.trace, "aspects")][-1]
     assert "clear" in before.values()
 
@@ -260,8 +260,8 @@ def under_way(strategy: type[Incremental | FullRoute]) -> Assembly:
     return assembly
 
 
-def reading(assembly: Assembly, topic: str, block: str) -> None:
-    press(assembly, topic, {"block": block})
+def reading(assembly: Assembly, occupied: bool, block: str) -> None:
+    press(assembly, *settled(f"{block}.A", occupied))
 
 
 def proceed(assembly: Assembly) -> dict[str, str]:
@@ -281,9 +281,8 @@ def test_a_train_whose_block_read_clear_in_a_drain_goes_on_with_the_power(
     """Drained and its detector dropped: the power coming back grants its next
     move, and the signals along its route show (#1164)."""
     assembly = under_way(strategy)
-    reading(assembly, OCCUPIED, "dn_w")
     press(assembly, *power(DRAINING))
-    reading(assembly, VACATED, "yard_w")
+    reading(assembly, OCCUPIED, "dn_w")
     reading(assembly, VACATED, "dn_w")
     press(assembly, *power(ON))
 
@@ -300,7 +299,6 @@ def test_a_train_whose_block_read_clear_with_the_power_on_is_granted(
     assembly = under_way(strategy)
     reading(assembly, OCCUPIED, "dn_w")
     reading(assembly, VACATED, "dn_w")
-    reading(assembly, VACATED, "yard_w")
 
     assert granted(assembly) == ["dn_w", "dn_e"]
     assert assembly.bus.last_values[DISPUTED]["blocks"] == []
@@ -315,7 +313,6 @@ def test_a_placement_leaves_nothing_showing_from_the_old_route(
     assembly = under_way(strategy)
     reading(assembly, OCCUPIED, "dn_w")
     reading(assembly, VACATED, "dn_w")
-    reading(assembly, VACATED, "yard_w")
 
     press(assembly, PLACEMENT_WANTED, {"train": "freight_1", "block": "up_w"})
 
@@ -352,7 +349,6 @@ def test_a_train_waits_under_stop_at_a_locked_block_that_reads_occupied(
     assembly = under_way(strategy)
     reading(assembly, OCCUPIED, "dn_e")
     reading(assembly, OCCUPIED, "dn_w")
-    reading(assembly, VACATED, "yard_w")
 
     assert granted(assembly) == ["dn_w"]
     assert proceed(assembly) == {}

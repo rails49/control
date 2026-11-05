@@ -20,7 +20,7 @@ from typing import Any, cast
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import FullRoute
 from tc49.lib.bus import Payload
-from tc49.lib.inventory import OFF, ON
+from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.scenario import TrainSpec
 from tests.harness import events, leaves, load, power, press, stock, ticks
 
@@ -122,27 +122,27 @@ def test_the_gesture_ends_the_one_request_it_names() -> None:
 def test_a_cancelled_request_at_rest_gives_up_all_but_the_block_it_stands_in() -> None:
     """The release path whole: what a route took is given back as one
     `lock_released`, and what stays is the standing lock every parked train
-    holds (GLOSSARY.md). Power off first, so the train is active with no move
-    outstanding — the sweep that would have granted the next one is the one
-    power `off` stops."""
+    holds (GLOSSARY.md). A drain first, so the train is active with no move
+    outstanding and its last one ended — the sweep that would have granted the
+    next one is the one a drain stops."""
     assembly = whole_route()
     request = drag(assembly, "freight_1", "yard_e.A")
     assert last(assembly, "route_chosen")["id"] == request
-    ticks(assembly, 2, at={0: power(OFF)})
+    ticks(assembly, 3, at={0: power(DRAINING)})
     assert locks(assembly)["dn_w"] == "freight_1"
 
     cancel(assembly, request)
 
     assert cancellations(assembly) == [
         {
-            "time": 60.0,
+            "time": 90.0,
             "event": "request_cancelled",
             "id": request,
             "reason": "revoked",
         }
     ]
     assert last(assembly, "lock_released") == {
-        "time": 60.0,
+        "time": 90.0,
         "event": "lock_released",
         "train": "freight_1",
         "resources": [
@@ -163,7 +163,7 @@ def test_a_train_cancelled_mid_route_holds_no_route_blocks_afterwards() -> None:
     train waiting on that track waits for a session restart without this."""
     assembly = whole_route()
     request = drag(assembly, "freight_1", "yard_e.A")
-    ticks(assembly, 2, at={0: power(OFF)})
+    ticks(assembly, 3, at={0: power(DRAINING)})
     held = locks(assembly)
     assert len([r for r, by in held.items() if by == "freight_1"]) > 1
 
@@ -188,7 +188,7 @@ def test_what_a_cancellation_frees_is_granted_on_the_sweep_that_follows() -> Non
     assert leaves(assembly, "grant_refused")[-1]["id"] == refused
 
     cancel(assembly, cancelled)
-    ticks(assembly, 2)
+    ticks(assembly, 3)
 
     assert [line["id"] for line in leaves(assembly, "route_chosen")] == [
         cancelled,
@@ -214,8 +214,8 @@ def test_a_cancellation_mid_move_grants_nothing_further() -> None:
 
 
 def test_a_cancellation_mid_move_retires_when_the_move_ends_and_not_before() -> None:
-    """The deferral has a definite end: `block_vacated` says the move the
-    gesture could not take back is over, and the request retires there — as a
+    """The deferral has a definite end: the entry sensor clearing says the move
+    the gesture could not take back is over, and the request retires there — as a
     cancellation and not a completion, the train having stopped short of
     where it was going."""
     assembly = whole_route()
@@ -226,11 +226,13 @@ def test_a_cancellation_mid_move_retires_when_the_move_ends_and_not_before() -> 
 
     ticks(assembly, 1)  # the head arrives
     assert cancellations(assembly) == []
-    ticks(assembly, 1)  # the tail clears, and the move is over
+    ticks(assembly, 1)  # the tail clears the block it left
+    assert cancellations(assembly) == []
+    ticks(assembly, 1)  # and the entry sensor, and the move is over
 
     assert cancellations(assembly) == [
         {
-            "time": 60.0,
+            "time": 90.0,
             "event": "request_cancelled",
             "id": request,
             "reason": "revoked",
@@ -385,7 +387,7 @@ def test_a_drag_chained_before_the_cancel_is_asked_is_cancelled_with_it() -> Non
     cancel(assembly, first)
     assert cancellations(assembly) == []
 
-    ticks(assembly, 2)
+    ticks(assembly, 3)
 
     assert [(c["id"], c["reason"]) for c in cancellations(assembly)] == [
         (first, "revoked"),
@@ -527,7 +529,7 @@ def test_a_move_withdrawn_for_another_transit_changes_nothing() -> None:
     assert [line["event"] for line in events(assembly.trace)[before:]] == [
         "move_withdrawn"
     ] * 5
-    ticks(assembly, 2)  # the move runs to its sensors, as it did before
+    ticks(assembly, 3)  # the move runs to its sensors, as it did before
     assert [c["id"] for c in cancellations(assembly)] == [request]
 
 
@@ -548,7 +550,7 @@ def test_a_held_cancel_is_on_the_picture_until_the_request_leaves_it() -> None:
     [held] = [each for each in answer["requests"] if each["id"] == request]
     assert held["cancelling"] == into
 
-    ticks(assembly, 2)  # the move ends, and the request with it
+    ticks(assembly, 3)  # the move ends, and the request with it
 
     assert cancellations(assembly)
     assert all(

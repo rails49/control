@@ -19,13 +19,13 @@ from typing import Any, cast
 
 from tc49.bench.runner import Assembly
 from tc49.lib.inventory import OFF, ON
-from tests.harness import drains, events, live, minted, power, press, ticks
+from tests.harness import drains, events, live, minted, power, press, settled, ticks
 
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 POWER_WANTED = "tc49/layout/power_wanted"
-OCCUPIED = "tc49/layout/block_occupied"
-VACATED = "tc49/layout/block_vacated"
+OCCUPIED = True
+VACATED = False
 
 
 def remove(assembly: Assembly, train: str) -> None:
@@ -36,8 +36,8 @@ def place(assembly: Assembly, train: str, block: str) -> None:
     press(assembly, PLACEMENT_WANTED, {"train": train, "block": block})
 
 
-def reading(assembly: Assembly, topic: str, block: str) -> None:
-    press(assembly, topic, {"block": block})
+def reading(assembly: Assembly, occupied: bool, block: str) -> None:
+    press(assembly, *settled(f"{block}.A", occupied))
 
 
 def last(assembly: Assembly, leaf: str) -> dict[str, Any]:
@@ -64,7 +64,7 @@ def arrived() -> Assembly:
     ticks(assembly, 8)
     state = assembly.dispatcher.state
     assert state.block_of["freight_1"] == "yard_e"
-    assert not state.active and state.reported["yard_e"] is True
+    assert not state.active and state.reads_occupied("yard_e")
     return assembly
 
 
@@ -77,7 +77,7 @@ def standing() -> Assembly:
     reading(assembly, OCCUPIED, "yard_w")
     state = assembly.dispatcher.state
     assert state.block_of["freight_1"] == "yard_w"
-    assert state.reported["yard_w"] is True
+    assert state.reads_occupied("yard_w")
     return assembly
 
 
@@ -87,10 +87,16 @@ def crossing() -> Assembly:
     locked and never reported."""
     assembly = live("crossover-yard/meet")
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-    ticks(assembly, 3)
+    ticks(assembly, 2)
     state = assembly.dispatcher.state
-    assert state.crossing == {"freight_1": "crossover.dn_straight"}
-    assert state.reported["dn_w"] is True and state.reported["dn_e"] is True
+    assert state.occupied["freight_1"] == [
+        "west_ladder.to_dn",
+        "dn_w",
+        "crossover.dn_straight",
+        "dn_e",
+        "east_ladder.from_dn",
+    ]
+    assert state.reads_occupied("dn_w") and state.reads_occupied("dn_e")
     return assembly
 
 
@@ -145,9 +151,9 @@ def test_a_train_with_a_request_is_cancelled_and_its_clear_route_opens() -> None
     the hand, reads it clear on the next."""
     assembly = live("crossover-yard/meet")
     press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
-    ticks(assembly, 2)
+    ticks(assembly, 1)
     state = assembly.dispatcher.state
-    assert state.block_of["freight_1"] == "dn_w" and state.reported["dn_w"] is True
+    assert state.block_of["freight_1"] == "dn_w" and state.reads_occupied("dn_w")
     before = len(released(assembly))
 
     remove(assembly, "freight_1")
@@ -162,7 +168,8 @@ def test_a_train_with_a_request_is_cancelled_and_its_clear_route_opens() -> None
     }
     assert released(assembly)[before:] == [
         ["dn_e", "east_ladder.from_dn", "yard_e"],
-        ["crossover.dn_straight", "dn_w"],
+        ["yard_w"],
+        ["crossover.dn_straight", "dn_w", "west_ladder.to_dn"],
     ]
     assert locks(assembly) == {"up_e": "express_2"}
     assert not state.active and not state.crossing
@@ -181,9 +188,9 @@ def test_a_crossing_train_keeps_its_transit_until_both_blocks_read_clear() -> No
     remove(assembly, "freight_1")
 
     assert released(assembly)[before:] == [
-        ["east_ladder.from_dn", "yard_e"],
-        ["dn_w"],
-        ["crossover.dn_straight", "dn_e"],
+        ["yard_e"],
+        ["dn_w", "west_ladder.to_dn"],
+        ["crossover.dn_straight", "dn_e", "east_ladder.from_dn"],
     ]
     assert locks(assembly) == {"up_e": "express_2"}
     assert drains(assembly) == []

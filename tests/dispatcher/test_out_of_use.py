@@ -436,12 +436,12 @@ def crossing_into_dn_w() -> Assembly:
     return assembly
 
 
-def test_a_crossing_whose_entry_sensor_is_listed_is_not_moving() -> None:
+def test_a_crossing_with_both_sensors_listed_is_not_moving() -> None:
     """`layout` has stopped that train, so a person's off press can finish its
     drain, and the crossing goes on being one."""
     assembly = crossing_into_dn_w()
     press(assembly, *power(DRAINING))
-    lists(assembly, "dn_w.A")
+    lists(assembly, "dn_w.A", "dn_w.B")
 
     assert movings(assembly) == [False, True, False]
     assert assembly.dispatcher.state.crossing == {"freight": "west_ladder.to_dn"}
@@ -454,10 +454,10 @@ def test_a_crossing_with_only_its_far_sensor_listed_still_moves() -> None:
     assert movings(assembly) == [False, True]
 
 
-def test_the_entry_sensor_returning_moves_it_again() -> None:
+def test_a_sensor_returning_moves_it_again() -> None:
     assembly = crossing_into_dn_w()
-    lists(assembly, "dn_w.A")
-    lists(assembly)
+    lists(assembly, "dn_w.A", "dn_w.B")
+    lists(assembly, "dn_w.B")
 
     assert movings(assembly) == [False, True, False, True]
 

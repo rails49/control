@@ -57,6 +57,7 @@ from tc49.lib.payload import (
     placement,
     power,
     readable_id,
+    settled_reading,
     shown_aspects,
     taken,
     unknown_sensors,
@@ -177,6 +178,11 @@ TABLE: tuple[Rule, ...] = (
         "tc49/layout/state/unknown_sensors",
         "unknown_sensors",
         lambda f: unknown_sensors(f) is not None,
+    ),
+    Rule(
+        "tc49/layout/state/settled/sensor/+",
+        "settled_reading",
+        lambda f: settled_reading(f) is not None,
     ),
     *(
         Rule(f"tc49/layout/{leaf}", "occupancy", lambda f: occupancy(f) is not None)

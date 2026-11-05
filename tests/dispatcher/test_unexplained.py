@@ -1,7 +1,7 @@
-"""A detector reading no granted move accounts for (ADR-0048, #260, #1154).
+"""A sensor reading no granted move accounts for (ADR-0048, #260, #1154).
 
 Occupancy is anonymous, so the dispatcher recovers the train from its own lock
-table: the block's holder, and the move that holder has outstanding. A reading
+table: what each train occupies, and the move it has outstanding. A reading
 the table does not explain — a hand putting a locomotive on a detected block,
 a detector asserting on dirt — is a failure where it happens, and **the rest
 keeps running**: the reading is named on `state/disputed` for a person and no
@@ -21,10 +21,10 @@ from tc49.dispatcher import FullRoute, Incremental
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import AT, DRAINING, OFF, ON
 from tc49.lib.scenario import TrainSpec
-from tests.harness import POWER, drains, events, load, power, press, run
+from tests.harness import POWER, drains, events, load, power, press, run, settled
 
-OCCUPIED = "tc49/layout/block_occupied"
-VACATED = "tc49/layout/block_vacated"
+OCCUPIED = True
+VACATED = False
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 DISPUTED = "tc49/dispatch/state/disputed"
@@ -49,9 +49,10 @@ def standing() -> Assembly:
     return assemble_live(layout, roster, STOOD)
 
 
-def reading(assembly: Assembly, topic: str, block: str) -> None:
-    """One detector reading, as a layout binding that reads one reports it."""
-    press(assembly, topic, {"block": block})
+def reading(assembly: Assembly, occupied: bool, block: str) -> None:
+    """The reading of one sensor of the block, as a layout binding that reads one
+    reports it."""
+    press(assembly, *settled(f"{block}.A", occupied))
 
 
 def disputed(assembly: Assembly) -> Payload:
@@ -124,12 +125,12 @@ def test_a_train_in_a_block_reading_clear_is_granted(
     assert granted(assembly) == [("freight_1", "dn_w")]
 
 
-def test_a_move_out_of_a_block_reading_clear_ends_on_its_arrival(
+def test_a_move_out_of_a_block_reading_clear_ends_on_its_entry_sensor(
     standing: Assembly,
 ) -> None:
-    """No vacate comes for an origin that reads clear already, because a
-    detector states a change of level, so the arrival is the last reading the
-    move hears (#1164)."""
+    """A train placed beyond its exit sensor never reads occupied on it, so the
+    entry sensor clearing is the last reading the move hears, and it releases the
+    origin with the transit (#1164, #1171)."""
     reading(standing, VACATED, "yard_w")
     ask(standing, "freight_1", "dn_w.A")
 
@@ -137,6 +138,10 @@ def test_a_move_out_of_a_block_reading_clear_ends_on_its_arrival(
 
     state = standing.dispatcher.state
     assert "freight_1" not in state.crossing
+    assert state.locks["yard_w"] == "freight_1"
+
+    reading(standing, VACATED, "dn_w")
+
     assert state.locks.get("yard_w") is None
 
 
@@ -147,20 +152,18 @@ def test_a_short_train_passing_its_exit_sensor_ends_the_move_when_it_clears(
     occupied, which its move explains, and still occupied as the nose reaches
     the next block. The tail is still on the sensor, so the origin stays held
     until it clears (ADR-0077, #1164)."""
-    reading(standing, VACATED, "yard_w")
+    press(standing, *settled("yard_w.B", False))
     ask(standing, "freight_1", "dn_w.A")
 
-    reading(standing, OCCUPIED, "yard_w")
+    press(standing, *settled("yard_w.B"))
     assert disputed(standing) == {"blocks": []}
     reading(standing, OCCUPIED, "dn_w")
 
     state = standing.dispatcher.state
-    assert "freight_1" in state.crossing
     assert state.locks["yard_w"] == "freight_1"
 
-    reading(standing, VACATED, "yard_w")
+    press(standing, *settled("yard_w.B", False))
 
-    assert "freight_1" not in state.crossing
     assert state.locks.get("yard_w") is None
 
 
@@ -173,7 +176,7 @@ def test_a_placement_leaves_a_clear_reading_where_it_is(standing: Assembly) -> N
     press(standing, PLACEMENT_WANTED, {"train": "freight_1", "block": None})
     press(standing, PLACEMENT_WANTED, {"train": "freight_1", "block": "yard_w"})
 
-    assert standing.dispatcher.state.reported["yard_w"] is False
+    assert standing.dispatcher.state.readings["yard_w.A"] is False
     assert disputed(standing) == {"blocks": []}
     ask(standing, "freight_1", "dn_w.A")
     assert granted(standing) == [("freight_1", "dn_w")]
@@ -199,9 +202,8 @@ def test_an_active_train_whose_block_reads_clear_goes_on(
     layout, roster, _ = load("crossover-yard/meet")
     assembly = assemble_live(layout, roster, STOOD, strategy)
     ask(assembly, "freight_1", "yard_e.A")
-    reading(assembly, OCCUPIED, "dn_w")
     press(assembly, *power(DRAINING))
-    reading(assembly, VACATED, "yard_w")
+    reading(assembly, OCCUPIED, "dn_w")
     state = assembly.dispatcher.state
     assert state.block_of["freight_1"] == "dn_w"
     assert "freight_1" not in state.crossing

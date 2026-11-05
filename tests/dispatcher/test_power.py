@@ -203,8 +203,8 @@ def test_a_granted_move_completes_under_off() -> None:
     ticks(assembly, 4)
 
     assert assembly.dispatcher.state.crossing == {}
-    released = leaves(assembly, "lock_released")[-1]
-    assert released["resources"] == ["yard_w", granted["transit"]]
+    released = [line["resources"] for line in leaves(assembly, "lock_released")]
+    assert released == [["yard_w"], [granted["transit"]]]
     assert len(leaves(assembly, "move_granted")) == 1
 
 

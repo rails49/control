@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Protocol
 from tc49.dispatcher.routing import Route, candidates
 from tc49.dispatcher.safety import finishable, safe
 from tc49.lib.inventory import Refusal
-from tc49.lib.layout import Layout
+from tc49.lib.layout import Layout, block_of
 
 if TYPE_CHECKING:
     from tc49.dispatcher.dispatch import Active, Request
@@ -75,13 +75,18 @@ class ReadOnlyState(Protocol):
     def active(self) -> Mapping[str, Active]: ...
 
     @property
-    def reported(self) -> Mapping[str, bool]: ...
+    def readings(self) -> Mapping[str, bool]: ...
+
+    @property
+    def occupied(self) -> Mapping[str, Sequence[str]]: ...
 
     @property
     def residue(self) -> AbstractSet[str]: ...
 
     @property
     def out_of_use(self) -> AbstractSet[str]: ...
+
+    def reads_occupied(self, block: str) -> bool: ...
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
 
@@ -107,12 +112,13 @@ def standing_still(state: ReadOnlyState) -> list[str]:
     residue, since nothing is granted into them until they read clear
     (ADR-0077), and the blocks out of use, until their sensors return (#1152):
     obstacles as permanent as an idle train's block."""
+    occupied = {block_of(s) for s, reading in state.readings.items() if reading}
     return sorted(
         state.out_of_use
         | {
             block
-            for block, occupied in state.reported.items()
-            if occupied and (block not in state.locks or block in state.residue)
+            for block in occupied
+            if block not in state.locks or block in state.residue
         }
     )
 
@@ -354,8 +360,9 @@ def state_view(
     What a train holds ahead is read off the lock table rather than off the
     strategy's depth, so the check describes the state it is given whatever
     asked for it. A block that reads occupied with nobody standing in it is
-    an idle obstacle beside the idle trains' blocks (ADR-0077), and so is a block
-    out of use. An active train standing in one is frozen where it stands, with
+    an idle obstacle beside the idle trains' blocks, each block on an idle train's
+    `occupied` list as well as the one it stands in (ADR-0077, #1171), and so is
+    a block out of use. An active train standing in one is frozen where it stands, with
     what it holds: its route ahead may be free, and it goes nowhere until its
     sensor returns (#1152), so it is no train a finishing order can count on."""
     cur: dict[str, str] = {}
@@ -371,11 +378,12 @@ def state_view(
                 frozen += [at, *holding]
             else:
                 cur[train], rem[train], held[train] = at, ahead, holding
-    idle = [
-        block
-        for train, block in state.block_of.items()
-        if train not in state.active and train != skip
-    ]
+    idle: list[str] = []
+    for train, standing in state.block_of.items():
+        if train not in state.active and train != skip:
+            behind = state.occupied.get(train, ())
+            idle += [e for e in behind if e in state.layout.blocks and e != standing]
+            idle.append(standing)
     idle += frozen
     idle += standing_still(state)
     return cur, rem, idle, held

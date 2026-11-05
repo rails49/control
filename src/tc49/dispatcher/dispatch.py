@@ -6,7 +6,7 @@ request id is both correlation and idempotency key. The dispatcher grants on
 the events that arrive (ADR-0047): a sensor reading is applied where it
 lands, and a **sweep** — one grant pass over the active trains and the whole
 pending queue — runs wherever the lock table or the waiting set changes: a
-request admitted, a vacated block releasing what a move held, the power
+request admitted, a reading releasing what a move held, the power
 coming back `on`, the sensors not reporting changing. Every grant is `safe()`-checked before it commits, so arrival
 order picks among safe options and never reaches an unsafe state.
 Standing locks are seeded and published at startup — from the last
@@ -43,7 +43,7 @@ from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
-from tc49.lib.inventory import DRAINING, OFF, ON, Aspect, Refusal
+from tc49.lib.inventory import DRAINING, OFF, ON, Aspect, Refusal, split_device
 from tc49.lib.layout import (
     Layout,
     block_of,
@@ -55,10 +55,10 @@ from tc49.lib.payload import (
     Ordering,
     gesture,
     kept_allocation,
-    occupancy,
     placement,
     power,
     readable_id,
+    settled_reading,
     unknown_sensors,
     wanted_point,
     wanted_power,
@@ -75,6 +75,7 @@ ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
 POWER = "tc49/layout/state/power"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
 """Where a deferred cancel asks `layout` to take its move back (#1068)."""
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -100,11 +101,10 @@ class Request:
     depart: str | None
     arrivals: tuple[str, ...]  # surviving arrival ends
     phase: int  # sweeps run when admitted; the arrival-order key
-    # The block the outstanding move enters, where the request has been
-    # cancelled while that move of its own was outstanding: nothing further
-    # is granted for it, and it retires as `request_cancelled` when that
-    # move's sensors finish (ADR-0049). On `state/allocation` as `cancelling`
-    # (#1117).
+    # The block its newest move enters, where the request has been cancelled
+    # before that move ended: nothing further is granted for it, and it retires
+    # as `request_cancelled` at that move's end, the end of a request (ADR-0049,
+    # #1171). On `state/allocation` as `cancelling` (#1117).
     cancelling: str | None = None
     # The latest `grant_refused` for it since its last grant, at a launch or
     # for its next move: on `state/allocation` as `refused`, so a page that
@@ -151,9 +151,24 @@ class Active:
     request: Request
     route: Route
     cur_index: int  # index into route.blocks of cur(t)
-    outstanding: Move | None  # granted move whose sensors are pending
-    # the outstanding move's origin read clear at its grant or since
-    origin_cleared: bool = False
+    outstanding: Move | None  # granted move whose head is not yet in its block
+
+
+@dataclass(eq=False)
+class Following:
+    """A move whose readings are still expected (#1171). It outlives the
+    request, since a reading can arrive after the request has ended. For a move
+    out of block X through end `e`, over transit T, into block Y through end
+    `f`: `exit` is `X.e`, `entry` is `Y.f` and `far` is the end of Y opposite
+    `f`."""
+
+    move: Move
+    exit: str
+    entry: str
+    far: str
+    exit_read: bool = False  # `exit` has read occupied, at the grant or since
+    head_in: bool = False  # `entry` or `far` has read occupied
+    at_far: bool = False  # `far` has read occupied
 
 
 @dataclass
@@ -174,12 +189,12 @@ class State:
     # then on (ADR-0002), and so already true of a train still running one.
     departure: dict[str, str] = field(default_factory=dict[str, str])
     # train -> the transit it is crossing: written at the grant, dropped when
-    # the sensor says it arrived, and so exactly the trains with an
-    # outstanding move. `block_of` goes on naming the block the sensors last
-    # confirmed, so this is the whole of what says a train is between two
-    # blocks rather than standing in one (#123). It restores across a restart
-    # with no route behind it, which is what makes it a placement hint and
-    # not a resumed move.
+    # the head is in, and so exactly the trains with an outstanding move.
+    # `block_of` goes on naming the block the train left until its tail is out
+    # of it or its head is in the next, so this is the whole of what says a
+    # train is between two blocks rather than standing in one (#123). It
+    # restores across a restart with no route behind it, which is what makes it
+    # a placement hint and not a resumed move.
     crossing: dict[str, str] = field(default_factory=dict[str, str])
     # `on`, `draining` or `off`: what the layout last said about the one
     # switch a person turns (ADR-0078). The dispatcher routes, grants and
@@ -194,15 +209,24 @@ class State:
     # `off` until the layout says otherwise, because the railroad comes up
     # `off` and nothing is routed over rails nobody has heard from.
     power: str = OFF
-    # block -> whether the layout last reported it occupied: the level each
-    # detector last stated, which is what makes an at-least-once repeat a
-    # no-op (ADR-0047), and what the dispute check compares (#153). Only blocks
-    # the layout has actually reported on are keys — silence is not a clear
-    # reading, and a binding that reports nothing disputes nothing rather
-    # than the whole railroad.
-    reported: dict[str, bool] = field(default_factory=dict[str, bool])
-    # What a train taken off the layout still holds, because a detector last
-    # read it occupied (ADR-0069): each block, and the transit it was crossing
+    # sensor `<block>.<end>` -> whether it last read occupied: the level each
+    # one last settled at (`state/settled/sensor`), which is what makes an
+    # at-least-once repeat a no-op (ADR-0047), and what the dispute check
+    # compares (#153). Only sensors a row has spoken for are keys — silence is
+    # not a clear reading, and a binding that reports nothing disputes nothing
+    # rather than the whole railroad.
+    readings: dict[str, bool] = field(default_factory=dict[str, bool])
+    # train -> the blocks and transits it occupies, tail to head, for each
+    # placed train. A lock on no list is held ahead. A placed train's list holds
+    # `block_of[train]`, unless the train is `crossing` with the block it left
+    # already released (#1171).
+    occupied: dict[str, list[str]] = field(default_factory=dict[str, list[str]])
+    # train -> the moves whose readings are still expected, oldest first.
+    following: dict[str, list[Following]] = field(
+        default_factory=dict[str, list[Following]]
+    )
+    # What a train taken off the layout still holds, because a sensor last read
+    # occupied (ADR-0069): each block, and each transit on its `occupied` list
     # while either of that transit's blocks is here. The lock table names the
     # holder; this is what says the lock waits for a clear reading rather
     # than for a move, so that reading is explained (#1164).
@@ -223,22 +247,31 @@ class State:
         cause; GLOSSARY.md, **Out of use**, lists every cause."""
         return frozenset(block_of(sensor) for sensor in self.unknown_sensors)
 
+    def reads_occupied(self, block: str) -> bool:
+        """Whether either of the block's sensors last read occupied."""
+        return (
+            self.readings.get(f"{block}.A") is True
+            or self.readings.get(f"{block}.B") is True
+        )
+
     @property
     def disputed_blocks(self) -> frozenset[str]:
         """The blocks that read occupied with no train explaining the reading
-        (`disputed`, #1164)."""
-        explained = set(self.block_of.values()) | self.residue
+        (`disputed`, #1164, #1171)."""
+        explained = set(self.residue)
+        for listed in self.occupied.values():
+            explained.update(listed)
         for active in self.active.values():
             if active.outstanding is not None:
-                explained |= {active.outstanding.from_block, active.outstanding.into}
+                explained.add(active.outstanding.into)
         for train, transit in self.crossing.items():
             active = self.active.get(train)
             if active is None or active.outstanding is None:
                 explained |= transit_blocks(self.layout, transit)
         return frozenset(
-            block
-            for block, occupied in self.reported.items()
-            if occupied and block not in explained
+            block_of(sensor)
+            for sensor, occupied in self.readings.items()
+            if occupied and block_of(sensor) not in explained
         )
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
@@ -253,7 +286,7 @@ class State:
         what stands there is nobody's train (#1164), and otherwise whoever
         holds it, "" where nobody does. A block out of use by a sensor not
         reporting answers the same (#1152)."""
-        if self.reported.get(resource) is True or resource in self.out_of_use:
+        if self.reads_occupied(resource) or resource in self.out_of_use:
             holder = (
                 "" if resource in self.disputed_blocks else self.locks.get(resource, "")
             )
@@ -381,9 +414,9 @@ def aspects(state: State) -> dict[str, str]:
     one the dispatcher records it in (`block_of`) through its last locked
     block shows the depth counted from that block, so a train holding two
     ahead shows `clear`, then `caution`, then `stop`. The block it is recorded
-    in is the origin of an outstanding move until the entered block reads
-    occupied, and the entered block from then on, before the origin reads
-    clear: the signal it has passed shows `stop` once the nose is past it, not
+    in is the origin of an outstanding move until the tail has left it or the
+    head is in the entered block, whichever is first, and the entered block
+    from then on: the signal it has passed shows `stop` from that moment, not
     once the move ends. The ends of blocks behind it show `stop`, and a block
     has one holder, so no end is set by two trains.
 
@@ -416,7 +449,7 @@ def aspects(state: State) -> dict[str, str]:
             continue
         route = active.route
         # `cur_index` advances at the grant, so with a move outstanding the
-        # train is recorded one back until the entered block reads occupied.
+        # train is recorded one back until its tail has left or its head is in.
         standing = active.cur_index
         if active.outstanding and state.block_of.get(train) != route.blocks[standing]:
             standing -= 1
@@ -428,30 +461,17 @@ def aspects(state: State) -> dict[str, str]:
     return shown
 
 
-def stopped_at_unknown_sensor(state: State, train: str) -> bool:
-    """Whether the sensor `train`'s outstanding move enters by is listed: the
-    near end of the block it is crossing into, which is where `layout` stops it
-    (#1151). A restored crossing has no move, so `layout` is not driving it and
-    this does not say."""
-    active = state.active.get(train)
-    if active is None or active.outstanding is None:
-        return False
-    move = active.outstanding
-    ends = transit_ends(state.layout, move.into, move.transit)
-    assert ends is not None  # a route's transits reach its blocks
-    return ends[0] in state.unknown_sensors
-
-
 def allocation(state: State, requests: Sequence[Request]) -> Payload:
     """The run's picture: where every train stands and which of them are
-    crossing a transit, the lock table with its holders, and every request
+    crossing a transit, the lock table with its holders, what each train
+    occupies tail to head (a lock on no list being held ahead), and every request
     still alive — carrying the route a committed one is running, why one
     waits where it was last refused, and the block a held cancel waits for
     its move to enter (#1117).
 
-    A crossing train appears in both maps: `trains` goes on naming the block
-    the sensors last confirmed it in, and `crossing` names the transit that
-    is taking it out of there. The transit is the whole of the mark — there
+    A crossing train appears in both maps: `trains` names the block it is
+    recorded in, and `crossing` names the transit it has not yet got its head
+    across. The transit is the whole of the mark — there
     is no suspect flag — and it is what a restarted session restores as a
     placement hint, with no route and no request behind it (#123).
 
@@ -468,6 +488,9 @@ def allocation(state: State, requests: Sequence[Request]) -> Payload:
         "trains": dict(sorted(state.block_of.items())),
         "crossing": dict(sorted(state.crossing.items())),
         "locks": dict(sorted(state.locks.items())),
+        "occupied": {
+            train: list(listed) for train, listed in sorted(state.occupied.items())
+        },
         "requests": [
             {
                 "id": request.id,
@@ -503,10 +526,11 @@ def allocation(state: State, requests: Sequence[Request]) -> Payload:
 
 def disputed(state: State) -> Payload:
     """The blocks that read occupied with no train explaining the reading
-    (#153, #1164). A train explains it when any of these holds:
+    (#153, #1164, #1171). A block reads occupied while either of its sensors
+    does. A train explains it when any of these holds:
 
-    1. the train is recorded in the block (`block_of`);
-    2. the block is the origin or the arrival block of its outstanding move;
+    1. the block is on its `occupied` list;
+    2. the block is the arrival block of its outstanding move;
     3. the block is residue of its removal (ADR-0069);
     4. the block is at either end of the transit a restored crossing names
        (`crossing` with no move behind it).
@@ -530,8 +554,8 @@ def disputed(state: State) -> Payload:
     **At every power value** (#1154): a hand or a throttle can make one with
     the power on, the others run, and the person has to be told while they do.
 
-    Only blocks `reported` carries take part: a block the layout has said
-    nothing about is unknown, and is not on the list.
+    Only sensors `readings` carries take part: one the layout has said
+    nothing about is unknown, and its block is not on the list for it.
     """
     return {"blocks": sorted(state.disputed_blocks)}
 
@@ -540,14 +564,15 @@ def broken(state: State) -> list[str]:
     """The lock table's rules that `state` breaks, one line each and sorted,
     so equal states give equal lists (#761). Reads and writes nothing else.
 
-    The rules are what the four maps — `locks`, `block_of`, `crossing` and
-    `residue` — keep between them at the end of an event: a placed train
+    The rules are what the maps — `locks`, `block_of`, `crossing`, `occupied`
+    and `residue` — keep between them at the end of an event: a placed train
     holds the lock on its block; every lock is a placed train's or residue;
-    an idle train holds its block and its residue and nothing more; residue
-    is locked, and a block in it reads occupied with nobody standing there; an
-    active train is placed, and holds and is crossing what its outstanding
-    move took; a crossing train is placed; and no two trains' locked transits
-    conflict (ADR-0006).
+    every entry on a train's `occupied` list is locked to it; an idle train
+    holds its block, its residue and its `occupied` list and nothing more;
+    residue is locked, and a block in it has a sensor reading occupied or
+    listed, with nobody standing there; an active train is placed, and holds
+    and is crossing what its outstanding move took; a crossing train is placed;
+    and no two trains' locked transits conflict (ADR-0006).
 
     The dispatcher drains the railroad on a rule newly broken (ADR-0076,
     ADR-0078). `safe()`
@@ -556,6 +581,7 @@ def broken(state: State) -> list[str]:
     """
     lines: list[str] = []
     placed = state.block_of
+    out_of_use = state.out_of_use
     for train, block in placed.items():
         holder = state.locks.get(block)
         if holder != train:
@@ -565,12 +591,20 @@ def broken(state: State) -> list[str]:
     for resource, holder in state.locks.items():
         if holder not in placed and resource not in state.residue:
             lines.append(f"{resource} is locked to {holder}, which is not placed")
+    for train, listed in state.occupied.items():
+        for entry in listed:
+            holder = state.locks.get(entry)
+            if holder != train:
+                lines.append(
+                    f"{train} occupies {entry}, which is locked to {holder or 'nobody'}"
+                )
     for resource, holder in state.locks.items():
         if (
             holder in placed
             and holder not in state.active
             and resource != placed[holder]
             and resource not in state.residue
+            and resource not in state.occupied.get(holder, ())
         ):
             lines.append(f"{holder} is idle and holds {resource}")
     for resource in state.residue:
@@ -578,7 +612,7 @@ def broken(state: State) -> list[str]:
         if holder is None:
             lines.append(f"{resource} is residue and not locked")
         elif resource in state.layout.blocks:
-            if state.reported.get(resource) is not True:
+            if not state.reads_occupied(resource) and resource not in out_of_use:
                 lines.append(f"{resource} is {holder}'s residue and not read occupied")
             if placed.get(holder) == resource:
                 lines.append(f"{resource} is {holder}'s residue and it stands there")
@@ -623,6 +657,8 @@ class Adopted:
 
     standing: dict[str, str]  # train -> the block it comes up in
     crossing: dict[str, str]  # train -> the transit it was crossing
+    # train -> what it comes up occupying, tail to head, its own block on it
+    occupied: dict[str, list[str]] = field(default_factory=dict[str, list[str]])
     # train -> (the block the picture stood it in, `GONE` or `SHORT`): the
     # pictured trains the drawing could not stand again and nothing else
     # placed, which come up off the layout (#709)
@@ -646,10 +682,13 @@ def restored(
     recovers nothing and tells a person less than starting cold does. It is
     the same case and not a new one.
 
-    Adoption is **selective**: `trains` and `crossing` are taken, `locks` and
-    `requests` left behind. The lock table is rebuilt one block per train as a
-    cold start builds it, the queue comes back empty, and no request id
-    resumes (ADR-0033). Stock stays the **roster**'s, so the picture's word
+    Adoption is **selective**: `trains`, `crossing` and `occupied` are taken,
+    `locks` and `requests` left behind. The lock table is rebuilt from what each
+    train occupies, one block per train where the picture says no more, the
+    queue comes back empty, and no request id resumes (ADR-0033). So what a
+    train occupies stays locked with no move behind it, until its next move or a
+    placement (#1171), and a value from before `occupied` still starts. Stock
+    stays the **roster**'s, so the picture's word
     for a train it does not carry is dropped, and a train the picture does not
     name falls back to its cold placement.
 
@@ -713,11 +752,41 @@ def restored(
     standing = {train: settled[train] for train in order if train in settled}
     kept = {train for train, at in pictured.items() if standing.get(train) == at}
     hinted = stated.crossing if stated is not None else {}
+    listed = stated.occupied if stated is not None else {}
     return Adopted(
         standing,
         {train: transit for train, transit in hinted.items() if train in kept},
+        adopted_occupied(
+            layout,
+            standing,
+            {train: listed[train] for train in listed if train in kept},
+        ),
         {train: misfit[train] for train in sorted(misfit) if train not in standing},
     )
+
+
+def adopted_occupied(
+    layout: Layout,
+    standing: dict[str, str],
+    listed: dict[str, tuple[str, ...]],
+) -> dict[str, list[str]]:
+    """What each train comes up occupying: each entry `listed` for it that this
+    railroad has and no other train has already taken, and its own block,
+    appended where the list lacks it (#1171)."""
+    taken = {block: train for train, block in standing.items()}
+    adopted: dict[str, list[str]] = {}
+    for train, block in standing.items():
+        entries: list[str] = []
+        for entry in listed.get(train, ()):
+            on_railroad = entry in layout.blocks or transit_blocks(layout, entry)
+            if (
+                on_railroad
+                and entry not in entries
+                and taken.setdefault(entry, train) == train
+            ):
+                entries.append(entry)
+        adopted[train] = entries if block in entries else [*entries, block]
+    return adopted
 
 
 @dataclass
@@ -824,10 +893,13 @@ class Dispatcher:
         bus.subscribe("tc49/layout/#", self._on_layout)
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
         for train, at in adopted.standing.items():
-            self._state.locks[at] = train
+            occupying = adopted.occupied[train]
+            self._state.locks.update(dict.fromkeys(occupying, train))
             self._state.block_of[train] = at
+            self._state.occupied[train] = occupying
             bus.publish(
-                "tc49/dispatch/lock_granted", {"train": train, "resources": [at]}
+                "tc49/dispatch/lock_granted",
+                {"train": train, "resources": list(occupying)},
             )
         # Every request still alive, waiting or started, in the order the
         # dispatcher serves them (ADR-0080). A restart loses it.
@@ -1313,7 +1385,10 @@ class Dispatcher:
 
         A block the train still holds as residue of its own removal becomes
         its standing lock (ADR-0069); whatever else it holds that way stays
-        until it reads clear. The dispatcher moves the train's standing lock
+        until it reads clear. What it occupied behind it goes first, a transit
+        left by a far sensor's reading among it (#1171), and what it was
+        following with it: a person has said where it is. The dispatcher moves
+        the train's standing lock
         and announces `train_placed`. That event is the ledger line for a
         placement: a `lock_released` and a `lock_granted` would say a route
         gave a block up and took another, which is not what happened — a hand
@@ -1321,6 +1396,8 @@ class Dispatcher:
         tell the two apart.
         """
         state = self._state
+        standing = state.block_of.get(train)
+        self._release(train, keep=(block,) if standing is None else (standing, block))
         state.residue.discard(block)
         # A train that is off the layout holds no standing lock and has none
         # to give up: this gesture is what puts it back on (ADR-0039, #164).
@@ -1328,11 +1405,12 @@ class Dispatcher:
         # Released only if the train holds it: a lock table that has stopped
         # describing the railroad is the case a person is placing in front
         # of, and another train's lock is not this train's to give up.
-        standing = state.block_of.get(train)
         if standing is not None and state.locks.get(standing) == train:
             del state.locks[standing]
         state.locks[block] = train
         state.block_of[train] = block
+        state.occupied[train] = [block]
+        state.following.pop(train, None)
         # Whatever the last picture said this train was crossing, it is not
         # crossing it now: a person has said where it stands. The hint is
         # restored with no route behind it (`restored`), so this train is
@@ -1367,10 +1445,10 @@ class Dispatcher:
         first, `removed`, so `train_removed` describes a train with none.
 
         **What it held is released**, except what a loco may still be
-        standing on: each block a detector last read occupied stays held by
-        the train, and so does the transit it was crossing while either of
-        that transit's blocks does. Those wait in `residue` for a clear
-        reading (`_lifted`). Everything else goes in one `lock_released` —
+        standing on: each block with a sensor last read occupied stays held by
+        the train, and so does each transit on its `occupied` list while either
+        of that transit's blocks does. Those wait in `residue` for a clear
+        reading (`_lift_residue`). Everything else goes in one `lock_released` —
         the sweep is by holder, because a train mid-request holds its route,
         and a restored crossing train holds its block as any placed train
         does (#154). A block the layout has said
@@ -1394,6 +1472,8 @@ class Dispatcher:
         self._release(train, keep=kept)
         state.residue |= kept
         state.block_of.pop(train, None)
+        state.occupied.pop(train, None)
+        state.following.pop(train, None)
         # A crossing train stands in no block, and off the layout it is not on
         # a transit either: the hint goes with the placement it belonged to.
         state.crossing.pop(train, None)
@@ -1401,22 +1481,22 @@ class Dispatcher:
         self._sweep()
 
     def _kept(self, train: str) -> set[str]:
-        """What a removal of `train` leaves held: each block it holds that a
-        detector last read occupied, and the transit it is crossing if either
-        of that transit's blocks is among them (ADR-0069)."""
+        """What a removal of `train` leaves held: each block it holds with a
+        sensor last read occupied, and each transit on its `occupied` list with
+        either of its blocks among them (ADR-0069, #1171)."""
         state = self._state
         kept = {
             resource
             for resource, holder in state.locks.items()
-            if holder == train and state.reported.get(resource) is True
+            if holder == train and state.reads_occupied(resource)
         }
-        transit = state.crossing.get(train)
-        if (
-            transit is not None
-            and state.locks.get(transit) == train
-            and kept & transit_blocks(state.layout, transit)
-        ):
-            kept.add(transit)
+        kept.update(
+            [
+                entry
+                for entry in state.occupied.get(train, ())
+                if kept & transit_blocks(state.layout, entry)
+            ]
+        )
         return kept
 
     def _spent(self, train: str) -> list[str]:
@@ -1483,14 +1563,15 @@ class Dispatcher:
         ADR-0080), named by its id.
 
         A request waiting is cancelled at once. One underway gives up what it
-        holds but the block its train stands in, unless a move of its own is
-        outstanding: nothing on the bus retracts a `move` already sent, so
-        the request is marked instead, granted nothing further, and retires
-        when that move's sensors end it (`_ended`). The requests chained after
-        it by then are cancelled `revoked` as it ends; one chained after it
-        once the cancel was asked departs from where the train stops
-        (`_follow`, #836). The deferral asks `layout` to take the move back,
-        and ends at once where it does (`_withdrawn`, #1068). An id the
+        holds ahead and nothing its train is on, unless its newest move has not
+        ended: nothing on the bus retracts a `move` already sent, so the request
+        is marked instead, granted nothing further, and retires at the end of
+        that move (`_request_over`, #1171). The requests chained after it by
+        then are cancelled `revoked` as it ends; one chained after it once the
+        cancel was asked departs from where the train stops (`_follow`, #836).
+        Where the head is not yet in, the deferral asks `layout` to take the
+        move back, and ends at once where it does (`_withdrawn`, #1068); with
+        the head in there is nothing left to take back, so it asks nothing. An id the
         dispatcher does not hold is dropped in silence and to the trace, as
         every gesture it cannot act on is (ADR-0034).
 
@@ -1528,6 +1609,11 @@ class Dispatcher:
                 )
                 self._publish_allocation()
                 return
+            newest = self._newest(req.train)
+            if newest is not None and newest.head_in and not newest.at_far:
+                req.cancelling = newest.move.into
+                self._publish_allocation()
+                return
             self._retire(req.train, active, Cancellation.REVOKED)
         else:
             self._requests.remove(req)
@@ -1545,9 +1631,9 @@ class Dispatcher:
         nothing had driven the train since it acted on the move, so the train
         never left its block (#1068).
 
-        The request retires as the move's sensors would have retired it
-        (`_ended`), `revoked`, keeping only the block the train stands in,
-        which is the move's origin: the train is put back where it was before
+        The request retires as the move's end would have retired it
+        (`_request_over`), `revoked`, keeping what the train is on, the move's
+        transit no longer among it: the train is put back where it was before
         the grant, so a request chained after it departs from there. Anything
         else is dropped — a request not cancelled, a move not outstanding, a
         transit other than the one it crosses or a block other than the one
@@ -1569,6 +1655,11 @@ class Dispatcher:
         active.outstanding = None
         active.cur_index -= 1
         del self._state.crossing[withdrawn.train]
+        occupying = self._state.occupied[withdrawn.train]
+        occupying.remove(move.transit)
+        if self._state.block_of[withdrawn.train] not in occupying:
+            occupying.append(self._state.block_of[withdrawn.train])
+        self._state.following[withdrawn.train].pop()
         self._retire(withdrawn.train, active, Cancellation.REVOKED)
         self._sweep()
 
@@ -1632,7 +1723,7 @@ class Dispatcher:
         answers the move — a move whose sensors may never come is the case
         they are standing in front of. So the request retires at the gesture,
         and an occupied reading that does arrive for it afterwards explains
-        nothing and is named on `state/disputed` (`_unexplained`), which is the
+        nothing and is named on `state/disputed`, which is the
         right answer to a detector firing under a train somebody has just moved
         by hand. A clear
         reading on track the gesture gave up is a block nobody holds reading
@@ -1658,7 +1749,7 @@ class Dispatcher:
         reason: Cancellation,
         keep: Collection[str] | None = None,
     ) -> None:
-        """The active request ended: what it holds released, the train
+        """The active request ended: what it holds ahead released, the train
         dropped out of everything that says it is running one, and the one
         event that says so. A person's cancel leaves the requests chained
         after it once it was asked departing from where the train stopped
@@ -1671,7 +1762,8 @@ class Dispatcher:
         state = self._state
         if keep is None:
             standing = state.block_of.get(train)
-            keep = () if standing is None else (standing,)
+            on = state.occupied.get(train, [])
+            keep = on if standing is None else (*on, standing)
         self._release(train, keep=keep)
         del state.active[train]
         state.crossing.pop(train, None)
@@ -1690,13 +1782,20 @@ class Dispatcher:
 
         `align` and `move` are on this filter because they name the component
         that responds to them, and the dispatcher is not that component: the
-        sensor leaves are named here so a command passes by unread rather
-        than being taken for a reading with no block in it. So is its own
+        `state/settled/sensor` row is named here so a command passes by unread
+        rather than being taken for a reading with no sensor in it. So is its own
         `withdraw_wanted`, and `layout`'s answer to it, `move_withdrawn`, is
         read (#1068). So is `power_wanted`, for a person's `on` (#1087).
         """
         leaf = topic.rsplit("/", 1)[-1]
-        if leaf == "move_withdrawn":
+        device = split_device(topic)
+        if device is not None and device[0] == SETTLED_SENSOR:
+            # An older value than the one held is ignored as `state/power`'s is,
+            # and an unreadable one dropped, the last value standing (#1168).
+            reading = settled_reading(payload)
+            if self._ordering.accepts(topic, payload) and reading is not None:
+                self._on_reading(*reading)
+        elif leaf == "move_withdrawn":
             self._withdrawn(payload)
         elif leaf == "power_wanted":
             # A person's `on` ends a hold `layout` has not answered (`_drain`).
@@ -1706,75 +1805,174 @@ class Dispatcher:
         elif leaf == "power":
             # An older value of the supply than the one already held means
             # the wire handed the pair over backwards: it is ignored, and
-            # quietly — the trace has it, as it has every frame. The sensor
-            # leaves below take no such guard, being event topics where a
-            # repeat re-asserts a level (ADR-0047).
+            # quietly — the trace has it, as it has every frame.
             if self._ordering.accepts(topic, payload):
                 self._on_power(payload)
         elif leaf == "unknown_sensors":
             if self._ordering.accepts(topic, payload):
                 self._on_unknown_sensors(payload)
-        elif leaf in ("block_occupied", "block_vacated"):
-            block = occupancy(payload)
-            # None is dropped, and on the trace already by virtue of having
-            # been published (ADR-0034): the block stays out of `reported`,
-            # so it takes no part in the check and the next report settles
-            # it. Why this direction and not the power enum's is SYSTEM.md,
-            # sole payload authority (#181).
-            if block is not None:
-                self._on_sensor(leaf == "block_occupied", block)
         self._check()
 
-    def _on_sensor(self, occupied: bool, block: str) -> None:
-        """One detector reading, applied where it lands (ADR-0047).
+    def _on_reading(self, sensor: str, occupied: bool) -> None:
+        """One sensor's settled reading, applied where it lands (ADR-0047).
 
-        A detector reports presence, which is a level: a reading that
-        re-asserts what `reported` already holds is an at-least-once repeat
-        and a no-op, so delivery needs no counter and no dedup. A reading
-        that *changes* the level either explains a granted move — recorded
-        arrival for `block_occupied`, a finished move for `block_vacated` —
-        or explains nothing, which a person is told of (`_unexplained`). Either
-        way the level is recorded first: what the dispute check compares is
-        every reading that arrived, explained or not (#153).
+        A sensor reports presence, which is a level: a reading that re-asserts
+        what `readings` already holds is an at-least-once repeat and a no-op, so
+        delivery needs no counter and no dedup. A reading that *changes* the
+        level is taken against every move still expecting that sensor, oldest
+        first (`_followed`), and a reading no move expects changes nothing for
+        any train: a person backing a train at a platform, with no move out
+        through that end.
+
+        A sensor reading occupied that no train explains is named on
+        `state/disputed` and **a person is told and the rest keeps running**
+        (#1154, which supersedes ADR-0048's drain). A hand putting a locomotive
+        on a detected block, a train pushed while the supply was off, a cut of
+        cars a broken coupling left standing, a detector asserting on dirt —
+        they differ for the person recovering and not here. What each leaves is
+        held apart without stopping anything: a block reading occupied is an
+        obstacle no train is sent into (ADR-0077). It does not raise: the frame
+        is well formed and a handler that raised would take the app off the bus
+        for an ordinary act of a person's hand (BUS.md, rule 4). Nothing is
+        placed: occupancy is anonymous, so there is no train to place, and a
+        person walks to what the set names and places what they find.
+
+        Every reading ends in a sweep, for whatever it released or disputed.
         """
-        if self._state.reported.get(block) == occupied:
+        state = self._state
+        if state.readings.get(sensor) == occupied:
             return
-        self._state.reported[block] = occupied
+        state.readings[sensor] = occupied
         self._publish_disputed()
-        if occupied:
-            self._arrived(block)
-        else:
-            self._cleared(block)
-
-    def _explained(self, block: str) -> tuple[str, Active, Move] | None:
-        """The train whose outstanding move this reading reports on, or None
-        where no grant accounts for it."""
-        train = self._state.locks.get(block)
-        if train is None:
-            return None
-        active = self._state.active.get(train)
-        if active is None or active.outstanding is None:
-            return None
-        return train, active, active.outstanding
-
-    def _unexplained(self) -> None:
-        """A reading no granted move accounts for: **a person is told and the
-        rest keeps running** (#1154, which supersedes ADR-0048's drain).
-
-        A hand putting a locomotive on a detected block, a train pushed while
-        the supply was off, a cut of cars a broken coupling left standing, a
-        detector asserting on dirt — they differ for the person recovering and
-        not here. What each leaves is held apart without stopping anything: a
-        block reading occupied is an obstacle no train is sent into (ADR-0077).
-
-        So an occupied reading no train explains goes on `state/disputed`, and
-        a sweep runs for a block the reading has opened. It does not raise: the frame is well formed and a handler that raised would
-        take the app off the bus for an ordinary act of a person's hand (BUS.md,
-        rule 4). Nothing is placed: occupancy is anonymous, so there is no train
-        to place, and a person walks to what the set names and places what they
-        find.
-        """
+        for train, following in state.following.items():
+            for each in list(following):
+                self._followed(train, each, sensor, occupied)
+        self._lift_residue()
         self._sweep()
+
+    def _followed(
+        self, train: str, each: Following, sensor: str, occupied: bool
+    ) -> None:
+        """A changed reading, taken against one move that may expect it (#1171).
+
+        For a move out of X through `exit`, over T, into Y through `entry`:
+        `exit` occupied then clear is the tail out of X, or occupied at the
+        grant and then clear; `entry` occupied is the head in Y, and so is `far`
+        where `entry` said nothing; `entry` then clear is the whole train in Y;
+        `far` occupied is where it stops. Anything else changes nothing, and a
+        clear reading is never taken for a train gone: a short train stands
+        between its block's sensors and both read clear.
+        """
+        newest = self._newest(train) is each
+        if occupied:
+            if sensor == each.exit:
+                each.exit_read = True
+            elif sensor in (each.entry, each.far):
+                if not each.head_in:
+                    self._head_in(train, each)
+                if sensor == each.far:
+                    each.at_far = True
+                    if newest:
+                        self._request_over(train)
+        elif sensor == each.exit:
+            if each.exit_read:
+                self._tail_out(train, each)
+        elif sensor == each.entry and each.head_in:
+            self._tail_in(train, each)
+            if newest:
+                self._request_over(train)
+
+    def _newest(self, train: str) -> Following | None:
+        following = self._state.following.get(train)
+        return following[-1] if following else None
+
+    def _head_in(self, train: str, each: Following) -> None:
+        """The head is in the block the move enters: the move is no longer
+        outstanding, so the train may be granted its next one, and the block
+        goes to the head of what it occupies, from wherever a move back over a
+        transit left it.
+
+        The allocation recording it goes out before any grant it leads to: the
+        scheduler moves the train's facing when the allocation names it in the
+        block its move entered, and `layout` reads that facing for the next
+        `move`, dropping one whose facing names another block (#1025, #1038,
+        ADR-0052). The train is recorded past the signal it left by, which now
+        shows `stop` (ADR-0093)."""
+        state = self._state
+        into = each.move.into
+        each.head_in = True
+        active = state.active.get(train)
+        if active is not None:
+            active.outstanding = None
+        state.crossing.pop(train, None)
+        occupying = state.occupied[train]
+        if into in occupying:
+            occupying.remove(into)
+        occupying.append(into)
+        state.block_of[train] = into
+        self._publish_aspects()
+        self._publish_allocation()
+
+    def _tail_out(self, train: str, each: Following) -> None:
+        """The tail has left the block the move leaves, which is released, and
+        the train is recorded in the block it is crossing into if it was still
+        recorded in that one. A move older than this one into that block is
+        dropped, so another train entering it later reads nothing for this
+        one."""
+        state = self._state
+        left = each.move.from_block
+        occupying = state.occupied[train]
+        if left not in occupying:
+            return
+        self._give_up(train, [left])
+        if state.block_of[train] == left:
+            state.block_of[train] = each.move.into
+        following = state.following[train]
+        older = following[: following.index(each)]
+        following[: len(older)] = [m for m in older if m.move.into != left]
+
+    def _tail_in(self, train: str, each: Following) -> None:
+        """The whole train is in the block the move entered: the transit, and
+        anything of the train's still behind it, are released in one
+        `lock_released`, and this move and any older are no longer followed. A
+        transit a later move has taken again is not this one's to give up."""
+        state = self._state
+        occupying = state.occupied[train]
+        transit = each.move.transit
+        if transit in occupying:
+            self._give_up(train, occupying[: occupying.index(transit) + 1])
+        following = state.following[train]
+        del following[: following.index(each) + 1]
+
+    def _give_up(self, train: str, resources: list[str]) -> None:
+        """What a train has left behind it, off its list and released."""
+        state = self._state
+        occupying = state.occupied[train]
+        for resource in resources:
+            occupying.remove(resource)
+            if state.locks.get(resource) == train:
+                del state.locks[resource]
+        self._publish("lock_released", {"train": train, "resources": resources})
+
+    def _request_over(self, train: str) -> None:
+        """The newest move of the train has ended, at its `entry` clearing or
+        its `far` reading occupied. Its request ends with it: **a cancelled one
+        retires**, wherever along its route it had got to, the person's gesture
+        having landed before this move ended (ADR-0049), and gives up what it
+        holds ahead and nothing it is on; otherwise, at its route's last block,
+        it completes. Otherwise nothing: its next move has been or will be
+        granted."""
+        state = self._state
+        active = state.active.get(train)
+        if active is None or active.outstanding is not None:
+            return
+        if active.request.cancelled:
+            self._retire(train, active, Cancellation.REVOKED)
+        elif active.cur_index == len(active.route.blocks) - 1:
+            del state.active[train]
+            self._requests.remove(active.request)
+            self._publish("request_completed", {"id": active.request.id})
+            self._ending(active.request, opposite_end(self._entered(active.route)))
 
     def _check(self) -> bool:
         """The lock table's rules, checked (`broken`): a rule broken now and
@@ -1832,115 +2030,29 @@ class Dispatcher:
             self._drain_asked = True
             self._bus.publish(POWER_WANTED, {"power": DRAINING})
 
-    def _arrived(self, block: str) -> None:
-        """`block_occupied` records where the train arrived, and ends the move
-        if its origin has read clear since the grant, or did at the grant, and
-        still does (ADR-0077, #806, #1164). Otherwise the move is not over: the tail is still in the origin
-        block, the train is between blocks, and it takes no further grant
-        until the vacate ends the move (ADR-0047).
+    def _lift_residue(self) -> None:
+        """A block a removed train still holds opens when neither of its sensors
+        reads occupied and neither is listed: the hand has lifted the loco
+        (ADR-0069, #1171). Asked on each reading and on each change of
+        `state/unknown_sensors`, since a sensor returning with an equal level
+        changes no reading.
 
-        Either way the allocation recording the arrival goes out before any
-        grant the arrival leads to: the scheduler moves the train's facing
-        when the allocation names it in the block its move entered, and
-        `layout` reads that facing for the next `move`, dropping one whose
-        facing names another block (#1025, #1038, ADR-0052)."""
-        found = self._explained(block)
-        if found is None or found[2].into != block:
-            self._unexplained()
-            return
-        train, active, move = found
-        self._state.block_of[train] = block
-        # The train is recorded past the signal it left by, which now shows
-        # `stop` (ADR-0093) — before `_ended`'s sweep can grant its next move.
-        self._publish_aspects()
-        self._publish_allocation()
-        if active.origin_cleared and self._state.reported.get(move.from_block) is False:
-            self._ended(train, active, move)
-
-    def _cleared(self, block: str) -> None:
-        """`block_vacated` of a move's origin ends the move once its arrival
-        block reads occupied (ADR-0077).
-
-        **Before the arrival it only marks the move's origin cleared**: no
-        release, no grant, and no drain. The layout publishes a vacate when the
-        origin's own detectors go clear, and a train shorter than the gap to
-        the next block's entry detector reads clear behind before it reads
-        occupied ahead, which is normal running. The train may be standing on
-        the connection's points, so the origin and the transit stay locked,
-        and the arrival ends the move.
-
-        A clear reading on a block nobody holds is explained too: a stray or
-        a stuck detector clearing, which gives back a block a train may be
-        waiting on, so it sweeps as any reading no move explains does.
+        It releases the block, and the transit kept for it once neither of that
+        transit's blocks is still residue, in one `lock_released`. A clear
+        reading under a train that stands in its block is not one: a detector
+        dropping out under a dirty wheel reads the same, and only a removal says
+        it was a lift.
         """
         state = self._state
-        found = self._explained(block)
-        if found is None or found[2].from_block != block:
-            if block not in state.locks:
-                self._sweep()
-            elif not self._lifted(block):
-                self._unexplained()
-            return
-        train, active, move = found
-        if state.block_of.get(train) == move.into:
-            self._ended(train, active, move)
-        else:
-            active.origin_cleared = True
-
-    def _ended(self, train: str, active: Active, move: Move) -> None:
-        """A move over, on both its readings — origin clear, arrival
-        occupied, in either order (ADR-0077): it releases the origin block
-        and the transit and completes the request, and what it released is
-        why a sweep runs here (ADR-0047).
-
-        **A cancelled request retires here instead**, wherever along its route
-        it had got to: the person's gesture landed while this move was
-        outstanding, so it was marked rather than acted on, and the move it
-        could not retract has now run to its sensors (ADR-0049). What it gives
-        up is the whole remaining hold and not just this move's block and
-        transit — the rest of the route is track it will never run — and what
-        it publishes is `request_cancelled` in place of `request_completed`,
-        because the train did not arrive.
-        """
-        state = self._state
-        active.outstanding = None
-        del state.crossing[train]
-        if active.request.cancelled:
-            self._retire(train, active, Cancellation.REVOKED)
-        else:
-            del state.locks[move.from_block]
-            del state.locks[move.transit]
-            self._publish(
-                "lock_released",
-                {"train": train, "resources": [move.from_block, move.transit]},
-            )
-            if active.cur_index == len(active.route.blocks) - 1:
-                del state.active[train]
-                self._requests.remove(active.request)
-                self._publish("request_completed", {"id": active.request.id})
-                self._ending(active.request, opposite_end(self._entered(active.route)))
-        self._sweep()
-
-    def _lifted(self, block: str) -> bool:
-        """A clear reading on a block a removed train still holds: the hand
-        has lifted the loco, and the block opens (ADR-0069). Answers whether
-        the reading was that.
-
-        The reading is explained. It releases the block, and the transit kept
-        for it once neither of that transit's blocks is still residue, in one
-        `lock_released` — and what it frees is why a sweep runs here, as at the
-        end of any move. A clear reading under a train that stands in its block
-        is not one: a detector dropping out under a dirty wheel reads the same,
-        and only a removal says it was a lift.
-        """
-        state = self._state
-        if block not in state.residue:
-            return False
-        train = state.locks[block]
-        state.residue.discard(block)
-        self._open(train, [block, *self._spent(train)])
-        self._sweep()
-        return True
+        for block in sorted(state.residue):
+            if (
+                block in state.layout.blocks
+                and not state.reads_occupied(block)
+                and block not in state.out_of_use
+            ):
+                train = state.locks[block]
+                state.residue.discard(block)
+                self._open(train, [block, *self._spent(train)])
 
     def _on_power(self, payload: Payload) -> None:
         """What the layout says about the one switch a person turns: `on`,
@@ -1987,19 +2099,21 @@ class Dispatcher:
         An unreadable row is dropped and the last value stands, and a row that
         changes nothing sweeps nothing, so a binding saying `sensors: []` runs as
         one saying nothing. A change sweeps: a sensor returning routes at once
-        with no press, and `state/moving` follows the list, since `layout` has
-        stopped a train whose entry sensor is on it.
+        with no press, opens a block a removal left that reads clear, and
+        `state/moving` follows the list, since `layout` has stopped a train both
+        of whose sensors are on it.
         """
         listed = unknown_sensors(payload)
         if listed is None or listed == self._state.unknown_sensors:
             return
         self._state.unknown_sensors = listed
+        self._lift_residue()
         self._sweep()
 
     def _sweep(self) -> None:
         """One grant pass, run where the lock table or the waiting set
-        changed: a request admitted, cancelled or moved in the list, a vacated
-        block releasing what a move held, the power coming back `on`, the
+        changed: a request admitted, cancelled or moved in the list, a reading
+        releasing what a move held, the power coming back `on`, the
         sensors not reporting changing. A sweep
         covers the whole list, so a refused request is reconsidered exactly
         when the resource it waited on frees (ADR-0047).
@@ -2022,9 +2136,9 @@ class Dispatcher:
         self._publish_aspects()
         self._publish_allocation()
         self._publish_disputed()
-        # And `moving`: a grant puts a train in `crossing`, and a sweep
-        # follows each place that takes one out, so it is where the boolean
-        # moves (ADR-0062).
+        # And `moving`: a grant starts a move being followed, and a sweep
+        # follows each place that ends one, so it is where the boolean moves
+        # (ADR-0062).
         self._publish_moving()
 
     def _grant(self) -> None:
@@ -2034,9 +2148,15 @@ class Dispatcher:
             state.active, key=lambda t: (state.active[t].request.phase, t)
         ):
             active = state.active[train]
-            if active.outstanding is not None or active.request.cancelled:
+            if (
+                active.outstanding is not None
+                or active.request.cancelled
+                or active.cur_index == len(active.route.blocks) - 1
+            ):
                 # A cancelled request is waiting for the move it was already
-                # making to end, and takes no other (ADR-0049).
+                # making to end, and takes no other (ADR-0049). A train at its
+                # route's last block has no next move: its tail is what it
+                # waits for (#1171).
                 continue
             self._apply_move(active, self._strategy.grant(train, state))
         # The list in its order (ADR-0080): each waiting request is offered
@@ -2204,13 +2324,35 @@ class Dispatcher:
             },
         )
         active.outstanding = result
-        # An origin already reading clear sends no vacate for this move: a
-        # detector states a change of level. A short train standing between its
-        # block's sensors passes one on the way out and reads occupied again,
-        # which `_arrived` asks before it ends the move (#1164).
-        active.origin_cleared = self._state.reported.get(result.from_block) is False
         self._state.crossing[active.request.train] = result.transit
         active.cur_index += 1
+        self._follow_move(active.request.train, result)
+
+    def _follow_move(self, train: str, move: Move) -> None:
+        """The readings a move granted now expects: its transit goes to the head
+        of what the train occupies, moved there on a move back over the transit
+        it came by, and an older move that has reached its far sensor expects
+        nothing more. What that one left on the list stays until this move's
+        tail is in (#1171)."""
+        state = self._state
+        occupying = state.occupied[train]
+        if move.transit in occupying:
+            occupying.remove(move.transit)
+        occupying.append(move.transit)
+        ends = transit_ends(state.layout, move.into, move.transit)
+        assert ends is not None  # a route's transits reach its blocks
+        entry, leaving = ends
+        state.following[train] = [
+            each for each in state.following.get(train, []) if not each.at_far
+        ] + [
+            Following(
+                move,
+                leaving,
+                entry,
+                opposite_end(entry),
+                exit_read=state.readings.get(leaving) is True,
+            )
+        ]
 
     def _align(self, transit_id: str) -> None:
         """Set the connection to the transit, before the move that takes it.
@@ -2303,11 +2445,11 @@ class Dispatcher:
         )
 
     def _moving(self) -> bool:
-        """Whether a power cut now would strand something: any train crossing
-        other than one `layout` has stopped short of an unknown entry sensor,
-        which a person's off press has to be able to drain past (#1152). A far
-        sensor listed stops nothing, so that train counts
-        (GLOSSARY.md, **Moving**, #844). A train standing in a block loses
+        """Whether a power cut now would strand something: any train with a
+        move between its grant and its entry sensor clearing or its far sensor
+        reading occupied (#1171), other than one `layout` has stopped with both
+        those sensors unknown, which a person's off press has to be able to
+        drain past (#1152, GLOSSARY.md, **Moving**). A train standing in a block loses
         nothing when the supply goes, whether or not it is active: one a drain
         stopped at a signal partway along its route keeps that route and its
         locks, and carries on once power reads `on` again (ADR-0078). A
@@ -2316,7 +2458,12 @@ class Dispatcher:
         that ended over one would have `layout` cut the supply under it.
         """
         state = self._state
-        return any(not stopped_at_unknown_sensor(state, t) for t in state.crossing)
+        listed = state.unknown_sensors
+        return any(
+            not each.at_far and not (each.entry in listed and each.far in listed)
+            for following in state.following.values()
+            for each in following
+        ) or any(not state.following.get(train) for train in state.crossing)
 
     def _publish_moving(self) -> None:
         """Whether anything is moving, on `state/moving`: what `layout` reads
@@ -2356,7 +2503,7 @@ class Dispatcher:
             self._bus.publish(ALLOCATION, picture)
 
     def _publish_disputed(self) -> None:
-        """The blocks the detectors dispute, on a last-value topic, when they
+        """The blocks the sensors dispute, on a last-value topic, when they
         change — the panel points a person at them, and a panel joining later
         must find them there (ADR-0032). Published from every place that moves
         either side of the comparison: a reading arriving, a placement, and

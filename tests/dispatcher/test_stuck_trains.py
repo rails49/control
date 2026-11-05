@@ -50,7 +50,7 @@ def railroad(
             )
             for train, blocks in routes.items()
         },
-        reported={block: True for block in reading},
+        readings={f"{block}.A": True for block in reading},
     )
 
 

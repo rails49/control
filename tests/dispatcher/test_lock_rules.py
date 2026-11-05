@@ -64,7 +64,7 @@ def with_residue(state: State) -> State:
     state.locks["up_w"] = "gone"
     state.locks["crossover.up_straight"] = "gone"
     state.residue |= {"up_w", "crossover.up_straight"}
-    state.reported["up_w"] = True
+    state.readings["up_w.A"] = True
     return state
 
 
@@ -99,7 +99,7 @@ def test_residue_is_locked() -> None:
 
 def test_a_residue_block_reads_occupied() -> None:
     state = with_residue(a_state())
-    state.reported["up_w"] = False
+    state.readings["up_w.A"] = False
     assert broken(state) == ["up_w is gone's residue and not read occupied"]
 
 
@@ -115,7 +115,7 @@ def test_a_residue_transit_keeps_one_of_its_blocks() -> None:
 def test_a_residue_block_is_not_where_its_holder_stands() -> None:
     state = a_state()
     state.residue.add("up_e")
-    state.reported["up_e"] = True
+    state.readings["up_e.A"] = True
     assert broken(state) == ["up_e is idle's residue and it stands there"]
 
 

@@ -1,15 +1,15 @@
-"""A move ends on both its readings, and no train is sent into a block that
-reads occupied (#791, ADR-0077).
+"""A move runs on what its sensors read, and no train is sent into a block that
+reads occupied (#791, ADR-0077, #1171).
 
 Each test drives a dispatcher on a bus of its own over `crossover-yard/meet`,
-answering every `move_granted` with `block_occupied` of the block it moves
-into and then `block_vacated` of the one it leaves, unless the case says
+answering every `move_granted` with its entry sensor occupied, then its exit
+sensor occupied and clear, then its entry sensor clear, unless the case says
 otherwise — and the lock table breaks no rule after any delivery (ADR-0076).
-The four paths here are ones the physical railroad produces: a detector
-stuck occupied with the power turned on again over it, a detector dropping
+The four paths here are ones the physical railroad produces: a sensor
+stuck occupied with the power turned on again over it, a sensor dropping
 out under a standing train with the power turned on again over it, a train's own residue on its way back,
-and a vacate behind before the occupy ahead, which a train shorter than the
-gap between two blocks' detectors gives in normal running.
+and a clear behind before the occupied ahead, which a train shorter than the
+gap between two blocks' sensors gives in normal running.
 """
 
 from typing import Any
@@ -21,13 +21,11 @@ from tc49.dispatcher.dispatch import broken
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import OFF, ON
 from tests.dispatcher.test_lock_rules import a_bus_dispatcher, deliver, drains
-from tests.harness import POWER
+from tests.harness import POWER, settled
 
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
-OCCUPIED = "tc49/layout/block_occupied"
-VACATED = "tc49/layout/block_vacated"
 
 STRATEGIES = [Incremental, FullRoute]
 
@@ -51,10 +49,14 @@ class Railroad:
         while len(self.granted()) > self.answered:
             train = self.granted()[self.answered]["train"]
             self.answered += 1
-            move = self.dispatcher.state.active[train].outstanding
-            assert move is not None
-            self.deliver(OCCUPIED, {"block": move.into}, answer=False)
-            self.deliver(VACATED, {"block": move.from_block}, answer=False)
+            move = self.dispatcher.state.following[train][-1]
+            for reading in (
+                settled(move.entry),
+                settled(move.exit),
+                settled(move.exit, False),
+                settled(move.entry, False),
+            ):
+                self.deliver(*reading, answer=False)
 
     def power(self, value: str, answer: bool = True) -> None:
         """The layout stating the power, as a binding answering a press
@@ -78,7 +80,7 @@ class Railroad:
 def stuck_yard_e(strategy: type[Incremental | FullRoute]) -> Railroad:
     """`yard_e` reads occupied, with nothing claiming it."""
     railroad = Railroad(strategy)
-    railroad.deliver(OCCUPIED, {"block": "yard_e"})
+    railroad.deliver(*settled("yard_e.A"))
     return railroad
 
 
@@ -94,7 +96,7 @@ def test_a_block_that_reads_occupied_is_not_entered(
     assert {"resource": "yard_e", "holder": ""} in refused[-1]["obstacles"]
     assert drains(railroad.said) == []
 
-    railroad.deliver(VACATED, {"block": "yard_e"})
+    railroad.deliver(*settled("yard_e.A", False))
 
     assert {"id": "r-1"} in railroad.leaf("request_completed")
     state = railroad.dispatcher.state
@@ -119,6 +121,7 @@ def test_a_train_does_not_enter_its_own_residue() -> None:
     `yard_e`, and sent back west: `dn_w` waits for its clear reading."""
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "dn_w.A")
+    railroad.deliver(*settled("dn_w.B"))
     railroad.deliver(PLACEMENT_WANTED, {"train": "freight_1", "block": None})
     railroad.power(OFF)
     railroad.deliver(PLACEMENT_WANTED, {"train": "freight_1", "block": "yard_e"})
@@ -132,79 +135,72 @@ def test_a_train_does_not_enter_its_own_residue() -> None:
     assert state.locks["dn_w"] == "freight_1"
     assert "dn_w" in state.residue
 
-    railroad.deliver(OCCUPIED, {"block": "dn_w"})
-    railroad.deliver(VACATED, {"block": "dn_w"})
+    railroad.deliver(*settled("dn_w.B", False))
 
     assert "dn_w" not in state.locks
     assert "dn_w" not in state.residue
 
 
-def test_a_vacate_before_the_arrival_waits_for_it() -> None:
+def test_a_clear_behind_before_the_head_is_in_releases_only_the_block_left() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
     assert [p["into"] for p in railroad.granted()] == ["dn_w"]
     state = railroad.dispatcher.state
 
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(*settled("yard_w.B"), answer=False)
+    railroad.deliver(*settled("yard_w.B", False), answer=False)
 
     assert drains(railroad.said) == []
-    assert state.locks["yard_w"] == "freight_1"
+    assert "yard_w" not in state.locks
+    assert state.block_of["freight_1"] == "dn_w"
+    assert state.locks["west_ladder.to_dn"] == "freight_1"
     assert len(railroad.granted()) == 1
 
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
 
-    assert state.block_of["freight_1"] == "dn_w"
-    assert "yard_w" not in state.locks
     assert len(railroad.granted()) == 2
-
-    railroad.answered = 1
-    railroad.answer()
-    assert {"id": "r-1"} in railroad.leaf("request_completed")
 
 
 @pytest.mark.parametrize("strategy", STRATEGIES)
-def test_a_clear_reading_from_before_the_grant_does_not_end_the_move(
+def test_an_exit_sensor_occupied_at_the_grant_then_clear_releases_the_block(
     strategy: type[Incremental | FullRoute],
 ) -> None:
-    """`yard_w` drops out under `freight_1` and reads occupied again before the
-    grant. The arrival then waits for a vacate heard while the move is
-    outstanding (#806)."""
+    """`yard_w.B` drops out under `freight_1` and reads occupied again before the
+    grant: it stands occupied at the grant, and clear from there is the tail out
+    (#806)."""
     railroad = Railroad(strategy)
-    railroad.deliver(VACATED, {"block": "yard_w"})
-    railroad.deliver(OCCUPIED, {"block": "yard_w"})
+    railroad.deliver(*settled("yard_w.B", False))
+    railroad.deliver(*settled("yard_w.B"))
     state = railroad.dispatcher.state
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
     assert [p["into"] for p in railroad.granted()] == ["dn_w"]
 
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
 
     released = railroad.leaf("lock_released")
     assert not [p for p in released if "yard_w" in p["resources"]]
     assert state.locks["yard_w"] == "freight_1"
     assert state.locks["west_ladder.to_dn"] == "freight_1"
-    assert "freight_1" in state.crossing
     assert state.block_of["freight_1"] == "dn_w"
 
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(*settled("yard_w.B", False), answer=False)
 
-    assert {
-        "train": "freight_1",
-        "resources": ["yard_w", "west_ladder.to_dn"],
-    } in railroad.leaf("lock_released")
+    assert {"train": "freight_1", "resources": ["yard_w"]} in railroad.leaf(
+        "lock_released"
+    )
+    assert state.locks["west_ladder.to_dn"] == "freight_1"
     assert state.crossing["freight_1"] == "crossover.dn_straight"
 
 
-def test_a_clear_reading_taken_back_does_not_end_the_move() -> None:
+def test_a_clear_reading_with_no_occupied_before_it_releases_nothing() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
     state = railroad.dispatcher.state
 
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
-    railroad.deliver(OCCUPIED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(*settled("yard_w.B", False), answer=False)
     assert drains(railroad.said) == []
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
 
-    assert "freight_1" in state.crossing
     assert state.locks["yard_w"] == "freight_1"
 
 
@@ -213,41 +209,41 @@ def test_a_repeat_reading_changes_nothing() -> None:
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
     state = railroad.dispatcher.state
 
-    for topic, block in ((VACATED, "yard_w"), (OCCUPIED, "dn_w")):
-        railroad.deliver(topic, {"block": block}, answer=False)
+    for reading in (settled("yard_w.B", False), settled("dn_w.A")):
+        railroad.deliver(*reading, answer=False)
         locks, block_of, said = (
             dict(state.locks),
             dict(state.block_of),
             len(railroad.said),
         )
-        railroad.deliver(topic, {"block": block}, answer=False)
+        railroad.deliver(*reading, answer=False)
         assert state.locks == locks
         assert state.block_of == block_of
         assert len(railroad.said) == said
         assert drains(railroad.said) == []
 
 
-def test_a_vacate_before_the_arrival_on_the_last_move() -> None:
+def test_a_request_completes_when_its_entry_sensor_clears() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "dn_w.A", answer=False)
 
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
     assert not railroad.leaf("request_completed")
-
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
-    assert railroad.leaf("request_completed") == [{"id": "r-1"}]
     assert railroad.dispatcher.state.block_of["freight_1"] == "dn_w"
 
+    railroad.deliver(*settled("dn_w.A", False), answer=False)
+    assert railroad.leaf("request_completed") == [{"id": "r-1"}]
 
-def test_a_cancelled_request_retires_on_the_arrival() -> None:
+
+def test_a_cancelled_request_retires_at_the_end_of_its_move() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "dn_w.A", answer=False)
     railroad.deliver(CANCEL_WANTED, {"id": "r-1"}, answer=False)
 
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
     assert not railroad.leaf("request_cancelled")
 
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A", False), answer=False)
     assert [p["id"] for p in railroad.leaf("request_cancelled")] == ["r-1"]
     assert railroad.dispatcher.state.locks == {
         "dn_w": "freight_1",
@@ -289,21 +285,20 @@ def recorded_before_granted(railroad: Railroad, block: str, into: str) -> bool:
     return recorded < granted
 
 
-def test_an_arrival_after_the_vacate_is_recorded_before_the_next_grant() -> None:
+def test_the_head_in_is_recorded_before_the_next_grant() -> None:
     """The scheduler moves facing on the allocation, and `layout` reads that
-    facing for the next `move`, so the allocation recording the arrival goes
+    facing for the next `move`, so the allocation recording the head in goes
     out first (#1038, #1025, ADR-0052)."""
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
 
     assert recorded_before_granted(railroad, "dn_w", "dn_e")
 
 
-def test_an_arrival_ending_a_request_is_recorded_before_the_next_ones_grant() -> None:
+def test_a_request_ending_is_recorded_before_the_next_ones_grant() -> None:
     """The same for the first move of a chained request, granted by the
-    sweep of the arrival that completes the one before it."""
+    sweep of the reading that completes the one before it."""
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "dn_w.A", answer=False)
     railroad.deliver(
@@ -311,8 +306,8 @@ def test_an_arrival_ending_a_request_is_recorded_before_the_next_ones_grant() ->
         {"id": "r-2", "train": "freight_1", "dest": ["yard_e.A"], "after": "r-1"},
         answer=False,
     )
-    railroad.deliver(VACATED, {"block": "yard_w"}, answer=False)
-    railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)
+    railroad.deliver(*settled("dn_w.A"), answer=False)
+    railroad.deliver(*settled("dn_w.A", False), answer=False)
 
     assert railroad.leaf("request_completed") == [{"id": "r-1"}]
     assert recorded_before_granted(railroad, "dn_w", "dn_e")

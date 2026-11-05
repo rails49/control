@@ -20,7 +20,16 @@ from tc49.bench.runner import assemble_live
 from tc49.dispatcher import Incremental
 from tc49.lib.inventory import ON
 from tc49.lib.scenario import TrainSpec
-from tests.harness import POWER_WANTED, events, load, power, press, run, ticks
+from tests.harness import (
+    POWER_WANTED,
+    events,
+    load,
+    power,
+    press,
+    run,
+    settled,
+    ticks,
+)
 
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 
@@ -216,7 +225,7 @@ def test_a_train_that_cannot_finish_stops_only_itself() -> None:
     press(assembly, REQUEST_WANTED, {"train": stuck, "dest": ["C6.A"]})
     assert "C3b" in events(assembly.trace, "route_chosen")[-1]["route"]
 
-    press(assembly, "tc49/layout/block_occupied", {"block": "C3b"})
+    press(assembly, *settled("C3b.A"))
     ticks(assembly, 5)
     press(assembly, POWER_WANTED, {"power": ON})
     press(assembly, REQUEST_WANTED, {"train": running, "dest": ["CW.B"]})
