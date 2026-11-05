@@ -22,8 +22,8 @@ from tc49.lib.layout import Layout
 from tests.harness import POWER, POWER_WANTED, load
 
 REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
-UNREADABLE_READING = "tc49/layout/block_occupied"
-"""With no block in the payload it changes nothing, and the check every event
+UNREADABLE_READING = "tc49/layout/state/settled/sensor/up_e.A"
+"""With no sensor in the payload it changes nothing, and the check every event
 ends in is what finds the table broken, ahead of the request behind it."""
 
 

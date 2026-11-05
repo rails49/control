@@ -2019,7 +2019,7 @@ class Dispatcher:
         draining or off is already where a fault would put it.
 
         **From the ask until the answer nothing is granted** (#1087). Power
-        goes on reading `on` until `layout` answers, and a request or a vacate
+        goes on reading `on` until `layout` answers, and a request or a reading
         arriving in between would otherwise be granted from the table the
         fault just said is wrong. The hold ends on the first `state/power`
         that does not read `on`, after which power holds the grants itself,

@@ -20,7 +20,7 @@ from tc49.lib.mqtt import MqttBus, address
 from tests.brokers import Broker, drained, settle, until
 
 POWER = "tc49/layout/state/power"
-OCCUPIED = "tc49/layout/block_occupied"
+SENSOR = "tc49/layout/sensor"
 
 
 @pytest.fixture
@@ -77,18 +77,18 @@ def test_event_published_before_a_subscriber_does_not(
     buses: Callable[[], MqttBus],
 ) -> None:
     writer, witness, reader = buses(), buses(), buses()
-    _through(writer, witness, OCCUPIED, {"block": "a"})
+    _through(writer, witness, SENSOR, {"addr": "a.A"})
 
     seen: list[str] = []
-    reader.subscribe("tc49/#", lambda topic, payload: seen.append(payload["block"]))
+    reader.subscribe("tc49/#", lambda topic, payload: seen.append(payload["addr"]))
     settle(reader)
 
     assert seen == []
 
     # And the subscription is live, so the silence above is the event topic
     # not being replayed rather than nothing working.
-    writer.publish(OCCUPIED, {"block": "b"})
-    assert drained(reader, lambda: seen == ["b"])
+    writer.publish(SENSOR, {"addr": "b.A"})
+    assert drained(reader, lambda: seen == ["b.A"])
 
 
 def test_a_handler_runs_on_the_thread_thatdrained(
@@ -133,28 +133,28 @@ def test_a_state_payload_is_stamped_from_wall_time(
 def test_an_event_payload_is_not_stamped(buses: Callable[[], MqttBus]) -> None:
     writer, reader = buses(), buses()
     seen: list[Payload] = []
-    reader.subscribe(OCCUPIED, lambda topic, payload: seen.append(payload))
+    reader.subscribe(SENSOR, lambda topic, payload: seen.append(payload))
 
-    writer.publish(OCCUPIED, {"block": "a"})
+    writer.publish(SENSOR, {"addr": "a.A"})
     assert drained(reader, lambda: len(seen) == 1)
-    assert seen[0] == {"block": "a"}
+    assert seen[0] == {"addr": "a.A"}
 
 
 def test_filters_deliver_as_the_bus_matches(buses: Callable[[], MqttBus]) -> None:
     writer, reader = buses(), buses()
     seen: dict[str, list[str]] = {"exact": [], "plus": [], "hash": []}
-    reader.subscribe(OCCUPIED, lambda topic, payload: seen["exact"].append(topic))
+    reader.subscribe(SENSOR, lambda topic, payload: seen["exact"].append(topic))
     reader.subscribe("tc49/layout/+", lambda topic, payload: seen["plus"].append(topic))
     reader.subscribe(
         "tc49/dispatch/#", lambda topic, payload: seen["hash"].append(topic)
     )
 
-    writer.publish(OCCUPIED, {"block": "a"})
+    writer.publish(SENSOR, {"addr": "a.A"})
     writer.publish("tc49/dispatch/request_completed", {"id": "r-1"})
 
     assert drained(reader, lambda: all(len(one) == 1 for one in seen.values()))
-    assert seen["exact"] == [OCCUPIED]
-    assert seen["plus"] == [OCCUPIED]
+    assert seen["exact"] == [SENSOR]
+    assert seen["plus"] == [SENSOR]
     assert seen["hash"] == ["tc49/dispatch/request_completed"]
 
 
@@ -169,7 +169,7 @@ def test_last_values_holds_the_state_topics_heard(
 ) -> None:
     writer, reader = buses(), buses()
     writer.publish(POWER, {"power": "on"})
-    writer.publish(OCCUPIED, {"block": "a"})
+    writer.publish(SENSOR, {"addr": "a.A"})
     reader.subscribe("tc49/#", lambda topic, payload: None)
 
     assert until(lambda: POWER in reader.last_values)
@@ -191,13 +191,13 @@ def test_an_unreadable_payload_is_dropped(
 
     # What any other participant on the broker can send: a payload proves
     # nothing about its sender, and a handler is given nothing it cannot read.
-    raw.publish(OCCUPIED, b"{not json", qos=0)
+    raw.publish(SENSOR, b"{not json", qos=0)
     settle(reader)
     assert seen == []
 
-    writer.publish(OCCUPIED, {"block": "a"})
+    writer.publish(SENSOR, {"addr": "a.A"})
     assert drained(reader, lambda: len(seen) == 1)
-    assert seen[0] == {"block": "a"}
+    assert seen[0] == {"addr": "a.A"}
 
 
 def test_a_cleared_retained_value_leaves_the_picture(
@@ -237,7 +237,7 @@ def test_an_event_topic_has_nothing_to_clear(buses: Callable[[], MqttBus]) -> No
     """Only a state topic is retained, so asking for an event topic is a bug
     in the caller rather than a no-op to absorb."""
     with pytest.raises(ValueError):
-        buses().clear(OCCUPIED)
+        buses().clear(SENSOR)
 
 
 def test_forgetting_drops_the_subscriptions_at_the_broker_too(
@@ -251,13 +251,13 @@ def test_forgetting_drops_the_subscriptions_at_the_broker_too(
     writer, reader = buses(), buses()
     heard: list[str] = []
     reader.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
-    writer.publish(OCCUPIED, {"block": "yard_w"})
-    assert drained(reader, lambda: heard == [OCCUPIED])
+    writer.publish(SENSOR, {"addr": "yard_w.A"})
+    assert drained(reader, lambda: heard == [SENSOR])
 
     reader.forget()
-    writer.publish(OCCUPIED, {"block": "yard_e"})
+    writer.publish(SENSOR, {"addr": "yard_e.A"})
     settle(reader)
-    assert heard == [OCCUPIED], "a forgotten filter still delivered"
+    assert heard == [SENSOR], "a forgotten filter still delivered"
 
     # And the retained picture comes again to whatever subscribes next.
     writer.publish(POWER, {"power": "on"})

@@ -49,12 +49,12 @@ def test_one_publisher_on_two_topics_can_arrive_in_either_order() -> None:
         listener = Listener()
         bus.subscribe("tc49/layout/#", listener.on)
         bus.publish("tc49/layout/boundary", {"n": 1})
-        bus.publish("tc49/layout/block_vacated", {"n": 2})
+        bus.publish("tc49/layout/sensor", {"n": 2})
         bus.drain()
         return listener.seen
 
-    assert run([0]) == ["tc49/layout/boundary 1", "tc49/layout/block_vacated 2"]
-    assert run([1]) == ["tc49/layout/block_vacated 2", "tc49/layout/boundary 1"]
+    assert run([0]) == ["tc49/layout/boundary 1", "tc49/layout/sensor 2"]
+    assert run([1]) == ["tc49/layout/sensor 2", "tc49/layout/boundary 1"]
 
 
 def test_choose_picks_between_channels_ordered_by_their_head() -> None:
@@ -62,14 +62,14 @@ def test_choose_picks_between_channels_ordered_by_their_head() -> None:
     first, second = Listener(), Listener()
     bus.subscribe("tc49/layout/boundary", first.on)
     bus.subscribe("tc49/layout/boundary", second.on)
-    bus.subscribe("tc49/layout/block_vacated", first.on)
+    bus.subscribe("tc49/layout/sensor", first.on)
 
     bus.publish("tc49/layout/boundary", {"n": 1})  # to first, then second
-    bus.publish("tc49/layout/block_vacated", {"n": 2})  # to first
+    bus.publish("tc49/layout/sensor", {"n": 2})  # to first
     bus.drain()
 
     assert offered == [3, 2, 1]
-    assert first.seen == ["tc49/layout/block_vacated 2", "tc49/layout/boundary 1"]
+    assert first.seen == ["tc49/layout/sensor 2", "tc49/layout/boundary 1"]
     assert second.seen == ["tc49/layout/boundary 1"]
 
 

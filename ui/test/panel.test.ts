@@ -1262,7 +1262,7 @@ describe("what state/allocation says a train occupies", () => {
     expect(model.blocks().get("b")?.toward).toBe("B");
   });
 
-  it("changes nothing it draws on a block event", () => {
+  it("changes nothing it draws on a settled reading", () => {
     const model = panel();
     feed(model, picture({ occupied: { t: ["b"] }, locks: { b: "t", c: "t" } }));
     const blocks = model.blocks();
@@ -1270,9 +1270,9 @@ describe("what state/allocation says a train occupies", () => {
     const placed = model.placed();
     feed(
       model,
-      { event: "block_occupied", block: "c" },
-      { event: "block_occupied", block: "a" },
-      { event: "block_vacated", block: "b" },
+      { event: "settled/sensor", addr: "c.A", occupancy: "occupied" },
+      { event: "settled/sensor", addr: "a.A", occupancy: "occupied" },
+      { event: "settled/sensor", addr: "b.A", occupancy: "clear" },
     );
     expect(model.blocks()).toEqual(blocks);
     expect(model.lit()).toEqual(lit);
