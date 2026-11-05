@@ -12,7 +12,7 @@ Each entry says what a thing is and links to the doc that owns it
 
 **Block**:
 A section of track without turnouts where a train can park. It has two ends,
-`A` and `B`, and a length
+`A` and `B`, and a length, the distance between its two sensors
 ([LAYOUT.md](docs/store/LAYOUT.md#the-derived-layout)).
 _Avoid_: section, segment, track
 
@@ -253,7 +253,8 @@ _Avoid_: closet, fleet, inventory
 Of a train: present in the dispatcher's `block_of`, standing in that block and
 holding its standing lock. A person drags the train from the roster into a
 free block, then puts its cars there. A train that is not placed is off the
-layout, an ordinary state rather than a fault
+layout, an ordinary state rather than a fault. Only a placement puts a train
+on the layout and only a removal takes it off: no sensor reading does either
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: closet, positioned, not on the layout (say off the layout)
 
@@ -261,7 +262,7 @@ _Avoid_: closet, positioned, not on the layout (say off the layout)
 A block no train is placed in, with no lock on it, and on no active train's
 remaining route. Only a free block takes a placement
 ([ADR-0080](docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
-_Avoid_: empty, clear (a detector reading), vacant, unlocked
+_Avoid_: empty, clear (a sensor reading), vacant, unlocked
 
 **Facing**:
 The run a parked train would make across its block, written `A-to-B` or
@@ -335,9 +336,18 @@ _Avoid_: itinerary, journey, plan
 
 **Lock**:
 An exclusive claim on a block or transit by one train. Every train always holds
-the lock on the block it stands in, its standing lock
+the lock on the block it stands in, its standing lock. A lock is on a block or
+transit its train occupies, or on one it holds ahead
 ([DISPATCH.md](docs/dispatcher/DISPATCH.md#locking)).
 _Avoid_: reservation, allocation
+
+**Occupied**:
+Of a block or transit: a train is on it, by the lock table. It stays occupied
+until that train's tail has been seen to leave. Of a sensor: what it reads
+while something is at the point it watches. A block or a transit does not read
+anything ([GOALS.md](docs/GOALS.md#dispatching)).
+_Avoid_: a block reads occupied, a block reads clear, vacated (a block or
+transit is released)
 
 **Committed**:
 Of a resource: on a route the dispatcher has chosen, with no lock on it yet. Of
@@ -381,11 +391,12 @@ _Avoid_: abort, kill, delete, revoke (one of the three reasons), rejection
 (which refuses a request before it is queued)
 
 **Disputed**:
-Where the placement and the detectors contradict each other, at every power
-value: a train whose block reads clear, or a block reading occupied with
-nothing claiming it. The set points a person at each and resolves nothing. A
-train on it takes no grant and no train is sent into a block on it
-([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+Of a block: one of its sensors reads `occupied` and no train explains it, at
+every power value. A train explains the reading when it occupies the block or
+has been granted the move into it. The set points a person at each block and
+resolves nothing, and no train is sent into a block on it. A `clear` reading
+disputes nothing
+([GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told)).
 _Avoid_: mismatch, discrepancy, error, conflict (two transits that may not be
 in use at once)
 
@@ -396,15 +407,15 @@ layout, each with its block and why: the block is gone or too short
 _Avoid_: invalid, orphaned, disputed (a placement against the detectors)
 
 **Unexplained reading**:
-A detector reading no granted move accounts for: a `block_occupied` with
-nothing claiming the block, or a `block_vacated` of a block a train stands in.
-It goes on **Disputed** for a person and the rest keeps running
-([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
+A sensor reading `occupied` that no train explains: none occupies the block
+and none has been granted the move into it. It puts the block on **Disputed**
+for a person, and the rest keeps running. A `clear` reading is never one
+([GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told)).
 _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 (one cause of such a reading)
 
 **Out of use**:
-The [org glossary](https://github.com/rails49/.github/blob/main/GLOSSARY.md)'s word. Here: a block or transit the dispatcher grants nothing into, out of or through, or a train it grants nothing to, while a failure holds on it: a sensor `unknown` (#1152), a block reading occupied with no train claiming it (ADR-0077), or a train whose block reads clear (#1154). What resumes use is the org's [OPERATING.md](https://github.com/rails49/.github/blob/main/docs/OPERATING.md).
+The [org glossary](https://github.com/rails49/.github/blob/main/GLOSSARY.md)'s word. Here: a block the dispatcher grants nothing into while a failure holds on it. A sensor `unknown` stops grants into, out of and through its block (#1152), and nothing is granted into a disputed block (ADR-0077). What resumes use is the org's [OPERATING.md](https://github.com/rails49/.github/blob/main/docs/OPERATING.md).
 _Avoid_: blocked, disabled, failed
 
 **Active / idle train**:
@@ -478,9 +489,10 @@ _Avoid_: throttle (a person's control), motive power, traction power (the track
 supply)
 
 **Sensor**:
-One block end being watched, `<block>.<end>`. A block has two, and the drawing
-defines them. It reads `occupied`, `clear` or `unknown`, and `unknown` until a
-report arrives and again once reports stop
+A point near one block end being watched, `<block>.<end>`. A block has two,
+and the drawing defines them. It reads `occupied`, `clear` or `unknown`, and
+`unknown` until a report arrives and again once reports stop. A reading says
+what is at the point, not what is in the block
 ([BUS.md](docs/BUS.md#event-inventory)).
 _Avoid_: detector (what reports on it)
 
