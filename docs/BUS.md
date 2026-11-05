@@ -351,7 +351,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/placement_refused` | event | dispatcher | a placement not accepted, and why ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)) |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
+| `tc49/dispatch/state/moving` | state | dispatcher | whether any train is crossing other than one stopped at an unknown entry sensor, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | where the detectors contradict the placement ([#153](https://github.com/rails49/control/issues/153)) |
@@ -593,10 +593,10 @@ what a drop would cost:
   `unknown` for the settling time and one with no report of any kind for
   `sensor_silence`, and takes off one whose `occupied` or `clear` has stood for
   the settling time; a sensor not on the drawing is never listed
-  ([#1151](https://github.com/rails49/control/issues/1151)). So far neither
-  consumer reads it
-  ([#1152](https://github.com/rails49/control/issues/1152),
-  [#1153](https://github.com/rails49/control/issues/1153)).
+  ([#1151](https://github.com/rails49/control/issues/1151)). A row that lists
+  nothing new sweeps nothing, and a change sweeps
+  ([#1152](https://github.com/rails49/control/issues/1152)). So far the page does
+  not read it ([#1153](https://github.com/rails49/control/issues/1153)).
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
   cannot name one. A detector reports a **level**, so a repeated reading
@@ -1065,7 +1065,11 @@ payload is read defensively, and one that fails the read is dropped.
   hint names it ([#123](https://github.com/rails49/control/issues/123)). A
   train standing in a block, at a signal partway along its route or anywhere
   else, is not moving, so on a route of several moves it goes true and false
-  once per move ([#844](https://github.com/rails49/control/issues/844)).
+  once per move ([#844](https://github.com/rails49/control/issues/844)). A move
+  whose entry sensor is on `state/unknown_sensors`, the near end of its `into`
+  block, does not count, `layout` having stopped that train; one with only the
+  far sensor listed does
+  ([#1152](https://github.com/rails49/control/issues/1152)).
   Republished when it changes. A
   reader takes an unreadable value as `true`
   ([Payload schemas](#payload-schemas)). `layout` reads it to end a drain

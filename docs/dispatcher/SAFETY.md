@@ -43,6 +43,11 @@ so the two behave identically.
   ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
   These blocks are `still`, and the check counts them as it counts the idle
   trains' blocks.
+- A block **out of use**, a sensor of it being unknown, is `still` too until the
+  sensor returns ([#1152](https://github.com/rails49/control/issues/1152)). An active train standing in one is frozen where
+  it stands: its route ahead may be free, and it goes nowhere, so it leaves the
+  check as a train that cannot finish does, and its `cur` and `held` are idle
+  obstacles.
 - For an active train `t`: `cur(t)` is the block it occupies; if it is
   mid-transit, `cur(t)` is the block it is crossing *into*. `rem(t)` is the
   blocks of its route strictly after `cur(t)`, ending at `dest(t)`. `held(t)`
