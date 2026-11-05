@@ -700,8 +700,9 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         adr_0077_not_into_occupied,
         MEET,
         PLACED,
-        [GRANT],
+        # The first: a reading still in flight when the grant was made.
         [read("w_main"), GRANT],
+        [read("w_main"), (QUIET, {}), GRANT],
     ),
     (
         adr_0077_move_ends_on_both_readings,

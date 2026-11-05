@@ -139,6 +139,7 @@ def checked(
                 view = View(record.rows, layout, roster)
                 found = history_breaches(record, view, QUIET, {}, history)
                 assert not found, "with nothing left to deliver:\n" + "\n".join(found)
+                record.observe(QUIET, {})
 
     bus.drain = drained
 

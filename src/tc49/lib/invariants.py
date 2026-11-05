@@ -897,6 +897,7 @@ class Record:
         self.placing: dict[str, _Move] = {}  # train -> its move, while placed
         self.cancelled: set[str] = set()  # ids cancelled while a move ran
         self.turns: Counter[str] = Counter()  # facing changes a train is owed
+        self.heard_occupied: set[str] = set()  # read so at the last quiet, and since
         self.placed_over: dict[str, str] = {}  # a block left, to its holder
         self.awaited: dict[str, str] = {}  # end -> aspect a grant showed
         self.cut_wanted = False  # `power_wanted: off` since power changed
@@ -928,7 +929,11 @@ class Record:
                 self._allocation(payload)
 
     def observe(self, topic: str, payload: Payload) -> None:
-        if topic == ALLOCATION:
+        if topic == QUIET:
+            self.heard_occupied = {
+                block for block, occupied in self.occupied.items() if occupied
+            }
+        elif topic == ALLOCATION:
             self._allocation(payload)
         elif topic in (BLOCK_OCCUPIED, BLOCK_VACATED):
             block = occupancy(payload)
@@ -1079,6 +1084,8 @@ class Record:
         if self.occupied.get(block) == occupied:
             return
         self.occupied[block] = occupied
+        if not occupied:
+            self.heard_occupied.discard(block)
         if occupied:
             # The arrival: the move's sensor, where `layout` stops the train.
             speeds = _traction(self.rows)
@@ -1671,10 +1678,15 @@ def adr_0077_not_into_occupied(
     """No move is granted into, and no lock taken on, a block that reads
     occupied, whoever holds it
     ([ADR-0077](../../../docs/adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+
+    A reading counts once the bus has gone quiet over it, so every app has
+    heard it: a grant can cross one still in flight, and with no drain to stop
+    the sweeps that is an ordinary order of delivery (#1154). A stuck detector
+    is what this catches, and it stays stuck.
     """
     if topic == MOVE_GRANTED:
         granted = grant(payload)
-        if granted is not None and record.occupied.get(granted.into):
+        if granted is not None and granted.into in record.heard_occupied:
             return [
                 f"{granted.train} granted into {granted.into}, which reads occupied"
             ]
@@ -1684,7 +1696,7 @@ def adr_0077_not_into_occupied(
             return [
                 f"{held[0]} locked {resource}, which reads occupied"
                 for resource in held[1]
-                if record.occupied.get(resource)
+                if resource in record.heard_occupied
             ]
     return []
 
