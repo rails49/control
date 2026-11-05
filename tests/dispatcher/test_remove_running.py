@@ -232,9 +232,9 @@ def test_a_removal_under_power_off_keeps_an_occupied_block_as_under_on() -> None
 
 
 def test_a_put_back_train_is_a_standing_train_again() -> None:
-    """Once the residual lock is a standing lock, a clear reading under it is
-    a dispute (#1154): a train the dispatcher believes stands there and the
-    detector says does not."""
+    """Once the residual lock is a standing lock, a clear reading under it
+    releases nothing: only a removal says it was a lift (ADR-0069), and it
+    disputes nothing (#1164)."""
     assembly = standing()
     press(assembly, *power(OFF))
     remove(assembly, "freight_1")
@@ -244,14 +244,14 @@ def test_a_put_back_train_is_a_standing_train_again() -> None:
     reading(assembly, VACATED, "yard_w")
 
     assert drains(assembly) == []
-    assert disputes(assembly)["trains"] == ["freight_1"]
+    assert disputes(assembly)["blocks"] == []
     assert locks(assembly)["yard_w"] == "freight_1"
 
 
-def test_a_clear_reading_under_a_standing_train_is_still_a_dispute() -> None:
+def test_a_clear_reading_under_a_standing_train_is_not_a_lift() -> None:
     """A detector dropping out under a dirty wheel reads the same as a lift,
-    and only a removal says which it was (ADR-0069, #1154): a removed train's
-    residue elsewhere explains nothing here."""
+    and only a removal says which it was (ADR-0069): a removed train's residue
+    elsewhere says nothing here, and the reading disputes nothing (#1164)."""
     assembly = standing()
     remove(assembly, "freight_1")
     reading(assembly, OCCUPIED, "up_e")
@@ -259,6 +259,6 @@ def test_a_clear_reading_under_a_standing_train_is_still_a_dispute() -> None:
     reading(assembly, VACATED, "up_e")
 
     assert drains(assembly) == []
-    assert disputes(assembly)["trains"] == ["express_2"]
+    assert disputes(assembly)["blocks"] == []
     assert locks(assembly)["up_e"] == "express_2"
     assert locks(assembly)["yard_w"] == "freight_1"

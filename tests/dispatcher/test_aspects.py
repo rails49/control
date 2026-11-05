@@ -275,12 +275,11 @@ def granted(assembly: Assembly) -> list[str]:
 
 
 @each_strategy
-def test_a_signal_shows_stop_over_a_train_whose_block_read_clear_in_a_drain(
+def test_a_train_whose_block_read_clear_in_a_drain_goes_on_with_the_power(
     strategy: type[Incremental | FullRoute],
 ) -> None:
-    """Drained and its detector dropped: the power coming back grants it
-    nothing, so no signal along its route says it may go. It keeps its locks,
-    and when the block reads occupied again it goes and they show (#1160)."""
+    """Drained and its detector dropped: the power coming back grants its next
+    move, and the signals along its route show (#1164)."""
     assembly = under_way(strategy)
     reading(assembly, OCCUPIED, "dn_w")
     press(assembly, *power(DRAINING))
@@ -288,37 +287,31 @@ def test_a_signal_shows_stop_over_a_train_whose_block_read_clear_in_a_drain(
     reading(assembly, VACATED, "dn_w")
     press(assembly, *power(ON))
 
-    assert granted(assembly) == ["dn_w"]
-    assert proceed(assembly) == {}
-    assert assembly.dispatcher.state.locks["dn_e"] == "freight_1"
-
-    reading(assembly, OCCUPIED, "dn_w")
-
     assert granted(assembly) == ["dn_w", "dn_e"]
     assert proceed(assembly) == {"dn_w.B": "clear", "dn_e.B": "caution"}
 
 
 @each_strategy
-def test_a_signal_shows_stop_over_a_train_whose_block_read_clear_with_the_power_on(
+def test_a_train_whose_block_read_clear_with_the_power_on_is_granted(
     strategy: type[Incremental | FullRoute],
 ) -> None:
-    """The arrival block drops before the origin clears, so the move ends with
-    the train disputed, and no drain was involved (#1160)."""
+    """The arrival block drops before the origin clears. A clear reading
+    disputes nothing, so the move ends and the next is granted (#1164)."""
     assembly = under_way(strategy)
     reading(assembly, OCCUPIED, "dn_w")
     reading(assembly, VACATED, "dn_w")
     reading(assembly, VACATED, "yard_w")
 
-    assert granted(assembly) == ["dn_w"]
-    assert proceed(assembly) == {}
+    assert granted(assembly) == ["dn_w", "dn_e"]
+    assert assembly.bus.last_values[DISPUTED]["blocks"] == []
 
 
 @each_strategy
 def test_a_placement_leaves_nothing_showing_from_the_old_route(
     strategy: type[Incremental | FullRoute],
 ) -> None:
-    """A person says where the disputed train stands. Its request goes with
-    the placement (ADR-0049), so nothing of the route is left lit (#1160)."""
+    """A person says where the train stands. Its request goes with the
+    placement (ADR-0049), so nothing of the route is left lit (#1160)."""
     assembly = under_way(strategy)
     reading(assembly, OCCUPIED, "dn_w")
     reading(assembly, VACATED, "dn_w")
@@ -326,7 +319,7 @@ def test_a_placement_leaves_nothing_showing_from_the_old_route(
 
     press(assembly, PLACEMENT_WANTED, {"train": "freight_1", "block": "up_w"})
 
-    assert assembly.bus.last_values[DISPUTED]["trains"] == []
+    assert assembly.bus.last_values[DISPUTED]["blocks"] == []
     assert proceed(assembly) == {}
 
 
@@ -474,7 +467,7 @@ def test_a_crossing_train_whose_origin_reads_clear_keeps_its_signals(
 
     reading(assembly, VACATED, "yard_w")
 
-    assert assembly.bus.last_values[DISPUTED]["trains"] == []
+    assert assembly.bus.last_values[DISPUTED]["blocks"] == []
     assert proceed(assembly) == before
 
 

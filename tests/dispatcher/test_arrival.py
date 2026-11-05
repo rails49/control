@@ -166,15 +166,14 @@ def test_a_vacate_before_the_arrival_waits_for_it() -> None:
 def test_a_clear_reading_from_before_the_grant_does_not_end_the_move(
     strategy: type[Incremental | FullRoute],
 ) -> None:
-    """`yard_w` drops out under `freight_1`, which waits until it reads
-    occupied again. The arrival then waits for a vacate heard while the move
-    is outstanding (#806)."""
+    """`yard_w` drops out under `freight_1` and reads occupied again before the
+    grant. The arrival then waits for a vacate heard while the move is
+    outstanding (#806)."""
     railroad = Railroad(strategy)
     railroad.deliver(VACATED, {"block": "yard_w"})
+    railroad.deliver(OCCUPIED, {"block": "yard_w"})
     state = railroad.dispatcher.state
     railroad.request("r-1", "yard_w.B", "yard_e.A", answer=False)
-    assert railroad.granted() == []
-    railroad.deliver(OCCUPIED, {"block": "yard_w"}, answer=False)
     assert [p["into"] for p in railroad.granted()] == ["dn_w"]
 
     railroad.deliver(OCCUPIED, {"block": "dn_w"}, answer=False)

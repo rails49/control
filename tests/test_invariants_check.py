@@ -102,11 +102,11 @@ def test_a_history_invariant_on_one_apps_topics_is_checked_under_interleaving() 
 def test_a_rule_that_something_follows_waits_for_nothing_left_to_deliver() -> None:
     watched = bus()
     watched.publish(ASPECTS, {"aspects": {}})
-    watched.publish(DISPUTED, {"trains": [], "blocks": []})
+    watched.publish(DISPUTED, {"blocks": []})
     watched.drain()
     # Nothing claims w_main: the row put out in the same delivery holds.
     watched.publish(BLOCK_OCCUPIED, {"block": "w_main"})
-    watched.publish(DISPUTED, {"trains": [], "blocks": ["w_main"]})
+    watched.publish(DISPUTED, {"blocks": ["w_main"]})
     watched.drain()
     watched.publish(BLOCK_OCCUPIED, {"block": "loop_up"})
     with pytest.raises(AssertionError, match="(?s)nothing left to deliver.*ADR-0048"):

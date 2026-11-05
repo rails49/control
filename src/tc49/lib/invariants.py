@@ -320,12 +320,12 @@ def _locked_ahead(
     journey: _Journey,
     index: int,
     out_of_use: frozenset[str] = frozenset(),
-    occupied: frozenset[str] = frozenset(),
+    disputed: frozenset[str] = frozenset(),
 ) -> int:
     """How many blocks of the route past `index` are locked to its train and may
     be entered, counted until the first that is not locked, is out of use or
-    reads occupied, and none at all where the block at `index` is out of use
-    (#1152, #1160)."""
+    is disputed, and none at all where the block at `index` is out of use
+    (#1152, #1160, #1164)."""
     if journey.blocks[index] in out_of_use:
         return 0
     depth = 0
@@ -333,7 +333,7 @@ def _locked_ahead(
         if (
             locks.get(block) != journey.train
             or block in out_of_use
-            or block in occupied
+            or block in disputed
         ):
             break
         depth += 1
@@ -869,13 +869,14 @@ def _held(payload: object) -> tuple[str, list[str]] | None:
     return train, list(resources)
 
 
-def _disputed(payload: object) -> tuple[list[str], list[str]] | None:
-    """The trains and blocks a `state/disputed` value lists."""
+def _disputed(payload: object) -> list[str] | None:
+    """The blocks a `state/disputed` value lists, or None for a value that is
+    not that row: it has no `trains` (#1164)."""
     fields = _fields(payload)
-    trains, blocks = _strings(fields.get("trains")), _strings(fields.get("blocks"))
-    if trains is None or blocks is None:
+    blocks = _strings(fields.get("blocks"))
+    if blocks is None or "trains" in fields:
         return None
-    return list(trains), list(blocks)
+    return list(blocks)
 
 
 class Record:
@@ -908,6 +909,7 @@ class Record:
         self.trains: dict[str, str] = {}
         self.crossing: dict[str, str] = {}
         self.locks: dict[str, str] = {}
+        self.residue: set[str] = set()  # what a removal left held, until released
         self.requests: dict[str, str] = {}  # id -> train, until it ends
         self.listed: tuple[str, ...] = ()  # the last allocation's ids, in order
         self.routes: dict[str, tuple[str, ...]] = {}  # id -> route, once chosen
@@ -946,6 +948,34 @@ class Record:
             self.rows[topic] = payload
             if topic == ALLOCATION:
                 self._allocation(payload)
+        # A lock is a placed train's or residue, so a train off the layout in
+        # the rows it starts from holds only that.
+        self.residue = {
+            resource
+            for resource, holder in self.locks.items()
+            if holder not in self.trains
+        }
+
+    def disputed_blocks(self) -> frozenset[str]:
+        """The blocks that read occupied with no train explaining them: none
+        recorded there, on the move it has outstanding, left holding them by
+        its removal, or on the transit a restored crossing names (#1164)."""
+        explained = set(self.trains.values()) | self.residue
+        for move in self.moves.values():
+            explained.add(move.into)
+            if move.origin is not None:
+                explained.add(move.origin)
+        for train, transit in self.crossing.items():
+            if train not in self.moves:
+                connection, _, name = transit.partition(".")
+                held = self.layout.connections.get(connection)
+                if held is not None and name in held.transits:
+                    explained.update(block_of(end) for end in held.transits[name])
+        return frozenset(
+            block
+            for block, occupied in self.occupied.items()
+            if occupied and block not in explained
+        )
 
     def observe(self, topic: str, payload: Payload) -> None:
         if topic == QUIET:
@@ -975,6 +1005,12 @@ class Record:
         elif topic == TRAIN_REMOVED:
             train = named_train(payload)
             if train is not None:
+                # What it gave up went in `lock_released` ahead of this.
+                self.residue.update(
+                    resource
+                    for resource, holder in self.locks.items()
+                    if holder == train
+                )
                 self.trains.pop(train, None)
                 self.crossing.pop(train, None)
                 self.moves.pop(train, None)
@@ -1126,10 +1162,10 @@ class Record:
             return
         ends = transit_ends(self.layout, granted.into, granted.transit)
         origin = None if ends is None else block_of(ends[1])
-        # A train with a block reading clear takes no grant, and none is sent
-        # into a block reading occupied, so a reading of either that says so
-        # now was in flight when the grant was made, and the dispatcher hears
-        # it after: for this move, as the two it ends on (#1154). Occupancy is
+        # An origin reading clear counts for this move, which hears no vacate
+        # for it (#1164). None is sent into a block reading occupied, so a
+        # reading that says so now was in flight when the grant was made, and
+        # the dispatcher hears it after: for this move too (#1154). Occupancy is
         # anonymous, so it takes the second for the arrival and its picture
         # runs ahead of the steel until the move ends: what the picture says of
         # where this move starts is not a judgement on `layout`, which drives
@@ -1162,6 +1198,7 @@ class Record:
             return
         train, resources = held
         for resource in resources:
+            self.residue.discard(resource)
             if self.locks.get(resource) == train:
                 del self.locks[resource]
             if self.placed_over.get(resource) == train:
@@ -1188,8 +1225,7 @@ class Record:
                 self.placed_over[before] = holder
         self.locks[block] = train
         self.trains[train] = block
-        if self.occupied.get(block) is False:
-            del self.occupied[block]
+        self.residue.discard(block)
         self.crossing.pop(train, None)
         self.moves.pop(train, None)
         self.placing.pop(train, None)
@@ -1534,26 +1570,16 @@ def adr_0047_traction_from_the_near_end(
 def adr_0048_disputed_lists_contradictions(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
-    """`disputed` lists exactly the placed trains whose block reads clear and
-    the occupied blocks nothing claims, at every power value (#1154, amending
+    """`disputed` lists exactly the blocks that read occupied with no train
+    explaining them, at every power value, and the row has no `trains` (#1154,
+    #1164, amending
     [ADR-0048](../../../docs/adr/0048-an-unexplained-reading-holds-the-run.md))."""
     if topic != QUIET or DISPUTED not in record.rows:
         return []
     listed = _disputed(record.rows[DISPUTED])
     if listed is None:
         return ["disputed cannot be read"]
-    expected = (
-        sorted(
-            train
-            for train, block in record.trains.items()
-            if train not in record.crossing and record.occupied.get(block) is False
-        ),
-        sorted(
-            block
-            for block, occupied in record.occupied.items()
-            if occupied and block not in record.locks
-        ),
-    )
+    expected = sorted(record.disputed_blocks())
     if listed == expected:
         return []
     return [f"disputed lists {listed}, not {expected}"]
@@ -1973,11 +1999,11 @@ def adr_0093_aspects_along_the_locks(
     """With power `on`, the exit signal of every block from the one a train is
     recorded in to its last locked block shows `clear` with two or more blocks
     beyond locked, `caution` with one, `stop` with none, depth counting only up
-    to a block out of use (#1152) or reading occupied (#1160); a train on
-    `disputed` or refused its next move lights nothing (#1160); every other end
-    shows `stop`
+    to a block out of use (#1152) or disputed (#1164); a train refused its next
+    move lights nothing (#1160); every other end shows `stop`
     ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
-    A history invariant because no retained row holds which blocks read occupied.
+    A history invariant because the record says which blocks are disputed, and
+    `adr_0048` holds the row to it.
     """
     if topic != QUIET or power(view.rows.get(POWER)) != ON:
         return []
@@ -1987,15 +2013,13 @@ def adr_0093_aspects_along_the_locks(
     expected = {end: str(Aspect.STOP) for end in view.layout.end_connection}
     locks = _locks(view)
     out = frozenset(block_of(sensor) for sensor in _listed(view))
-    occupied = frozenset(block for block, reads in record.occupied.items() if reads)
-    listed = _disputed(view.rows.get(DISPUTED))
-    unsure = listed[0] if listed is not None else []
+    disputed = record.disputed_blocks()
 
     def depth(journey: _Journey, index: int) -> int:
-        return _locked_ahead(locks, journey, index, out, occupied)
+        return _locked_ahead(locks, journey, index, out, disputed)
 
     for journey in _journeys(view):
-        if journey.train in unsure or journey.refused:
+        if journey.refused:
             continue
         last = journey.standing + depth(journey, journey.standing)
         for i in range(journey.standing, min(last + 1, len(journey.transits))):
@@ -2068,10 +2092,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0048",
-        "`disputed` lists exactly the placed trains whose block reads clear and"
-        " the occupied blocks nothing claims, at every power value.",
+        "`disputed` lists exactly the blocks that read occupied with no train"
+        " explaining them, at every power value, and has no `trains`.",
         (DISPUTED, ALLOCATION, POWER, BLOCK_OCCUPIED, BLOCK_VACATED)
-        + (LOCK_GRANTED, LOCK_RELEASED, TRAIN_PLACED),
+        + (LOCK_GRANTED, LOCK_RELEASED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0048_disputed_lists_contradictions,
     ),
     HistoryInvariant(
@@ -2220,10 +2244,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "With power `on`, the exit signal of every block from the one a train"
         " is recorded in to its last locked block shows `clear` with two or"
         " more blocks beyond locked, `caution` with one, `stop` with none,"
-        " depth counting only up to a block out of use or reading occupied, and"
-        " a train on `disputed` lighting nothing; every other end shows `stop`.",
-        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS, DISPUTED)
-        + (BLOCK_OCCUPIED, BLOCK_VACATED),
+        " depth counting only up to a block out of use or disputed; every other"
+        " end shows `stop`.",
+        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS)
+        + (BLOCK_OCCUPIED, BLOCK_VACATED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0093_aspects_along_the_locks,
     ),
 )
