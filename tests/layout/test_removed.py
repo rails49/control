@@ -140,7 +140,7 @@ def test_another_trains_move_is_left_alone() -> None:
     written = told(bus)
 
     removed(bus, "freight_1")
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.0)]

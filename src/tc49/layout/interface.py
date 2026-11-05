@@ -70,8 +70,8 @@ that arrives then is **kept**, not dropped: the dispatcher granted it, and
 `on` resumes every granted move (ADR-0078, decision 6), so when `state/power`
 next reads `on` each kept move is put back through all three rules, as a held
 one is when its `align` lands. Through a drain the supply is on and a `move`
-is acted on as it is while `on`: the train runs into the next block and stops
-at its sensor, and the drain ends after it (#862).
+is acted on as it is while `on`: the train runs through the next block and
+stops at its far sensor, and the drain ends after it (#862, #1169).
 
 **Power is one switch: `on`, `draining` or `off`** (ADR-0078). A
 `power_wanted` is answered on arrival — there is no beat to quantise it
@@ -124,21 +124,31 @@ it reports `unknown` for the settling time or nothing at all for
 `sensor_silence_s`; a level that stands takes it off. The list creates no
 occupancy events, so the lock table stays correct: a block with a sensor listed
 says occupied as ever and holds back its vacate, its train being as likely under
-the sensor nobody can hear. And the train this app is driving towards a listed
-sensor stops, because that sensor is what would stop it at the arrival, and
-carries on by itself when the sensor reports `clear`. A train a throttle holds is
-the person's and is never stopped for this (ADR-0081).
+the sensor nobody can hear. And the train this app is driving into a block with
+both sensors listed stops, because nothing there would end its move, and carries
+on by itself when one of them reports (`_settled`). One listed is enough to go
+on: the far sensor stops the train, or with that one listed the entry sensor
+reading occupied then clear does (#1169). A train a throttle holds is the
+person's and is never stopped for this (ADR-0081).
 
 **Two ends into one block.** Both detectors of a block stay inside the
 interface. A block reads occupied while either of its ends does, and that fold
 is what a level change publishes. The second event a move produces is the one
-no detector can name: a train entering block Y trips Y's first detector with
-its head and its second once it is fully in, so the second is where
+no detector can name: a train entering block Y trips Y's entry sensor with
+its head and its far sensor once it is fully in, so the far sensor is where
 `block_vacated(X)` goes out — this app carried out the move, so it knows which
 block X is. Occupied then vacated, the only order the steel can produce
 (ADR-0047). A level no move explains still publishes its own block's
 occupancy: what to make of a reading nothing accounts for is the dispatcher's
 judgement and not this app's (ADR-0048).
+
+**The arrival is at the far sensor** (#1169). A train with no further grant runs
+on through its block and stops at its far sensor, so it stands at its signal with
+its tail off the turnout behind. Once its head is in, one whose far signal shows
+`stop` drops to the railroad's `caution` speed, having only a stopping distance
+left after that sensor (`_lower`). A further `move` carries it through with no
+stop (`_passed`), and one going back out by the end it came in at waits for the
+arrival, so it does not flip with its tail on the turnout (`_reverses`).
 
 **Time.** The settling time is what a level waits, and the layout
 interface is where a clock is allowed to be read (ADR-0009) — the simulator
@@ -148,8 +158,8 @@ called by whoever owns the loop, so nothing here sleeps and a test drives the
 clock directly.
 
 **The traction write.** On a `move` it acts on, this app publishes a signed
-speed for every car of the train that has an address, unless the sensor it would
-arrive at is unknown, and `0.0` for each of them again on arrival. **How fast** is the move's own speed, a magnitude.
+speed for every car of the train that has an address, unless both sensors of the
+block it enters are unknown, and `0.0` for each of them again on arrival. **How fast** is the move's own speed, a magnitude.
 **Which way** is two facts composed: whether the move leaves the end the train
 faces — read off `tc49/schedule/state/facing`, there being nowhere else facing
 lives (ADR-0045) — and which way round each car is coupled. A move whose
@@ -168,13 +178,13 @@ decide is who writes the wheels: the throttle holding a train, in either mode
 and at any time, granted move or not (ADR-0081); within a granted move, this
 app in `automatic` for a train no throttle holds; and nobody for a train no
 throttle holds in `manual`, which stands at its signal. The move ending at its
-sensor writes `0.0` whoever drives, and a lever reversing a running train
+far sensor writes `0.0` whoever drives, and a lever reversing a running train
 writes `0.0` until its throttle sends `0` (ADR-0084). A throttle this app has
 not heard for `THROTTLE_SILENCE_S` by default, an installation setting its
 own (`installation.yaml`, #1132), lets go of its trains. A train let go of stops in
 `manual`; in `automatic` mid-move it keeps the speed the person left until its
-move ends, or is given its grant's speed if it stands (ADR-0083), and with no
-move outstanding it is written `0.0`.
+move ends, bar the `caution` drop, or is given its grant's speed if it stands
+(ADR-0083), and with no move outstanding it is written `0.0`.
 
 **A train's functions.** A throttle switches one by the name the catalogue
 gives it, on `function_wanted`, and the press is the holding throttle's
@@ -210,6 +220,7 @@ from tc49.lib.inventory import (
     OFF,
     ON,
     UNKNOWN,
+    Aspect,
     device_topic,
     split_device,
 )
@@ -338,10 +349,10 @@ class _Crossing:
     is held: occupancy is anonymous and no detector can name the block behind
     a train, so the only thing that knows X is what accepted the move.
 
-    `far` is the entered block's **second** sensor — the end a train trips
-    once it is fully in — and not the end across the transit, which is the end
-    it comes in *at*. The two are opposite ends of the one block and the axes
-    have been confused before (#279).
+    `far` is the entered block's **far sensor**, the end the train's head
+    reaches last, and not the end across the transit, which is the **entry
+    sensor** (`entry`), the end it comes in *at*. The two are opposite ends of
+    the one block and the axes have been confused before (#279).
 
     `train` is who is crossing, and it is here so that a train can be found by
     name: taking one in a throttle or giving it back has to reach the move it
@@ -358,24 +369,24 @@ class _Crossing:
     against (ADR-0084).
 
     `outstanding` is whether the move is still going anywhere. It goes false
-    on the arrival, which is the first level the entered block settles
-    occupied: the train is in the block it was sent to and the tail clearing
-    is a fact about the block behind, so nothing here waits for the vacate
-    (#296). A throttle's lever is applied either way (ADR-0081).
+    on the arrival, and with a further `move` that carries the train through
+    (`_passed`). A throttle's lever is applied either way (ADR-0081).
+
+    `head_in` is the entry sensor having settled occupied, and `tail_in` its
+    having then settled clear. Both are kept whether or not the crossing is
+    outstanding, the sensors going on saying them (#1169).
 
     `driving` is whether the wheels are this app's for the length of this
     crossing: true where it was granted in `automatic` to a train no throttle
     holds, and moved by a take, a release in `automatic` and a change of
-    driving mode. The
-    `0.0` at the arrival goes out where it is true or a throttle holds the
-    train, since a car nothing was sent for is a car nothing may be sent for.
+    driving mode. The `0.0` at the arrival goes out where it is true or a
+    throttle holds the train, since a car nothing was sent for is a car nothing may be sent for.
 
     `reported` is each reported point of the transit's `align`, address and
     the position asked for: every one reported that position when the move
     was let through, and one reporting another stops the train (ADR-0097).
-    It goes empty once the train has arrived and the block behind has been
-    published vacated since the move, in either order, and does not come back
-    (#1110). `left` is whether that vacate has gone out.
+    It goes empty at `tail_in`, the train being past the points by then, and
+    goes with the crossing at the far sensor (#1169).
     """
 
     origin: str
@@ -387,7 +398,13 @@ class _Crossing:
     driving: bool = True
     outstanding: bool = True
     reported: tuple[tuple[str, str], ...] = ()
-    left: bool = False
+    head_in: bool = False
+    tail_in: bool = False
+
+    @property
+    def entry(self) -> str:
+        """The sensor the train comes in at."""
+        return opposite_end(self.far)
 
 
 @dataclass(frozen=True)
@@ -508,7 +525,8 @@ class LayoutInterface:
         `speeds`: the driver's `clear` and `caution`, the ones the railroad
         keeps or `lib.settings.SPEEDS` where it keeps none, said on
         `state/settings` and changed on `settings_wanted` (#1132). This app
-        only keeps and says them; running at them is the driver's.
+        keeps and says them, and reads `caution` for the drop (`_lower`);
+        running at them is the driver's.
         """
         self._bus = bus
         self._layout = layout
@@ -573,6 +591,12 @@ class LayoutInterface:
         # The moves granted while the rails are dead, one per transit, each
         # put back through the rules when `state/power` next reads `on`.
         self._kept: dict[str, Command] = {}
+        # The moves that go back out by the end their train came in at, one
+        # per transit, each put back through the rules at the arrival (#1169).
+        self._reversing: dict[str, Command] = {}
+        # What each signalled end last showed, read for the `caution` drop: an
+        # end it does not name reads `stop` (#1169).
+        self._aspects: Mapping[str, str] = {}
         # What a `withdraw_wanted` is judged on (#1068): the trains driven
         # since their last move was acted on — running when it was acted on,
         # or given a non-zero speed after (#1076) — and the move each train is
@@ -608,6 +632,9 @@ class LayoutInterface:
         # The blocks a crossing has released in this call to `settle`, whose
         # vacate waits for the call's other levels (`_vacate`, #1081).
         self._released: list[str] = []
+        # The trains a far sensor going unknown has just stopped, whose held
+        # moves wait for the list that says why (`_call_unknown`, #1169).
+        self._arrived: list[str] = []
         # How a power press is answered, the rule both bindings keep: the
         # word applied, and the moving row a drain ends on (ADR-0078).
         self._track_power = TrackPower()
@@ -767,6 +794,9 @@ class LayoutInterface:
         self._list_unknown()
         if self._unknown != listed:
             self._publish_unknown()
+        arrived, self._arrived = self._arrived, []
+        for train in arrived:
+            self._put_back(train)
         released, self._released = self._released, []
         for block in released:
             self._vacate(block)
@@ -880,14 +910,14 @@ class LayoutInterface:
         No withdrawal is taken while the train is running, whatever state its
         move is in: a train rolling under a throttle may be on the points
         whether its move was acted on, held or not yet here. Otherwise a move
-        held for its `align`, a facing or the power has not been acted on, so
-        it is never driven. Taken back, it is dropped as `_forget` drops it,
+        held for its `align`, a facing, the power or the arrival before it has
+        not been acted on, so it is never driven. Taken back, it is dropped as `_forget` drops it,
         the train given `0.0` unless a throttle holds it, and
         `move_withdrawn` says so. A move waiting is matched on its train,
         transit and the block it enters; a crossing on its train and transit.
-        A move acted on and driven since, or one already carried out — the
-        train stands in the block it enters — gets no answer: the cancel waits
-        for the sensors. A transit names the way and not the direction, so the
+        A move acted on and driven since, one whose train has read at its
+        entry sensor, or one already carried out — the train stands in the
+        block it enters — gets no answer: the cancel waits for the sensors. A transit names the way and not the direction, so the
         block is what tells a move back over the transit it just crossed from
         that crossing (#1080). A move not here yet — the driver's `move` and
         this ask are two writers', in no order — is answered at once and
@@ -899,7 +929,7 @@ class LayoutInterface:
         train, transit, into = wanted.train, wanted.transit, wanted.into
         if self._running(train):
             return
-        for waiting in (self._held, self._unfaced, self._kept):
+        for waiting in (self._held, self._unfaced, self._kept, self._reversing):
             held = waiting.get(transit)
             if held is not None and held.train == train and held.into == into:
                 del waiting[transit]
@@ -912,7 +942,7 @@ class LayoutInterface:
         ]
         if crossed:
             block, crossing = crossed[-1]
-            if not crossing.outstanding or train in self._driven:
+            if crossing.head_in or train in self._driven:
                 return
             del self._crossing[block]
             self._position[train] = crossing.origin
@@ -951,7 +981,7 @@ class LayoutInterface:
         acted on: a train taken off or placed elsewhere meanwhile fails it
         then and the move is dropped. A second `move` for the same transit
         replaces the one kept, as it does the one held. `draining` is not
-        dead: the supply is on, and the move runs to its sensor before the
+        dead: the supply is on, and the move runs to its far sensor before the
         drain ends.
 
         A command naming a transit this railroad does not hold, or one whose
@@ -992,6 +1022,18 @@ class LayoutInterface:
         kept all the same: it is what the train is given if this app takes up
         its driving before it arrives.
 
+        **A move back out by the end the train came in at waits for the
+        arrival** (`_reverses`, #1169), where it is put back through all of
+        this, after the `0.0`. A second `move` for the same transit replaces
+        the one held.
+
+        A train already crossing is carried through: the crossing it departs
+        stops being outstanding where this app drives the further move or a
+        throttle holds the train (`_passed`). In `manual` with no throttle it
+        stays outstanding, so the train stops at its far sensor and its next
+        grant is nobody's (ADR-0079): nothing else would stop it running on at
+        its last speed.
+
         The crossing is what the fold needs and nothing above the interface
         could supply: no detector names the block a train is leaving, so the
         move that was carried out is the only thing that knows it (#288).
@@ -1021,6 +1063,9 @@ class LayoutInterface:
             # wrong way to drive it and no refusal to make (#297).
             traction = (0.0, ())
         heading, wheels = traction
+        if wheels and self._reverses(commanded.train, near):
+            self._reversing[transit] = commanded
+            return
         # The authorisation is spent here, with the act it authorised: an
         # `align` stands for one crossing, so the next move over this transit
         # waits for one of its own (#305). Its reported points go with the
@@ -1046,9 +1091,47 @@ class LayoutInterface:
             driving=driving,
             reported=reported,
         )
+        # A stale crossing into this block keeps no earlier place: the order
+        # is what says which of a train's crossings is the later (`_outstanding`).
+        self._crossing.pop(commanded.into, None)
         self._crossing[commanded.into] = crossing
         if driving:
             self._give(commanded.into, crossing)
+        elif commanded.train in self._taken:
+            self._passed(commanded.train, commanded.into)
+
+    def _reverses(self, train: str, near: str) -> bool:
+        """Whether a move leaving through `near` flips a train this app is
+        driving with its tail on the turnout: the crossing in that block is the
+        train's, outstanding and driven, and came in at `near` (#1169).
+
+        The near end is compared rather than the heading: a train leaving
+        through the end it came in by reverses whatever its facing says, and a
+        facing lags the train. There is no wait between the `0.0` and the speed
+        that follows: nothing reports that a train has stopped, ADR-0084 rejects
+        a fixed wait as a guess at CV4, and it measured a decoder ramping
+        through 0 with no jolt. A train a throttle holds is not held, no speed
+        being written for it: the person reverses with the lever (ADR-0084)."""
+        departed = self._crossing.get(block_of(near))
+        return (
+            departed is not None
+            and departed.train == train
+            and departed.outstanding
+            and departed.driving
+            and departed.entry == near
+        )
+
+    def _passed(self, train: str, block: str) -> None:
+        """The train's crossings earlier than the one into `block` carried
+        through: no stop at their far sensors, `head_in`, `tail_in`, `reported`
+        and the deletion at the far sensor going on as before (#1169)."""
+        for entered, crossing in list(self._crossing.items()):
+            if entered == block:
+                return
+            if crossing.train == train and crossing.outstanding:
+                self._crossing[entered] = replace(
+                    crossing, outstanding=False, implied=()
+                )
 
     def _set(self, transit: str) -> bool:
         """Whether an `align` has named the transit, each of its points has
@@ -1098,11 +1181,9 @@ class LayoutInterface:
         so no `on` or switch to `automatic` drives it on over the point. A
         throttle may (ADR-0081): nothing holds the train against one, and the
         same report heard again stops nothing. The points are checked until
-        the train has arrived and the block it left has been published vacated
-        since the move, in either order: a train that has arrived with its
-        tail over the point is stopped, and so is a short train read clear
-        behind that has not arrived. After that a report stops nothing
-        (#1110).
+        the entry sensor has read occupied then clear, the train then being
+        past them, whatever the block it left says. After that a report stops
+        nothing (#1169).
 
         A report that completes a transit's reported points lets the `move`
         held for them through. One this cannot read is dropped, the position
@@ -1256,10 +1337,14 @@ class LayoutInterface:
 
     def _give(self, block: str, crossing: _Crossing) -> None:
         """The train crossing into `block` given the speed its grant implies,
-        with its crossing this app's to drive from here to the arrival. Not
-        towards a sensor reading unknown (`_blind`): it stands, and is given
-        the speed when the sensor reports `clear` (`_settled`, #1151)."""
-        self._crossing[block] = replace(crossing, driving=True)
+        with its crossing this app's to drive from here to the arrival, and its
+        earlier crossings carried through (`_passed`). Lowered where the drop
+        is due (`_lowered`). Not into a block with both sensors reading unknown
+        (`_blind`): it stands, and is given the speed when one reports
+        (`_settled`, #1151)."""
+        crossing = self._lowered(replace(crossing, driving=True))
+        self._crossing[block] = crossing
+        self._passed(crossing.train, block)
         if self._blind(crossing):
             if self._running(crossing.train):
                 self._stop(crossing.train)
@@ -1272,15 +1357,73 @@ class LayoutInterface:
             self._traction_write(addr, speed)
 
     def _blind(self, crossing: _Crossing) -> bool:
-        """Whether this app may not drive the train of this crossing, the
-        sensor it would arrive at reading unknown (#1151). The entry sensor
-        alone: with the far one unknown the arrival still reads and the train
-        stops there. A train a throttle holds is the person's (ADR-0081)."""
+        """Whether this app may not drive the train of this crossing, both
+        sensors of the block reading unknown, so nothing there would end its
+        move (#1151, #1169). One alone leaves an arrival to read. A train a
+        throttle holds is the person's (ADR-0081)."""
         return (
-            opposite_end(crossing.far) in self._unknown
+            crossing.entry in self._unknown
+            and crossing.far in self._unknown
             and crossing.outstanding
             and crossing.train not in self._taken
         )
+
+    def _due(self, crossing: _Crossing) -> bool:
+        """Whether this crossing is one the `caution` drop applies to: this app
+        driving it with its head in the block and a speed to give, towards a
+        far signal at `stop`. An end `state/aspects` does not name reads `stop`,
+        which covers an end with no signal and the time before the first value
+        (#1169)."""
+        return (
+            crossing.outstanding
+            and crossing.driving
+            and crossing.head_in
+            and bool(crossing.implied)
+            and self._aspects.get(crossing.far, Aspect.STOP) == Aspect.STOP
+        )
+
+    def _lowered(self, crossing: _Crossing) -> _Crossing:
+        """The crossing with its speed brought down to `caution` where the drop
+        is due and it runs faster, the sign kept. It never raises a speed, and
+        reads `caution` as it now stands, a person's change holding from the
+        next check."""
+        caution = self._settings.speeds["caution"]
+        if not self._due(crossing) or abs(crossing.heading) <= caution:
+            return crossing
+        nose_first = crossing.heading > 0.0
+        return replace(
+            crossing,
+            heading=caution if nose_first else -caution,
+            implied=_composed(self._addressed(crossing.train), nose_first, caution),
+        )
+
+    def _lower(self, block: str) -> None:
+        """The `caution` drop, checked (#1169): a train at `clear` whose far
+        signal shows `stop` has only a stopping distance left after its far
+        sensor. Kept on the crossing, so whatever gives the speed later gives
+        this one (`_give`), and written where the train runs faster than
+        `caution` the way the move takes it. Measured on what it runs at and not
+        on the grant, as a train released at a person's slow speed does not
+        lurch; and a train a person left running back the other way is not
+        heading for that sensor, and no sign changes here (ADR-0084)."""
+        crossing = self._crossing.get(block)
+        if crossing is None or not self._due(crossing):
+            return
+        crossing = self._lowered(crossing)
+        self._crossing[block] = crossing
+        train = crossing.train
+        caution = self._settings.speeds["caution"]
+        heading = self._heading.get(train, 0.0)
+        if (
+            not self._running(train)
+            or abs(heading) <= caution
+            or (heading > 0.0) != (crossing.heading > 0.0)
+        ):
+            return
+        nose_first = heading > 0.0
+        self._headed(train, caution if nose_first else -caution)
+        for addr, speed in _composed(self._addressed(train), nose_first, caution):
+            self._traction_write(addr, speed)
 
     def _traction_rest(self) -> None:
         """Zero over every retained `wanted/traction` row the bus holds: the
@@ -1348,8 +1491,9 @@ class LayoutInterface:
         two silences with the installation. A field left out, and a speed
         left out of `speeds`, keeps its value. The gap is used from the next
         `align` and each silence from the next check of who has gone silent;
-        the speeds are the driver's, and this app only keeps and says them.
-        Nothing is rebuilt. A gesture the contract does not read, an unknown
+        the speeds are the driver's, and this app keeps and says them and reads
+        `caution` from the next check of the drop (`_lower`). Nothing is
+        rebuilt. A gesture the contract does not read, an unknown
         field or a value out of range, is dropped whole as any
         malformed gesture is (ADR-0034)."""
         wanted = wanted_settings(payload)
@@ -1382,7 +1526,7 @@ class LayoutInterface:
         the person's first movement of the lever changes it: writing zero
         would stop a running train the instant somebody selected it (#207).
         What changes is the arrival's `0.0`, which is now written for the
-        throttle rather than for this app.
+        throttle rather than for this app, and the next lever frame drives on.
 
         `throttle: null` releases the train whoever holds it, which is the
         force release a panel makes (`_let_go`).
@@ -1419,6 +1563,7 @@ class LayoutInterface:
         if flight is not None:
             block, crossing = flight
             self._crossing[block] = replace(crossing, driving=False)
+            self._passed(wanted.train, block)
 
     def _learn(self) -> None:
         """The trains the store's roster has and this app lacks, added with
@@ -1477,12 +1622,14 @@ class LayoutInterface:
         person was running slowly does not lurch to the driver's speed
         (ADR-0081, decision 6). The crossing becomes this app's, so the
         arrival writes its `0.0`, a switch to `manual` lets it finish, and an
-        `on` after a cut gives it its grant's speed (`_resume`). Bar a train
+        `on` after a cut gives it its grant's speed (`_resume`). The one
+        exception to keeping the speed is the `caution` drop (`_lower`): the
+        far sensor leaves the train only a stopping distance. Bar a train
         **standing**, whose last speed written is `0.0` on every car or none
         at all, the zeros at startup and at a cut counting: it would hold its
-        route and never reach its sensor, so it is given its grant's speed
-        (ADR-0083, `_take_up`). And bar one heading for a sensor reading
-        unknown, which `_take_up` stops (#1151).
+        route and never reach its far sensor, so it is given its grant's speed
+        (ADR-0083, `_take_up`). And bar one in a block with both sensors
+        reading unknown, which `_take_up` stops (#1151).
 
         **In `automatic` otherwise**, with no move outstanding or over dead
         rails, `_take_up` writes `0.0`.
@@ -1506,6 +1653,7 @@ class LayoutInterface:
         ):
             block, crossing = flight
             self._crossing[block] = replace(crossing, driving=True)
+            self._lower(block)
             return
         self._take_up(train)
 
@@ -1551,10 +1699,11 @@ class LayoutInterface:
         into and the record of it — or None where it has none.
 
         The **last** crossing of the train's and not the first: a crossing
-        lives until the block behind reports the tail clear, so a train that
-        has arrived in Y and been granted Y to Z has two, and the one that is
-        still going anywhere is the later. Once it has arrived the train has
-        no move outstanding until its next grant.
+        lives until its far sensor settles occupied, so a train granted Y to Z
+        before that has two, and the one that is still going anywhere is the
+        later. Once it has arrived the train has no move outstanding until its
+        next grant, and until then a train may stand or run between its
+        sensors with its crossing outstanding (#1169).
         """
         found: tuple[str, _Crossing] | None = None
         for block, crossing in self._crossing.items():
@@ -1821,8 +1970,8 @@ class LayoutInterface:
 
     def _forget(self, train: str) -> None:
         """Every move of the train's this app holds dropped: its crossings, and
-        the moves waiting on an `align`, a facing or the power. With them goes
-        what a `withdraw_wanted` is judged on: a train set down by hand starts
+        the moves waiting on an `align`, a facing, the power or an arrival.
+        With them goes what a `withdraw_wanted` is judged on: a train set down by hand starts
         a fresh account (#1068)."""
         self._driven.discard(train)
         self._withdrawing.pop(train, None)
@@ -1831,7 +1980,7 @@ class LayoutInterface:
             for block, crossing in self._crossing.items()
             if crossing.train != train
         }
-        for waiting in (self._held, self._unfaced, self._kept):
+        for waiting in (self._held, self._unfaced, self._kept, self._reversing):
             for transit in [t for t, c in waiting.items() if c.train == train]:
                 del waiting[transit]
 
@@ -1888,12 +2037,18 @@ class LayoutInterface:
         is the seed. Two ends sharing one address are two writes to one topic
         and the last stands, which is the wiring saying that two signals show
         one aspect together.
+
+        The value is kept, each one being a check of the `caution` drop
+        (`_lower`, #1169).
         """
         if not self._ordering.accepts(topic, payload):
             return
         shown = shown_aspects(payload)
         if shown is None:
             return
+        self._aspects = shown
+        for block in list(self._crossing):
+            self._lower(block)
         for end, aspect in shown.items():
             addr = self._layout.signal_at.get(end)
             if addr is None:
@@ -2123,18 +2278,22 @@ class LayoutInterface:
                 self._call_unknown(end, f"no report for {silence:g} s")
 
     def _call_unknown(self, end: str, reason: str) -> None:
-        """A sensor on the list with this reason, and, newly there, the train
-        this app is driving towards it stopped (#1151)."""
+        """A sensor on the list with this reason, and what its being newly
+        there comes to for the crossing into its block. The far sensor going
+        with `tail_in` already true is the arrival, the train having no other
+        way left to say so. Either sensor going with the other already gone
+        stops the train this app is driving, nothing there being able to end
+        its move (`_blind`, #1151, #1169). One alone stops nothing."""
         newly = end not in self._unknown
         self._unknown[end] = reason
-        crossing = self._crossing.get(block_of(end))
-        if (
-            newly
-            and crossing is not None
-            and crossing.driving
-            and end == opposite_end(crossing.far)
-            and self._blind(crossing)
-        ):
+        block = block_of(end)
+        crossing = self._crossing.get(block)
+        if not newly or crossing is None:
+            return
+        if end == crossing.far and crossing.tail_in and crossing.outstanding:
+            self._arrival(block, crossing)
+            self._arrived.append(crossing.train)
+        elif crossing.driving and self._blind(crossing):
             self._stop(crossing.train)
 
     def _publish_unknown(self) -> None:
@@ -2182,13 +2341,10 @@ class LayoutInterface:
         under it, so the vacate waits until that sensor reports `clear`
         (#1151). `occupied` from either goes out at once.
 
-        Where the block is one a train is crossing into, the first of its ends
-        to read occupied is the **arrival**, and the train is told to stand
-        where this app or a throttle was driving it (#296, ADR-0079). The entry
-        sensor coming off the list `clear` is instead the train not there yet,
-        and it carries on (`_carry_on`, #1151).
+        Where the block is one a train is crossing into, what the level comes to
+        for that crossing is `_read_crossing`'s.
 
-        And its **second** sensor going occupied says the train is fully in,
+        And its **far** sensor going occupied says the train is fully in,
         so the block behind is clear. That is the one event no detector could
         produce: occupancy is anonymous and the block behind is named by the
         move this app carried out. The entered block's own event has already
@@ -2202,7 +2358,9 @@ class LayoutInterface:
         """
         self._level[end] = level
         self._publish_settled(end, level)
-        came_back = self._unknown.pop(end, None) is not None
+        crossing = self._crossing.get(block_of(end))
+        blind = crossing is not None and self._blind(crossing)
+        self._unknown.pop(end, None)
         # This end has just said something of its own, so whatever a departure
         # spent of it is spent no longer.
         self._spent.discard(end)
@@ -2222,39 +2380,78 @@ class LayoutInterface:
             self._bus.publish(
                 BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block}
             )
-            if not occupied:
-                self._left(block)
-        crossing = self._crossing.get(block)
-        if crossing is None:
-            return
-        if level != OCCUPIED:
-            if came_back and end == opposite_end(crossing.far):
-                self._carry_on(block, crossing)
-            return
-        if crossing.outstanding:
-            # The arrival: the train is in the block it was sent to, so it is
-            # told to stand, whoever was driving it — this app or a throttle,
-            # whose next lever frame drives the train on (ADR-0081).
-            # It does not wait for the vacate — the tail clearing is a fact
-            # about the block behind — and it happens on the first end of this
-            # block to settle occupied, which is the end the train comes in at
-            # unless a reading arrived out of order. A train nobody was
-            # driving was never told to run and is told nothing. Either way
-            # the grant implies nothing more once the train is there, so what
-            # it implied goes with the arrival.
-            if crossing.driving or crossing.train in self._taken:
-                self._stop(crossing.train)
-            crossing = replace(crossing, implied=(), outstanding=False)
-            if crossing.left:
-                crossing = replace(crossing, reported=())
-            self._crossing[block] = crossing
-        if end == crossing.far:
+        if crossing is not None:
+            self._read_crossing(block, crossing, end, level, blind)
+
+    def _read_crossing(
+        self, block: str, crossing: _Crossing, end: str, level: str, blind: bool
+    ) -> None:
+        """What a settled level comes to for the crossing into its block, `blind`
+        being whether it was so until this reading (#1169).
+
+        The **arrival** is at the first of three readings: the far sensor
+        occupied, which also ends the crossing; the entry sensor clear with
+        `head_in` and the far sensor unknown, the crossing staying as it does
+        for any train that never reads its far sensor; and the far sensor going
+        unknown with `tail_in` (`_call_unknown`). The entry sensor reading
+        occupied stops nothing, and is a check of the `caution` drop.
+
+        A blind crossing is given its speed back by anything else that comes
+        back: the entry sensor occupied, and then stopped when it reads clear;
+        the entry sensor clear with no `head_in`; the far sensor clear
+        (`_carry_on`). A sensor returning when the train was never stopped
+        writes nothing, so a train a person left running slowly does not lurch
+        (ADR-0081, decision 6). One accepted case: the entry sensor goes unknown
+        as the train passes it, the far sensor then goes too, and the entry
+        sensor returns clear having never read the train. It is given its speed
+        back and nothing stops it unless the far sensor returns.
+        """
+        if end == crossing.far and level == OCCUPIED:
+            if crossing.outstanding:
+                crossing = self._arrival(block, crossing)
             del self._crossing[block]
             self._release(crossing.origin)
             self._released.append(crossing.origin)
+            self._put_back(crossing.train)
+            return
+        if end == crossing.entry:
+            if level == OCCUPIED:
+                crossing = replace(crossing, head_in=True)
+                self._crossing[block] = crossing
+                self._lower(block)
+            elif crossing.head_in:
+                crossing = replace(crossing, tail_in=True, reported=())
+                self._crossing[block] = crossing
+                if crossing.outstanding and crossing.far in self._unknown:
+                    self._arrival(block, crossing)
+                    self._put_back(crossing.train)
+                    return
+        if blind:
+            self._carry_on(block, crossing)
+
+    def _arrival(self, block: str, crossing: _Crossing) -> _Crossing:
+        """The move over: the train told to stand whoever was driving it, this
+        app or a throttle, whose next lever frame drives it on (ADR-0081). A
+        train nobody was driving was never told to run and is told nothing.
+        Either way the grant implies nothing more, so what it implied goes.
+        What a held move does next is `_put_back`'s, once the crossing is
+        settled."""
+        if crossing.driving or crossing.train in self._taken:
+            self._stop(crossing.train)
+        crossing = replace(crossing, implied=(), outstanding=False)
+        self._crossing[block] = crossing
+        return crossing
+
+    def _put_back(self, train: str) -> None:
+        """The moves held for this train's arrival back through the rules,
+        after its `0.0` and with no wait (`_reverses`, #1169)."""
+        for transit, commanded in list(self._reversing.items()):
+            if commanded.train == train:
+                del self._reversing[transit]
+                self._cross(commanded)
 
     def _carry_on(self, block: str, crossing: _Crossing) -> None:
-        """The entry sensor back and reading `clear`, so the train it stopped
+        """A sensor back after both were gone, so the train that stopped for it
         is given its speed with no press, in `automatic` over live rails, a
         drain being live (#1151). In `manual` a throttle takes it or a switch
         to `automatic` does (`_take_up`), and under `off` the `on` does
@@ -2321,19 +2518,6 @@ class LayoutInterface:
             return
         self._occupied[block] = False
         self._bus.publish(BLOCK_VACATED, {"block": block})
-        self._left(block)
-
-    def _left(self, block: str) -> None:
-        """`block` just published vacated: each crossing out of it is marked
-        `left`, and one that has arrived stops checking its reported points
-        (#1110)."""
-        for entered, crossing in list(self._crossing.items()):
-            if crossing.origin != block:
-                continue
-            crossing = replace(crossing, left=True)
-            if not crossing.outstanding:
-                crossing = replace(crossing, reported=())
-            self._crossing[entered] = crossing
 
     def _folded(self) -> str:
         """Whether a train may move at all, folded from what the hardware

@@ -629,7 +629,7 @@ def test_on_restores_nothing_for_a_train_that_has_arrived() -> None:
     live(bus)
     written = commanded(bus)
     crossing(bus)
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     commands(bus, "off")()
 
