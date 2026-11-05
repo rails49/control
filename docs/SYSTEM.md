@@ -1134,10 +1134,14 @@ hardware can produce: anonymous occupancy sensors and track power. It never
 says which train it saw, because a detector cannot report that. The
 dispatcher recovers identity from its own lock table. A block has **two
 detectors, both inside the interface**: a train entering trips the far
-block's first detector with its head and its second once it is fully in, so
+block's entry sensor with its head and its far sensor once it is fully in, so
 the interface publishes `block_occupied` on the way in and `block_vacated`
 for the block behind once the tail clears — usually occupied then vacated
-(ADR-0047). A block's own detectors going clear publish its vacate as well, so
+(ADR-0047). A train with no further grant runs on and stops at the far sensor,
+and a train at `clear` whose far signal shows `stop` drops to the railroad's
+`caution` speed once its head is in
+([#1169](https://github.com/rails49/control/issues/1169)). A `move` that goes back
+out by the end the train came in at is held until that stop. A block's own detectors going clear publish its vacate as well, so
 a train shorter than the gap to the next block's entry detector, or a dead
 detector there, gives the other order, and the dispatcher takes either
 ([ADR-0077](adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
@@ -1147,11 +1151,14 @@ first reports a level and again after `sensor_silence` with no report or once it
 reports `unknown`, and `state/unknown_sensors` lists it. `unknown` creates no
 occupancy event, so the lock table stays correct: the level held stands, and a
 block's vacate waits until neither of its sensors is unknown, other than the one
-from a completed move. The train `layout` is driving towards an unknown entry
-sensor stops, and carries on by itself when that sensor reports `clear`, in
-`automatic` with the power on or draining; `occupied` is the arrival. A train a
-throttle holds is never stopped for this
-([#1151](https://github.com/rails49/control/issues/1151)).
+from a completed move. The train `layout` is driving into a block with both
+sensors unknown stops, and carries on by itself when one returns and does not say
+it has arrived, in `automatic` with the power on or draining. One unknown sensor
+stops nothing: the far sensor stops the train, or with that one unknown the entry
+sensor reading occupied then clear does. A train a throttle holds is never stopped
+for this
+([#1151](https://github.com/rails49/control/issues/1151),
+[#1169](https://github.com/rails49/control/issues/1169)).
 
 Commands name a **transit** rather than a piece of hardware. An `align` names
 a connection and a transit, and carries the points that transit needs as
@@ -1185,8 +1192,9 @@ them.
 
 Where a point's address is reported, `layout` also waits for the point to say
 it lies as the `align` asked, on `device/point`, before the train departs, and
-stops the train if it says otherwise before the train has arrived and the
-block it left reads vacated, in either order ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
+stops the train if it says otherwise before the entry sensor has read occupied
+then clear ([ADR-0097](adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md),
+[#1169](https://github.com/rails49/control/issues/1169)).
 
 `layout` writes every point of an `align` each time, whether or not its
 `wanted/point` row already holds the position asked
@@ -1215,7 +1223,7 @@ power and with no rebuild and said at once. The gap is used for the next
 point written and the throttle silence from the next check of who has gone
 silent, as is the sensor silence for who has gone unheard
 ([#1151](https://github.com/rails49/control/issues/1151)); the speeds are the
-driver's. The gap and the
+driver's, and `layout` also reads `caution` for its drop, from the next check. The gap and the
 speeds are kept with the
 railroad in `layouts/<layout>.settings.yaml`, the two silences with the
 installation in `installation.yaml`, read once as `layout` starts
@@ -1283,7 +1291,7 @@ throttle holds is that throttle's to drive in either mode and at any time,
 granted move or not
 ([ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)):
 a lever is applied from the throttle holding the train while `state/power`
-reads `on` or `draining`, the move ending at its sensor writes `0.0`, and the
+reads `on` or `draining`, the move ending at its far sensor writes `0.0`, and the
 next lever frame drives the train on. A lever reversing a running train writes
 `0.0` until the throttle sends `0` or `layout` stops the train itself
 ([ADR-0084](adr/0084-a-reverser-moves-only-with-the-lever-at-0.md),

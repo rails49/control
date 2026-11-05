@@ -17,7 +17,7 @@ watches a point near that end and reports whether something is at it. A sensor
 does not report on the block: with a train standing between them, a block's
 two sensors both read `clear`. A block's length is the distance between its two
 sensors, and each sensor sits at least a stopping distance in from the end of
-its block, so a train stopped as its tail passes one comes to rest inside the
+its block, so a train stopped as its head reaches one comes to rest inside the
 block. Each end a train can leave through carries a
 **signal**, which is how a driver is told whether to go and how fast; an end
 nothing ever leaves carries none.
@@ -218,12 +218,24 @@ that block is named for a person while the others run
 [ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
 [ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
 
-A train with no further grant is stopped in the block it enters: when the
-sensor it entered by has read `occupied` and then `clear`, so the whole train
-is in, or when the block's far sensor reads `occupied`, whichever is first.
-Both are arrivals. After a stop at the far sensor, whatever the train's tail
-has not been seen to leave stays occupied by it until its next move or a
-placement.
+A train with no further grant runs on through the block it enters and is
+stopped when the block's far sensor reads `occupied`, so it stands at its signal
+with the whole block for a next grant to arrive in. With the far sensor `unknown`
+it is stopped when the sensor it entered by has read `occupied` and then `clear`,
+or, with that already so, when the far sensor goes `unknown`. Each of these is an
+arrival. Whatever the train's tail has not been seen to leave stays occupied by
+it until its next move or a placement. With both sensors `unknown` a train
+`layout` is driving stops, nothing there being able to end its move, and is given
+its speed back when one of them returns and does not say it has arrived.
+
+A train at `clear` whose far signal shows `stop` has only a stopping distance left
+after the far sensor. So once its head is in the block, `layout` drops it to the
+railroad's `caution` speed. A train a throttle holds keeps the person's speed.
+
+A train whose next move goes back out through the end it came in by must not flip
+with its tail on the turnout. `layout` holds that move until the train has been
+stopped, then acts on it with no wait: nothing reports that a train has stopped.
+A train a throttle holds is not held, the person reversing it with the lever.
 
 A person driving looks out of the window. An automated driver has to be told
 which aspect applies to its train, since track detectors are anonymous and
@@ -320,6 +332,10 @@ Most of it it cannot see, and none of this is guarded:
   its tail has. The readings are those of a short train that came in whole, so
   the table has it in the block and releases the transit it stands on.
 - Cars left between sensors.
+- A train whose entry sensor goes `unknown` as the train passes it, whose far
+  sensor then goes `unknown`, and whose entry sensor returns `clear` having never
+  read it. It is given its speed back, and nothing stops it unless the far sensor
+  returns.
 - A sensor that reads `clear` between two cars of a passing train, which ends
   the move early. Whatever reports on a sensor is required to read `occupied`
   without a break from a train's head to its tail.
