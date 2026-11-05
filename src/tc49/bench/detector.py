@@ -16,9 +16,8 @@ A sensor is reported at least once a second, changed or not, so the last level
 typed for each sensor is said again every second until another is typed. A
 sensor nobody has typed is not reported.
 
-`layout` folds the two ends into `block_occupied` and `block_vacated` exactly
-as it folds a camera's ([#288](https://github.com/rails49/control/issues/288)),
-and the settling time sees a typed level as it would see a detector's. That is
+`layout` settles and passes on each end exactly as it does a camera's
+([#288](https://github.com/rails49/control/issues/288)), and the settling time sees a typed level as it would see a detector's. That is
 the whole of the point: nothing downstream knows a person typed it.
 
 **Not a bus contract change.** The topic and the payload are BUS.md's

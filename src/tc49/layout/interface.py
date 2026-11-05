@@ -16,8 +16,8 @@ becomes the addresses that answer for it, no address ever reaching a command
 (#199).
 
 **Everything the bus hands it is read and never trusted** (BUS.md, rule 4).
-Fifteen topics from six publishers — the detectors joining them with the fold
-(#288), the throttle's four gestures, the driving mode and the railroad's
+Fifteen topics from six publishers — the detectors joining them (#288), the
+throttle's four gestures, the driving mode and the railroad's
 settings coming from where a person's press already does (#297, ADR-0079,
 #849, #1126), the moving row a
 drain ends on (ADR-0078), and the dispatcher asking for a move back (#1068) —
@@ -108,39 +108,32 @@ not sent to a station at the first connect and the locomotive does not roll on
 the power-on (ADR-0054). `wanted/point` replays instead: a point has
 no resting value to write.
 
-**Levels in, edges out.** A detector reports presence at one block end, and
+**Levels in, levels out.** A detector reports presence at one block end, and
 presence is a level that can be asked for at any time; the bus carries the
-changes because it is an event bus (#243). So this app holds the level per
-block end and publishes `block_occupied` or `block_vacated` only where a
-**debounced** level moves. A repeated level is a no-op that re-asserts what is
-already held, which is what at-least-once delivery needs and the whole of it:
-no counter and no dedup. `unknown` is no information about an end — the level
-held stands, no edge comes of it, and the `reason` is logged once for a person
-(#288).
+changes because it is an event bus (#243). So this app holds each sensor's
+level, settles it, and passes it on as
+`state/settled/sensor/<block>.<end>` (#1168). A repeated level is a no-op that
+re-asserts what is already held, which is what at-least-once delivery needs and
+the whole of it: no counter and no dedup. `unknown` is no information about an
+end — the level held stands, no row comes of it, and the `reason` is logged once
+for a person (#288).
+
+**A block reads nothing here.** A sensor watches a point near a block end, and
+this app keeps no record of which block is occupied: the dispatcher's lock table
+is that record, followed from the rows (#1171). What a reading no move explains
+comes to is the dispatcher's judgement too (ADR-0048).
 
 **A sensor not reporting reads unknown** (#1151). Every sensor of the drawing
 starts on `state/unknown_sensors`, nobody having heard it, and goes back on once
 it reports `unknown` for the settling time or nothing at all for
-`sensor_silence_s`; a level that stands takes it off. The list creates no
-occupancy events, so the lock table stays correct: a block with a sensor listed
-says occupied as ever and holds back its vacate, its train being as likely under
-the sensor nobody can hear. And the train this app is driving into a block with
-both sensors listed stops, because nothing there would end its move, and carries
-on by itself when one of them reports (`_settled`). One listed is enough to go
-on: the far sensor stops the train, or with that one listed the entry sensor
-reading occupied then clear does (#1169). A train a throttle holds is the
-person's and is never stopped for this (ADR-0081).
-
-**Two ends into one block.** Both detectors of a block stay inside the
-interface. A block reads occupied while either of its ends does, and that fold
-is what a level change publishes. The second event a move produces is the one
-no detector can name: a train entering block Y trips Y's entry sensor with
-its head and its far sensor once it is fully in, so the far sensor is where
-`block_vacated(X)` goes out — this app carried out the move, so it knows which
-block X is. Occupied then vacated, the only order the steel can produce
-(ADR-0047). A level no move explains still publishes its own block's
-occupancy: what to make of a reading nothing accounts for is the dispatcher's
-judgement and not this app's (ADR-0048).
+`sensor_silence_s`; a level that stands takes it off. The list writes no row of
+its own, and what it holds back in the lock table is the dispatcher's. The train
+this app is driving into a block with both sensors listed stops, because nothing
+there would end its move, and carries on by itself when one of them reports
+(`_settled`). One listed is enough to go on: the far sensor stops the train, or
+with that one listed the entry sensor reading occupied then clear does (#1169).
+A train a throttle holds is the person's and is never stopped for this
+(ADR-0081).
 
 **The arrival is at the far sensor** (#1169). A train with no further grant runs
 on through its block and stops at its far sensor, so it stands at its signal with
@@ -294,8 +287,6 @@ DEVICE = "tc49/layout/state/device/#"
 
 RAILROAD = "tc49/layout/state/railroad"
 ALIVE_CONFIRMED = "tc49/layout/alive_confirmed"
-BLOCK_OCCUPIED = "tc49/layout/block_occupied"
-BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER = "tc49/layout/state/power"
 DRIVING = "tc49/layout/state/driving"
 TAKEN = "tc49/layout/state/taken"
@@ -345,9 +336,9 @@ class _Crossing:
     """A move this app carried out, and what the entered block's detectors
     will report about it.
 
-    `origin` is the block the train is leaving, which is the whole reason this
-    is held: occupancy is anonymous and no detector can name the block behind
-    a train, so the only thing that knows X is what accepted the move.
+    `origin` is the block the train is leaving, which is where a move asked
+    back puts it (`_on_withdraw_wanted`): no detector can name the block behind
+    a train, so the only thing that knows it is what accepted the move.
 
     `far` is the entered block's **far sensor**, the end the train's head
     reaches last, and not the end across the transit, which is the **entry
@@ -605,17 +596,13 @@ class LayoutInterface:
         # never withdrawn.
         self._driven: set[str] = set()
         self._withdrawing: dict[str, tuple[str, str]] = {}
-        # The occupancy fold: the settled level at each block end, the level
-        # each end has most recently said (which is what makes the log of an
-        # `unknown` once per transition into it), the levels waiting out the
-        # settling time, what was last published about each block, the ends
-        # whose occupied level a departure has already spent, and the moves
-        # whose second reading is still to come.
+        # The sensors: the settled level at each block end, the level each end
+        # has most recently said (which is what makes the log of an `unknown`
+        # once per transition into it), the levels waiting out the settling
+        # time, and the moves whose readings are still to come.
         self._level: dict[str, str] = {}
         self._said: dict[str, str] = {}
         self._settling: dict[str, _Settling] = {}
-        self._occupied: dict[str, bool] = {}
-        self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
         # The sensors the drawing has, in its order; those reading unknown,
         # each with the reason for a person, which is `state/unknown_sensors`;
@@ -629,9 +616,6 @@ class LayoutInterface:
         )
         self._going_unknown: dict[str, _Settling] = {}
         self._last_report: dict[str, float] = {}
-        # The blocks a crossing has released in this call to `settle`, whose
-        # vacate waits for the call's other levels (`_vacate`, #1081).
-        self._released: list[str] = []
         # The trains a far sensor going unknown has just stopped, whose held
         # moves wait for the list that says why (`_call_unknown`, #1169).
         self._arrived: list[str] = []
@@ -797,9 +781,6 @@ class LayoutInterface:
         arrived, self._arrived = self._arrived, []
         for train in arrived:
             self._put_back(train)
-        released, self._released = self._released, []
-        for block in released:
-            self._vacate(block)
         self._write_points()
         self._let_through()
         self._let_go_of_silent()
@@ -1034,9 +1015,10 @@ class LayoutInterface:
         grant is nobody's (ADR-0079): nothing else would stop it running on at
         its last speed.
 
-        The crossing is what the fold needs and nothing above the interface
-        could supply: no detector names the block a train is leaving, so the
-        move that was carried out is the only thing that knows it (#288).
+        The crossing is what the readings of the entered block are read against,
+        and nothing above the interface could supply it: no detector names the
+        move a train is in, so the move that was carried out is the only thing
+        that knows it (#288).
         """
         transit = commanded.transit_id
         ends = transit_ends(self._layout, commanded.into, transit)
@@ -2192,7 +2174,7 @@ class LayoutInterface:
             return
         self._publish_power()
 
-    # -- the occupancy fold -------------------------------------------------
+    # -- the sensors ----------------------------------------------------------
 
     def _on_sensor(self, _topic: str, payload: Payload) -> None:
         """A report on a sensor. An event, so no stamp to guard (BUS.md, rule
@@ -2214,7 +2196,7 @@ class LayoutInterface:
         detector running at 2-8 Hz with no debounce of its own needs from the
         consumer. Bar a sensor on the list: a level equal to the one held
         settles like a new one, since standing is what takes it off the list
-        and releases a vacate held back on it (#1151).
+        (#1151).
 
         `unknown` is **no information** about that end's level. It is not a
         level to settle, it does not cancel a level that is settling, and it
@@ -2230,8 +2212,8 @@ class LayoutInterface:
 
         The address is the block end the detector watches, the report's
         `addr`, and a reading for an end no block here has is never listed: it
-        folds into a block nothing above will claim, and the dispatcher
-        already names a reading it cannot explain (#1154).
+        goes out on its row, and the dispatcher already names a reading it
+        cannot explain (#1154).
         """
         level = detected(payload)
         said, self._said[end] = self._said.get(end), level
@@ -2324,64 +2306,22 @@ class LayoutInterface:
             )
 
     def _settled(self, end: str, level: str) -> None:
-        """A level that has stood for the settling time, turned into whatever
-        events it is worth.
+        """A level that has stood for the settling time, passed on.
 
         It is the sensor's own row, each time, the level taking a sensor off
         the list being a repeat where it equals the last (#1168). It takes the
-        sensor off the list, if it was on it (#1151). Then three things come of
-        it. A **block** reads occupied while either of its ends
-        does, and a change in that fold is the block's own occupancy event —
-        the block a hand put a locomotive on, as much as the block a train was
-        granted, since a level no move explains is still a level and judging it
-        is the dispatcher's (ADR-0048). Bar an end a departure has already
-        spent: that level is the train that left, and `_release` has said so
-        once already (#311). And its vacate only where neither of its sensors
-        is unknown: an end with no level, or one gone silent, may have a train
-        under it, so the vacate waits until that sensor reports `clear`
-        (#1151). `occupied` from either goes out at once.
-
-        Where the block is one a train is crossing into, what the level comes to
-        for that crossing is `_read_crossing`'s.
-
-        And its **far** sensor going occupied says the train is fully in,
-        so the block behind is clear. That is the one event no detector could
-        produce: occupancy is anonymous and the block behind is named by the
-        move this app carried out. The entered block's own event has already
-        gone out on its first sensor, so the order is occupied then vacated.
-        It is not the only order the steel can produce: a block's own
-        detectors going clear publish its vacate too, and a train shorter
-        than the gap to the next block's entry detector, or a dead detector
-        there, reads clear behind before it reads occupied ahead. The
-        dispatcher ends a move on both readings in either order (ADR-0077,
-        amending ADR-0047).
+        sensor off the list, if it was on it (#1151). Where the block is one a
+        train is crossing into, what the level comes to for that crossing is
+        `_read_crossing`'s. Which block is occupied, whatever the level was, is
+        the dispatcher's (#1171).
         """
         self._level[end] = level
         self._publish_settled(end, level)
         crossing = self._crossing.get(block_of(end))
         blind = crossing is not None and self._blind(crossing)
         self._unknown.pop(end, None)
-        # This end has just said something of its own, so whatever a departure
-        # spent of it is spent no longer.
-        self._spent.discard(end)
-        block = block_of(end)
-        occupied = any(
-            self._level.get(watched) == OCCUPIED and watched not in self._spent
-            for watched in (end, opposite_end(end))
-        )
-        held_back = not occupied and opposite_end(end) in self._unknown
-        if self._occupied.get(block) != occupied and not held_back:
-            self._occupied[block] = occupied
-            if occupied:
-                # A block this app has just said is occupied is a block whose
-                # ends both count again: whatever departure spent them, a new
-                # train standing here ends its account (#331).
-                self._spent -= {end, opposite_end(end)}
-            self._bus.publish(
-                BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block}
-            )
         if crossing is not None:
-            self._read_crossing(block, crossing, end, level, blind)
+            self._read_crossing(block_of(end), crossing, end, level, blind)
 
     def _read_crossing(
         self, block: str, crossing: _Crossing, end: str, level: str, blind: bool
@@ -2410,8 +2350,6 @@ class LayoutInterface:
             if crossing.outstanding:
                 crossing = self._arrival(block, crossing)
             del self._crossing[block]
-            self._release(crossing.origin)
-            self._released.append(crossing.origin)
             self._put_back(crossing.train)
             return
         if end == crossing.entry:
@@ -2458,66 +2396,6 @@ class LayoutInterface:
         (`_resume`). A grant that implies nothing writes nothing (`_give`)."""
         if crossing.outstanding and self._drives(crossing.train) and self._power != OFF:
             self._give(block, crossing)
-
-    def _release(self, block: str) -> None:
-        """The block a train has just left, said once however the two routes
-        to it fall (#311).
-
-        The same departure reaches this app twice: as the move it carried out,
-        which is what names the block behind, and as that block's own
-        detectors going clear a moment later. Both are the tail leaving, and
-        the two orders are a race — the train is out of the block behind at
-        the instant it is fully into the block ahead — so neither can be the
-        one that always arrives first.
-
-        So one writer per fact. `self._occupied` is the record of what this
-        app has said about each block, and this rule reads it before it writes
-        it: nothing goes out for a block already released. The ends this
-        release **spends** are the ends of this block reading occupied at the
-        moment it runs — the train that left — so the fold does not read them
-        as a train still standing there and publish it back again.
-
-        They count again as soon as the departure they belong to is over: when
-        that end settles a level of its own, and when this block is published
-        occupied again, which un-spends both of its ends because a new train
-        standing here ends the old departure's account (#331). Otherwise an
-        end that was spent and never changes again — a stranded car, a
-        detector stuck occupied — would be out of the fold for good, and a
-        level no move explains is still a level (ADR-0048).
-
-        The vacate itself is `_vacate`'s, once the call to `settle` that
-        spent the ends has applied every level due in it.
-        """
-        for end in (f"{block}.A", f"{block}.B"):
-            if self._level.get(end) == OCCUPIED:
-                self._spent.add(end)
-
-    def _vacate(self, block: str) -> None:
-        """The block `_release` spent, said clear, unless an end of it settled
-        occupied later in the same call to `settle` (#1081).
-
-        The record is set to clear rather than dropped, and the levels go on
-        standing as the detectors reported them: a block that reads occupied
-        again is an ordinary change in the fold, wherever it comes from.
-
-        Levels due in one call are as near simultaneous as this app can tell,
-        and an end of the block behind that settles occupied alongside the
-        far end is not the train that left — its ends were spent before that
-        level was applied. Said clear and then occupied, the block would be
-        free to the dispatcher between the two, which grants it to the next
-        train and then takes the reading for that train's arrival (ADR-0077).
-        So the block is left as the fold has it, occupied, and its vacate
-        comes when its ends say so.
-        """
-        if any(
-            self._level.get(end) == OCCUPIED and end not in self._spent
-            for end in (f"{block}.A", f"{block}.B")
-        ):
-            return
-        if self._occupied.get(block) is False:
-            return
-        self._occupied[block] = False
-        self._bus.publish(BLOCK_VACATED, {"block": block})
 
     def _folded(self) -> str:
         """Whether a train may move at all, folded from what the hardware

@@ -16,7 +16,6 @@ from tc49.lib.inventory import MANUAL
 from tests.layout.railroad import (
     ALIGN,
     ASPECTS,
-    BLOCK_OCCUPIED,
     DEVICE_LINK,
     DEVICE_TRACK,
     DRIVING,
@@ -41,8 +40,8 @@ from tests.layout.railroad import (
     build,
     energised,
     heard,
+    levels,
     move,
-    occupancy,
     reads,
     settle,
     stand,
@@ -201,12 +200,12 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     """A sensor report falls the third way: `unknown`
     is the contract's own word for no information, so a frame that cannot be
     read leaves the end reading exactly what it last actually said and
-    produces no edge (#288)."""
+    produces no row (#288)."""
     bus, app, clock = wired()
-    seen = occupancy(bus)
+    seen = levels(bus)
     reads(bus, "up_e.A", "occupied")
     settle(bus, app, clock)
-    assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
+    assert seen == [("up_e.A", "occupied")]
 
     for payload in UNREADABLE:
         bus.publish(SENSOR, cast(Payload, payload))
@@ -215,7 +214,7 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     bus.drain()
     settle(bus, app, clock)
 
-    assert seen == [(BLOCK_OCCUPIED, {"block": "up_e"})]
+    assert seen == [("up_e.A", "occupied")]
 
 
 def test_a_fresh_app_has_said_eight_things_and_no_more() -> None:

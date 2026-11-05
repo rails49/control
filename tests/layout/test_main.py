@@ -28,7 +28,6 @@ from tc49.layout.__main__ import OWNED, retained, serve
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
-    BLOCK_OCCUPIED,
     DRIVING,
     POWER,
     POWER_WANTED,
@@ -329,7 +328,7 @@ def test_a_level_settles_on_seconds_passing(
 ) -> None:
     """The other half of the loop, and the half no other app's has: the clock
     is advanced to wall time and `settle()` called once a turn, so a level
-    that stands for the settling time becomes the block's occupancy event.
+    that stands for the settling time becomes the sensor's row.
 
     Nothing schedules that call — a detector publishes a level *change* and
     nothing else — so a process that never made it would sit on a quiet
@@ -348,10 +347,10 @@ def test_a_level_settles_on_seconds_passing(
         """A report is not retained, so one sent before `layout` subscribes is
         lost. A sensor reports again, and so does this (#1147)."""
         detector.publish(SENSOR, {"addr": END, "occupancy": "occupied"})
-        return rows(heard, BLOCK_OCCUPIED) != []
+        return rows(heard, SETTLED) != []
 
     assert drained(witness, reported), "the level never settled"
-    assert rows(heard, BLOCK_OCCUPIED)[-1]["block"] == BLOCK
+    assert rows(heard, SETTLED)[-1]["addr"] == END
     assert app.running, "the app stopped on its own"
     detector.close()
     witness.close()
@@ -785,9 +784,10 @@ def test_a_report_naming_a_wildcard_does_not_take_the_app_down(
 
     def reported() -> bool:
         witness.publish(SENSOR, {"addr": "up+w.A", "occupancy": "occupied"})
-        return rows(heard, BLOCK_OCCUPIED) == [{"block": "up+w"}]
+        witness.publish(SENSOR, {"addr": END, "occupancy": "occupied"})
+        return rows(heard, SETTLED) != []
 
-    assert drained(witness, reported), "the report never folded"
+    assert drained(witness, reported), "the reports never settled"
     settle(witness)
 
     assert app.running, "the app stopped on a report"

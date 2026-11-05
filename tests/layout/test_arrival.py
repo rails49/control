@@ -18,7 +18,6 @@ from tc49.lib.inventory import AUTOMATIC, MANUAL
 from tc49.lib.layout import Layout
 from tests.layout.railroad import (
     ASPECTS,
-    BLOCK_VACATED,
     PLACED,
     POWER_WANTED,
     REMOVED,
@@ -32,7 +31,6 @@ from tests.layout.railroad import (
     heard,
     lies,
     move,
-    occupancy,
     reads,
     settle,
     speeds,
@@ -159,18 +157,14 @@ def given(speed: float = CLEAR) -> list[tuple[str, float]]:
 
 def test_the_far_sensor_stops_a_train_with_no_further_grant() -> None:
     rig = crossing(train="topped")
-    rig.read("w.B")
-    vacated = occupancy(rig.bus)
 
     rig.read(ENTRY)
     assert rig.wrote() == []
     rig.read(ENTRY, "clear")
     assert rig.wrote() == []
-    assert (BLOCK_VACATED, {"block": "w"}) not in vacated
 
     rig.read(FAR)
     assert rig.wrote() == [("8", 0.0), ("4", 0.0)]
-    assert (BLOCK_VACATED, {"block": "w"}) in vacated
 
 
 def test_the_far_sensor_deletes_the_crossing() -> None:
@@ -220,11 +214,8 @@ def test_the_far_sensor_going_unknown_with_the_tail_in_stops_the_train_at_once()
 
 
 def test_the_crossing_a_tail_clearing_ended_stays_for_its_far_sensor() -> None:
-    """It still ends at the far sensor, releasing the block behind, with no
-    second stop."""
+    """It still ends at the far sensor, with no second stop."""
     rig = crossing()
-    rig.read("w.B")
-    vacated = occupancy(rig.bus)
     rig.unknown(FAR)
     rig.read(ENTRY)
     rig.read(ENTRY, "clear")
@@ -233,7 +224,6 @@ def test_the_crossing_a_tail_clearing_ended_stays_for_its_far_sensor() -> None:
     rig.read(FAR)
 
     assert rig.wrote() == []
-    assert (BLOCK_VACATED, {"block": "w"}) in vacated
 
 
 # -- both sensors unknown ------------------------------------------------------
@@ -375,8 +365,6 @@ def test_a_further_move_runs_through_with_no_stop_and_still_deletes_the_crossing
     None
 ):
     rig = crossing()
-    rig.read("w.B")
-    vacated = occupancy(rig.bus)
     rig.read(ENTRY)
     onward(rig)
     assert rig.takes_out() == given()
@@ -384,7 +372,6 @@ def test_a_further_move_runs_through_with_no_stop_and_still_deletes_the_crossing
     rig.read(FAR)
 
     assert rig.wrote() == []
-    assert (BLOCK_VACATED, {"block": "w"}) in vacated
 
 
 def test_after_a_further_move_the_later_far_sensor_stops_the_train() -> None:

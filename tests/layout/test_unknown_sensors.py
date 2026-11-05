@@ -24,9 +24,9 @@ from tests.layout.railroad import (
     faces,
     gives,
     heard,
+    levels,
     move,
     moves,
-    occupancy,
     reads,
     report,
     sensors,
@@ -38,9 +38,6 @@ from tests.layout.railroad import (
     turns,
     wired,
 )
-
-BLOCK_OCCUPIED = "tc49/layout/block_occupied"
-BLOCK_VACATED = "tc49/layout/block_vacated"
 
 ENTRY = "up_e.A"
 FAR = "up_e.B"
@@ -116,7 +113,7 @@ def comes_back(
 
 def test_a_new_layout_lists_every_sensor_and_says_nothing_of_any_block() -> None:
     bus, app, clock = wired(reporting=False)
-    seen = occupancy(bus)
+    seen = levels(bus)
     assert listed(bus) == {end: ("no report since start", False) for end in sensors()}
     row = bus.last_values[UNKNOWN_SENSORS]["sensors"]
     assert [entry["sensor"] for entry in row] == sensors()
@@ -129,14 +126,6 @@ def test_a_sensor_not_on_the_drawing_is_never_listed() -> None:
     reads(bus, "elsewhere.A", "unknown", "no model")
     settle(bus, app, clock)
     assert "elsewhere.A" not in listed(bus)
-
-
-def test_a_sensor_not_on_the_drawing_folds_as_it_did() -> None:
-    bus, app, clock = wired()
-    seen = occupancy(bus)
-    reads(bus, "elsewhere.A", "clear")
-    settle(bus, app, clock)
-    assert seen == [(BLOCK_VACATED, {"block": "elsewhere"})]
 
 
 # -- one timer per sensor -----------------------------------------------------
@@ -224,12 +213,12 @@ def test_a_level_within_the_settling_time_cancels_a_reported_unknown() -> None:
 
 def test_a_reported_unknown_does_not_cancel_a_level_that_is_settling() -> None:
     bus, app, clock = wired()
-    seen = occupancy(bus)
+    seen = levels(bus)
     reads(bus, ENTRY, "occupied")
     settle(bus, app, clock, SETTLING_S / 2)
     reads(bus, ENTRY, "unknown", "no model")
     settle(bus, app, clock, SETTLING_S / 2)
-    assert [topic for topic, _payload in seen] == [BLOCK_OCCUPIED]
+    assert seen == [(ENTRY, "occupied")]
     assert listed(bus) == {}
 
 
@@ -293,108 +282,23 @@ def test_every_sensor_coming_back_in_one_turn_is_one_row() -> None:
     assert [payload["sensors"] for _topic, payload in rows] == [[]]
 
 
-# -- the level held stands, and unknown creates no events ----------------------
+# -- the level held stands, and unknown creates no rows ------------------------
 
 
-def test_one_sensor_clear_and_the_other_never_heard_publishes_no_vacate() -> None:
-    bus, app, clock = wired(reporting=False)
-    seen = occupancy(bus)
-    reads(bus, "up_e.A", "clear")
-    settle(bus, app, clock)
-    assert seen == []
-    reads(bus, "up_e.B", "clear")
-    settle(bus, app, clock)
-    assert seen == [(BLOCK_VACATED, {"block": "up_e"})]
-
-
-def test_a_vacate_held_back_waits_for_the_silent_sensor_to_say_clear() -> None:
+def test_going_unknown_publishes_no_reading() -> None:
     bus, app, clock = wired()
-    went_silent(bus, app, clock, "up_e.B")
-    seen = occupancy(bus)
-    reads(bus, "up_e.A", "occupied")
-    settle(bus, app, clock)
-    reads(bus, "up_e.A", "clear")
-    settle(bus, app, clock)
-    assert [topic for topic, _payload in seen] == [BLOCK_OCCUPIED]
-    reads(bus, "up_e.B", "clear")
-    settle(bus, app, clock)
-    assert [topic for topic, _payload in seen] == [BLOCK_OCCUPIED, BLOCK_VACATED]
-
-
-def test_going_unknown_publishes_no_event() -> None:
-    bus, app, clock = wired()
-    seen = occupancy(bus)
-    goes_unknown(bus, app, clock, "up_e.A")
+    seen = levels(bus)
     went_silent(bus, app, clock, "up_w.A")
+    goes_unknown(bus, app, clock, "up_e.A")
     assert seen == []
 
 
 def test_occupied_from_a_sensor_publishes_with_the_other_unknown() -> None:
     bus, app, clock = wired(reporting=False)
-    seen = occupancy(bus)
+    seen = levels(bus)
     reads(bus, "up_e.A", "occupied")
     settle(bus, app, clock)
-    assert [topic for topic, _payload in seen] == [BLOCK_OCCUPIED]
-
-
-def test_a_level_held_occupied_stands_through_silence() -> None:
-    """The train under the silent sensor is still there as far as anyone can
-    tell, so the other sensor reading clear vacates nothing."""
-    bus, app, clock = wired()
-    reads(bus, "up_e.B", "occupied")
-    settle(bus, app, clock)
-    went_silent(bus, app, clock, "up_e.B")
-    seen = occupancy(bus)
-    reads(bus, "up_e.A", "occupied")
-    settle(bus, app, clock)
-    reads(bus, "up_e.A", "clear")
-    settle(bus, app, clock)
-    assert seen == []
-
-
-def test_the_vacate_from_a_completed_move_does_not_wait_for_a_silent_sensor() -> None:
-    bus, app, clock, _written = crossing()
-    reads(bus, "up_w.A", "occupied")
-    settle(bus, app, clock)
-    goes_unknown(bus, app, clock, "up_w.B")
-    seen = occupancy(bus)
-    comes_back(bus, app, clock, ENTRY, "occupied")
-    comes_back(bus, app, clock, FAR, "occupied")
-    assert (BLOCK_VACATED, {"block": "up_w"}) in seen
-
-
-def test_a_sensor_returning_occupied_counts_though_a_departure_spent_it() -> None:
-    """Both ends of `up_w` still read occupied when its train has gone, and the
-    fold has said it clear. One goes unknown and returns occupied. A train can
-    arrive during an outage and this report cannot be told from one that lingers,
-    so it counts: the block reads occupied until both its ends read clear
-    (#1151)."""
-    bus, app, clock = wired()
-    energised(bus)
-    stand(bus, "freight_1", "up_w")
-    reads(bus, "up_w.A", "occupied")
-    reads(bus, "up_w.B", "occupied")
-    settle(bus, app, clock)
-    align(bus, "crossover", "to_dn")
-    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
-    reads(bus, "dn_e.A", "occupied")
-    settle(bus, app, clock)
-    reads(bus, "dn_e.B", "occupied")
-    settle(bus, app, clock)
-    seen = occupancy(bus)
-
-    goes_unknown(bus, app, clock, "up_w.B")
-    comes_back(bus, app, clock, "up_w.B", "occupied")
-    assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
-
-    comes_back(bus, app, clock, "up_w.B", "clear")
-    assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
-
-    comes_back(bus, app, clock, "up_w.A", "clear")
-    assert seen == [
-        (BLOCK_OCCUPIED, {"block": "up_w"}),
-        (BLOCK_VACATED, {"block": "up_w"}),
-    ]
+    assert seen == [("up_e.A", "occupied")]
 
 
 # -- the train stops ----------------------------------------------------------
