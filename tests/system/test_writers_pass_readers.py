@@ -59,6 +59,7 @@ from tc49.lib.payload import (
     readable_id,
     shown_aspects,
     taken,
+    unknown_sensors,
 )
 from tests.harness import ASSETS, load
 from tests.layout.railroad import (
@@ -172,6 +173,11 @@ TABLE: tuple[Rule, ...] = (
         lambda f: driving(f) == f.get("driving"),
     ),
     Rule("tc49/layout/state/taken", "taken", lambda f: _keeps(f, "taken", taken(f))),
+    Rule(
+        "tc49/layout/state/unknown_sensors",
+        "unknown_sensors",
+        lambda f: unknown_sensors(f) is not None,
+    ),
     *(
         Rule(f"tc49/layout/{leaf}", "occupancy", lambda f: occupancy(f) is not None)
         for leaf in ("block_occupied", "block_vacated")
