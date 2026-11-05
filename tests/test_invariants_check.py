@@ -9,14 +9,13 @@ from tc49.lib.clock import Clock
 from tc49.lib.invariants import (
     ALLOCATION,
     ASPECTS,
-    BLOCK_OCCUPIED,
     DISPUTED,
     MOVING,
     POWER,
     ROUTE_CHOSEN,
 )
 from tests.generate import LAYOUTS, ROSTERS
-from tests.harness import StrategyFactory
+from tests.harness import StrategyFactory, settled
 from tests.interleaving import InterleavingBus
 from tests.invariants import checked
 
@@ -105,10 +104,10 @@ def test_a_rule_that_something_follows_waits_for_nothing_left_to_deliver() -> No
     watched.publish(DISPUTED, {"blocks": []})
     watched.drain()
     # Nothing claims w_main: the row put out in the same delivery holds.
-    watched.publish(BLOCK_OCCUPIED, {"block": "w_main"})
+    watched.publish(*settled("w_main.A"))
     watched.publish(DISPUTED, {"blocks": ["w_main"]})
     watched.drain()
-    watched.publish(BLOCK_OCCUPIED, {"block": "loop_up"})
+    watched.publish(*settled("loop_up.A"))
     with pytest.raises(AssertionError, match="(?s)nothing left to deliver.*ADR-0048"):
         watched.drain()
 
@@ -117,5 +116,5 @@ def test_a_cross_app_history_invariant_is_not_checked_under_interleaving() -> No
     watched = bus(interleaving=True)
     watched.publish(ASPECTS, {"aspects": {}})
     watched.publish(POWER, {"power": "on"})
-    watched.publish(BLOCK_OCCUPIED, {"block": "loop_up"})
+    watched.publish(*settled("loop_up.A"))
     watched.drain()

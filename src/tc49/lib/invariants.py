@@ -22,8 +22,9 @@ here runs on the railroad: the property suite and the stateful tests call
 these (decision 4).
 
 A **history invariant** reads what the messages so far have said as well: a
-`Record` kept by observing each one, since some of what a rule is about — a
-block's occupancy, for one — is only ever an event (ADR-0096, decision 1). Its
+`Record` kept by observing each one, since some of what a rule is about — what
+a move's sensors have read so far, for one — no retained row holds (ADR-0096,
+decision 1). Its
 function is handed the record, the view and the message, before the record
 observes it, and once with `QUIET` when nothing is left to deliver, which is
 where a rule that one message is followed by another is breached. One over
@@ -74,6 +75,7 @@ from tc49.lib.layout import (
 )
 from tc49.lib.payload import (
     Command,
+    Grant,
     alignment,
     chosen,
     command,
@@ -90,7 +92,6 @@ from tc49.lib.payload import (
     moving,
     named_train,
     observed_position,
-    occupancy,
     placement,
     power,
     readable_id,
@@ -125,8 +126,6 @@ CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 PLACEMENT_REFUSED = "tc49/dispatch/placement_refused"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
-BLOCK_OCCUPIED = "tc49/layout/block_occupied"
-BLOCK_VACATED = "tc49/layout/block_vacated"
 POWER_WANTED = "tc49/layout/power_wanted"
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -550,26 +549,28 @@ def adr_0039_unplaced_has_no_facing(view: View) -> list[str]:
     ]
 
 
-def _entry_listed(
+def _both_listed(
     layout: Layout,
     entering: Mapping[str, str],
     transit: str,
     listed: frozenset[str],
 ) -> bool:
-    """Whether the sensor a route's `transit` enters its next block by is listed.
+    """Whether both sensors of the block a route's `transit` enters are listed.
     A crossing no route carries is a restored hint, and `layout` drives no move
     for it to have stopped."""
     into = entering.get(transit)
     ends = None if into is None else transit_ends(layout, into, transit)
-    return ends is not None and ends[0] in listed
+    return ends is not None and ends[0] in listed and opposite_end(ends[0]) in listed
 
 
 def adr_0062_moving_while_crossing(view: View) -> list[str]:
-    """`moving` is true exactly while some train is crossing, other than one on a
-    move whose entry sensor is listed, which `layout` has stopped
+    """`moving` is true whenever a train is crossing, unless both sensors of the
+    block it is crossing into are listed, which `layout` has stopped it at
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-    as narrowed by #844 and #1152)."""
-    shown = moving(view.rows.get(MOVING))
+    as narrowed by #844, #1152 and #1171). The other direction needs the
+    readings: `adr_0062_moving_to_the_tail`."""
+    if moving(view.rows.get(MOVING)):
+        return []
     listed = _listed(view)
     entering = {
         journey.train: dict(zip(journey.transits, journey.blocks[1:]))
@@ -578,11 +579,9 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
     crossing = sorted(
         train
         for train, transit in _crossing(view).items()
-        if not _entry_listed(view.layout, entering.get(train, {}), transit, listed)
+        if not _both_listed(view.layout, entering.get(train, {}), transit, listed)
     )
-    if shown == bool(crossing):
-        return []
-    return [f"moving reads {str(shown).lower()} with {crossing or 'none'} crossing"]
+    return [f"moving reads false with {crossing} crossing"] if crossing else []
 
 
 def adr_0063_power_follows_the_hardware(view: View) -> list[str]:
@@ -644,6 +643,32 @@ def adr_0076_crossing_is_placed(view: View) -> list[str]:
         for train, transit in sorted(_crossing(view).items())
         if train not in trains
     ]
+
+
+def adr_0076_occupied_is_locked(view: View) -> list[str]:
+    """Each entry on `occupied` is locked to that train, and each train's block
+    in `trains` is on its list unless it is crossing
+    ([ADR-0076](../../../docs/adr/0076-a-broken-lock-table-holds-the-run.md),
+    #1171). A value with no `occupied` states no list."""
+    row = view.rows.get(ALLOCATION)
+    if not isinstance(_fields(row).get("occupied"), dict):
+        return []
+    kept = kept_allocation(row)
+    if kept is None:
+        return []
+    locks = _locks_in(row)
+    lines = [
+        f"{train} occupies {entry}, which is locked to {locks.get(entry, 'nobody')}"
+        for train, listed in sorted(kept.occupied.items())
+        for entry in listed
+        if locks.get(entry) != train
+    ]
+    lines += [
+        f"{train} stands in {block}, which is not on its list"
+        for train, block in sorted(kept.trains.items())
+        if train not in kept.crossing and block not in kept.occupied.get(train, ())
+    ]
+    return lines
 
 
 def adr_0080_after_follows(view: View) -> list[str]:
@@ -749,8 +774,8 @@ INVARIANTS: tuple[Invariant, ...] = (
     ),
     Invariant(
         "0062",
-        "`moving` is true exactly while some train is crossing, other than one"
-        " on a move whose entry sensor is listed.",
+        "`moving` is true whenever a train is crossing, unless both sensors of"
+        " the block it is crossing into are listed.",
         (MOVING, ALLOCATION, UNKNOWN_SENSORS),
         adr_0062_moving_while_crossing,
     ),
@@ -785,6 +810,13 @@ INVARIANTS: tuple[Invariant, ...] = (
         "A crossing train is placed.",
         (ALLOCATION,),
         adr_0076_crossing_is_placed,
+    ),
+    Invariant(
+        "0076",
+        "Each entry on `occupied` is locked to that train, and each train's"
+        " block in `trains` is on its list unless it is crossing.",
+        (ALLOCATION,),
+        adr_0076_occupied_is_locked,
     ),
     Invariant(
         "0080",
@@ -858,14 +890,43 @@ class _Started:
 
 @dataclass(frozen=True)
 class _Move:
-    """A move granted and not yet ended."""
+    """A move granted whose readings are still expected (#1171). Its sensors are
+    `""` where the drawing has no such transit, and no reading names those."""
 
     id: str
     transit: str
     into: str
     origin: str | None  # the block it leaves, read off the drawing
-    left: bool = False  # the origin has read clear since the grant
-    arrived: bool = False  # the block entered has read occupied since
+    exit: str = ""
+    entry: str = ""
+    far: str = ""
+    exit_read: bool = False  # `exit` has read occupied
+    left: bool = False  # `exit` has read occupied then clear
+    head_in: bool = False  # `entry` or `far` has read occupied
+    tail_in: bool = False  # `entry` has then read clear
+    at_far: bool = False  # `far` has read occupied
+
+    def read(self, sensor: str, occupied: bool) -> "_Move":
+        """This, with one sensor's changed level heard."""
+        if sensor == self.exit:
+            if occupied:
+                return replace(self, exit_read=True)
+            return replace(self, left=self.left or self.exit_read)
+        if sensor == self.entry:
+            if occupied:
+                return replace(self, head_in=True)
+            return replace(self, tail_in=self.tail_in or self.head_in)
+        if sensor == self.far and occupied:
+            return replace(self, head_in=True, at_far=True)
+        return self
+
+    def between(self, listed: frozenset[str]) -> bool:
+        """Whether it lies between its grant and its `entry` clearing or its
+        `far` reading occupied, `layout` having stopped no train with both those
+        sensors on `state/unknown_sensors`."""
+        return not (
+            self.tail_in or self.at_far or (self.entry in listed and self.far in listed)
+        )
 
 
 def _held(payload: object) -> tuple[str, list[str]] | None:
@@ -895,8 +956,8 @@ class Record:
     The lock table, the placements and the crossing trains are the last
     allocation's, carried forward by every event that moves them, since the
     allocation follows the events of a sweep rather than leading them.
-    Which blocks read occupied is folded from `block_occupied` and
-    `block_vacated`, which no retained row holds.
+    What each sensor reads is folded from `state/settled/sensor`, each change
+    taken against the moves that expect it, as the dispatcher takes it (#1171).
 
     What `layout` writes is followed as well. A `wanted/traction` row names
     an address and not a train, so a nonzero speed on a car of a train no
@@ -913,17 +974,21 @@ class Record:
         self.layout = layout
         self.roster = roster if roster is not None else Roster("", {})
         self.rows: dict[str, Payload] = {}
-        self.occupied: dict[str, bool] = {}  # block -> its last reading
+        self.readings: dict[str, bool] = {}  # sensor -> its last reading
+        # sensor and level, each changed reading since the last quiet: one a
+        # grant could have crossed (#1154)
+        self.since: set[tuple[str, bool]] = set()
         self.trains: dict[str, str] = {}
+        self.occupied: dict[str, tuple[str, ...]] = {}  # the allocation's lists
         self.crossing: dict[str, str] = {}
         self.locks: dict[str, str] = {}
         self.residue: set[str] = set()  # what a removal left held, until released
         self.requests: dict[str, str] = {}  # id -> train, until it ends
         self.listed: tuple[str, ...] = ()  # the last allocation's ids, in order
         self.routes: dict[str, tuple[str, ...]] = {}  # id -> route, once chosen
-        self.moves: dict[str, _Move] = {}  # train -> its move not yet ended
+        self.moves: dict[str, list[_Move]] = {}  # train -> those expected, oldest first
         self.going: dict[str, _Going] = {}  # train -> its last grant, until there
-        self.placing: dict[str, _Move] = {}  # train -> its move, while placed
+        self.placing: dict[str, list[_Move]] = {}  # train -> its moves, while placed
         self.cancelled: set[str] = set()  # ids cancelled while a move ran
         self.turns: Counter[str] = Counter()  # facing changes a train is owed
         self.heard_occupied: set[str] = set()  # read so at the last quiet, and since
@@ -967,36 +1032,34 @@ class Record:
 
     def disputed_blocks(self) -> frozenset[str]:
         """The blocks that read occupied with no train explaining them: none
-        recorded there, on the move it has outstanding, left holding them by
-        its removal, or on the transit a restored crossing names (#1164)."""
+        recorded there, occupying them, entering them by the move it has
+        outstanding, left holding them by its removal, or on the transit a
+        restored crossing names (#1164, #1171)."""
         explained = set(self.trains.values()) | self.residue
-        for move in self.moves.values():
-            explained.add(move.into)
-            if move.origin is not None:
-                explained.add(move.origin)
+        for listed in self.occupied.values():
+            explained.update(listed)
+        for moves in self.moves.values():
+            explained.update(move.into for move in moves)
         for train, transit in self.crossing.items():
-            if train not in self.moves:
+            if not self.moves.get(train):
                 connection, _, name = transit.partition(".")
                 held = self.layout.connections.get(connection)
                 if held is not None and name in held.transits:
                     explained.update(block_of(end) for end in held.transits[name])
+        return self._reading_occupied() - explained
+
+    def _reading_occupied(self) -> frozenset[str]:
+        """The blocks either of whose sensors last read occupied."""
         return frozenset(
-            block
-            for block, occupied in self.occupied.items()
-            if occupied and block not in explained
+            block_of(sensor) for sensor, occupied in self.readings.items() if occupied
         )
 
     def observe(self, topic: str, payload: Payload) -> None:
         if topic == QUIET:
-            self.heard_occupied = {
-                block for block, occupied in self.occupied.items() if occupied
-            }
+            self.heard_occupied = set(self._reading_occupied())
+            self.since.clear()
         elif topic == ALLOCATION:
             self._allocation(payload)
-        elif topic in (BLOCK_OCCUPIED, BLOCK_VACATED):
-            block = occupancy(payload)
-            if block is not None:
-                self._read(block, topic == BLOCK_OCCUPIED)
         elif topic == ROUTE_CHOSEN:
             found = chosen(payload)
             if found is not None:
@@ -1022,6 +1085,7 @@ class Record:
                 )
                 self.trains.pop(train, None)
                 self.crossing.pop(train, None)
+                self.occupied.pop(train, None)
                 self.moves.pop(train, None)
                 self.placing.pop(train, None)
                 self.commanded.pop(train, None)
@@ -1032,18 +1096,18 @@ class Record:
                 for addr, _orientation in _addresses(self.roster, train):
                     self.removed[addr] = train
         elif topic == PLACEMENT_WANTED:
-            # A placement ends the train's move by hand, not on its readings,
-            # and one the dispatcher refuses leaves it running (#1062).
+            # A placement ends the train's moves by hand, not on their readings,
+            # and one the dispatcher refuses leaves them running (#1062).
             wanted = placement(payload)
             if wanted is not None:
-                move = self.moves.pop(wanted.train, None)
-                if move is not None:
-                    self.placing[wanted.train] = move
+                moves = self.moves.pop(wanted.train, None)
+                if moves is not None:
+                    self.placing[wanted.train] = moves
         elif topic == PLACEMENT_REFUSED:
             train = named_train(payload)
-            move = None if train is None else self.placing.pop(train, None)
-            if train is not None and move is not None:
-                self.moves[train] = move
+            moves = None if train is None else self.placing.pop(train, None)
+            if train is not None and moves is not None:
+                self.moves[train] = moves
         elif topic in ENDED:
             self._ended(readable_id(payload))
         elif topic == MOVE_WITHDRAWN:
@@ -1052,7 +1116,8 @@ class Record:
             # (#1068). One taken back before its `move` came drops that
             # `move` when it does, as `layout` drops it (#1080).
             withdrawn = withdrawal(payload)
-            move = None if withdrawn is None else self.moves.get(withdrawn.train)
+            moves = None if withdrawn is None else self.moves.get(withdrawn.train)
+            move = moves[-1] if moves else None
             if (
                 withdrawn is not None
                 and move is not None
@@ -1061,7 +1126,7 @@ class Record:
                 and move.id in self.cancelled
             ):
                 train = withdrawn.train
-                del self.moves[train]
+                self.moves[train] = self.moves[train][:-1]
                 commanded = self.commanded.pop(train, None)
                 if commanded is None or commanded.transit_id != withdrawn.transit:
                     self.withdrawn[train] = (withdrawn.transit, withdrawn.into)
@@ -1069,7 +1134,7 @@ class Record:
                 self.going.pop(train, None)
         elif topic == CANCEL_WANTED:
             rid = readable_id(payload)
-            if any(move.id == rid for move in self.moves.values()):
+            if any(move.id == rid for moves in self.moves.values() for move in moves):
                 self.cancelled.add(cast(str, rid))
         elif topic == REVERSAL_WANTED:
             train = named_train(payload)
@@ -1137,6 +1202,7 @@ class Record:
         kept = kept_allocation(payload)
         if kept is not None:
             self.trains, self.crossing = dict(kept.trains), dict(kept.crossing)
+            self.occupied = dict(kept.occupied)
         self.locks = _locks_in(payload)
         listed = _requests_in(payload)
         self.requests = {request.id: request.train for request in listed}
@@ -1148,19 +1214,18 @@ class Record:
         }
         self.placed_over.clear()
 
-    def _read(self, block: str, occupied: bool) -> None:
+    def _read(self, sensor: str, occupied: bool) -> None:
         """A reading, which changes something only where it changes the level
-        (BUS.md, a detector reports a level)."""
-        if self.occupied.get(block) == occupied:
+        (BUS.md, a consumer treats an equal level as a repeat)."""
+        if self.readings.get(sensor) == occupied:
             return
-        self.occupied[block] = occupied
-        if not occupied:
-            self.heard_occupied.discard(block)
-        for train, move in self.moves.items():
-            if not occupied and move.origin == block:
-                self.moves[train] = replace(move, left=True)
-            elif occupied and move.into == block:
-                self.moves[train] = replace(move, arrived=True)
+        self.readings[sensor] = occupied
+        self.since.add((sensor, occupied))
+        self.heard_occupied &= self._reading_occupied()
+        self.moves = {
+            train: [move.read(sensor, occupied) for move in moves]
+            for train, moves in self.moves.items()
+        }
 
     def _sensor(self, end: str, payload: object) -> None:
         """A sensor's settled level (#1168): how far each move has come, and
@@ -1177,6 +1242,7 @@ class Record:
         if level == UNKNOWN:
             return
         occupied = level == OCCUPIED
+        self._read(end, occupied)
         for train, commanded in list(self.commanded.items()):
             ends = transit_ends(self.layout, commanded.into, commanded.transit_id)
             if (
@@ -1223,24 +1289,15 @@ class Record:
         if granted is None or rid is None:
             return
         ends = transit_ends(self.layout, granted.into, granted.transit)
-        origin = None if ends is None else block_of(ends[1])
-        # An origin reading clear counts for this move, which hears no vacate
-        # for it (#1164). None is sent into a block reading occupied, so a
-        # reading that says so now was in flight when the grant was made, and
-        # the dispatcher hears it after: for this move too (#1154). Occupancy is
-        # anonymous, so it takes the second for the arrival and its picture
-        # runs ahead of the steel until the move ends: what the picture says of
-        # where this move starts is not a judgement on `layout`, which drives
-        # from where the train is.
-        crossed = bool(self.occupied.get(granted.into))
-        self.moves[granted.train] = _Move(
-            rid,
-            granted.transit,
-            granted.into,
-            origin,
-            left=origin is not None and self.occupied.get(origin) is False,
-            arrived=crossed,
-        )
+        # None is sent into a block reading occupied, so a reading that says so
+        # now was in flight when the grant was made, and the dispatcher hears it
+        # after: for this move too (#1154). Occupancy is anonymous, so it takes
+        # the second for the head in and its picture runs ahead of the steel:
+        # what the picture says of where this move starts is not a judgement on
+        # `layout`, which drives from where the train is.
+        crossed = granted.into in self._reading_occupied()
+        moves = [move for move in self.moves.get(granted.train, []) if not move.at_far]
+        self.moves[granted.train] = [*moves, self._followed(rid, granted, ends)]
         if crossed:
             self.overrun.add(granted.train)
         else:
@@ -1258,6 +1315,30 @@ class Record:
             if shown.get(ends[1], Aspect.STOP) != aspect:
                 self.awaited[ends[1]] = aspect
 
+    def _followed(
+        self, rid: str, granted: Grant, ends: tuple[str, str] | None
+    ) -> _Move:
+        """The move a grant starts, with what the dispatcher may yet hear of the
+        readings already heard: each one since the last quiet could have crossed
+        this grant (#1154)."""
+        move = _Move(rid, granted.transit, granted.into, None)
+        if ends is None:
+            return move
+        entry, leaving = ends
+        move = replace(
+            move,
+            origin=block_of(leaving),
+            exit=leaving,
+            entry=entry,
+            far=opposite_end(entry),
+            exit_read=self.readings.get(leaving) is True,
+            left=(leaving, False) in self.since,
+        )
+        for sensor in (entry, move.far):
+            if self.readings.get(sensor) is True or (sensor, True) in self.since:
+                move = move.read(sensor, True)
+        return move.read(entry, False) if (entry, False) in self.since else move
+
     def _released(self, payload: object) -> None:
         held = _held(payload)
         if held is None:
@@ -1271,9 +1352,9 @@ class Record:
                 del self.placed_over[resource]
         if self.crossing.get(train) in resources:
             del self.crossing[train]
-        move = self.moves.get(train)
-        if move is not None and move.transit in resources:
-            del self.moves[train]
+        moves = self.moves.get(train)
+        if moves:
+            self.moves[train] = _still_expected(moves, resources)
 
     def _placed(self, payload: object) -> None:
         placed = placement(payload)
@@ -1293,6 +1374,7 @@ class Record:
                 self.placed_over[before] = holder
         self.locks[block] = train
         self.trains[train] = block
+        self.occupied[train] = (block,)
         self.residue.discard(block)
         self.crossing.pop(train, None)
         self.moves.pop(train, None)
@@ -1305,9 +1387,6 @@ class Record:
         self.requests.pop(rid, None)
         self.routes.pop(rid, None)
         self.cancelled.discard(rid)
-        for train, move in list(self.moves.items()):
-            if move.id == rid:
-                del self.moves[train]
 
     def cuts(self, payload: object) -> bool:
         """Whether this `state/power` is the supply cut: `off` with
@@ -1481,6 +1560,24 @@ class Record:
                 self.keeps.add(train)
             else:
                 self.released.update(dict.fromkeys(addrs, train))
+
+
+def _still_expected(moves: list[_Move], released: list[str]) -> list[_Move]:
+    """A train's moves after a release: a transit given up takes its move and
+    those older with it, and a block given up the moves older than the one out
+    of it that came into it."""
+    last = max(
+        (i for i, move in enumerate(moves) if move.transit in released), default=-1
+    )
+    kept = moves[last + 1 :]
+    leaving = max(
+        (i for i, move in enumerate(kept) if move.origin in released), default=-1
+    )
+    return [
+        move
+        for i, move in enumerate(kept)
+        if not (i < leaving and move.into in released)
+    ]
 
 
 @dataclass(frozen=True)
@@ -1799,6 +1896,24 @@ def adr_0060_new_railroad_only_while_off(
     return [f"{name} loaded over {was} with power {stated}"]
 
 
+def adr_0062_moving_to_the_tail(
+    record: Record, view: View, topic: str, payload: Payload
+) -> list[str]:
+    """`moving` reads false only where no granted move lies between its grant and
+    its `entry` clear or `far` occupied, both those sensors listed aside
+    ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
+    #1171). Once the bus is quiet: the row follows the sweep a reading runs."""
+    if topic != QUIET or moving(view.rows.get(MOVING)):
+        return []
+    listed = _listed(view)
+    return [
+        f"moving reads false with {train}'s move over {move.transit} under way"
+        for train, moves in sorted(record.moves.items())
+        for move in moves
+        if move.between(listed)
+    ]
+
+
 def adr_0062_drain_ends_at_a_stand(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
@@ -1842,9 +1957,10 @@ def adr_0074_comes_up_off(
 def adr_0077_not_into_occupied(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
-    """No move is granted into, and no lock taken on, a block that reads
-    occupied, whoever holds it
-    ([ADR-0077](../../../docs/adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+    """No move is granted into, and no lock taken on, a block with a sensor heard
+    reading occupied, whoever holds it, unless the train occupies it
+    ([ADR-0077](../../../docs/adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md),
+    #1171).
 
     A reading counts once the bus has gone quiet over it, so every app has
     heard it: a grant can cross one still in flight, and with no drain to stop
@@ -1853,7 +1969,11 @@ def adr_0077_not_into_occupied(
     """
     if topic == MOVE_GRANTED:
         granted = grant(payload)
-        if granted is not None and granted.into in record.heard_occupied:
+        if (
+            granted is not None
+            and granted.into in record.heard_occupied
+            and granted.into not in record.occupied.get(granted.train, ())
+        ):
             return [
                 f"{granted.train} granted into {granted.into}, which reads occupied"
             ]
@@ -1864,33 +1984,44 @@ def adr_0077_not_into_occupied(
                 f"{held[0]} locked {resource}, which reads occupied"
                 for resource in held[1]
                 if resource in record.heard_occupied
+                and resource not in record.occupied.get(held[0], ())
             ]
     return []
 
 
-def adr_0077_move_ends_on_both_readings(
+def adr_0077_released_on_the_tail(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
-    """A move ends (origin and transit released, request completed) only once
-    its origin reads clear and its arrival block reads occupied, in either
-    order
-    ([ADR-0077](../../../docs/adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
-    """
-    ending: list[tuple[str, _Move]] = []
+    """A block leaves a train's move only after its `exit` read occupied then
+    clear, or at a later `entry` clear; a transit only at its own `entry` clear or
+    a later one; a request completes only at `entry` clear or `far` occupied (#1165,
+    #1171, amending
+    [ADR-0077](../../../docs/adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+    A placement, a removal and a cancel are outside it."""
+    lines: list[str] = []
     if topic == LOCK_RELEASED:
         held = _held(payload)
-        move = None if held is None else record.moves.get(held[0])
-        if held is not None and move is not None and move.transit in held[1]:
-            ending.append((held[0], move))
+        train, resources = held if held is not None else ("", [])
+        moves = record.moves.get(train, [])
+        for i, move in enumerate(moves):
+            tail_in = any(later.tail_in for later in moves[i:])
+            if move.transit in resources and not tail_in:
+                lines.append(
+                    f"{train} gave up {move.transit} before {move.entry} cleared"
+                )
+            if move.origin in resources and not (move.left or tail_in):
+                lines.append(
+                    f"{train} gave up {move.origin} before {move.exit} cleared"
+                )
     elif topic == REQUEST_COMPLETED:
         rid = readable_id(payload)
-        ending = [(t, move) for t, move in record.moves.items() if move.id == rid]
-    lines: list[str] = []
-    for train, move in ending:
-        if move.origin is not None and not move.left:
-            lines.append(f"{train}'s move ended before {move.origin} read clear")
-        if not move.arrived:
-            lines.append(f"{train}'s move ended before {move.into} read occupied")
+        for train, moves in sorted(record.moves.items()):
+            last = [move for move in moves if move.id == rid][-1:]
+            if last and not (last[0].tail_in or last[0].at_far):
+                lines.append(
+                    f"{rid} of {train} completed before {last[0].entry} cleared"
+                    f" or {last[0].far} read occupied"
+                )
     return lines
 
 
@@ -2219,7 +2350,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "0048",
         "`disputed` lists exactly the blocks that read occupied with no train"
         " explaining them, at every power value, and has no `trains`.",
-        (DISPUTED, ALLOCATION, POWER, BLOCK_OCCUPIED, BLOCK_VACATED)
+        (DISPUTED, ALLOCATION, POWER, EVERY_SETTLED)
         + (LOCK_GRANTED, LOCK_RELEASED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0048_disputed_lists_contradictions,
     ),
@@ -2266,6 +2397,15 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0062",
+        "`moving` reads false only where no granted move lies between its grant"
+        " and its `entry` clear or `far` occupied, both those sensors listed"
+        " aside.",
+        (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, LOCK_RELEASED)
+        + (MOVE_WITHDRAWN, PLACEMENT_WANTED, TRAIN_PLACED, TRAIN_REMOVED),
+        adr_0062_moving_to_the_tail,
+    ),
+    HistoryInvariant(
+        "0062",
         "`layout` writes `wanted/track: off` only while `moving` reads"
         " `false`, unless `power_wanted: off` was pressed or `layout` is"
         " coming up.",
@@ -2287,19 +2427,21 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     ),
     HistoryInvariant(
         "0077",
-        "No move is granted into, and no lock taken on, a block that reads"
-        " occupied, whoever holds it.",
-        (MOVE_GRANTED, LOCK_GRANTED, BLOCK_OCCUPIED, BLOCK_VACATED),
+        "No move is granted into, and no lock taken on, a block with a sensor"
+        " heard reading occupied, whoever holds it, unless the train occupies"
+        " it.",
+        (MOVE_GRANTED, LOCK_GRANTED, EVERY_SETTLED, ALLOCATION),
         adr_0077_not_into_occupied,
     ),
     HistoryInvariant(
         "0077",
-        "A move ends (origin and transit released, request completed) only once"
-        " its origin reads clear and its arrival block reads occupied, in either"
-        " order.",
-        (BLOCK_OCCUPIED, BLOCK_VACATED, MOVE_GRANTED, LOCK_RELEASED)
-        + (REQUEST_COMPLETED, PLACEMENT_WANTED, PLACEMENT_REFUSED),
-        adr_0077_move_ends_on_both_readings,
+        "A block leaves a train's move only after its `exit` read occupied then"
+        " clear, or at a later `entry` clear; a transit only at its own `entry`"
+        " clear or a later one; a request completes only at `entry` clear or"
+        " `far` occupied.",
+        (EVERY_SETTLED, MOVE_GRANTED, LOCK_RELEASED, REQUEST_COMPLETED)
+        + (PLACEMENT_WANTED, PLACEMENT_REFUSED, MOVE_WITHDRAWN),
+        adr_0077_released_on_the_tail,
     ),
     HistoryInvariant(
         "0077",
@@ -2380,7 +2522,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         " depth counting only up to a block out of use or disputed; every other"
         " end shows `stop`.",
         (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS)
-        + (BLOCK_OCCUPIED, BLOCK_VACATED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
+        + (EVERY_SETTLED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0093_aspects_along_the_locks,
     ),
 )
