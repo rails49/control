@@ -12,9 +12,13 @@ The rails the railroad runs on, divided into blocks and the connections between
 them.
 
 **Blocks** are sections of track without turnouts where a train can park. Each
-block is oriented with ends `A` and `B` and has a length. Sensors report the
-presence of train(s) in a block — usually one, but cars decoupled from each
-other appear as separate trains. Each end a train can leave through carries a
+block is oriented with ends `A` and `B`. Each end has a **sensor**, which
+watches a point near that end and reports whether something is at it. A sensor
+does not report on the block: with a train standing between them, a block's
+two sensors both read `clear`. A block's length is the distance between its two
+sensors, and each sensor sits at least a stopping distance in from the end of
+its block, so a train stopped as its tail passes one comes to rest inside the
+block. Each end a train can leave through carries a
 **signal**, which is how a driver is told whether to go and how fast; an end
 nothing ever leaves carries none.
 
@@ -66,8 +70,15 @@ The rolling stock traveling or parked on the tracks, in three levels
 - A **train** is an ordered list of cars, each coupled one way round or the
   other. Its length is the sum of its parts, its kind is derived from the cars
   it hauls, and it carries a **priority**. A train at rest occupies exactly one
-  block; while crossing it holds the transit and, until its tail clears, the
-  block behind as well. It must fit in every block of its route.
+  block; while crossing it occupies the transit and, until its tail has been
+  seen to leave, the block behind as well. It must fit in every block of its
+  route, and it fits a block when it is no longer than the block. A route
+  through a shorter block is refused, and so is a placement on one. Exceptions
+  to the first are intended, for one block or for one request, and are not
+  designed. A train let into a block shorter than itself would occupy whatever
+  its tail has not been seen to leave, turnouts included, and what lies behind
+  it could not be reached while it stands there. It is outside the deadlock
+  argument until the check is extended to it.
 
 A railroad **owns** its stock: its **roster** is the cars it has and the trains
 made up from them, whether any of them is on the layout or not
@@ -76,6 +87,10 @@ begins from — a railroad, its roster, and a person who puts the trains on the
 layout and drags them where they should go. Nothing else is needed to start
 one, and a run whose trains are all still **off the layout** is the ordinary
 way an evening starts rather than a fault.
+
+A train comes onto the layout and leaves it only when a person places or
+removes it and says so in the UI. No sensor reading puts a train on the layout
+or takes one off, and cars a train leaves behind are not a train.
 
 ## Operations
 
@@ -126,11 +141,30 @@ intermediate stops crosses many blocks, and locking all of them at departure
 would hold most of the railroad for one train for the whole journey. Instead
 the dispatcher locks a little way ahead, sets the turnouts of what it has
 locked, and clears the signal. As the train advances it locks further ahead
-and releases what the train has left — a block that a train has vacated is
-free, and its signal returns to `stop` at once. Sensors in blocks, and at some
-connections, are how it knows: a signal shows `stop` unless a block beyond it
-has been explicitly reserved for a train, which is a consequence of locks
-rather than a rule about signals.
+and releases what the train has left. A signal shows `stop` unless a block
+beyond it has been explicitly reserved for a train, which is a consequence of
+locks rather than a rule about signals.
+
+The lock table is the one record of where trains are. Each lock says whether
+its train **occupies** the block or transit, or holds it ahead. The dispatcher
+keeps the table and publishes it, and the layout interface and the UI read it.
+Sensors are how the dispatcher follows a train, each reading taken against the
+move that train was granted
+([#1165](https://github.com/rails49/control/issues/1165)). For a move out of
+block X, over transit T, into block Y:
+
+| Reading | What it shows | The table |
+| --- | --- | --- |
+| none: the move is granted | | T is occupied |
+| X's sensor at the end the train leaves by reads `occupied`, then `clear` | the tail has left X | X is released |
+| Y's sensor at the end the train enters by reads `occupied` | the head is in Y | the train may be granted its next move |
+| that sensor then reads `clear` | the whole train is in Y | T is released, with anything of that train's still held behind it |
+
+A reading changes the table only for the move that expects it. A train that
+leaves a block by the end it came in through follows the same four lines, and
+a person backing a train at a platform changes nothing. The last line also
+covers a train placed beyond the sensor it would leave by, and a reading missed
+while a sensor was not reporting.
 
 How far ahead it has locked is exactly what the train's signal says, because
 stopping takes distance:
@@ -145,10 +179,9 @@ So one block ahead is enough to move — a train can at least reach the next
 block, and may have to wait there — and **two is what buys full speed**. Two is
 also the most that is ever asked for: a third block ahead shows the same aspect
 as the second, so it buys nothing and holds track another train may be waiting
-for ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)). A locked block
-that reads occupied does not count as locked ahead, since no train is sent into
-it. A train whose own block reads clear, or that is refused its next move, shows
-`stop`.
+for ([ADR-0026](adr/0026-two-blocks-ahead-is-full-speed.md)). A disputed
+block does not count as locked ahead, since no train is sent into it. A train
+that is refused its next move shows `stop`.
 
 The waiting requests are a **list** a person can see, and the dispatcher
 serves them in its order: an earlier request gets the first claim, and a later
@@ -177,12 +210,20 @@ it is given.
 Who drives is the railroad's **driving mode**, and the railroad comes up
 `manual`: people drive every train from throttles. In `automatic` the app
 drives every train no throttle holds. At most one throttle holds a train, and
-it drives the train at any time, granted move or not. The end of a granted move
-still stops the train at its sensor, and a train driven out of its block is
-named for a person while the others run
+it drives the train at any time, granted move or not. A granted move still
+ends with the train stopped in the block it enters. A train driven out of its
+block shows up as a sensor reading `occupied` where no train is expected, and
+that block is named for a person while the others run
 ([#1154](https://github.com/rails49/control/issues/1154),
 [ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md),
 [ADR-0081](adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
+
+A train with no further grant is stopped in the block it enters: when the
+sensor it entered by has read `occupied` and then `clear`, so the whole train
+is in, or when the block's far sensor reads `occupied`, whichever is first.
+Both are arrivals. After a stop at the far sensor, whatever the train's tail
+has not been seen to leave stays occupied by it until its next move or a
+placement.
 
 A person driving looks out of the window. An automated driver has to be told
 which aspect applies to its train, since track detectors are anonymous and
@@ -193,7 +234,8 @@ where, says so as part of granting the move
 `caution` promises the train can stop before the next signal, and something
 has to make that true. The working answer is a per-locomotive calibration of
 what "slow" means, together with a constraint on the railroad rather than on
-the software: a block is at least a braking distance long at caution speed.
+the software: each sensor sits at least a stopping distance in from the end of
+its block.
 **This is an open subject** — speed signalling, which puts a limit in the
 aspect itself, is among the alternatives — and which solution is implemented
 will be decided once there is running experience to decide it with.
@@ -222,6 +264,11 @@ speed, it is what throttles up, watches the detector and stops. Under the
 simulator travel time is a pair of fixed delays of the simulator's own; on a
 physical railroad transits take as long as they take
 ([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+
+The layout interface passes on what each sensor reads once the reading has
+settled, drives trains and stops them. It keeps no record of which block is
+occupied: that is the lock table's. The simulator reports sensor readings at
+block ends, as the physical railroad does, and nothing else.
 
 ### What the app is assumed to be told
 
@@ -256,12 +303,30 @@ Other hardware is still assumed perfect.
 **The operator is assumed to leave the railroad to the app**, and that is a
 decision of the same kind. The app is correct about the railroad it is told
 about, and a person can change the steel without saying so. Some of that it
-sees: a detector reading no granted move accounts for is named for a person to
-walk, no train is sent into a block that reads occupied, a train whose block
-reads clear takes no grant, and the others run ([#1154](https://github.com/rails49/control/issues/1154)). Most of it it
-cannot. Nothing detects a train driven from a throttle the app does not know
-about, and asking for power off with a train in hand is a user error it does
-not guard (`GLOSSARY.md`, **Moving**).
+sees. A sensor reading `occupied` is explained when a train occupies that block
+or has been granted the move into it. Otherwise the block is **disputed**: it
+is named for a person to walk, no train is sent into it, whoever holds it
+ahead, and the others run
+([#1154](https://github.com/rails49/control/issues/1154)). A `clear` reading
+never contradicts a train, since both sensors of a block read `clear` with a
+train between them.
+
+Most of it it cannot see, and none of this is guarded:
+
+- A train lifted off, or pushed off its sensor, without the UI being told. It
+  stays in the table and is granted its moves. The first sign is a train that
+  does not arrive, or an `occupied` reading somewhere else.
+- A train reversed on a throttle after its head has passed a sensor and before
+  its tail has. The readings are those of a short train that came in whole, so
+  the table has it in the block and releases the transit it stands on.
+- Cars left between sensors.
+- A sensor that reads `clear` between two cars of a passing train, which ends
+  the move early. Whatever reports on a sensor is required to read `occupied`
+  without a break from a train's head to its tail.
+- A train driven from a throttle the app does not know about.
+
+Asking for power off with a train in hand is a user error it does not guard
+(`GLOSSARY.md`, **Moving**).
 
 What that costs is correctness, not liveness. A consumer never raises on what
 it reads (BUS.md, rule 4) and an unexplained reading is handled rather than
@@ -271,8 +336,11 @@ describing the steel, and collision safety is the property that rests on it.
 Placing and lifting stock by hand is not the deviation. It is how stock joins
 an evening and how every session starts
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)), and it ends with a
-person confirming a placement. The deviation is moving a train the app
-believes is somewhere else, or driving one it does not know is moving.
+person confirming a placement. A removal keeps the track under any sensor that
+still reads `occupied` until that sensor reads `clear`
+([ADR-0069](adr/0069-a-train-comes-off-while-running-and-its-track-opens-when-it-reads-clear.md)).
+The deviation is moving a train the app believes is somewhere else, or driving
+one it does not know is moving.
 
 ### What the system does not do
 
