@@ -37,10 +37,12 @@ so the two behave identically.
 - **Idle** trains are all the rest — parked, whether or not a request for them
   is pending. An idle train holds the standing lock on its block and nothing in
   the dispatcher will move it, so *its block is permanently unavailable*.
-- A block that **reads occupied** with nobody standing in it — unheld, or
+- A block with **a sensor reading occupied** and nobody standing in it — unheld, or
   residue — is a permanent obstacle beside the idle trains' blocks: no train
-  is granted into it until it reads clear
-  ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
+  is granted into it until both its sensors read clear
+  ([ADR-0077](../adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md),
+  [#1171](https://github.com/rails49/control/issues/1171)). A residue block stays
+  held while either sensor is listed as well, whatever it last read.
   These blocks are `still`, and the check counts them as it counts the idle
   trains' blocks.
 - A block **out of use**, a sensor of it being unknown, is `still` too until the
