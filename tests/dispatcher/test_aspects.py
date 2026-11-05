@@ -1,6 +1,7 @@
 """What the dispatcher says every signal is showing (ADR-0025)."""
 
 import json
+from collections.abc import Callable
 from itertools import pairwise
 
 import pytest
@@ -26,6 +27,7 @@ DISPUTED = "tc49/dispatch/state/disputed"
 OCCUPIED = "tc49/layout/block_occupied"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 REQUEST_WANTED = "tc49/schedule/request_wanted"
+UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 VACATED = "tc49/layout/block_vacated"
 
 
@@ -365,6 +367,86 @@ def test_a_train_waits_under_stop_at_a_locked_block_that_reads_occupied(
     reading(assembly, VACATED, "dn_e")
 
     assert granted(assembly) == ["dn_w", "dn_e"]
+
+
+def reads_occupied(assembly: Assembly) -> None:
+    reading(assembly, OCCUPIED, "yard_e")
+
+
+def reads_clear(assembly: Assembly) -> None:
+    reading(assembly, VACATED, "yard_e")
+
+
+def goes_out_of_use(assembly: Assembly) -> None:
+    row = {"sensor": "yard_e.A", "reason": "no report for 3 s", "reported": True}
+    press(assembly, UNKNOWN_SENSORS, {"sensors": [row]})
+
+
+def comes_back_into_use(assembly: Assembly) -> None:
+    press(assembly, UNKNOWN_SENSORS, {"sensors": []})
+
+
+each_failure_past_the_locks = pytest.mark.parametrize(
+    ("fails", "recovers"),
+    [(reads_occupied, reads_clear), (goes_out_of_use, comes_back_into_use)],
+)
+
+
+def arrives_in_dn_w(assembly: Assembly) -> None:
+    reading(assembly, OCCUPIED, "dn_w")
+    reading(assembly, VACATED, "yard_w")
+
+
+@each_failure_past_the_locks
+def test_a_signal_shows_stop_over_a_train_refused_its_next_move(
+    fails: Callable[[Assembly], None], recovers: Callable[[Assembly], None]
+) -> None:
+    """`yard_e`, past what `freight_1` has locked, cannot be finished through,
+    so `Incremental` refuses the move into `dn_e` though the train holds it. No
+    signal along its route says it may go, and it keeps its locks. The signals
+    return with the grant, in the sweep that follows the failure ending
+    (#1160)."""
+    assembly = under_way(Incremental)
+    fails(assembly)
+    arrives_in_dn_w(assembly)
+
+    assert granted(assembly) == ["dn_w"]
+    assert events(assembly.trace, "grant_refused")[-1]["reason"] == "unsafe"
+    assert proceed(assembly) == {}
+    assert assembly.dispatcher.state.locks["dn_e"] == "freight_1"
+
+    recovers(assembly)
+
+    assert granted(assembly) == ["dn_w", "dn_e"]
+    assert proceed(assembly) == {"dn_w.B": "clear", "dn_e.B": "caution"}
+
+
+@each_failure_past_the_locks
+def test_a_train_on_its_way_keeps_its_signals_until_it_is_refused(
+    fails: Callable[[Assembly], None], recovers: Callable[[Assembly], None]
+) -> None:
+    """A refusal is what puts them to `stop`, and nothing asks for the next move
+    until the one under way has ended (#1160)."""
+    assembly = under_way(Incremental)
+    before = proceed(assembly)
+
+    fails(assembly)
+
+    assert proceed(assembly) == before
+
+
+@each_failure_past_the_locks
+def test_a_signal_stands_over_a_train_granted_past_the_same_failure(
+    fails: Callable[[Assembly], None], recovers: Callable[[Assembly], None]
+) -> None:
+    """`FullRoute` holds the whole route, so it grants the move into `dn_e`
+    where `Incremental` refuses it, and the signal says so (#1160)."""
+    assembly = under_way(FullRoute)
+    fails(assembly)
+    arrives_in_dn_w(assembly)
+
+    assert granted(assembly) == ["dn_w", "dn_e"]
+    assert proceed(assembly) == {"dn_w.B": "caution"}
 
 
 def test_a_grant_with_its_second_block_reading_occupied_is_at_caution() -> None:

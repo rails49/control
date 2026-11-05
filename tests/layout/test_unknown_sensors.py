@@ -357,6 +357,40 @@ def test_the_vacate_from_a_completed_move_does_not_wait_for_a_silent_sensor() ->
     assert (BLOCK_VACATED, {"block": "up_w"}) in seen
 
 
+def test_a_sensor_returning_occupied_counts_though_a_departure_spent_it() -> None:
+    """Both ends of `up_w` still read occupied when its train has gone, and the
+    fold has said it clear. One goes unknown and returns occupied. A train can
+    arrive during an outage and this report cannot be told from one that lingers,
+    so it counts: the block reads occupied until both its ends read clear
+    (#1151)."""
+    bus, app, clock = wired()
+    energised(bus)
+    stand(bus, "freight_1", "up_w")
+    reads(bus, "up_w.A", "occupied")
+    reads(bus, "up_w.B", "occupied")
+    settle(bus, app, clock)
+    align(bus, "crossover", "to_dn")
+    move(bus, "freight_1", "crossover", "to_dn", "dn_e")
+    reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    reads(bus, "dn_e.B", "occupied")
+    settle(bus, app, clock)
+    seen = occupancy(bus)
+
+    goes_unknown(bus, app, clock, "up_w.B")
+    comes_back(bus, app, clock, "up_w.B", "occupied")
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
+
+    comes_back(bus, app, clock, "up_w.B", "clear")
+    assert seen == [(BLOCK_OCCUPIED, {"block": "up_w"})]
+
+    comes_back(bus, app, clock, "up_w.A", "clear")
+    assert seen == [
+        (BLOCK_OCCUPIED, {"block": "up_w"}),
+        (BLOCK_VACATED, {"block": "up_w"}),
+    ]
+
+
 # -- the train stops ----------------------------------------------------------
 
 
