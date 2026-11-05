@@ -200,12 +200,10 @@ this app remembers the last one.
 address is reported. The transit counts as aligned only once each reported
 point has a `device/point` saying the position the `align` asked for, so a
 point that fails to throw holds the train rather than sending it the wrong
-way. From when the move is let through until the train has arrived and the
-block it left reads vacated, in either order, a reported point saying another
-position stops the train, as an arrival does; a throttle may drive it on. The
-vacate counts only if it is published after the move starts, as the dispatcher
-counts it, and the points are not checked again when the block left reads
-occupied again. A throw by hand waits for nothing
+way. From when the move is let through until its entry sensor has read occupied
+then clear, the train then being past the points, a reported point saying another
+position stops the train, as an arrival does; a throttle may drive it on. What the
+block left reads does not come into it. A throw by hand waits for nothing
 ([ADR-0097](../adr/0097-a-reported-point-lies-where-device-point-says-and-a-train-waits-for-it.md)).
 
 **The near-end check.** A `move` is acted on only if that train is standing at
@@ -233,7 +231,7 @@ decision 6). When `state/power` next reads `on`, each kept command is put back
 through all three rules, so a train taken off or placed elsewhere meanwhile
 fails the near-end check and its move is dropped then. Through a drain the
 supply is on, and a `move` is acted on as it is while `on`: the train runs
-into the next block and stops at its sensor, and the drain ends after it
+through the next block and stops at its far sensor, and the drain ends after it
 (ADR-0078, decision 4; [#862](https://github.com/rails49/control/issues/862)).
 The value read is `state/power` as this app states it: folded from what the
 hardware reports below, with a drain and a cut held over the fold, so a
@@ -256,7 +254,8 @@ be standing at.
 
 On a `move` it acts on, this app publishes
 `tc49/layout/state/wanted/traction/<addr>` for every car of the train that has
-an address, and `0.0` to those addresses again when the train arrives.
+an address, the same sign at `caution` where the drop below applies, and `0.0` to
+those addresses again when the train arrives.
 It is the last thing between the device vocabulary and a wheel turning, and it
 is the one write here that composes two facts rather than passing one on.
 
@@ -264,6 +263,21 @@ That is a train this app is **driving**: in `automatic`, with no throttle
 holding it. A train a throttle holds gets the arrival's `0.0` and not the
 grant's speed, the same rows being where its lever lands, and a train nobody
 drives in `manual` gets neither write (*Who drives* below).
+
+**The `caution` drop.** A train at `clear` whose far signal then shows `stop` has
+only a stopping distance left after the far sensor. So a crossing this app is
+driving and is still outstanding, with its head in the block, a grant's speed to
+give and its far sensor's end at `stop`, is lowered: where its speed exceeds the
+railroad's `caution` speed, it is replaced by the same sign at `caution`, kept on
+the crossing and written. It never raises a speed. `state/aspects` is kept for
+this, and an end it does not name reads `stop`, which covers an end with no signal
+and the time before the first value. It is checked at the entry sensor settling
+occupied, at each `state/aspects`, at a release that makes the crossing this app's
+and at each giving of the speed, so a resume or a train taken up is given the
+lowered one. A train a throttle holds keeps the person's speed. A release in
+`automatic` drops the train to `caution` if it runs faster the way the move takes
+it: the one exception to a release keeping the speed, and it is not raised for one
+running slower. A `caution` a person changes is used from the next check.
 
 **How fast** is the move's own `speed`, a magnitude in 0.0 … 1.0
 ([#283](https://github.com/rails49/control/issues/283)). The sign is this app's
@@ -318,13 +332,53 @@ to publish. That is not a failure and is not logged as one, and it is the same
 answer for a train this railroad's roster does not name: there are no wheels
 there to turn the wrong way, so no facing is wanted either.
 
+### A move that reverses the train
+
+A train whose next move goes back out through the end it came in by must not flip
+with its tail on the turnout. A `move` is **held**, one per transit, where it has
+addressed cars and the crossing in the block it departs is the same train's,
+outstanding and `driving`, with its near end that crossing's entry sensor. The
+near end is compared rather than the heading: a train leaving through the end it
+came in by reverses whatever its facing says, and the comparison does not depend
+on a facing that lags the train.
+
+The arrival puts it back through every rule after its `0.0`, with no wait between
+the `0.0` and the speed: nothing reports that a train has stopped,
+[ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md) rejected a
+fixed wait as a guess at CV4, and it measured a decoder ramping through 0 with no
+jolt. A withdrawal, a placement and a removal drop the held move as they drop the
+other waiting moves, and a second `move` for the same transit replaces it. Under
+`off` the move is kept first, and judged again on `on`. A train a throttle holds is
+not held, since no speed is written for it: the person reverses with the lever.
+
 ### Arrival
 
-`0.0` goes to every address this app commanded, on the **first** of the entered
-block's ends to settle occupied — the reading `block_occupied` goes out on. It
-does not wait for the vacate: the train is in the block it was sent to, and the
-tail clearing is a fact about the block behind. Exactly the addresses that were
-commanded, since a car nothing was sent for is a car nothing may be sent for.
+A crossing remembers two things about its **entry sensor**, the end it comes in
+at: `head_in`, that it has settled occupied, and `tail_in`, that it has then
+settled clear. The **arrival** happens once, at the first of:
+
+| Reading | Result |
+|---|---|
+| The **far sensor** settles occupied | the arrival, then the crossing is deleted and the origin released |
+| The entry sensor settles clear with `head_in`, and the far sensor is `unknown` | the arrival; the crossing stays for its far sensor |
+| The far sensor goes `unknown` with `tail_in` already true | the arrival |
+
+The arrival is `0.0` to every address this app commanded, where the crossing is
+`driving` or a throttle holds the train, and nothing otherwise, since a car nothing
+was sent for is a car nothing may be sent for. Then the grant implies nothing more,
+and any move held for the train goes back through the rules. The entry sensor
+reading occupied stops nothing: the train runs on through its block and stands at
+its signal, with the whole block for a next grant to arrive in.
+
+**A further move carries the train through.** A further `move` for the train, this
+app driving it or a throttle holding it, ends the crossing it departs as a move:
+there is no stop at its far sensor, and `head_in`, `tail_in`, `reported` and the
+deletion at the far sensor go on as before. The same goes for the train's earlier
+crossings when this app gives the later one its speed or a throttle takes it. In
+`manual` with no throttle holding the train, the crossing it departs stays
+outstanding: the train finishes its move and stops at the far sensor, and its next
+grant is nobody's. Without this a train nobody is driving runs on through the next
+block at its last speed.
 
 ### Removal
 
@@ -369,7 +423,8 @@ cannot be read is dropped.
   outstanding move, is told `0.0` on arrival as before, and stands: its next
   grant is nobody's until a throttle takes it.
 - **To `automatic`**, each train with a move outstanding and no throttle is
-  given the speed its grant implies.
+  given the speed its grant implies, a train standing between its sensors running
+  on to the far sensor.
 
 **Who holds which train.** `tc49/layout/take_wanted` `{train, throttle}` takes a
 train for the throttle with that id. A take of a train another throttle holds
@@ -392,14 +447,14 @@ take-over would stop a running train the instant somebody selected it.
 
 **Releasing it writes what the mode makes of it.** In `manual`, `0.0`. In
 `automatic` with a move outstanding and the rails live (`on` or `draining`),
-nothing: the train keeps the speed the person left until its move ends at the
-sensor, so a train run slowly does not lurch. The crossing becomes this app's,
+nothing, bar the `caution` drop: the train keeps the speed the person left until
+its move ends at the far sensor, so a train run slowly does not lurch. The crossing becomes this app's,
 so the arrival writes `0.0`, a switch to `manual` lets the train finish its
 move, and an `on` after a cut gives it its grant's speed. A train whose last
 speed written is `0.0` on every car, or that has none written, is given its
 grant's speed instead
 ([ADR-0083](../adr/0083-a-train-released-standing-mid-move-is-given-its-grants-speed.md)):
-it would otherwise stand with its route held and never reach its sensor. The
+it would otherwise stand with its route held and never reach its far sensor. The
 zeros written at startup and at a cut count. In `automatic` with no move
 outstanding, or over dead rails, `0.0`, so no speed waits on a row for the
 power to come back. A train no throttle held writes nothing.
@@ -408,7 +463,7 @@ power to come back. A train no throttle held writes nothing.
 up a few centimetres at a platform with no request made. A move this app is not
 driving still throws its points, meets the near-end check and is recorded as
 crossing, and nothing goes out on the grant. The facing refusal has nothing to
-refuse there, since no sign is composed. When the move ends at its sensor this
+refuse there, since no sign is composed. When the move ends at its far sensor this
 app writes `0.0` whether it or a throttle was driving, and a train nobody drove
 is told nothing; the next lever frame drives the train on. Leaving the block is
 the person's responsibility: nothing stops a held train at its block's ends,
@@ -629,18 +684,28 @@ block says nothing until its other sensor reports `clear`. `occupied` from eithe
 goes out at once, and the vacate from a completed move (`_release`, `_vacate`)
 does not wait.
 
-**The train stops at a listed entry sensor.** While a crossing's entry sensor,
-`opposite_end(crossing.far)`, is listed, and the crossing is outstanding and
-`driving` and no throttle holds its train, this app stops the train as the
-sensor is listed, and `_give` writes no speed: that covers a `move` acted on
-while it is listed, `_resume`, `_take_up` and a change to `automatic`. Only the
-entry sensor counts: with the far one listed the arrival still reads. A train a
-throttle holds keeps its speed
+**The train stops with both sensors listed.** While both sensors of the block a
+crossing enters are listed, and the crossing is outstanding and no throttle holds
+its train, this app stops the train as the second is listed, where the crossing is
+`driving`, and `_give` writes no speed: that covers a `move` acted on while they
+are listed, `_resume`, `_take_up` and a change to `automatic`. One alone stops
+nothing, an arrival still being there to read. A train a throttle holds keeps its
+speed
 ([ADR-0081](../adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
-When the entry sensor comes off the list `clear`, in `automatic` with
-`state/power` `on` or `draining`, `_carry_on` gives the train its speed with no
-press; under `off` the next `on` does. Coming off `occupied` is the arrival, whose
-`0.0` goes out as at every arrival.
+Coming off the list, in `automatic` with `state/power` `on` or `draining`:
+
+| Was stopped for both, and then | Result |
+|---|---|
+| Entry sensor returns occupied, far still listed | `head_in`; `_carry_on` gives the speed back; stopped when the entry sensor reads clear |
+| Entry sensor returns clear with `head_in`, far still listed | the arrival; it stays stopped |
+| Entry sensor returns clear with no `head_in`, far still listed | speed given back |
+| Far sensor returns occupied | the arrival |
+| Far sensor returns clear | speed given back |
+
+Under `off` the next `on` gives the speed. `_carry_on` runs only where the crossing
+was stopped for both until that reading: a sensor returning when the train was never
+stopped writes nothing, so a train a person left running slowly does not lurch
+(ADR-0081, decision 6).
 
 ## Power
 

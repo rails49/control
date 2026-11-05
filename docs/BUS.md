@@ -714,6 +714,9 @@ what a drop would cost:
   which way the train goes along the track is the layout interface's, which
   holds the geometry and the way round the locomotive stands
   ([ADR-0025](adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
+  `layout` holds a `move` that goes back out by the end its train came in at, a
+  train it is driving, until that train's arrival has written its `0.0`, and
+  then acts on it ([#1169](https://github.com/rails49/control/issues/1169)).
 - `tc49/layout/withdraw_wanted` — `train`; `transit`: qualified,
   `<connection>.<transit>`, the transit the train's outstanding move crosses;
   `into`: the block that move enters, as `move` names it. A transit names the
@@ -725,7 +728,8 @@ what a drop would cost:
   `0.0`, which a decoder keeps — or if `layout` has written a non-zero speed
   to any of its addressed cars since, from the move or from a throttle. No
   withdrawal is taken while the train is running, whatever state the move is
-  in. Otherwise a move `layout` holds for an `align`, a facing or the power
+  in. Otherwise a move `layout` holds for an `align`, a facing, the power or
+  the arrival before it
   has not been acted on and is taken back where its `into` matches too, and
   one acted on is taken back
   where the train has not been driven: the train is put back in the block it
@@ -733,7 +737,7 @@ what a drop would cost:
   is answered at once and the train's next `move` dropped if it names that
   transit and `into`; a `train_placed` or `train_removed` clears that.
   Dropped, with no answer, where the train is running, where it has been
-  driven since the move was acted on, where the move has arrived, and where
+  driven since the move was acted on, where its entry sensor has read occupied, and where
   the train already stands in the block the move enters. A frame without a
   string `into` is unreadable and dropped. The simulator answers none: it
   drives every move at once
@@ -758,7 +762,7 @@ what a drop would cost:
   Which locomotive the speed reaches, and which way round it stands, is
   `layout`'s, which reads the roster. `tc49.lib.payload.wanted_throttle` reads
   `throttle` as a field that may be absent, and `layout` drops a frame without
-  one. When a granted move ends at its sensor `layout` writes `0.0`, and the
+  one. When a granted move ends at its far sensor `layout` writes `0.0`, and the
   next frame is applied again. A frame whose sign is opposite to the last
   nonzero speed `layout` wrote for the train writes `0.0` instead, and so does
   every later frame of that sign until the throttle sends `0` or `layout`
@@ -1231,8 +1235,8 @@ with them, and where it cannot, is in that translator's own repository.
 
 **What `layout` asks of the hardware.** `wanted/point` is written on each
 `align`, `wanted/signal` on each aspect the dispatcher shows, `wanted/track` on
-each press of the power (#287), `wanted/traction` on each `move` it acts on
-and again on the arrival, its sign composed from the train's facing and the
+each press of the power (#287), `wanted/traction` on each `move` it acts on,
+on the `caution` drop (#1169) and again on the arrival, its sign composed from the train's facing and the
 way round each car is coupled
 ([#296](https://github.com/rails49/control/issues/296)), and
 `wanted/function` on each `function_wanted` it applies
