@@ -722,7 +722,10 @@ what a drop would cost:
   `0.0`, which a decoder keeps — or if `layout` has written a non-zero speed
   to any of its addressed cars since, from the move or from a throttle. No
   withdrawal is taken while the train is running, whatever state the move is
-  in. Otherwise a move `layout` holds for an `align`, a facing, the power or
+  in, except a move held for that train's arrival: the ask is kept, and at the
+  arrival the train is told `0.0`, the move never starts and `move_withdrawn`
+  answers ([#1176](https://github.com/rails49/control/issues/1176)). Otherwise
+  a move `layout` holds for an `align`, a facing, the power or
   the arrival before it
   has not been acted on and is taken back where its `into` matches too, and
   one acted on is taken back
@@ -730,7 +733,8 @@ what a drop would cost:
   stood in and, unless a throttle holds it, told `0.0`. A move not there yet
   is answered at once and the train's next `move` dropped if it names that
   transit and `into`; a `train_placed` or `train_removed` clears that.
-  Dropped, with no answer, where the train is running, where it has been
+  Dropped, with no answer, where the train is running with its move not held for
+  the arrival, where it has been
   driven since the move was acted on, where its entry sensor has read occupied, and where
   the train already stands in the block the move enters. A frame without a
   string `into` is unreadable and dropped. The simulator answers none: it
