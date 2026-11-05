@@ -589,16 +589,43 @@ about the detectors a railroad has and not something this app can know
 (ADR-0030). It is on no topic, and nothing above the interface is told there is
 a debounce at all.
 
-**`unknown` is no information about that end.** No edge comes of it, it does
-not discard the level the end last actually had, and it does not cancel a level
-that is settling. The `reason` beside it is logged once per transition into
+**`unknown` gives no level for that end.** No edge comes of it, it does not
+discard the level the end last actually had, and it does not cancel a level that
+is settling. The `reason` beside it is logged once per transition into
 `unknown`, for a person: the detector knows why it cannot say — no model, not
-calibrated, drift — and nothing in the system branches on it. If the end a
-crossing train is expected to arrive at is `unknown` when it should have fired,
-nothing new happens here: the arrival is never confirmed, which is already
-ADR-0040's second leg — a timer stops the train and wedges the block, with
-removal as the recourse
-([#237](https://github.com/rails49/control/issues/237)).
+calibrated, drift — and nothing in the system branches on it.
+
+**A sensor not reporting is listed** on `state/unknown_sensors`
+([#1151](https://github.com/rails49/control/issues/1151)). Every sensor of the
+drawing, `<block>.A` and `<block>.B`, starts there with `reported: false` and the
+reason `no report since start`. `settle()` lists one with no report of any kind
+for `sensor_silence_s`, reason `no report for <n> s`, timed on this app's clock
+at receipt, and one whose report of `unknown` has stood for the settling time,
+with its `reason` or `no reason given`. A level within that time cancels it. An
+`occupied` or `clear` that has stood for the settling time takes the sensor off
+and makes `reported` true, even a level equal to the one held. The row goes out
+once a call to `settle()`, only where the list changed. A report naming a sensor
+not on the drawing folds as any other and is never listed.
+
+**A listed sensor holds back its block's vacate.** A block's vacate goes out only
+where neither of its sensors is listed and neither reads occupied, since a train
+may stand under the one nobody can hear: after a restart, the first `clear` of a
+block says nothing until its other sensor reports `clear`. `occupied` from either
+goes out at once, and the vacate from a completed move (`_release`, `_vacate`)
+does not wait.
+
+**The train stops at a listed entry sensor.** While a crossing's entry sensor,
+`opposite_end(crossing.far)`, is listed, and the crossing is outstanding and
+`driving` and no throttle holds its train, this app stops the train as the
+sensor is listed, and `_give` writes no speed: that covers a `move` acted on
+while it is listed, `_resume`, `_take_up` and a change to `automatic`. Only the
+entry sensor counts: with the far one listed the arrival still reads. A train a
+throttle holds keeps its speed
+([ADR-0081](../adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md)).
+When the entry sensor comes off the list `clear`, in `automatic` with
+`state/power` `on` or `draining`, `_carry_on` gives the train its speed with no
+press; under `off` the next `on` does. Coming off `occupied` is the arrival, whose
+`0.0` goes out as at every arrival.
 
 ## Power
 

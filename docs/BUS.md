@@ -468,8 +468,8 @@ what a drop would cost:
 - An unreadable `driving` on `state/driving` reads as `manual`, where the
   railroad comes up and under which a train no throttle holds stands; on
   `driving_wanted` it is dropped.
-- An unreadable `occupancy` reads as `unknown`: no information about that end,
-  and the level last held stands.
+- An unreadable `occupancy` reads as `unknown`: the level last held stands, and
+  the report counts as hearing from the sensor.
 - A `point_wanted` whose `position` is neither value is dropped.
 - A grant whose `aspect` the driver has no speed for sends no move, so the
   train stays where it is, as on `stop`.
@@ -588,10 +588,14 @@ what a drop would cost:
   consumers are the dispatcher, which takes the block of each listed sensor out
   of use, and the page, which tells a person. A dispatcher with no row yet treats
   no sensor as unknown, and a payload that cannot be read is dropped and the last
-  value stands ([#1148](https://github.com/rails49/control/issues/1148)). So far
-  `layout` says the list empty and neither consumer reads it
-  ([#1151](https://github.com/rails49/control/issues/1151),
-  [#1152](https://github.com/rails49/control/issues/1152),
+  value stands ([#1148](https://github.com/rails49/control/issues/1148)).
+  `layout` lists every sensor of the drawing as it starts, a sensor reporting
+  `unknown` for the settling time and one with no report of any kind for
+  `sensor_silence`, and takes off one whose `occupied` or `clear` has stood for
+  the settling time; a sensor not on the drawing is never listed
+  ([#1151](https://github.com/rails49/control/issues/1151)). So far neither
+  consumer reads it
+  ([#1152](https://github.com/rails49/control/issues/1152),
   [#1153](https://github.com/rails49/control/issues/1153)).
 - `tc49/layout/block_occupied`, `tc49/layout/block_vacated` — `block`: the
   block a detector reported on. Anonymous: no train field, because a detector
@@ -859,8 +863,8 @@ what a drop would cost:
   - `sensor_silence`: number, seconds, `2` to `60`, how long a sensor may go
     unheard. The installation's as the throttle silence is, kept beside it in
     `installation.yaml`, or 3 where it keeps none: a report comes at least
-    once a second, so one missed report is not a failure. `layout` keeps and
-    says it and does not run on it yet
+    once a second, so one missed report is not a failure. `layout` lists a
+    sensor on `state/unknown_sensors` once it has been unheard this long
     ([#1149](https://github.com/rails49/control/issues/1149),
     [#1151](https://github.com/rails49/control/issues/1151)).
 
@@ -1364,7 +1368,11 @@ subscriber gets, and there is **no state-inquiry request**, the same answer the
 topics above give and for the same reason: a feature nothing needs is overhead.
 `unknown` is a value and not an absence. The camera knows *why* it cannot say
 — no model, not calibrated, drift — and `reason` carries that for a person to
-read, while a consumer treats `unknown` as no information about that end.
+read. A consumer takes no level from it: `layout` holds the level last said and
+creates no occupancy event, lists the sensor on `state/unknown_sensors` once
+`unknown` has stood for the settling time, holds back the block's vacate, and
+stops the train it is driving towards that sensor
+([#1151](https://github.com/rails49/control/issues/1151)).
 
 **`link` is where a broken link becomes observable.** A participant that knows
 it cannot reach its hardware says so as observed state like any other, so a UI
