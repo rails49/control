@@ -311,15 +311,21 @@ def _locked_ahead(
     journey: _Journey,
     index: int,
     out_of_use: frozenset[str] = frozenset(),
+    occupied: frozenset[str] = frozenset(),
 ) -> int:
     """How many blocks of the route past `index` are locked to its train and may
-    be entered, counted until the first that is not locked or is out of use, and
-    none at all where the block at `index` is out of use (#1152)."""
+    be entered, counted until the first that is not locked, is out of use or
+    reads occupied, and none at all where the block at `index` is out of use
+    (#1152, #1160)."""
     if journey.blocks[index] in out_of_use:
         return 0
     depth = 0
     for block in journey.blocks[index + 1 :]:
-        if locks.get(block) != journey.train or block in out_of_use:
+        if (
+            locks.get(block) != journey.train
+            or block in out_of_use
+            or block in occupied
+        ):
             break
         depth += 1
     return depth
@@ -678,34 +684,6 @@ def _aspect_of(depth: int) -> str:
     return Aspect.CAUTION if depth else Aspect.STOP
 
 
-def adr_0093_aspects_along_the_locks(view: View) -> list[str]:
-    """With power `on`, the exit signal of every block from the one a train is
-    recorded in to its last locked block shows `clear` with two or more blocks
-    beyond locked, `caution` with one, `stop` with none, depth counting only up
-    to a block out of use (#1152); every other end shows `stop`
-    ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
-    """
-    if power(view.rows.get(POWER)) != ON:
-        return []
-    shown = shown_aspects(view.rows.get(ASPECTS))
-    if shown is None:
-        return ["no aspects are shown"]
-    expected = {end: str(Aspect.STOP) for end in view.layout.end_connection}
-    locks = _locks(view)
-    out = frozenset(block_of(sensor) for sensor in _listed(view))
-    for journey in _journeys(view):
-        last = journey.standing + _locked_ahead(locks, journey, journey.standing, out)
-        for i in range(journey.standing, min(last + 1, len(journey.transits))):
-            ends = transit_ends(view.layout, journey.blocks[i], journey.transits[i])
-            if ends is not None:
-                expected[ends[0]] = _aspect_of(_locked_ahead(locks, journey, i, out))
-    return [
-        f"{end} shows {shown.get(end, 'nothing')}, not {expected.get(end, 'stop')}"
-        for end in sorted(expected.keys() | shown.keys())
-        if shown.get(end, Aspect.STOP) != expected.get(end, Aspect.STOP)
-    ]
-
-
 def adr_0093_stop_without_power(view: View) -> list[str]:
     """While power is not `on`, every signal shows `stop`
     ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md),
@@ -834,16 +812,6 @@ INVARIANTS: tuple[Invariant, ...] = (
         "No throttle id holds two trains.",
         (TAKEN,),
         adr_0089_one_train_a_throttle,
-    ),
-    Invariant(
-        "0093",
-        "With power `on`, the exit signal of every block from the one a train"
-        " is recorded in to its last locked block shows `clear` with two or"
-        " more blocks beyond locked, `caution` with one, `stop` with none,"
-        " depth counting only up to a block out of use; every other end shows"
-        " `stop`.",
-        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS),
-        adr_0093_aspects_along_the_locks,
     ),
     Invariant(
         "0093",
@@ -1990,6 +1958,47 @@ def adr_0084_sign_changes_through_zero(
     return [f"car {addr} went from {last} to {speed} with no 0 between"]
 
 
+def adr_0093_aspects_along_the_locks(
+    record: Record, view: View, topic: str, payload: Payload
+) -> list[str]:
+    """With power `on`, the exit signal of every block from the one a train is
+    recorded in to its last locked block shows `clear` with two or more blocks
+    beyond locked, `caution` with one, `stop` with none, depth counting only up
+    to a block out of use (#1152) or reading occupied (#1160); a train on
+    `disputed` lights nothing (#1160); every other end shows `stop`
+    ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
+    A history invariant because no retained row holds which blocks read occupied.
+    """
+    if topic != QUIET or power(view.rows.get(POWER)) != ON:
+        return []
+    shown = shown_aspects(view.rows.get(ASPECTS))
+    if shown is None:
+        return ["no aspects are shown"]
+    expected = {end: str(Aspect.STOP) for end in view.layout.end_connection}
+    locks = _locks(view)
+    out = frozenset(block_of(sensor) for sensor in _listed(view))
+    occupied = frozenset(block for block, reads in record.occupied.items() if reads)
+    listed = _disputed(view.rows.get(DISPUTED))
+    unsure = listed[0] if listed is not None else []
+
+    def depth(journey: _Journey, index: int) -> int:
+        return _locked_ahead(locks, journey, index, out, occupied)
+
+    for journey in _journeys(view):
+        if journey.train in unsure:
+            continue
+        last = journey.standing + depth(journey, journey.standing)
+        for i in range(journey.standing, min(last + 1, len(journey.transits))):
+            ends = transit_ends(view.layout, journey.blocks[i], journey.transits[i])
+            if ends is not None:
+                expected[ends[0]] = _aspect_of(depth(journey, i))
+    return [
+        f"{end} shows {shown.get(end, 'nothing')}, not {expected.get(end, 'stop')}"
+        for end in sorted(expected.keys() | shown.keys())
+        if shown.get(end, Aspect.STOP) != expected.get(end, Aspect.STOP)
+    ]
+
+
 HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     HistoryInvariant(
         "0002",
@@ -2195,5 +2204,16 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "A car's traction never changes sign without a 0 written in between.",
         (EVERY_TRACTION,),
         adr_0084_sign_changes_through_zero,
+    ),
+    HistoryInvariant(
+        "0093",
+        "With power `on`, the exit signal of every block from the one a train"
+        " is recorded in to its last locked block shows `clear` with two or"
+        " more blocks beyond locked, `caution` with one, `stop` with none,"
+        " depth counting only up to a block out of use or reading occupied, and"
+        " a train on `disputed` lighting nothing; every other end shows `stop`.",
+        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS, DISPUTED)
+        + (BLOCK_OCCUPIED, BLOCK_VACATED),
+        adr_0093_aspects_along_the_locks,
     ),
 )

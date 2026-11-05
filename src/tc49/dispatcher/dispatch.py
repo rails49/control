@@ -320,15 +320,19 @@ def transit_blocks(layout: Layout, transit: str) -> set[str]:
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
     """How many blocks of `route` past index `standing` are locked to `train`
-    and may be entered, counted until the first that is not locked or is out of
-    use, and none at all where `standing` is out of use, since no train is let
-    out of one (#1152)."""
+    and may be entered, counted until the first that is not locked, is out of
+    use or reads occupied, and none at all where `standing` is out of use, since
+    no train is let out of one (#1152, #1160)."""
     out = state.out_of_use
     if route.blocks[standing] in out:
         return 0
     depth = 0
     for block in route.blocks[standing + 1 :]:
-        if state.locks.get(block) != train or block in out:
+        if (
+            state.locks.get(block) != train
+            or block in out
+            or state.reported.get(block) is True
+        ):
             break
         depth += 1
     return depth
@@ -370,13 +374,21 @@ def aspects(state: State) -> dict[str, str]:
     **Nor is a train let into or out of a block out of use**, so a signal over
     such a move shows `stop` and depth counts only up to that block
     (`locked_ahead`, #1152).
+
+    **A reading that refuses the next move shows the same** (#1160). A train
+    on `disputed` takes no grant, so every end along its route shows `stop`,
+    and it keeps its locks. A locked block that reads occupied is not entered
+    (ADR-0077), so depth counts only up to it.
     """
     shown: dict[str, str] = {
         end: Aspect.STOP for end in sorted(state.layout.end_connection)
     }
     if state.power != ON:
         return shown
+    unsure = disputed(state)["trains"]
     for train, active in state.active.items():
+        if train in unsure:
+            continue
         route = active.route
         # `cur_index` advances at the grant, so with a move outstanding the
         # train is recorded one back until the entered block reads occupied.
