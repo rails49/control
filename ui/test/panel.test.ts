@@ -105,13 +105,19 @@ describe("occupancy", () => {
     expect(model.blocks().get("b")).toMatchObject({ state: "free" });
   });
 
-  it("names an occupied block's train from the lock ledger", () => {
+  it("names an occupied block's train from its list", () => {
     const model = panel();
     placed(model);
     feed(
       model,
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "block_occupied", block: "b" },
+      {
+        event: "allocation",
+        trains: { t1: "a" },
+        occupied: { t1: ["a", "sw.main", "b"] },
+        locks: { a: "t1", "sw.main": "t1", b: "t1" },
+        requests: [],
+      },
     );
     expect(model.blocks().get("b")).toMatchObject({
       state: "occupied",
@@ -119,7 +125,7 @@ describe("occupancy", () => {
     });
   });
 
-  it("shades a locked but empty block as locked, a vacated one too", () => {
+  it("shades a locked but empty block as locked, one the train has left too", () => {
     const model = panel();
     placed(model);
     feed(
@@ -130,11 +136,13 @@ describe("occupancy", () => {
       state: "locked",
       train: "t1",
     });
-    feed(
-      model,
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
-    );
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "b" },
+      occupied: { t1: ["b"] },
+      locks: { a: "t1", "sw.main": "t1", b: "t1" },
+      requests: [],
+    });
     expect(model.blocks().get("a")).toMatchObject({
       state: "locked",
       train: "t1",
@@ -153,8 +161,13 @@ describe("occupancy", () => {
       model,
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
       { event: "move_granted", id: "t1-1", train: "t1", transit: "sw.main", into: "b" },
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
+      {
+        event: "allocation",
+        trains: { t1: "b" },
+        occupied: { t1: ["b"] },
+        locks: { "sw.main": "t1", b: "t1" },
+        requests: [],
+      },
     );
     expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1" });
     expect(model.blocks().get("b")?.toward).toBeUndefined();
@@ -413,16 +426,15 @@ describe("request layers", () => {
     expect(lit.wires.get(wire("p1.P", "c.A"))).toBe("locked");
   });
 
-  it("keeps the transit occupied while the block it leads to reads occupied", () => {
-    // The page stops naming the train crossing at the arrival, but the move
-    // ends on both readings and the train may still stand on the points.
+  it("keeps the transit occupied with its head in the block it leads to", () => {
+    // The page stops naming the train crossing at the arrival, but the tail
+    // has not been seen to leave and the train may still stand on the points.
     const model = panel();
     placed(model);
-    feed(
-      model,
-      crossing({ t1: "sw.side" }, { "sw.side": "t1", c: "t1" }),
-      { event: "block_occupied", block: "c" },
-    );
+    feed(model, {
+      ...crossing({}, { "sw.side": "t1", c: "t1" }),
+      occupied: { t1: ["sw.side", "c"] },
+    });
     expect(model.lit().state.get("sw1")).toBe("occupied");
   });
 
@@ -811,8 +823,13 @@ describe("facing", () => {
     feed(
       model,
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
+      {
+        event: "allocation",
+        trains: { t1: "b" },
+        occupied: { t1: ["b"] },
+        locks: { "sw.main": "t1", b: "t1" },
+        requests: [],
+      },
     );
     expect(model.blocks().get("b")).toMatchObject({ train: "t1", toward: "B" });
   });
@@ -934,8 +951,13 @@ describe("a request in flight", () => {
     feed(
       model,
       { event: "lock_granted", train: "t1", resources: ["sw.main", "b"] },
-      { event: "block_occupied", block: "b" },
-      { event: "block_vacated", block: "a" },
+      {
+        event: "allocation",
+        trains: { t1: "b" },
+        occupied: { t1: ["b"] },
+        locks: { "sw.main": "t1", b: "t1" },
+        requests: [],
+      },
     );
     expect(model.shows("t1", "a")).toBe(false);
     expect(model.shows("t1", "b")).toBe(true);
@@ -1161,10 +1183,194 @@ describe("a reported point", () => {
 });
 
 /**
- * Where a train's name is drawn (#897): in every block it holds that reads
- * occupied, whatever that block's colour, and in the block it last stood in
- * where none does. The picture's `crossing` says it has left that block for a
- * transit; the detectors say which blocks it is in on the way.
+ * What the page draws of the track a train is on (#1172): the dispatcher's own
+ * table, `occupied` on `state/allocation`, each train's blocks and transits tail
+ * to head. A lock on no train's list is held ahead. No reading is fed here:
+ * a page opened at any moment draws what every other page draws.
+ */
+describe("what state/allocation says a train occupies", () => {
+  const picture = (fields: Record<string, unknown>): Partial<TraceEvent> => ({
+    event: "allocation",
+    trains: { t: "b" },
+    locks: {},
+    requests: [],
+    ...fields,
+  });
+
+  const named = (model: Panel) =>
+    [...model.blocks()].flatMap(([block, view]) =>
+      view.named === undefined ? [] : [[block, view.named]],
+    );
+
+  it("draws the list occupied and the locks beyond it held ahead", () => {
+    const model = panel();
+    feed(
+      model,
+      picture({
+        occupied: { t: ["a", "sw.main", "b"] },
+        locks: { a: "t", "sw.main": "t", b: "t", "jt.back": "t", c: "t" },
+      }),
+    );
+    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t", named: "t" });
+    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t", named: "t" });
+    expect(model.blocks().get("c")).toMatchObject({ state: "locked", train: "t" });
+    expect(model.blocks().get("c")?.named).toBeUndefined();
+    expect(model.lit().state.get("sw1")).toBe("occupied");
+    expect(model.lit().state.get("p2")).toBe("locked");
+  });
+
+  it("names a train with only a transit on its list in the block trains gives", () => {
+    const model = panel();
+    feed(
+      model,
+      picture({
+        occupied: { t: ["sw.main"] },
+        crossing: { t: "sw.main" },
+        locks: { "sw.main": "t" },
+      }),
+    );
+    expect(model.lit().state.get("sw1")).toBe("occupied");
+    expect(model.blocks().get("b")).toMatchObject({ named: "t", crossing: true });
+    expect(model.blocks().get("a")).toEqual({ state: "free" });
+  });
+
+  it("draws a train between its sensors with no reading ever fed", () => {
+    const model = panel();
+    feed(model, picture({ occupied: { t: ["b"] }, locks: { b: "t" } }));
+    expect(model.blocks().get("b")).toEqual({ state: "occupied", train: "t", named: "t" });
+  });
+
+  it("names a train passing between blocks in the old, then both, then the new", () => {
+    const model = panel();
+    const at = (occupied: string[]) => picture({ occupied: { t: occupied } });
+    feed(model, at(["a"]));
+    expect(named(model)).toEqual([["a", "t"]]);
+    feed(model, at(["a", "sw.main", "b"]));
+    expect(named(model)).toEqual([["a", "t"], ["b", "t"]]);
+    feed(model, at(["b"]));
+    expect(named(model)).toEqual([["b", "t"]]);
+  });
+
+  it("draws the arrow only in the block the train is recorded in", () => {
+    const model = panel();
+    feed(
+      model,
+      { event: "facing", facing: { t: "b.A-to-B" } },
+      picture({ occupied: { t: ["a", "sw.main", "b"] } }),
+    );
+    expect(model.blocks().get("a")?.toward).toBeUndefined();
+    expect(model.blocks().get("b")?.toward).toBe("B");
+  });
+
+  it("changes nothing it draws on a block event", () => {
+    const model = panel();
+    feed(model, picture({ occupied: { t: ["b"] }, locks: { b: "t", c: "t" } }));
+    const blocks = model.blocks();
+    const lit = model.lit();
+    const placed = model.placed();
+    feed(
+      model,
+      { event: "block_occupied", block: "c" },
+      { event: "block_occupied", block: "a" },
+      { event: "block_vacated", block: "b" },
+    );
+    expect(model.blocks()).toEqual(blocks);
+    expect(model.lit()).toEqual(lit);
+    expect(model.placed()).toEqual(placed);
+  });
+
+  it("keeps an idle train's transit lit occupied until the next picture", () => {
+    const model = panel();
+    feed(
+      model,
+      picture({ occupied: { t: ["sw.main", "b"] }, locks: { "sw.main": "t", b: "t" } }),
+    );
+    expect(model.lit().state.get("sw1")).toBe("occupied");
+    feed(model, picture({ occupied: { t: ["b"] }, locks: { b: "t" } }));
+    expect(model.lit().state.has("sw1")).toBe(false);
+  });
+
+  it("calls a block on a train's list not free, a tail not being a place to drop one", () => {
+    const model = panel();
+    feed(model, picture({ occupied: { t: ["a", "b"] }, locks: { b: "t" } }));
+    expect(model.free("a", "other")).toBe(false);
+    expect(model.free("a", "t")).toBe(false);
+    expect(model.free("c", "other")).toBe(true);
+  });
+
+  it("stops drawing a block released off the list before the next picture", () => {
+    const model = panel();
+    feed(
+      model,
+      picture({ occupied: { t: ["a", "sw.main", "b"] }, locks: { a: "t", "sw.main": "t", b: "t" } }),
+      { event: "lock_released", train: "t", resources: ["a", "sw.main"] },
+    );
+    expect(model.blocks().get("a")).toEqual({ state: "free" });
+    expect(model.lit().state.has("sw1")).toBe(false);
+    expect(named(model)).toEqual([["b", "t"]]);
+  });
+
+  it("leaves a list alone on another train's release", () => {
+    const model = panel();
+    feed(
+      model,
+      picture({ occupied: { t: ["b"] }, locks: { b: "t" } }),
+      { event: "lock_released", train: "other", resources: ["b"] },
+    );
+    expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t" });
+  });
+
+  it("sets the list to the one block a placement names", () => {
+    const model = panel();
+    feed(
+      model,
+      picture({ occupied: { t: ["a", "sw.main", "b"] }, locks: { a: "t", "sw.main": "t", b: "t" } }),
+      { event: "train_placed", train: "t", block: "c" },
+    );
+    expect(model.blocks().get("c")).toMatchObject({ state: "occupied", train: "t", named: "t" });
+    expect(model.blocks().get("a")).toMatchObject({ state: "locked" });
+    expect(model.lit().state.get("sw1")).toBe("locked");
+  });
+
+  it("draws a value with no occupied from trains and crossing", () => {
+    const model = panel();
+    feed(
+      model,
+      {
+        event: "allocation",
+        trains: { t: "a", u: "c" },
+        crossing: { t: "sw.main" },
+        locks: { a: "t", "sw.main": "t", b: "t", c: "u" },
+        requests: [],
+      },
+    );
+    expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t", named: "t" });
+    expect(model.blocks().get("b")).toMatchObject({ state: "locked", train: "t" });
+    expect(model.blocks().get("c")).toMatchObject({ state: "occupied", train: "u", named: "u" });
+    expect(model.lit().state.get("sw1")).toBe("occupied");
+  });
+
+  it("draws a removed train's residue locked with no name", () => {
+    const model = panel();
+    feed(model, { event: "allocation", trains: {}, occupied: {}, locks: { a: "gone" }, requests: [] });
+    expect(model.blocks().get("a")).toEqual({ state: "locked", train: "gone" });
+    expect(named(model)).toEqual([]);
+  });
+
+  it("forgets every list on a reset", () => {
+    const model = panel();
+    feed(model, picture({ occupied: { t: ["sw.main", "b"] } }));
+    model.reset();
+    expect(model.blocks().get("b")).toEqual({ state: "free" });
+    expect(model.lit().state.size).toBe(0);
+  });
+});
+
+/**
+ * Where a train's name is drawn (#897, #1172): in each block on its `occupied`
+ * list, whatever that block's colour, and in the block `trains` gives where the
+ * list has none. The picture's `crossing` says it has left that block for a
+ * transit.
  */
 describe("where a train is named", () => {
   /** t1 standing in `a`, its route through `sw.main` to `b` committed and
@@ -1173,17 +1379,17 @@ describe("where a train is named", () => {
     event: "allocation",
     trains: { t1: "a" },
     crossing: { t1: "sw.main" },
+    occupied: { t1: ["sw.main"] },
     locks: { a: "t1", "sw.main": "t1", b: "t1" },
     requests: [
       { id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"], route: ["a", "sw.main", "b"] },
     ],
   };
 
-  /** The run opens with t1 in `a`, and `a` reads occupied under it. */
+  /** The run opens with t1 in `a`. */
   function standing(): Panel {
     const model = panel();
     placed(model);
-    feed(model, { event: "block_occupied", block: "a" });
     return model;
   }
 
@@ -1209,26 +1415,27 @@ describe("where a train is named", () => {
     // A lock the dispatcher has not yet granted on `a`, the block t1 stands
     // in, leaves it committed: the name is drawn whatever the colour.
     const model = standing();
-    feed(model, { ...CROSSING, crossing: {}, locks: { "sw.main": "t1", b: "t1" } });
+    const held = { ...CROSSING, crossing: {}, locks: { "sw.main": "t1", b: "t1" } };
+    feed(model, { ...held, occupied: { t1: ["a"] } });
     expect(model.blocks().get("a")).toMatchObject({ state: "occupied", named: "t1" });
-    feed(model, { event: "block_vacated", block: "a" });
+    feed(model, { ...held, occupied: { t1: [] } });
     expect(model.blocks().get("a")).toMatchObject({ state: "committed", named: "t1" });
   });
 
-  it("names a crossing train in both blocks while both read occupied", () => {
+  it("names a crossing train in both blocks while both are on its list", () => {
     const model = standing();
-    feed(model, CROSSING, { event: "block_occupied", block: "b" });
+    feed(model, { ...CROSSING, occupied: { t1: ["a", "sw.main", "b"] } });
     expect(named(model)).toEqual([
       ["a", "t1"],
       ["b", "t1"],
     ]);
-    feed(model, { event: "block_vacated", block: "a" });
+    feed(model, { ...CROSSING, occupied: { t1: ["sw.main", "b"] } });
     expect(named(model)).toEqual([["b", "t1"]]);
   });
 
-  it("names it in the block it left while both read clear", () => {
+  it("names it in the block it left while no block is on its list", () => {
     const model = standing();
-    feed(model, CROSSING, { event: "block_vacated", block: "a" });
+    feed(model, CROSSING);
     expect(named(model)).toEqual([["a", "t1"]]);
   });
 
@@ -1241,11 +1448,15 @@ describe("where a train is named", () => {
     expect(model.blocks().get("a")).toEqual({ state: "locked", train: "t1" });
   });
 
-  it("stands in one again as soon as a sensor says it arrived", () => {
-    // The same rule the dispatcher clears its own entry on: the mark is
-    // written at the grant and dropped when the sensor answers.
+  it("stands in one again once the picture says it arrived", () => {
+    // The mark is written at the grant and dropped when the head is in.
     const model = panel();
-    feed(model, CROSSING, { event: "block_occupied", block: "b" });
+    feed(model, CROSSING, {
+      ...CROSSING,
+      trains: { t1: "b" },
+      crossing: {},
+      occupied: { t1: ["sw.main", "b"] },
+    });
     expect(model.blocks().get("b")).toMatchObject({ state: "occupied", train: "t1", named: "t1" });
     expect(model.blocks().get("b")?.crossing).toBeUndefined();
     expect(model.placed()).toEqual([{ train: "t1", block: "b" }]);
@@ -1253,7 +1464,8 @@ describe("where a train is named", () => {
 
   it("leaves a picture without one standing every train it names", () => {
     const model = panel();
-    feed(model, CROSSING, { ...CROSSING, crossing: {} });
+    const { occupied: _, ...older } = CROSSING;
+    feed(model, CROSSING, { ...older, crossing: {} });
     expect(model.blocks().get("a")).toMatchObject({ state: "occupied", train: "t1", named: "t1" });
   });
 
@@ -1469,7 +1681,13 @@ describe("the trains the run has placed", () => {
       { event: "lock_granted", train: "t1", resources: ["a"] },
       { event: "allocation", trains: { t1: "a" }, locks: { a: "t1" }, requests: [] },
       { event: "lock_granted", train: "t1", resources: ["b"] },
-      { event: "block_occupied", block: "b" },
+      {
+        event: "allocation",
+        trains: { t1: "b" },
+        occupied: { t1: ["a", "b"] },
+        locks: { a: "t1", b: "t1" },
+        requests: [],
+      },
     );
     expect(model.placed()).toEqual([{ train: "t1", block: "b" }]);
   });
@@ -1878,8 +2096,7 @@ describe("what the hardware says about the supply", () => {
  * What each block end's detector reads (#898): the `sensor` report
  * naming that end, kept as it came so the run view can show it while
  * the layout is being debugged. Read and never folded: which blocks are
- * occupied is `layout`'s fold into `block_occupied`, and this is the reading
- * underneath it.
+ * occupied is the picture's `occupied`, and no block's colour comes from here.
  */
 describe("what the detectors read", () => {
   it("reads nothing before a detector has", () => {
