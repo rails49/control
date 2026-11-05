@@ -93,6 +93,7 @@ from tc49.lib.payload import (
     shown_aspects,
     supply,
     taken,
+    unknown_sensors,
     wanted_power,
     withdrawal,
 )
@@ -104,6 +105,7 @@ MOVING = "tc49/dispatch/state/moving"
 UNFIT = "tc49/dispatch/state/unfit"
 FACING = "tc49/schedule/state/facing"
 POWER = "tc49/layout/state/power"
+UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 DISPUTED = "tc49/dispatch/state/disputed"
 ROUTE_CHOSEN = "tc49/dispatch/route_chosen"
 MOVE_GRANTED = "tc49/dispatch/move_granted"
@@ -300,12 +302,24 @@ def _journeys(view: View) -> Iterator[_Journey]:
             yield _Journey(request.train, blocks, transits, blocks.index(recorded))
 
 
-def _locked_ahead(locks: Mapping[str, str], journey: _Journey, index: int) -> int:
-    """How many blocks of the route past `index` are locked to its train,
-    counted until the first that is not."""
+def _listed(view: View) -> frozenset[str]:
+    return unknown_sensors(view.rows.get(UNKNOWN_SENSORS)) or frozenset()
+
+
+def _locked_ahead(
+    locks: Mapping[str, str],
+    journey: _Journey,
+    index: int,
+    out_of_use: frozenset[str] = frozenset(),
+) -> int:
+    """How many blocks of the route past `index` are locked to its train and may
+    be entered, counted until the first that is not locked or is out of use, and
+    none at all where the block at `index` is out of use (#1152)."""
+    if journey.blocks[index] in out_of_use:
+        return 0
     depth = 0
     for block in journey.blocks[index + 1 :]:
-        if locks.get(block) != journey.train:
+        if locks.get(block) != journey.train or block in out_of_use:
             break
         depth += 1
     return depth
@@ -515,12 +529,36 @@ def adr_0039_unplaced_has_no_facing(view: View) -> list[str]:
     ]
 
 
+def _entry_listed(
+    layout: Layout,
+    entering: Mapping[str, str],
+    transit: str,
+    listed: frozenset[str],
+) -> bool:
+    """Whether the sensor a route's `transit` enters its next block by is listed.
+    A crossing no route carries is a restored hint, and `layout` drives no move
+    for it to have stopped."""
+    into = entering.get(transit)
+    ends = None if into is None else transit_ends(layout, into, transit)
+    return ends is not None and ends[0] in listed
+
+
 def adr_0062_moving_while_crossing(view: View) -> list[str]:
-    """`moving` is true exactly while some train is crossing
+    """`moving` is true exactly while some train is crossing, other than one on a
+    move whose entry sensor is listed, which `layout` has stopped
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-    as narrowed by #844)."""
+    as narrowed by #844 and #1152)."""
     shown = moving(view.rows.get(MOVING))
-    crossing = sorted(_crossing(view))
+    listed = _listed(view)
+    entering = {
+        journey.train: dict(zip(journey.transits, journey.blocks[1:]))
+        for journey in _journeys(view)
+    }
+    crossing = sorted(
+        train
+        for train, transit in _crossing(view).items()
+        if not _entry_listed(view.layout, entering.get(train, {}), transit, listed)
+    )
     if shown == bool(crossing):
         return []
     return [f"moving reads {str(shown).lower()} with {crossing or 'none'} crossing"]
@@ -643,8 +681,8 @@ def _aspect_of(depth: int) -> str:
 def adr_0093_aspects_along_the_locks(view: View) -> list[str]:
     """With power `on`, the exit signal of every block from the one a train is
     recorded in to its last locked block shows `clear` with two or more blocks
-    beyond locked, `caution` with one, `stop` with none; every other end shows
-    `stop`
+    beyond locked, `caution` with one, `stop` with none, depth counting only up
+    to a block out of use (#1152); every other end shows `stop`
     ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
     """
     if power(view.rows.get(POWER)) != ON:
@@ -654,12 +692,13 @@ def adr_0093_aspects_along_the_locks(view: View) -> list[str]:
         return ["no aspects are shown"]
     expected = {end: str(Aspect.STOP) for end in view.layout.end_connection}
     locks = _locks(view)
+    out = frozenset(block_of(sensor) for sensor in _listed(view))
     for journey in _journeys(view):
-        last = journey.standing + _locked_ahead(locks, journey, journey.standing)
+        last = journey.standing + _locked_ahead(locks, journey, journey.standing, out)
         for i in range(journey.standing, min(last + 1, len(journey.transits))):
             ends = transit_ends(view.layout, journey.blocks[i], journey.transits[i])
             if ends is not None:
-                expected[ends[0]] = _aspect_of(_locked_ahead(locks, journey, i))
+                expected[ends[0]] = _aspect_of(_locked_ahead(locks, journey, i, out))
     return [
         f"{end} shows {shown.get(end, 'nothing')}, not {expected.get(end, 'stop')}"
         for end in sorted(expected.keys() | shown.keys())
@@ -740,8 +779,9 @@ INVARIANTS: tuple[Invariant, ...] = (
     ),
     Invariant(
         "0062",
-        "`moving` is true exactly while some train is crossing.",
-        (MOVING, ALLOCATION),
+        "`moving` is true exactly while some train is crossing, other than one"
+        " on a move whose entry sensor is listed.",
+        (MOVING, ALLOCATION, UNKNOWN_SENSORS),
         adr_0062_moving_while_crossing,
     ),
     Invariant(
@@ -799,9 +839,10 @@ INVARIANTS: tuple[Invariant, ...] = (
         "0093",
         "With power `on`, the exit signal of every block from the one a train"
         " is recorded in to its last locked block shows `clear` with two or"
-        " more blocks beyond locked, `caution` with one, `stop` with none;"
-        " every other end shows `stop`.",
-        (ASPECTS, ALLOCATION, POWER),
+        " more blocks beyond locked, `caution` with one, `stop` with none,"
+        " depth counting only up to a block out of use; every other end shows"
+        " `stop`.",
+        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS),
         adr_0093_aspects_along_the_locks,
     ),
     Invariant(

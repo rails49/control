@@ -320,6 +320,11 @@ def test_a_drain_under_a_train_partway_along_its_route_cuts() -> None:
     Driver(bus)
     checked(bus, layout, roster)
     track = live(bus)
+    # Every sensor heard, or each block is out of use and nothing is granted.
+    for block in layout.blocks:
+        for end in (f"{block}.A", f"{block}.B"):
+            reads(bus, end, "occupied" if block in stood.values() else "clear")
+    settle(bus, app, clock)
     bus.publish(
         "tc49/schedule/request_wanted", {"train": "freight_1", "dest": ["yard_e.A"]}
     )

@@ -7,7 +7,7 @@ the events that arrive (ADR-0047): a sensor reading is applied where it
 lands, and a **sweep** — one grant pass over the active trains and the whole
 pending queue — runs wherever the lock table or the waiting set changes: a
 request admitted, a vacated block releasing what a move held, the power
-coming back `on`. Every grant is `safe()`-checked before it commits, so arrival
+coming back `on`, the sensors not reporting changing. Every grant is `safe()`-checked before it commits, so arrival
 order picks among safe options and never reaches an unsafe state.
 Standing locks are seeded and published at startup — from the last
 picture where the bus binding has kept one across a restart, and from the
@@ -59,6 +59,7 @@ from tc49.lib.payload import (
     placement,
     power,
     readable_id,
+    unknown_sensors,
     wanted_point,
     wanted_power,
     wanted_reorder,
@@ -73,6 +74,7 @@ from tc49.lib.roster import Roster
 ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
 POWER = "tc49/layout/state/power"
+UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
 """Where a deferred cancel asks `layout` to take its move back (#1068)."""
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -206,6 +208,20 @@ class State:
     # than for a move, so that reading is explained and a clear reading under
     # a standing train still is not (ADR-0048).
     residue: set[str] = field(default_factory=set[str])
+    # The sensors `layout` last listed as not reporting, `<block>.<end>`
+    # (`state/unknown_sensors`). Empty until a row says otherwise: no row means
+    # none, and a binding with no sensors lists none. Written only by that row,
+    # so a sensor returning takes its block straight back into use, with no press.
+    unknown_sensors: frozenset[str] = frozenset()
+
+    @property
+    def out_of_use(self) -> frozenset[str]:
+        """The blocks either of whose sensors is listed (#1152). The dispatcher
+        grants nothing into, out of or through one, and a train already on a
+        route through one waits at its signal, keeping its route (ADR-0002).
+        Placing does not ask: `free` and `_judged` answer as they did, and a
+        placement on a block out of use is accepted."""
+        return frozenset(block_of(sensor) for sensor in self.unknown_sensors)
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None:
         """Why `train` cannot lock `resource`: (reason, resource, holder),
@@ -215,8 +231,9 @@ class State:
         A block that reads occupied is not entered, whoever holds it, the
         train's own residue included, and with holder "" where nobody does
         (ADR-0077): a cut of cars would be hit, and a stuck detector takes
-        the block out of use until it reads clear."""
-        if self.reported.get(resource) is True:
+        the block out of use until it reads clear. A block out of use by a
+        sensor not reporting answers the same (#1152)."""
+        if self.reported.get(resource) is True or resource in self.out_of_use:
             return (Refusal.HELD, resource, self.locks.get(resource, ""))
         holder = self.locks.get(resource)
         if holder is not None and holder != train:
@@ -302,11 +319,16 @@ def transit_blocks(layout: Layout, transit: str) -> set[str]:
 
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
-    """How many blocks of `route` past index `standing` are locked to
-    `train`, counted until the first that is not."""
+    """How many blocks of `route` past index `standing` are locked to `train`
+    and may be entered, counted until the first that is not locked or is out of
+    use, and none at all where `standing` is out of use, since no train is let
+    out of one (#1152)."""
+    out = state.out_of_use
+    if route.blocks[standing] in out:
+        return 0
     depth = 0
     for block in route.blocks[standing + 1 :]:
-        if state.locks.get(block) != train:
+        if state.locks.get(block) != train or block in out:
             break
         depth += 1
     return depth
@@ -344,6 +366,10 @@ def aspects(state: State) -> dict[str, str]:
     leave a lineside signal green over a train that will not be let past it,
     or over dead track. It qualifies ADR-0025 rather than superseding it: the
     depth still decides which of the other two shows.
+
+    **Nor is a train let into or out of a block out of use**, so a signal over
+    such a move shows `stop` and depth counts only up to that block
+    (`locked_ahead`, #1152).
     """
     shown: dict[str, str] = {
         end: Aspect.STOP for end in sorted(state.layout.end_connection)
@@ -363,6 +389,20 @@ def aspects(state: State) -> dict[str, str]:
             assert ends is not None  # a route's transits reach its blocks
             shown[ends[0]] = aspect_of(locked_ahead(state, train, route, i))
     return shown
+
+
+def stopped_at_unknown_sensor(state: State, train: str) -> bool:
+    """Whether the sensor `train`'s outstanding move enters by is listed: the
+    near end of the block it is crossing into, which is where `layout` stops it
+    (#1151). A restored crossing has no move, so `layout` is not driving it and
+    this does not say."""
+    active = state.active.get(train)
+    if active is None or active.outstanding is None:
+        return False
+    move = active.outstanding
+    ends = transit_ends(state.layout, move.into, move.transit)
+    assert ends is not None  # a route's transits reach its blocks
+    return ends[0] in state.unknown_sensors
 
 
 def allocation(state: State, requests: Sequence[Request]) -> Payload:
@@ -781,10 +821,10 @@ class Dispatcher:
         self._allocation: Payload = {}  # likewise: the picture, when it moves
         self._disputed: Payload = {}  # and what the detectors dispute
         # The stamps held against the state topics this app consumes, which
-        # is `state/power` and nothing else (#240). Two power values
-        # delivered backwards would otherwise leave the dispatcher believing
-        # the track is dead while it is live, or the other way about, with
-        # nothing to notice.
+        # are `state/power` and `state/unknown_sensors` (#240). Two power
+        # values delivered backwards would otherwise leave the dispatcher
+        # believing the track is dead while it is live, or the other way about,
+        # with nothing to notice.
         self._ordering = Ordering()
         # The power, where the bus already holds a value of it: read here for
         # the reason the picture is, so a railroad that is already on routes
@@ -795,6 +835,11 @@ class Dispatcher:
         stated = bus.last_values.get(POWER)
         if stated is not None and self._ordering.accepts(POWER, stated):
             self._state.power = power(stated)
+        # And the sensors not reporting, for the same reason: a request admitted
+        # before that drain is not to be sent into a block out of use.
+        stated = bus.last_values.get(UNKNOWN_SENSORS)
+        if stated is not None and self._ordering.accepts(UNKNOWN_SENSORS, stated):
+            self._state.unknown_sensors = unknown_sensors(stated) or frozenset()
         # The last `state/moving` value published, so the topic moves only
         # when what it says moves.
         self._published_moving: bool | None = None
@@ -1084,10 +1129,10 @@ class Dispatcher:
         """Whether any route out of `origin` by `depart` arrives at `end`.
 
         A pure function of layout, origin, departure end, arrival end and
-        train length: `candidates` prunes only on fit and on the simple-path
-        rule, congestion enters solely as a sort key and `k` only caps the
-        list, so one route is all this has to find and nothing between here
-        and the launch can change the answer.
+        train length: asked with no block out of use, `candidates` prunes only
+        on fit and on the simple-path rule, congestion enters solely as a sort
+        key and `k` only caps the list, so one route is all this has to find
+        and nothing between here and the launch can change the answer.
         """
         return bool(
             candidates(
@@ -1651,6 +1696,9 @@ class Dispatcher:
             # repeat re-asserts a level (ADR-0047).
             if self._ordering.accepts(topic, payload):
                 self._on_power(payload)
+        elif leaf == "unknown_sensors":
+            if self._ordering.accepts(topic, payload):
+                self._on_unknown_sensors(payload)
         elif leaf in ("block_occupied", "block_vacated"):
             block = occupancy(payload)
             # None is dropped, and on the trace already by virtue of having
@@ -1919,10 +1967,27 @@ class Dispatcher:
         else:
             self._publish_aspects()
 
+    def _on_unknown_sensors(self, payload: Payload) -> None:
+        """Which sensors `layout` says are not reporting. A block with one is out
+        of use (`State.out_of_use`).
+
+        An unreadable row is dropped and the last value stands, and a row that
+        changes nothing sweeps nothing, so a binding saying `sensors: []` runs as
+        one saying nothing. A change sweeps: a sensor returning routes at once
+        with no press, and `state/moving` follows the list, since `layout` has
+        stopped a train whose entry sensor is on it.
+        """
+        listed = unknown_sensors(payload)
+        if listed is None or listed == self._state.unknown_sensors:
+            return
+        self._state.unknown_sensors = listed
+        self._sweep()
+
     def _sweep(self) -> None:
         """One grant pass, run where the lock table or the waiting set
         changed: a request admitted, cancelled or moved in the list, a vacated
-        block releasing what a move held, the power coming back `on`. A sweep
+        block releasing what a move held, the power coming back `on`, the
+        sensors not reporting changing. A sweep
         covers the whole list, so a refused request is reconsidered exactly
         when the resource it waited on frees (ADR-0047).
 
@@ -2230,6 +2295,9 @@ class Dispatcher:
 
     def _moving(self) -> bool:
         """Whether a power cut now would strand something: any train crossing
+        other than one `layout` has stopped short of an unknown entry sensor,
+        which a person's off press has to be able to drain past (#1152). A far
+        sensor listed stops nothing, so that train counts
         (GLOSSARY.md, **Moving**, #844). A train standing in a block loses
         nothing when the supply goes, whether or not it is active: one a drain
         stopped at a signal partway along its route keeps that route and its
@@ -2238,7 +2306,8 @@ class Dispatcher:
         is a train the dispatcher believes is between two blocks, and a drain
         that ended over one would have `layout` cut the supply under it.
         """
-        return bool(self._state.crossing)
+        state = self._state
+        return any(not stopped_at_unknown_sensor(state, t) for t in state.crossing)
 
     def _publish_moving(self) -> None:
         """Whether anything is moving, on `state/moving`: what `layout` reads

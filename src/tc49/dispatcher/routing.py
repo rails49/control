@@ -1,11 +1,12 @@
 """candidates(): the route chooser (DISPATCH.md, route selection).
 
 Routes to every surviving arrival end are merged into one list, filtered to
-those whose every block fits the train, ordered by transit count, then by how
-many route blocks are congested (#33), then by lexicographically smallest
-block-id sequence, and capped by the single `k` budget. Routes are simple
-paths: no block or transit twice. The caller names the congested blocks, so
-the ordering is a function of `(layout, state)` and stays deterministic.
+those whose every block fits the train and none beyond the origin is out of use
+(#1152), ordered by transit count, then by how many route blocks are congested
+(#33), then by lexicographically smallest block-id sequence, and capped by the
+single `k` budget. Routes are simple paths: no block or transit twice. The caller
+names the congested blocks and the blocks out of use, so the answer is a function
+of `(layout, state)` and stays deterministic.
 """
 
 from collections.abc import Set as AbstractSet
@@ -43,6 +44,7 @@ def candidates(
     train_length: int,
     k: int,
     congested: AbstractSet[str] = frozenset(),
+    out_of_use: AbstractSet[str] = frozenset(),
 ) -> list[Route]:
     routes: list[Route] = []
 
@@ -55,6 +57,8 @@ def candidates(
                 continue  # simple path
             if layout.blocks[block_across] < train_length:
                 continue  # the train must fit every block of the route
+            if block_across in out_of_use:
+                continue  # left out before `k` is spent, so another is found
             path = (blocks + (block_across,), transits + (transit,))
             if end_across in arrivals:
                 routes.append(Route(*path))

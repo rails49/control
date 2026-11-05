@@ -47,11 +47,16 @@ from tests.layout.railroad import (
     THROTTLE_WANTED,
     document,
     elapse,
+    report,
     settle,
     stock,
 )
 
 DEVICE_POINT = "tc49/layout/state/device/point"
+
+NEVER_SILENT_S = 1e9
+"""Longer than any run here: nothing repeats a report, so a shorter silence would
+take every block out of use as `time_passes` runs."""
 
 UNMINTED = "nobody-minted-this"
 """A request id no scheduler minted: a stale or forged gesture's."""
@@ -89,12 +94,19 @@ def assembled() -> tuple[InProcessBus, LayoutInterface, Clock]:
     clock = Clock()
     bus = InProcessBus(clock)
     # No point gap (#1127): nothing here advances the clock for a point.
-    app = LayoutInterface(bus, layout, roster, clock, point_gap=0.0)
+    app = LayoutInterface(
+        bus, layout, roster, clock, point_gap=0.0, sensor_silence_s=NEVER_SILENT_S
+    )
     Scheduler(bus, layout, {}, nonce=NONCE)
     Dispatcher(bus, layout, roster, {}, Incremental(layout, DEFAULT_K))
     Driver(bus)
     bus.drain()
     checked(bus, layout, roster, Incremental)
+    # Every sensor heard, or each block is out of use and nothing is granted
+    # (#1152). A sensor goes unknown again by the `reading` rule, not by the
+    # clock, so the rest of a run has a railroad that runs.
+    report(bus)
+    settle(bus, app, clock)
     return bus, app, clock
 
 

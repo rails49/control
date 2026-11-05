@@ -36,7 +36,9 @@ class Launched:
 @dataclass(frozen=True)
 class Refused:
     reason: str  # 'held' | 'transit_conflict' | 'unsafe'
-    obstacles: list[dict[str, str]]  # one {resource, holder} per blocked candidate
+    # One {resource, holder} per blocked candidate, or the one block out of use
+    # that a launch names where no candidate is left to try (#1152).
+    obstacles: list[dict[str, str]]
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,9 @@ class ReadOnlyState(Protocol):
     @property
     def residue(self) -> AbstractSet[str]: ...
 
+    @property
+    def out_of_use(self) -> AbstractSet[str]: ...
+
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
 
 
@@ -99,12 +104,16 @@ class LockingStrategy(Protocol):
 
 def standing_still(state: ReadOnlyState) -> list[str]:
     """The blocks that read occupied and that nobody holds or that are
-    residue: obstacles as permanent as an idle train's block, since nothing
-    is granted into them until they read clear (ADR-0077)."""
+    residue, since nothing is granted into them until they read clear
+    (ADR-0077), and the blocks out of use, until their sensors return (#1152):
+    obstacles as permanent as an idle train's block."""
     return sorted(
-        block
-        for block, occupied in state.reported.items()
-        if occupied and (block not in state.locks or block in state.residue)
+        state.out_of_use
+        | {
+            block
+            for block, occupied in state.reported.items()
+            if occupied and (block not in state.locks or block in state.residue)
+        }
     )
 
 
@@ -112,10 +121,10 @@ def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
     """The congested blocks route selection steers around (#33): blocks
     locked by another train — idle holders included — blocks on the
     committed remaining route of another active train, and blocks that read
-    occupied with nobody standing in them (ADR-0077). The committed part is
-    what restores to `Incremental` the signal `FullRoute`'s up-front locks
-    carry for free; a deterministic function of state, so ordering stays
-    reproducible."""
+    occupied with nobody standing in them (ADR-0077) or are out of use. The
+    committed part is what restores to `Incremental` the signal `FullRoute`'s
+    up-front locks carry for free; a deterministic function of state, so
+    ordering stays reproducible."""
     blocks = {
         resource
         for resource, holder in state.locks.items()
@@ -126,6 +135,49 @@ def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
         if other != train:
             blocks.update(active.route.blocks[active.cur_index :])
     return frozenset(blocks)
+
+
+def _launchable(
+    layout: Layout,
+    k: int,
+    req: Request,
+    origin: str,
+    depart: str,
+    state: ReadOnlyState,
+) -> list[Route] | Refused | None:
+    """The routes a launch may try, or what it answers without trying one.
+
+    None is unreachable, which the request is rejected for, and it is asked
+    with the blocks out of use left in: a request a failed sensor stands in the
+    way of has to wait, and not be rejected (#1152). So a train standing in a
+    block out of use, and one every route of which crosses such a block, is
+    refused `held`, naming the block, the first on the first route.
+    """
+    length = state.roster[req.train]
+    busy = congested(state, req.train)
+    out = state.out_of_use
+    routes = candidates(layout, origin, depart, req.arrivals, length, k, busy, out)
+    if routes and origin not in out:
+        return routes
+    every = candidates(layout, origin, depart, req.arrivals, length, k, busy)
+    if not every:
+        return None
+    block = next(b for b in every[0].blocks if b in out)
+    return Refused(
+        Refusal.HELD, [{"resource": block, "holder": state.locks.get(block, "")}]
+    )
+
+
+def _standing_refusal(train: str, state: ReadOnlyState) -> Refused | None:
+    """Why an active train may not leave the block it stands in, where it is out
+    of use: refused `held`, naming that block, whatever it holds beyond (#1152)."""
+    active = state.active[train]
+    block = active.route.blocks[active.cur_index]
+    if block not in state.out_of_use:
+        return None
+    return Refused(
+        Refusal.HELD, [{"resource": block, "holder": state.locks.get(block, "")}]
+    )
 
 
 class FullRoute:
@@ -140,17 +192,9 @@ class FullRoute:
     def launch(
         self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
-        routes = candidates(
-            self._layout,
-            origin,
-            depart,
-            req.arrivals,
-            state.roster[req.train],
-            self._k,
-            congested(state, req.train),
-        )
-        if not routes:
-            return None
+        routes = _launchable(self._layout, self._k, req, origin, depart, state)
+        if routes is None or isinstance(routes, Refused):
+            return routes
         reason = ""
         obstacles: list[dict[str, str]] = []
         for tried, route in enumerate(routes, start=1):
@@ -169,6 +213,9 @@ class FullRoute:
         return Refused(reason, obstacles)
 
     def grant(self, train: str, state: ReadOnlyState) -> Move | Refused:
+        standing = _standing_refusal(train, state)
+        if standing is not None:
+            return standing
         active = state.active[train]
         i = active.cur_index
         into = active.route.blocks[i + 1]
@@ -206,17 +253,9 @@ class Incremental:
     def launch(
         self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
-        routes = candidates(
-            self._layout,
-            origin,
-            depart,
-            req.arrivals,
-            state.roster[req.train],
-            self._k,
-            congested(state, req.train),
-        )
-        if not routes:
-            return None
+        routes = _launchable(self._layout, self._k, req, origin, depart, state)
+        if routes is None or isinstance(routes, Refused):
+            return routes
         reason = ""
         obstacles: list[dict[str, str]] = []
         for tried, route in enumerate(routes, start=1):
@@ -248,6 +287,9 @@ class Incremental:
         return Refused(reason, obstacles)
 
     def grant(self, train: str, state: ReadOnlyState) -> Move | Refused:
+        standing = _standing_refusal(train, state)
+        if standing is not None:
+            return standing
         active = state.active[train]
         i = active.cur_index
         transit, into = active.route.transits[i], active.route.blocks[i + 1]
@@ -312,20 +354,29 @@ def state_view(
     What a train holds ahead is read off the lock table rather than off the
     strategy's depth, so the check describes the state it is given whatever
     asked for it. A block that reads occupied with nobody standing in it is
-    an idle obstacle beside the idle trains' blocks (ADR-0077)."""
+    an idle obstacle beside the idle trains' blocks (ADR-0077), and so is a block
+    out of use. An active train standing in one is frozen where it stands, with
+    what it holds: its route ahead may be free, and it goes nowhere until its
+    sensor returns (#1152), so it is no train a finishing order can count on."""
     cur: dict[str, str] = {}
     rem: dict[str, list[str]] = {}
     held: dict[str, list[str]] = {}
+    frozen: list[str] = []
     for train, active in state.active.items():
         if train != skip:
-            cur[train] = active.route.blocks[active.cur_index]
-            rem[train] = list(active.route.blocks[active.cur_index + 1 :])
-            held[train] = [b for b in rem[train] if state.locks.get(b) == train]
+            at = active.route.blocks[active.cur_index]
+            ahead = list(active.route.blocks[active.cur_index + 1 :])
+            holding = [b for b in ahead if state.locks.get(b) == train]
+            if at in state.out_of_use:
+                frozen += [at, *holding]
+            else:
+                cur[train], rem[train], held[train] = at, ahead, holding
     idle = [
         block
         for train, block in state.block_of.items()
         if train not in state.active and train != skip
     ]
+    idle += frozen
     idle += standing_still(state)
     return cur, rem, idle, held
 
@@ -344,7 +395,8 @@ def safety_view(
 
     With every active train able to finish this is `state_view`, so
     `safe(*safety_view(state))` always holds. To ask whether a state is safe,
-    use `state_view`."""
+    use `state_view`. A train standing in a block out of use is already outside
+    it, an idle obstacle (`state_view`)."""
     able = finishable(*state_view(state))
     cur, rem, idle, held = state_view(state, skip)
     for train in sorted(set(cur) - able):
@@ -360,7 +412,8 @@ def _unsafe_obstacle(
     block another train holds, or — the shared-destination case, where
     nothing is locked yet — the block another active train is committed to
     parking on, or the first remaining block that reads occupied with nobody
-    standing in it, holder "" where nobody holds it (ADR-0077)."""
+    standing in it or is out of use, holder "" where nobody holds it (ADR-0077,
+    #1152)."""
     for block in remaining:
         holder = state.locks.get(block)
         if holder is not None and holder != train:
