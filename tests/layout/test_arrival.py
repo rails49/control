@@ -168,6 +168,20 @@ def test_the_far_sensor_stops_a_train_with_no_further_grant() -> None:
     assert rig.wrote() == [("8", 0.0), ("4", 0.0)]
 
 
+def test_a_move_that_was_not_acted_on_leaves_no_crossing_behind() -> None:
+    """The train stands in `w`, which is not this transit's near end, so the
+    move is dropped and the far sensor of the block it names ends nothing. The
+    facing names `x`, so the near end is all that refuses it."""
+    rig = Rig()
+    faces(rig.bus, single="x.A-to-B")
+    rig.crosses("y")
+
+    rig.read("y.B")
+
+    assert rig.app.position["single"] == "w"
+    assert rig.wrote() == []
+
+
 def test_the_far_sensor_deletes_the_crossing() -> None:
     """Its reading a second time, after a clear, is about nothing."""
     rig = crossing()
@@ -535,6 +549,23 @@ def test_a_move_out_through_the_far_end_is_not_held() -> None:
     onward(rig)
     assert rig.app.position["single"] == "y"
     assert rig.wrote() == given()
+
+
+def test_a_further_move_through_the_far_end_takes_the_held_move_with_it() -> None:
+    """The far sensor is no arrival once the train is carried through, so no
+    `0.0`, and `_cross` drops the held move, its near block being behind the
+    train. The next far sensor stops the train and starts nothing."""
+    rig, every = reversing()
+    onward(rig)
+    assert speeds(every) == [("3", CLEAR), ("3", CLEAR)]
+
+    rig.read(FAR)
+    assert speeds(every) == [("3", CLEAR), ("3", CLEAR)]
+    assert rig.app.position["single"] == "y"
+
+    rig.read("y.B")
+    assert speeds(every) == [("3", CLEAR), ("3", CLEAR), ("3", 0.0)]
+    assert rig.app.position["single"] == "y"
 
 
 def test_a_second_move_for_the_transit_replaces_the_one_held() -> None:
