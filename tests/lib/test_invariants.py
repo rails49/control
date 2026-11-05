@@ -474,6 +474,41 @@ def test_a_disputed_train_lights_nothing_in_the_aspects() -> None:
     assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | lit, [])
 
 
+def test_a_train_refused_its_next_move_lights_nothing_in_the_aspects() -> None:
+    """Two ahead locked, and refused the move into the first of them: `stop`
+    along its route is the right answer, and only with the refusal on its
+    request (#1160)."""
+    rows = started(AHEAD_TWO) | {POWER: {"power": "on"}}
+    refused = {
+        ALLOCATION: allocation(
+            {"t1": "west_1"},
+            locks=AHEAD_TWO,
+            requests=[
+                request(route=ROUTE)
+                | {
+                    "refused": {
+                        "reason": "unsafe",
+                        "obstacles": [{"resource": "e_main", "holder": ""}],
+                    }
+                }
+            ],
+        )
+    }
+    stopped = {ASPECTS: {"aspects": {"west_1.B": "stop", "w_main.B": "stop"}}}
+    lit = {ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}}}
+
+    assert (
+        breaches_over(
+            adr_0093_aspects_along_the_locks, MEET, rows | refused | stopped, []
+        )
+        == []
+    )
+    assert breaches_over(
+        adr_0093_aspects_along_the_locks, MEET, rows | refused | lit, []
+    )
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | stopped, [])
+
+
 def test_an_invariant_over_one_apps_topics_is_not_cross_app() -> None:
     by_name = {invariant.breaches.__name__: invariant for invariant in INVARIANTS}
     assert not cross_app(by_name["adr_0076_placed_holds_its_block"])
