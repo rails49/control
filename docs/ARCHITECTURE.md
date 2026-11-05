@@ -201,9 +201,9 @@ src/tc49/
                 replay.py   Replay — a scenario played onto a live run as
                             the gestures a person would make (#171)
                 detector.py HandFed — a person's typed readings published as
-                            the detector rows nothing publishes yet (#315),
-                            and `serve`, the same keyboard as a client of the
-                            broker: `tc49 readings` (ADR-0059, #379)
+                            the sensor reports a detector would publish (#315,
+                            #1147), and `serve`, the same keyboard as a client
+                            of the broker: `tc49 readings` (ADR-0059, #379)
                 cli.py      `tc49 bench <scenario>`; `tc49 sweep` takes no
                             arguments — the grid of BENCHMARKS.md is the
                             fixed research design; `tc49 layout show`;
@@ -518,7 +518,7 @@ a train no throttle holds, after a `move` for it, as that move's start.
 
 **The library-core seam is pure functions only.** Direct unit tests cover
 `safe()` on hand-built states, layout graph queries, route policies, and the
-scheduler's arrival-end expansion. The six boundary conditions closing
+scheduler's arrival-end expansion. The boundary conditions closing
 [SAFETY.md](dispatcher/SAFETY.md) are scenario-shaped, so they run over the bus
 as committed scenario YAML — the same harness and fixture format as shrunk
 Hypothesis counterexamples, which is the practical payoff of generating
