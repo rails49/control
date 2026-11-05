@@ -45,6 +45,7 @@ TAKEN = "tc49/layout/state/taken"
 FUNCTION_WANTED = "tc49/layout/function_wanted"
 FUNCTIONS = "tc49/layout/state/functions"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 DRIVING = "tc49/layout/state/driving"
 POWER_WANTED = "tc49/layout/power_wanted"
@@ -102,6 +103,15 @@ def test_the_track_rows_carry_no_address() -> None:
     for track in (TRACK, OBSERVED_TRACK):
         assert device_topic(track) == track
         assert split_device(track) == (track, "")
+
+
+def test_a_settled_sensor_is_a_state_row_addressed_by_the_block_end() -> None:
+    """Addressed as the report is, and kept where the report is an event
+    (#1168)."""
+    topic = f"{SETTLED_SENSOR}/up_w.A"
+    assert split_device(topic) == (SETTLED_SENSOR, "up_w.A")
+    assert is_state_topic(topic)
+    assert DEVICE_TOPICS[SETTLED_SENSOR].fields == (AT, "addr", "occupancy")
 
 
 def test_an_addressed_row_naming_no_device_is_not_a_device_topic() -> None:

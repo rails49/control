@@ -226,6 +226,9 @@ DEVICE_TOPICS: dict[str, Topic] = {
     "tc49/layout/state/wanted/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/wanted/signal": Topic((AT, "addr", "aspect"), address="addr"),
     "tc49/layout/state/wanted/track": Topic((AT, "power")),
+    "tc49/layout/state/settled/sensor": Topic(
+        (AT, "addr", "occupancy"), address="addr"
+    ),
     "tc49/layout/state/device/point": Topic((AT, "addr", "position"), address="addr"),
     "tc49/layout/state/device/track": Topic((AT, "power", "reason")),
     "tc49/layout/state/device/link": Topic((AT, "id", "link", "detail"), address="id"),
@@ -249,7 +252,7 @@ does not reach the bus, so there is one railroad-wide power desired and one
 observed, and a translator maps it onto however many districts it drives
 (#217).
 
-A **sensor** is not among them: its reports are an event, ``tc49/layout/sensor``
+A **sensor's report** is not among them: it is an event, ``tc49/layout/sensor``
 in ``TOPICS``. It is addressed by the block end it watches, ``<block>.<end>``,
 never by a camera's own identifier, and by that on every railroad, so a trace
 is comparable between installations. The drawing carries the name the hardware
@@ -257,6 +260,11 @@ knows each sensor by, one per block end and defaulting to that same string,
 and whoever publishes a report reads it from the store, so the name reaches no
 payload and nothing above the layout interface learns detector geometry (#194,
 ADR-0043, ADR-0063).
+
+`settled/sensor` is neither half: no hardware is asked for it and none reports
+it. It is `layout`'s own settled reading of each sensor, addressed the same way,
+kept so that whoever joins while a locomotive stands on a sensor knows at once
+(#1168).
 
 `wanted/function`'s ``value`` is a **boolean**, where every other desired
 row carries a name or a number. A function is one bit on the wire wherever it

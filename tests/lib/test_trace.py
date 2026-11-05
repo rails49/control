@@ -76,6 +76,26 @@ def test_a_device_line_is_named_by_its_row_and_not_by_its_address() -> None:
     )
 
 
+def test_a_settled_sensor_is_named_past_the_prefix_and_not_by_its_address() -> None:
+    """Not `sensor`, which is the name of the event `tc49/layout/sensor`
+    (#1168)."""
+    clock = Clock()
+    bus = InProcessBus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+
+    bus.publish(
+        "tc49/layout/state/settled/sensor/up_w.A",
+        {"addr": "up_w.A", "occupancy": "occupied"},
+    )
+    bus.drain()
+
+    assert out.getvalue() == (
+        '{"time":0.0,"event":"settled/sensor","at":0.0,'
+        '"addr":"up_w.A","occupancy":"occupied"}\n'
+    )
+
+
 def test_the_unaddressed_device_rows_are_named_the_same_way() -> None:
     """`track` carries no address — one railroad-wide power desired and one
     observed — so the whole topic is the row, and the line names it in the
