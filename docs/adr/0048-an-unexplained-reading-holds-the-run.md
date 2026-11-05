@@ -1,6 +1,6 @@
 # An unexplained reading holds the run
 
-*Amended by [#1164](https://github.com/rails49/control/issues/1164): `state/disputed` lists only blocks that read occupied with no train explaining the reading. A clear reading disputes nothing and a train whose block reads clear is granted as any other, and a lock held ahead explains nothing.*
+*Amended by [#1164](https://github.com/rails49/control/issues/1164): `state/disputed` lists only blocks with a sensor reading occupied and no train explaining the reading. A clear reading disputes nothing and a train on a block whose sensors read clear is granted as any other, and a lock held ahead explains nothing.*
 
 *Amended by [#1154](https://github.com/rails49/control/issues/1154): an unexplained reading no longer drains the railroad. It goes on `state/disputed` at every power value, a train on that list takes no grant, and the others run.*
 

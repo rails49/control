@@ -1289,12 +1289,12 @@ class Record:
         if granted is None or rid is None:
             return
         ends = transit_ends(self.layout, granted.into, granted.transit)
-        # None is sent into a block reading occupied, so a reading that says so
-        # now was in flight when the grant was made, and the dispatcher hears it
-        # after: for this move too (#1154). Occupancy is anonymous, so it takes
-        # the second for the head in and its picture runs ahead of the steel:
-        # what the picture says of where this move starts is not a judgement on
-        # `layout`, which drives from where the train is.
+        # None is sent into a block with a sensor reading occupied, so a reading
+        # that says so now was in flight when the grant was made, and the
+        # dispatcher hears it after: for this move too (#1154). Occupancy is
+        # anonymous, so it takes the second for the head in and its picture runs
+        # ahead of the steel: what the picture says of where this move starts is
+        # not a judgement on `layout`, which drives from where the train is.
         crossed = granted.into in self._reading_occupied()
         moves = [move for move in self.moves.get(granted.train, []) if not move.at_far]
         self.moves[granted.train] = [*moves, self._followed(rid, granted, ends)]
