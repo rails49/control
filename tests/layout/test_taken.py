@@ -141,7 +141,7 @@ def test_a_second_take_from_a_train_running_in_automatic_keeps_its_speed() -> No
     assert held_by(said) == [{"single": "t-1"}, {}, {"lit": "t-1"}]
     assert speeds(written) == [("3", 0.4)]
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.4), ("3", 0.0)]
@@ -224,7 +224,7 @@ def test_a_train_taken_mid_transit_is_still_stopped_on_arrival() -> None:
     takes(bus, "single")
     turns(bus, "single", 0.3)
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.6), ("3", 0.3), ("3", 0.0)]
@@ -297,7 +297,7 @@ def test_a_train_released_running_in_automatic_keeps_its_speed() -> None:
     bus, app, clock, written = released_running()
     assert speeds(written) == [("3", 0.4)]
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.4), ("3", 0.0)]
@@ -307,7 +307,7 @@ def test_a_train_released_running_by_silence_keeps_its_speed() -> None:
     bus, app, clock, written = released_running(silent=True)
     assert speeds(written) == [("3", 0.4)]
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.4), ("3", 0.0)]
@@ -331,7 +331,7 @@ def test_a_switch_to_manual_after_a_release_still_stops_it_on_arrival() -> None:
     `manual` lets the train finish its move and the arrival writes `0.0`."""
     bus, app, clock, written = released_running()
     switches(bus, MANUAL)
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.4), ("3", 0.0)]
@@ -364,7 +364,7 @@ def test_a_train_released_in_automatic_is_stopped_on_arrival() -> None:
     granted(bus, "single")
     gives(bus, "single")
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("3", 0.6), ("3", 0.0)]

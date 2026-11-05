@@ -151,9 +151,7 @@ def test_a_train_the_roster_does_not_name_crosses_and_publishes_nothing() -> Non
 def test_the_arrival_writes_zero_to_exactly_the_addresses_commanded() -> None:
     """The train is in the block it was sent to, so every car this move
     commanded is told to stand — and no other. The arrival is the entered
-    block's first detector, the same reading `block_occupied` goes out on: it
-    does not wait for the vacate, the tail clearing being a fact about the
-    block behind."""
+    block's far sensor (#1169)."""
     bus, app, clock = wired()
     energised(bus)
     stand(bus, "topped", "up_w")
@@ -162,29 +160,35 @@ def test_the_arrival_writes_zero_to_exactly_the_addresses_commanded() -> None:
     written = commanded(bus)
     move(bus, "topped", "crossover", "to_dn", "dn_e", 1.0)
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written) == [("8", 1.0), ("4", -1.0), ("8", 0.0), ("4", 0.0)]
 
 
-def test_the_arrival_stops_each_car_once_and_the_vacate_follows_it() -> None:
-    """The second detector says the tail is in and releases the block behind;
-    the zeros went out on the first and are not written again."""
+def test_the_entry_sensor_stops_nothing_and_the_far_sensor_stops_each_car_once() -> (
+    None
+):
+    """The train runs past its entry sensor, at a speed no `caution` drop
+    touches, and the far sensor stops it, once however often it reads (#1169)."""
     bus, app, clock = wired()
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
     align(bus, "crossover", "to_dn")
     written = commanded(bus)
-    move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)
+    move(bus, "single", "crossover", "to_dn", "dn_e", 0.3)
 
     reads(bus, "dn_e.A", "occupied")
+    settle(bus, app, clock)
+    assert speeds(written) == [("3", 0.3)]
+
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
-    assert speeds(written) == [("3", 1.0), ("3", 0.0)]
+    assert speeds(written) == [("3", 0.3), ("3", 0.0)]
 
 
 def test_a_move_for_a_train_with_no_published_facing_waits_for_one() -> None:

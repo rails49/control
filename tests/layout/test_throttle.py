@@ -172,13 +172,13 @@ def test_a_lever_with_no_move_outstanding_writes_its_speed_in_manual() -> None:
 
 
 def test_the_moves_end_zeroes_the_lever_and_the_lever_drives_on() -> None:
-    """The move ending at its sensor writes `0.0` for the throttle's train as
+    """The move ending at its far sensor writes `0.0` for the throttle's train as
     for one this app drives, and the next lever frame is applied again with no
     new grant (ADR-0081, decision 3)."""
     bus, app, clock, written = underway("single", "up_w.A-to-B")
     turns(bus, "single", 0.4)
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     turns(bus, "single", 0.4)
 
@@ -242,7 +242,7 @@ def test_an_arrival_lets_the_lever_drive_the_other_way() -> None:
     is free from there (#962)."""
     bus, app, clock, written = underway("single", "up_w.A-to-B")
     turns(bus, "single", 0.4)
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     turns(bus, "single", -0.4)
 
@@ -304,7 +304,7 @@ def test_the_next_grant_brings_the_lever_back() -> None:
     """A train that has arrived and been granted the next move is the
     throttle's to drive again."""
     bus, app, clock, written = underway("single", "up_w.A-to-B")
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     stand(bus, "single", "up_w")
     granted(bus, "single")

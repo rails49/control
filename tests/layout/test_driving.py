@@ -152,7 +152,7 @@ def test_to_manual_a_train_this_app_is_driving_finishes_its_move() -> None:
     switches(bus, MANUAL)
     assert speeds(written) == [("3", 0.6)]
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
@@ -175,7 +175,7 @@ def test_to_automatic_a_train_with_a_move_and_no_throttle_gets_the_grant() -> No
     switches(bus, AUTOMATIC)
     assert speeds(written) == [("8", 0.6), ("4", -0.6)]
 
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
 
     assert speeds(written)[2:] == [("8", 0.0), ("4", 0.0)]
@@ -203,7 +203,7 @@ def test_to_automatic_a_train_that_has_arrived_is_told_nothing() -> None:
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
     granted(bus, "single")
-    reads(bus, "dn_e.A", "occupied")
+    reads(bus, "dn_e.B", "occupied")
     settle(bus, app, clock)
     written = commanded(bus)
     switches(bus, AUTOMATIC)

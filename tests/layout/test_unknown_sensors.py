@@ -1,5 +1,5 @@
-"""A sensor not reporting reads unknown, and a train it drives does not arrive
-on one (#1151).
+"""A sensor not reporting reads unknown, and a train this app drives does not
+run into a block with both its sensors reading so (#1151, #1169).
 
 The bench railroad's `straight` runs `up_w.B` to `up_e.A`, so a train crossing
 into `up_e` comes in at `up_e.A`, the entry sensor, and is fully in at `up_e.B`,
@@ -95,6 +95,12 @@ def goes_unknown(
     """A report of `unknown` that stands for the settling time."""
     reads(bus, end, "unknown", "no model")
     settle(bus, app, clock)
+
+
+def blinded(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
+    """Both sensors of `up_e` listed: nothing there could end a move."""
+    goes_unknown(bus, app, clock, ENTRY)
+    goes_unknown(bus, app, clock, FAR)
 
 
 def comes_back(
@@ -394,32 +400,50 @@ def test_a_sensor_returning_occupied_counts_though_a_departure_spent_it() -> Non
 # -- the train stops ----------------------------------------------------------
 
 
-def test_the_entry_sensor_going_unknown_stops_the_train() -> None:
+def test_both_sensors_going_unknown_stops_the_train() -> None:
     bus, app, clock, written = crossing()
     assert speeds(written) == [("3", GRANTED)]
+    blinded(bus, app, clock)
+    assert speeds(written) == [("3", GRANTED), ("3", 0.0)]
+
+
+def test_the_other_order_stops_the_train_too() -> None:
+    bus, app, clock, written = crossing()
+    goes_unknown(bus, app, clock, FAR)
     goes_unknown(bus, app, clock, ENTRY)
     assert speeds(written) == [("3", GRANTED), ("3", 0.0)]
 
 
-def test_the_entry_sensor_going_silent_stops_the_train() -> None:
+def test_the_entry_sensor_going_unknown_alone_stops_nothing() -> None:
+    """The far sensor still stops the train (#1169)."""
+    bus, app, clock, written = crossing()
+    goes_unknown(bus, app, clock, ENTRY)
+    assert speeds(written) == [("3", GRANTED)]
+    comes_back(bus, app, clock, FAR, "occupied")
+    assert speeds(written) == [("3", GRANTED), ("3", 0.0)]
+
+
+def test_the_sensors_going_silent_stop_the_train() -> None:
     bus, app, clock, written = crossing()
     went_silent(bus, app, clock, ENTRY)
+    assert speeds(written) == [("3", GRANTED)]
+    goes_unknown(bus, app, clock, FAR)
     assert speeds(written) == [("3", GRANTED), ("3", 0.0)]
 
 
 def test_a_reason_changing_while_listed_writes_nothing_more() -> None:
     bus, app, clock, written = crossing()
-    went_silent(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     goes_unknown(bus, app, clock, ENTRY)
     assert speeds(written) == [("3", GRANTED), ("3", 0.0)]
 
 
-def test_a_move_acted_on_with_the_entry_sensor_unknown_writes_no_speed() -> None:
+def test_a_move_acted_on_with_both_sensors_unknown_writes_no_speed() -> None:
     bus, app, clock = wired()
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     align(bus, "crossover", "straight")
     written = commanded(bus)
     move(bus, "single", "crossover", "straight", "up_e", speed=GRANTED)
@@ -427,19 +451,35 @@ def test_a_move_acted_on_with_the_entry_sensor_unknown_writes_no_speed() -> None
     assert app.position["single"] == "up_e"
 
 
-def test_only_the_entry_sensor_counts() -> None:
-    """With the far sensor unknown the arrival still reads, and the train stops
-    there as usual."""
+def test_with_the_far_sensor_unknown_the_entry_sensor_stops_the_train() -> None:
+    """Occupied writes no stop, only the `caution` its far signal calls for, and
+    then clear does (#1169)."""
     bus, app, clock, written = crossing()
     goes_unknown(bus, app, clock, FAR)
     assert speeds(written) == [("3", GRANTED)]
     comes_back(bus, app, clock, ENTRY, "occupied")
-    assert speeds(written) == [("3", GRANTED), ("3", 0.0)]
+    assert speeds(written) == [("3", GRANTED), ("3", 0.3)]
+    written.clear()
+    comes_back(bus, app, clock, ENTRY, "clear")
+    assert speeds(written) == [("3", 0.0)]
 
 
-def test_a_cut_and_on_gives_no_speed_while_the_entry_sensor_is_unknown() -> None:
+def test_the_far_sensor_going_unknown_with_the_tail_in_stops_the_train_at_once() -> (
+    None
+):
+    """The tail is in, and there is nothing left that would say the train has
+    reached its far sensor (#1169)."""
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    comes_back(bus, app, clock, ENTRY, "occupied")
+    comes_back(bus, app, clock, ENTRY, "clear")
+    written.clear()
+    goes_unknown(bus, app, clock, FAR)
+    assert speeds(written) == [("3", 0.0)]
+
+
+def test_a_cut_and_on_gives_no_speed_while_both_sensors_are_unknown() -> None:
+    bus, app, clock, written = crossing()
+    blinded(bus, app, clock)
     bus.publish(POWER_WANTED, {"power": "off"})
     bus.drain()
     written.clear()
@@ -448,11 +488,9 @@ def test_a_cut_and_on_gives_no_speed_while_the_entry_sensor_is_unknown() -> None
     assert all(speed == 0.0 for _addr, speed in speeds(written))
 
 
-def test_a_switch_to_automatic_gives_no_speed_while_the_entry_sensor_is_unknown() -> (
-    None
-):
+def test_a_switch_to_automatic_gives_no_speed_while_both_sensors_are_unknown() -> None:
     bus, app, clock, written = crossing(driving=MANUAL)
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     switches(bus, AUTOMATIC)
     assert written == []
 
@@ -461,7 +499,7 @@ def test_a_release_in_automatic_stops_a_running_train_over_the_unknown() -> None
     bus, app, clock, written = crossing()
     takes(bus, "single")
     turns(bus, "single", 0.2)
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     written.clear()
     gives(bus, "single")
     assert speeds(written) == [("3", 0.0)]
@@ -469,7 +507,7 @@ def test_a_release_in_automatic_stops_a_running_train_over_the_unknown() -> None
 
 def test_a_release_in_automatic_gives_a_standing_train_no_speed() -> None:
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     takes(bus, "single")
     written.clear()
     gives(bus, "single")
@@ -481,7 +519,7 @@ def test_a_release_in_automatic_gives_a_standing_train_no_speed() -> None:
 
 def test_the_entry_sensor_returning_clear_gives_the_granted_speed() -> None:
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     written.clear()
     comes_back(bus, app, clock, ENTRY, "clear")
     assert speeds(written) == [("3", GRANTED)]
@@ -489,7 +527,7 @@ def test_the_entry_sensor_returning_clear_gives_the_granted_speed() -> None:
 
 def test_a_repeat_after_the_return_writes_nothing_more() -> None:
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     comes_back(bus, app, clock, ENTRY, "clear")
     written.clear()
     comes_back(bus, app, clock, ENTRY, "clear")
@@ -501,7 +539,7 @@ def test_a_move_acted_on_while_unknown_is_given_its_speed_on_the_return() -> Non
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     align(bus, "crossover", "straight")
     written = commanded(bus)
     move(bus, "single", "crossover", "straight", "up_e", speed=GRANTED)
@@ -509,22 +547,23 @@ def test_a_move_acted_on_while_unknown_is_given_its_speed_on_the_return() -> Non
     assert speeds(written) == [("3", GRANTED)]
 
 
-def test_the_entry_sensor_returning_occupied_is_the_arrival() -> None:
-    """The arrival's own `0.0` goes out, as at every arrival, and no speed the
-    train would run at: its grant implies nothing more."""
+def test_the_entry_sensor_returning_occupied_gives_its_speed_back() -> None:
+    """The head is in with the far sensor still unknown, so the train carries
+    on, at `caution` for its far signal, and is stopped when the tail clears the
+    entry sensor. No speed after that: its grant implies nothing more (#1169)."""
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     written.clear()
     comes_back(bus, app, clock, ENTRY, "occupied")
-    assert speeds(written) == [("3", 0.0)]
+    assert speeds(written) == [("3", 0.3)]
     written.clear()
     comes_back(bus, app, clock, ENTRY, "clear")
-    assert written == []
+    assert speeds(written) == [("3", 0.0)]
 
 
 def test_the_return_carries_on_through_a_drain() -> None:
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     drains(bus)
     moves(bus, True)
     written.clear()
@@ -534,7 +573,7 @@ def test_the_return_carries_on_through_a_drain() -> None:
 
 def test_under_off_the_return_writes_nothing_and_on_resumes() -> None:
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     bus.publish(POWER_WANTED, {"power": "off"})
     bus.drain()
     written.clear()
@@ -547,14 +586,14 @@ def test_under_off_the_return_writes_nothing_and_on_resumes() -> None:
 
 def test_in_manual_a_returning_sensor_writes_nothing() -> None:
     bus, app, clock, written = crossing(driving=MANUAL)
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     comes_back(bus, app, clock, ENTRY, "clear")
     assert written == []
 
 
 def test_a_train_stopped_then_switched_to_manual_stays_until_automatic() -> None:
     bus, app, clock, written = crossing()
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     switches(bus, MANUAL)
     written.clear()
     comes_back(bus, app, clock, ENTRY, "clear")
@@ -572,7 +611,7 @@ def test_a_train_a_throttle_holds_keeps_its_speed_through_all_of_it() -> None:
     turns(bus, "single", 0.2)
     written.clear()
     went_silent(bus, app, clock, ENTRY)
-    goes_unknown(bus, app, clock, ENTRY)
+    blinded(bus, app, clock)
     goes_unknown(bus, app, clock, FAR)
     comes_back(bus, app, clock, ENTRY, "clear")
     assert written == []

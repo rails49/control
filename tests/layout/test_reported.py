@@ -3,9 +3,9 @@
 
 A point whose address is reported lies where `device/point` says, so a train
 departs over it only once it says the position the `align` asked for. From
-then until the train has arrived and the block it left has been published
-vacated since the move, in either order, a report of the other position stops
-the train, as an arrival does (#1110). A point not reported is taken for where
+then until the entry sensor has read occupied then clear, the train being past
+the points, a report of the other position stops the train, as an arrival does
+(#1110, #1169). A point not reported is taken for where
 `wanted/point` put it, as before.
 
 The bench railroad's `to_dn` throws `12` and `13`; here `12` is reported.
@@ -238,7 +238,7 @@ def leaves(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
 
 def departed() -> tuple[InProcessBus, LayoutInterface, Clock]:
     """`single` over `to_dn` with `12` reporting the way, from `up_w` read
-    occupied at both ends: neither arrived nor read clear behind."""
+    occupied at both ends: neither in its block nor read clear behind."""
     bus, app, clock = ready()
     reads(bus, "up_w.A", "occupied")
     reads(bus, "up_w.B", "occupied")
@@ -248,17 +248,47 @@ def departed() -> tuple[InProcessBus, LayoutInterface, Clock]:
     return bus, app, clock
 
 
-def arrives(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
-    """`dn_e`'s near end reading occupied: the arrival."""
+def head_in(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
+    """`dn_e`'s entry sensor reading occupied: the head past the points."""
     reads(bus, "dn_e.A", "occupied")
     settle(bus, app, clock)
 
 
-def test_a_wrong_report_after_arrival_then_clear_behind_writes_nothing() -> None:
-    """The dispatcher frees the transit on these two readings (ADR-0077), so
+def tail_in(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
+    """The same sensor then reading clear: the tail past them too."""
+    head_in(bus, app, clock)
+    reads(bus, "dn_e.A", "clear")
+    settle(bus, app, clock)
+
+
+def test_a_wrong_report_with_only_the_head_in_stops_the_train() -> None:
+    """The tail may still be on the point (#1169)."""
+    bus, app, clock = departed()
+    head_in(bus, app, clock)
+    written = new_writes(bus)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == [("3", 0.0)]
+
+
+def test_a_wrong_report_with_the_tail_in_stops_nothing_though_the_origin_reads_on() -> (
+    None
+):
+    """The entry sensor having read occupied then clear, the train is past the
+    point, with the block it left not yet vacated (#1169)."""
+    bus, app, clock = departed()
+    tail_in(bus, app, clock)
+    written = new_writes(bus)
+    lies(bus, "12", "closed")
+
+    assert speeds(written) == []
+
+
+def test_a_wrong_report_after_the_tail_is_in_then_clear_behind_writes_nothing() -> None:
+    """The dispatcher frees the transit on the readings behind (ADR-0077), so
     another route or a hand throw may move the point now (#1110)."""
     bus, app, clock = departed()
-    arrives(bus, app, clock)
+    tail_in(bus, app, clock)
     leaves(bus, app, clock)
     written = new_writes(bus)
     lies(bus, "12", "closed")
@@ -266,7 +296,7 @@ def test_a_wrong_report_after_arrival_then_clear_behind_writes_nothing() -> None
     assert speeds(written) == []
 
 
-def test_a_short_train_read_clear_behind_is_stopped_until_it_arrives() -> None:
+def test_a_short_train_read_clear_behind_is_stopped_until_its_tail_is_in() -> None:
     """Still on the points, and the dispatcher still holds them."""
     bus, app, clock = departed()
     leaves(bus, app, clock)
@@ -276,10 +306,10 @@ def test_a_short_train_read_clear_behind_is_stopped_until_it_arrives() -> None:
     assert speeds(written) == [("3", 0.0)]
 
 
-def test_a_wrong_report_after_clear_behind_then_arrival_writes_nothing() -> None:
+def test_a_wrong_report_after_clear_behind_then_the_tail_in_writes_nothing() -> None:
     bus, app, clock = departed()
     leaves(bus, app, clock)
-    arrives(bus, app, clock)
+    tail_in(bus, app, clock)
     written = new_writes(bus)
     lies(bus, "12", "closed")
 
@@ -287,8 +317,8 @@ def test_a_wrong_report_after_clear_behind_then_arrival_writes_nothing() -> None
 
 
 def test_a_block_left_read_clear_before_the_move_does_not_count() -> None:
-    """The dispatcher ends a move only on a vacate heard since its grant, so
-    the transit is still held at the arrival (ADR-0077)."""
+    """Only the entry sensor says the train is past the points, so a block
+    read clear before it left says nothing of them (#1169)."""
     bus, app, clock = ready()
     reads(bus, "up_w.A", "occupied")
     settle(bus, app, clock)
@@ -296,7 +326,7 @@ def test_a_block_left_read_clear_before_the_move_does_not_count() -> None:
     settle(bus, app, clock)
     lies(bus, "12", "thrown")
     move(bus, "single", "crossover", "to_dn", "dn_e", 0.6)
-    arrives(bus, app, clock)
+    head_in(bus, app, clock)
     written = new_writes(bus)
     lies(bus, "12", "closed")
 
@@ -306,7 +336,7 @@ def test_a_block_left_read_clear_before_the_move_does_not_count() -> None:
 def test_the_block_left_read_occupied_again_does_not_check_the_point_again() -> None:
     """The next train entering it is not this train's tail."""
     bus, app, clock = departed()
-    arrives(bus, app, clock)
+    tail_in(bus, app, clock)
     leaves(bus, app, clock)
     reads(bus, "up_w.A", "occupied")
     reads(bus, "up_w.B", "occupied")
@@ -322,7 +352,9 @@ def test_a_wrong_report_of_a_freed_point_leaves_the_next_move_running() -> None:
     `to_dn` on an `align` reporting nothing, standing for a move elsewhere:
     the point it crossed before moves under no train it is checked for."""
     bus, app, clock = departed()
-    arrives(bus, app, clock)
+    tail_in(bus, app, clock)
+    reads(bus, "dn_e.B", "occupied")
+    settle(bus, app, clock)
     leaves(bus, app, clock)
     faces(bus, single="dn_e.B-to-A")
     align(bus, "crossover", "to_dn")
