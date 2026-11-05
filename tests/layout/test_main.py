@@ -342,11 +342,14 @@ def test_a_level_settles_on_seconds_passing(
 
     detector = MqttBus(port=broker.port)
     assert detector.wait_connected()
-    detector.publish(SENSOR, {"addr": END, "occupancy": "occupied"})
 
-    assert drained(
-        witness, lambda: rows(heard, BLOCK_OCCUPIED) != []
-    ), "the level never settled"
+    def reported() -> bool:
+        """A report is not retained, so one sent before `layout` subscribes is
+        lost. A sensor reports again, and so does this (#1147)."""
+        detector.publish(SENSOR, {"addr": END, "occupancy": "occupied"})
+        return rows(heard, BLOCK_OCCUPIED) != []
+
+    assert drained(witness, reported), "the level never settled"
     assert rows(heard, BLOCK_OCCUPIED)[-1]["block"] == BLOCK
     assert app.running, "the app stopped on its own"
     detector.close()
