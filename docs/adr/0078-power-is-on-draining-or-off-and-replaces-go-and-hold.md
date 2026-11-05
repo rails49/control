@@ -1,5 +1,7 @@
 # Power is on, draining or off, and replaces GO and HOLD
 
+*Amended by [#1154](https://github.com/rails49/control/issues/1154): an unexplained reading is no longer a fault that asks for a drain, and `state/disputed` no longer empties away from `off`. A newly broken lock-table rule still drains.*
+
 Part of [#813](https://github.com/rails49/control/issues/813). Supersedes
 [ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md).
 Amends [ADR-0041](0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md),

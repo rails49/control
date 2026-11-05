@@ -1,5 +1,7 @@
 # A throttle drives outside a grant, and a release keeps its speed
 
+*Amended by [#1154](https://github.com/rails49/control/issues/1154): a train driven out of its block no longer drains the railroad. It shows up as a dispute and the others run.*
+
 Part of [#847](https://github.com/rails49/control/issues/847).
 Supersedes decisions 6 and 7 of
 [ADR-0079](0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md).

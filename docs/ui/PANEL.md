@@ -164,8 +164,8 @@ tap, for 3 s: a press released before it moves further than a click or a tap
 on a point may, which picks nothing up. A press that moves further picks the
 train up, as a press on the name does.
 
-**What the detectors dispute is marked on the block it is about.** While the
-run is held the dispatcher compares its placement against the occupancy the
+**What the detectors dispute is marked on the block it is about.** At every
+power value ([#1154](https://github.com/rails49/control/issues/1154)) the dispatcher compares its placement against the occupancy the
 layout has reported and publishes the two contradictions on
 `tc49/dispatch/state/disputed`: a train standing in a block that reads clear,
 and a block that reads occupied with nothing claiming it
@@ -181,10 +181,7 @@ These are where a person is sent first, and walking the railroad is what
 empties them: each `placement_wanted` republishes what is left. The panel
 derives none of it — which blocks the layout has reported on at all is
 knowledge only the dispatcher holds, and a panel working it out would call
-every block nothing has said anything about clear. Releasing the hold with
-entries outstanding is allowed, and the set empties with the press; what the
-panel is still marking at that moment is what the person is deciding to
-accept.
+every block nothing has said anything about clear.
 
 A request renders in three layers, each appearing when the bus first makes it
 true. **Requested** (from `request_submitted`): the train, its departure end,
@@ -1013,6 +1010,12 @@ the `wanted/track` that `layout` writes on a press (`model/trace.ts`,
 bug, and the dispatcher drains the railroad on one
 ([ADR-0076](../adr/0076-a-broken-lock-table-holds-the-run.md)); the chip is
 what tells that drain from a person's press or a trip.
+
+**Beside those, each thing the detectors dispute**, as
+`<block>: occupied with no train` or `<train>: its block reads clear`, for as
+long as `tc49/dispatch/state/disputed` lists it, whichever way power stands
+([#1154](https://github.com/rails49/control/issues/1154)). The railroad runs on around one of these, so the band is what says
+one is there when the block it is about is out of sight.
 
 **The power toggle and the stop sign command power**, on
 `tc49/layout/power_wanted`

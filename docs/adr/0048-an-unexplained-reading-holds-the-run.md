@@ -1,5 +1,7 @@
 # An unexplained reading holds the run
 
+*Amended by [#1154](https://github.com/rails49/control/issues/1154): an unexplained reading no longer drains the railroad. It goes on `state/disputed` at every power value, a train on that list takes no grant, and the others run.*
+
 *Amended by [ADR-0078](0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md) (#813): an unexplained reading drains the railroad in place of holding the run.*
 
 Resolves the question [SYSTEM.md](../SYSTEM.md)'s layout-interface footprint
