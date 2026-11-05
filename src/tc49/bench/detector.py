@@ -117,7 +117,8 @@ class HandFed:
         # Set once that thread is finished — the input ended, or could not be
         # read at all — and every line it took is on the queue. `tc49 readings`
         # reads this to end with its input: the keyboard is the whole of its
-        # work, and the railroad it publishes to runs on without one.
+        # work, and when it ends the sensors it typed go silent and their
+        # blocks go out of use.
         self.ended = threading.Event()
         # Sensor -> the level last typed for it, which is what `repeats` says
         # again and every sensor it says anything about.
@@ -140,8 +141,9 @@ class HandFed:
 
         An input that raises is **handed over** like a line rather than said
         here: a process whose input cannot be read is one nobody is typing
-        at, and the railroad runs on without a keyboard either way, so the
-        saying belongs on the turn with everything else this writes.
+        at, and the sensors it typed go silent and their blocks go out of use
+        either way, so the saying belongs on the turn with everything else
+        this writes.
         """
         try:
             while line := self._lines.readline():
