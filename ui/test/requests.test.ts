@@ -282,7 +282,7 @@ describe("a refused request's note", () => {
 
   it("says a block held by no train is to read clear", async () => {
     const { element } = await serving([goods([{ resource: "b", holder: "" }])]);
-    expect(notes(element)).toEqual(["waits for b to read clear"]);
+    expect(notes(element)).toEqual(["waits for a sensor of b to read clear"]);
   });
 
   /** Any one of them moving may free a route. */

@@ -709,6 +709,16 @@ describe("what each mode draws", () => {
     canvas.remove();
   });
 
+  it("writes what a sensor of a disputed block reads beneath it", async () => {
+    const canvas = await running({
+      ...LIVE,
+      blocks: new Map([...LIVE.blocks, ["east", { state: "free", dispute: "occupied" }]]),
+    });
+    const notes = [...canvas.renderRoot.querySelectorAll("text.note.disputed")];
+    expect(notes.map((note) => note.textContent!.trim())).toEqual(["sensor occupied"]);
+    canvas.remove();
+  });
+
   it("draws every pin while editing and none on a run", async () => {
     const editing = await canvasOn(RAILROAD, reviewed([]));
     expect(editing.renderRoot.querySelectorAll("circle.pin").length).toBe(4);
