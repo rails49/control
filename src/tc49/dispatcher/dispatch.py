@@ -376,9 +376,11 @@ def aspects(state: State) -> dict[str, str]:
     (`locked_ahead`, #1152).
 
     **A reading that refuses the next move shows the same** (#1160). A train
-    on `disputed` takes no grant, so every end along its route shows `stop`,
-    and it keeps its locks. A locked block that reads occupied is not entered
-    (ADR-0077), so depth counts only up to it.
+    on `disputed` takes no grant, and a train refused its next move has just
+    been told so, so every end along the route of either shows `stop`, and it
+    keeps its locks. Its signals return in the sweep that grants it. A locked
+    block that reads occupied is not entered (ADR-0077), so depth counts only
+    up to it.
     """
     shown: dict[str, str] = {
         end: Aspect.STOP for end in sorted(state.layout.end_connection)
@@ -387,7 +389,7 @@ def aspects(state: State) -> dict[str, str]:
         return shown
     unsure = disputed(state)["trains"]
     for train, active in state.active.items():
-        if train in unsure:
+        if train in unsure or active.request.refused is not None:
             continue
         route = active.route
         # `cur_index` advances at the grant, so with a move outstanding the

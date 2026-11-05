@@ -194,6 +194,7 @@ class _Request:
     dest: tuple[str, ...]
     after: str | None
     route: tuple[str, ...] | None  # interleaved block, transit, block, ...
+    refused: bool  # carries a `refused`, so it was refused since its last grant
 
 
 def _fields(payload: object) -> dict[str, object]:
@@ -260,6 +261,7 @@ def _requests_in(allocation: object) -> list[_Request]:
                 dest,
                 after if isinstance(after, str) else None,
                 _strings(fields.get("route")),
+                fields.get("refused") is not None,
             )
         )
     return read
@@ -285,6 +287,7 @@ class _Journey:
     blocks: tuple[str, ...]
     transits: tuple[str, ...]
     standing: int  # index into `blocks` of the block the train is recorded in
+    refused: bool  # its request was refused since its last grant
 
 
 def _journeys(view: View) -> Iterator[_Journey]:
@@ -299,7 +302,13 @@ def _journeys(view: View) -> Iterator[_Journey]:
         blocks, transits = route[0::2], route[1::2]
         recorded = trains.get(request.train)
         if recorded in blocks:
-            yield _Journey(request.train, blocks, transits, blocks.index(recorded))
+            yield _Journey(
+                request.train,
+                blocks,
+                transits,
+                blocks.index(recorded),
+                request.refused,
+            )
 
 
 def _listed(view: View) -> frozenset[str]:
@@ -1965,7 +1974,8 @@ def adr_0093_aspects_along_the_locks(
     recorded in to its last locked block shows `clear` with two or more blocks
     beyond locked, `caution` with one, `stop` with none, depth counting only up
     to a block out of use (#1152) or reading occupied (#1160); a train on
-    `disputed` lights nothing (#1160); every other end shows `stop`
+    `disputed` or refused its next move lights nothing (#1160); every other end
+    shows `stop`
     ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
     A history invariant because no retained row holds which blocks read occupied.
     """
@@ -1985,7 +1995,7 @@ def adr_0093_aspects_along_the_locks(
         return _locked_ahead(locks, journey, index, out, occupied)
 
     for journey in _journeys(view):
-        if journey.train in unsure:
+        if journey.train in unsure or journey.refused:
             continue
         last = journey.standing + depth(journey, journey.standing)
         for i in range(journey.standing, min(last + 1, len(journey.transits))):
