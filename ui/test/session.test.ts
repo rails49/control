@@ -1032,3 +1032,39 @@ describe("an app gone quiet", () => {
     expect(stood.session.status.trouble).toBeNull();
   });
 });
+
+/**
+ * A short outage (#1153): the row changes twice, so the page takes two frames
+ * and the band tells it while it lasts.
+ */
+describe("a sensor that stops and comes back", () => {
+  const UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors";
+  const OUTAGE = { sensor: "a.A", reason: "no report for 3 s", reported: true };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("is a line on each change of the row, and the band says it between", () => {
+    const stood = joined();
+    const applied = vi.spyOn(Panel.prototype, "apply");
+
+    stood.broker.says(UNKNOWN_SENSORS, { at: 1, sensors: [OUTAGE] });
+    expect(stood.session.status.unknownSensors).toEqual(["a.A: no report for 3 s"]);
+
+    stood.broker.says(UNKNOWN_SENSORS, { at: 2, sensors: [] });
+    expect(stood.session.status.unknownSensors).toEqual([]);
+
+    expect(applied.mock.calls.map(([event]) => event.event)).toEqual([
+      "unknown_sensors",
+      "unknown_sensors",
+    ]);
+  });
+
+  it("says nothing once the session has left", () => {
+    const stood = joined();
+    stood.broker.says(UNKNOWN_SENSORS, { sensors: [OUTAGE] });
+    stood.broker.says(RAILROAD, { name: "" });
+    expect(stood.session.status.unknownSensors).toEqual([]);
+  });
+});

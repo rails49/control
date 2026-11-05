@@ -46,6 +46,8 @@ const DEVICE_TRACK = "tc49/layout/state/device/track";
 const STATE_CLOCK = "tc49/layout/state/clock";
 const STATE_BROKEN = "tc49/dispatch/state/broken";
 const STATE_DISPUTED = "tc49/dispatch/state/disputed";
+const STATE_DRIVING = "tc49/layout/state/driving";
+const STATE_UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors";
 const CLOCK_WANTED = "tc49/layout/clock_wanted";
 
 /** What the band reads, as text, in the order it reads it: its readings and
@@ -140,6 +142,33 @@ describe("what the band says", () => {
       expect(chips(shell)).toEqual([]);
     },
   );
+
+  /** A sensor that stopped is a fault in any mode, and goes with the row
+   *  (#1153). */
+  it("shows sensors that stopped as a chip, until the row clears it", async () => {
+    const shell = await joined();
+    const sensors = ["a.A", "a.B"].map((sensor) => ({
+      sensor,
+      reason: "no report for 3 s",
+      reported: true,
+    }));
+    await said(shell, STATE_UNKNOWN_SENSORS, { sensors });
+    expect(chips(shell)).toEqual(["a.A, a.B: no report for 3 s"]);
+    await said(shell, STATE_UNKNOWN_SENSORS, { sensors: [] });
+    expect(chips(shell)).toEqual([]);
+  });
+
+  /** A railroad with no sensors wired yet shows no fault in manual, and the
+   *  one line once trains depend on them (#1153). */
+  it("shows sensors never heard only in automatic", async () => {
+    const shell = await joined();
+    const sensors = [{ sensor: "a.A", reason: "no report since start", reported: false }];
+    await said(shell, STATE_UNKNOWN_SENSORS, { sensors });
+    await said(shell, STATE_DRIVING, { driving: "manual" });
+    expect(chips(shell)).toEqual([]);
+    await said(shell, STATE_DRIVING, { driving: "automatic" });
+    expect(chips(shell)).toEqual(["automatic: 1 of 2 blocks have no sensor report"]);
+  });
 
   it("shows the store not answering as a chip", async () => {
     serving({ broken: new Error("connection refused") });
