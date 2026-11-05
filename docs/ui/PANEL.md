@@ -360,9 +360,9 @@ strict pass-throughs with no reversal within a route, so a signal at
 `caution` or `clear`, read off how far ahead it has locked — on a last-value
 topic naming every signalled end, and the panel renders what it is told
 ([ADR-0025](../adr/0025-a-signal-is-what-the-dispatcher-tells-the-driver.md)).
-An aspect is a function of locks the dispatcher holds, routes it committed and
-readings it has heard, so a second party working it out is a second authority
-to disagree with.
+An aspect is a function of locks the dispatcher holds, routes it committed,
+readings it has heard and refusals it has made, so a second party working it out
+is a second authority to disagree with.
 
 Two questions the panel's own locked-ahead derivation raised are answered by
 not arising. Whether an end the standing train does not face may show anything
