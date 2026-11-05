@@ -1141,7 +1141,7 @@ hardware can produce: anonymous occupancy sensors and track power. It never
 says which train it saw, because a detector cannot report that. The
 dispatcher recovers identity from its own lock table, which is also the record
 of which block is occupied: the interface keeps none. A train entering a block
-trips its entry sensor with its head and its far sensor once it is fully in, and
+trips its entry sensor with its head and its far sensor when its head reaches it, and
 each reading goes out on `state/settled/sensor/<block>.<end>`. A train with no
 further grant runs on and stops at the far sensor,
 and a train at `clear` whose far signal shows `stop` drops to the railroad's

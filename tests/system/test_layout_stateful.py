@@ -363,7 +363,7 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
     @rule(data=st.data())
     def train_moves(self, data: st.DataObject) -> None:
         """What a train `layout` holds as crossing reads next: its head in
-        the entered block, fully in at its far end, or its tail out of the
+        the entered block, its head at the far sensor, or its tail out of the
         block behind."""
         crossings = self.app._crossing  # pyright: ignore[reportPrivateUsage]
         block = data.draw(st.sampled_from(sorted(crossings)))
