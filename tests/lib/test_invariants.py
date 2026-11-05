@@ -15,8 +15,6 @@ from tc49.lib.invariants import (
     ALIGN,
     ALLOCATION,
     ASPECTS,
-    BLOCK_OCCUPIED,
-    BLOCK_VACATED,
     CANCEL_WANTED,
     DEVICE_LINK,
     DEVICE_TRACK,
@@ -29,11 +27,13 @@ from tc49.lib.invariants import (
     MOVE,
     MOVE_GRANTED,
     MOVING,
+    PLACEMENT_WANTED,
     POWER,
     POWER_WANTED,
     QUIET,
     RAILROAD,
     REQUEST_CANCELLED,
+    REQUEST_COMPLETED,
     ROUTE_CHOSEN,
     TAKEN,
     TRAIN_PLACED,
@@ -68,6 +68,7 @@ from tc49.lib.invariants import (
     adr_0054_traction_zeroed_at_start,
     adr_0060_new_railroad_only_while_off,
     adr_0062_drain_ends_at_a_stand,
+    adr_0062_moving_to_the_tail,
     adr_0062_moving_while_crossing,
     adr_0063_power_follows_the_hardware,
     adr_0069_removed_is_stopped,
@@ -75,10 +76,11 @@ from tc49.lib.invariants import (
     adr_0071_unfit_is_not_placed,
     adr_0074_comes_up_off,
     adr_0076_crossing_is_placed,
+    adr_0076_occupied_is_locked,
     adr_0076_placed_holds_its_block,
-    adr_0077_move_ends_on_both_readings,
     adr_0077_not_into_occupied,
     adr_0077_placement_releases_its_own,
+    adr_0077_released_on_the_tail,
     adr_0078_cut_leaves_the_railroad_at_rest,
     adr_0078_nothing_commits_without_power,
     adr_0079_holder_changes_by_release,
@@ -284,7 +286,12 @@ CASES: list[tuple[Callable[[View], list[str]], str, Rows, Rows]] = [
             ),
             MOVING: {"moving": True},
         },
-        {ALLOCATION: allocation({"t1": "west_1"}), MOVING: {"moving": True}},
+        {
+            ALLOCATION: allocation(
+                {"t1": "west_1"}, crossing={"t1": "west_throat.from_1"}
+            ),
+            MOVING: {"moving": False},
+        },
     ),
     (
         adr_0063_power_follows_the_hardware,
@@ -334,6 +341,22 @@ CASES: list[tuple[Callable[[View], list[str]], str, Rows, Rows]] = [
             )
         },
         {ALLOCATION: allocation(crossing={"t1": "west_throat.from_1"})},
+    ),
+    (
+        adr_0076_occupied_is_locked,
+        MEET,
+        {
+            ALLOCATION: {
+                **allocation({"t1": "w_main"}, locks={"w_main": "t1"}),
+                "occupied": {"t1": ["w_main"]},
+            }
+        },
+        {
+            ALLOCATION: {
+                **allocation({"t1": "w_main"}, locks={"w_main": "t1"}),
+                "occupied": {"t1": ["w_main", "loop_up"]},
+            }
+        },
     ),
     (
         adr_0080_after_follows,
@@ -400,18 +423,22 @@ def test_an_unreadable_row_breaks_no_reader() -> None:
         invariant.breaches(view(BENCH, rows))
 
 
-def test_a_crossing_stopped_at_an_unknown_entry_sensor_is_not_moving() -> None:
+def test_a_crossing_with_both_sensors_unknown_is_not_moving() -> None:
     """`layout` stopped it, so the row reads false with the crossing still on
-    the picture. Only the entry sensor counts, and only for a move a route says
-    (#1152)."""
+    the picture. Only with both sensors listed, and only for a move a route says
+    (#1152, #1171)."""
     rows = started({"west_1": "t1", "west_throat.from_1": "t1", "w_main": "t1"}) | {
         MOVING: {"moving": False}
     }
     rows[ALLOCATION] = {**rows[ALLOCATION], "crossing": {"t1": "west_throat.from_1"}}
-    listed = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.A"}]}}
+    listed = {
+        UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.A"}, {"sensor": "w_main.B"}]}
+    }
+    entry = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.A"}]}}
     far = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.B"}]}}
 
     assert adr_0062_moving_while_crossing(view(MEET, rows | listed)) == []
+    assert adr_0062_moving_while_crossing(view(MEET, rows | entry))
     assert adr_0062_moving_while_crossing(view(MEET, rows | far))
     assert adr_0062_moving_while_crossing(view(MEET, rows))
 
@@ -553,16 +580,18 @@ LEFT: tuple[str, Payload] = (
 CHOSEN: tuple[str, Payload] = (ROUTE_CHOSEN, {"id": "r1", "route": ROUTE})
 
 
-def read(block: str, occupied: bool = True) -> tuple[str, Payload]:
-    return (BLOCK_OCCUPIED if occupied else BLOCK_VACATED, {"block": block})
-
-
 def sensor(end: str, occupied: bool = True) -> tuple[str, Payload]:
     """A sensor's settled level (#1168)."""
     return (
         f"tc49/layout/state/settled/sensor/{end}",
         {"addr": end, "occupancy": "occupied" if occupied else "clear"},
     )
+
+
+def read(block: str, occupied: bool = True) -> tuple[str, Payload]:
+    """The level of the sensor at the block's `A` end, for a rule about the
+    block and not about which end."""
+    return sensor(f"{block}.A", occupied)
 
 
 def listing(*ends: str) -> tuple[str, Payload]:
@@ -765,6 +794,13 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         [(RAILROAD, {"name": "yard"})],
     ),
     (
+        adr_0062_moving_to_the_tail,
+        MEET,
+        PLACED | {MOVING: {"moving": True}},
+        [GRANT, sensor("w_main.A"), (MOVING, {"moving": True})],
+        [GRANT, sensor("w_main.A"), (MOVING, {"moving": False})],
+    ),
+    (
         adr_0062_drain_ends_at_a_stand,
         MEET,
         {POWER: {"power": "draining"}, MOVING: {"moving": True}},
@@ -802,12 +838,18 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         [read("w_main"), (QUIET, {}), GRANT],
     ),
     (
-        adr_0077_move_ends_on_both_readings,
+        adr_0077_released_on_the_tail,
         MEET,
         PLACED,
-        # In the other order from the usual one: a short train.
-        [GRANT, read("west_1", False), read("w_main"), LEFT],
-        [GRANT, read("w_main"), LEFT],
+        # The transit with the block never seen to clear: a train placed beyond
+        # its exit sensor.
+        [GRANT, sensor("w_main.A"), sensor("w_main.A", False), LEFT],
+        # The transit at the head in, which is what this replaced.
+        [
+            GRANT,
+            sensor("w_main.A"),
+            (LOCK_RELEASED, {"train": "t1", "resources": ["west_throat.from_1"]}),
+        ],
     ),
     (
         adr_0077_placement_releases_its_own,
@@ -956,11 +998,137 @@ def test_a_history_invariant_holds_and_is_breached(
 
 
 def test_a_reading_crossing_a_grant_counts_for_its_move() -> None:
-    """Both readings on the bus when the grant was made: the dispatcher hears
-    them after it, so they are the two the move ends on (#1154)."""
-    crossed = [read("west_1", False), read("w_main"), GRANT, LEFT]
+    """The readings on the bus when the grant was made: the dispatcher hears
+    them after it, so they are the ones the move ends on (#1154)."""
+    crossed = [sensor("w_main.A"), sensor("w_main.A", False), GRANT, LEFT]
+    assert breaches_over(adr_0077_released_on_the_tail, MEET, PLACED, crossed) == []
+    out = [sensor("west_1.B", False), GRANT, (LOCK_RELEASED, ONLY_THE_BLOCK)]
+    assert breaches_over(adr_0077_released_on_the_tail, MEET, PLACED, out) == []
+
+
+ONLY_THE_BLOCK: Payload = {"train": "t1", "resources": ["west_1"]}
+ONLY_THE_TRANSIT: Payload = {"train": "t1", "resources": ["west_throat.from_1"]}
+
+
+def test_a_block_is_released_after_its_exit_reads_occupied_then_clear() -> None:
+    released = (LOCK_RELEASED, ONLY_THE_BLOCK)
+    tail = [sensor("west_1.B"), sensor("west_1.B", False)]
     assert (
-        breaches_over(adr_0077_move_ends_on_both_readings, MEET, PLACED, crossed) == []
+        breaches_over(
+            adr_0077_released_on_the_tail, MEET, PLACED, [GRANT, *tail, released]
+        )
+        == []
+    )
+    assert breaches_over(
+        adr_0077_released_on_the_tail,
+        MEET,
+        PLACED,
+        [GRANT, sensor("west_1.B"), sensor("w_main.A"), released],
+    )
+
+
+def test_a_block_left_by_an_older_move_goes_at_a_later_moves_entry_clear() -> None:
+    later = [GRANT, sensor("w_main.A"), ONWARD, sensor("loop_up.A")]
+    released = (
+        LOCK_RELEASED,
+        {"train": "t1", "resources": ["west_1", "west_throat.from_1"]},
+    )
+    assert (
+        breaches_over(
+            adr_0077_released_on_the_tail,
+            MEET,
+            PLACED,
+            [*later, sensor("loop_up.A", False), released],
+        )
+        == []
+    )
+    assert (
+        len(
+            breaches_over(
+                adr_0077_released_on_the_tail, MEET, PLACED, [*later, released]
+            )
+        )
+        == 2
+    )
+
+
+def test_a_transit_is_not_released_at_a_later_moves_exit_clear() -> None:
+    assert breaches_over(
+        adr_0077_released_on_the_tail,
+        MEET,
+        PLACED,
+        [
+            GRANT,
+            sensor("w_main.A"),
+            ONWARD,
+            sensor("w_main.B"),
+            sensor("w_main.B", False),
+            (LOCK_RELEASED, ONLY_THE_TRANSIT),
+        ],
+    )
+
+
+def test_a_request_completes_at_its_entry_clear_or_its_far_sensor() -> None:
+    completed = (REQUEST_COMPLETED, {"id": "r1"})
+    for end in (
+        [sensor("w_main.A"), sensor("w_main.A", False)],
+        [sensor("w_main.B")],
+    ):
+        assert (
+            breaches_over(
+                adr_0077_released_on_the_tail, MEET, PLACED, [GRANT, *end, completed]
+            )
+            == []
+        )
+    assert breaches_over(
+        adr_0077_released_on_the_tail,
+        MEET,
+        PLACED,
+        [GRANT, sensor("w_main.A"), completed],
+    )
+
+
+def test_a_placement_and_a_withdrawal_are_outside_the_release_rule() -> None:
+    wanted = (PLACEMENT_WANTED, {"train": "t1", "block": "up_e"})
+    assert (
+        breaches_over(
+            adr_0077_released_on_the_tail, MEET, PLACED, [GRANT, wanted, LEFT]
+        )
+        == []
+    )
+    assert (
+        breaches_over(
+            adr_0077_released_on_the_tail,
+            MEET,
+            PLACED,
+            [
+                GRANT,
+                (CANCEL_WANTED, {"id": "r1"}),
+                (
+                    "tc49/layout/move_withdrawn",
+                    {"train": "t1", "transit": "west_throat.from_1", "into": "w_main"},
+                ),
+                (LOCK_RELEASED, ONLY_THE_TRANSIT),
+            ],
+        )
+        == []
+    )
+
+
+def test_moving_is_owed_until_the_end_of_the_move_and_not_past_it() -> None:
+    falls = (MOVING, {"moving": False})
+    rows = PLACED | {MOVING: {"moving": True}}
+    for end in (
+        [sensor("w_main.A"), sensor("w_main.A", False)],
+        [sensor("w_main.B")],
+        [listing("w_main.A", "w_main.B")],
+    ):
+        assert (
+            breaches_over(adr_0062_moving_to_the_tail, MEET, rows, [GRANT, *end, falls])
+            == []
+        )
+    assert breaches_over(
+        adr_0062_moving_to_the_tail, MEET, rows, [GRANT, listing("w_main.A"), falls]
     )
 
 
@@ -1266,7 +1434,17 @@ def test_a_block_held_ahead_is_named_and_missing_it_is_a_breach() -> None:
     ("rows", "messages"),
     [
         pytest.param(DISPUTES, [read("west_1")], id="recorded in the block"),
-        pytest.param(DISPUTES, [GRANT, read("west_1")], id="the move's origin"),
+        pytest.param(
+            {
+                DISPUTED: NONE_DISPUTED,
+                ALLOCATION: {
+                    **allocation({"t1": "west_1"}, locks={"west_1": "t1"}),
+                    "occupied": {"t1": ["west_1", "west_throat.from_1"]},
+                },
+            },
+            [GRANT, read("west_1")],
+            id="the block the train occupies",
+        ),
         pytest.param(DISPUTES, [GRANT, read("w_main")], id="the move's arrival"),
         pytest.param(
             {
@@ -1303,7 +1481,7 @@ def test_a_block_held_ahead_is_named_and_missing_it_is_a_breach() -> None:
 def test_a_block_a_train_explains_is_no_dispute(rows: Rows, messages: Messages) -> None:
     """Each of the four explained cases: an empty row holds, and one listing the
     block is breached (#1164)."""
-    block = cast(dict[str, str], messages[-1][1])["block"]
+    block = cast(dict[str, str], messages[-1][1])["addr"].partition(".")[0]
     assert (
         breaches_over(adr_0048_disputed_lists_contradictions, MEET, rows, messages)
         == []
