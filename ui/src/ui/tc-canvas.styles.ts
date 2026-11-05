@@ -472,6 +472,18 @@ const running = css`
     fill: var(--amber);
   }
 
+  /* A sensor not reporting (#1153), stopped or never heard alike. A dashed ring
+     beside the outline rather than a stroke on it, so a disputed block wears
+     both. The grey hint rather than amber: a railroad with no sensors wired yet
+     wears it on every block, and that is no fault to be shouted. */
+  .unknown-sensor {
+    fill: none;
+    stroke: var(--hint);
+    stroke-width: ${RING.weight};
+    stroke-dasharray: ${RING.dash} ${RING.gap};
+    pointer-events: none;
+  }
+
   /* A reported point holding a train (ADR-0097): its report has differed from
      what was asked for more than two seconds on a transit locked to a train.
      Amber, as a dispute is, and over the lit road too, since the lit road is

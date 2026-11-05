@@ -430,6 +430,32 @@ describe("the mark on a disputed block", () => {
 });
 
 /**
+ * The mark on a block with a sensor not reporting (#1153). It rides beside a
+ * dispute on the same block, so it cannot be the outline's colour or the
+ * outline itself, and it reads off the palette, which is what makes it work in
+ * both themes.
+ */
+describe("the mark on a block with a sensor not reporting", () => {
+  const mark = rule(canvasStyles.cssText, ".unknown-sensor");
+
+  it("is a palette entry defined in both themes", () => {
+    expect(mark).toContain("var(--hint)");
+    expect(COLOURS["--hint"]).toBeDefined();
+    expect(DARK["--hint"]).toBeDefined();
+  });
+
+  it("is a dashed ring, where a dispute is a solid amber outline", () => {
+    expect(mark).toContain("stroke-dasharray");
+    expect(mark).toContain("fill: none");
+    expect(mark).not.toContain("var(--amber)");
+  });
+
+  it("takes no presses from the block it is on", () => {
+    expect(mark).toContain("pointer-events: none");
+  });
+});
+
+/**
  * The run view's left pane (#895): the trains, then the requests directly
  * under them. Each takes its content's height up to half the pane and scrolls
  * on its own past that, so what is left over is below the requests rather
