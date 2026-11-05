@@ -1,5 +1,7 @@
 """Reading a payload from outside, in the one place both apps read one (#127)."""
 
+import pytest
+
 from tc49.lib.inventory import (
     AUTOMATIC,
     DRAINING,
@@ -49,6 +51,7 @@ from tc49.lib.payload import (
     reported_reason,
     reported_sensor,
     said_speeds,
+    settled_reading,
     shown_aspects,
     stamp,
     supply,
@@ -1396,3 +1399,41 @@ def test_a_reorder_that_cannot_be_read_is_dropped() -> None:
         None,
     ):
         assert wanted_reorder(payload) is None, payload
+
+
+@pytest.mark.parametrize(
+    "payload, expected",
+    [
+        ({"addr": "dn_w.A", "occupancy": "occupied"}, ("dn_w.A", True)),
+        ({"addr": "dn_w.B", "occupancy": "clear"}, ("dn_w.B", False)),
+        ({"addr": "dn_w.A", "occupancy": "unknown"}, None),
+        ({"addr": "dn_w.A"}, None),
+        ({"addr": "dn_w", "occupancy": "occupied"}, None),
+        ({"addr": 3, "occupancy": "occupied"}, None),
+        ("dn_w.A", None),
+        (None, None),
+    ],
+)
+def test_a_settled_reading_is_read_or_dropped(
+    payload: object, expected: tuple[str, bool] | None
+) -> None:
+    assert settled_reading(payload) == expected
+
+
+def test_an_allocation_reads_what_each_train_occupies_an_entry_at_a_time() -> None:
+    kept = kept_allocation(
+        {
+            "trains": {},
+            "crossing": {},
+            "occupied": {"a": ["x", 3, "y"], "b": "x", 4: ["z"]},
+        }
+    )
+    assert kept is not None
+    assert kept.occupied == {"a": ("x", "y")}
+
+
+def test_an_allocation_with_no_occupied_map_states_no_lists() -> None:
+    for stated in ({}, {"occupied": "x"}):
+        kept = kept_allocation({"trains": {}, "crossing": {}, **stated})
+        assert kept is not None
+        assert kept.occupied == {}

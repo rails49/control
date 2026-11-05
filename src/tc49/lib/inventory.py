@@ -205,7 +205,7 @@ TOPICS: dict[str, Topic] = {
     # The lock table's rules the dispatcher found broken (ADR-0076, #1118).
     "tc49/dispatch/state/broken": Topic((AT, "rules")),
     "tc49/dispatch/state/allocation": Topic(
-        (AT, "trains", "crossing", "locks", "requests")
+        (AT, "trains", "crossing", "locks", "occupied", "requests")
     ),
 }
 
