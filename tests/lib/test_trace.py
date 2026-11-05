@@ -185,7 +185,7 @@ def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
     bus.publish("tc49/dispatch/lock_granted", {"train": "re460", "resources": ["a"]})
     bus.drain()
     clock.advance(30.0)
-    bus.publish("tc49/layout/block_occupied", {"block": "b"})
+    bus.publish("tc49/layout/sensor", {"addr": "b.A", "occupancy": "clear"})
     bus.drain()
     clock.advance(60.0)
     bus.publish("tc49/dispatch/request_completed", {"id": "re460-1"})
@@ -193,7 +193,7 @@ def test_the_time_stamp_reads_the_run_clock_as_it_records() -> None:
 
     assert out.getvalue().splitlines() == [
         '{"time":0.0,"event":"lock_granted","train":"re460","resources":["a"]}',
-        '{"time":30.0,"event":"block_occupied","block":"b"}',
+        '{"time":30.0,"event":"sensor","addr":"b.A","occupancy":"clear"}',
         '{"time":60.0,"event":"request_completed","id":"re460-1"}',
     ]
 
@@ -226,7 +226,7 @@ def test_scripted_sequence_traced_twice_is_byte_identical() -> None:
 def test_payload_field_outside_the_inventory_fails_loudly() -> None:
     bus = InProcessBus(Clock())
     TraceTap(bus, io.StringIO(), Clock())
-    bus.publish("tc49/layout/block_occupied", {"blokc": "a"})
+    bus.publish("tc49/layout/sensor", {"adrr": "a.A"})
 
     with pytest.raises(ValueError):
         bus.drain()

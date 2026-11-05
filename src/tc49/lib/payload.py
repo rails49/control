@@ -23,11 +23,11 @@ that raised on a frame it sent would be taken down by that binding's bug the
 moment the bus stops being in-process (#173). It is the one reader here that
 answers a value rather than `None`, and `power` says why (#175).
 
-Occupancy is read here beside it, so the whole layout role is read and no
-frame that role publishes can take the dispatcher down (#181). The power enum
+A settled reading is read here beside it, so the whole layout role is read and
+no frame that role publishes can take the dispatcher down (#181). The power enum
 came first because it is the one whose *drop* would be unsafe, and the two
-readers fail in opposite directions for that reason: `occupancy` says which
-way it falls and why it may.
+readers fail in opposite directions for that reason: a reading that cannot be
+read is dropped, where `power` has no `None` (`settled_reading`).
 
 The dispatcher's **announcements** are read here for the layout binding's
 reason and not the browser's, one step further out (#259): the scheduler
@@ -55,10 +55,10 @@ the first payload here read by whatever drives the track rather than by an app
 on the bus's other side, so the simulator and a hardware binding
 read the one reading (ADR-0030).
 
-The **sensor** report is read here for that same reason (#288): `layout` folds a
-block's two detectors into `block_occupied` and `block_vacated`, so the level
-a detector states and the reason it gives for saying nothing are read on the
-way in, where the occupancy events those become are read on the way out.
+The **sensor** report is read here for that same reason (#288): `layout` settles
+what a detector states and passes it on, so the level and the reason it gives
+for saying nothing are read on the way in, where the settled row that becomes is
+read on the way out.
 
 `align`, the other command, is read here beside it, and with it everything
 else the core app `layout` is handed (#287): the power a page commands, the
@@ -734,27 +734,6 @@ def _throttle_id(stated: object) -> str | None:
     """A throttle id: the random string a page mints when it opens, so any
     non-empty string, and nothing else."""
     return stated if isinstance(stated, str) and stated else None
-
-
-def occupancy(payload: object) -> str | None:
-    """The block an occupancy reading names, or None where it names none.
-
-    The other direction from `power`, on the same role, and that asymmetry is
-    the whole reason both are read here rather than one: a power value that
-    cannot be read must still hold the run, so `power` has no `None`, while a
-    reading that cannot be read is dropped, which is what this `None` is for.
-    Why the two fail in opposite directions is SYSTEM.md, sole payload
-    authority; a dropped frame is already on the trace by virtue of having
-    been published (ADR-0034).
-
-    Which reading it is — occupied or vacated — is the leaf it arrived on and
-    not a field, so it is the caller's and not read here. Whether the block
-    exists is the dispatcher's knowledge, as with `placement`.
-    """
-    if not isinstance(payload, dict):
-        return None
-    block = cast(dict[str, object], payload).get("block")
-    return block if isinstance(block, str) else None
 
 
 def reported_sensor(payload: object) -> str | None:

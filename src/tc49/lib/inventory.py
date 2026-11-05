@@ -88,8 +88,6 @@ TOPICS: dict[str, Topic] = {
     "tc49/schedule/scheduler_alive_confirmed": Topic(()),
     "tc49/dispatch/dispatcher_alive_confirmed": Topic(()),
     "tc49/drive/driver_alive_confirmed": Topic(()),
-    "tc49/layout/block_occupied": Topic(("block",)),
-    "tc49/layout/block_vacated": Topic(("block",)),
     # Whatever watches a sensor reports it at least once a second, changed or
     # not, and at once on a change: `addr` is the sensor, `<block>.<end>`, and
     # `reason` rides only with `unknown`. One topic, the payload naming the
@@ -438,9 +436,9 @@ UNKNOWN = "unknown"
 sees at the block end the report names.
 
 A **level** and not an edge — presence is a thing that can be asked for at any
-time — so the pair a block's two detectors report is what `layout` folds into
-`tc49/layout/block_occupied` and `tc49/layout/block_vacated`, the anonymous
-events everything above the layout interface reads (#288).
+time — so what a detector reports is what `layout` settles and passes on as
+``tc49/layout/state/settled/sensor/<block>.<end>``, the anonymous row everything
+above the layout interface reads (#288, #1168).
 
 `unknown` is a value and not an absence: the detector knows *why* it cannot
 say — no model, not calibrated, drift — and the free-text ``reason`` beside it

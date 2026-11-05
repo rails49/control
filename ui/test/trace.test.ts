@@ -49,8 +49,8 @@ describe("Live", () => {
    *  own (ADR-0047), so an event is the payload and its leaf, whole. */
   it("adds nothing of its own to a message", () => {
     const live = new Live();
-    const heard = live.read("tc49/layout/block_occupied", JSON.stringify({ block: "b" }));
-    expect(heard).toEqual({ event: "block_occupied", block: "b" });
+    const heard = live.read("tc49/layout/sensor", JSON.stringify({ addr: "b.A" }));
+    expect(heard).toEqual({ event: "sensor", addr: "b.A" });
   });
 
   /** A device row is named by two levels where every other row is named by
@@ -331,10 +331,8 @@ describe("Ordering", () => {
 
   it("orders no event topic at all", () => {
     const ordering = new Ordering();
-    expect(ordering.accepts({ event: "block_occupied", at: 20, block: "a" })).toBe(
-      true,
-    );
-    expect(ordering.accepts({ event: "block_vacated", at: 1, block: "a" })).toBe(true);
+    expect(ordering.accepts({ event: "sensor", at: 20, addr: "a.A" })).toBe(true);
+    expect(ordering.accepts({ event: "sensor", at: 1, addr: "a.A" })).toBe(true);
   });
 
   it("forgets its stamps when a page starts over", () => {

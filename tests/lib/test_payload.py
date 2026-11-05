@@ -45,7 +45,6 @@ from tc49.lib.payload import (
     moving,
     named_train,
     observed_position,
-    occupancy,
     placement,
     power,
     reported_reason,
@@ -698,31 +697,6 @@ def test_taken_is_read_an_entry_at_a_time() -> None:
         assert taken(payload) == {}, payload
 
 
-def test_an_occupancy_frame_reads_as_the_block_it_names() -> None:
-    """A block is the whole payload: which of the two readings it is, is the
-    leaf it arrived on and not a field (BUS.md, event inventory)."""
-    assert occupancy({"block": "up_w"}) == "up_w"
-
-
-def test_a_payload_naming_no_block_reads_as_none() -> None:
-    """The opposite direction from `power` on the same role, which is why
-    both are read here rather than one: a power value that cannot be read must
-    still hold the run, a reading that cannot be read is dropped. Why the two
-    fail in opposite directions is SYSTEM.md, sole payload authority."""
-    refused: list[object] = [
-        None,  # no payload at all
-        "up_w",  # not an object either
-        ["up_w"],  # nor a list of its fields
-        {},  # no block
-        {"block": None},
-        # The shape that raised nothing and poisoned `reported` with a key
-        # that is not a block name (#181).
-        {"block": 42},
-    ]
-    for payload in refused:
-        assert occupancy(payload) is None, payload
-
-
 def test_a_sensor_report_reads_as_the_level_the_detector_states() -> None:
     """Presence is a level and a report states one of three words for it. What
     a block's two of them become is `layout`'s fold (#288)."""
@@ -1273,7 +1247,7 @@ def test_a_train_an_allocation_names_unreadably_loses_itself_and_no_other() -> N
 # --- the stamp, and the order two values of one topic are kept in (#240) -----
 
 POWER = "tc49/layout/state/power"
-OCCUPIED = "tc49/layout/block_occupied"
+SENSOR = "tc49/layout/sensor"
 
 
 def test_a_state_payload_states_the_instant_it_was_published_at() -> None:
@@ -1366,10 +1340,10 @@ def test_an_event_topic_is_not_ordered_at_all() -> None:
     one to lose to — and a repeated sensor reading must go on arriving."""
     ordering = Ordering()
     for _ in range(3):
-        assert ordering.accepts(OCCUPIED, {"block": "up_w"})
+        assert ordering.accepts(SENSOR, {"addr": "up_w.A"})
     # Even one carrying something that would read as a stamp.
-    assert ordering.accepts(OCCUPIED, {"at": 9.0, "block": "up_w"})
-    assert ordering.accepts(OCCUPIED, {"at": 1.0, "block": "up_w"})
+    assert ordering.accepts(SENSOR, {"at": 9.0, "addr": "up_w.A"})
+    assert ordering.accepts(SENSOR, {"at": 1.0, "addr": "up_w.A"})
 
 
 # --- reorder_wanted ----------------------------------------------------------

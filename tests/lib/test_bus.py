@@ -23,11 +23,11 @@ def test_drain_delivers_in_publish_order() -> None:
     seen: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(topic))
 
-    bus.publish("tc49/layout/block_occupied", {"block": "a"})
-    bus.publish("tc49/layout/block_vacated", {"block": "b"})
+    bus.publish("tc49/layout/sensor", {"addr": "a.A"})
+    bus.publish("tc49/layout/alive_confirmed", {})
     bus.drain()
 
-    assert seen == ["tc49/layout/block_occupied", "tc49/layout/block_vacated"]
+    assert seen == ["tc49/layout/sensor", "tc49/layout/alive_confirmed"]
 
 
 def test_publish_inside_handler_joins_back_of_queue() -> None:
@@ -76,13 +76,13 @@ def test_filter_grammar() -> None:
     bus.subscribe("tc49/dispatch/#", lambda topic, payload: seen["hash"].append(topic))
 
     bus.publish("tc49/layout/boundary", {"boundary": 1})
-    bus.publish("tc49/layout/block_occupied", {"block": "a"})
+    bus.publish("tc49/layout/sensor", {"addr": "a.A"})
     bus.publish("tc49/dispatch/lock_granted", {"train": "re460", "resources": []})
     bus.publish("tc49/schedule/state/exhausted", {"exhausted": True})
     bus.drain()
 
     assert seen["exact"] == ["tc49/layout/boundary"]
-    assert seen["plus"] == ["tc49/layout/boundary", "tc49/layout/block_occupied"]
+    assert seen["plus"] == ["tc49/layout/boundary", "tc49/layout/sensor"]
     assert seen["hash"] == ["tc49/dispatch/lock_granted"]
 
 
@@ -117,7 +117,7 @@ def test_last_value_goes_only_to_the_new_subscriber() -> None:
 
 def test_event_topics_never_replay() -> None:
     bus = InProcessBus(Clock())
-    bus.publish("tc49/layout/block_occupied", {"block": "a"})
+    bus.publish("tc49/layout/sensor", {"addr": "a.A"})
     bus.drain()
 
     seen: list[str] = []
@@ -175,7 +175,7 @@ def test_delivery_order_is_a_pure_function_of_publish_and_subscribe_order() -> N
 # --- the stamp the binding puts on a state value (#240) ----------------------
 
 EXHAUSTED = "tc49/schedule/state/exhausted"
-OCCUPIED = "tc49/layout/block_occupied"
+SENSOR = "tc49/layout/sensor"
 
 
 def test_a_state_value_is_stamped_from_the_run_clock() -> None:
@@ -220,10 +220,10 @@ def test_no_event_payload_is_stamped() -> None:
     seen: list[Payload] = []
     bus.subscribe("tc49/#", lambda topic, payload: seen.append(payload))
 
-    bus.publish(OCCUPIED, {"block": "yard_w"})
+    bus.publish(SENSOR, {"addr": "yard_w.A"})
     bus.drain()
 
-    assert seen == [{"block": "yard_w"}]
+    assert seen == [{"addr": "yard_w.A"}]
 
 
 def test_a_retained_value_that_is_not_an_object_is_left_as_it_came() -> None:
@@ -285,7 +285,7 @@ def test_an_event_topic_has_nothing_to_clear() -> None:
     """Only a state topic keeps a value, so asking for an event topic is a
     bug in the caller rather than a no-op to absorb."""
     with pytest.raises(ValueError):
-        InProcessBus(Clock()).clear(OCCUPIED)
+        InProcessBus(Clock()).clear(SENSOR)
 
 
 def test_forgetting_drops_every_subscription_and_what_was_in_flight() -> None:
@@ -297,7 +297,7 @@ def test_forgetting_drops_every_subscription_and_what_was_in_flight() -> None:
     bus = InProcessBus(Clock())
     heard: list[str] = []
     bus.subscribe("tc49/#", lambda topic, payload: heard.append(topic))
-    bus.publish(OCCUPIED, {"block": "yard_w"})
+    bus.publish(SENSOR, {"addr": "yard_w.A"})
 
     bus.forget()
     bus.drain()

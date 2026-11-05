@@ -53,7 +53,6 @@ from tc49.lib.payload import (
     kept_allocation,
     kept_facing,
     moving,
-    occupancy,
     placement,
     power,
     readable_id,
@@ -183,10 +182,6 @@ TABLE: tuple[Rule, ...] = (
         "tc49/layout/state/settled/sensor/+",
         "settled_reading",
         lambda f: settled_reading(f) is not None,
-    ),
-    *(
-        Rule(f"tc49/layout/{leaf}", "occupancy", lambda f: occupancy(f) is not None)
-        for leaf in ("block_occupied", "block_vacated")
     ),
     Rule(
         "tc49/layout/state/wanted/traction/+",
