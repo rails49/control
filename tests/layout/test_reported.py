@@ -133,7 +133,7 @@ def test_a_wrong_report_after_departure_stops_the_train() -> None:
 
 def test_a_wrong_report_after_the_arrival_still_stops_the_train() -> None:
     """At the arrival the train's tail may still be over the points: until
-    the block it left reads vacated, a wrong report is written `0.0` again,
+    the block it left reads clear, a wrong report is written `0.0` again,
     over whatever a throttle has given it since."""
     bus, app, clock = ready()
     lies(bus, "12", "thrown")
@@ -230,7 +230,7 @@ def new_writes(bus: InProcessBus) -> list[tuple[str, Payload]]:
 
 
 def leaves(bus: InProcessBus, app: LayoutInterface, clock: Clock) -> None:
-    """`up_w`'s own detectors reading clear, so it is published vacated."""
+    """`up_w`'s own detectors reading clear."""
     reads(bus, "up_w.A", "clear")
     reads(bus, "up_w.B", "clear")
     settle(bus, app, clock)
@@ -275,7 +275,7 @@ def test_a_wrong_report_with_the_tail_in_stops_nothing_though_the_origin_reads_o
     None
 ):
     """The entry sensor having read occupied then clear, the train is past the
-    point, with the block it left not yet vacated (#1169)."""
+    point, with the block it left not yet read clear (#1169)."""
     bus, app, clock = departed()
     tail_in(bus, app, clock)
     written = new_writes(bus)

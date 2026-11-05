@@ -11,11 +11,9 @@ from tc49.layout.interface import SETTLING_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.inventory import device_topic
 from tests.layout.railroad import (
-    BLOCK_OCCUPIED,
     SENSOR,
     elapse,
     heard,
-    occupancy,
     reads,
     settle,
     wired,
@@ -133,7 +131,7 @@ def test_a_sensor_that_has_settled_no_level_has_no_row() -> None:
 
 
 def test_a_sensor_not_on_the_drawing_gets_a_row_like_any_other() -> None:
-    """Judging it is the reader's, as it is for the block event it also gets."""
+    """Judging it is the reader's."""
     bus, app, clock = wired(reporting=False)
     rows = published(bus)
 
@@ -156,22 +154,17 @@ def test_two_sensors_settling_together_publish_in_the_order_they_came_due() -> N
     assert [row["addr"] for _topic, row in rows] == ["up_w.B", END]
 
 
-def test_a_name_no_topic_can_carry_has_no_row_and_still_folds() -> None:
+def test_a_name_no_topic_can_carry_has_no_row() -> None:
     """A name reaches a topic here and nowhere else, and a broker's client
     refuses a wildcard in a topic with a raise that would take the app down on
-    whoever typed it (BUS.md, rule 4). The block event is a payload, and goes
-    out as it always did."""
+    whoever typed it (BUS.md, rule 4). A level that stands for a sensor it can
+    name goes out beside it."""
     bus, app, clock = wired(reporting=False)
     rows = published(bus)
-    events = occupancy(bus)
 
-    for name in ("up+w.A", "up#w.A"):
+    for name in ("up+w.A", "up#w.A", END):
         bus.publish(SENSOR, cast(Payload, {"addr": name, "occupancy": "occupied"}))
         bus.drain()
     settle(bus, app, clock)
 
-    assert rows == []
-    assert events == [
-        (BLOCK_OCCUPIED, {"block": "up+w"}),
-        (BLOCK_OCCUPIED, {"block": "up#w"}),
-    ]
+    assert readings(rows) == [(ROW, END, "occupied")]

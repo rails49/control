@@ -4,13 +4,12 @@
 Nothing publishes `tc49/layout/sensor` on a physical railroad, so a `move` on
 the steel has nothing to complete it. A line a person types is published as the
 report a detector would write — and what these assert is that it is *that*
-report, indistinguishable downstream: `layout` folds a typed pair into
-`block_occupied` and `block_vacated` exactly as it folds a camera's, debounce
-and all.
+report, indistinguishable downstream: `layout` settles a typed level and passes
+it on exactly as it does a camera's, debounce and all.
 
 The reader itself is a client of the broker, `tc49 readings`, and what it does
 against a real one is `test_readings.py`'s. What is read here is the reading
-and the fold.
+and the row it comes to.
 
 The railroad is whichever the checkout has and the crossing is read off it, the
 library railroads being renamed and moved under #319: a name spelled here would
@@ -36,8 +35,6 @@ ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
 PLACED = "tc49/dispatch/train_placed"
 DEVICE_TRACK = "tc49/layout/state/device/track"
-BLOCK_OCCUPIED = "tc49/layout/block_occupied"
-BLOCK_VACATED = "tc49/layout/block_vacated"
 
 
 def a_block(layout: Layout) -> str:
@@ -343,9 +340,8 @@ def points_for(layout: Layout, crossing: Crossing) -> list[Payload]:
 
 def test_a_typed_pair_completes_a_move_the_way_a_detectors_would() -> None:
     """The acceptance: a train is sent across a transit, a person types the
-    two levels the entered block's detectors would have reported, and the fold
-    publishes the arrival and the block behind — occupied then vacated, the
-    only order the steel can produce (ADR-0047).
+    two levels the entered block's detectors would have reported, and each goes
+    out on its sensor's row, in the order typed.
 
     On the app the physical binding is built from and nothing else, with the
     clock driven rather than slept on: what is being asked is whether a typed
@@ -382,9 +378,13 @@ def test_a_typed_pair_completes_a_move_the_way_a_detectors_would() -> None:
         },
     )
     bus.drain()
-    folded: list[tuple[str, Payload]] = []
-    for topic in (BLOCK_OCCUPIED, BLOCK_VACATED):
-        bus.subscribe(topic, lambda seen, payload: folded.append((seen, payload)))
+    rows: list[tuple[object, object]] = []
+    bus.subscribe(
+        "tc49/layout/state/settled/sensor/#",
+        lambda _topic, row: rows.append((row["addr"], row["occupancy"])),
+    )
+    bus.drain()
+    rows.clear()
 
     for typed in (f"{crossing.head} occupied", f"{crossing.tail} occupied"):
         assert detector.reads(typed) is None
@@ -393,7 +393,4 @@ def test_a_typed_pair_completes_a_move_the_way_a_detectors_would() -> None:
         app.settle()
         bus.drain()
 
-    assert folded == [
-        (BLOCK_OCCUPIED, {"block": crossing.into}),
-        (BLOCK_VACATED, {"block": crossing.origin}),
-    ]
+    assert rows == [(crossing.head, "occupied"), (crossing.tail, "occupied")]

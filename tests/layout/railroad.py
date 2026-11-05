@@ -45,8 +45,6 @@ MOVING = "tc49/dispatch/state/moving"
 ALLOCATION = "tc49/dispatch/state/allocation"
 FACING = "tc49/schedule/state/facing"
 
-BLOCK_OCCUPIED = "tc49/layout/block_occupied"
-BLOCK_VACATED = "tc49/layout/block_vacated"
 RAILROAD = "tc49/layout/state/railroad"
 POWER = "tc49/layout/state/power"
 DRIVING = "tc49/layout/state/driving"
@@ -56,6 +54,7 @@ SETTINGS = "tc49/layout/state/settings"
 SETTINGS_WANTED = "tc49/layout/settings_wanted"
 SENSOR = "tc49/layout/sensor"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_FUNCTION = "tc49/layout/state/wanted/function"
 WANTED_POINT = "tc49/layout/state/wanted/point"
@@ -284,16 +283,17 @@ def speeds(written: list[tuple[str, Payload]]) -> list[tuple[str, float]]:
     ]
 
 
-def occupancy(bus: InProcessBus) -> list[tuple[str, Payload]]:
-    """Every occupancy event from here on, in order. Two subscriptions rather
-    than one filter: the two leaves sit beside the commands under
-    `tc49/layout/`, and an event topic is never replayed, so what this
-    collects is what the fold published after it was asked."""
-    seen: list[tuple[str, Payload]] = []
-    for leaf in (BLOCK_OCCUPIED, BLOCK_VACATED):
-        bus.subscribe(
-            leaf, lambda published, payload: seen.append((published, payload))
-        )
+def levels(bus: InProcessBus) -> list[tuple[str, object]]:
+    """Each sensor's settled level from here on, as a list that grows, in order:
+    the sensor and the level, on `state/settled/sensor`. What the rows already
+    retained hand over on subscribing is not from here on."""
+    seen: list[tuple[str, object]] = []
+    bus.subscribe(
+        SETTLED_SENSOR + "/#",
+        lambda _topic, row: seen.append((str(row["addr"]), row["occupancy"])),
+    )
+    bus.drain()
+    seen.clear()
     return seen
 
 
