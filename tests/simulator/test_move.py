@@ -43,3 +43,21 @@ def test_a_live_move_still_moves() -> None:
     tick(sim)
     assert ("tc49/layout/block_vacated", {"block": "yard_w"}) in seen
     assert ("tc49/layout/block_occupied", {"block": "dn_w"}) in seen
+
+
+def test_a_stale_move_reads_no_sensor() -> None:
+    """A `move` redelivered after arrival finds its train past the near end,
+    so `yard_w.B`, which has read clear, is not read occupied again (#1170)."""
+    bus, sim = build()
+    read: list[object] = []
+    bus.subscribe(
+        "tc49/layout/state/settled/sensor/yard_w.B",
+        lambda topic, payload: read.append(payload["occupancy"]),
+    )
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    tick(sim)
+    assert read == ["occupied", "clear"]
+
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    tick(sim)
+    assert read == ["occupied", "clear"]

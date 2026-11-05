@@ -24,20 +24,33 @@ def run_live_for(turns: int, period_s: float) -> tuple[str, list[float]]:
 
 
 def test_an_idle_wait_is_paced_by_the_period() -> None:
-    """Nothing is due for thirty simulated seconds — the first transit delay
-    — so the loop wakes on its period to poll for commands, and sleeps no
-    longer than that."""
-    _trace, slept = run_live_for(5, period_s=0.25)
-    assert slept == [0.25] * 5
+    """The first readings are due at once, and then nothing for thirty
+    simulated seconds — the first transit delay — so the loop wakes on its
+    period to poll for commands, and sleeps no longer than that."""
+    _trace, slept = run_live_for(6, period_s=0.25)
+    assert slept == [0.0] + [0.25] * 5
 
 
 def test_a_sleep_is_cut_to_the_next_scheduled_event() -> None:
     """A sensor fires at the time batch mode would stamp it: the wait before
     it is trimmed to land on the event exactly, never over it."""
-    _trace, slept = run_live_for(3, period_s=20.0)
-    # 20 s, then the 10 s remainder to the first sensors at 30 s, then the
-    # next full period toward the pair at 60 s.
-    assert slept == [20.0, 10.0, 20.0]
+    _trace, slept = run_live_for(4, period_s=20.0)
+    # Nothing for the first readings, due at once, then 20 s, the 10 s
+    # remainder to the first sensors at 30 s, and the next full period toward
+    # the pair at 60 s.
+    assert slept == [0.0, 20.0, 10.0, 20.0]
+
+
+def test_a_live_session_reads_the_sensors_a_batch_session_reads() -> None:
+    """The row, like the block events, lands on the same stamps live and in
+    batch, so a live run is the benchmark's run with its waits slept (#1170)."""
+    layout, _roster, scenario = load("crossover-yard/meet")
+    batch = build(layout, _roster, scenario)
+    batch.simulator.run()
+
+    trace, _ = run_live_for(60, period_s=1000.0)
+    assert events(trace, "settled/sensor") != []
+    assert events(trace, "settled/sensor") == events(batch.trace, "settled/sensor")
 
 
 def test_a_live_session_survives_quiescence() -> None:

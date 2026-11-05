@@ -99,7 +99,7 @@ def live(turns: int) -> tuple[Said, list[float]]:
 
 
 def test_a_batch_run_says_the_clock_once_a_second_of_run_clock() -> None:
-    """From the run's start to its last sensor and no further: the clock is
+    """From the run's start to its last reading and no further: the clock is
     no event, so the run ends at quiescence as it did without one."""
     _bus, simulator, said = build()
     simulator.run()
@@ -112,6 +112,9 @@ def test_a_batch_run_says_the_clock_once_a_second_of_run_clock() -> None:
         (4.0, "clock", SEVEN + 4),
         (5.0, "clock", SEVEN + 5),
         (5.5, "block_vacated", "yard_w"),
+        (6.0, "clock", SEVEN + 6),
+        (7.0, "clock", SEVEN + 7),
+        (8.0, "clock", SEVEN + 8),
     ]
 
 
@@ -119,7 +122,7 @@ def test_the_clock_runs_at_its_speed_up_on_the_run_clock() -> None:
     _bus, simulator, said = build(speed_up=8.0)
     simulator.run()
     times = [what for _at, leaf_, what in said if leaf_ == "clock"]
-    assert times == [SEVEN + 8 * second for second in range(6)]
+    assert times == [SEVEN + 8 * second for second in range(9)]
 
 
 def test_a_live_run_says_the_rows_a_batch_run_says_at_the_same_stamps() -> None:
@@ -127,9 +130,9 @@ def test_a_live_run_says_the_rows_a_batch_run_says_at_the_same_stamps() -> None:
     live record is the batch one and a replay stays the same run."""
     _bus, simulator, batch = build()
     simulator.run()
-    said, slept = live(6)
+    said, slept = live(10)
     assert said == batch
-    assert slept == [1.0, 1.0, 1.0, 1.0, 1.0, 0.5]
+    assert slept == [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 1.0, 1.0]
 
 
 def test_a_clock_set_is_said_at_once_and_counted_on_the_run_clock() -> None:
@@ -171,7 +174,7 @@ def test_a_live_run_given_a_real_clock_keeps_to_it_where_a_turn_runs_long() -> N
         nonlocal real
         real += 2 * seconds  # every turn takes twice what it waits
 
-    turns = iter(range(2))
+    turns = iter(range(3))  # the first waits for nothing: a reading is due
     simulator.run_live(
         1000.0,
         sleep=sleep,

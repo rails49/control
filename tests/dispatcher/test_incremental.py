@@ -179,9 +179,10 @@ def test_route_blindness_is_fixed_by_congestion_aware_costing() -> None:
     assert [line["k_tried"] for line in events(full, "route_chosen")] == [1, 1]
     assert [line["k_tried"] for line in events(incremental, "route_chosen")] == [1, 1]
     # Two transits each, run in parallel: at the default 30 s delays the
-    # last tail clears 120 simulated seconds in.
-    assert final_time(full) == 120.0
-    assert final_time(incremental) == 120.0
+    # last tail clears 120 simulated seconds in, and the last sensor reads
+    # its train at the far end a clearing delay after that.
+    assert final_time(full) == 150.0
+    assert final_time(incremental) == 150.0
 
 
 def test_transits_are_never_held_across_a_wait() -> None:

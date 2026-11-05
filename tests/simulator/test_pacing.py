@@ -1,7 +1,7 @@
 """The simulator's pacing and termination (#39).
 
 The layout interface owns time (ADR-0009, ADR-0047) and this binding is the
-simulator: an accepted `move` schedules its two sensor events on fixed
+simulator: an accepted `move` schedules its sensor readings on fixed
 delays of its own, a batch run jumps the clock event to event and stops at
 quiescence, and a live run sleeps the same spans and never stops. Everything
 downstream is timed off those stamps — a benchmark's makespan, the order two
@@ -17,7 +17,7 @@ injected, and what it asked for is what is asserted.
 from io import StringIO
 
 from tc49.bench.runner import placement, powered
-from tc49.lib.bus import InProcessBus
+from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import leaf
 from tc49.lib.trace import TraceTap
@@ -34,6 +34,7 @@ PERIOD_S = 1000.0
 event and a turn is exactly "the next thing the railroad does"."""
 
 SENSORS = ("tc49/layout/block_occupied", "tc49/layout/block_vacated")
+SETTLED = "tc49/layout/state/settled/sensor/"
 
 
 def build() -> tuple[InProcessBus, Clock, Simulator, StringIO]:
@@ -71,6 +72,22 @@ def stamped(bus: InProcessBus, clock: Clock) -> list[tuple[float, str, str]]:
                 (clock.now, leaf(topic), str(payload["block"]))
             ),
         )
+    return seen
+
+
+def readings(bus: InProcessBus, clock: Clock) -> list[tuple[float, str, str]]:
+    """Every settled reading with the run clock's reading at the moment it was
+    published: which sensor read what, and when. The topic's address is the
+    payload's, as on `layout`'s row (#1168)."""
+    seen: list[tuple[float, str, str]] = []
+
+    def heard(topic: str, payload: Payload) -> None:
+        assert set(payload) == {"at", "addr", "occupancy"}
+        assert topic == f"{SETTLED}{payload['addr']}"
+        assert payload["at"] == clock.now
+        seen.append((clock.now, str(payload["addr"]), str(payload["occupancy"])))
+
+    bus.subscribe(f"{SETTLED}#", heard)
     return seen
 
 
@@ -137,6 +154,151 @@ def test_an_accepted_move_schedules_its_two_sensors_on_the_two_delays() -> None:
     ]
 
 
+def test_one_move_reads_its_sensors_at_the_four_times_beside_the_block_events() -> None:
+    """Out of `yard_w` through `yard_w.B`, into `dn_w` through `dn_w.A`: what
+    the sensors at those two ends read on steel, and the block events at the
+    times they have always had (#1170)."""
+    bus, clock, simulator, _out = build()
+    seen = readings(bus, clock)
+    events = stamped(bus, clock)
+
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    simulator.run()
+
+    assert seen == [
+        (0.0, "yard_w.B", "occupied"),
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (TRANSIT_S + CLEAR_S, "yard_w.B", "clear"),
+        (TRANSIT_S + 2 * CLEAR_S, "dn_w.A", "clear"),
+        (TRANSIT_S + 2 * CLEAR_S, "dn_w.B", "occupied"),
+    ]
+    assert events == [
+        (TRANSIT_S, "block_occupied", "dn_w"),
+        (TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
+    ]
+
+
+def run_to(simulator: Simulator, clock: Clock, at: float) -> None:
+    """The live loop until the run clock reads `at`, with what is due then
+    fired: the wait is cut to the period, and no second of anything is spent."""
+    simulator.run_live(
+        at - clock.now, sleep=lambda _: None, stop=lambda: clock.now >= at
+    )
+
+
+def test_a_second_move_starts_once_the_head_is_in() -> None:
+    """At `t + transit_s` the train stands in `dn_w`, so its next move starts:
+    out through the first move's far sensor, which reads occupied at once. The
+    first move's last row still clears `dn_w.A` and does not read `dn_w.B`
+    occupied again, the train having gone (#1170)."""
+    bus, clock, simulator, _out = build()
+    seen = readings(bus, clock)
+
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    run_to(simulator, clock, TRANSIT_S)
+    move(bus, "freight_1", "crossover.dn_straight", "dn_e")
+    simulator.run()
+
+    second = [each for each in seen if each[0] >= TRANSIT_S]
+    assert second == [
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (TRANSIT_S, "dn_w.B", "occupied"),
+        (TRANSIT_S + CLEAR_S, "yard_w.B", "clear"),
+        (2 * TRANSIT_S, "dn_e.A", "occupied"),
+        (TRANSIT_S + 2 * CLEAR_S, "dn_w.A", "clear"),
+        (2 * TRANSIT_S + CLEAR_S, "dn_w.B", "clear"),
+        (2 * TRANSIT_S + 2 * CLEAR_S, "dn_e.A", "clear"),
+        (2 * TRANSIT_S + 2 * CLEAR_S, "dn_e.B", "occupied"),
+    ]
+
+
+def test_a_move_while_the_train_is_rolling_is_dropped() -> None:
+    """Halfway over the transit the head is not in: the second `move` reads
+    nothing and leaves the first to run as it would have (#1170)."""
+    bus, clock, simulator, _out = build()
+    seen = readings(bus, clock)
+
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    run_to(simulator, clock, TRANSIT_S / 2)
+    move(bus, "freight_1", "crossover.dn_straight", "dn_e")
+    simulator.run()
+
+    assert [addr for _at, addr, _level in seen] == [
+        "yard_w.B",
+        "dn_w.A",
+        "yard_w.B",
+        "dn_w.A",
+        "dn_w.B",
+    ]
+
+
+def test_a_train_stopped_at_far_moved_out_through_far_reads_nothing_at_the_start() -> (
+    None
+):
+    """`dn_w.B` already reads occupied, and an equal reading is not published
+    again. It reads clear once the tail is past (#1170)."""
+    bus, clock, simulator, _out = build()
+    seen = readings(bus, clock)
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    simulator.run()
+    started = clock.now
+    before = len(seen)
+
+    move(bus, "freight_1", "crossover.dn_straight", "dn_e")
+    simulator.run()
+
+    assert seen[before:] == [
+        (started + TRANSIT_S, "dn_e.A", "occupied"),
+        (started + TRANSIT_S + CLEAR_S, "dn_w.B", "clear"),
+        (started + TRANSIT_S + 2 * CLEAR_S, "dn_e.A", "clear"),
+        (started + TRANSIT_S + 2 * CLEAR_S, "dn_e.B", "occupied"),
+    ]
+
+
+def test_a_train_stopped_at_far_moved_out_by_its_entry_reads_both_clear_together() -> (
+    None
+):
+    """Back out through `dn_w.A`, the end it came in by: that sensor reads
+    occupied at the start, and both of the block's sensors read clear once the
+    tail is past, the train having stood over `dn_w.B` until then (#1170)."""
+    bus, clock, simulator, _out = build()
+    seen = readings(bus, clock)
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    simulator.run()
+    started = clock.now
+    before = len(seen)
+
+    move(bus, "freight_1", "west_ladder.to_dn", "yard_w")
+    simulator.run()
+
+    assert seen[before:] == [
+        (started, "dn_w.A", "occupied"),
+        (started + TRANSIT_S, "yard_w.B", "occupied"),
+        (started + TRANSIT_S + CLEAR_S, "dn_w.B", "clear"),
+        (started + TRANSIT_S + CLEAR_S, "dn_w.A", "clear"),
+        (started + TRANSIT_S + 2 * CLEAR_S, "yard_w.B", "clear"),
+        (started + TRANSIT_S + 2 * CLEAR_S, "yard_w.A", "occupied"),
+    ]
+
+
+def test_a_train_turned_back_as_its_head_comes_in_keeps_its_entry_occupied() -> None:
+    """Out through `dn_w.A` the moment its head is over it: the first move's
+    last row would read clear a sensor the train is leaving by, so it does not
+    fire, and `dn_w.A` reads clear with the second move's tail (#1170)."""
+    bus, clock, simulator, _out = build()
+    seen = readings(bus, clock)
+
+    move(bus, "freight_1", "west_ladder.to_dn", "dn_w")
+    run_to(simulator, clock, TRANSIT_S)
+    move(bus, "freight_1", "west_ladder.to_dn", "yard_w")
+    simulator.run()
+
+    assert [each for each in seen if each[1] == "dn_w.A"] == [
+        (TRANSIT_S, "dn_w.A", "occupied"),
+        (2 * TRANSIT_S + CLEAR_S, "dn_w.A", "clear"),
+    ]
+
+
 def test_a_live_run_sleeps_the_spans_a_batch_run_jumps() -> None:
     """One queue and one loop body, with the wait injected: batch advances
     the clock to the next scheduled event and live sleeps its way there, so
@@ -144,9 +306,9 @@ def test_a_live_run_sleeps_the_spans_a_batch_run_jumps() -> None:
     is what lets ADR-0009 stand — nothing on the bus can tell the modes
     apart, and a benchmark number is a statement about the railroad rather
     than about the machine it ran on."""
-    trace, slept = live_run(2)
+    trace, slept = live_run(4)
 
-    assert slept == [TRANSIT_S, CLEAR_S]
+    assert slept == [0.0, TRANSIT_S, CLEAR_S, CLEAR_S]
     assert trace == batch_run()
 
 
@@ -156,7 +318,8 @@ def test_a_batch_run_stops_at_quiescence_and_not_one_event_before() -> None:
     nothing pending, no train rolling (BENCHMARKS.md, termination) — and not
     at the first quiet moment. Two trains rolling means the run passes a
     point where one has arrived and the other has not, and it does not stop
-    there: all four events fire, and the clock ends at the last one."""
+    there: all four events fire, and the clock ends at the last reading, each
+    train's far sensor, a clearing delay after them (#1170)."""
     bus, clock, simulator, _out = build()
     seen = stamped(bus, clock)
 
@@ -169,7 +332,7 @@ def test_a_batch_run_stops_at_quiescence_and_not_one_event_before() -> None:
         (TRANSIT_S + CLEAR_S, "block_vacated", "yard_w"),
         (TRANSIT_S + CLEAR_S, "block_vacated", "up_e"),
     ]
-    assert clock.now == TRANSIT_S + CLEAR_S
+    assert clock.now == TRANSIT_S + 2 * CLEAR_S
 
 
 def test_a_run_that_ended_left_no_train_rolling() -> None:
@@ -196,9 +359,9 @@ def test_a_live_run_keeps_waiting_after_the_last_train_has_arrived() -> None:
     (SYSTEM.md, layout interface). Ten turns past the last sensor it is still
     polling on its period, and the trace is the batch run's — waiting is not
     an event, and nothing is invented to fill the quiet."""
-    trace, slept = live_run(12)
+    trace, slept = live_run(14)
 
-    assert slept == [TRANSIT_S, CLEAR_S] + [PERIOD_S] * 10
+    assert slept == [0.0, TRANSIT_S, CLEAR_S, CLEAR_S] + [PERIOD_S] * 10
     assert trace == batch_run()
 
 

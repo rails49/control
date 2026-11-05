@@ -262,9 +262,9 @@ payload and nothing above the layout interface learns detector geometry (#194,
 ADR-0043, ADR-0063).
 
 `settled/sensor` is neither half: no hardware is asked for it and none reports
-it. It is `layout`'s own settled reading of each sensor, addressed the same way,
-kept so that whoever joins while a locomotive stands on a sensor knows at once
-(#1168).
+it. It is the layout interface's own settled reading of each sensor, addressed
+the same way, kept so that whoever joins while a locomotive stands on a sensor
+knows at once (#1168, #1170).
 
 `wanted/function`'s ``value`` is a **boolean**, where every other desired
 row carries a name or a number. A function is one bit on the wire wherever it
