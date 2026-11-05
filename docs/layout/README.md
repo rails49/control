@@ -600,8 +600,8 @@ judgement — it names the block for a person to walk
 
 Which end of the entered block the train comes in at is the end across the
 transit, read off the layout from the `move` that was carried out. The block's
-*far* end is a different thing — its second sensor, the one a train trips once
-it is fully in — and the two are opposite ends of the one block
+*far* end is a different thing — its second sensor, the one a train's head
+reaches last — and the two are opposite ends of the one block
 ([#279](https://github.com/rails49/control/issues/279)).
 
 **The debounce.** A camera-based detector runs at 2–8 Hz with no debounce of
