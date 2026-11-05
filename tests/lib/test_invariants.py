@@ -362,21 +362,6 @@ CASES: list[tuple[Callable[[View], list[str]], str, Rows, Rows]] = [
         {TAKEN: {"taken": {"single": "t-1", "topped": "t-1"}}},
     ),
     (
-        adr_0093_aspects_along_the_locks,
-        MEET,
-        # Two ahead from west_1, one from w_main, none from loop_up.
-        started(AHEAD_TWO)
-        | {
-            POWER: {"power": "on"},
-            ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}},
-        },
-        started(AHEAD_TWO)
-        | {
-            POWER: {"power": "on"},
-            ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "clear"}},
-        },
-    ),
-    (
         adr_0093_stop_without_power,
         MEET,
         {
@@ -454,8 +439,39 @@ def test_depth_counts_up_to_a_block_out_of_use_in_the_aspects() -> None:
     }
     listed = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "loop_up.A"}]}}
 
-    assert adr_0093_aspects_along_the_locks(view(MEET, rows | listed)) == []
-    assert adr_0093_aspects_along_the_locks(view(MEET, rows))
+    assert (
+        breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | listed, []) == []
+    )
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows, [])
+
+
+def test_depth_counts_up_to_a_block_reading_occupied_in_the_aspects() -> None:
+    """Two ahead locked from west_1, and a locomotive on the second: `caution`
+    there, and `stop` at the signal over the move into it (#1160)."""
+    rows = started(AHEAD_TWO) | {
+        POWER: {"power": "on"},
+        ASPECTS: {"aspects": {"west_1.B": "caution", "w_main.B": "stop"}},
+    }
+    stray = [read("loop_up")]
+
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows, stray) == []
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows, [])
+
+
+def test_a_disputed_train_lights_nothing_in_the_aspects() -> None:
+    """It takes no grant, so `stop` is the right answer along its route, and
+    anything else is a breach (#1160)."""
+    rows = started(AHEAD_TWO) | {
+        POWER: {"power": "on"},
+        DISPUTED: {"trains": ["t1"], "blocks": []},
+    }
+    stopped = {ASPECTS: {"aspects": {"west_1.B": "stop", "w_main.B": "stop"}}}
+    lit = {ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}}}
+
+    assert (
+        breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | stopped, []) == []
+    )
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | lit, [])
 
 
 def test_an_invariant_over_one_apps_topics_is_not_cross_app() -> None:
@@ -840,6 +856,14 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         {},
         [wrote("3", 0.3), wrote("3", 0.0), wrote("3", -0.3)],
         [wrote("3", 0.3), wrote("3", -0.3)],
+    ),
+    (
+        adr_0093_aspects_along_the_locks,
+        MEET,
+        # Two ahead from west_1, one from w_main, none from loop_up.
+        started(AHEAD_TWO) | ON,
+        [(ASPECTS, {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}})],
+        [(ASPECTS, {"aspects": {"west_1.B": "clear", "w_main.B": "clear"}})],
     ),
 ]
 

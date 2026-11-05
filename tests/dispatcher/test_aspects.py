@@ -3,8 +3,10 @@
 import json
 from itertools import pairwise
 
-from tc49.bench.runner import assemble
-from tc49.dispatcher import Incremental
+import pytest
+
+from tc49.bench.runner import Assembly, assemble, assemble_live
+from tc49.dispatcher import FullRoute, Incremental
 from tc49.dispatcher.dispatch import (
     Active,
     Request,
@@ -15,7 +17,16 @@ from tc49.dispatcher.locking import Move
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
+from tc49.lib.scenario import TrainSpec
 from tests.harness import events, load, power, press, run, ticks
+from tests.invariants import check
+
+ASPECTS = "tc49/dispatch/state/aspects"
+DISPUTED = "tc49/dispatch/state/disputed"
+OCCUPIED = "tc49/layout/block_occupied"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
+REQUEST_WANTED = "tc49/schedule/request_wanted"
+VACATED = "tc49/layout/block_vacated"
 
 
 def a_route(layout: Layout) -> Route:
@@ -227,6 +238,162 @@ def test_the_state_topic_carries_the_whole_picture_and_only_on_a_change() -> Non
     signalled = set(published[0])
     assert all(set(shown) == signalled for shown in published)
     assert all(a != b for a, b in pairwise(published))
+
+
+STOOD = {
+    "freight_1": TrainSpec("yard_w", "A-to-B"),
+    "express_2": TrainSpec("up_e", "B-to-A"),
+}
+
+each_strategy = pytest.mark.parametrize("strategy", [Incremental, FullRoute])
+
+
+def under_way(strategy: type[Incremental | FullRoute]) -> Assembly:
+    """`freight_1` granted its move out of `yard_w`, on its way to `yard_e` by
+    `dn_w` and `dn_e`, with the power on and the invariants checked."""
+    layout, roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(layout, roster, STOOD, strategy)
+    check(assembly, strategy)
+    press(assembly, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    return assembly
+
+
+def reading(assembly: Assembly, topic: str, block: str) -> None:
+    press(assembly, topic, {"block": block})
+
+
+def proceed(assembly: Assembly) -> dict[str, str]:
+    """Every signal showing anything but `stop`."""
+    shown = assembly.bus.last_values[ASPECTS]["aspects"]
+    return {end: aspect for end, aspect in shown.items() if aspect != "stop"}
+
+
+def granted(assembly: Assembly) -> list[str]:
+    return [line["into"] for line in events(assembly.trace, "move_granted")]
+
+
+@each_strategy
+def test_a_signal_shows_stop_over_a_train_whose_block_read_clear_in_a_drain(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """Drained and its detector dropped: the power coming back grants it
+    nothing, so no signal along its route says it may go. It keeps its locks,
+    and when the block reads occupied again it goes and they show (#1160)."""
+    assembly = under_way(strategy)
+    reading(assembly, OCCUPIED, "dn_w")
+    press(assembly, *power(DRAINING))
+    reading(assembly, VACATED, "yard_w")
+    reading(assembly, VACATED, "dn_w")
+    press(assembly, *power(ON))
+
+    assert granted(assembly) == ["dn_w"]
+    assert proceed(assembly) == {}
+    assert assembly.dispatcher.state.locks["dn_e"] == "freight_1"
+
+    reading(assembly, OCCUPIED, "dn_w")
+
+    assert granted(assembly) == ["dn_w", "dn_e"]
+    assert proceed(assembly) == {"dn_w.B": "clear", "dn_e.B": "caution"}
+
+
+@each_strategy
+def test_a_signal_shows_stop_over_a_train_whose_block_read_clear_with_the_power_on(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """The arrival block drops before the origin clears, so the move ends with
+    the train disputed, and no drain was involved (#1160)."""
+    assembly = under_way(strategy)
+    reading(assembly, OCCUPIED, "dn_w")
+    reading(assembly, VACATED, "dn_w")
+    reading(assembly, VACATED, "yard_w")
+
+    assert granted(assembly) == ["dn_w"]
+    assert proceed(assembly) == {}
+
+
+@each_strategy
+def test_a_placement_leaves_nothing_showing_from_the_old_route(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """A person says where the disputed train stands. Its request goes with
+    the placement (ADR-0049), so nothing of the route is left lit (#1160)."""
+    assembly = under_way(strategy)
+    reading(assembly, OCCUPIED, "dn_w")
+    reading(assembly, VACATED, "dn_w")
+    reading(assembly, VACATED, "yard_w")
+
+    press(assembly, PLACEMENT_WANTED, {"train": "freight_1", "block": "up_w"})
+
+    assert assembly.bus.last_values[DISPUTED]["trains"] == []
+    assert proceed(assembly) == {}
+
+
+@each_strategy
+def test_depth_stops_at_a_locked_block_that_reads_occupied(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """A locomotive put on a block the train has locked: nothing is sent into
+    it (ADR-0077), so the signal over that move shows `stop` and the one
+    before it counts only that far. The aspects return when it reads clear
+    (#1160)."""
+    assembly = under_way(strategy)
+    before = proceed(assembly)
+    assert before["yard_w.B"] == "clear"
+    assert assembly.dispatcher.state.locks["dn_e"] == "freight_1"
+
+    reading(assembly, OCCUPIED, "dn_e")
+    assert proceed(assembly) == {"yard_w.B": "caution"}
+
+    reading(assembly, VACATED, "dn_e")
+    assert proceed(assembly) == before
+
+
+@each_strategy
+def test_a_train_waits_under_stop_at_a_locked_block_that_reads_occupied(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """It reaches the block before the locomotive and stands there, under
+    `stop` rather than `caution`, until the block reads clear (#1160)."""
+    assembly = under_way(strategy)
+    reading(assembly, OCCUPIED, "dn_e")
+    reading(assembly, OCCUPIED, "dn_w")
+    reading(assembly, VACATED, "yard_w")
+
+    assert granted(assembly) == ["dn_w"]
+    assert proceed(assembly) == {}
+
+    reading(assembly, VACATED, "dn_e")
+
+    assert granted(assembly) == ["dn_w", "dn_e"]
+
+
+def test_a_grant_with_its_second_block_reading_occupied_is_at_caution() -> None:
+    """The grant reads the depth the signal shows, so the train moves slowly
+    enough to stop at the next signal (ADR-0093, decision 4; #1160). `FullRoute`
+    alone: `Incremental` never locks a block that reads occupied ahead of the
+    grant, and refuses this one as unsafe."""
+    assembly = under_way(FullRoute)
+    reading(assembly, OCCUPIED, "yard_e")
+    reading(assembly, OCCUPIED, "dn_w")
+    reading(assembly, VACATED, "yard_w")
+
+    last = events(assembly.trace, "move_granted")[-1]
+    assert (last["into"], last["aspect"]) == ("dn_e", "caution")
+
+
+@each_strategy
+def test_a_crossing_train_whose_origin_reads_clear_keeps_its_signals(
+    strategy: type[Incremental | FullRoute],
+) -> None:
+    """The ordinary railroad: a train between two blocks is not disputed, so
+    the signals ahead of it stand (#1160)."""
+    assembly = under_way(strategy)
+    before = proceed(assembly)
+
+    reading(assembly, VACATED, "yard_w")
+
+    assert assembly.bus.last_values[DISPUTED]["trains"] == []
+    assert proceed(assembly) == before
 
 
 def test_a_trace_line_keeps_the_inventory_field_order() -> None:
