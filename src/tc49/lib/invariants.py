@@ -1170,7 +1170,9 @@ class Record:
 
         A move still waiting to start whose head is in its block has begun,
         whoever was driving: no speed written from here is its start, the train
-        being past its near end (a train a throttle held, then released)."""
+        being past its near end (a train a throttle held, then released). Bar
+        one waiting for a reported point, which `layout` has not started however
+        far a person ran the train (ADR-0097, decision 6, #1170)."""
         level = detected(payload)
         if level == UNKNOWN:
             return
@@ -1182,6 +1184,7 @@ class Record:
                 and ends is not None
                 and ends[0] == end
                 and not self._reverses(train, commanded)
+                and not self.waits(train)
             ):
                 self._begun(train, commanded)
         self.going = {

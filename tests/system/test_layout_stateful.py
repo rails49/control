@@ -190,6 +190,22 @@ def test_on_releasing_a_train_placed_while_running() -> None:
     press(bus, TAKE_WANTED, {"train": "single", "throttle": None})
 
 
+def test_on_releasing_a_train_run_in_while_its_move_waits_for_a_point() -> None:
+    """`single`'s move waits for reported point 12, and a throttle holds it as
+    its entry sensor settles occupied. The silent throttle lets go in that same
+    turn, and `layout`, with no crossing, writes 0, as ADR-0097 has it for a move
+    waiting. The invariants had taken the sensor for the move's start and read
+    that 0 as a train stopped mid-move (#1170). Found by the state machine
+    below.
+    """
+    bus, app, clock = assembled()
+    started(bus)
+    press(bus, SENSOR, {"addr": "up_w.B", "occupancy": "occupied"})
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
+    elapse(clock, THROTTLE_SILENCE_S)
+    settle(bus, app, clock)
+
+
 @settings(deadline=None, stateful_step_count=40, max_examples=1500)
 class LayoutUnderTheAssembly(RuleBasedStateMachine):
     """One run of the bench railroad, driven one publish at a time."""
