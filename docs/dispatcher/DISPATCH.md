@@ -66,6 +66,8 @@ depth, so a train with an occupied block two ahead runs at `caution`.
 A block is **out of use** while either of its sensors is on
 `tc49/layout/state/unknown_sensors`: the dispatcher treats it as if it did not
 exist, and the rest of the railroad runs ([#1152](https://github.com/rails49/control/issues/1152)). No row means none.
+This section covers the sensor cause; [GLOSSARY.md](../../GLOSSARY.md)'s
+**Out of use** lists every cause.
 
 - **Nothing in.** `State.obstacle` answers `held` for it, with holder `""` where
   nobody holds it, as for a block reading occupied, whoever asks. There is no
