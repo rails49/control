@@ -126,9 +126,10 @@ def test_incremental_grants_are_pinned_where_nothing_has_failed() -> None:
     This pins what `Incremental` grants and refuses over the most contended
     scenario, recorded before `safety_view` learned to leave out a train that
     cannot finish (#1150): with no failure, every active train can finish and
-    the search never runs, so not one grant may move. Regenerate like the
-    goldens, with TC49_REGEN_GOLDENS=1, and read the diff before committing
-    it."""
+    the search never runs, so not one grant may move. Recorded again when the
+    lock table came to follow a train by its sensors (#1171), which moves the
+    grants, the search still not running. Regenerate like the goldens, with
+    TC49_REGEN_GOLDENS=1, and read the diff before committing it."""
     layout, roster, scenario = load("reversing-loops/saturation")
     trace = run_scenario(layout, roster, scenario, Incremental, DEFAULT_K)
     grants = "".join(
