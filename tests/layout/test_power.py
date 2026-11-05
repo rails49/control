@@ -59,6 +59,7 @@ from tests.layout.railroad import (
     stock,
     takes,
     turns,
+    unheard,
     wired,
 )
 
@@ -141,7 +142,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
     the honest one: which railroad this is (#371), then the supply commanded
     off, then what the app believes about it, then who drives: people, with
     no train in a throttle (ADR-0079), no function on (#849), the railroad's
-    settings (#1125), and no sensor unknown (#1148)."""
+    settings (#1125), and every sensor unknown (#1148, #1151)."""
     clock = Clock()
     bus = InProcessBus(clock)
     seen = heard(bus, "tc49/#")
@@ -156,7 +157,7 @@ def test_the_railroad_comes_up_off_before_anything_else() -> None:
         (TAKEN, {"at": 0.0, "taken": {}}),
         (FUNCTIONS, {"at": 0.0, "functions": {}}),
         (SETTINGS, {"at": 0.0, **settings_row()}),
-        (UNKNOWN_SENSORS, {"at": 0.0, "sensors": []}),
+        (UNKNOWN_SENSORS, {"at": 0.0, "sensors": unheard()}),
     ]
 
 

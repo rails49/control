@@ -70,12 +70,15 @@ from tests.layout.railroad import (
     FUNCTION_WANTED,
     MOVE,
     PLACED,
+    SENSOR,
     TAKE_WANTED,
     align,
     energised,
     faces,
     move,
     railroad,
+    report,
+    settle,
     stand,
     stock,
     switches,
@@ -264,8 +267,10 @@ def layout_run() -> Recorded:
     bus = InProcessBus(clock)
     seen = recording(bus)
     # No point gap (#1127): the move's traction is written at once.
-    LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
+    app = LayoutInterface(bus, railroad(), stock(), clock, point_gap=0.0)
     bus.drain()
+    report(bus)
+    settle(bus, app, clock)
     switches(bus, "automatic")
     takes(bus, "topped")
     energised(bus)
@@ -287,6 +292,7 @@ def layout_run() -> Recorded:
         ASPECTS,
         ALIGN,
         MOVE,
+        SENSOR,
     }
     return [(topic, payload) for topic, payload in seen if topic not in ours]
 

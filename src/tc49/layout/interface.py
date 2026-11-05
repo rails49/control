@@ -118,6 +118,17 @@ no counter and no dedup. `unknown` is no information about an end — the level
 held stands, no edge comes of it, and the `reason` is logged once for a person
 (#288).
 
+**A sensor not reporting reads unknown** (#1151). Every sensor of the drawing
+starts on `state/unknown_sensors`, nobody having heard it, and goes back on once
+it reports `unknown` for the settling time or nothing at all for
+`sensor_silence_s`; a level that stands takes it off. The list creates no
+occupancy events, so the lock table stays correct: a block with a sensor listed
+says occupied as ever and holds back its vacate, its train being as likely under
+the sensor nobody can hear. And the train this app is driving towards a listed
+sensor stops, because that sensor is what would stop it at the arrival, and
+carries on by itself when the sensor reports `clear`. A train a throttle holds is
+the person's and is never stopped for this (ADR-0081).
+
 **Two ends into one block.** Both detectors of a block stay inside the
 interface. A block reads occupied while either of its ends does, and that fold
 is what a level change publishes. The second event a move produces is the one
@@ -129,7 +140,7 @@ block X is. Occupied then vacated, the only order the steel can produce
 occupancy: what to make of a reading nothing accounts for is the dispatcher's
 judgement and not this app's (ADR-0048).
 
-**Time.** The settling time is the one thing here that waits, and the layout
+**Time.** The settling time is what a level waits, and the layout
 interface is where a clock is allowed to be read (ADR-0009) — the simulator
 advances one and this app reads one, which is the same rule from the two
 bindings. `settle()` is what applies a level that has stood long enough,
@@ -137,8 +148,8 @@ called by whoever owns the loop, so nothing here sleeps and a test drives the
 clock directly.
 
 **The traction write.** On a `move` it acts on, this app publishes a signed
-speed for every car of the train that has an address, and `0.0` for each of
-them again on arrival. **How fast** is the move's own speed, a magnitude.
+speed for every car of the train that has an address, unless the sensor it would
+arrive at is unknown, and `0.0` for each of them again on arrival. **How fast** is the move's own speed, a magnitude.
 **Which way** is two facts composed: whether the move leaves the end the train
 faces — read off `tc49/schedule/state/facing`, there being nowhere else facing
 lives (ADR-0045) — and which way round each car is coupled. A move whose
@@ -313,6 +324,9 @@ SENSOR_SILENCE_S = settings.SENSOR_SILENCE_S
 """How long a sensor may go unheard, in seconds, by default: an installation
 keeps its own, which a person sets on `settings_wanted` (#1149)."""
 
+NO_REPORT_SINCE_START = "no report since start"
+NO_REASON_GIVEN = "no reason given"
+
 
 @dataclass(frozen=True)
 class _Crossing:
@@ -378,10 +392,12 @@ class _Crossing:
 @dataclass(frozen=True)
 class _Settling:
     """A level that has been seen and not yet acted on: what it says, and the
-    reading of the run clock at which it will have stood long enough."""
+    reading of the run clock at which it will have stood long enough. `reason`
+    is what a report of `unknown` gave for it, and nothing for any other."""
 
     level: str
     at: float
+    reason: str = ""
 
 
 def _composed(
@@ -452,7 +468,8 @@ class LayoutInterface:
 
         `sensor_silence_s`: how long a sensor may go unheard,
         `SENSOR_SILENCE_S` by default, the installation's as the throttle
-        silence is. Kept and said and not yet run on (#1151); `__main__` reads
+        silence is: a sensor unheard for this long reads unknown (#1151), and
+        it holds from the next check of who has gone silent. `__main__` reads
         it off `installation.yaml` and a person changes it on
         `settings_wanted` (#1149).
 
@@ -575,6 +592,18 @@ class LayoutInterface:
         self._occupied: dict[str, bool] = {}
         self._spent: set[str] = set()
         self._crossing: dict[str, _Crossing] = {}
+        # The sensors the drawing has, in its order; those reading unknown,
+        # each with the reason for a person, which is `state/unknown_sensors`;
+        # the reports of `unknown` waiting out the settling time; and when each
+        # sensor was last heard, on the run clock (#1151).
+        self._sensors = tuple(
+            f"{block}.{letter}" for block in layout.blocks for letter in ("A", "B")
+        )
+        self._unknown: dict[str, str] = dict.fromkeys(
+            self._sensors, NO_REPORT_SINCE_START
+        )
+        self._going_unknown: dict[str, _Settling] = {}
+        self._last_report: dict[str, float] = {}
         # The blocks a crossing has released in this call to `settle`, whose
         # vacate waits for the call's other levels (`_vacate`, #1081).
         self._released: list[str] = []
@@ -667,8 +696,8 @@ class LayoutInterface:
         bus.publish(SETTINGS, said(self._settings, self._installation))
         # Which sensors are not reporting, said so a client that joins is
         # served a value rather than left to read one out of an absence
-        # (ADR-0032). Nothing fills the list yet (#1151).
-        bus.publish(UNKNOWN_SENSORS, {"sensors": []})
+        # (ADR-0032). Every one, nothing having been heard (#1151).
+        self._publish_unknown()
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)
@@ -695,10 +724,10 @@ class LayoutInterface:
 
     def settle(self) -> None:
         """Act on every level that has now stood for the settling time, oldest
-        deadline first.
+        deadline first, then on the sensors that now read unknown.
 
-        The one thing here that waits, and the only place this app reads the
-        clock (ADR-0009). It is called by whoever owns the loop — this app's
+        What waits here, and where this app acts on the clock (ADR-0009). It
+        is called by whoever owns the loop — this app's
         own process (`__main__`), which advances the clock to wall time and
         calls this once a turn, or the suite, driving the clock rather than
         sleeping on it. Levels are applied in the order they
@@ -714,10 +743,14 @@ class LayoutInterface:
         The same turn lets go of the trains of every throttle silent for
         `throttle_silence_s`, which is the other thing here measured against
         the clock and for the same reason: a throttle that has gone says
-        nothing more to be noticed on (ADR-0079). And it writes the next
-        point a gap has come round for, and lets through the moves whose
-        points have had their gap (#1127), which nothing else would wake.
+        nothing more to be noticed on (ADR-0079). A sensor gone silent is the
+        same case, listed here after `sensor_silence_s` (#1151), and the row
+        goes out once a call, only where the list ended it changed. And it
+        writes the next point a gap has come round for, and lets through the
+        moves whose points have had their gap (#1127), which nothing else
+        would wake.
         """
+        listed = dict(self._unknown)
         due = [
             (settling.at, end, settling.level)
             for end, settling in self._settling.items()
@@ -730,6 +763,9 @@ class LayoutInterface:
         for _at, end, level in due:
             del self._settling[end]
             self._settled(end, level)
+        self._list_unknown()
+        if self._unknown != listed:
+            self._publish_unknown()
         released, self._released = self._released, []
         for block in released:
             self._vacate(block)
@@ -1219,14 +1255,31 @@ class LayoutInterface:
 
     def _give(self, block: str, crossing: _Crossing) -> None:
         """The train crossing into `block` given the speed its grant implies,
-        with its crossing this app's to drive from here to the arrival."""
+        with its crossing this app's to drive from here to the arrival. Not
+        towards a sensor reading unknown (`_blind`): it stands, and is given
+        the speed when the sensor reports `clear` (`_settled`, #1151)."""
         self._crossing[block] = replace(crossing, driving=True)
+        if self._blind(crossing):
+            if self._running(crossing.train):
+                self._stop(crossing.train)
+            return
         if crossing.implied:
             self._headed(crossing.train, crossing.heading)
         if any(speed != 0.0 for _addr, speed in crossing.implied):
             self._driven.add(crossing.train)
         for addr, speed in crossing.implied:
             self._traction_write(addr, speed)
+
+    def _blind(self, crossing: _Crossing) -> bool:
+        """Whether this app may not drive the train of this crossing, the
+        sensor it would arrive at reading unknown (#1151). The entry sensor
+        alone: with the far one unknown the arrival still reads and the train
+        stops there. A train a throttle holds is the person's (ADR-0081)."""
+        return (
+            opposite_end(crossing.far) in self._unknown
+            and crossing.outstanding
+            and crossing.train not in self._taken
+        )
 
     def _traction_rest(self) -> None:
         """Zero over every retained `wanted/traction` row the bus holds: the
@@ -1293,10 +1346,10 @@ class LayoutInterface:
         kept in its document — the gap and the speeds with the railroad, the
         two silences with the installation. A field left out, and a speed
         left out of `speeds`, keeps its value. The gap is used from the next
-        `align` and the throttle silence from the next check of who has gone
-        silent; the speeds are the driver's, and this app only keeps and
-        says them, as it does the sensor silence until #1151. Nothing is rebuilt. A gesture the contract does not read,
-        an unknown field or a value out of range, is dropped whole as any
+        `align` and each silence from the next check of who has gone silent;
+        the speeds are the driver's, and this app only keeps and says them.
+        Nothing is rebuilt. A gesture the contract does not read, an unknown
+        field or a value out of range, is dropped whole as any
         malformed gesture is (ADR-0034)."""
         wanted = wanted_settings(payload)
         if wanted is None:
@@ -1427,7 +1480,8 @@ class LayoutInterface:
         **standing**, whose last speed written is `0.0` on every car or none
         at all, the zeros at startup and at a cut counting: it would hold its
         route and never reach its sensor, so it is given its grant's speed
-        (ADR-0083, `_take_up`).
+        (ADR-0083, `_take_up`). And bar one heading for a sensor reading
+        unknown, which `_take_up` stops (#1151).
 
         **In `automatic` otherwise**, with no move outstanding or over dead
         rails, `_take_up` writes `0.0`.
@@ -1443,7 +1497,12 @@ class LayoutInterface:
             self._stop(train)
             return
         flight = self._outstanding(train)
-        if flight is not None and self._power != OFF and self._running(train):
+        if (
+            flight is not None
+            and self._power != OFF
+            and self._running(train)
+            and not self._blind(flight[1])
+        ):
             block, crossing = flight
             self._crossing[block] = replace(crossing, driving=True)
             return
@@ -1997,55 +2056,124 @@ class LayoutInterface:
         differs starts the settling time, and one that goes back inside that
         window cancels it: the flip is never seen upstream, which is what a
         detector running at 2-8 Hz with no debounce of its own needs from the
-        consumer.
+        consumer. Bar a sensor on the list: a level equal to the one held
+        settles like a new one, since standing is what takes it off the list
+        and releases a vacate held back on it (#1151).
 
-        `unknown` is **no information** about that end. It is not a level to
-        settle, it does not cancel a level that is settling, and it does not
-        discard the level held: the end goes on reading whatever it last
-        actually said. The `reason` is logged once per transition into
-        `unknown`, for a person — the detector knows why it cannot say, and
-        nothing in the system branches on it (BUS.md, *what the hardware
-        reports back*).
+        `unknown` is **no information** about that end's level. It is not a
+        level to settle, it does not cancel a level that is settling, and it
+        does not discard the level held: the end goes on reading whatever it
+        last actually said. What it does is list the sensor once it has stood
+        for the settling time, a level within that time cancelling it (#1151).
+        The `reason` is logged once per transition into `unknown`, for a person
+        — the detector knows why it cannot say, and nothing in the system
+        branches on it (BUS.md, *what the hardware reports back*).
+
+        Any report at all, `unknown` or a level, restarts the sensor's silence,
+        by this app's clock at receipt.
 
         The address is the block end the detector watches, the report's
-        `addr`, and whether it names an end of this railroad is not asked: a
-        reading for an end no block here has folds into a block nothing above
-        will claim, and the dispatcher already names a reading it
-        cannot explain (#1154).
+        `addr`, and a reading for an end no block here has is never listed: it
+        folds into a block nothing above will claim, and the dispatcher
+        already names a reading it cannot explain (#1154).
         """
         level = detected(payload)
         said, self._said[end] = self._said.get(end), level
+        now = self._clock.now
+        on_drawing = end in self._sensors
+        if on_drawing:
+            self._last_report[end] = now
         if level == UNKNOWN:
+            if on_drawing and end not in self._going_unknown:
+                self._going_unknown[end] = _Settling(
+                    UNKNOWN,
+                    now + self._settling_s,
+                    reported_reason(payload) or NO_REASON_GIVEN,
+                )
             if said != UNKNOWN:
                 _log.info(
                     "detector at %s says unknown: %s",
                     end,
-                    reported_reason(payload) or "no reason given",
+                    reported_reason(payload) or NO_REASON_GIVEN,
                 )
             return
-        if level == self._level.get(end):
+        self._going_unknown.pop(end, None)
+        if level == self._level.get(end) and end not in self._unknown:
             self._settling.pop(end, None)
             return
         settling = self._settling.get(end)
         if settling is not None and settling.level == level:
             return
-        self._settling[end] = _Settling(level, self._clock.now + self._settling_s)
+        self._settling[end] = _Settling(level, now + self._settling_s)
+
+    def _list_unknown(self) -> None:
+        """Every sensor that now reads unknown, listed: a report of `unknown`
+        that has stood for the settling time, and a sensor with no report of
+        any kind for `sensor_silence_s`. One already listed keeps its place
+        and takes the reason a report now gives (#1151)."""
+        now = self._clock.now
+        for end, going in list(self._going_unknown.items()):
+            if going.at <= now:
+                del self._going_unknown[end]
+                self._call_unknown(end, going.reason)
+        silence = self._installation.sensor_silence
+        for end in self._sensors:
+            if end not in self._unknown and now - self._last_report[end] >= silence:
+                self._call_unknown(end, f"no report for {silence:g} s")
+
+    def _call_unknown(self, end: str, reason: str) -> None:
+        """A sensor on the list with this reason, and, newly there, the train
+        this app is driving towards it stopped (#1151)."""
+        newly = end not in self._unknown
+        self._unknown[end] = reason
+        crossing = self._crossing.get(block_of(end))
+        if (
+            newly
+            and crossing is not None
+            and crossing.driving
+            and end == opposite_end(crossing.far)
+            and self._blind(crossing)
+        ):
+            self._stop(crossing.train)
+
+    def _publish_unknown(self) -> None:
+        """`state/unknown_sensors`: `reported` is whether this sensor has had
+        a level stand since this app started, which is what `_level` holds."""
+        self._bus.publish(
+            UNKNOWN_SENSORS,
+            {
+                "sensors": [
+                    {
+                        "sensor": end,
+                        "reason": self._unknown[end],
+                        "reported": end in self._level,
+                    }
+                    for end in sorted(self._unknown)
+                ]
+            },
+        )
 
     def _settled(self, end: str, level: str) -> None:
         """A level that has stood for the settling time, turned into whatever
         events it is worth.
 
-        Three things come of it. A **block** reads occupied while either of
-        its ends does, and a change in that fold is the block's own occupancy
-        event — the block a hand put a locomotive on, as much as the block a
-        train was granted, since a level no move explains is still a level and
-        judging it is the dispatcher's (ADR-0048). Bar an end a departure has
-        already spent: that level is the train that left, and `_release` has
-        said so once already (#311).
+        It takes the sensor off the list, if it was on it (#1151). Then three
+        things come of it. A **block** reads occupied while either of its ends
+        does, and a change in that fold is the block's own occupancy event —
+        the block a hand put a locomotive on, as much as the block a train was
+        granted, since a level no move explains is still a level and judging it
+        is the dispatcher's (ADR-0048). Bar an end a departure has already
+        spent: that level is the train that left, and `_release` has said so
+        once already (#311). And its vacate only where neither of its sensors
+        is unknown: an end with no level, or one gone silent, may have a train
+        under it, so the vacate waits until that sensor reports `clear`
+        (#1151). `occupied` from either goes out at once.
 
         Where the block is one a train is crossing into, the first of its ends
         to read occupied is the **arrival**, and the train is told to stand
-        where this app or a throttle was driving it (#296, ADR-0079).
+        where this app or a throttle was driving it (#296, ADR-0079). The entry
+        sensor coming off the list `clear` is instead the train not there yet,
+        and it carries on (`_carry_on`, #1151).
 
         And its **second** sensor going occupied says the train is fully in,
         so the block behind is clear. That is the one event no detector could
@@ -2060,6 +2188,7 @@ class LayoutInterface:
         amending ADR-0047).
         """
         self._level[end] = level
+        came_back = self._unknown.pop(end, None) is not None
         # This end has just said something of its own, so whatever a departure
         # spent of it is spent no longer.
         self._spent.discard(end)
@@ -2068,7 +2197,8 @@ class LayoutInterface:
             self._level.get(watched) == OCCUPIED and watched not in self._spent
             for watched in (end, opposite_end(end))
         )
-        if self._occupied.get(block) != occupied:
+        held_back = not occupied and opposite_end(end) in self._unknown
+        if self._occupied.get(block) != occupied and not held_back:
             self._occupied[block] = occupied
             if occupied:
                 # A block this app has just said is occupied is a block whose
@@ -2081,7 +2211,11 @@ class LayoutInterface:
             if not occupied:
                 self._left(block)
         crossing = self._crossing.get(block)
-        if crossing is None or level != OCCUPIED:
+        if crossing is None:
+            return
+        if level != OCCUPIED:
+            if came_back and end == opposite_end(crossing.far):
+                self._carry_on(block, crossing)
             return
         if crossing.outstanding:
             # The arrival: the train is in the block it was sent to, so it is
@@ -2104,6 +2238,15 @@ class LayoutInterface:
             del self._crossing[block]
             self._release(crossing.origin)
             self._released.append(crossing.origin)
+
+    def _carry_on(self, block: str, crossing: _Crossing) -> None:
+        """The entry sensor back and reading `clear`, so the train it stopped
+        is given its speed with no press, in `automatic` over live rails, a
+        drain being live (#1151). In `manual` a throttle takes it or a switch
+        to `automatic` does (`_take_up`), and under `off` the `on` does
+        (`_resume`). A grant that implies nothing writes nothing (`_give`)."""
+        if crossing.outstanding and self._drives(crossing.train) and self._power != OFF:
+            self._give(block, crossing)
 
     def _release(self, block: str) -> None:
         """The block a train has just left, said once however the two routes

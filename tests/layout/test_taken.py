@@ -275,7 +275,7 @@ def released_running(
     """In `automatic`, `single` taken, granted, driven at 0.4 mid-move and
     released — by `take_wanted` with `null`, or by its throttle going silent —
     and every traction write from the take on."""
-    bus, app, clock = wired()
+    bus, app, clock = wired(sensor_silence_s=2 * THROTTLE_SILENCE_S)
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")

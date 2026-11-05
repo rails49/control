@@ -46,7 +46,7 @@ def ready(
 ) -> tuple[InProcessBus, LayoutInterface, Clock, list[tuple[str, Payload]]]:
     """A live railroad with `single` standing in `up_w` facing nose-first
     over `to_dn`, and every point write from here on."""
-    bus, app, clock = wired(point_gap=gap)
+    bus, app, clock = wired(point_gap=gap, sensor_silence_s=60.0)
     energised(bus)
     stand(bus, "single", "up_w")
     faces(bus, single="up_w.A-to-B")
