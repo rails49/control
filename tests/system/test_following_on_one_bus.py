@@ -5,7 +5,9 @@ has a say in it on one bus (#1171).
 with `tc49.lib.invariants` held throughout, the sensors told what the steel would
 make them read as a long train and as a short one pass from `a` to `d`. Each runs
 with no stop until `d`'s far sensor, its request completes, and every lock but `d`
-is released. Then the same on the simulator as the binding.
+is released. Then the same on the simulator as the binding, which has no train
+lengths, so it runs its one pattern of readings and writes no traction: there, no
+stop is each next move granted as the head reaches its block.
 """
 
 import pytest
@@ -100,7 +102,15 @@ def test_the_same_run_on_the_simulator() -> None:
         "c",
         "d",
     ]
-    assert len(events(assembly.trace, "request_completed")) == 1
+    read_at = {
+        (reading["addr"], reading["occupancy"]): reading["time"]
+        for reading in events(assembly.trace, "settled/sensor")
+    }
+    grants = events(assembly.trace, "move_granted")
+    assert grants[1]["time"] == read_at[("b.A", "occupied")]
+    assert grants[2]["time"] == read_at[("c.A", "occupied")]
+    [completed] = events(assembly.trace, "request_completed")
+    assert completed["time"] == read_at[("d.A", "clear")]
     picture = events(assembly.trace, "allocation")[-1]
     assert picture["locks"] == {"d": TRAIN}
     assert picture["occupied"] == {TRAIN: ["d"]}

@@ -680,12 +680,37 @@ def test_a_second_train_through_the_same_sensor_changes_nothing_for_the_first() 
     railroad.request("r-1", "dn_w.A", "yard_w.B")
     railroad.read("dn_w.A")
     railroad.clear("dn_w.A")
-    railroad.lists("yard_w.B")
     assert railroad.on() == [T1]
     locks = {r for r, by in railroad.state.locks.items() if by == TRAIN}
 
+    railroad.request("r-2", "up_e.A", "dn_w.B", train="express_2")
+    assert railroad.granted() == ["yard_w", "dn_w"]
+    railroad.read("dn_w.B")
     railroad.read("dn_w.A")
+    railroad.clear("dn_w.B")
     railroad.clear("dn_w.A")
 
+    assert railroad.state.occupied["express_2"] == ["dn_w"]
     assert railroad.on() == [T1]
     assert {r for r, by in railroad.state.locks.items() if by == TRAIN} == locks
+    assert railroad.state.crossing[TRAIN] == T1
+
+
+def test_a_move_into_the_block_released_expects_nothing_more() -> None:
+    """`dn_w.B` clearing gives `dn_w` up, so the older move into `dn_w` is dropped:
+    `dn_w.A` clearing later, its entry sensor, may be another train's, and releases
+    nothing of this one."""
+    railroad = Railroad()
+    railroad.request("r-1", "yard_w.B", "yard_e.A")
+    railroad.read("dn_w.A")
+    railroad.read("dn_w.B")
+
+    railroad.clear("dn_w.B")
+
+    assert "dn_w" not in railroad.state.locks
+    assert [each.move.into for each in railroad.state.following[TRAIN]] == ["dn_e"]
+
+    railroad.clear("dn_w.A")
+
+    assert railroad.state.locks[T1] == TRAIN
+    assert railroad.on() == ["yard_w", T1, T2]
