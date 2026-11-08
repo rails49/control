@@ -346,8 +346,10 @@ the `0.0` and the speed: nothing reports that a train has stopped,
 [ADR-0084](../adr/0084-a-reverser-moves-only-with-the-lever-at-0.md) rejected a
 fixed wait as a guess at CV4, and it measured a decoder ramping through 0 with no
 jolt. A withdrawal, a placement and a removal drop the held move as they drop the
-other waiting moves, and a second `move` for the same transit replaces it. A
-withdrawal asked while the train runs takes effect at the arrival: stopping the
+other waiting moves, and a second `move` for the same transit replaces it,
+unless the near-end check drops it first: one whose near end is in the block
+the train left is dropped, and the held move and any withdrawal asked for it
+stand. A withdrawal asked while the train runs takes effect at the arrival: stopping the
 train earlier could leave it on the points, so it runs on to its far sensor, stops
 there and the move never starts, `move_withdrawn` going out after the `0.0`
 ([#1176](https://github.com/rails49/control/issues/1176)). A placement or a removal

@@ -949,7 +949,10 @@ nothing further, and `layout` is asked for the move back on
 the move enters. `layout`, which writes every speed a train is
 given, takes it back only where nothing has driven the train: it is not
 running now, was not running when the move was acted on — a decoder keeps the
-last speed it was given — and has been written none but `0.0` since. A move
+last speed it was given — and has been written none but `0.0` since. The one
+exception is a move held for its train's arrival: asked back while the train
+runs, it is answered at the far sensor, where the train stops and the move
+never starts, and the request retires then (#1176). A move
 it has not seen yet counts as carried out where the train already stands in
 the block the move enters, and is otherwise taken back and its late `move`
 dropped. It says so on `tc49/layout/move_withdrawn`; the request

@@ -32,8 +32,10 @@ whether the names name anything here is `lib.layout`'s.
 if it was running when its move was acted on — the last speed written on some
 addressed car not `0.0`, a decoder keeping what it was last told — or if a
 non-zero speed has been written to any of its addressed cars since. No
-withdrawal is taken while the train is running, whatever state its move is
-in, and otherwise none of a move acted on and driven (#1068, #1076).
+withdrawal is taken while the train is running, except of a move held for that
+train's arrival: the ask is kept and answered at the far sensor, where the
+train stops and the move never starts (#1176). Otherwise none is taken of a
+move acted on and driven (#1068, #1076).
 
 Three rules govern the two commands, and each exists because the bus promises
 less than it looks like it does. A fourth thing stops a `move`, and it is a
