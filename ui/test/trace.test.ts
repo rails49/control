@@ -362,6 +362,7 @@ describe("Ordering", () => {
       "facing",
       "functions",
       "moving",
+      "overdue",
       "power",
       "railroad",
       "settings",

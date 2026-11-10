@@ -803,6 +803,29 @@ def unknown_sensors(payload: object) -> frozenset[str] | None:
     return frozenset(listed)
 
 
+def overdue(payload: object) -> frozenset[str] | None:
+    """The trains `state/overdue` lists, or None for a row that cannot be read,
+    which is dropped and leaves the last value standing (BUS.md).
+
+    All of it or none, as `unknown_sensors` is: one entry that names no train
+    drops the row. `into` and `reason` are the page's, and are not read here.
+    """
+    if not isinstance(payload, dict):
+        return None
+    entries = cast(dict[str, object], payload).get("trains")
+    if not isinstance(entries, list):
+        return None
+    listed: set[str] = set()
+    for entry in cast(list[object], entries):
+        if not isinstance(entry, dict):
+            return None
+        train = cast(dict[str, object], entry).get("train")
+        if not isinstance(train, str) or not train:
+            return None
+        listed.add(train)
+    return frozenset(listed)
+
+
 def detected(payload: object) -> str:
     """What one detector says it sees at the block end its report names:
     `occupied`, `clear` or `unknown`, and `unknown` for a report that cannot

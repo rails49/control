@@ -100,6 +100,12 @@ TOPICS: dict[str, Topic] = {
     # `layout` started, which tells one that stopped from one never heard
     # (#1148).
     "tc49/layout/state/unknown_sensors": Topic((AT, "sensors")),
+    # The trains `layout` stopped because a move did not arrive within the
+    # arrival allowance, from the binding that is running: `trains` is a list
+    # sorted by `train`, each `{train, into, reason}`, `into` the block the
+    # move was entering as `move` names it and `reason` free text for a
+    # person. The simulator says it empty and never changes it (#1189).
+    "tc49/layout/state/overdue": Topic((AT, "trains")),
     "tc49/layout/power_wanted": Topic(("power",), browser=True),
     "tc49/layout/state/power": Topic((AT, "power")),
     "tc49/layout/align": Topic(("connection", "transit", "points")),
