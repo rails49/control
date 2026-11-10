@@ -58,6 +58,11 @@ NEVER_SILENT_S = 1e9
 """Longer than any run here: nothing repeats a report, so a shorter silence would
 take every block out of use as `time_passes` runs."""
 
+NEVER_LATE_S = 1e9
+"""Longer than any run here: `time_passes` adds up past the arrival allowance,
+and a move standing on a rule that never reports its arrival would be stopped
+and listed overdue (#1190)."""
+
 UNMINTED = "nobody-minted-this"
 """A request id no scheduler minted: a stale or forged gesture's."""
 
@@ -95,7 +100,13 @@ def assembled() -> tuple[InProcessBus, LayoutInterface, Clock]:
     bus = InProcessBus(clock)
     # No point gap (#1127): nothing here advances the clock for a point.
     app = LayoutInterface(
-        bus, layout, roster, clock, point_gap=0.0, sensor_silence_s=NEVER_SILENT_S
+        bus,
+        layout,
+        roster,
+        clock,
+        point_gap=0.0,
+        sensor_silence_s=NEVER_SILENT_S,
+        arrival_allowance_s=NEVER_LATE_S,
     )
     Scheduler(bus, layout, {}, nonce=NONCE)
     Dispatcher(bus, layout, roster, {}, Incremental(layout, DEFAULT_K))
