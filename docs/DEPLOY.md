@@ -401,7 +401,10 @@ such document it is 5 s.
 
 The sensor silence, how long a sensor may go unheard, is set and kept the same
 way, beside it in the same document, and is 3 s where the document says none
-([#1149](https://github.com/rails49/control/issues/1149)).
+([#1149](https://github.com/rails49/control/issues/1149)). So is the arrival
+allowance, how long a move may run without arriving, from 5 to 600 seconds and
+60 s where the document says none
+([#1188](https://github.com/rails49/control/issues/1188)).
 
 ### The camera's login
 

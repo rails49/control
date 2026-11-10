@@ -91,7 +91,11 @@ app starts, before any railroad is loaded: none is 5 s, and one that does not
 read is said in the log and treated as none. A person sets it on
 `settings_wanted`, 2 to 60 seconds, and `layout` writes it back there
 ([DEPLOY.md](../DEPLOY.md#a-silent-throttle),
-[#1132](https://github.com/rails49/control/issues/1132)).
+[#1132](https://github.com/rails49/control/issues/1132)). The sensor silence
+and the arrival allowance are read and written the same way, beside it in the
+same document: none is 3 s and 60 s, the allowance set from 5 to 600 seconds
+([#1149](https://github.com/rails49/control/issues/1149),
+[#1188](https://github.com/rails49/control/issues/1188)).
 
 The broker before the documents, because a railroad the store has not got is
 one this app **stands** on: up, naming no railroad (`""`) on

@@ -99,6 +99,12 @@ move that waits on it, goes ahead: one per railroad, kept with it and set from
 the Settings dialog ([SYSTEM.md](docs/SYSTEM.md)).
 _Avoid_: point delay, throw interval
 
+**Arrival allowance**:
+How long `layout` lets a move it drives run without arriving before it stops
+the train: one for the installation, set from the Settings dialog
+([BUS.md](docs/BUS.md)).
+_Avoid_: timeout, deadline, expiry
+
 **Position**:
 What a point's motor is set to: `closed` or `thrown`
 ([DRAWING.md](docs/store/DRAWING.md#hardware-ids)).

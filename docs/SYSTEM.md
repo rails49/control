@@ -274,10 +274,12 @@ LAN is still the trust boundary and a browser is not on it
   which it writes and reads back as it starts so that a reboot comes up on
   the same railroad
   ([ADR-0072](adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)),
-  and `installation.yaml`, the installation's settings, so far the throttle
-  silence, which the layout binding reads once as it starts and writes when
-  a person sets it
-  ([#1132](https://github.com/rails49/control/issues/1132)).
+  and `installation.yaml`, the installation's settings, the throttle
+  silence, the sensor silence and the arrival allowance, which the layout
+  binding reads once as it starts and writes when a person sets one
+  ([#1132](https://github.com/rails49/control/issues/1132),
+  [#1149](https://github.com/rails49/control/issues/1149),
+  [#1188](https://github.com/rails49/control/issues/1188)).
   `GET /backup` also answers how far behind the copy off the machine is, in
   `copy`: how many backups the remote has not been given — every one on the
   branch where a remote has no upstream — how long the oldest has been waiting
@@ -1216,10 +1218,11 @@ waits at least one gap, and a reported point still waits for its
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
 loaded: the point gap and the driver's speeds, the railroad's, and the
-throttle silence and the sensor silence, the installation's and the same
-whatever railroad is loaded
+throttle silence, the sensor silence and the arrival allowance, the
+installation's and the same whatever railroad is loaded
 ([#1130](https://github.com/rails49/control/issues/1130),
-[#1149](https://github.com/rails49/control/issues/1149)). A person sets any
+[#1149](https://github.com/rails49/control/issues/1149),
+[#1188](https://github.com/rails49/control/issues/1188)). A person sets any
 of them with `settings_wanted`, each field optional and the whole dropped
 where any is out of range
 ([#1131](https://github.com/rails49/control/issues/1131)), taken at any
@@ -1229,12 +1232,15 @@ silent, as is the sensor silence for who has gone unheard
 ([#1151](https://github.com/rails49/control/issues/1151)); the speeds are the
 driver's, and `layout` also reads `caution` for its drop, from the next check. The gap and the
 speeds are kept with the
-railroad in `layouts/<layout>.settings.yaml`, the two silences with the
-installation in `installation.yaml`, read once as `layout` starts
+railroad in `layouts/<layout>.settings.yaml`, the two silences and the
+arrival allowance with the installation in `installation.yaml`, read once as
+`layout` starts
 ([#1132](https://github.com/rails49/control/issues/1132),
-[#1149](https://github.com/rails49/control/issues/1149)). A
+[#1149](https://github.com/rails49/control/issues/1149),
+[#1188](https://github.com/rails49/control/issues/1188)). `layout` keeps and says the arrival allowance and runs on
+nothing yet ([#1190](https://github.com/rails49/control/issues/1190)). A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
-and the speeds 0.6 and 0.3, an installation that keeps none at 5 s and 3 s, and
+and the speeds 0.6 and 0.3, an installation that keeps none at 5 s, 3 s and 60 s, and
 nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
