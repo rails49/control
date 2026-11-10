@@ -1127,7 +1127,7 @@ app but the UI makes
 `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`,
 `tc49/schedule/state/facing`, `tc49/layout/sensor` and `tc49/layout/state/device/#`. *Publishes*
 `state/railroad`, `state/settled/sensor/<block>.<end>`, `move_withdrawn`, `state/power`,
-`state/unknown_sensors` and the desired half of the device vocabulary
+`state/unknown_sensors`, `state/overdue` and the desired half of the device vocabulary
 ([BUS.md](BUS.md#device-vocabulary)).
 
 That is the **role's** footprint, and its two bindings meet all of it. The

@@ -101,8 +101,8 @@ _Avoid_: point delay, throw interval
 
 **Arrival allowance**:
 How long `layout` lets a move it drives run without arriving before it stops
-the train: one for the installation, set from the Settings dialog
-([BUS.md](docs/BUS.md)).
+the train and lists it on `tc49/layout/state/overdue`: one for the
+installation, set from the Settings dialog ([BUS.md](docs/BUS.md)).
 _Avoid_: timeout, deadline, expiry
 
 **Position**:
@@ -389,6 +389,13 @@ or anywhere else, is not moving, nor is one `layout` has stopped with both its
 sensors `unknown`. It is a boolean beside power, not a fourth value
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: busy, in motion, rolling, quiet, still (say not moving)
+
+**Overdue**:
+Of a train: stopped by `layout` because its move did not arrive within the
+arrival allowance, and listed on `tc49/layout/state/overdue` until it arrives, a
+throttle takes it, or it is placed or removed. Its route and locks stay held, and
+nothing retries ([BUS.md](docs/BUS.md)).
+_Avoid_: late, stalled (one cause), timed out, expired
 
 **Cancellation**:
 A request ended without the train arriving, because a person cancelled it or
