@@ -322,6 +322,11 @@ def _listed(view: View) -> frozenset[str]:
     return unknown_sensors(view.rows.get(UNKNOWN_SENSORS)) or frozenset()
 
 
+def _overdue(view: View) -> frozenset[str]:
+    """The trains `state/overdue` lists, none for no row or an unreadable one."""
+    return overdue(view.rows.get(OVERDUE)) or frozenset()
+
+
 def _locked_ahead(
     locks: Mapping[str, str],
     journey: _Journey,
@@ -567,13 +572,15 @@ def _both_listed(
 
 def adr_0062_moving_while_crossing(view: View) -> list[str]:
     """`moving` is true whenever a train is crossing, unless both sensors of the
-    block it is crossing into are listed, which `layout` has stopped it at
+    block it is crossing into are listed, which `layout` has stopped it at, or
+    `state/overdue` lists the train
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-    as narrowed by #844, #1152 and #1171). The other direction needs the
+    as narrowed by #844, #1152, #1171 and #1191). The other direction needs the
     readings: `adr_0062_moving_to_the_tail`."""
     if moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
+    late = _overdue(view)
     entering = {
         journey.train: dict(zip(journey.transits, journey.blocks[1:]))
         for journey in _journeys(view)
@@ -581,7 +588,8 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
     crossing = sorted(
         train
         for train, transit in _crossing(view).items()
-        if not _both_listed(view.layout, entering.get(train, {}), transit, listed)
+        if train not in late
+        and not _both_listed(view.layout, entering.get(train, {}), transit, listed)
     )
     return [f"moving reads false with {crossing} crossing"] if crossing else []
 
@@ -777,8 +785,9 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant(
         "0062",
         "`moving` is true whenever a train is crossing, unless both sensors of"
-        " the block it is crossing into are listed.",
-        (MOVING, ALLOCATION, UNKNOWN_SENSORS),
+        " the block it is crossing into are listed or `state/overdue` lists"
+        " the train.",
+        (MOVING, ALLOCATION, UNKNOWN_SENSORS, OVERDUE),
         adr_0062_moving_while_crossing,
     ),
     Invariant(
@@ -1919,15 +1928,19 @@ def adr_0062_moving_to_the_tail(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
     """`moving` reads false only where no granted move lies between its grant and
-    its `entry` clear or `far` occupied, both those sensors listed aside
+    its `entry` clear or `far` occupied, both those sensors listed aside, and
+    every move of a train `state/overdue` lists aside
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-    #1171). Once the bus is quiet: the row follows the sweep a reading runs."""
+    #1171, #1191). Once the bus is quiet: the row follows the sweep a reading
+    runs."""
     if topic != QUIET or moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
+    late = _overdue(view)
     return [
         f"moving reads false with {train}'s move over {move.transit} under way"
         for train, moves in sorted(record.moves.items())
+        if train not in late
         for move in moves
         if move.between(listed)
     ]
@@ -2421,8 +2434,9 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "0062",
         "`moving` reads false only where no granted move lies between its grant"
         " and its `entry` clear or `far` occupied, both those sensors listed"
-        " aside.",
-        (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, LOCK_RELEASED)
+        " aside, and every move of a train `state/overdue` lists aside.",
+        (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, OVERDUE)
+        + (LOCK_RELEASED,)
         + (MOVE_WITHDRAWN, PLACEMENT_WANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0062_moving_to_the_tail,
     ),

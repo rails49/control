@@ -444,6 +444,19 @@ def test_a_crossing_with_both_sensors_unknown_is_not_moving() -> None:
     assert adr_0062_moving_while_crossing(view(MEET, rows))
 
 
+def test_a_crossing_train_listed_overdue_is_not_moving() -> None:
+    """`layout` stopped it for not arriving within the allowance, and only a
+    person can end its move (#1191)."""
+    rows = started({"west_1": "t1", "west_throat.from_1": "t1", "w_main": "t1"}) | {
+        MOVING: {"moving": False}
+    }
+    rows[ALLOCATION] = {**rows[ALLOCATION], "crossing": {"t1": "west_throat.from_1"}}
+    late = {OVERDUE: {"trains": [{"train": "t1", "into": "w_main", "reason": "x"}]}}
+
+    assert adr_0062_moving_while_crossing(view(MEET, rows | late)) == []
+    assert adr_0062_moving_while_crossing(view(MEET, rows))
+
+
 def test_depth_counts_up_to_a_block_out_of_use_in_the_aspects() -> None:
     """Two ahead locked from west_1, but the second is out of use: `caution`
     there, and `stop` at the signal over the move into it (#1152)."""
@@ -1149,6 +1162,20 @@ def test_moving_is_owed_until_the_end_of_the_move_and_not_past_it() -> None:
     assert breaches_over(
         adr_0062_moving_to_the_tail, MEET, rows, [GRANT, listing("w_main.A"), falls]
     )
+
+
+def test_moving_is_owed_for_no_move_of_a_train_listed_overdue() -> None:
+    """A train `state/overdue` lists owes no `moving`, whatever its move's
+    sensors read (#1191)."""
+    falls = (MOVING, {"moving": False})
+    rows = PLACED | {MOVING: {"moving": True}}
+    late = (OVERDUE, {"trains": [{"train": "t1", "into": "w_main", "reason": "x"}]})
+
+    assert (
+        breaches_over(adr_0062_moving_to_the_tail, MEET, rows, [GRANT, late, falls])
+        == []
+    )
+    assert breaches_over(adr_0062_moving_to_the_tail, MEET, rows, [GRANT, falls])
 
 
 def test_the_entry_sensor_owes_no_stop() -> None:
