@@ -48,6 +48,7 @@ const STATE_BROKEN = "tc49/dispatch/state/broken";
 const STATE_DISPUTED = "tc49/dispatch/state/disputed";
 const STATE_DRIVING = "tc49/layout/state/driving";
 const STATE_UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors";
+const STATE_OVERDUE = "tc49/layout/state/overdue";
 const CLOCK_WANTED = "tc49/layout/clock_wanted";
 
 /** What the band reads, as text, in the order it reads it: its readings and
@@ -168,6 +169,18 @@ describe("what the band says", () => {
     expect(chips(shell)).toEqual([]);
     await said(shell, STATE_DRIVING, { driving: "automatic" });
     expect(chips(shell)).toEqual(["automatic: 1 of 2 blocks have no sensor report"]);
+  });
+
+  /** A train `layout` stopped for not arriving, one chip each (#1192). */
+  it("shows a train overdue as a chip until the row no longer lists it", async () => {
+    const shell = await joined();
+    await said(shell, STATE_OVERDUE, {
+      trains: [{ train: "t1", into: "b", reason: "no arrival for 60 s" }],
+    });
+    expect(chips(shell)).toEqual(["t1: no arrival for 60 s"]);
+    expect(band(shell).querySelector("look-chip")!.title).toBe("t1: no arrival for 60 s");
+    await said(shell, STATE_OVERDUE, { trains: [] });
+    expect(chips(shell)).toEqual([]);
   });
 
   it("shows the store not answering as a chip", async () => {

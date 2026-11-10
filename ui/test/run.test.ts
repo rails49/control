@@ -41,6 +41,7 @@ import {
   DERIVES,
   joined,
   loads,
+  MIDDLE,
   RAILROAD,
   said,
   STOCK,
@@ -683,5 +684,45 @@ describe("a block with a sensor not reporting", () => {
     });
     await said(shell, UNKNOWN_SENSORS, { sensors: [] });
     expect(marked(shell)).toEqual([]);
+  });
+});
+
+/**
+ * A train `layout` stopped for not arriving (#1192): `no arrival` under the
+ * block that names it, and under no other.
+ */
+describe("a block naming a train overdue", () => {
+  const OVERDUE = "tc49/layout/state/overdue";
+
+  const notes = (shell: TcApp): [string, string][] =>
+    [...running(shell).renderRoot.querySelectorAll("tc-canvas")]
+      .flatMap((canvas) => [...canvas.renderRoot.querySelectorAll("text.note.overdue")])
+      .map((note) => [note.getAttribute("x")!, note.textContent!.trim()]);
+
+  async function standing(): Promise<TcApp> {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a" },
+      locks: { a: "goods" },
+      requests: [],
+    });
+    return shell;
+  }
+
+  it("says no arrival under it, and under no other block", async () => {
+    const shell = await standing();
+    await said(shell, OVERDUE, {
+      trains: [{ train: "goods", into: "b", reason: "no arrival for 60 s" }],
+    });
+    expect(notes(shell)).toEqual([[String(MIDDLE.a.x), "no arrival"]]);
+  });
+
+  it("loses it once the row no longer lists the train", async () => {
+    const shell = await standing();
+    await said(shell, OVERDUE, {
+      trains: [{ train: "goods", into: "b", reason: "no arrival for 60 s" }],
+    });
+    await said(shell, OVERDUE, { trains: [] });
+    expect(notes(shell)).toEqual([]);
   });
 });

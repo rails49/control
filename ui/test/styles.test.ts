@@ -456,6 +456,20 @@ describe("the mark on a block with a sensor not reporting", () => {
 });
 
 /**
+ * The note under a block naming a train `layout` stopped for not arriving
+ * (#1192): amber, as a dispute's note is, off the palette in both themes.
+ */
+describe("the note on a block naming a train overdue", () => {
+  const note = rule(canvasStyles.cssText, ".note.overdue");
+
+  it("is a palette entry defined in both themes", () => {
+    expect(note).toContain("var(--amber)");
+    expect(COLOURS["--amber"]).toBeDefined();
+    expect(DARK["--amber"]).toBeDefined();
+  });
+});
+
+/**
  * The run view's left pane (#895): the trains, then the requests directly
  * under them. Each takes its content's height up to half the pane and scrolls
  * on its own past that, so what is left over is below the requests rather

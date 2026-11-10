@@ -472,6 +472,12 @@ const running = css`
     fill: var(--amber);
   }
 
+  /* A train layout stopped for not arriving (#1192): amber, as a dispute's
+     note is, for the same reason. */
+  .note.overdue {
+    fill: var(--amber);
+  }
+
   /* A sensor not reporting (#1153), stopped or never heard alike. A dashed ring
      beside the outline rather than a stroke on it, so a disputed block wears
      both. The grey hint rather than amber: a railroad with no sensors wired yet
