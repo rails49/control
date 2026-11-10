@@ -461,7 +461,6 @@ export class TcApp extends LitElement {
    */
   private band(loaded: string | null) {
     const trouble = this.filing.trouble ?? this.railroad.trouble ?? this.status.trouble;
-    const fault = this.status.fault;
     const note = this.backupNote();
     const power = supply(this.standing, this.status);
     return html`
@@ -473,10 +472,8 @@ export class TcApp extends LitElement {
         ${this.filing.valid
           ? nothing
           : chip("invalid drawing", this.filing.reviewed?.refused ?? "")}
-        ${trouble === null ? nothing : chip(trouble)} ${fault === null ? nothing : chip(fault)}
-        ${this.status.broken.map((rule) => chip(`dispatcher: ${rule}`))}
-        ${this.status.disputes.map((dispute) => chip(dispute))}
-        ${this.status.unknownSensors.map((fault) => chip(fault))}
+        ${trouble === null ? nothing : chip(trouble)}
+        ${this.status.faults.map((fault) => chip(fault))}
         ${note === null
           ? nothing
           : html`<look-band-press

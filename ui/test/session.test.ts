@@ -1115,10 +1115,10 @@ describe("a sensor that stops and comes back", () => {
     const applied = vi.spyOn(Panel.prototype, "apply");
 
     stood.broker.says(UNKNOWN_SENSORS, { at: 1, sensors: [OUTAGE] });
-    expect(stood.session.status.unknownSensors).toEqual(["a.A: no report for 3 s"]);
+    expect(stood.session.status.faults).toEqual(["a.A: no report for 3 s"]);
 
     stood.broker.says(UNKNOWN_SENSORS, { at: 2, sensors: [] });
-    expect(stood.session.status.unknownSensors).toEqual([]);
+    expect(stood.session.status.faults).toEqual([]);
 
     expect(applied.mock.calls.map(([event]) => event.event)).toEqual([
       "unknown_sensors",
@@ -1130,6 +1130,6 @@ describe("a sensor that stops and comes back", () => {
     const stood = joined();
     stood.broker.says(UNKNOWN_SENSORS, { sensors: [OUTAGE] });
     stood.broker.says(RAILROAD, { name: "" });
-    expect(stood.session.status.unknownSensors).toEqual([]);
+    expect(stood.session.status.faults).toEqual([]);
   });
 });

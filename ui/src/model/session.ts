@@ -96,23 +96,17 @@ export interface RunStatus {
    *  app behind the broker gone quiet (#1113). Never a fault of the
    *  drawing itself: those are marked where they are (ADR-0024). */
   trouble: string | null;
-  /** What the hardware says is wrong with the supply, in its own words,
-   *  `null` where it says nothing (BUS.md, device vocabulary). The band shows
-   *  it as a fault beside the trouble: that one is the app's and this one is
-   *  the railroad's, and a tripped district is said nowhere else
+  /** The railroad's faults, in the band's order and in words the panel model
+   *  wrote (#1186), empty where none is: what the hardware says is wrong with
+   *  the supply, in its own words (BUS.md, device vocabulary), since a tripped
+   *  district is said nowhere else
    *  ([ADR-0050](../../../docs/adr/0050-broken-hardware-is-reported-never-worked-around.md),
-   *  [#602](https://github.com/rails49/control/issues/602)). */
-  fault: string | null;
-  /** The lock table's rules the dispatcher says it found broken, each a
-   *  line of its own, empty where it says none is (ADR-0076, #1118). The
-   *  band shows each as a fault beside the supply's. */
-  broken: readonly string[];
-  /** What the detectors dispute, one fault per entry in words the panel model
-   *  wrote (#1154). The band shows each until the row clears it. */
-  disputes: readonly string[];
-  /** The sensors not reporting, in words the panel model wrote (#1153). The
-   *  band shows each until the row clears it. */
-  unknownSensors: readonly string[];
+   *  [#602](https://github.com/rails49/control/issues/602)); each lock-table
+   *  rule the dispatcher says it found broken (ADR-0076, #1118); what the
+   *  detectors dispute (#1154); and the sensors not reporting (#1153). The
+   *  band shows each beside the trouble, until the row clears it: that one is
+   *  the app's and these are the railroad's. */
+  faults: readonly string[];
   /** The trains the run has on the layout, by name. The stock screen marks
    *  their rows "on the layout" (ui/STOCK.md). */
   placed: readonly string[];
@@ -129,10 +123,7 @@ export const QUIET: RunStatus = {
   built: true,
   allocated: false,
   trouble: null,
-  fault: null,
-  broken: [],
-  disputes: [],
-  unknownSensors: [],
+  faults: [],
   placed: [],
 };
 
@@ -974,10 +965,7 @@ export class Session {
       // Nothing, with no session joined: it is the hardware's report on the
       // railroad this page is watching, as the supply's own reading is, and a
       // page that has left a session is being told nothing.
-      fault: model?.fault ?? null,
-      broken: model?.broken() ?? [],
-      disputes: model?.disputeFaults() ?? [],
-      unknownSensors: model?.unknownSensorFaults() ?? [],
+      faults: model?.faults() ?? [],
       placed: this.standing.map(({ train }) => train),
     };
     if (!sameStatus(this.status, now)) this.status = now;
@@ -1070,10 +1058,7 @@ function sameStatus(was: RunStatus, now: RunStatus): boolean {
     was.built === now.built &&
     was.allocated === now.allocated &&
     was.trouble === now.trouble &&
-    was.fault === now.fault &&
-    same(was.broken, now.broken) &&
-    same(was.disputes, now.disputes) &&
-    same(was.unknownSensors, now.unknownSensors) &&
+    same(was.faults, now.faults) &&
     same(was.placed, now.placed)
   );
 }
