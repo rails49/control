@@ -572,15 +572,17 @@ def _both_listed(
 
 def adr_0062_moving_while_crossing(view: View) -> list[str]:
     """`moving` is true whenever a train is crossing, unless both sensors of the
-    block it is crossing into are listed, which `layout` has stopped it at, or
-    `state/overdue` lists the train
+    block it is crossing into are listed and `state/taken` does not name the
+    train, which `layout` has stopped it at, or `state/overdue` lists the train
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-    as narrowed by #844, #1152, #1171 and #1191). The other direction needs the
-    readings: `adr_0062_moving_to_the_tail`."""
+    as narrowed by #844, #1152, #1171, #1191 and #1187). A train a throttle
+    holds runs on between two unknown sensors, so it counts. The other
+    direction needs the readings: `adr_0062_moving_to_the_tail`."""
     if moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
     late = _overdue(view)
+    held = taken(view.rows.get(TAKEN))
     entering = {
         journey.train: dict(zip(journey.transits, journey.blocks[1:]))
         for journey in _journeys(view)
@@ -589,7 +591,10 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
         train
         for train, transit in _crossing(view).items()
         if train not in late
-        and not _both_listed(view.layout, entering.get(train, {}), transit, listed)
+        and (
+            train in held
+            or not _both_listed(view.layout, entering.get(train, {}), transit, listed)
+        )
     )
     return [f"moving reads false with {crossing} crossing"] if crossing else []
 
@@ -1928,21 +1933,24 @@ def adr_0062_moving_to_the_tail(
     record: Record, view: View, topic: str, payload: Payload
 ) -> list[str]:
     """`moving` reads false only where no granted move lies between its grant and
-    its `entry` clear or `far` occupied, both those sensors listed aside, and
-    every move of a train `state/overdue` lists aside
+    its `entry` clear or `far` occupied, both those sensors listed aside for a
+    train `state/taken` does not name, and every move of a train
+    `state/overdue` lists aside
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
-    #1171, #1191). Once the bus is quiet: the row follows the sweep a reading
-    runs."""
+    #1171, #1191, #1187). A train a throttle holds runs on between two unknown
+    sensors, so its move is owed `moving`. Once the bus is quiet: the row
+    follows the sweep a reading runs."""
     if topic != QUIET or moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
     late = _overdue(view)
+    held = taken(view.rows.get(TAKEN))
     return [
         f"moving reads false with {train}'s move over {move.transit} under way"
         for train, moves in sorted(record.moves.items())
         if train not in late
         for move in moves
-        if move.between(listed)
+        if move.between(frozenset() if train in held else listed)
     ]
 
 
