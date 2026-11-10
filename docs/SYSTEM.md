@@ -821,8 +821,9 @@ block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 *Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the three
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
-unread. The layout filter carries `tc49/layout/state/unknown_sensors`, read as
-the power is: on starting, from the value the bus holds, and by its stamp.
+unread. The layout filter carries `tc49/layout/state/unknown_sensors` and
+`tc49/layout/state/overdue`, each read as the power is: on starting, from the
+value the bus holds, and by its stamp.
 *Publishes* the eleven `tc49/dispatch/*` events, plus `state/moving`,
 `state/aspects`, `state/disputed`, `state/unfit`, `state/broken` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
@@ -851,9 +852,14 @@ beside power rather than a value of it — a drain is moving while a granted
 move runs to its sensor, and not once the train stands in the block it
 entered, though it keeps its route and its locks
 ([#844](https://github.com/rails49/control/issues/844)). A crossing whose entry
-sensor is listed does not count, because `layout` has stopped that train and a
-person's off press has to be able to finish its drain; one with only its far
-sensor listed does ([#1152](https://github.com/rails49/control/issues/1152)).
+and far sensors are both listed does not count, because `layout` has stopped
+that train and a person's off press has to be able to finish its drain; one
+with only one of them listed does
+([#1152](https://github.com/rails49/control/issues/1152),
+[#1171](https://github.com/rails49/control/issues/1171)). Nor does a train on
+`state/overdue`: `layout` has stopped it for not arriving within its allowance,
+and only a person can end its move
+([#1191](https://github.com/rails49/control/issues/1191)).
 `layout` reads it to end a drain by switching the supply off
 ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 The dispatcher publishes it from its constructor, so a client that joins is
