@@ -46,7 +46,7 @@ this app throws what it is told and holds no table of its own.
 `tc49/layout/state/wanted/signal/<addr>`, `tc49/layout/state/wanted/track`,
 `tc49/layout/state/power`, `tc49/layout/state/driving`,
 `tc49/layout/state/taken`, `tc49/layout/state/functions`,
-`tc49/layout/state/unknown_sensors` and
+`tc49/layout/state/unknown_sensors`, `tc49/layout/state/overdue` and
 `tc49/layout/state/settled/sensor/<block>.<end>`.
 
 The facing is the one topic here that is nobody's hardware and nobody's

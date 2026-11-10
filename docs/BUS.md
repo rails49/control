@@ -310,6 +310,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/drive/driver_alive_confirmed` | event | driver | the driver is up with a railroad loaded, said once a second ([#1113](https://github.com/rails49/control/issues/1113)) |
 | `tc49/layout/sensor` | event | any | what one sensor reads, from whatever watches it, at least once a second ([#1147](https://github.com/rails49/control/issues/1147)) |
 | `tc49/layout/state/unknown_sensors` | state | layout, simulator | the sensors that are not reporting ([#1148](https://github.com/rails49/control/issues/1148)) |
+| `tc49/layout/state/overdue` | state | layout, simulator | the trains `layout` stopped because a move did not arrive within the arrival allowance ([#1189](https://github.com/rails49/control/issues/1189)) |
 | `tc49/layout/state/settled/sensor/<block>.<end>` | state | layout, simulator | what one sensor has read for the settling time ([#1168](https://github.com/rails49/control/issues/1168), [#1170](https://github.com/rails49/control/issues/1170)) |
 | `tc49/layout/power_wanted` | event | any (browser) | give the track power, drain the railroad, or remove the supply at once ([ADR-0051](adr/0051-the-panel-commands-track-power-and-the-operator-is-the-backstop.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/layout/state/power` | state | layout | on, draining or off: whether a train may move at all ([ADR-0041](adr/0041-the-layout-says-whether-a-train-may-move-and-the-run-holds-when-it-may-not.md), [ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
@@ -603,6 +604,26 @@ what a drop would cost:
   nothing new sweeps nothing, and a change sweeps
   ([#1152](https://github.com/rails49/control/issues/1152)). The page shows it
   ([#1153](https://github.com/rails49/control/issues/1153)).
+- `tc49/layout/state/overdue` — `trains`: a list sorted by `train`, each
+  `{train, into, reason}`. `train` is the train `layout` stopped; `into` is the
+  block the move was entering, as `move` names it; `reason` is
+  `no arrival for <n> s`, `<n>` the arrival allowance in force when the train
+  was stopped, written as `no report for <n> s` is (`60`, not `60.0`): free text
+  for a person, and no consumer branches on it. Published from the
+  constructor, so a client that joins is served a value
+  ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md)),
+  and whenever the list changes. The constructor runs at each build, as the app
+  starts and each time a railroad is loaded, after the load has cleared the row
+  with the others the binding owns
+  ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
+  so every build starts at `trains: []`. `layout` lists the trains; the
+  simulator, in its place, publishes it empty and never changes it: it keeps
+  the arrival allowance and times no move. Its consumers are the dispatcher,
+  which leaves a listed train out of `state/moving` and reads the row for
+  nothing else, and the page, which names each listed train on the band and
+  shows it on the train's marker. A consumer with no row yet treats no train as
+  overdue, and a payload that cannot be read is dropped and the last value
+  stands ([#1189](https://github.com/rails49/control/issues/1189)).
 - `tc49/layout/state/settled/sensor/<block>.<end>` — `addr`: the sensor,
   `<block>.<end>`, as on the topic. `occupancy`: `occupied` or `clear`. `layout`
   publishes it each time a level has stood for the settling time, a new one or
