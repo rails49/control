@@ -2522,23 +2522,24 @@ class Dispatcher:
         is a train the dispatcher believes is between two blocks, and a drain
         that ended over one would have `layout` cut the supply under it.
         A train on `state/overdue` does not count, by any move or hint:
-        `layout` has stopped it for not arriving within its allowance, and only
-        a person can end its move (#1191, GLOSSARY.md, **Moving**).
+        `layout` has stopped it for not arriving within its allowance, and it
+        stands until it arrives, a throttle takes it, or it is placed or
+        removed (#1191, GLOSSARY.md, **Moving**).
         """
         state = self._state
         listed = state.unknown_sensors
-        late = state.overdue
+        overdue = state.overdue
         held = state.held
         return any(
             not each.at_far
             and (train in held or not (each.entry in listed and each.far in listed))
             for train, following in state.following.items()
-            if train not in late
+            if train not in overdue
             for each in following
         ) or any(
             not state.following.get(train)
             for train in state.crossing
-            if train not in late
+            if train not in overdue
         )
 
     def _publish_moving(self) -> None:
