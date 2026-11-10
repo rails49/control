@@ -351,7 +351,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/train_placed` | event | dispatcher | a placement accepted, the standing lock moved with it |
 | `tc49/dispatch/placement_refused` | event | dispatcher | a placement not accepted, and why ([ADR-0092](adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)) |
 | `tc49/dispatch/train_removed` | event | dispatcher | a train taken off the layout |
-| `tc49/dispatch/state/moving` | state | dispatcher | whether any train has a move not yet ended, other than one stopped with both its sensors unknown or one on `state/overdue`, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
+| `tc49/dispatch/state/moving` | state | dispatcher | whether any train has a move not yet ended, other than one no throttle holds stopped with both its sensors unknown or one on `state/overdue`, which `layout` reads to end a drain ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)) |
 | `tc49/dispatch/state/aspects` | state | dispatcher | every signalled end's aspect |
 | `tc49/dispatch/state/allocation` | state | dispatcher | the run's whole picture |
 | `tc49/dispatch/state/disputed` | state | dispatcher | the blocks with a sensor reading occupied and no train explaining the reading ([#153](https://github.com/rails49/control/issues/153), [#1164](https://github.com/rails49/control/issues/1164)) |
@@ -1134,7 +1134,10 @@ payload is read defensively, and one that fails the read is dropped.
   ([#844](https://github.com/rails49/control/issues/844)). A move with both those
   sensors on `state/unknown_sensors` does not count, `layout` having stopped that
   train; one with only one of them listed does
-  ([#1152](https://github.com/rails49/control/issues/1152)). A train on
+  ([#1152](https://github.com/rails49/control/issues/1152)). Nor is it left out
+  where `tc49/layout/state/taken` names its train: `layout` stops no train a
+  throttle holds
+  ([#1187](https://github.com/rails49/control/issues/1187)). A train on
   `tc49/layout/state/overdue` does not count, by any move or restored hint:
   only a person can end its move
   ([#1191](https://github.com/rails49/control/issues/1191)).

@@ -419,7 +419,11 @@ the supply now would strand it, and `layout` switches a drain off once it
 reads false
 ([ADR-0062](../adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).
 A crossing train counts with no request behind it: a restored hint is a train
-the dispatcher believes is between two blocks. A train `layout` lists on
+the dispatcher believes is between two blocks. A move with both its entry and
+far sensors unknown does not count where no throttle holds its train, since
+`layout` has stopped it; one `tc49/layout/state/taken` names does, as `layout`
+leaves it running, and the drain waits until the person lets it go or presses
+the stop sign ([#1187](https://github.com/rails49/control/issues/1187)). A train `layout` lists on
 `tc49/layout/state/overdue` does not count, by any move or hint: it was stopped
 for not arriving within its allowance, and only a person can end its move
 ([#1191](https://github.com/rails49/control/issues/1191)). Manual trains count by the
