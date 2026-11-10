@@ -390,6 +390,52 @@ outstanding: the train finishes its move and stops at the far sensor, and its ne
 grant is nobody's. Without this a train nobody is driving runs on through the next
 block at its last speed.
 
+### A train that does not arrive
+
+A train this app drives that has stalled or derailed while its sensors go on
+reporting would otherwise run under power until a person noticed. So each
+crossing holds `timed`, the run-clock reading at which this app last gave it a
+speed, and `settle()` checks it against the installation's **arrival
+allowance**, read at each check so a person's change holds from the next one
+([ADR-0040](../adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md),
+[#1190](https://github.com/rails49/control/issues/1190)).
+
+**The clock starts**, with a full allowance, wherever this app writes the train
+a speed other than `0.0`: the grant, a release of a standing train, a switch to
+`automatic`, `on` and a sensor back after both were unknown. It starts too at a
+release in `automatic` that leaves the train running, and on each crossing this
+app would drive when `state/power` reads `on`. The `caution` drop does not
+restart it.
+
+**The clock stops** when `state/power` reads `off`, whatever turned it off,
+since a train with no supply cannot arrive; and where both sensors of the block
+are unknown, the train standing for that. A take, an arrival and a further move
+end the timing, the crossing no longer being this app's or outstanding, and a
+removal or a placement drops it with the crossing. A switch to `manual`, a
+drain, one sensor unknown and a wrong point report leave it running: a train
+held for a wrong point report is late like any other.
+
+**The check** comes after the levels are applied, so a far sensor that settles
+in the same call is the arrival. A crossing that is outstanding and `driving`,
+whose train no throttle holds, and that has been timed for the allowance is
+**overdue**. The train is listed on `tc49/layout/state/overdue` as
+`{train, into, reason: "no arrival for <n> s"}` and the row published, then each
+addressed car is told `0.0`, and the grant implies nothing more, as a wrong
+point report leaves it. The row goes out first so a reader sees why the train
+stopped. Its route and locks stay held, its arrival still ends the move, and a
+move held for it to reverse still waits for that arrival. Nothing retries.
+
+**A listed train is given no speed.** `on`, a switch to `automatic`, a sensor
+coming back, a new `state/aspects` and a further `move` for it write nothing
+nonzero; the further move is otherwise acted on as any other, and the train
+stays listed with the block it had. **It leaves the row** on its arrival, by
+any of the three readings, on a take, and on a placement or a removal. A person
+re-rails or unsticks it and drives it on with a throttle, or places it.
+
+The row is published only where the list changed: once per `settle()` call,
+and at the end of a take, a placement or a removal that changed it. Each build
+starts it at `trains: []`.
+
 ### Removal
 
 A train may be taken off running
@@ -398,7 +444,7 @@ and a decoder in a hand keeps the last speed it was told. So `train_removed`
 writes `0.0` to every addressed car of the train, held by a throttle or not and
 whatever the power, and forgets any move of that train in flight: its later
 readings write no speed for it, and the block behind reads clear on its own
-detectors like any other.
+detectors like any other. The train leaves `state/overdue`.
 
 ### Placement
 
@@ -407,7 +453,8 @@ The dispatcher cancels a train's requests before it accepts a placement, so on
 in flight and any waiting on an `align`, a facing or the power
 ([#1061](https://github.com/rails49/control/issues/1061)). A train no throttle
 holds that is running is written `0.0`, since a decoder lifted running keeps
-its last speed. A train a throttle holds keeps the person's speed.
+its last speed. A train a throttle holds keeps the person's speed. The train
+leaves `state/overdue`.
 
 ## Who drives, and a person's throttle
 
@@ -453,7 +500,8 @@ person sets on `settings_wanted` holds from the next check.
 
 **Taking a train writes nothing.** It keeps whatever speed it had and the
 person's first movement of the lever is what changes it. Writing zero on
-take-over would stop a running train the instant somebody selected it.
+take-over would stop a running train the instant somebody selected it. A train
+on `state/overdue` leaves it, and the person drives it on.
 
 **Releasing it writes what the mode makes of it.** In `manual`, `0.0`. In
 `automatic` with a move outstanding and the rails live (`on` or `draining`),
@@ -465,7 +513,8 @@ speed written is `0.0` on every car, or that has none written, is given its
 grant's speed instead
 ([ADR-0083](../adr/0083-a-train-released-standing-mid-move-is-given-its-grants-speed.md)):
 it would otherwise stand with its route held and never reach its far sensor. The
-zeros written at startup and at a cut count. In `automatic` with no move
+zeros written at startup and at a cut count. Either way the arrival allowance
+starts from the release or from the speed given. In `automatic` with no move
 outstanding, or over dead rails, `0.0`, so no speed waits on a row for the
 power to come back. A train no throttle held writes nothing.
 

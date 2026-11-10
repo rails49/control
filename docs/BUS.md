@@ -921,8 +921,10 @@ what a drop would cost:
     transit and a whole block at `caution` to the far sensor, and leans long
     since nothing retries a false stop
     ([#1157](https://github.com/rails49/control/issues/1157),
-    [#1188](https://github.com/rails49/control/issues/1188)). Nothing runs on it
-    yet ([#1190](https://github.com/rails49/control/issues/1190)).
+    [#1188](https://github.com/rails49/control/issues/1188)). `layout` stops
+    and lists on `state/overdue` a train that has run this long without
+    arriving, the allowance in force read at each check
+    ([#1190](https://github.com/rails49/control/issues/1190)).
 
   `layout` publishes it as a railroad is loaded; at once after it takes a
   `settings_wanted`; and none while it stands. The simulator, in its place,
