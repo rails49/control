@@ -1540,6 +1540,21 @@ def test_the_release_invariant_reads_state_overdue() -> None:
     assert cross_app(release)
 
 
+def test_the_moving_invariants_read_state_taken() -> None:
+    """Both count a train `state/taken` names as moving between two unknown
+    sensors, so each names the topic among its reads and in its rule; the
+    classification is unchanged (#1201)."""
+    by_name = {
+        invariant.breaches.__name__: invariant
+        for invariant in (*INVARIANTS, *HISTORY_INVARIANTS)
+    }
+    for name in ("adr_0062_moving_while_crossing", "adr_0062_moving_to_the_tail"):
+        invariant = by_name[name]
+        assert TAKEN in invariant.reads
+        assert "`state/taken`" in invariant.states
+        assert cross_app(invariant)
+
+
 def test_a_retained_railroad_handed_again_is_no_start() -> None:
     """A late subscriber on `#` is handed `state/railroad` and then
     `state/power` as they stand, which is not `layout` coming up."""
