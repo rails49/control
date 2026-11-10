@@ -221,55 +221,22 @@ export const STOPPING = "stopping trains…";
  *  (`POINT_GAP_MAX_S`, `tc49.lib.settings`). */
 export const POINT_GAP_MAX_S = 5;
 
-/** What the Points tab says while `tc49/layout/state/settings` is unheard:
- *  there is no gap to show, and nothing to change it from. */
+/** The shortest and longest throttle silence a person may set, in seconds,
+ *  as `layout` takes it (`THROTTLE_SILENCE_MIN_S`, `THROTTLE_SILENCE_MAX_S`,
+ *  `tc49.lib.settings`). */
+export const THROTTLE_SILENCE_MIN_S = 2;
+export const THROTTLE_SILENCE_MAX_S = 60;
+
+/** The shortest and longest sensor silence a person may set, in seconds, as
+ *  `layout` takes it (`SENSOR_SILENCE_MIN_S`, `SENSOR_SILENCE_MAX_S`,
+ *  `tc49.lib.settings`). */
+export const SENSOR_SILENCE_MIN_S = 2;
+export const SENSOR_SILENCE_MAX_S = 60;
+
+/** What a settings tab says while `tc49/layout/state/settings` is unheard, or
+ *  its field there unreadable: there is no value to show, and nothing to
+ *  change it from. */
 export const SETTINGS_UNHEARD = "the layout has not said its settings";
-
-/**
- * What a committed point gap does (#1128): `{ sent }`, the seconds to publish
- * on `tc49/layout/settings_wanted`; `{ refused }`, why nothing goes; or
- * `null`, where nothing was changed and nothing is owed.
- *
- * `typed` is the field as committed and `heard` the `point_gap` of
- * `tc49/layout/state/settings`, `null` while that row is unheard. The first
- * that holds is the answer:
- *
- * - `heard` is `null`: the layout has not said its settings, so there is no
- *   gap to change and nobody to say the change was taken;
- * - `typed` is not a number of seconds;
- * - it is below `0` or above `POINT_GAP_MAX_S`: `layout` would drop it;
- * - it is the gap the row already says: nothing changed.
- *
- * The field's step of `0.1` is how it moves, not a rule: `layout` takes any
- * number in range, so `0.25` goes as typed.
- */
-export function gapChange(
-  typed: string,
-  heard: number | null,
-): { sent: number } | { refused: string } | null {
-  if (heard === null) return { refused: SETTINGS_UNHEARD };
-  const words = typed.trim();
-  const gap = Number(words);
-  if (words === "" || !Number.isFinite(gap)) {
-    return { refused: "the time between point commands is a number of seconds" };
-  }
-  if (gap < 0 || gap > POINT_GAP_MAX_S) {
-    return {
-      refused: `the time between point commands is from 0 to ${POINT_GAP_MAX_S} seconds`,
-    };
-  }
-  if (gap === heard) return null;
-  return { sent: gap };
-}
-
-/** The point gap a `tc49/layout/state/settings` payload says, in seconds,
- *  `null` where it says none that `layout` could have meant: a number from
- *  `0` to `POINT_GAP_MAX_S`. */
-export function pointGapOf(payload: Record<string, unknown>): number | null {
-  const gap = payload["point_gap"];
-  if (typeof gap !== "number" || !Number.isFinite(gap)) return null;
-  return gap >= 0 && gap <= POINT_GAP_MAX_S ? gap : null;
-}
 
 /** What a commit in the Settings dialog asks `layout` for: the payload of
  *  `tc49/layout/settings_wanted`, each field optional and the one committed
@@ -288,128 +255,45 @@ export interface Speeds {
   caution: number;
 }
 
-/** The two aspects a speed is set for, in the order the Driving tab draws
- *  them. */
-export const ASPECTS = ["clear", "caution"] as const;
-
-/** The shortest and longest throttle silence a person may set, in seconds,
- *  as `layout` takes it (`THROTTLE_SILENCE_MIN_S`, `THROTTLE_SILENCE_MAX_S`,
- *  `tc49.lib.settings`). */
-export const THROTTLE_SILENCE_MIN_S = 2;
-export const THROTTLE_SILENCE_MAX_S = 60;
-
-/** The shortest and longest sensor silence a person may set, in seconds, as
- *  `layout` takes it (`SENSOR_SILENCE_MIN_S`, `SENSOR_SILENCE_MAX_S`,
- *  `tc49.lib.settings`). */
-export const SENSOR_SILENCE_MIN_S = 2;
-export const SENSOR_SILENCE_MAX_S = 60;
-
-/** A speed as the Driving tab shows it: percent of the locomotive's top
- *  speed. Rounded off at the fourth decimal so `0.07` shows `7` and not the
- *  float `7.000000000000001`. */
-export function percentOf(fraction: number): number {
-  return Math.round(fraction * 1e6) / 1e4;
+/**
+ * `tc49/layout/state/settings` as the Settings dialog reads it (#1185): the
+ * point gap and the two silences in seconds, the speeds as fractions. BUS.md
+ * says every field is present; one that does not read as `layout` could have
+ * meant it is `null` on its own, and disables only its own input.
+ */
+export interface LayoutSettings {
+  pointGap: number | null;
+  speeds: { clear: number | null; caution: number | null };
+  throttleSilence: number | null;
+  sensorSilence: number | null;
 }
 
 /**
- * What a committed speed does (#1134), as `gapChange` answers for the point
- * gap: `{ sent }`, the `settings_wanted` payload carrying that one speed;
- * `{ refused }`, why nothing goes; or `null`, where nothing changed.
- *
- * `typed` is the field as committed, in percent of the locomotive's top
- * speed, and `heard` the fraction `tc49/layout/state/settings` says for
- * `aspect`, `null` while that row is unheard. The first that holds is the
- * answer:
- *
- * - `heard` is `null`: the layout has not said its settings;
- * - `typed` is not a number;
- * - it is below `1` or above `100`: a train set to run at `0` would not run,
- *   and none runs faster than its top speed;
- * - it is the speed the row already says: nothing changed.
- *
- * The field's step of `1` is how it moves, not a rule: `45.5` goes as typed.
+ * What a `tc49/layout/state/settings` payload says, field by field: the point
+ * gap a number from `0` to `POINT_GAP_MAX_S`, each silence a number within
+ * its bounds, and the speeds `clear` and `caution` both, each above `0` and at
+ * most `1` — a `speeds` that does not read so leaves both `null`.
  */
-export function speedChange(
-  aspect: keyof Speeds,
-  typed: string,
-  heard: number | null,
-): { sent: SettingsChange } | { refused: string } | null {
-  if (heard === null) return { refused: SETTINGS_UNHEARD };
-  const words = typed.trim();
-  const percent = Number(words);
-  if (words === "" || !Number.isFinite(percent)) {
-    return { refused: `the speed at ${aspect} is a number, in percent` };
-  }
-  if (percent < 1 || percent > 100) {
-    return { refused: `the speed at ${aspect} is from 1 to 100 percent` };
-  }
-  if (percent === percentOf(heard)) return null;
-  return { sent: { speeds: { [aspect]: percent / 100 } } };
+export function settingsOf(payload: Record<string, unknown>): LayoutSettings {
+  const speeds = speedsOf(payload["speeds"]);
+  return {
+    pointGap: within(payload["point_gap"], 0, POINT_GAP_MAX_S),
+    speeds: { clear: speeds?.clear ?? null, caution: speeds?.caution ?? null },
+    throttleSilence: within(
+      payload["throttle_silence"],
+      THROTTLE_SILENCE_MIN_S,
+      THROTTLE_SILENCE_MAX_S,
+    ),
+    sensorSilence: within(payload["sensor_silence"], SENSOR_SILENCE_MIN_S, SENSOR_SILENCE_MAX_S),
+  };
 }
 
-/**
- * What a committed throttle silence does (#1134): `{ sent }`, the
- * `settings_wanted` payload carrying it alone; `{ refused }`, why nothing
- * goes; or `null`, where nothing changed. As `speedChange`, the first that
- * holds is the answer: the row unheard, not a number of seconds, outside
- * `THROTTLE_SILENCE_MIN_S` to `THROTTLE_SILENCE_MAX_S`, the silence the row
- * already says.
- */
-export function silenceChange(
-  typed: string,
-  heard: number | null,
-): { sent: SettingsChange } | { refused: string } | null {
-  if (heard === null) return { refused: SETTINGS_UNHEARD };
-  const words = typed.trim();
-  const seconds = Number(words);
-  if (words === "" || !Number.isFinite(seconds)) {
-    return { refused: "how long a throttle may go silent is a number of seconds" };
-  }
-  if (seconds < THROTTLE_SILENCE_MIN_S || seconds > THROTTLE_SILENCE_MAX_S) {
-    return {
-      refused:
-        "how long a throttle may go silent is from " +
-        `${THROTTLE_SILENCE_MIN_S} to ${THROTTLE_SILENCE_MAX_S} seconds`,
-    };
-  }
-  if (seconds === heard) return null;
-  return { sent: { throttle_silence: seconds } };
+/** `value` where it is a number from `min` to `max`, `null` otherwise. */
+function within(value: unknown, min: number, max: number): number | null {
+  return typeof value === "number" && value >= min && value <= max ? value : null;
 }
 
-/**
- * What a committed sensor silence does (#1149), as `silenceChange` answers
- * for the throttle silence: `{ sent }`, the `settings_wanted` payload carrying
- * it alone; `{ refused }`, why nothing goes; or `null`, where nothing changed.
- * The first that holds is the answer: the row unheard, not a number of
- * seconds, outside `SENSOR_SILENCE_MIN_S` to `SENSOR_SILENCE_MAX_S`, the
- * silence the row already says.
- */
-export function sensorSilenceChange(
-  typed: string,
-  heard: number | null,
-): { sent: SettingsChange } | { refused: string } | null {
-  if (heard === null) return { refused: SETTINGS_UNHEARD };
-  const words = typed.trim();
-  const seconds = Number(words);
-  if (words === "" || !Number.isFinite(seconds)) {
-    return { refused: "how long a sensor may go unheard is a number of seconds" };
-  }
-  if (seconds < SENSOR_SILENCE_MIN_S || seconds > SENSOR_SILENCE_MAX_S) {
-    return {
-      refused:
-        "how long a sensor may go unheard is from " +
-        `${SENSOR_SILENCE_MIN_S} to ${SENSOR_SILENCE_MAX_S} seconds`,
-    };
-  }
-  if (seconds === heard) return null;
-  return { sent: { sensor_silence: seconds } };
-}
-
-/** The speeds a `tc49/layout/state/settings` payload says, `null` where it
- *  says none `layout` could have meant: `clear` and `caution` both, each
- *  above `0` and at most `1`. */
-export function speedsOf(payload: Record<string, unknown>): Speeds | null {
-  const speeds = payload["speeds"];
+function speedsOf(speeds: unknown): Speeds | null {
   if (typeof speeds !== "object" || speeds === null) return null;
   const { clear, caution } = speeds as Record<string, unknown>;
   if (!isSpeed(clear) || !isSpeed(caution)) return null;
@@ -420,20 +304,209 @@ function isSpeed(value: unknown): value is number {
   return typeof value === "number" && value > 0 && value <= 1;
 }
 
-/** The throttle silence a `tc49/layout/state/settings` payload says, in
- *  seconds, `null` where it says none `layout` could have meant. */
-export function throttleSilenceOf(payload: Record<string, unknown>): number | null {
-  const silence = payload["throttle_silence"];
-  if (typeof silence !== "number") return null;
-  return silence >= THROTTLE_SILENCE_MIN_S && silence <= THROTTLE_SILENCE_MAX_S
-    ? silence
-    : null;
+/** A speed as the Driving tab shows it: percent of the locomotive's top
+ *  speed. Rounded off at the fourth decimal so `0.07` shows `7` and not the
+ *  float `7.000000000000001`. */
+export function percentOf(fraction: number): number {
+  return Math.round(fraction * 1e6) / 1e4;
 }
 
-/** The sensor silence a `tc49/layout/state/settings` payload says, in
- *  seconds, `null` where it says none `layout` could have meant (#1149). */
-export function sensorSilenceOf(payload: Record<string, unknown>): number | null {
-  const silence = payload["sensor_silence"];
-  if (typeof silence !== "number") return null;
-  return silence >= SENSOR_SILENCE_MIN_S && silence <= SENSOR_SILENCE_MAX_S ? silence : null;
+/** The inputs of the Settings dialog's setting tabs, one per value the row
+ *  holds. */
+export type SettingField = "gap" | "clear" | "caution" | "silence" | "sensorSilence";
+
+/** One input of a setting tab: how it is drawn, what it refuses, and what it
+ *  reads and sends. */
+export interface SettingSpec {
+  /** The input's label. */
+  readonly label: string;
+  /** The input's class, which a tab's layout and a test find it by. */
+  readonly class: string;
+  /** The bounds a value is taken within, the ends included, as `layout`
+   *  takes it; the step is how the input moves, not a rule. */
+  readonly min: number;
+  readonly max: number;
+  readonly step: number;
+  /** What the value is counted in; the input's suffix is `s` or `%`. */
+  readonly unit: "seconds" | "percent";
+  /** The phrase the field's refusals start with. */
+  readonly what: string;
+  /** The value as the field shows it, `null` where the row has none. */
+  of(settings: LayoutSettings): number | null;
+  /** The `settings_wanted` payload for a value as typed. */
+  wanted(value: number): SettingsChange;
+}
+
+/** Each input of the setting tabs (#1128, #1134, #1149). */
+export const SETTING_FIELDS: Record<SettingField, SettingSpec> = {
+  gap: {
+    label: "Time between point commands",
+    class: "gap",
+    min: 0,
+    max: POINT_GAP_MAX_S,
+    step: 0.1,
+    unit: "seconds",
+    what: "the time between point commands",
+    of: (settings) => settings.pointGap,
+    wanted: (value) => ({ point_gap: value }),
+  },
+  clear: {
+    label: "Speed at clear",
+    class: "clear",
+    min: 1,
+    max: 100,
+    step: 1,
+    unit: "percent",
+    what: "the speed at clear",
+    of: (settings) => percentIn(settings.speeds.clear),
+    wanted: (value) => ({ speeds: { clear: value / 100 } }),
+  },
+  caution: {
+    label: "Speed at caution",
+    class: "caution",
+    min: 1,
+    max: 100,
+    step: 1,
+    unit: "percent",
+    what: "the speed at caution",
+    of: (settings) => percentIn(settings.speeds.caution),
+    wanted: (value) => ({ speeds: { caution: value / 100 } }),
+  },
+  silence: {
+    label: "Let go of a silent throttle's trains after",
+    class: "silence",
+    min: THROTTLE_SILENCE_MIN_S,
+    max: THROTTLE_SILENCE_MAX_S,
+    step: 1,
+    unit: "seconds",
+    what: "how long a throttle may go silent",
+    of: (settings) => settings.throttleSilence,
+    wanted: (value) => ({ throttle_silence: value }),
+  },
+  sensorSilence: {
+    label: "Call a sensor unknown once unheard for",
+    class: "silence",
+    min: SENSOR_SILENCE_MIN_S,
+    max: SENSOR_SILENCE_MAX_S,
+    step: 1,
+    unit: "seconds",
+    what: "how long a sensor may go unheard",
+    of: (settings) => settings.sensorSilence,
+    wanted: (value) => ({ sensor_silence: value }),
+  },
+};
+
+function percentIn(fraction: number | null): number | null {
+  return fraction === null ? null : percentOf(fraction);
+}
+
+/** The value `field` has in `settings`, `null` while the row is unheard or
+ *  its field unreadable. */
+function valueOf(field: SettingField, settings: LayoutSettings | null): number | null {
+  return settings === null ? null : SETTING_FIELDS[field].of(settings);
+}
+
+/**
+ * What a commit in `field` does (#1128, #1134, #1149): `{ sent }`, the
+ * `settings_wanted` payload carrying that one field; `{ refused }`, why
+ * nothing goes; or `null`, where nothing changed and nothing is owed.
+ *
+ * `typed` is the field as committed, a speed in percent, and `settings` the
+ * row, `null` while unheard. The first that holds is the answer:
+ *
+ * - the row is unheard, or its value for `field` unreadable: there is nothing
+ *   to change and nobody to say the change was taken;
+ * - `typed` is not a number;
+ * - it is outside the field's `min` to `max`: `layout` would drop it;
+ * - it is the value the row already says: nothing changed.
+ *
+ * The field's step is how it moves, not a rule: `layout` takes any number in
+ * range, so a gap of `0.25` or a speed of `45.5` goes as typed.
+ */
+export function settingChange(
+  field: SettingField,
+  typed: string,
+  settings: LayoutSettings | null,
+): { sent: SettingsChange } | { refused: string } | null {
+  const spec = SETTING_FIELDS[field];
+  const heard = valueOf(field, settings);
+  if (heard === null) return { refused: SETTINGS_UNHEARD };
+  const words = typed.trim();
+  const value = Number(words);
+  if (words === "" || !Number.isFinite(value)) {
+    return {
+      refused:
+        spec.unit === "seconds"
+          ? `${spec.what} is a number of seconds`
+          : `${spec.what} is a number, in percent`,
+    };
+  }
+  if (value < spec.min || value > spec.max) {
+    return { refused: `${spec.what} is from ${spec.min} to ${spec.max} ${spec.unit}` };
+  }
+  if (value === heard) return null;
+  return { sent: spec.wanted(value) };
+}
+
+/** A commit a field's rule refused (#1137): the text typed, which the field
+ *  goes on showing, why it was refused, and what the row said for the field
+ *  then. */
+export interface Refused {
+  readonly typed: string;
+  readonly reason: string;
+  readonly heard: string;
+}
+
+/** The commits refused in each field that still stand (#1137). */
+export type Refusals = Partial<Record<SettingField, Refused>>;
+
+/** What the row says for `field`, as its field shows it: `""` while the row
+ *  is unheard or the field unreadable. */
+function heardIn(field: SettingField, settings: LayoutSettings | null): string {
+  const value = valueOf(field, settings);
+  return value === null ? "" : String(value);
+}
+
+/**
+ * What `field` shows (#1137): the text of a refused commit while it stands,
+ * however often it is committed again, and the row's value otherwise, `""`
+ * where the row has none.
+ */
+export function shownIn(
+  refusals: Refusals,
+  field: SettingField,
+  settings: LayoutSettings | null,
+): string {
+  return refusals[field]?.typed ?? heardIn(field, settings);
+}
+
+/**
+ * `typed` committed in `field`: `sent`, the payload to publish where
+ * `settingChange` sends it, and the refusals with `field`'s replaced — by this
+ * commit where it is refused, dropped where it is not. Other fields' stand.
+ */
+export function committed(
+  refusals: Refusals,
+  field: SettingField,
+  typed: string,
+  settings: LayoutSettings | null,
+): { refusals: Refusals; sent: SettingsChange | null } {
+  const change = settingChange(field, typed, settings);
+  const others = { ...refusals };
+  delete others[field];
+  if (change !== null && "refused" in change) {
+    const refused = { typed, reason: change.refused, heard: heardIn(field, settings) };
+    return { refusals: { ...others, [field]: refused }, sent: null };
+  }
+  return { refusals: others, sent: change === null ? null : change.sent };
+}
+
+/** Each refusal dropped where the row now says a different value for its
+ *  field than it did when the commit was refused; `refusals` itself where
+ *  none is. */
+export function reheard(refusals: Refusals, settings: LayoutSettings | null): Refusals {
+  const kept = Object.entries(refusals).filter(
+    ([field, refused]) => heardIn(field as SettingField, settings) === refused.heard,
+  );
+  return kept.length === Object.keys(refusals).length ? refusals : Object.fromEntries(kept);
 }

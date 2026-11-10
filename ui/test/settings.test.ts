@@ -12,18 +12,20 @@ import {
   arrived,
   boxRefusal,
   copyRefusal,
+  committed,
   Drain,
-  gapChange,
   percentOf,
-  pointGapOf,
   refusal,
+  reheard,
   restoreRefusal,
-  silenceChange,
-  speedChange,
-  speedsOf,
-  sensorSilenceChange,
-  sensorSilenceOf,
-  throttleSilenceOf,
+  SETTING_FIELDS,
+  SETTINGS_UNHEARD,
+  settingChange,
+  settingsOf,
+  shownIn,
+  type LayoutSettings,
+  type SettingField,
+  type SettingsChange,
 } from "../src/model/settings.js";
 import type { Backup } from "../src/model/store.js";
 
@@ -274,94 +276,143 @@ describe("a pick that has landed", () => {
   });
 });
 
-/** The Points tab's one field, the point gap (#1128): what a commit sends,
- *  and what refuses it. */
-describe("what a committed point gap does", () => {
-  it("sends nothing while the layout has not said its settings", () => {
-    expect(gapChange("1.2", null)).toEqual({
-      refused: "the layout has not said its settings",
+/** The row as `layout` writes it, every field readable. */
+const ROW = {
+  at: 1,
+  point_gap: 0.5,
+  speeds: { clear: 0.6, caution: 0.07 },
+  throttle_silence: 5,
+  sensor_silence: 3,
+};
+
+/** `ROW` as the dialog reads it. */
+const HEARD: LayoutSettings = {
+  pointGap: 0.5,
+  speeds: { clear: 0.6, caution: 0.07 },
+  throttleSilence: 5,
+  sensorSilence: 3,
+};
+
+/** Each field of the setting tabs, as a commit in it is answered (#1128,
+ *  #1134, #1149): the row's own value as typed, the row with the field
+ *  unreadable, the sentences it refuses with, values outside its bounds,
+ *  and values in range with the exact payload each sends. */
+const FIELDS: Record<
+  SettingField,
+  {
+    own: string;
+    unreadable: LayoutSettings;
+    number: string;
+    range: string;
+    outside: string[];
+    sent: [string, SettingsChange][];
+  }
+> = {
+  gap: {
+    own: "0.50",
+    unreadable: { ...HEARD, pointGap: null },
+    number: "the time between point commands is a number of seconds",
+    range: "the time between point commands is from 0 to 5 seconds",
+    outside: ["7", "-0.1", "5.01"],
+    sent: [
+      ["1.2", { point_gap: 1.2 }],
+      ["0", { point_gap: 0 }],
+      [" 5 ", { point_gap: 5 }],
+      ["0.25", { point_gap: 0.25 }],
+    ],
+  },
+  clear: {
+    own: "60",
+    unreadable: { ...HEARD, speeds: { clear: null, caution: null } },
+    number: "the speed at clear is a number, in percent",
+    range: "the speed at clear is from 1 to 100 percent",
+    outside: ["0", "0.5", "101", "-3"],
+    sent: [
+      [" 100 ", { speeds: { clear: 1 } }],
+      ["1", { speeds: { clear: 0.01 } }],
+      ["45.5", { speeds: { clear: 0.455 } }],
+    ],
+  },
+  caution: {
+    own: "7",
+    unreadable: { ...HEARD, speeds: { clear: null, caution: null } },
+    number: "the speed at caution is a number, in percent",
+    range: "the speed at caution is from 1 to 100 percent",
+    outside: ["0", "0.5", "101", "-3"],
+    sent: [["45", { speeds: { caution: 0.45 } }]],
+  },
+  silence: {
+    own: "5",
+    unreadable: { ...HEARD, throttleSilence: null },
+    number: "how long a throttle may go silent is a number of seconds",
+    range: "how long a throttle may go silent is from 2 to 60 seconds",
+    outside: ["1", "1.9", "61", "0"],
+    sent: [
+      ["10", { throttle_silence: 10 }],
+      ["2", { throttle_silence: 2 }],
+      ["60", { throttle_silence: 60 }],
+    ],
+  },
+  sensorSilence: {
+    own: "3",
+    unreadable: { ...HEARD, sensorSilence: null },
+    number: "how long a sensor may go unheard is a number of seconds",
+    range: "how long a sensor may go unheard is from 2 to 60 seconds",
+    outside: ["1", "1.9", "61", "0"],
+    sent: [
+      ["10", { sensor_silence: 10 }],
+      ["2", { sensor_silence: 2 }],
+      ["60", { sensor_silence: 60 }],
+    ],
+  },
+};
+
+describe("a table entry for every field", () => {
+  it("is what the cases below cover", () => {
+    expect(Object.keys(SETTING_FIELDS).sort()).toEqual(Object.keys(FIELDS).sort());
+  });
+});
+
+describe.each(Object.keys(SETTING_FIELDS) as SettingField[])(
+  "what a commit in %s does",
+  (field) => {
+    const cases = FIELDS[field];
+
+    it("sends nothing while the layout has not said its settings", () => {
+      expect(settingChange(field, cases.sent[0]![0], null)).toEqual({
+        refused: "the layout has not said its settings",
+      });
     });
-  });
 
-  it("refuses what is not a number of seconds", () => {
-    for (const typed of ["", " ", "fast", "Infinity", "1,2"]) {
-      expect(gapChange(typed, 0.5)).toEqual({
-        refused: "the time between point commands is a number of seconds",
+    it("sends nothing where the row's value for it is unreadable", () => {
+      expect(settingChange(field, cases.sent[0]![0], cases.unreadable)).toEqual({
+        refused: SETTINGS_UNHEARD,
       });
-    }
-  });
-
-  it("refuses a gap below 0 or above 5 seconds", () => {
-    for (const typed of ["7", "-0.1", "5.01"]) {
-      expect(gapChange(typed, 0.5)).toEqual({
-        refused: "the time between point commands is from 0 to 5 seconds",
-      });
-    }
-  });
-
-  it("sends a gap from 0 to 5 seconds, the ends included", () => {
-    expect(gapChange("1.2", 0.5)).toEqual({ sent: 1.2 });
-    expect(gapChange("0", 0.5)).toEqual({ sent: 0 });
-    expect(gapChange(" 5 ", 0.5)).toEqual({ sent: 5 });
-    expect(gapChange("0.25", 0.5)).toEqual({ sent: 0.25 });
-  });
-
-  it("sends nothing where the gap is the one the layout says", () => {
-    expect(gapChange("0.5", 0.5)).toBeNull();
-    expect(gapChange("0.50", 0.5)).toBeNull();
-  });
-});
-
-describe("the point gap state/settings says", () => {
-  it("reads point_gap in seconds", () => {
-    expect(pointGapOf({ at: 3, point_gap: 0.8 })).toBe(0.8);
-    expect(pointGapOf({ point_gap: 0 })).toBe(0);
-  });
-
-  it("reads none that layout could not have meant", () => {
-    for (const payload of [{}, { point_gap: "1" }, { point_gap: -1 }, { point_gap: 6 }]) {
-      expect(pointGapOf(payload)).toBeNull();
-    }
-  });
-});
-
-/** The Driving tab's two fields, the speeds at clear and at caution (#1134):
- *  each in percent, sent as a fraction and alone. */
-describe("what a committed speed does", () => {
-  it("sends nothing while the layout has not said its settings", () => {
-    expect(speedChange("caution", "45", null)).toEqual({
-      refused: "the layout has not said its settings",
     });
-  });
 
-  it("refuses what is not a number", () => {
-    for (const typed of ["", " ", "fast", "Infinity"]) {
-      expect(speedChange("clear", typed, 0.6)).toEqual({
-        refused: "the speed at clear is a number, in percent",
-      });
-    }
-  });
+    it("refuses what is not a number", () => {
+      for (const typed of ["", " ", "fast", "Infinity", "1,2"]) {
+        expect(settingChange(field, typed, HEARD)).toEqual({ refused: cases.number });
+      }
+    });
 
-  it("refuses a speed below 1 or above 100 percent", () => {
-    for (const typed of ["0", "0.5", "101", "-3"]) {
-      expect(speedChange("caution", typed, 0.3)).toEqual({
-        refused: "the speed at caution is from 1 to 100 percent",
-      });
-    }
-  });
+    it("refuses a value outside its bounds", () => {
+      for (const typed of cases.outside) {
+        expect(settingChange(field, typed, HEARD)).toEqual({ refused: cases.range });
+      }
+    });
 
-  it("sends the one speed changed, as a fraction", () => {
-    expect(speedChange("caution", "45", 0.3)).toEqual({ sent: { speeds: { caution: 0.45 } } });
-    expect(speedChange("clear", " 100 ", 0.6)).toEqual({ sent: { speeds: { clear: 1 } } });
-    expect(speedChange("clear", "1", 0.6)).toEqual({ sent: { speeds: { clear: 0.01 } } });
-    expect(speedChange("clear", "45.5", 0.6)).toEqual({ sent: { speeds: { clear: 0.455 } } });
-  });
+    it("sends nothing for the value the row already says", () => {
+      expect(settingChange(field, cases.own, HEARD)).toBeNull();
+    });
 
-  it("sends nothing where the speed is the one the layout says", () => {
-    expect(speedChange("clear", "60", 0.6)).toBeNull();
-    expect(speedChange("caution", "7", 0.07)).toBeNull();
-  });
-});
+    it("sends a value in range alone, the ends included", () => {
+      for (const [typed, sent] of cases.sent) {
+        expect(settingChange(field, typed, HEARD)).toEqual({ sent });
+      }
+    });
+  },
+);
 
 describe("a speed in percent", () => {
   it("is the fraction times 100, without the float's tail", () => {
@@ -371,105 +422,79 @@ describe("a speed in percent", () => {
   });
 });
 
-/** The Throttles tab's one field, the throttle silence (#1134). */
-describe("what a committed throttle silence does", () => {
-  it("sends nothing while the layout has not said its settings", () => {
-    expect(silenceChange("10", null)).toEqual({
-      refused: "the layout has not said its settings",
+describe("what state/settings says", () => {
+  it("reads every field of a full row", () => {
+    expect(settingsOf(ROW)).toEqual(HEARD);
+  });
+
+  it("reads a field layout could not have meant as null, and only that field", () => {
+    expect(settingsOf({ ...ROW, point_gap: 6 })).toEqual({ ...HEARD, pointGap: null });
+    expect(settingsOf({ ...ROW, point_gap: "1" })).toEqual({ ...HEARD, pointGap: null });
+    expect(settingsOf({ ...ROW, throttle_silence: 1 })).toEqual({
+      ...HEARD,
+      throttleSilence: null,
     });
+    expect(settingsOf({ ...ROW, sensor_silence: 61 })).toEqual({ ...HEARD, sensorSilence: null });
   });
 
-  it("refuses what is not a number of seconds", () => {
-    expect(silenceChange("soon", 5)).toEqual({
-      refused: "how long a throttle may go silent is a number of seconds",
-    });
-  });
-
-  it("refuses a silence below 2 or above 60 seconds", () => {
-    for (const typed of ["1", "1.9", "61", "0"]) {
-      expect(silenceChange(typed, 5)).toEqual({
-        refused: "how long a throttle may go silent is from 2 to 60 seconds",
-      });
-    }
-  });
-
-  it("sends a silence from 2 to 60 seconds alone, the ends included", () => {
-    expect(silenceChange("10", 5)).toEqual({ sent: { throttle_silence: 10 } });
-    expect(silenceChange("2", 5)).toEqual({ sent: { throttle_silence: 2 } });
-    expect(silenceChange("60", 5)).toEqual({ sent: { throttle_silence: 60 } });
-  });
-
-  it("sends nothing where the silence is the one the layout says", () => {
-    expect(silenceChange("5", 5)).toBeNull();
-  });
-});
-
-/** The Sensors tab's one field, the sensor silence (#1149). */
-describe("what a committed sensor silence does", () => {
-  it("sends nothing while the layout has not said its settings", () => {
-    expect(sensorSilenceChange("10", null)).toEqual({
-      refused: "the layout has not said its settings",
-    });
-  });
-
-  it("refuses what is not a number of seconds", () => {
-    for (const typed of ["soon", ""]) {
-      expect(sensorSilenceChange(typed, 3)).toEqual({
-        refused: "how long a sensor may go unheard is a number of seconds",
-      });
-    }
-  });
-
-  it("refuses a silence below 2 or above 60 seconds", () => {
-    for (const typed of ["1", "1.9", "61", "0"]) {
-      expect(sensorSilenceChange(typed, 3)).toEqual({
-        refused: "how long a sensor may go unheard is from 2 to 60 seconds",
-      });
-    }
-  });
-
-  it("sends a silence from 2 to 60 seconds alone, the ends included", () => {
-    expect(sensorSilenceChange("10", 3)).toEqual({ sent: { sensor_silence: 10 } });
-    expect(sensorSilenceChange("2", 3)).toEqual({ sent: { sensor_silence: 2 } });
-    expect(sensorSilenceChange("60", 3)).toEqual({ sent: { sensor_silence: 60 } });
-  });
-
-  it("sends nothing where the silence is the one the layout says", () => {
-    expect(sensorSilenceChange("3", 3)).toBeNull();
-  });
-});
-
-describe("the speeds and the silence state/settings says", () => {
-  it("reads speeds with clear and caution both", () => {
-    expect(speedsOf({ speeds: { clear: 0.6, caution: 0.3 } })).toEqual({
-      clear: 0.6,
-      caution: 0.3,
-    });
-  });
-
-  it("reads no speeds that layout could not have meant", () => {
-    for (const payload of [
-      {},
-      { speeds: null },
-      { speeds: { clear: 0.6 } },
-      { speeds: { clear: 0, caution: 0.3 } },
-      { speeds: { clear: 0.6, caution: 1.2 } },
+  it("reads both speeds as null where speeds does not read", () => {
+    for (const speeds of [
+      undefined,
+      null,
+      { clear: 0.6 },
+      { clear: 0, caution: 0.3 },
+      { clear: 0.6, caution: 1.2 },
     ]) {
-      expect(speedsOf(payload)).toBeNull();
+      expect(settingsOf({ ...ROW, speeds })).toEqual({
+        ...HEARD,
+        speeds: { clear: null, caution: null },
+      });
     }
   });
+});
 
-  it("reads sensor_silence in seconds, from 2 to 60", () => {
-    expect(sensorSilenceOf({ sensor_silence: 3 })).toBe(3);
-    for (const payload of [{}, { sensor_silence: "3" }, { sensor_silence: 1 }, { sensor_silence: 61 }]) {
-      expect(sensorSilenceOf(payload)).toBeNull();
-    }
+/** The #1137 rule: a refused commit stays in its field beside the reason
+ *  until a commit there is not refused or the row says a different value. */
+describe("a refused commit", () => {
+  it("shows the row's value, and nothing while the row is unheard", () => {
+    expect(shownIn({}, "clear", HEARD)).toBe("60");
+    expect(shownIn({}, "gap", null)).toBe("");
   });
 
-  it("reads throttle_silence in seconds, from 2 to 60", () => {
-    expect(throttleSilenceOf({ throttle_silence: 5 })).toBe(5);
-    for (const payload of [{}, { throttle_silence: "5" }, { throttle_silence: 1 }, { throttle_silence: 61 }]) {
-      expect(throttleSilenceOf(payload)).toBeNull();
-    }
+  it("stays in its field, beside its reason, through the same commit again", () => {
+    const first = committed({}, "silence", "1", HEARD);
+    expect(first.sent).toBeNull();
+    const again = committed(first.refusals, "silence", "1", HEARD);
+    expect(again.sent).toBeNull();
+    expect(shownIn(again.refusals, "silence", HEARD)).toBe("1");
+    expect(again.refusals.silence?.reason).toBe(
+      "how long a throttle may go silent is from 2 to 60 seconds",
+    );
+  });
+
+  it("goes when a commit in its field is not refused", () => {
+    const { refusals } = committed({}, "silence", "1", HEARD);
+    const sent = committed(refusals, "silence", "10", HEARD);
+    expect(sent).toEqual({ refusals: {}, sent: { throttle_silence: 10 } });
+    expect(committed(refusals, "silence", "5", HEARD)).toEqual({ refusals: {}, sent: null });
+  });
+
+  it("goes when the row says a different value for its field, and not before", () => {
+    const { refusals } = committed({}, "gap", "7", HEARD);
+    expect(reheard(refusals, HEARD)).toBe(refusals);
+    expect(reheard(refusals, { ...HEARD, sensorSilence: 10 })).toBe(refusals);
+    const moved = reheard(refusals, { ...HEARD, pointGap: 1 });
+    expect(moved).toEqual({});
+    expect(shownIn(moved, "gap", { ...HEARD, pointGap: 1 })).toBe("1");
+  });
+
+  it("leaves another field's alone", () => {
+    const silent = committed({}, "silence", "1", HEARD).refusals;
+    const both = committed(silent, "sensorSilence", "1", HEARD).refusals;
+    expect(Object.keys(both).sort()).toEqual(["sensorSilence", "silence"]);
+    expect(committed(both, "sensorSilence", "10", HEARD).refusals).toEqual(silent);
+    expect(shownIn(silent, "sensorSilence", HEARD)).toBe("3");
+    const moved = reheard(both, { ...HEARD, sensorSilence: 10 });
+    expect(moved).toEqual(silent);
   });
 });
