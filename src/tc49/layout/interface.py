@@ -145,6 +145,15 @@ left after that sensor (`_lower`). A further `move` carries it through with no
 stop (`_passed`), and one going back out by the end it came in at waits for the
 arrival, so it does not flip with its tail on the turnout (`_reverses`).
 
+**A train that does not arrive stops** (ADR-0040, #1190). A move this app
+drives is timed from the speed it last gave it, and one that has not arrived
+within the installation's arrival allowance is listed on `state/overdue` and
+then told `0.0` where it stands. Its route and locks stay held and its arrival
+still ends it; nothing retries, and nothing gives a listed train a speed until
+it arrives, a throttle takes it, or it is placed or removed. Time with the
+supply off does not count, a train standing for both sensors unknown is not
+timed, and a train a throttle holds is never stopped for this.
+
 **Time.** The settling time is what a level waits, and the layout
 interface is where a clock is allowed to be read (ADR-0009) — the simulator
 advances one and this app reads one, which is the same rule from the two
@@ -503,8 +512,9 @@ class LayoutInterface:
         `arrival_allowance_s`: how long a move this app drives may run without
         arriving, `ARRIVAL_ALLOWANCE_S` by default, the installation's as the
         silences are. `__main__` reads it off `installation.yaml` and a person
-        changes it on `settings_wanted` (#1188); this app keeps and says it and
-        runs on nothing yet (#1190).
+        changes it on `settings_wanted` (#1188). A train that has run this
+        long without arriving is stopped and listed on `state/overdue`, the
+        allowance read at each check (#1190).
 
         `position`: where each train stands as this app comes up, train to
         block. None from a process starting, which knows of no train until
@@ -2189,6 +2199,11 @@ class LayoutInterface:
         each moving train stops at the end of the move it was granted.
 
         **`on` resumes** what a cut left between blocks (`_resume`).
+
+        The arrival allowance follows `state/power` and not the word: `off`
+        stops every crossing's, and the row reading `on` starts it again on
+        each crossing this app drives, so time with no supply does not count
+        (`_time_from_power`, #1190).
         """
         if word == OFF:
             self._traction_rest()

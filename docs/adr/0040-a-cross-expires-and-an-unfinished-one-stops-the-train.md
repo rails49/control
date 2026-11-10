@@ -1,5 +1,7 @@
 # A cross expires, and an unfinished one stops the train
 
+*Amended by [#1157](https://github.com/rails49/control/issues/1157): the second leg is built. `layout` times each move it drives against the installation's `arrival_allowance`, and a train that has not arrived by then is told `0.0` and listed on `tc49/layout/state/overdue`. The move is not given up: its locks hold and its arrival still ends it. The row names a train `layout` stopped, not one a detector saw, and the leg's "publishes nothing" predates ADR-0050. Nothing retries.*
+
 [ADR-0037](0037-the-run-is-held-or-running-and-held-blocks-commitment.md) left
 this open in as many words: *"The brake is shared; an emergency stop is more,
 and it is not here."* This is where the more arrives, and it is not one

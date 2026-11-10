@@ -1166,6 +1166,18 @@ for this
 ([#1151](https://github.com/rails49/control/issues/1151),
 [#1169](https://github.com/rails49/control/issues/1169)).
 
+**A train that does not arrive stops.** A move `layout` drives that has not
+arrived within the installation's arrival allowance, timed from the speed
+`layout` last gave it, is listed on `state/overdue` and then told `0.0` where it
+stands. Its route and locks stay held and its arrival still ends it; nothing
+retries. A listed train is given no speed until it arrives, a throttle takes
+it, or it is placed or removed, each of which takes it off the row. Time with
+the supply off does not count, a train standing for both sensors unknown is
+not timed, and a train a throttle holds, or one in `manual` no throttle holds,
+is never stopped for this
+([ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md),
+[#1190](https://github.com/rails49/control/issues/1190)).
+
 Commands name a **transit** rather than a piece of hardware. An `align` names
 a connection and a transit, and carries the points that transit needs as
 address-and-position pairs, so an adapter throws what it is told and holds no
@@ -1237,8 +1249,9 @@ arrival allowance with the installation in `installation.yaml`, read once as
 `layout` starts
 ([#1132](https://github.com/rails49/control/issues/1132),
 [#1149](https://github.com/rails49/control/issues/1149),
-[#1188](https://github.com/rails49/control/issues/1188)). `layout` keeps and says the arrival allowance and runs on
-nothing yet ([#1190](https://github.com/rails49/control/issues/1190)). A
+[#1188](https://github.com/rails49/control/issues/1188)). The arrival allowance
+holds from the next check of who is overdue
+([#1190](https://github.com/rails49/control/issues/1190)). A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
 and the speeds 0.6 and 0.3, an installation that keeps none at 5 s, 3 s and 60 s, and
 nothing is written until a person sets it
