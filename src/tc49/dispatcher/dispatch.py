@@ -60,6 +60,7 @@ from tc49.lib.payload import (
     power,
     readable_id,
     settled_reading,
+    taken,
     unknown_sensors,
     wanted_point,
     wanted_power,
@@ -77,6 +78,7 @@ ASPECTS = "tc49/dispatch/state/aspects"
 POWER = "tc49/layout/state/power"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 OVERDUE = "tc49/layout/state/overdue"
+TAKEN = "tc49/layout/state/taken"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
 """Where a deferred cancel asks `layout` to take its move back (#1068)."""
@@ -242,6 +244,11 @@ class State:
     # arriving within the allowance (#1191). No row means none. `_moving` is
     # its only reader.
     overdue: frozenset[str] = frozenset()
+    # The trains `layout` last named on `state/taken`: held by a throttle
+    # (#1187). No row means none. `_moving` is its only reader: a held train
+    # is not left out for both its sensors being unknown, since `layout`
+    # stops such a train only where no throttle holds it.
+    held: frozenset[str] = frozenset()
 
     @property
     def out_of_use(self) -> frozenset[str]:
@@ -921,7 +928,8 @@ class Dispatcher:
         self._allocation: Payload = {}  # likewise: the picture, when it moves
         self._disputed: Payload = {}  # and what the detectors dispute
         # The stamps held against the state topics this app consumes, which
-        # are `state/power`, `state/unknown_sensors` and `state/overdue` (#240). Two power
+        # are `state/power`, `state/unknown_sensors`, `state/overdue` and
+        # `state/taken` (#240). Two power
         # values delivered backwards would otherwise leave the dispatcher
         # believing the track is dead while it is live, or the other way about,
         # with nothing to notice.
@@ -945,6 +953,10 @@ class Dispatcher:
         stated = bus.last_values.get(OVERDUE)
         if stated is not None and self._ordering.accepts(OVERDUE, stated):
             self._state.overdue = overdue(stated) or frozenset()
+        # And the trains a throttle holds, so the first `moving` counts them.
+        stated = bus.last_values.get(TAKEN)
+        if stated is not None and self._ordering.accepts(TAKEN, stated):
+            self._state.held = frozenset(taken(stated))
         # The last `state/moving` value published, so the topic moves only
         # when what it says moves.
         self._published_moving: bool | None = None
@@ -1825,6 +1837,9 @@ class Dispatcher:
         elif leaf == "overdue":
             if self._ordering.accepts(topic, payload):
                 self._on_overdue(payload)
+        elif leaf == "taken":
+            if self._ordering.accepts(topic, payload):
+                self._on_taken(payload)
         self._check()
 
     def _on_reading(self, sensor: str, occupied: bool) -> None:
@@ -2138,6 +2153,22 @@ class Dispatcher:
         if listed is None or listed == self._state.overdue:
             return
         self._state.overdue = listed
+        self._publish_moving()
+
+    def _on_taken(self, payload: Payload) -> None:
+        """Which trains a throttle holds (#1187). Read for `state/moving`
+        alone, as `state/overdue` is: a held train between two sensors both
+        unknown is one a person is driving, which `layout` does not stop
+        (ADR-0081), so it counts.
+
+        Read an entry at a time (`lib.payload.taken`): an unreadable entry
+        leaves its train held by nobody, an unreadable payload holds nothing.
+        A row that changes nothing publishes nothing.
+        """
+        held = frozenset(taken(payload))
+        if held == self._state.held:
+            return
+        self._state.held = held
         self._publish_moving()
 
     def _sweep(self) -> None:
@@ -2477,9 +2508,13 @@ class Dispatcher:
     def _moving(self) -> bool:
         """Whether a power cut now would strand something: any train with a
         move between its grant and its entry sensor clearing or its far sensor
-        reading occupied (#1171), other than one `layout` has stopped with both
-        those sensors unknown, which a person's off press has to be able to
-        drain past (#1152, GLOSSARY.md, **Moving**). A train standing in a block loses
+        reading occupied (#1171), other than one no throttle holds with both
+        those sensors unknown: `layout` has stopped it, and a person's off
+        press has to be able to drain past it (#1152, GLOSSARY.md,
+        **Moving**). A train `state/taken` names counts with both unknown,
+        since `layout` leaves it running under its throttle, and the drain
+        waits until the person lets go of it or presses the stop sign
+        (#1187). A train standing in a block loses
         nothing when the supply goes, whether or not it is active: one a drain
         stopped at a signal partway along its route keeps that route and its
         locks, and carries on once power reads `on` again (ADR-0078). A
@@ -2493,8 +2528,10 @@ class Dispatcher:
         state = self._state
         listed = state.unknown_sensors
         late = state.overdue
+        held = state.held
         return any(
-            not each.at_far and not (each.entry in listed and each.far in listed)
+            not each.at_far
+            and (train in held or not (each.entry in listed and each.far in listed))
             for train, following in state.following.items()
             if train not in late
             for each in following
