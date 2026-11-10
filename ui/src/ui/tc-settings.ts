@@ -42,8 +42,9 @@
  * throttle silence, the
  * installation's whatever railroad is loaded (#1134): each commit sends the
  * one field committed. **Sensors**, after Throttles, does the same for the
- * sensor silence, the installation's too (#1149). Each field of these tabs is
- * drawn from its `SETTING_FIELDS` entry (#1185).
+ * sensor silence and the arrival allowance, both the installation's (#1149,
+ * #1192). Each field of these tabs is drawn from its `SETTING_FIELDS` entry
+ * (#1185).
  * **Shutdown** turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
