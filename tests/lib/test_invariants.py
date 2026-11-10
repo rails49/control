@@ -27,6 +27,7 @@ from tc49.lib.invariants import (
     MOVE,
     MOVE_GRANTED,
     MOVING,
+    OVERDUE,
     PLACEMENT_WANTED,
     POWER,
     POWER_WANTED,
@@ -995,6 +996,24 @@ def test_a_history_invariant_holds_and_is_breached(
 ) -> None:
     assert breaches_over(breaches, layout_id, rows, holds) == []
     assert len(breaches_over(breaches, layout_id, rows, breached)) == 1
+
+
+def test_a_released_train_stopped_overdue_is_not_reported() -> None:
+    """A train `layout` stopped for not arriving within the allowance is
+    listed on `state/overdue` before its `0.0`, and the release invariant
+    leaves it out; one the row does not list is still reported (#1190)."""
+    held = STANDING | {TAKEN: {"taken": {"single": "t-1"}}}
+    released: Messages = [*STARTED, (TAKEN, {"taken": {}})]
+    listed: tuple[str, Payload] = (
+        OVERDUE,
+        {"trains": [{"train": "single", "into": "dn_e", "reason": "no arrival"}]},
+    )
+    late: Messages = [*released, listed, wrote("3", 0.0)]
+    assert breaches_over(adr_0081_release_in_automatic, BENCH, held, late) == []
+    stopped: Messages = [*released, wrote("3", 0.0)]
+    assert breaches_over(adr_0081_release_in_automatic, BENCH, held, stopped) == [
+        "single released mid-move and stopped"
+    ]
 
 
 def test_a_reading_crossing_a_grant_counts_for_its_move() -> None:

@@ -92,6 +92,7 @@ from tc49.lib.payload import (
     moving,
     named_train,
     observed_position,
+    overdue,
     placement,
     power,
     readable_id,
@@ -111,6 +112,7 @@ UNFIT = "tc49/dispatch/state/unfit"
 FACING = "tc49/schedule/state/facing"
 POWER = "tc49/layout/state/power"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+OVERDUE = "tc49/layout/state/overdue"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 DISPUTED = "tc49/dispatch/state/disputed"
 ROUTE_CHOSEN = "tc49/dispatch/route_chosen"
@@ -2223,7 +2225,10 @@ def adr_0081_release_in_automatic(
     with dead rails; with a move outstanding and live rails it keeps a
     nonzero speed
     ([ADR-0081](../../../docs/adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md),
-    with ADR-0083)."""
+    with ADR-0083). Bar a train `state/overdue` lists: `layout` stopped it for
+    not arriving within the allowance, and the row goes out before the `0.0`
+    (ADR-0040, #1190)."""
+    late = overdue(record.rows.get(OVERDUE)) or frozenset()
     written = _written(topic, payload)
     if written is not None:
         addr, speed = written
@@ -2231,7 +2236,7 @@ def adr_0081_release_in_automatic(
             return [f"{record.released[addr]}'s car {addr} written {speed}"]
         return [
             f"{train} released mid-move and stopped"
-            for train in sorted(record.keeps)
+            for train in sorted(record.keeps - late)
             if speed == 0.0
             and record.under_way(train)
             and any(each == addr for each, _ in _addresses(view.roster, train))
@@ -2241,7 +2246,7 @@ def adr_0081_release_in_automatic(
     speeds = _traction(record.rows)
     return _owed(record.released, "was released") + [
         f"{train} released mid-move and left standing"
-        for train in sorted(record.keeps)
+        for train in sorted(record.keeps - late)
         if record.under_way(train)
         and not any(
             speeds.get(addr, 0.0) != 0.0
