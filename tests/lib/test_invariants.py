@@ -1528,6 +1528,18 @@ def test_which_history_invariants_are_cross_app() -> None:
     assert cross_app(by_name["adr_0069_removed_is_stopped"])
 
 
+def test_the_release_invariant_reads_state_overdue() -> None:
+    """It leaves out a train `state/overdue` lists, so it names the topic
+    among its reads; `layout` writes it, so the classification is unchanged
+    (#1197)."""
+    by_name = {
+        invariant.breaches.__name__: invariant for invariant in HISTORY_INVARIANTS
+    }
+    release = by_name["adr_0081_release_in_automatic"]
+    assert OVERDUE in release.reads
+    assert cross_app(release)
+
+
 def test_a_retained_railroad_handed_again_is_no_start() -> None:
     """A late subscriber on `#` is handed `state/railroad` and then
     `state/power` as they stand, which is not `layout` coming up."""
