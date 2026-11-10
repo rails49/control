@@ -100,7 +100,8 @@ the band's backup note on Backup
   is heard. A commit — a change, not each keystroke — publishes
   `tc49/layout/settings_wanted` with the gap typed, and nothing where it is
   the gap the row already says; a gap outside `0`–`5`, or no number at all,
-  is not sent and the tab says why (`gapChange`, `model/settings.ts`). The
+  is not sent and the tab says why (`settingChange`, `model/settings.ts`,
+  each field's bounds, label and payload its `SETTING_FIELDS` entry). The
   field goes on showing the row, not the press, except that a refused commit
   stays in it beside the reason, however often it is committed, until a
   commit is not refused or the row says a different gap
@@ -111,16 +112,15 @@ the band's backup note on Backup
   locomotive's top speed from `1` to `100` in steps of `1`. Each shows
   `speeds` from `tc49/layout/state/settings` times 100, and a commit publishes
   `settings_wanted` with that one speed, the percent over 100, as
-  `speeds: {clear}` or `speeds: {caution}` (`speedChange`).
+  `speeds: {clear}` or `speeds: {caution}`.
 - **Throttles** sets the throttle silence (#1134, #1142): one field, *Let go of a silent
   throttle's trains after*, in seconds from `2` to `60` in steps of `1`, with
   a hint that it applies whatever railroad is loaded. A commit publishes
-  `settings_wanted` with `throttle_silence` alone (`silenceChange`).
+  `settings_wanted` with `throttle_silence` alone.
 - **Sensors** sets the sensor silence
   ([#1149](https://github.com/rails49/control/issues/1149)): one field, *Call a sensor unknown once unheard for*, in
   seconds from `2` to `60` in steps of `1`, with the same hint. A commit
-  publishes `settings_wanted` with `sensor_silence` alone
-  (`sensorSilenceChange`).
+  publishes `settings_wanted` with `sensor_silence` alone.
 
   These tabs read as Points does: dead with the same hint until the row is
   heard, nothing sent for the value the row already says, and a value out of
