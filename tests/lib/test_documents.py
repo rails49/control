@@ -17,7 +17,12 @@ import yaml
 
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
-from tc49.lib.settings import SENSOR_SILENCE_S, KeptInstallation, KeptSettings
+from tc49.lib.settings import (
+    ARRIVAL_ALLOWANCE_S,
+    SENSOR_SILENCE_S,
+    KeptInstallation,
+    KeptSettings,
+)
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
@@ -242,6 +247,7 @@ def test_the_installations_sensor_silence_is_kept_beside_the_throttle_silence(
     assert yaml.safe_load((root / "installation.yaml").read_text()) == {
         "throttle_silence": 10.0,
         "sensor_silence": 20.0,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
     }
 
 
@@ -257,6 +263,35 @@ def test_an_installation_kept_before_the_sensor_silence_reads_at_the_default(
 def test_a_sensor_silence_the_store_cannot_read_is_raised(url: str, root: Path) -> None:
     (root / "installation.yaml").write_text("sensor_silence: 1\n")
     with pytest.raises(ValueError, match="sensor_silence"):
+        client(url).installation()
+
+
+def test_the_installations_arrival_allowance_is_kept_beside_the_silences(
+    url: str, root: Path
+) -> None:
+    """A document with all three reads all three (#1188)."""
+    (root / "installation.yaml").write_text(
+        "throttle_silence: 10\nsensor_silence: 20\narrival_allowance: 120\n"
+    )
+    assert client(url).installation() == KeptInstallation(10.0, 20.0, 120.0)
+
+
+def test_an_installation_kept_before_the_arrival_allowance_reads_at_sixty(
+    url: str, root: Path
+) -> None:
+    """A box that set its two silences before there was an allowance keeps
+    what it set and comes up at the default allowance (#1188)."""
+    (root / "installation.yaml").write_text(
+        "throttle_silence: 10\nsensor_silence: 20\n"
+    )
+    assert client(url).installation() == KeptInstallation(10.0, 20.0, 60.0)
+
+
+def test_an_arrival_allowance_the_store_cannot_read_is_raised(
+    url: str, root: Path
+) -> None:
+    (root / "installation.yaml").write_text("arrival_allowance: 4\n")
+    with pytest.raises(ValueError, match="arrival_allowance"):
         client(url).installation()
 
 

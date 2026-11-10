@@ -329,6 +329,11 @@ SENSOR_SILENCE_S = settings.SENSOR_SILENCE_S
 """How long a sensor may go unheard, in seconds, by default: an installation
 keeps its own, which a person sets on `settings_wanted` (#1149)."""
 
+ARRIVAL_ALLOWANCE_S = settings.ARRIVAL_ALLOWANCE_S
+"""How long a move this app drives may run without arriving, in seconds, by
+default: an installation keeps its own, which a person sets on
+`settings_wanted` (#1188)."""
+
 NO_REPORT_SINCE_START = "no report since start"
 NO_REASON_GIVEN = "no reason given"
 
@@ -447,6 +452,7 @@ class LayoutInterface:
         keep: Callable[[KeptSettings | KeptInstallation], None] | None = None,
         speeds: Mapping[str, float] = SPEEDS,
         sensor_silence_s: float = SENSOR_SILENCE_S,
+        arrival_allowance_s: float = ARRIVAL_ALLOWANCE_S,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -484,6 +490,12 @@ class LayoutInterface:
         it off `installation.yaml` and a person changes it on
         `settings_wanted` (#1149).
 
+        `arrival_allowance_s`: how long a move this app drives may run without
+        arriving, `ARRIVAL_ALLOWANCE_S` by default, the installation's as the
+        silences are. `__main__` reads it off `installation.yaml` and a person
+        changes it on `settings_wanted` (#1188); this app keeps and says it and
+        runs on nothing yet (#1190).
+
         `position`: where each train stands as this app comes up, train to
         block. None from a process starting, which knows of no train until
         the dispatcher places one; the last build's, less any train whose
@@ -510,8 +522,8 @@ class LayoutInterface:
 
         `keep`: where a changed setting is kept, handed the railroad's
         settings as they now stand where a person changed the gap or a
-        speed, and the installation's where they changed the throttle
-        silence. `__main__` writes them to the store off the loop's thread;
+        speed, and the installation's where they changed either silence or
+        the arrival allowance. `__main__` writes them to the store off the loop's thread;
         None keeps them nowhere, which is the simulator binding's and a
         test's.
 
@@ -527,7 +539,9 @@ class LayoutInterface:
         self._reread = reread
         self._clock = clock
         self._settling_s = settling_s
-        self._installation = KeptInstallation(throttle_silence_s, sensor_silence_s)
+        self._installation = KeptInstallation(
+            throttle_silence_s, sensor_silence_s, arrival_allowance_s
+        )
         self._settings = KeptSettings(point_gap, dict(speeds))
         self._keep = keep
         # Where each train stands, which is the whole of the near-end check,
@@ -1486,7 +1500,8 @@ class LayoutInterface:
         #1132): taken whatever track power and the run are doing, said at
         once on `state/settings` so every open page shows them, and each
         kept in its document — the gap and the speeds with the railroad, the
-        two silences with the installation. A field left out, and a speed
+        two silences and the arrival allowance with the installation (#1188).
+        A field left out, and a speed
         left out of `speeds`, keeps its value. The gap is used from the next
         `align` and each silence from the next check of who has gone silent;
         the speeds are the driver's, and this app keeps and says them and reads

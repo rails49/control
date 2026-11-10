@@ -12,6 +12,7 @@ import pytest
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.settings import (
+    ARRIVAL_ALLOWANCE_S,
     SENSOR_SILENCE_S,
     THROTTLE_SILENCE_S,
     KeptInstallation,
@@ -43,6 +44,7 @@ def test_a_railroad_that_keeps_no_settings_says_the_defaults() -> None:
         "speeds": {"clear": 0.6, "caution": 0.3},
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
     }
 
 
@@ -54,6 +56,7 @@ def test_a_railroad_that_keeps_its_speeds_says_them() -> None:
         "speeds": {"clear": 0.5, "caution": 0.25},
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
     }
 
 
@@ -68,6 +71,7 @@ class Built:
         self,
         throttle_silence_s: float = THROTTLE_SILENCE_S,
         sensor_silence_s: float = SENSOR_SILENCE_S,
+        arrival_allowance_s: float = ARRIVAL_ALLOWANCE_S,
     ) -> None:
         layout, _roster, _scenario = load("crossover-yard/meet")
         clock = Clock()
@@ -80,6 +84,7 @@ class Built:
             throttle_silence_s=throttle_silence_s,
             keep=self.kept.append,
             sensor_silence_s=sensor_silence_s,
+            arrival_allowance_s=arrival_allowance_s,
         )
         self.bus.drain()
 
@@ -104,6 +109,7 @@ def test_a_speed_a_person_sets_is_said_at_once_and_kept_with_the_railroad() -> N
         "speeds": {"clear": 0.5, "caution": 0.3},
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
     }
     assert built.kept == [KeptSettings(0.5, {"clear": 0.5, "caution": 0.3})]
 
@@ -139,6 +145,22 @@ def test_a_simulator_says_the_sensor_silence_it_is_built_with() -> None:
     assert Built(sensor_silence_s=10.0).said["sensor_silence"] == 10.0
 
 
+def test_an_arrival_allowance_a_person_sets_is_said_and_kept_with_the_installation() -> (
+    None
+):
+    """Beside the two silences as they stand: this binding times no move, so
+    it keeps and says the allowance and runs on nothing (#1188)."""
+    built = Built()
+    built.wanted({"throttle_silence": 8, "sensor_silence": 10})
+    built.wanted({"arrival_allowance": 120})
+    assert built.said["arrival_allowance"] == 120.0
+    assert built.kept[-1] == KeptInstallation(8.0, 10.0, 120.0)
+
+
+def test_a_simulator_says_the_arrival_allowance_it_is_built_with() -> None:
+    assert Built(arrival_allowance_s=120.0).said["arrival_allowance"] == 120.0
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -147,6 +169,8 @@ def test_a_simulator_says_the_sensor_silence_it_is_built_with() -> None:
         {"point_gap": 1.0, "throttle_silence": 1},
         {"sensor_silence": 1},
         {"sensor_silence": 61},
+        {"arrival_allowance": 4},
+        {"arrival_allowance": 601},
         {},
         "clear",
     ],

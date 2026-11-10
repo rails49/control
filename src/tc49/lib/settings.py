@@ -1,7 +1,7 @@
 """The settings a person sets from the Settings dialog: the railroad's, its
 **point gap** and the driver's **speeds** (#1125, #1126, #1132), and the
-installation's, its **throttle silence** (#1132) and **sensor silence**
-(#1149) — and the shape of
+installation's, its **throttle silence** (#1132), **sensor silence**
+(#1149) and **arrival allowance** (#1188) — and the shape of
 `tc49/layout/state/settings`, which says them all (#1130).
 
 Both bindings of the layout interface say them on `tc49/layout/state/settings`,
@@ -68,6 +68,20 @@ SENSOR_SILENCE_MAX_S = 60.0
 """The longest sensor silence, in seconds, the longest a throttle may go
 unheard too."""
 
+ARRIVAL_ALLOWANCE_S = 60.0
+"""How long a move `layout` drives may run without arriving before it stops
+the train, in seconds, where the installation keeps none
+(`installation.yaml`, #1188). One for each move, not each block: it covers the
+transit and a whole block at `caution` to the far sensor, and leans long since
+a false stop costs a person's attention and nothing retries it (#1157)."""
+
+ARRIVAL_ALLOWANCE_MIN_S = 5.0
+"""The shortest arrival allowance, in seconds."""
+
+ARRIVAL_ALLOWANCE_MAX_S = 600.0
+"""The longest arrival allowance, in seconds: a move ten minutes from its
+destination has stopped arriving."""
+
 
 def speed(value: object) -> float | None:
     """`value` as one of the driver's speeds, or None where it is not one: a
@@ -99,6 +113,17 @@ def sensor_silence(value: object) -> float | None:
         return None
     # Written so that `nan`, which compares false with everything, fails.
     if not SENSOR_SILENCE_MIN_S <= value <= SENSOR_SILENCE_MAX_S:
+        return None
+    return float(value)
+
+
+def arrival_allowance(value: object) -> float | None:
+    """`value` as an arrival allowance, or None where it is not one: a finite
+    number from `ARRIVAL_ALLOWANCE_MIN_S` to `ARRIVAL_ALLOWANCE_MAX_S`."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    # Written so that `nan`, which compares false with everything, fails.
+    if not ARRIVAL_ALLOWANCE_MIN_S <= value <= ARRIVAL_ALLOWANCE_MAX_S:
         return None
     return float(value)
 
@@ -178,35 +203,45 @@ def _kept_speeds(stated: object) -> dict[str, float]:
 @dataclass(frozen=True)
 class KeptInstallation:
     """What the installation keeps of its settings, `installation.yaml`: the
-    throttle silence and the sensor silence, in seconds (#1132, #1149)."""
+    throttle silence, the sensor silence and the arrival allowance, in
+    seconds (#1132, #1149, #1188)."""
 
     throttle_silence: float = THROTTLE_SILENCE_S
     sensor_silence: float = SENSOR_SILENCE_S
+    arrival_allowance: float = ARRIVAL_ALLOWANCE_S
 
     def document(self) -> dict[str, float]:
         """The store's document."""
         return {
             "throttle_silence": self.throttle_silence,
             "sensor_silence": self.sensor_silence,
+            "arrival_allowance": self.arrival_allowance,
         }
+
+
+_INSTALLATION_FIELDS = frozenset(
+    {"throttle_silence", "sensor_silence", "arrival_allowance"}
+)
 
 
 def kept_installation(doc: object) -> KeptInstallation:
     """The `KeptInstallation` a store document says, or `ValueError` or
-    `TypeError` naming what is wrong with it: `throttle_silence`,
-    `sensor_silence` or both, each in range, and nothing else. One left out is
-    its default, so a document written before there was a sensor silence
-    reads as it did (#1149)."""
+    `TypeError` naming what is wrong with it: any of `throttle_silence`,
+    `sensor_silence` and `arrival_allowance`, at least one, each in range, and
+    nothing else. One left out is its default, so a document written before
+    there was a sensor silence or an arrival allowance reads as it did
+    (#1149, #1188)."""
     if not isinstance(doc, dict):
         raise TypeError(
-            "the installation's settings are a document of 'throttle_silence'"
-            " and 'sensor_silence'"
+            "the installation's settings are a document of 'throttle_silence',"
+            " 'sensor_silence' and 'arrival_allowance'"
         )
     fields = cast(dict[str, Any], doc)
-    if not fields or not set(fields) <= {"throttle_silence", "sensor_silence"}:
+    if not fields or not set(fields) <= _INSTALLATION_FIELDS:
         raise ValueError(
-            "the installation's settings have 'throttle_silence' or"
-            f" 'sensor_silence', not {sorted(map(str, fields))}"
+            "the installation's settings have 'throttle_silence',"
+            " 'sensor_silence' or 'arrival_allowance',"
+            f" not {sorted(map(str, fields))}"
         )
     throttle = throttle_silence(fields.get("throttle_silence", THROTTLE_SILENCE_S))
     if throttle is None:
@@ -222,18 +257,26 @@ def kept_installation(doc: object) -> KeptInstallation:
             f" of seconds from {SENSOR_SILENCE_MIN_S:g}"
             f" to {SENSOR_SILENCE_MAX_S:g}"
         )
-    return KeptInstallation(throttle, sensor)
+    allowance = arrival_allowance(fields.get("arrival_allowance", ARRIVAL_ALLOWANCE_S))
+    if allowance is None:
+        raise ValueError(
+            f"'arrival_allowance' is {fields['arrival_allowance']!r}, not a"
+            f" number of seconds from {ARRIVAL_ALLOWANCE_MIN_S:g}"
+            f" to {ARRIVAL_ALLOWANCE_MAX_S:g}"
+        )
+    return KeptInstallation(throttle, sensor, allowance)
 
 
 def said(kept: KeptSettings, installation: KeptInstallation) -> dict[str, object]:
     """The payload of `tc49/layout/state/settings`: the railroad's point gap
-    and speeds, and the installation's throttle silence and sensor silence,
-    every field always present (#1130, #1149)."""
+    and speeds, and the installation's throttle silence, sensor silence and
+    arrival allowance, every field always present (#1130, #1149, #1188)."""
     return {
         "point_gap": kept.point_gap,
         "speeds": dict(kept.speeds),
         "throttle_silence": installation.throttle_silence,
         "sensor_silence": installation.sensor_silence,
+        "arrival_allowance": installation.arrival_allowance,
     }
 
 
@@ -242,9 +285,10 @@ def taken(
 ) -> tuple[KeptSettings, KeptInstallation, list[KeptSettings | KeptInstallation]]:
     """The settings as they stand once a person's `settings_wanted` is
     taken, the rule both bindings of the layout interface take it by
-    (#1126, #1132, #1140, #1149): the railroad's, the installation's, and the
-    documents to keep — the railroad's where the gesture set the gap or a
-    speed, the installation's where it set either silence. A field left out,
+    (#1126, #1132, #1140, #1149, #1188): the railroad's, the installation's,
+    and the documents to keep — the railroad's where the gesture set the gap
+    or a speed, the installation's where it set either silence or the
+    arrival allowance. A field left out,
     and a speed left out of `speeds`, keeps its value."""
     changed: list[KeptSettings | KeptInstallation] = []
     if wanted.point_gap is not None or wanted.speeds is not None:
@@ -253,7 +297,11 @@ def taken(
             {**kept.speeds, **(wanted.speeds or {})},
         )
         changed.append(kept)
-    if wanted.throttle_silence is not None or wanted.sensor_silence is not None:
+    if (
+        wanted.throttle_silence is not None
+        or wanted.sensor_silence is not None
+        or wanted.arrival_allowance is not None
+    ):
         installation = KeptInstallation(
             (
                 installation.throttle_silence
@@ -264,6 +312,11 @@ def taken(
                 installation.sensor_silence
                 if wanted.sensor_silence is None
                 else wanted.sensor_silence
+            ),
+            (
+                installation.arrival_allowance
+                if wanted.arrival_allowance is None
+                else wanted.arrival_allowance
             ),
         )
         changed.append(installation)

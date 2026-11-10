@@ -25,13 +25,13 @@ stands in for. The clock is the railroad's start time and speed-up,
 (`lib/clock_row.py`), and the fast clock it starts is said off the run clock
 (ADR-0090). The settings are read as `layout` reads them, the railroad's
 from `layouts/<layout>.settings.yaml` at each build and the installation's
-throttle silence and sensor silence from `installation.yaml` once as the app
-starts; it takes
+throttle silence, sensor silence and arrival allowance from `installation.yaml`
+once as the app starts; it takes
 `tc49/layout/settings_wanted` by `layout`'s rule and keeps each change where
 `layout` keeps it, so the Settings dialog works on a simulated railroad as on
-steel. It keeps and says the point gap and the two silences and runs on none
-of them, sending no point command, holding no throttle and reading no sensor
-report (#1140, #1149). Neither the drain
+steel. It keeps and says the point gap and every one of the installation's
+settings and runs on none of them, sending no point command, holding no
+throttle, reading no sensor report and timing no move (#1140, #1149, #1188). Neither the drain
 period nor the two delays is a flag — nothing outside this process has an
 opinion about how often it takes what the broker's network thread left
 waiting, and what a transit costs is this binding's own stand-in for travel
@@ -263,9 +263,9 @@ class _Binding:
         railroad as `layout` keeps it (ADR-0090).
 
         The settings are taken on `settings_wanted` and kept as `layout`
-        keeps them, the railroad's with the railroad and the two silences
-        with the installation, the ones every later build says (#1140,
-        #1149)."""
+        keeps them, the railroad's with the railroad and the two silences and
+        the arrival allowance with the installation, the ones every later
+        build says (#1140, #1149, #1188)."""
         layout, kept, settings = read
         clock = Clock()
 
@@ -291,6 +291,7 @@ class _Binding:
             throttle_silence_s=self._installation.throttle_silence,
             keep=keep_settings,
             sensor_silence_s=self._installation.sensor_silence,
+            arrival_allowance_s=self._installation.arrival_allowance,
         )
         return _Running(simulator, self._alive, self._stop, self._period_s)
 

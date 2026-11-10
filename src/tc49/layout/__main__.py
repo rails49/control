@@ -64,7 +64,8 @@ The railroad's settings, its point gap and the driver's speeds, go the same
 way: read at each build from `layouts/<layout>.settings.yaml`, the defaults
 where it keeps none or keeps some the store cannot read, set with
 `tc49/layout/settings_wanted` and written by the same thread (#1126, #1132),
-which writes the installation's throttle silence and sensor silence too.
+which writes the installation's throttle silence, sensor silence and arrival
+allowance too.
 
 `LayoutInterface` is handed a `Bus` and nothing else in the package changes.
 The clock is this process's own: the run clock is read here and advanced
@@ -177,9 +178,10 @@ def serve(
     `railroad` is where this app starts **where the store records nothing**
     (`Answering.recorded`), read once the broker is there.
 
-    The installation's settings, its throttle silence and sensor silence, are
-    read before that, once: they are the same whatever railroad is loaded,
-    and a person setting one changes it for every build after (#1132, #1149).
+    The installation's settings, its throttle silence, sensor silence and
+    arrival allowance, are read before that, once: they are the same whatever
+    railroad is loaded, and a person setting one changes it for every build
+    after (#1132, #1149, #1188).
 
     The desired rows go with the railroad that is left — a speed for a
     locomotive the new railroad does not have, a position for a point it
@@ -273,9 +275,10 @@ class _Binding:
         roster again, once, for a placement or a take naming a train it was
         not built with (ADR-0092, decision 2). It starts at the settings
         the railroad keeps, the defaults where it keeps none, and a person's
-        change to them is kept with the railroad (#1126). A throttle silence
-        or a sensor silence a person sets is kept with the installation and
-        is the one every later build starts at (#1132, #1149)."""
+        change to them is kept with the railroad (#1126). A throttle silence,
+        a sensor silence or an arrival allowance a person sets is kept with
+        the installation and is the one every later build starts at (#1132,
+        #1149, #1188)."""
         retained(self._bus, self._stop)
         layout, roster, kept, settings = read
         clock = Clock()
@@ -298,6 +301,7 @@ class _Binding:
             keep=keep_settings,
             speeds=(settings or KeptSettings()).speeds,
             sensor_silence_s=self._installation.sensor_silence,
+            arrival_allowance_s=self._installation.arrival_allowance,
         )
 
         def keep(changed: KeptClock) -> None:

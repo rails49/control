@@ -1408,6 +1408,19 @@ def test_the_installations_sensor_silence_is_written_and_read_back(
         assert handle(store, backup, "GET", "/installation", None) == (200, doc)
 
 
+def test_the_installations_arrival_allowance_is_written_and_read_back(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Beside the two silences or alone (#1188)."""
+    store = AssetStore(tmp_path)
+    for doc in (
+        {"throttle_silence": 10.0, "sensor_silence": 20.0, "arrival_allowance": 120.0},
+        {"arrival_allowance": 120.0},
+    ):
+        assert handle(store, backup, "PUT", "/installation", doc)[0] == 200
+        assert handle(store, backup, "GET", "/installation", None) == (200, doc)
+
+
 def test_an_installation_with_no_settings_is_not_found(
     tmp_path: Path, backup: Backup
 ) -> None:
@@ -1434,6 +1447,10 @@ def test_installation_settings_that_are_not_settings_are_refused(
         {"sensor_silence": "3"},
         {"sensor_silence": True},
         {"throttle_silence": 10, "sensor_silence": 61},
+        {"arrival_allowance": 4},
+        {"arrival_allowance": 601},
+        {"arrival_allowance": "60"},
+        {"throttle_silence": 10, "arrival_allowance": 601},
     ):
         assert handle(store, backup, "PUT", "/installation", body)[0] == 400, body
     assert not (tmp_path / "installation.yaml").exists()
