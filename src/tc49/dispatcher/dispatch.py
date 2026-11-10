@@ -55,6 +55,7 @@ from tc49.lib.payload import (
     Ordering,
     gesture,
     kept_allocation,
+    overdue,
     placement,
     power,
     readable_id,
@@ -75,6 +76,7 @@ ALLOCATION = "tc49/dispatch/state/allocation"
 ASPECTS = "tc49/dispatch/state/aspects"
 POWER = "tc49/layout/state/power"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+OVERDUE = "tc49/layout/state/overdue"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
 """Where a deferred cancel asks `layout` to take its move back (#1068)."""
@@ -236,6 +238,10 @@ class State:
     # none, and a binding with no sensors lists none. Written only by that row,
     # so a sensor returning takes its block straight back into use, with no press.
     unknown_sensors: frozenset[str] = frozenset()
+    # The trains `layout` last listed on `state/overdue`: stopped for not
+    # arriving within the allowance (#1191). No row means none. `_moving` is
+    # its only reader.
+    overdue: frozenset[str] = frozenset()
 
     @property
     def out_of_use(self) -> frozenset[str]:
@@ -915,7 +921,7 @@ class Dispatcher:
         self._allocation: Payload = {}  # likewise: the picture, when it moves
         self._disputed: Payload = {}  # and what the detectors dispute
         # The stamps held against the state topics this app consumes, which
-        # are `state/power` and `state/unknown_sensors` (#240). Two power
+        # are `state/power`, `state/unknown_sensors` and `state/overdue` (#240). Two power
         # values delivered backwards would otherwise leave the dispatcher
         # believing the track is dead while it is live, or the other way about,
         # with nothing to notice.
@@ -934,6 +940,11 @@ class Dispatcher:
         stated = bus.last_values.get(UNKNOWN_SENSORS)
         if stated is not None and self._ordering.accepts(UNKNOWN_SENSORS, stated):
             self._state.unknown_sensors = unknown_sensors(stated) or frozenset()
+        # And the trains stopped for not arriving, so the first `moving` leaves
+        # them out.
+        stated = bus.last_values.get(OVERDUE)
+        if stated is not None and self._ordering.accepts(OVERDUE, stated):
+            self._state.overdue = overdue(stated) or frozenset()
         # The last `state/moving` value published, so the topic moves only
         # when what it says moves.
         self._published_moving: bool | None = None
@@ -1811,6 +1822,9 @@ class Dispatcher:
         elif leaf == "unknown_sensors":
             if self._ordering.accepts(topic, payload):
                 self._on_unknown_sensors(payload)
+        elif leaf == "overdue":
+            if self._ordering.accepts(topic, payload):
+                self._on_overdue(payload)
         self._check()
 
     def _on_reading(self, sensor: str, occupied: bool) -> None:
@@ -2110,6 +2124,21 @@ class Dispatcher:
         self._state.unknown_sensors = listed
         self._lift_residue()
         self._sweep()
+
+    def _on_overdue(self, payload: Payload) -> None:
+        """Which trains `layout` has stopped for not arriving within the
+        allowance (#1191). Read for `state/moving` alone: it sweeps nothing,
+        takes and releases no lock and asks for no drain, and a listed train
+        keeps its request, its route, its locks and its crossing.
+
+        An unreadable row is dropped and the last value stands, and a row that
+        changes nothing publishes nothing.
+        """
+        listed = overdue(payload)
+        if listed is None or listed == self._state.overdue:
+            return
+        self._state.overdue = listed
+        self._publish_moving()
 
     def _sweep(self) -> None:
         """One grant pass, run where the lock table or the waiting set
@@ -2457,14 +2486,23 @@ class Dispatcher:
         **crossing** train counts with no request behind it: a restored hint
         is a train the dispatcher believes is between two blocks, and a drain
         that ended over one would have `layout` cut the supply under it.
+        A train on `state/overdue` does not count, by any move or hint:
+        `layout` has stopped it for not arriving within its allowance, and only
+        a person can end its move (#1191, GLOSSARY.md, **Moving**).
         """
         state = self._state
         listed = state.unknown_sensors
+        late = state.overdue
         return any(
             not each.at_far and not (each.entry in listed and each.far in listed)
-            for following in state.following.values()
+            for train, following in state.following.items()
+            if train not in late
             for each in following
-        ) or any(not state.following.get(train) for train in state.crossing)
+        ) or any(
+            not state.following.get(train)
+            for train in state.crossing
+            if train not in late
+        )
 
     def _publish_moving(self) -> None:
         """Whether anything is moving, on `state/moving`: what `layout` reads
