@@ -151,18 +151,34 @@ TOPICS: dict[str, Topic] = {
     # the installation's seconds, 2 to 60, a throttle may go unheard before
     # `layout` lets go of its trains, the same whatever railroad is loaded
     # (#1130). `sensor_silence` is the installation's too, 2 to 60 seconds a
-    # sensor may go unheard (#1149).
+    # sensor may go unheard (#1149), and so is `arrival_allowance`, 5 to 600
+    # seconds a move may run without arriving before `layout` stops its
+    # train (#1188).
     "tc49/layout/state/settings": Topic(
-        (AT, "point_gap", "speeds", "throttle_silence", "sensor_silence")
+        (
+            AT,
+            "point_gap",
+            "speeds",
+            "throttle_silence",
+            "sensor_silence",
+            "arrival_allowance",
+        )
     ),
     # A person sets the settings from the Settings dialog: any of the point
-    # gap, the speeds and the two silences, at least one, each in the
+    # gap, the speeds, the two silences and the arrival allowance, at least one, each in the
     # range `state/settings` gives it (#1126, #1131). `speeds` names
     # `clear`, `caution` or both. A field left out keeps its value; an
     # unknown field or a value out of range drops the gesture whole. Taken
     # whatever track power and the run are doing, and needs no rebuild.
     "tc49/layout/settings_wanted": Topic(
-        ("point_gap", "speeds", "throttle_silence", "sensor_silence"), browser=True
+        (
+            "point_gap",
+            "speeds",
+            "throttle_silence",
+            "sensor_silence",
+            "arrival_allowance",
+        ),
+        browser=True,
     ),
     "tc49/schedule/request_wanted": Topic(("train", "dest"), browser=True),
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),

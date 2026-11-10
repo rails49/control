@@ -45,7 +45,13 @@ from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
 from tc49.lib.documents import Documents
 from tc49.lib.loading import BUILT, RAILROAD_WANTED
 from tc49.lib.mqtt import MqttBus
-from tc49.lib.settings import POINT_GAP_S, SENSOR_SILENCE_S, SPEEDS, THROTTLE_SILENCE_S
+from tc49.lib.settings import (
+    ARRIVAL_ALLOWANCE_S,
+    POINT_GAP_S,
+    SENSOR_SILENCE_S,
+    SPEEDS,
+    THROTTLE_SILENCE_S,
+)
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
@@ -548,6 +554,7 @@ def test_a_railroad_and_installation_keeping_no_settings_say_the_defaults(
     assert said["speeds"] == {"clear": 0.6, "caution": 0.3}
     assert said["throttle_silence"] == THROTTLE_SILENCE_S == 5.0
     assert said["sensor_silence"] == SENSOR_SILENCE_S == 3.0
+    assert said["arrival_allowance"] == ARRIVAL_ALLOWANCE_S == 60.0
     assert not (root / "installation.yaml").exists()
     witness.close()
 
@@ -642,6 +649,7 @@ def test_a_sensor_silence_a_person_sets_is_kept_and_a_layout_started_after_says_
         assert AssetStore(root).installation() == {
             "throttle_silence": THROTTLE_SILENCE_S,
             "sensor_silence": 10.0,
+            "arrival_allowance": ARRIVAL_ALLOWANCE_S,
         }
     finally:
         first.stop()
@@ -660,6 +668,52 @@ def test_a_sensor_silence_a_person_sets_is_kept_and_a_layout_started_after_says_
                 row.get("sensor_silence") == 10 for row in rows(heard, SETTINGS)
             ),
         ), "the next layout never said the kept silence"
+    finally:
+        second.stop()
+        witness.close()
+
+
+def test_an_arrival_allowance_a_person_sets_is_kept_and_a_layout_started_after_says_it(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """Said at once, written to `installation.yaml` beside the two silences,
+    and read by the next app to start (#1188)."""
+    store.start()
+    first = App(broker, store)
+    witness, heard = watching(broker)
+    try:
+        first.start()
+        assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings"
+        witness.publish(SETTINGS_WANTED, {"arrival_allowance": 120})
+        assert drained(
+            witness,
+            lambda: any(
+                row["arrival_allowance"] == 120 for row in rows(heard, SETTINGS)
+            ),
+        ), "the allowance was never said"
+        assert until((root / "installation.yaml").exists), "never kept"
+        assert AssetStore(root).installation() == {
+            "throttle_silence": THROTTLE_SILENCE_S,
+            "sensor_silence": SENSOR_SILENCE_S,
+            "arrival_allowance": 120.0,
+        }
+    finally:
+        first.stop()
+        # The row the first one left would say 120 whatever the next one read.
+        witness.clear(SETTINGS)
+        settle(witness)
+        witness.close()
+
+    witness, heard = watching(broker)
+    second = App(broker, store)
+    try:
+        second.start()
+        assert drained(
+            witness,
+            lambda: any(
+                row.get("arrival_allowance") == 120 for row in rows(heard, SETTINGS)
+            ),
+        ), "the next layout never said the kept allowance"
     finally:
         second.stop()
         witness.close()
@@ -686,6 +740,7 @@ def test_a_throttle_silence_a_person_sets_is_kept_and_outlives_a_load(
     assert AssetStore(root).installation() == {
         "throttle_silence": 10.0,
         "sensor_silence": SENSOR_SILENCE_S,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
     }
     assert not (root / "layouts" / f"{NAME}.settings.yaml").exists()
 

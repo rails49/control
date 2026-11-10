@@ -160,6 +160,7 @@ def test_a_gap_beside_good_speeds_and_silence_is_taken_with_them() -> None:
         "speeds": {"clear": 0.8, "caution": 0.3},
         "throttle_silence": 10.0,
         "sensor_silence": 3.0,
+        "arrival_allowance": 60.0,
     }
 
 
@@ -198,6 +199,7 @@ def test_a_speed_set_is_kept_with_the_railroad_beside_what_was_not_set() -> None
             "speeds": {"clear": 0.6, "caution": 0.2},
             "throttle_silence": 5.0,
             "sensor_silence": 3.0,
+            "arrival_allowance": 60.0,
         },
     )
     assert app.point_gap == 1.5
@@ -273,6 +275,48 @@ def test_a_sensor_silence_out_of_range_changes_nothing(silence: int) -> None:
     before = list(said)
     sets(bus, {"sensor_silence": silence})
     sets(bus, {"point_gap": 2, "sensor_silence": silence})
+    assert said == before
+    assert kept == []
+    assert app.point_gap == POINT_GAP_S
+
+
+def test_an_arrival_allowance_set_is_said_at_once_and_kept_with_the_installation() -> (
+    None
+):
+    """Beside the two silences as they stand, which are the same document,
+    and not with the railroad (#1188)."""
+    bus, _app, kept = kept_by_app()
+    said = heard(bus, SETTINGS)
+    sets(bus, {"throttle_silence": 8, "sensor_silence": 10})
+    sets(bus, {"arrival_allowance": 120})
+    assert kept[-1] == KeptInstallation(8.0, 10.0, 120.0)
+    assert said[-1] == (
+        SETTINGS,
+        {
+            "at": 0.0,
+            **settings_row(
+                throttle_silence=8, sensor_silence=10, arrival_allowance=120
+            ),
+        },
+    )
+
+
+def test_a_layout_built_with_no_arrival_allowance_says_sixty_seconds() -> None:
+    """One allowance a move, leaning long (#1157, #1188)."""
+    bus, _app, _kept = kept_by_app()
+    assert bus.last_values[SETTINGS]["arrival_allowance"] == 60.0
+
+
+@pytest.mark.parametrize("allowance", [4, 601])
+def test_an_arrival_allowance_out_of_range_changes_nothing(allowance: int) -> None:
+    """Dropped whole: nothing said and nothing kept, a good field beside it
+    included (#1188)."""
+    bus, app, kept = kept_by_app()
+    said = heard(bus, SETTINGS)
+    bus.drain()
+    before = list(said)
+    sets(bus, {"arrival_allowance": allowance})
+    sets(bus, {"point_gap": 2, "arrival_allowance": allowance})
     assert said == before
     assert kept == []
     assert app.point_gap == POINT_GAP_S

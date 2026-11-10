@@ -306,26 +306,29 @@ def test_a_person_sets_the_fast_clock_from_any_page() -> None:
 
 def test_the_settings_row_says_the_gap_the_speeds_and_the_silences() -> None:
     """Every field always present: the railroad's point gap and speeds, and
-    the installation's throttle silence and sensor silence (#1125, #1130,
-    #1149)."""
+    the installation's throttle silence, sensor silence and arrival
+    allowance (#1125, #1130, #1149, #1188)."""
     assert TOPICS[SETTINGS].fields == (
         AT,
         "point_gap",
         "speeds",
         "throttle_silence",
         "sensor_silence",
+        "arrival_allowance",
     )
     assert SETTINGS not in INBOUND
 
 
 def test_a_person_sets_the_railroads_settings_from_any_page() -> None:
-    """The point gap, the speeds, either silence, any of them: a gesture, so
-    a page may write it (#1126, #1131, #1149)."""
+    """The point gap, the speeds, either silence, the arrival allowance, any
+    of them: a gesture, so a page may write it (#1126, #1131, #1149,
+    #1188)."""
     assert TOPICS[SETTINGS_WANTED].fields == (
         "point_gap",
         "speeds",
         "throttle_silence",
         "sensor_silence",
+        "arrival_allowance",
     )
     assert SETTINGS_WANTED in INBOUND
 

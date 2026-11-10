@@ -407,15 +407,21 @@ def test_a_settings_gesture_reads_as_the_fields_it_sets() -> None:
     assert wanted_settings({"sensor_silence": 60}) == SettingsWanted(
         sensor_silence=60.0
     )
+    assert wanted_settings({"arrival_allowance": 5}) == SettingsWanted(
+        arrival_allowance=5.0
+    )
+    assert wanted_settings({"arrival_allowance": 600}) == SettingsWanted(
+        arrival_allowance=600.0
+    )
 
 
 def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
-    """None of the four fields, an unknown field, or any value out of
+    """None of the five fields, an unknown field, or any value out of
     range, and the whole gesture goes: a good gap beside a bad silence is
     not half taken (#1131)."""
     refused: list[object] = [
         [1],  # not an object at all
-        {},  # none of the four
+        {},  # none of the five
         {"gap": 1},  # an unknown field alone
         {"point_gap": 1, "colour": "red"},  # an unknown field beside a good one
         {"point_gap": -0.5},
@@ -444,6 +450,13 @@ def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
         {"sensor_silence": True},
         {"sensor_silence": None},
         {"throttle_silence": 5, "sensor_silence": 100},  # one bad field fails all
+        {"arrival_allowance": 4},  # shorter than any move
+        {"arrival_allowance": 601},
+        {"arrival_allowance": float("nan")},
+        {"arrival_allowance": "60"},
+        {"arrival_allowance": True},
+        {"arrival_allowance": None},
+        {"sensor_silence": 3, "arrival_allowance": 601},  # one bad field fails all
     ]
     for payload in refused:
         assert wanted_settings(payload) is None, payload
