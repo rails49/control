@@ -130,6 +130,11 @@ UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 this binding publishes the settled row itself and no report reaches it (#1148,
 #1173)."""
 
+OVERDUE = "tc49/layout/state/overdue"
+"""The trains stopped for not arriving, said empty at each build and never
+changed: this binding keeps the arrival allowance and times no move
+(#1189)."""
+
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 """What each sensor reads, the row `layout` publishes, said here as the steel
 would have it so that nothing above can tell the bindings apart (#1170)."""
@@ -292,6 +297,8 @@ class Simulator:
         # No sensor is unknown, stated so a client on this binding is served
         # the value it would be served on `layout` (ADR-0032, #1148).
         bus.publish(UNKNOWN_SENSORS, {"sensors": []})
+        # No train is overdue, said for the same reason (#1189).
+        bus.publish(OVERDUE, {"trains": []})
 
     @property
     def position(self) -> dict[str, str]:

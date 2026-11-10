@@ -53,6 +53,7 @@ from tc49.lib.payload import (
     kept_allocation,
     kept_facing,
     moving,
+    overdue,
     placement,
     power,
     readable_id,
@@ -177,6 +178,11 @@ TABLE: tuple[Rule, ...] = (
         "tc49/layout/state/unknown_sensors",
         "unknown_sensors",
         lambda f: unknown_sensors(f) is not None,
+    ),
+    Rule(
+        "tc49/layout/state/overdue",
+        "overdue",
+        lambda f: overdue(f) is not None,
     ),
     Rule(
         "tc49/layout/state/settled/sensor/+",

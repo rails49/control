@@ -61,6 +61,7 @@ SETTINGS = "tc49/layout/state/settings"
 SETTINGS_WANTED = "tc49/layout/settings_wanted"
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
+OVERDUE = "tc49/layout/state/overdue"
 END = "up_w.A"
 SETTLED = f"{SETTLED_SENSOR}/{END}"
 
@@ -386,6 +387,29 @@ def test_the_settled_readings_are_cleared_with_the_other_rows_it_owns() -> None:
     """A load's dropped takes the filter, there being a row per sensor and no
     list of which (#1170)."""
     assert "tc49/layout/state/settled/#" in OWNED
+
+
+def test_a_load_clears_the_overdue_trains_and_the_next_build_says_none(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """Cleared with the other rows it owns, and said empty by the next build,
+    as `layout` says it: this binding times no move (#1189, ADR-0060)."""
+    assert OVERDUE in OWNED
+    drawn(root, "facing-pair")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, OVERDUE) != []), "no row came"
+    assert rows(heard, OVERDUE)[-1]["trains"] == []
+
+    witness.publish(RAILROAD_WANTED, {"railroad": "facing-pair"})
+    assert drained(
+        witness,
+        lambda: rows(heard, RAILROAD)[-1].get("name") == "facing-pair"
+        and len(rows(heard, OVERDUE)) >= 2,
+    ), "the next build never said the row"
+    assert rows(heard, OVERDUE)[-1]["trains"] == []
+    witness.close()
 
 
 def test_a_settled_reading_the_last_process_left_is_gone_coming_up(
