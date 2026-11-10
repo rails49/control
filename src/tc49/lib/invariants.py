@@ -581,7 +581,7 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
     if moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
-    late = _overdue(view)
+    overdue_trains = _overdue(view)
     held = taken(view.rows.get(TAKEN))
     entering = {
         journey.train: dict(zip(journey.transits, journey.blocks[1:]))
@@ -590,7 +590,7 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
     crossing = sorted(
         train
         for train, transit in _crossing(view).items()
-        if train not in late
+        if train not in overdue_trains
         and (
             train in held
             or not _both_listed(view.layout, entering.get(train, {}), transit, listed)
@@ -1943,12 +1943,12 @@ def adr_0062_moving_to_the_tail(
     if topic != QUIET or moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
-    late = _overdue(view)
+    overdue_trains = _overdue(view)
     held = taken(view.rows.get(TAKEN))
     return [
         f"moving reads false with {train}'s move over {move.transit} under way"
         for train, moves in sorted(record.moves.items())
-        if train not in late
+        if train not in overdue_trains
         for move in moves
         if move.between(frozenset() if train in held else listed)
     ]
@@ -2249,7 +2249,7 @@ def adr_0081_release_in_automatic(
     with ADR-0083). Bar a train `state/overdue` lists: `layout` stopped it for
     not arriving within the allowance, and the row goes out before the `0.0`
     (ADR-0040, #1190)."""
-    late = overdue(record.rows.get(OVERDUE)) or frozenset()
+    overdue_trains = overdue(record.rows.get(OVERDUE)) or frozenset()
     written = _written(topic, payload)
     if written is not None:
         addr, speed = written
@@ -2257,7 +2257,7 @@ def adr_0081_release_in_automatic(
             return [f"{record.released[addr]}'s car {addr} written {speed}"]
         return [
             f"{train} released mid-move and stopped"
-            for train in sorted(record.keeps - late)
+            for train in sorted(record.keeps - overdue_trains)
             if speed == 0.0
             and record.under_way(train)
             and any(each == addr for each, _ in _addresses(view.roster, train))
@@ -2267,7 +2267,7 @@ def adr_0081_release_in_automatic(
     speeds = _traction(record.rows)
     return _owed(record.released, "was released") + [
         f"{train} released mid-move and left standing"
-        for train in sorted(record.keeps - late)
+        for train in sorted(record.keeps - overdue_trains)
         if record.under_way(train)
         and not any(
             speeds.get(addr, 0.0) != 0.0
