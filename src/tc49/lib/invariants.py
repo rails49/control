@@ -2549,7 +2549,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         " with dead rails; with a move outstanding and live rails it keeps a"
         " nonzero speed.",
         (TAKEN, DRIVING, POWER, POWER_WANTED, EVERY_TRACTION)
-        + (MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, TRAIN_REMOVED),
+        + (MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, TRAIN_REMOVED, OVERDUE),
         adr_0081_release_in_automatic,
     ),
     HistoryInvariant(
