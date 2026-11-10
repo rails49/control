@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 
 /**
- * The Settings dialog's Sensors tab sets the sensor silence (#1149): its one
- * field shows `sensor_silence` off `tc49/layout/state/settings`, and a commit
- * publishes `tc49/layout/settings_wanted` carrying that field alone. What a
+ * The Settings dialog's Sensors tab sets the sensor silence (#1149) and the
+ * arrival allowance (#1192): each field shows its value off
+ * `tc49/layout/state/settings`, and a commit publishes
+ * `tc49/layout/settings_wanted` carrying that field alone. What a
  * commit sends and refuses is `settingChange`'s (`settings.test.ts`); this is
  * the dialog through the app.
  */
@@ -30,15 +31,21 @@ function row(sensorSilence: number): Record<string, unknown> {
     speeds: { clear: 0.6, caution: 0.3 },
     throttle_silence: 5,
     sensor_silence: sensorSilence,
+    arrival_allowance: 60,
   };
 }
 
-function field(dialog: TcSettings): HTMLInputElement {
-  return dialog.renderRoot.querySelector<HTMLInputElement>("div.sensors sl-input.silence")!;
+function field(dialog: TcSettings, kind = "silence"): HTMLInputElement {
+  return dialog.renderRoot.querySelector<HTMLInputElement>(`div.sensors sl-input.${kind}`)!;
 }
 
-async function committed(shell: TcApp, dialog: TcSettings, typed: string): Promise<void> {
-  const input = field(dialog);
+async function committed(
+  shell: TcApp,
+  dialog: TcSettings,
+  typed: string,
+  kind = "silence",
+): Promise<void> {
+  const input = field(dialog, kind);
   input.value = typed;
   input.dispatchEvent(new Event("sl-change"));
   await settled(shell);
@@ -70,5 +77,19 @@ describe("the Sensors tab", () => {
     const { shell, dialog } = await heard();
     await committed(shell, dialog, "10");
     expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { sensor_silence: 10 } }]);
+  });
+
+  it("shows the arrival allowance state/settings says, after the silence", async () => {
+    const { dialog } = await heard();
+    const inputs = [...dialog.renderRoot.querySelectorAll("div.sensors sl-input")];
+    expect(inputs.map((input) => input.className)).toEqual(["silence", "allowance"]);
+    expect(field(dialog, "allowance").value).toBe("60");
+    expect(field(dialog, "allowance").disabled).toBe(false);
+  });
+
+  it("publishes a commit as one arrival_allowance field", async () => {
+    const { shell, dialog } = await heard();
+    await committed(shell, dialog, "90", "allowance");
+    expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { arrival_allowance: 90 } }]);
   });
 });

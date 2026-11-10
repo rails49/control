@@ -233,6 +233,12 @@ export const THROTTLE_SILENCE_MAX_S = 60;
 export const SENSOR_SILENCE_MIN_S = 2;
 export const SENSOR_SILENCE_MAX_S = 60;
 
+/** The shortest and longest arrival allowance a person may set, in seconds,
+ *  as `layout` takes it (`ARRIVAL_ALLOWANCE_MIN_S`, `ARRIVAL_ALLOWANCE_MAX_S`,
+ *  `tc49.lib.settings`). */
+export const ARRIVAL_ALLOWANCE_MIN_S = 5;
+export const ARRIVAL_ALLOWANCE_MAX_S = 600;
+
 /** What a settings tab says while `tc49/layout/state/settings` is unheard, or
  *  its field there unreadable: there is no value to show, and nothing to
  *  change it from. */
@@ -246,6 +252,7 @@ export interface SettingsChange {
   speeds?: Partial<Speeds>;
   throttle_silence?: number;
   sensor_silence?: number;
+  arrival_allowance?: number;
 }
 
 /** The driver's speeds, each a fraction of the locomotive's top speed above
@@ -257,7 +264,8 @@ export interface Speeds {
 
 /**
  * `tc49/layout/state/settings` as the Settings dialog reads it (#1185): the
- * point gap and the two silences in seconds, the speeds as fractions. BUS.md
+ * point gap, the two silences and the arrival allowance in seconds, the
+ * speeds as fractions. BUS.md
  * says every field is present; one that does not read as `layout` could have
  * meant it is `null` on its own, and disables only its own input.
  */
@@ -266,12 +274,13 @@ export interface LayoutSettings {
   speeds: { clear: number | null; caution: number | null };
   throttleSilence: number | null;
   sensorSilence: number | null;
+  arrivalAllowance: number | null;
 }
 
 /**
  * What a `tc49/layout/state/settings` payload says, field by field: the point
- * gap a number from `0` to `POINT_GAP_MAX_S`, each silence a number within
- * its bounds, and the speeds `clear` and `caution` both, each above `0` and at
+ * gap a number from `0` to `POINT_GAP_MAX_S`, each silence and the arrival
+ * allowance a number within its bounds, and the speeds `clear` and `caution` both, each above `0` and at
  * most `1` — a `speeds` that does not read so leaves both `null`.
  */
 export function settingsOf(payload: Record<string, unknown>): LayoutSettings {
@@ -285,6 +294,11 @@ export function settingsOf(payload: Record<string, unknown>): LayoutSettings {
       THROTTLE_SILENCE_MAX_S,
     ),
     sensorSilence: within(payload["sensor_silence"], SENSOR_SILENCE_MIN_S, SENSOR_SILENCE_MAX_S),
+    arrivalAllowance: within(
+      payload["arrival_allowance"],
+      ARRIVAL_ALLOWANCE_MIN_S,
+      ARRIVAL_ALLOWANCE_MAX_S,
+    ),
   };
 }
 
@@ -313,7 +327,13 @@ export function percentOf(fraction: number): number {
 
 /** The inputs of the Settings dialog's setting tabs, one per value the row
  *  holds. */
-export type SettingField = "gap" | "clear" | "caution" | "silence" | "sensorSilence";
+export type SettingField =
+  | "gap"
+  | "clear"
+  | "caution"
+  | "silence"
+  | "sensorSilence"
+  | "arrivalAllowance";
 
 /** One input of a setting tab: how it is drawn, what it refuses, and what it
  *  reads and sends. */
@@ -337,7 +357,7 @@ export interface SettingSpec {
   wanted(value: number): SettingsChange;
 }
 
-/** Each input of the setting tabs (#1128, #1134, #1149). */
+/** Each input of the setting tabs (#1128, #1134, #1149, #1192). */
 export const SETTING_FIELDS: Record<SettingField, SettingSpec> = {
   gap: {
     label: "Time between point commands",
@@ -393,6 +413,17 @@ export const SETTING_FIELDS: Record<SettingField, SettingSpec> = {
     what: "how long a sensor may go unheard",
     of: (settings) => settings.sensorSilence,
     wanted: (value) => ({ sensor_silence: value }),
+  },
+  arrivalAllowance: {
+    label: "Stop a train that has not arrived after",
+    class: "allowance",
+    min: ARRIVAL_ALLOWANCE_MIN_S,
+    max: ARRIVAL_ALLOWANCE_MAX_S,
+    step: 1,
+    unit: "seconds",
+    what: "how long a move may take to arrive",
+    of: (settings) => settings.arrivalAllowance,
+    wanted: (value) => ({ arrival_allowance: value }),
   },
 };
 
