@@ -650,6 +650,71 @@ describe("the fast clock", () => {
   });
 });
 
+/** The layout's settings (#1125): read off `state/settings` while a session
+ *  is joined and the broker answers, and forgotten where the row could be
+ *  another's (#1185). */
+describe("the layout's settings", () => {
+  const STATE_SETTINGS = "tc49/layout/state/settings";
+  const ROW = {
+    at: 1,
+    point_gap: 0.5,
+    speeds: { clear: 0.6, caution: 0.3 },
+    throttle_silence: 5,
+    sensor_silence: 3,
+  };
+  const READ = {
+    pointGap: 0.5,
+    speeds: { clear: 0.6, caution: 0.3 },
+    throttleSilence: 5,
+    sensorSilence: 3,
+  };
+
+  it("reads the row off state/settings", () => {
+    const stood = joined();
+    expect(stood.session.status.settings).toBeNull();
+
+    stood.broker.says(STATE_SETTINGS, ROW);
+
+    expect(stood.session.status.settings).toEqual(READ);
+  });
+
+  it("has none again after a reconnect, until the row comes again", () => {
+    const stood = joined();
+    stood.broker.says(STATE_SETTINGS, ROW);
+
+    stood.broker.closes();
+    expect(stood.session.status.settings).toBeNull();
+    // A broker that came back holding no row: the last connection's is not
+    // kept in its place.
+    stood.broker.retained.delete(STATE_SETTINGS);
+    stood.broker.opens();
+    expect(stood.session.status.settings).toBeNull();
+
+    stood.broker.says(STATE_SETTINGS, ROW);
+    expect(stood.session.status.settings).toEqual(READ);
+  });
+
+  it("has none once no railroad is named", () => {
+    const stood = joined();
+    stood.broker.says(STATE_SETTINGS, ROW);
+
+    stood.broker.says(RAILROAD, { name: "" });
+    expect(stood.session.status.settings).toBeNull();
+    stood.broker.says(RAILROAD, { name: "toy" });
+
+    expect(stood.session.status.settings).toBeNull();
+  });
+
+  it("forgets the last railroad's row when another is named", () => {
+    const stood = joined();
+    stood.broker.says(STATE_SETTINGS, ROW);
+
+    stood.broker.says(RAILROAD, { name: "other" });
+
+    expect(stood.session.status.settings).toBeNull();
+  });
+});
+
 describe("what it answers", () => {
   /** The app redraws only where one of the two is a different object, so a
    *  frame that moves neither must leave both as they were. */
