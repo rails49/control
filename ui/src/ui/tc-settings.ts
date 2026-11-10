@@ -393,10 +393,11 @@ export class TcSettings extends LitElement {
     return this.setting(["silence"], WHATEVER_RAILROAD);
   }
 
-  /** The Sensors tab (#1149): how long a sensor may go unheard. The
-   *  installation's, as the throttle silence is. */
+  /** The Sensors tab (#1149, #1192): how long a sensor may go unheard, and
+   *  how long a move may take to arrive. The installation's, as the throttle
+   *  silence is. */
   private sensors() {
-    return this.setting(["sensorSilence"], WHATEVER_RAILROAD);
+    return this.setting(["sensorSilence", "arrivalAllowance"], WHATEVER_RAILROAD);
   }
 
   /**

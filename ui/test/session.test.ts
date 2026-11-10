@@ -661,12 +661,14 @@ describe("the layout's settings", () => {
     speeds: { clear: 0.6, caution: 0.3 },
     throttle_silence: 5,
     sensor_silence: 3,
+    arrival_allowance: 60,
   };
   const READ = {
     pointGap: 0.5,
     speeds: { clear: 0.6, caution: 0.3 },
     throttleSilence: 5,
     sensorSilence: 3,
+    arrivalAllowance: 60,
   };
 
   it("reads the row off state/settings", () => {

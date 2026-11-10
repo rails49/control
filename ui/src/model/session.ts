@@ -1071,7 +1071,8 @@ function sameSettings(was: LayoutSettings | null, now: LayoutSettings | null): b
     was.speeds.clear === now.speeds.clear &&
     was.speeds.caution === now.speeds.caution &&
     was.throttleSilence === now.throttleSilence &&
-    was.sensorSilence === now.sensorSilence
+    was.sensorSilence === now.sensorSilence &&
+    was.arrivalAllowance === now.arrivalAllowance
   );
 }
 

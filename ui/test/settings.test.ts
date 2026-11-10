@@ -283,6 +283,7 @@ const ROW = {
   speeds: { clear: 0.6, caution: 0.07 },
   throttle_silence: 5,
   sensor_silence: 3,
+  arrival_allowance: 60,
 };
 
 /** `ROW` as the dialog reads it. */
@@ -291,10 +292,11 @@ const HEARD: LayoutSettings = {
   speeds: { clear: 0.6, caution: 0.07 },
   throttleSilence: 5,
   sensorSilence: 3,
+  arrivalAllowance: 60,
 };
 
 /** Each field of the setting tabs, as a commit in it is answered (#1128,
- *  #1134, #1149): the row's own value as typed, the row with the field
+ *  #1134, #1149, #1192): the row's own value as typed, the row with the field
  *  unreadable, the sentences it refuses with, values outside its bounds,
  *  and values in range with the exact payload each sends. */
 const FIELDS: Record<
@@ -365,6 +367,18 @@ const FIELDS: Record<
       ["60", { sensor_silence: 60 }],
     ],
   },
+  arrivalAllowance: {
+    own: "60",
+    unreadable: { ...HEARD, arrivalAllowance: null },
+    number: "how long a move may take to arrive is a number of seconds",
+    range: "how long a move may take to arrive is from 5 to 600 seconds",
+    outside: ["4", "601", "4.9", "0"],
+    sent: [
+      ["5", { arrival_allowance: 5 }],
+      ["600", { arrival_allowance: 600 }],
+      ["90", { arrival_allowance: 90 }],
+    ],
+  },
 };
 
 describe("a table entry for every field", () => {
@@ -391,7 +405,7 @@ describe.each(Object.keys(SETTING_FIELDS) as SettingField[])(
     });
 
     it("refuses what is not a number", () => {
-      for (const typed of ["", " ", "fast", "Infinity", "1,2"]) {
+      for (const typed of ["", " ", "fast", "abc", "Infinity", "1,2"]) {
         expect(settingChange(field, typed, HEARD)).toEqual({ refused: cases.number });
       }
     });
@@ -435,6 +449,19 @@ describe("what state/settings says", () => {
       throttleSilence: null,
     });
     expect(settingsOf({ ...ROW, sensor_silence: 61 })).toEqual({ ...HEARD, sensorSilence: null });
+  });
+
+  it("reads the arrival allowance from 5 to 600 seconds, and nothing else (#1192)", () => {
+    expect(settingsOf({ ...ROW, arrival_allowance: 60 }).arrivalAllowance).toBe(60);
+    const { arrival_allowance: _, ...missing } = ROW;
+    for (const row of [
+      { ...ROW, arrival_allowance: 4 },
+      { ...ROW, arrival_allowance: 601 },
+      { ...ROW, arrival_allowance: "60" },
+      missing,
+    ]) {
+      expect(settingsOf(row)).toEqual({ ...HEARD, arrivalAllowance: null });
+    }
   });
 
   it("reads both speeds as null where speeds does not read", () => {
