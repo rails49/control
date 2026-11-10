@@ -45,6 +45,7 @@ from tc49.lib.payload import (
     moving,
     named_train,
     observed_position,
+    overdue,
     placement,
     power,
     reported_reason,
@@ -776,6 +777,27 @@ def test_the_unknown_sensors_row_reads_as_the_sensors_it_lists() -> None:
     ]
     for payload in refused:
         assert unknown_sensors(payload) is None, payload
+
+
+def test_the_overdue_row_reads_as_the_trains_it_lists() -> None:
+    """`into` and `reason` are the page's, so only the train is read, and an
+    entry that names no train is the whole row dropped, as on
+    `state/unknown_sensors` (#1189)."""
+    entry = {"train": "freight_1", "into": "dn_e", "reason": "no arrival for 60 s"}
+    assert overdue({"trains": [entry]}) == {"freight_1"}
+    assert overdue({"trains": []}) == frozenset()
+    refused: list[object] = [
+        None,
+        {},
+        {"trains": None},
+        {"trains": ["freight_1"]},
+        {"trains": [{}]},
+        {"trains": [{"train": 7}]},
+        {"trains": [{"train": ""}]},
+        {"trains": [entry, {"train": 7}]},
+    ]
+    for payload in refused:
+        assert overdue(payload) is None, payload
 
 
 def test_a_reason_is_read_where_one_is_given_and_never_demanded() -> None:

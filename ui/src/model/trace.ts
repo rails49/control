@@ -379,6 +379,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "clock",
   "settings",
   "unknown_sensors",
+  "overdue",
   "exhausted",
   "facing",
   "moving",

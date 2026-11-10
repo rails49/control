@@ -45,6 +45,7 @@ TAKEN = "tc49/layout/state/taken"
 FUNCTION_WANTED = "tc49/layout/function_wanted"
 FUNCTIONS = "tc49/layout/state/functions"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+OVERDUE = "tc49/layout/state/overdue"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 DRIVING_WANTED = "tc49/layout/driving_wanted"
 DRIVING = "tc49/layout/state/driving"
@@ -184,6 +185,14 @@ def test_the_sensors_not_reporting_are_state_no_page_writes() -> None:
     assert is_state_topic(UNKNOWN_SENSORS)
     assert TOPICS[UNKNOWN_SENSORS].fields == (AT, "sensors")
     assert UNKNOWN_SENSORS not in INBOUND
+
+
+def test_the_trains_layout_stopped_for_not_arriving_are_state_no_page_writes() -> None:
+    """Which trains are overdue is what the binding running says, and a page
+    only reads it (#1189)."""
+    assert is_state_topic(OVERDUE)
+    assert TOPICS[OVERDUE].fields == (AT, "trains")
+    assert OVERDUE not in INBOUND
 
 
 def test_the_panel_commands_power_on_a_row_of_its_own() -> None:
