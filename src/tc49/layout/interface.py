@@ -1408,6 +1408,15 @@ class LayoutInterface:
         for addr, speed in crossing.implied:
             self._traction_write(addr, speed)
 
+    def _timeable(self, crossing: _Crossing) -> bool:
+        """Whether the arrival allowance may time this crossing (#1190): a
+        move outstanding, `driving`, and whose train no throttle holds."""
+        return (
+            crossing.outstanding
+            and crossing.driving
+            and crossing.train not in self._taken
+        )
+
     def _gives(self, crossing: _Crossing) -> bool:
         """Whether `_give` writes a speed other than `0.0` for this crossing:
         one it implies, both sensors not unknown, and the train not overdue."""
@@ -2397,21 +2406,19 @@ class LayoutInterface:
         """
         allowance = self._installation.arrival_allowance
         now = self._clock.now
-        late = [
+        overdue = [
             (block, crossing)
             for block, crossing in self._crossing.items()
-            if crossing.outstanding
-            and crossing.driving
-            and crossing.train not in self._taken
+            if self._timeable(crossing)
             and crossing.timed is not None
             and now - crossing.timed >= allowance
         ]
         reason = f"no arrival for {allowance:g} s"
-        for block, crossing in late:
+        for block, crossing in overdue:
             _log.info("%s stopped short of %s: %s", crossing.train, block, reason)
             self._overdue[crossing.train] = (block, reason)
         self._publish_overdue()
-        for block, crossing in late:
+        for block, crossing in overdue:
             self._stop(crossing.train)
             self._crossing[block] = replace(crossing, implied=(), timed=None)
 
@@ -2634,13 +2641,7 @@ class LayoutInterface:
         for block, crossing in list(self._crossing.items()):
             if stated == OFF:
                 self._crossing[block] = replace(crossing, timed=None)
-            elif (
-                stated == ON
-                and crossing.outstanding
-                and crossing.driving
-                and crossing.train not in self._taken
-                and self._gives(crossing)
-            ):
+            elif stated == ON and self._timeable(crossing) and self._gives(crossing):
                 self._crossing[block] = replace(crossing, timed=now)
 
     def _carry_out_kept(self) -> None:
