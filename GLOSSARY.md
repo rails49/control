@@ -387,7 +387,8 @@ sensor reading occupied, or a restored crossing, so cutting the track supply now
 would strand it. A train standing in a block, at a signal partway along its route
 or anywhere else, is not moving, nor is one no throttle holds that `layout` has
 stopped with both its sensors `unknown`. Nor is one `layout` has stopped for not arriving within its
-allowance and lists on `state/overdue`: only a person can end its move. It is a
+allowance and lists on `state/overdue`: it stands until it arrives, a throttle
+takes it, or it is placed or removed. It is a
 boolean beside power, not a fourth value
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: busy, in motion, rolling, quiet, still (say not moving)

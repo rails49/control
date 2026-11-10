@@ -425,7 +425,8 @@ far sensors unknown does not count where no throttle holds its train, since
 leaves it running, and the drain waits until the person lets it go or presses
 the stop sign ([#1187](https://github.com/rails49/control/issues/1187)). A train `layout` lists on
 `tc49/layout/state/overdue` does not count, by any move or hint: it was stopped
-for not arriving within its allowance, and only a person can end its move
+for not arriving within its allowance, and it stands until it arrives, a
+throttle takes it, or it is placed or removed
 ([#1191](https://github.com/rails49/control/issues/1191)). Manual trains count by the
 same rule and need no rule of their own: a train this app has granted moves on
 a route it allocated whoever turns the throttle
