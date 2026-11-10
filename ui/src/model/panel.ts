@@ -185,6 +185,9 @@ export interface BlockView {
   /** Set where `state/unknown_sensors` lists either of this block's sensors,
    *  stopped or never heard alike (#1153). */
   unknownSensor?: true;
+  /** Set where the train named here is on `state/overdue`: `layout` stopped
+   *  it for not arriving within its allowance (#1192). */
+  overdue?: true;
 }
 
 /** One sensor `state/unknown_sensors` lists (BUS.md). */
@@ -219,6 +222,37 @@ function readUnknownSensors(sensors: unknown): UnknownSensor[] | null {
       return null;
     }
     read.push({ sensor, reason, reported });
+  }
+  return read;
+}
+
+/** One train `state/overdue` lists (BUS.md). */
+interface Overdue {
+  train: string;
+  /** The block it was driven into. */
+  into: string;
+  /** Free text for a person, as the band says it. */
+  reason: string;
+}
+
+/** What `state/overdue` lists, or `null` for a row that cannot be read. All
+ *  of it or none, as `readUnknownSensors` reads its row: a list read in part
+ *  would take a train off the band while it still stands stopped. */
+function readOverdue(trains: unknown): Overdue[] | null {
+  if (!Array.isArray(trains)) return null;
+  const read: Overdue[] = [];
+  for (const entry of trains as unknown[]) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return null;
+    const { train, into, reason } = entry as Partial<Record<keyof Overdue, unknown>>;
+    if (
+      typeof train !== "string" ||
+      train === "" ||
+      typeof into !== "string" ||
+      typeof reason !== "string"
+    ) {
+      return null;
+    }
+    read.push({ train, into, reason });
   }
   return read;
 }
@@ -477,6 +511,10 @@ export class Panel {
   /** The sensors `layout` last said are not reporting, whole from the row
    *  (#1153). Read and never derived: the silence is `layout`'s to time. */
   private unknownRows: UnknownSensor[] = [];
+  /** The trains `layout` last said it stopped for not arriving, whole from
+   *  the row (#1192). Read and never derived: the allowance is `layout`'s to
+   *  time. */
+  private overdueRows: Overdue[] = [];
   /** What `state/moving` last said about any train crossing
    *  (ADR-0078), `null` where it said nothing — before the
    *  dispatcher has spoken, and for a row whose `moving` is not a boolean.
@@ -583,6 +621,7 @@ export class Panel {
     this.unfitRows = [];
     this.brokenRules = [];
     this.unknownRows = [];
+    this.overdueRows = [];
     this.movingWord = null;
     this.drivingWord = null;
     this.powerWord = null;
@@ -884,6 +923,14 @@ export class Panel {
         if (read !== null) this.unknownRows = read;
         return;
       }
+      case "overdue": {
+        // The trains stopped for not arriving, whole from the topic, so last
+        // value wins and `[]` takes them off (#1192). A row that cannot be
+        // read is dropped and the last value stands (BUS.md).
+        const read = readOverdue(event["trains"]);
+        if (read !== null) this.overdueRows = read;
+        return;
+      }
       case "aspects": {
         const { aspects } = event as unknown as {
           aspects: Record<EndRef, Aspect>;
@@ -1070,15 +1117,23 @@ export class Panel {
       : [...faults, `automatic: ${unheard.size} of ${total} blocks have no sensor report`];
   }
 
+  /** The trains `layout` stopped for not arriving in words, for the band
+   *  (#1192): one line per train in the row's order, each with its reason as
+   *  `layout` wrote it. Not grouped, so the band names each train. */
+  overdueFaults(): string[] {
+    return this.overdueRows.map(({ train, reason }) => `${train}: ${reason}`);
+  }
+
   /** The band's faults in band order and its words (#1186): the supply's,
-   *  each broken rule as the dispatcher's, each dispute, then the sensors not
-   *  reporting. The band draws each as a chip. */
+   *  each broken rule as the dispatcher's, each dispute, the sensors not
+   *  reporting, then the trains overdue. The band draws each as a chip. */
   faults(): string[] {
     return [
       ...(this.fault === null ? [] : [this.fault]),
       ...this.broken().map((rule) => `dispatcher: ${rule}`),
       ...this.disputeFaults(),
       ...this.unknownSensorFaults(),
+      ...this.overdueFaults(),
     ];
   }
 
@@ -1121,6 +1176,7 @@ export class Panel {
     }
     const names = this.names();
     const unknown = new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor)));
+    const overdue = new Set(this.overdueRows.map(({ train }) => train));
     const views = new Map<string, BlockView>();
     for (const block of Object.keys(this.layout.blocks)) {
       const train = occupying.get(block);
@@ -1141,9 +1197,11 @@ export class Panel {
       const dispute: Pick<BlockView, "dispute"> = this.disputed.has(block)
         ? { dispute: "occupied" }
         : {};
-      const marks: Pick<BlockView, "dispute" | "unknownSensor"> = unknown.has(block)
-        ? { ...dispute, unknownSensor: true }
-        : dispute;
+      const marks: Pick<BlockView, "dispute" | "unknownSensor" | "overdue"> = {
+        ...dispute,
+        ...(unknown.has(block) ? { unknownSensor: true } : {}),
+        ...(named !== undefined && overdue.has(named) ? { overdue: true } : {}),
+      };
       if (train !== undefined) {
         const heading = this.heading.get(train);
         views.set(block, {

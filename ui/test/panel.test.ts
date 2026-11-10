@@ -1867,6 +1867,142 @@ describe("the sensors not reporting", () => {
 });
 
 /**
+ * The trains `layout` stopped for not arriving within the arrival allowance
+ * (#1192): one fault per train in the band, and a mark on each block that
+ * names it.
+ */
+describe("the trains overdue", () => {
+  const late = (train: string, reason = "no arrival for 60 s") => ({
+    train,
+    into: "b",
+    reason,
+  });
+  const row = (...trains: unknown[]) => ({ event: "overdue", trains });
+  const overdue = (model: Panel) =>
+    [...model.blocks()].flatMap(([block, view]) =>
+      view.overdue === undefined ? [] : [block],
+    );
+
+  /** t1 standing in `a`, and t2 in `c`. */
+  function standing(): Panel {
+    const model = panel();
+    feed(model, {
+      event: "allocation",
+      trains: { t1: "a", t2: "c" },
+      crossing: {},
+      occupied: { t1: ["a"], t2: ["c"] },
+      locks: { a: "t1", c: "t2" },
+      requests: [],
+    });
+    return model;
+  }
+
+  it("says each train listed, one line each, with its own reason", () => {
+    const model = panel();
+    feed(model, row(late("IC 2"), late("RE 4")));
+    expect(model.overdueFaults()).toEqual([
+      "IC 2: no arrival for 60 s",
+      "RE 4: no arrival for 60 s",
+    ]);
+    feed(model, row(late("IC 2"), late("RE 4", "no arrival for 90 s")));
+    expect(model.overdueFaults()).toEqual([
+      "IC 2: no arrival for 60 s",
+      "RE 4: no arrival for 90 s",
+    ]);
+  });
+
+  it("takes the fault off once the row no longer lists the train", () => {
+    const model = panel();
+    feed(model, row(late("IC 2")), row());
+    expect(model.overdueFaults()).toEqual([]);
+  });
+
+  it("marks the block that names a listed train, and no other", () => {
+    const model = standing();
+    feed(model, row(late("t1")));
+    expect(overdue(model)).toEqual(["a"]);
+    expect(model.blocks().get("a")).toMatchObject({
+      state: "occupied",
+      named: "t1",
+      overdue: true,
+    });
+  });
+
+  it("marks both blocks while the train passes from one to the next", () => {
+    const model = standing();
+    feed(
+      model,
+      {
+        event: "allocation",
+        trains: { t1: "a", t2: "c" },
+        crossing: { t1: "sw.main" },
+        occupied: { t1: ["a", "sw.main", "b"], t2: ["c"] },
+        locks: { a: "t1", "sw.main": "t1", b: "t1", c: "t2" },
+        requests: [],
+      },
+      row(late("t1")),
+    );
+    expect(overdue(model)).toEqual(["a", "b"]);
+  });
+
+  it("marks the block trains gives while the train crosses a transit", () => {
+    const model = standing();
+    feed(
+      model,
+      {
+        event: "allocation",
+        trains: { t1: "a", t2: "c" },
+        crossing: { t1: "sw.main" },
+        occupied: { t1: ["sw.main"], t2: ["c"] },
+        locks: { "sw.main": "t1", b: "t1", c: "t2" },
+        requests: [],
+      },
+      row(late("t1")),
+    );
+    expect(overdue(model)).toEqual(["a"]);
+  });
+
+  it("takes the mark off once the row empties", () => {
+    const model = standing();
+    feed(model, row(late("t1")), row());
+    expect(overdue(model)).toEqual([]);
+  });
+
+  /** A list read in part would take a train off the band while it still
+   *  stands stopped, so the row is all or nothing. */
+  it.each([
+    ["no list", { event: "overdue" }],
+    ["a list that is not one", { event: "overdue", trains: "t2" }],
+    ["an entry that is no object", row(late("t2"), "t2")],
+    ["an entry naming no train", row(late("t2"), { into: "b", reason: "x" })],
+    ["an empty train", row(late("t2"), late(""))],
+    ["an into that is no string", row(late("t2"), { ...late("t1"), into: 3 })],
+    [
+      "a reason that is no string",
+      row(late("t2"), { ...late("t1"), reason: null }),
+    ],
+  ])("ignores an unreadable row: %s", (_, unreadable) => {
+    const model = standing();
+    feed(model, row(late("t1")), unreadable);
+    expect(model.overdueFaults()).toEqual(["t1: no arrival for 60 s"]);
+    expect(overdue(model)).toEqual(["a"]);
+  });
+
+  it("forgets the row on a reset", () => {
+    const model = panel();
+    feed(model, row(late("t1")));
+    model.reset();
+    expect(model.overdueFaults()).toEqual([]);
+  });
+
+  it("keeps the later of two rows delivered backwards", () => {
+    const model = panel();
+    feed(model, { ...row(), at: 2 }, { ...row(late("t1")), at: 1 });
+    expect(model.overdueFaults()).toEqual([]);
+  });
+});
+
+/**
  * Which trains are on the layout, and where each of them stands (#169).
  *
  * The roster pane lists them and the stock view's length guard reads them, and
@@ -2413,7 +2549,8 @@ describe("what the hardware says about the supply", () => {
 
 /**
  * The band's faults as one list (#1186): the supply's, each broken rule, each
- * dispute and the sensors not reporting, in that order and in the band's words.
+ * dispute, the sensors not reporting and the trains overdue (#1192), in that
+ * order and in the band's words.
  */
 describe("the band's faults", () => {
   it("lists each kind in band order, a broken rule prefixed by who found it", () => {
@@ -2429,12 +2566,17 @@ describe("the band's faults", () => {
       { event: "disputed", blocks: ["b"] },
       { event: "broken", rules: ["a locked twice"] },
       { event: "device/track", power: "on", reason: "district B tripped" },
+      {
+        event: "overdue",
+        trains: [{ train: "t1", into: "b", reason: "no arrival for 60 s" }],
+      },
     );
     expect(model.faults()).toEqual([
       "district B tripped",
       "dispatcher: a locked twice",
       "b: a sensor reads occupied and no train is there",
       "a.A: no report for 3 s",
+      "t1: no arrival for 60 s",
     ]);
   });
 
