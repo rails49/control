@@ -790,9 +790,9 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant(
         "0062",
         "`moving` is true whenever a train is crossing, unless both sensors of"
-        " the block it is crossing into are listed or `state/overdue` lists"
-        " the train.",
-        (MOVING, ALLOCATION, UNKNOWN_SENSORS, OVERDUE),
+        " the block it is crossing into are listed and `state/taken` does not"
+        " name the train, or `state/overdue` lists the train.",
+        (MOVING, ALLOCATION, UNKNOWN_SENSORS, OVERDUE, TAKEN),
         adr_0062_moving_while_crossing,
     ),
     Invariant(
@@ -2442,8 +2442,9 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "0062",
         "`moving` reads false only where no granted move lies between its grant"
         " and its `entry` clear or `far` occupied, both those sensors listed"
-        " aside, and every move of a train `state/overdue` lists aside.",
-        (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, OVERDUE)
+        " aside for a train `state/taken` does not name, and every move of a"
+        " train `state/overdue` lists aside.",
+        (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, OVERDUE, TAKEN)
         + (LOCK_RELEASED,)
         + (MOVE_WITHDRAWN, PLACEMENT_WANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0062_moving_to_the_tail,
