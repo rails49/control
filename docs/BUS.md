@@ -327,8 +327,8 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
-| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence and sensor silence ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133), [#1149](https://github.com/rails49/control/issues/1149)) |
-| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds, the throttle silence or the sensor silence, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140), [#1149](https://github.com/rails49/control/issues/1149)) |
+| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence, sensor silence and arrival allowance ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188)) |
+| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds, the throttle silence, the sensor silence or the arrival allowance, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -893,6 +893,15 @@ what a drop would cost:
     sensor on `state/unknown_sensors` once it has been unheard this long
     ([#1149](https://github.com/rails49/control/issues/1149),
     [#1151](https://github.com/rails49/control/issues/1151)).
+  - `arrival_allowance`: number, seconds, `5` to `600`, how long a move
+    `layout` drives may run without arriving before it stops the train. One
+    for each move, not each block. The installation's, kept beside the two
+    silences in `installation.yaml`, or 60 where it keeps none: it covers the
+    transit and a whole block at `caution` to the far sensor, and leans long
+    since nothing retries a false stop
+    ([#1157](https://github.com/rails49/control/issues/1157),
+    [#1188](https://github.com/rails49/control/issues/1188)). Nothing runs on it
+    yet ([#1190](https://github.com/rails49/control/issues/1190)).
 
   `layout` publishes it as a railroad is loaded; at once after it takes a
   `settings_wanted`; and none while it stands. The simulator, in its place,
@@ -918,20 +927,24 @@ what a drop would cost:
     and at most `1`.
   - `throttle_silence`: number, seconds, `2` to `60`.
   - `sensor_silence`: number, seconds, `2` to `60`.
+  - `arrival_allowance`: number, seconds, `5` to `600`.
 
   A field left out keeps its value, and so does a speed left out of
-  `speeds`. A payload with none of the four, with an unknown field, or with
+  `speeds`. A payload with none of the five, with an unknown field, or with
   any value out of range is dropped whole, as any malformed gesture is. It
   is also dropped while no railroad is loaded. Taken whatever track power
   and the run are doing, and a change needs no rebuild. `layout` uses the
   gap from the next `align` and the silence from its next check of who has
   gone silent, publishes `state/settings` at once, and keeps the gap and the
-  speeds with the railroad and the two silences with the installation
+  speeds with the railroad and the two silences and the arrival allowance
+  with the installation
   ([#1132](https://github.com/rails49/control/issues/1132),
-  [#1149](https://github.com/rails49/control/issues/1149)). The simulator,
+  [#1149](https://github.com/rails49/control/issues/1149),
+  [#1188](https://github.com/rails49/control/issues/1188)). The simulator,
   in its place, takes it by the same rule, says `state/settings` at once and
-  keeps each where `layout` keeps it, and runs on neither the gap nor the
-  silences: it sends no point command and holds no throttle
+  keeps each where `layout` keeps it, and runs on none of the gap, the
+  silences and the allowance: it sends no point command, holds no throttle
+  and times no move
   ([#1140](https://github.com/rails49/control/issues/1140)). The page
   publishes the gap from the Settings dialog's Points tab, one speed at a
   time from its Driving tab, the throttle silence from its Throttles tab and
