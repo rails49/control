@@ -23,6 +23,7 @@ from tests.layout.railroad import (
     FUNCTION_WANTED,
     FUNCTIONS,
     MOVE,
+    OVERDUE,
     PLACED,
     POWER,
     POWER_WANTED,
@@ -217,14 +218,14 @@ def test_an_unreadable_reading_is_no_information_about_that_end() -> None:
     assert seen == [("up_e.A", "occupied")]
 
 
-def test_a_fresh_app_has_said_eight_things_and_no_more() -> None:
+def test_a_fresh_app_has_said_nine_things_and_no_more() -> None:
     """It subscribes the observed half of the device vocabulary and writes
     the desired half, bar the function rows it reads back (#849), and a fresh
     bus holds none, so there is no cascade to come up out of: a fresh
     railroad is which railroad it is (#371), the supply commanded off, the
     app saying it believes it is, the railroad `manual`, no train in a
-    throttle, no function on, its settings (#1125), and every sensor unknown
-    (#1148, #1151). A settled reading is not one of them: nothing has been heard
+    throttle, no function on, its settings (#1125), every sensor unknown
+    (#1148, #1151) and no train overdue (#1189). A settled reading is not one of them: nothing has been heard
     (#1168)."""
     bus, _app, _clock = wired(driving=MANUAL, reporting=False)
     assert set(bus.last_values) == {
@@ -236,4 +237,5 @@ def test_a_fresh_app_has_said_eight_things_and_no_more() -> None:
         FUNCTIONS,
         SETTINGS,
         UNKNOWN_SENSORS,
+        OVERDUE,
     }

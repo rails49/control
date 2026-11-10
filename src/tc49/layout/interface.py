@@ -295,6 +295,7 @@ TAKEN = "tc49/layout/state/taken"
 FUNCTIONS = "tc49/layout/state/functions"
 SETTINGS = "tc49/layout/state/settings"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
+OVERDUE = "tc49/layout/state/overdue"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WANTED_TRACTION = "tc49/layout/state/wanted/traction"
 WANTED_FUNCTION = "tc49/layout/state/wanted/function"
@@ -729,6 +730,9 @@ class LayoutInterface:
         # served a value rather than left to read one out of an absence
         # (ADR-0032). Every one, nothing having been heard (#1151).
         self._publish_unknown()
+        # No train is overdue: no move has been timed yet, and every build
+        # starts on a broker the load cleared of the last one's row (#1189).
+        bus.publish(OVERDUE, {"trains": []})
         bus.subscribe(ASPECTS, self._on_aspects)
         bus.subscribe(MOVING, self._on_moving)
         bus.subscribe(FACING, self._on_facing)

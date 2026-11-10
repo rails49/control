@@ -135,14 +135,15 @@ OWNED = (
     "tc49/layout/state/clock",
     "tc49/layout/state/settings",
     "tc49/layout/state/unknown_sensors",
+    "tc49/layout/state/overdue",
     SETTLED,
 )
 """The retained rows this binding of the layout interface writes: which
 railroad it is standing in for, the supply each answered press set, the
 fast clock, the railroad's settings, whose speeds the driver prices a
 grant at (#1133), the sensors that are not reporting, which here is none
-(#1148), and the settled reading of each sensor under `settled/` (#1170)
-(ADR-0060)."""
+(#1148), the trains stopped for not arriving, again none (#1189), and the
+settled reading of each sensor under `settled/` (#1170) (ADR-0060)."""
 
 
 def to_stderr(line: str) -> None:

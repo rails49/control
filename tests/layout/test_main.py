@@ -29,6 +29,7 @@ from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
     DRIVING,
+    OVERDUE,
     POWER,
     POWER_WANTED,
     RAILROAD,
@@ -763,6 +764,30 @@ def test_the_fast_clock_is_cleared_with_the_other_layout_rows() -> None:
 def test_the_settings_are_cleared_with_the_other_layout_rows() -> None:
     """The next build says them again for the railroad it loads (#1125)."""
     assert SETTINGS in OWNED
+
+
+def test_a_load_clears_the_overdue_trains_and_the_next_build_says_none(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """A train another railroad left overdue says nothing here, so the row is
+    cleared with the others this app owns and the next build says it empty
+    (#1189, ADR-0060)."""
+    assert OVERDUE in OWNED
+    drawn(root, "facing-pair")
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, OVERDUE) != []), "no row came"
+    assert rows(heard, OVERDUE)[-1]["trains"] == []
+
+    witness.publish(RAILROAD_WANTED, {"railroad": "facing-pair"})
+    assert drained(
+        witness,
+        lambda: rows(heard, RAILROAD)[-1].get("name") == "facing-pair"
+        and len(rows(heard, OVERDUE)) >= 2,
+    ), "the next build never said the row"
+    assert rows(heard, OVERDUE)[-1]["trains"] == []
+    witness.close()
 
 
 def test_a_settled_reading_the_last_process_left_is_gone_coming_up(

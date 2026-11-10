@@ -4,7 +4,7 @@
 bus is not to tell which is running (ADR-0030, ADR-0070). Every case here runs
 against both, and reads what both expose: where each train stands
 (`position`), and what each says on `state/railroad`, `state/power`,
-`state/unknown_sensors` and `state/settings`. What
+`state/unknown_sensors`, `state/overdue` and `state/settings`. What
 only one binding does — the layout's fold, align hold and traction writes, the
 simulator's sensor timing — stays in that binding's own suite.
 
@@ -30,6 +30,7 @@ from tests.layout.railroad import (
     DEVICE_TRACK,
     MOVE,
     MOVING,
+    OVERDUE,
     POWER,
     POWER_WANTED,
     RAILROAD,
@@ -158,6 +159,13 @@ def test_it_comes_up_saying_which_sensors_are_unknown(build: Build) -> None:
     sensors (#1151), and the simulator has none (#1148)."""
     row = build().bus.last_values[UNKNOWN_SENSORS]["sensors"]
     assert row == (unheard() if build is OnSteel else [])
+
+
+def test_it_comes_up_saying_no_train_is_overdue(build: Build) -> None:
+    """Said from the constructor, so a client that joins is served a value
+    (ADR-0032): no move has been timed yet, and the simulator times none
+    (#1189)."""
+    assert build().bus.last_values[OVERDUE]["trains"] == []
 
 
 # -- the near-end check and the rails ----------------------------------------
