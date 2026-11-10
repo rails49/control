@@ -1070,6 +1070,18 @@ export class Panel {
       : [...faults, `automatic: ${unheard.size} of ${total} blocks have no sensor report`];
   }
 
+  /** The band's faults in band order and its words (#1186): the supply's,
+   *  each broken rule as the dispatcher's, each dispute, then the sensors not
+   *  reporting. The band draws each as a chip. */
+  faults(): string[] {
+    return [
+      ...(this.fault === null ? [] : [this.fault]),
+      ...this.broken().map((rule) => `dispatcher: ${rule}`),
+      ...this.disputeFaults(),
+      ...this.unknownSensorFaults(),
+    ];
+  }
+
   /** The trains the last rebuild under the same name took off the layout,
    *  each with the block it stood in and why, as the dispatcher last said
    *  (#709). Empty until a rebuild leaves one off, and again once each is
