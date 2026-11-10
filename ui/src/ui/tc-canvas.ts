@@ -223,7 +223,7 @@ export class TcCanvas extends LitElement {
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
         ${this.faces()} ${this.wires(lighting)} ${this.symbols(lighting)}
         ${this.widgets()} ${this.pins()} ${this.stacked()} ${this.arrows()}
-        ${this.disputes()} ${this.stuck()} ${this.markers()} ${this.wireline()} ${this.reach()}
+        ${this.disputes()} ${this.overdue()} ${this.stuck()} ${this.markers()} ${this.wireline()} ${this.reach()}
         ${this.rubberBand()} ${this.ghost()}
       </svg>
     `;
@@ -825,6 +825,18 @@ export class TcCanvas extends LitElement {
       return svg`<text class="note disputed" x=${x} y=${y + 1}>
         sensor ${view.dispute}
       </text>`;
+    });
+  }
+
+  /** Each train `layout` stopped for not arriving, in words under each block
+   *  that names it (#1192), where a dispute's note goes: a block naming a
+   *  train is occupied by it, so the two never meet. */
+  private overdue(): unknown {
+    return [...(this.running?.blocks ?? [])].map(([name, view]) => {
+      const spec = this.document.symbols[name];
+      if (spec === undefined || view.overdue === undefined) return nothing;
+      const { x, y } = centreOf(spec);
+      return svg`<text class="note overdue" x=${x} y=${y + 1}>no arrival</text>`;
     });
   }
 
