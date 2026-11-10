@@ -1182,8 +1182,10 @@ stands. Its route and locks stay held and its arrival still ends it; nothing
 retries. A listed train is given no speed until it arrives, a throttle takes
 it, or it is placed or removed, each of which takes it off the row. Time with
 the supply off does not count, a train standing for both sensors unknown is
-not timed, and a train a throttle holds, or one in `manual` no throttle holds,
-is never stopped for this
+not timed, and neither a train a throttle holds nor a move `layout` never
+drove, one granted in `manual` and not switched to `automatic` since, is ever
+stopped for this. A switch to `manual` partway through a move leaves its clock
+running
 ([ADR-0040](adr/0040-a-cross-expires-and-an-unfinished-one-stops-the-train.md),
 [#1190](https://github.com/rails49/control/issues/1190)).
 
