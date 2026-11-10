@@ -118,9 +118,12 @@ the band's backup note on Backup
   a hint that it applies whatever railroad is loaded. A commit publishes
   `settings_wanted` with `throttle_silence` alone.
 - **Sensors** sets the sensor silence
-  ([#1149](https://github.com/rails49/control/issues/1149)): one field, *Call a sensor unknown once unheard for*, in
-  seconds from `2` to `60` in steps of `1`, with the same hint. A commit
-  publishes `settings_wanted` with `sensor_silence` alone.
+  ([#1149](https://github.com/rails49/control/issues/1149)) and the arrival
+  allowance ([#1192](https://github.com/rails49/control/issues/1192)): *Call a
+  sensor unknown once unheard for*, in seconds from `2` to `60` in steps of
+  `1`, then *Stop a train that has not arrived after*, in seconds from `5` to
+  `600` in steps of `1`, with the same hint. A commit publishes
+  `settings_wanted` with `sensor_silence` or `arrival_allowance` alone.
 
   These tabs read as Points does: dead with the same hint until the row is
   heard, nothing sent for the value the row already says, and a value out of

@@ -621,7 +621,8 @@ what a drop would cost:
   the arrival allowance and times no move. Its consumers are the dispatcher,
   which leaves a listed train out of `state/moving` and reads the row for
   nothing else, and the page, which names each listed train on the band and
-  shows it on the train's marker. A consumer with no row yet treats no train as
+  says `no arrival` under each block that names it
+  ([#1192](https://github.com/rails49/control/issues/1192)). A consumer with no row yet treats no train as
   overdue, and a payload that cannot be read is dropped and the last value
   stands ([#1189](https://github.com/rails49/control/issues/1189)).
 - `tc49/layout/state/settled/sensor/<block>.<end>` — `addr`: the sensor,
@@ -934,10 +935,12 @@ what a drop would cost:
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The page shows the gap in the Settings
   dialog's Points tab, the speeds in its Driving tab, the throttle silence in
-  its Throttles tab and the sensor silence in its Sensors tab
+  its Throttles tab and the sensor silence and the arrival allowance in its
+  Sensors tab
   ([#1134](https://github.com/rails49/control/issues/1134),
   [#1142](https://github.com/rails49/control/issues/1142),
-  [#1149](https://github.com/rails49/control/issues/1149)); no app
+  [#1149](https://github.com/rails49/control/issues/1149),
+  [#1192](https://github.com/rails49/control/issues/1192)); no app
   reads it yet, `layout` holding the gap and
   the silence it says, and the driver reading the speeds being
   [#1133](https://github.com/rails49/control/issues/1133)
@@ -971,12 +974,13 @@ what a drop would cost:
   ([#1140](https://github.com/rails49/control/issues/1140)). The page
   publishes the gap from the Settings dialog's Points tab, one speed at a
   time from its Driving tab, the throttle silence from its Throttles tab and
-  the sensor silence from its Sensors tab, each commit carrying the one field
-  committed
+  the sensor silence and the arrival allowance from its Sensors tab, each
+  commit carrying the one field committed
   ([#1126](https://github.com/rails49/control/issues/1126),
   [#1131](https://github.com/rails49/control/issues/1131),
   [#1134](https://github.com/rails49/control/issues/1134),
-  [#1149](https://github.com/rails49/control/issues/1149)).
+  [#1149](https://github.com/rails49/control/issues/1149),
+  [#1192](https://github.com/rails49/control/issues/1192)).
 
 #### `schedule`
 

@@ -192,6 +192,13 @@ no sensors wired yet wears it on every block. The dispatcher has such a block ou
 ([DISPATCH.md](../dispatcher/DISPATCH.md#out-of-use)); the mark is why a train
 waits there.
 
+**A block naming a train overdue says so.** Each block that names a train
+`tc49/layout/state/overdue` lists says `no arrival` under it in amber, where a
+dispute's note goes ([#1192](https://github.com/rails49/control/issues/1192)).
+A train passing from one block to the next says it in both, and one crossing a
+transit in the block its name is in. The two notes do not meet: a block naming
+a train is occupied by it, and that train explains its readings.
+
 **A block's colour comes from the picture**, `tc49/dispatch/state/allocation`,
 so a page opened at any moment draws what every other page draws. `occupied`
 gives each train's blocks and transits, tail to head: a block on a list is
@@ -1049,6 +1056,16 @@ lists its sensors, and the row's two changes are the frames a short outage
 leaves behind. A row that cannot be read is ignored and the last value stands,
 one bad entry dropping the whole row. The band only tells: the person acts with
 the tools they already have.
+
+**Beside those, each train `layout` stopped for not arriving**, off
+`tc49/layout/state/overdue`, in any view and whichever way power stands
+([#1192](https://github.com/rails49/control/issues/1192)): one chip per train,
+`<train>: <reason>` with the reason as `layout` wrote it, such as
+`IC 2: no arrival for 60 s`, until the row no longer lists the train. The band
+does not say since when: the row has no time per train. A row that cannot be
+read is ignored and the last value stands. The band only tells
+([#1157](https://github.com/rails49/control/issues/1157)): the person moves the
+train on with a throttle, or places it.
 
 **The power toggle and the stop sign command power**, on
 `tc49/layout/power_wanted`
