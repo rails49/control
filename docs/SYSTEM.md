@@ -861,7 +861,7 @@ to finish its drain; one with only one of them listed does
 its throttle, and the drain waits until the person lets it go or presses the
 stop sign ([#1187](https://github.com/rails49/control/issues/1187)). Nor does a train on
 `state/overdue`: `layout` has stopped it for not arriving within its allowance,
-and only a person can end its move
+and it stands until it arrives, a throttle takes it, or it is placed or removed
 ([#1191](https://github.com/rails49/control/issues/1191)).
 `layout` reads it to end a drain by switching the supply off
 ([ADR-0062](adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md)).

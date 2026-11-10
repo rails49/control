@@ -1139,7 +1139,7 @@ payload is read defensively, and one that fails the read is dropped.
   throttle holds
   ([#1187](https://github.com/rails49/control/issues/1187)). A train on
   `tc49/layout/state/overdue` does not count, by any move or restored hint:
-  only a person can end its move
+  it stands until it arrives, a throttle takes it, or it is placed or removed
   ([#1191](https://github.com/rails49/control/issues/1191)).
   Republished when it changes. A
   reader takes an unreadable value as `true`
