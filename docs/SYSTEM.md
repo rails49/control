@@ -821,9 +821,9 @@ block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 *Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the three
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
-unread. The layout filter carries `tc49/layout/state/unknown_sensors` and
-`tc49/layout/state/overdue`, each read as the power is: on starting, from the
-value the bus holds, and by its stamp.
+unread. The layout filter carries `tc49/layout/state/unknown_sensors`,
+`tc49/layout/state/overdue` and `tc49/layout/state/taken`, each read as the
+power is: on starting, from the value the bus holds, and by its stamp.
 *Publishes* the eleven `tc49/dispatch/*` events, plus `state/moving`,
 `state/aspects`, `state/disputed`, `state/unfit`, `state/broken` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
@@ -852,11 +852,14 @@ beside power rather than a value of it — a drain is moving while a granted
 move runs to its sensor, and not once the train stands in the block it
 entered, though it keeps its route and its locks
 ([#844](https://github.com/rails49/control/issues/844)). A crossing whose entry
-and far sensors are both listed does not count, because `layout` has stopped
-that train and a person's off press has to be able to finish its drain; one
-with only one of them listed does
+and far sensors are both listed does not count where no throttle holds the
+train, because `layout` has stopped it and a person's off press has to be able
+to finish its drain; one with only one of them listed does
 ([#1152](https://github.com/rails49/control/issues/1152),
-[#1171](https://github.com/rails49/control/issues/1171)). Nor does a train on
+[#1171](https://github.com/rails49/control/issues/1171)). A train
+`state/taken` names counts with both listed: `layout` leaves it running under
+its throttle, and the drain waits until the person lets it go or presses the
+stop sign ([#1187](https://github.com/rails49/control/issues/1187)). Nor does a train on
 `state/overdue`: `layout` has stopped it for not arriving within its allowance,
 and only a person can end its move
 ([#1191](https://github.com/rails49/control/issues/1191)).
