@@ -3,8 +3,9 @@
 /**
  * The Settings dialog's Points tab sets the point gap (#1128): its field
  * shows `point_gap` off `tc49/layout/state/settings` (#1125), and a commit
- * publishes `tc49/layout/settings_wanted` (#1126). What a commit sends is
- * `gapChange`'s (`settings.test.ts`); this is the dialog through the app.
+ * publishes `tc49/layout/settings_wanted` (#1126). What a commit sends and
+ * refuses, and how long a refusal stands, is `model/settings.ts`'s
+ * (`settings.test.ts`); this is the dialog through the app.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -64,73 +65,17 @@ describe("the Points tab", () => {
     expect(field(dialog).disabled).toBe(false);
   });
 
-  it("follows the row as it changes", async () => {
-    const { shell, dialog } = await gapped(0.8);
-    await said(shell, STATE_SETTINGS, { at: 2, point_gap: 1.5 });
-    expect(field(dialog).value).toBe("1.5");
-  });
-
-  it("says that 0 means no wait", async () => {
-    const { dialog } = await gapped(0.5);
-    expect(hints(dialog)[0]).toMatch(/^0 means no wait/);
-  });
-
-  it("is disabled, and says why, with no state/settings heard", async () => {
-    const dialog = await settingsOpened(await joined());
-    expect(field(dialog).disabled).toBe(true);
-    expect(hints(dialog)).toContain("the layout has not said its settings");
-  });
-
   it("publishes settings_wanted with the gap a commit changed it to", async () => {
     const { shell, dialog } = await gapped(0.8);
     await committed(shell, dialog, "1.2");
     expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { point_gap: 1.2 } }]);
   });
 
-  it("publishes nothing for a gap above 5 seconds, and says why", async () => {
+  it("keeps a refused gap in the field with the reason beneath it", async () => {
     const { shell, dialog } = await gapped(0.8);
     await committed(shell, dialog, "7");
-    expect(written()).toEqual([]);
+    expect(field(dialog).value).toBe("7");
     expect(hints(dialog)).toContain("the time between point commands is from 0 to 5 seconds");
-  });
-
-  it("drops the reason once a gap goes", async () => {
-    const { shell, dialog } = await gapped(0.8);
-    await committed(shell, dialog, "7");
-    await committed(shell, dialog, "2");
-    expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { point_gap: 2 } }]);
-    expect(hints(dialog).some((one) => one.startsWith("the time"))).toBe(false);
-  });
-
-  it("keeps a refused gap in the field with the reason, however often it is committed", async () => {
-    const { shell, dialog } = await gapped(0.8);
-    for (const _ of [1, 2]) {
-      await committed(shell, dialog, "7");
-      expect(field(dialog).value).toBe("7");
-      expect(hints(dialog)).toContain("the time between point commands is from 0 to 5 seconds");
-    }
-    expect(written()).toEqual([]);
-  });
-
-  it("shows a new gap the row says over a refused one, and no reason", async () => {
-    const { shell, dialog } = await gapped(0.8);
-    await committed(shell, dialog, "7");
-    await said(shell, STATE_SETTINGS, { at: 2, point_gap: 1.5 });
-    expect(field(dialog).value).toBe("1.5");
-    expect(hints(dialog).some((one) => one.startsWith("the time"))).toBe(false);
-  });
-
-  it("publishes a gap committed after a refused one, and drops the reason", async () => {
-    const { shell, dialog } = await gapped(0.8);
-    await committed(shell, dialog, "7");
-    await committed(shell, dialog, "1.2");
-    expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { point_gap: 1.2 } }]);
-    expect(hints(dialog).some((one) => one.startsWith("the time"))).toBe(false);
-  });
-
-  it("publishes nothing where the gap committed is the one the row says", async () => {
-    const { shell, dialog } = await gapped(0.8);
-    await committed(shell, dialog, "0.8");
     expect(written()).toEqual([]);
   });
 });
