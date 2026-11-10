@@ -206,6 +206,7 @@ def wired(
     point_gap: float = 0.0,
     sensor_silence_s: float = SENSOR_SILENCE_S,
     reporting: bool = True,
+    arrival_allowance_s: float = ARRIVAL_ALLOWANCE_S,
 ) -> tuple[InProcessBus, LayoutInterface, Clock]:
     """A fresh app on a fresh bus with the clock the two of them share, its
     startup cascade delivered: the railroad is up, dark, and has heard nothing
@@ -224,6 +225,9 @@ def wired(
 
     `sensor_silence_s`: how long a sensor may go unheard before it reads
     unknown (#1151).
+
+    `arrival_allowance_s`: how long a move this app drives may run without
+    arriving before it is stopped and listed overdue (#1190).
 
     `reporting`: every sensor having reported `clear` and that level having
     stood, so a train this app drives is not stopped for a sensor nobody has
@@ -251,6 +255,7 @@ def wired(
         reread=reread,
         point_gap=point_gap,
         sensor_silence_s=sensor_silence_s,
+        arrival_allowance_s=arrival_allowance_s,
     )
     bus.drain()
     if reporting:

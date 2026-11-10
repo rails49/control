@@ -386,6 +386,14 @@ class _Crossing:
     was let through, and one reporting another stops the train (ADR-0097).
     It goes empty at `tail_in`, the train being past the points by then, and
     goes with the crossing at the far sensor (#1169).
+
+    `timed` is the run-clock reading at which this app last gave the crossing
+    a speed, and None where the crossing is not timed: what its arrival
+    allowance runs from (ADR-0040, #1190). It starts again with a full
+    allowance at each `_give` that writes a speed and at a release that leaves
+    the train running in `automatic` (`_let_go`), and from `state/power`
+    reading `on`. It stops at `off`, at both sensors unknown, and at the
+    overdue stop; a `_give` that writes nothing leaves the crossing untimed.
     """
 
     origin: str
@@ -399,6 +407,7 @@ class _Crossing:
     reported: tuple[tuple[str, str], ...] = ()
     head_in: bool = False
     tail_in: bool = False
+    timed: float | None = None
 
     @property
     def entry(self) -> str:
@@ -639,6 +648,11 @@ class LayoutInterface:
         # The trains a far sensor going unknown has just stopped, whose held
         # moves wait for the list that says why (`_call_unknown`, #1169).
         self._arrived: list[str] = []
+        # The trains stopped for not arriving within the allowance, each with
+        # the block it was crossing into and the reason for a person, which is
+        # `state/overdue`, and the list as it was last published (#1190).
+        self._overdue: dict[str, tuple[str, str]] = {}
+        self._overdue_said: dict[str, tuple[str, str]] = {}
         # How a power press is answered, the rule both bindings keep: the
         # word applied, and the moving row a drain ends on (ADR-0078).
         self._track_power = TrackPower()
@@ -780,8 +794,11 @@ class LayoutInterface:
         the clock and for the same reason: a throttle that has gone says
         nothing more to be noticed on (ADR-0079). A sensor gone silent is the
         same case, listed here after `sensor_silence_s` (#1151), and the row
-        goes out once a call, only where the list ended it changed. And it
-        writes the next point a gap has come round for, and lets through the
+        goes out once a call, only where the list ended it changed. A move this
+        app drives that has run for the arrival allowance without arriving is
+        stopped and listed on `state/overdue`, after the levels, so a far sensor
+        settling in the same call is the arrival (`_stop_overdue`, #1190). And
+        it writes the next point a gap has come round for, and lets through the
         moves whose points have had their gap (#1127), which nothing else
         would wake.
         """
@@ -804,6 +821,7 @@ class LayoutInterface:
         arrived, self._arrived = self._arrived, []
         for train in arrived:
             self._put_back(train)
+        self._stop_overdue()
         self._write_points()
         self._let_through()
         self._let_go_of_silent()
@@ -1357,10 +1375,18 @@ class LayoutInterface:
         earlier crossings carried through (`_passed`). Lowered where the drop
         is due (`_lowered`). Not into a block with both sensors reading unknown
         (`_blind`): it stands, and is given the speed when one reports
-        (`_settled`, #1151)."""
+        (`_settled`, #1151). Not to a train on `state/overdue`: a speed for
+        it would be a retry, which ADR-0040 rejects (#1190).
+
+        A speed other than `0.0` starts the arrival allowance again, in full,
+        and a `_give` that writes none leaves the crossing untimed (#1190)."""
         crossing = self._lowered(replace(crossing, driving=True))
+        timed = self._clock.now if self._gives(crossing) else None
+        crossing = replace(crossing, timed=timed)
         self._crossing[block] = crossing
         self._passed(crossing.train, block)
+        if crossing.train in self._overdue:
+            return
         if self._blind(crossing):
             if self._running(crossing.train):
                 self._stop(crossing.train)
@@ -1371,6 +1397,15 @@ class LayoutInterface:
             self._driven.add(crossing.train)
         for addr, speed in crossing.implied:
             self._traction_write(addr, speed)
+
+    def _gives(self, crossing: _Crossing) -> bool:
+        """Whether `_give` writes a speed other than `0.0` for this crossing:
+        one it implies, both sensors not unknown, and the train not overdue."""
+        return (
+            any(speed != 0.0 for _addr, speed in crossing.implied)
+            and not self._blind(crossing)
+            and crossing.train not in self._overdue
+        )
 
     def _blind(self, crossing: _Crossing) -> bool:
         """Whether this app may not drive the train of this crossing, both
@@ -1550,6 +1585,9 @@ class LayoutInterface:
 
         A take of a train the roster lacks reads the roster again first
         (`_learn`), so a train made since the last build can be driven.
+
+        A take that is applied takes the train off `state/overdue`: the person
+        now drives it on, and the next lever frame is written (#1190).
         """
         wanted = wanted_take(payload)
         if wanted is None:
@@ -1575,12 +1613,14 @@ class LayoutInterface:
             if throttle == wanted.throttle:
                 self._let_go(train)
         self._taken[wanted.train] = wanted.throttle
+        self._overdue.pop(wanted.train, None)
         self._publish_taken()
         flight = self._outstanding(wanted.train)
         if flight is not None:
             block, crossing = flight
             self._crossing[block] = replace(crossing, driving=False)
             self._passed(wanted.train, block)
+        self._publish_overdue()
 
     def _learn(self) -> None:
         """The trains the store's roster has and this app lacks, added with
@@ -1646,7 +1686,9 @@ class LayoutInterface:
         at all, the zeros at startup and at a cut counting: it would hold its
         route and never reach its far sensor, so it is given its grant's speed
         (ADR-0083, `_take_up`). And bar one in a block with both sensors
-        reading unknown, which `_take_up` stops (#1151).
+        reading unknown, which `_take_up` stops (#1151). A train left running
+        has the arrival allowance from the release, and one given its grant's
+        speed from that speed (#1190).
 
         **In `automatic` otherwise**, with no move outstanding or over dead
         rails, `_take_up` writes `0.0`.
@@ -1669,7 +1711,9 @@ class LayoutInterface:
             and not self._blind(flight[1])
         ):
             block, crossing = flight
-            self._crossing[block] = replace(crossing, driving=True)
+            self._crossing[block] = replace(
+                crossing, driving=True, timed=self._clock.now
+            )
             self._lower(block)
             return
         self._take_up(train)
@@ -1960,6 +2004,7 @@ class LayoutInterface:
         self._forget(placed.train)
         if placed.train not in self._taken and self._running(placed.train):
             self._stop(placed.train)
+        self._publish_overdue()
 
     def _on_removed(self, topic: str, payload: Payload) -> None:
         """A hand lifted a train off the layout: it stands nowhere, so it
@@ -1984,14 +2029,17 @@ class LayoutInterface:
         self._position.pop(train, None)
         self._forget(train)
         self._stop(train)
+        self._publish_overdue()
 
     def _forget(self, train: str) -> None:
         """Every move of the train's this app holds dropped: its crossings, and
         the moves waiting on an `align`, a facing, the power or an arrival.
         With them goes what a `withdraw_wanted` is judged on and any ask kept
         for the arrival, unanswered: a train set down by hand starts a fresh
-        account (#1068, #1176)."""
+        account (#1068, #1176). The train leaves `state/overdue`, and the
+        arrival allowance goes with its crossings (#1190)."""
         self._driven.discard(train)
+        self._overdue.pop(train, None)
         self._withdrawing.pop(train, None)
         self._unwanted = {
             transit: wanted
@@ -2318,6 +2366,55 @@ class LayoutInterface:
             self._arrived.append(crossing.train)
         elif crossing.driving and self._blind(crossing):
             self._stop(crossing.train)
+            self._crossing[block] = replace(crossing, timed=None)
+
+    def _stop_overdue(self) -> None:
+        """Every move this app drives that has run for the arrival allowance
+        without arriving, stopped where it is (ADR-0040, #1190): outstanding,
+        `driving`, no throttle holding the train, and timed. The allowance is
+        the one in force now, a person's change holding from the next check.
+
+        The train is listed and the row published first, so a reader of the
+        bus sees why it stopped when the `0.0` arrives, and then the grant
+        implies nothing more, as a wrong point report leaves it (ADR-0097).
+        `outstanding` and `driving` stay: the arrival still ends the move, and
+        a move held for reversing still waits for it. Nothing retries.
+        """
+        allowance = self._installation.arrival_allowance
+        now = self._clock.now
+        late = [
+            (block, crossing)
+            for block, crossing in self._crossing.items()
+            if crossing.outstanding
+            and crossing.driving
+            and crossing.train not in self._taken
+            and crossing.timed is not None
+            and now - crossing.timed >= allowance
+        ]
+        reason = f"no arrival for {allowance:g} s"
+        for block, crossing in late:
+            _log.info("%s stopped short of %s: %s", crossing.train, block, reason)
+            self._overdue[crossing.train] = (block, reason)
+        self._publish_overdue()
+        for block, crossing in late:
+            self._stop(crossing.train)
+            self._crossing[block] = replace(crossing, implied=(), timed=None)
+
+    def _publish_overdue(self) -> None:
+        """`state/overdue`, sorted by train, where the list differs from the
+        one last published (#1190). The constructor's empty row is the first."""
+        if self._overdue == self._overdue_said:
+            return
+        self._overdue_said = dict(self._overdue)
+        self._bus.publish(
+            OVERDUE,
+            {
+                "trains": [
+                    {"train": train, "into": into, "reason": reason}
+                    for train, (into, reason) in sorted(self._overdue.items())
+                ]
+            },
+        )
 
     def _publish_unknown(self) -> None:
         """`state/unknown_sensors`: `reported` is whether this sensor has had
@@ -2414,11 +2511,13 @@ class LayoutInterface:
         train nobody was driving was never told to run and is told nothing.
         Either way the grant implies nothing more, so what it implied goes.
         What a held move does next is `_put_back`'s, once the crossing is
-        settled."""
+        settled. The train leaves `state/overdue`, by any of the three readings
+        (#1190)."""
         if crossing.driving or crossing.train in self._taken:
             self._stop(crossing.train)
         crossing = replace(crossing, implied=(), outstanding=False)
         self._crossing[block] = crossing
+        self._overdue.pop(crossing.train, None)
         return crossing
 
     def _put_back(self, train: str) -> None:
@@ -2505,9 +2604,29 @@ class LayoutInterface:
         stated = self._track_power.stated(self._folded())
         if stated != self._power:
             self._power = stated
+            self._time_from_power(stated)
             self._bus.publish(POWER, {"power": stated})
             if stated == ON:
                 self._carry_out_kept()
+
+    def _time_from_power(self, stated: str) -> None:
+        """The arrival allowance at a change of `state/power` (#1190). `off`,
+        whatever turned it off, stops every crossing's: a train with no supply
+        cannot arrive, so time without supply does not count. `on` starts it
+        again, in full, on each crossing `_give` would give a speed to, the
+        supply being back whether or not a press brings it."""
+        now = self._clock.now
+        for block, crossing in list(self._crossing.items()):
+            if stated == OFF:
+                self._crossing[block] = replace(crossing, timed=None)
+            elif (
+                stated == ON
+                and crossing.outstanding
+                and crossing.driving
+                and crossing.train not in self._taken
+                and self._gives(crossing)
+            ):
+                self._crossing[block] = replace(crossing, timed=now)
 
     def _carry_out_kept(self) -> None:
         """Every move kept over dead rails, put back through `_cross` now that
