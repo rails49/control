@@ -29,12 +29,14 @@ read by every stack on the box:
 
 | variable | what it says | on this box |
 | --- | --- | --- |
-| `BOX_DOMAIN` | the name the box is reached at | `gleis49.org` |
+| `BOX_DOMAIN` | the name the box is reached at, or empty for a box with no certificate | `gleis49.org` |
 | `BOX_UIS` | the UIs it serves, one label each | `control jmri` |
 | `BOX_ACME_PROVIDER` | the DNS provider that issues its certificates | `cloudflare` |
 
 So this UI is at <https://control.gleis49.org>, and naming a box is editing one
-file on the box rather than forking this repository. An `A` record for the apex
+file on the box rather than forking this repository. Every box, with a name or
+without, also serves it on its UI port over plain HTTP
+([below](#the-ui-port)). An `A` record for the apex
 and one per label, each holding the box's LAN address, is the installation's
 step and its README is where it is written; a public record holding a private
 address is the design rather than a trick, since anyone may resolve the name
@@ -179,7 +181,7 @@ docker compose --env-file /etc/rails49/box.env \
 box's declaration, which every stack on the box is started against and which
 is where the name in the routers' labels comes from; the second is this
 stack's own settings. A box with no declaration is told which variable is
-missing rather than given routers under a blank name.
+missing. An empty `BOX_DOMAIN` is a box with no certificate and is admitted.
 
 **Every `docker compose` here takes both**, `logs` and `ps` included: compose
 reads the whole file before it runs any subcommand, so one without them stops
@@ -486,6 +488,9 @@ not build.
 | `broker` | `tc49-mqtt-foreign` | the same from a page on another origin, answered 403 |
 | `camera` | `tc49-camera` | `/picture`, on `:8767` |
 
+Each router has a second one named with `-port` — `tc49-app-port` and so on —
+on the UI port ([below](#the-ui-port)).
+
 [`rails49/dccex`](https://github.com/rails49/dccex) uses three of these
 names: the service `broker` on `rails49` for native MQTT on 1883, the service
 `store` on `rails49` for the face on 8765, and the Traefik service `tc49-mqtt`
@@ -502,8 +507,10 @@ prefix named a route directory that no longer exists.
 started against that one file, so this UI is at `control.$BOX_DOMAIN` and
 naming a box is editing a file on the box rather than forking this repository.
 No template is rendered and no file is copied — compose substitutes it. A box
-with no declaration yet gets a blank name, and compose says which variable is
-missing.
+with no declaration yet is refused, and compose says which variable is
+missing. A box with no certificate declares `BOX_DOMAIN` empty: its
+`websecure` routers then name an entry point the door does not open, the door
+logs an error for each and drops it, and the UI port routers serve the UI.
 
 **Each router states its priority.** Traefik's default is the rule's length,
 which was legible while every rule sat in one file and is not now that they
@@ -514,7 +521,7 @@ that they come first. The refusal's precedence over the bus router it stands
 in front of is what this exists to keep, and nothing shows a reader that
 shortening one rule changes what another matches.
 
-**The refusal compares origins whole.** The route file matched a pattern with
+**On `websecure` the refusal compares origins whole.** The route file matched a pattern with
 the dots in the name escaped; the name now comes from the declaration and a
 dot inside it cannot be escaped on its way into one, and
 `control.gleis49.org` as a pattern admits `control-gleis49.org`, which
@@ -527,6 +534,12 @@ The pattern also admitted the app's own name with a port after it. That is
 dropped rather than written out twice more: the door listens on 443 and 80,
 and a browser leaves a scheme's default port out of `Origin`, so no page the
 door serves sends one.
+
+On the UI port the refusal matches a pattern instead, because the page's host
+is whatever name or address it was reached at, and no file declares it. It
+admits `http://` on port 8081 at a `.local` name or an RFC 1918 IPv4 address
+(rails49/installation#53, decision 5); the pattern has no box name in it, so
+the dot problem above does not arise.
 
 **Only what the door reaches joins the shared network.** `web`, `store`,
 `broker` and `camera` join `rails49`, the network the installation creates and every stack
@@ -586,6 +599,33 @@ sent with `Cache-Control: no-cache`, so a browser asks the box again on every
 load rather than starting the build before. The files under `assets/` are
 named by a hash of their contents and are sent as nginx sends them
 ([#1123](https://github.com/rails49/control/issues/1123)).
+
+## The UI port
+
+Every box serves `control` over plain HTTP on its UI port, 8081, at
+`http://<hostname>.local:8081` and `http://<address>:8081`. The installation
+owns the port and the door's entry point `control` that listens on it
+([rails49/installation#53](https://github.com/rails49/installation/issues/53)).
+On a box with no certificate this is the only way in; on a box with a box name
+it keeps the UI reachable when DNS or the certificate fails.
+
+Each `websecure` router has a second router on `control` with the same rule
+minus `Host(...)`, the same service, middlewares and priority, and no TLS.
+`tc49-app-port`'s rule is ``PathPrefix(`/`)``. `tc49-mqtt-foreign-port` is the
+exception: it refuses an origin that is not a LAN page on 8081, as described
+above.
+
+Over plain HTTP a page is not a secure context, and two things stop working:
+
+- The screen wake lock. A phone that sleeps while holding a train stops
+  sending `throttle_alive`, and `layout` releases its trains
+  ([above](#a-silent-throttle)). Set a longer screen timeout on the phone.
+- "Copy the key" on the backup tab.
+
+On a box with a box name, `http://control.<box name>:8081` loads the page, but
+`/mqtt` refuses it: that host is neither a `.local` name nor an address. Use
+`https://control.<box name>` there, or the `.local` name or the address on
+8081.
 
 ## When it does not work
 

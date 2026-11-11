@@ -30,12 +30,12 @@
 
 name: tc49
 
-# Nothing reads this. It is where the box's name is required, so that a box
-# with no declaration is told which variable is missing rather than given
-# routers under a blank name — compose interpolates the whole file before it
-# runs any subcommand, so one line here covers every rule below and every
-# `logs` and `ps` besides.
-x-require-box-domain: ${BOX_DOMAIN:?start this with --env-file /etc/rails49/box.env}
+# Nothing reads this. It is where the box's declaration is required, so that a
+# box with none is told which variable is missing — compose interpolates the
+# whole file before it runs any subcommand, so one line here covers every rule
+# below and every `logs` and `ps` besides. An empty `BOX_DOMAIN` is admitted:
+# that is a box with no certificate, served on the UI port alone.
+x-require-box-domain: ${BOX_DOMAIN?start this with --env-file /etc/rails49/box.env}
 
 services:
   # The built UI, which the door cannot serve itself: it proxies and does not
@@ -49,6 +49,13 @@ services:
   # Every router here names the service it dials and every service names its
   # port, including this one, where the image exposes 80 and nothing else. The
   # door would pick that port itself; a reader would have to know it does.
+  #
+  # Each router on `websecure` has a second one, named with `-port`, on the
+  # door's entry point `control`: this UI's port, 8081, over plain HTTP, on
+  # every box (rails49/installation#53). Same service, middlewares and
+  # priority; the rule without `Host(...)`, since a box with no certificate has
+  # no name to match. On such a box the `websecure` routers name an entry point
+  # that does not exist, and the door drops them and serves the rest.
   web:
     image: nginx:alpine
     profiles: [layout]
@@ -65,6 +72,10 @@ services:
       - traefik.http.routers.tc49-app.entrypoints=websecure
       - traefik.http.routers.tc49-app.service=tc49-app
       - traefik.http.routers.tc49-app.tls.certresolver=le
+      - traefik.http.routers.tc49-app-port.rule=PathPrefix(`/`)
+      - traefik.http.routers.tc49-app-port.priority=1
+      - traefik.http.routers.tc49-app-port.entrypoints=control
+      - traefik.http.routers.tc49-app-port.service=tc49-app
     networks: [default, rails49]
 
   # The bus, which every app meets on, each in a process of its own
@@ -95,12 +106,17 @@ services:
     # rather than in an app, `lib/origin.py` being the same rule at the store's
     # face (ADR-0056, ADR-0059 decision 4).
     #
-    # The origins it admits are compared whole rather than matched. The name
-    # comes from the box's declaration and a dot inside it cannot be escaped on
-    # its way into a pattern, and `control.gleis49.org` as a pattern admits
-    # `control-gleis49.org`, which somebody may register. Two of them because
-    # TLS terminates at the door and a page on the app's own origin is the app
-    # (ADR-0042, ADR-0055).
+    # On `websecure` the origins it admits are compared whole rather than
+    # matched. The name comes from the box's declaration and a dot inside it
+    # cannot be escaped on its way into a pattern, and `control.gleis49.org` as
+    # a pattern admits `control-gleis49.org`, which somebody may register. Two
+    # of them because TLS terminates at the door and a page on the app's own
+    # origin is the app (ADR-0042, ADR-0055).
+    #
+    # On the UI port the page's host is whatever it was reached at, which no
+    # file declares, so the origin is matched against a pattern with no box
+    # name in it: `http://` on 8081 at a `.local` name or an RFC 1918 address
+    # (rails49/installation#53 decision 5). `$$` is compose's escape for `$`.
     #
     # Matching `Origin` at all is what selects the refusal, so a handshake
     # carrying none — a native client, `mosquitto_sub`, the suite — does not
@@ -122,6 +138,16 @@ services:
       - traefik.http.routers.tc49-mqtt-foreign.service=tc49-mqtt
       - traefik.http.routers.tc49-mqtt-foreign.middlewares=tc49-mqtt-refused
       - traefik.http.routers.tc49-mqtt-foreign.tls.certresolver=le
+      - traefik.http.routers.tc49-mqtt-port.rule=PathPrefix(`/mqtt`)
+      - traefik.http.routers.tc49-mqtt-port.priority=2
+      - traefik.http.routers.tc49-mqtt-port.entrypoints=control
+      - traefik.http.routers.tc49-mqtt-port.service=tc49-mqtt
+      - traefik.http.routers.tc49-mqtt-port.middlewares=tc49-mqtt-strip
+      - traefik.http.routers.tc49-mqtt-foreign-port.rule=PathPrefix(`/mqtt`) && HeaderRegexp(`Origin`, `.`) && !HeaderRegexp(`Origin`, `^http://([a-z0-9-]+\.local|10\.[0-9]+\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+):8081$$`)
+      - traefik.http.routers.tc49-mqtt-foreign-port.priority=3
+      - traefik.http.routers.tc49-mqtt-foreign-port.entrypoints=control
+      - traefik.http.routers.tc49-mqtt-foreign-port.service=tc49-mqtt
+      - traefik.http.routers.tc49-mqtt-foreign-port.middlewares=tc49-mqtt-refused
       # Traefik has no middleware whose job is to refuse, and this is the one
       # that answers 403 without reaching the service behind it: no source
       # address is `255.255.255.255`, the limited broadcast address, so every
@@ -209,6 +235,10 @@ services:
       - traefik.http.routers.tc49-store.entrypoints=websecure
       - traefik.http.routers.tc49-store.service=tc49-store
       - traefik.http.routers.tc49-store.tls.certresolver=le
+      - traefik.http.routers.tc49-store-port.rule=(PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`) || PathPrefix(`/railroads`))
+      - traefik.http.routers.tc49-store-port.priority=2
+      - traefik.http.routers.tc49-store-port.entrypoints=control
+      - traefik.http.routers.tc49-store-port.service=tc49-store
     networks: [default, rails49]
 
   # The five apps on the bus, one service each (ADR-0059, decision 5). Every one of them
@@ -338,6 +368,10 @@ services:
       - traefik.http.routers.tc49-camera.entrypoints=websecure
       - traefik.http.routers.tc49-camera.service=tc49-camera
       - traefik.http.routers.tc49-camera.tls.certresolver=le
+      - traefik.http.routers.tc49-camera-port.rule=PathPrefix(`/picture`)
+      - traefik.http.routers.tc49-camera-port.priority=2
+      - traefik.http.routers.tc49-camera-port.entrypoints=control
+      - traefik.http.routers.tc49-camera-port.service=tc49-camera
     networks: [default, rails49]
 
 # The one network every stack on the box shares, created by the installation
