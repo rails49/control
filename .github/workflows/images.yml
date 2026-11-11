@@ -1,0 +1,187 @@
+# control's two images at one commit, for an installation release
+# (rails49/.github#71). The installation's release workflow calls it; nothing
+# here triggers it, so no pull request or merge builds an image (decision 1).
+#
+#   uses: rails49/control/.github/workflows/images.yml@<commit>
+#   with:
+#     commit: <commit>
+#
+# It builds `ghcr.io/rails49/control:<commit>` and `control-web:<commit>` on an
+# amd64 and an arm64 runner, runs `tests/system/test_images.py` against each,
+# pushes each by digest and joins the two under the commit. An image already
+# pushed for the commit is not rebuilt. The outputs are the full commit and
+# both images' digests. The box files, the compose file and every file it
+# mounts, go up as the artifact `control-box-files`, at the archive's root.
+#
+# The caller grants `packages: write`. The workflow runs in the caller's
+# context, so every checkout and every build names this repository.
+name: images
+
+on:
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit to build. A short one or a branch is resolved.
+        required: true
+        type: string
+    outputs:
+      commit:
+        description: The commit, in full.
+        value: ${{ jobs.commit.outputs.commit }}
+      control:
+        description: The digest of ghcr.io/rails49/control:<commit>.
+        value: ${{ jobs.digests.outputs.control }}
+      control-web:
+        description: The digest of ghcr.io/rails49/control-web:<commit>.
+        value: ${{ jobs.digests.outputs.control-web }}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io/rails49
+
+jobs:
+  commit:
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.commit.outputs.commit }}
+      missing: ${{ steps.missing.outputs.missing }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: rails49/control
+          ref: ${{ inputs.commit }}
+      - id: commit
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The images not yet pushed for this commit, as a JSON list.
+      - id: missing
+        env:
+          COMMIT: ${{ steps.commit.outputs.commit }}
+        run: |
+          missing=()
+          for image in control control-web; do
+            docker buildx imagetools inspect "$REGISTRY/$image:$COMMIT" >/dev/null 2>&1 \
+              || missing+=("$image")
+          done
+          echo "missing=$(jq -cn '$ARGS.positional' --args "${missing[@]}")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: control-box-files
+          path: |
+            deploy/compose.yaml
+            deploy/mosquitto.conf
+
+  build:
+    needs: commit
+    if: needs.commit.outputs.missing != '[]'
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.commit.outputs.missing) }}
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    env:
+      COMMIT: ${{ needs.commit.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: rails49/control
+          ref: ${{ needs.commit.outputs.commit }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image == 'control' && 'deploy/app.Dockerfile' || 'deploy/web.Dockerfile' }}
+          build-args: CONTROL_COMMIT=${{ needs.commit.outputs.commit }}
+          load: true
+          tags: ci/${{ matrix.image }}
+      - uses: astral-sh/setup-uv@v5
+      - name: test
+        env:
+          TC49_APP_IMAGE: ${{ matrix.image == 'control' && 'ci/control' || '' }}
+          TC49_WEB_IMAGE: ${{ matrix.image == 'control-web' && 'ci/control-web' || '' }}
+        run: uv run pytest -q tests/system/test_images.py
+      # The same build, from the builder's cache, pushed by digest alone.
+      - name: push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image == 'control' && 'deploy/app.Dockerfile' || 'deploy/web.Dockerfile' }}
+          build-args: CONTROL_COMMIT=${{ needs.commit.outputs.commit }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+      - env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: mkdir digests && touch "digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.runner }}
+          path: digests/*
+          retention-days: 1
+
+  join:
+    needs: [commit, build]
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.commit.outputs.missing) }}
+    runs-on: ubuntu-24.04
+    env:
+      COMMIT: ${{ needs.commit.outputs.commit }}
+      IMAGE: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+          path: digests
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - working-directory: digests
+        run: |
+          sources=()
+          for digest in *; do sources+=("$REGISTRY/$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create -t "$REGISTRY/$IMAGE:$COMMIT" "${sources[@]}"
+
+  # Both digests, whether this run built the images or found them pushed.
+  # Each must hold amd64 and arm64.
+  digests:
+    needs: [commit, join]
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-24.04
+    outputs:
+      control: ${{ steps.digests.outputs.control }}
+      control-web: ${{ steps.digests.outputs.control-web }}
+    env:
+      COMMIT: ${{ needs.commit.outputs.commit }}
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: digests
+        run: |
+          for image in control control-web; do
+            manifest=$(docker buildx imagetools inspect "$REGISTRY/$image:$COMMIT" --format '{{json .Manifest}}')
+            for platform in linux/amd64 linux/arm64; do
+              echo "$manifest" | jq -e --arg p "$platform" \
+                'any(.manifests[]; "\(.platform.os)/\(.platform.architecture)" == $p)' >/dev/null \
+                || { echo "$image:$COMMIT has no $platform" >&2; exit 1; }
+            done
+            echo "$image=$(echo "$manifest" | jq -r .digest)" >> "$GITHUB_OUTPUT"
+          done
