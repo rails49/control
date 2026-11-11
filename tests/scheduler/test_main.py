@@ -14,6 +14,7 @@ from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
+from rails49_testing.broker import Broker, until
 from rails49_testing.ports import free_port
 
 from tc49.lib.bus import Payload
@@ -24,14 +25,7 @@ from tc49.lib.startup import RETAINED_S
 from tc49.scheduler.__main__ import ALIVE_CONFIRMED, serve
 from tc49.scheduler.scheduler import FACING
 from tc49.store.server import make_server
-from tests.brokers import (
-    Broker,
-    at_least_once_in_any_two_seconds,
-    beats,
-    drained,
-    settle,
-    until,
-)
+from tests.brokers import at_least_once_in_any_two_seconds, beats, drained, settle
 from tests.harness import ASSETS, catalogued
 from tests.startup import WINDOW_S, a_stop_in_the_window_is_acted_on_there
 
@@ -170,7 +164,9 @@ def rows(heard: list[tuple[str, Payload]], topic: str) -> list[Payload]:
     return [payload for said, payload in heard if said == topic]
 
 
-def test_an_app_is_stoppable_having_never_been_started(store: Store) -> None:
+def test_an_app_is_stoppable_having_never_been_started(
+    store: Store, tmp_path: Path
+) -> None:
     """A test whose body raised before `app.start()` is torn down all the
     same, and the fixture may not turn that one failure into a failure and an
     error on top of it (#560): joining a thread that was never started raises
@@ -180,7 +176,7 @@ def test_an_app_is_stoppable_having_never_been_started(store: Store) -> None:
     that is the state the teardown found. The dispatcher, layout and
     simulator suites hold their app the same way and carry the same guard.
     """
-    App(Broker(), store).stop()
+    App(Broker(tmp_path), store).stop()
 
 
 def test_a_cold_start_publishes_the_apps_own_rows(

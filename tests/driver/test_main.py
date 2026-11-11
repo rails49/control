@@ -18,19 +18,14 @@ import threading
 from collections.abc import Iterator
 
 import pytest
+from rails49_testing.broker import Broker
 
 from tc49.driver.__main__ import ALIVE_CONFIRMED, serve
 from tc49.lib.bus import Payload
 from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.settings import KeptInstallation, KeptSettings, said
-from tests.brokers import (
-    Broker,
-    at_least_once_in_any_two_seconds,
-    beats,
-    drained,
-    settle,
-)
+from tests.brokers import at_least_once_in_any_two_seconds, beats, drained, settle
 
 RAILROAD = "crossover-yard"
 GRANTED = "tc49/dispatch/move_granted"
@@ -185,7 +180,7 @@ def test_it_comes_up_against_a_broker_that_is_not_there_yet(
     assert not app.up.wait(1), "it said it was up with no broker to be up on"
     assert app.running, "the app gave up on a broker that was not up yet"
 
-    assert broker.start()
+    broker.start()
 
     # Reconnected on the client's own backoff, whose first step is a second.
     assert app.up.wait(30), "it never came up once the broker was there"

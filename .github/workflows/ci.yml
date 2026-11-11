@@ -26,7 +26,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --dir ui
       # The broker the MQTT binding's suite runs against (#369). The install
       # may still fail, but the absence is loud: `CI` is set above, and under
-      # it the `broker` fixture fails rather than skips (tests/brokers.py), so
+      # it the `broker` fixture fails rather than skips (rails49_testing.broker), so
       # a package index having a bad day reddens the gate here (#423). One
       # that hangs is cut off rather than held for six hours (#947). The
       # packages come from a cache keyed on the runner image, and a hit makes

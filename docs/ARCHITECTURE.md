@@ -306,16 +306,16 @@ live in. Each spec page links the ADRs that bind it.
 `tests/` mirrors `src/tc49/`: one package per app, plus `system/` for the
 tests that drive the real assembly over the bus, with `harness.py`,
 `interleaving.py` — an in-process bus that delivers in any order a broker
-may — `brokers.py` — a real broker, for the apps that come up against one —
-`apps.py` — the apps as processes, for the suites that start what a compose
-service starts — `ports.py` — a port to listen on, picked from below the
-range the kernel hands out so nothing else can take it (#560) — `invariants.py`
-— the check of `tc49.lib.invariants` over an assembly's bus — and
-`generate.py` shared at the top.
+may — `brokers.py` — the bus over a real broker, for the apps that come up
+against one — `apps.py` — the apps as processes, for the suites that start
+what a compose service starts — `invariants.py` — the check of
+`tc49.lib.invariants` over an assembly's bus — and `generate.py` shared at the
+top. The broker itself and the port it listens on come from the dev
+dependency [`rails49-testing`](https://github.com/rails49/testing).
 
 ```
 tests/
-  harness.py  interleaving.py  invariants.py  brokers.py  apps.py  ports.py
+  harness.py  interleaving.py  invariants.py  brokers.py  apps.py
   generate.py  test_interleaving  test_invariants_check
   lib/         test_layout  test_bus  test_trace  test_invariants
   store/       test_store  test_drawing  test_server  test_symbols

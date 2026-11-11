@@ -14,8 +14,8 @@ from itertools import pairwise
 from urllib.parse import quote
 
 import pytest
+from rails49_testing.broker import until
 
-from tests.brokers import until
 from tests.camera.cameras import AUTHORIZATION, PATH, Camera
 from tests.camera.conftest import (
     LINGER_S,

@@ -1,7 +1,7 @@
 """Tests at the MqttBus seam: the bus contract kept over a real broker.
 
 Against a `mosquitto` on a free port, one per test, so no test sees another's
-retained values (`tests/brokers.py`). Skipped where no `mosquitto` is
+retained values (`rails49_testing.broker`). Skipped where no `mosquitto` is
 installed, and failed rather than skipped under CI, where the broker is part
 of the gate (#369, #423).
 """
@@ -14,10 +14,11 @@ from collections.abc import Callable, Iterator
 import pytest
 from paho.mqtt import client as paho
 from paho.mqtt.enums import CallbackAPIVersion
+from rails49_testing.broker import Broker, until
 
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.mqtt import BrokerLost, MqttBus, address
-from tests.brokers import Broker, drained, settle, until
+from tests.brokers import drained, settle
 
 POWER = "tc49/layout/state/power"
 SENSOR = "tc49/layout/sensor"
@@ -318,7 +319,7 @@ def test_a_lost_connection_is_said_and_retried(
     assert until(lambda: not bus.connected)
     assert "lost" in capsys.readouterr().err
 
-    assert broker.start()
+    broker.start()
     # Reconnected on the client's own backoff, whose first step is a second.
     assert bus.wait_connected(timeout=30.0)
 
@@ -335,7 +336,7 @@ def test_an_app_that_does_not_rejoin_ends_at_the_next_drain(broker: Broker) -> N
 
         broker.stop()
         assert until(lambda: not bus.connected)
-        assert broker.start()
+        broker.start()
 
         with pytest.raises(BrokerLost) as lost:
             bus.drain()
@@ -353,7 +354,7 @@ def test_an_app_that_does_not_rejoin_still_waits_for_its_first_broker(
     bus = MqttBus(port=broker.port, rejoin=False)
     try:
         settle(bus, 1.5)
-        assert broker.start()
+        broker.start()
         assert bus.wait_connected(timeout=30.0)
         bus.drain()
     finally:

@@ -21,10 +21,11 @@ from collections.abc import Iterator
 from typing import Protocol
 
 import pytest
+from rails49_testing.broker import until
 
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
-from tests.brokers import settle, until
+from tests.brokers import settle
 
 WINDOW_S = 30.0
 """A retained window long enough for a test to be sure the app is inside one.
