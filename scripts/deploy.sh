@@ -33,6 +33,16 @@ set -euo pipefail
 # read the rest of the script as the answer. Fail instead.
 export GIT_TERMINAL_PROMPT=0
 cd ~/control
+# A tree with changes in it, tracked or not, would be built under a commit
+# that is not what was built (dccex ADR-0005 d.4). So the deploy refuses one,
+# before a pull merges around the changes.
+dirty=$(git status --porcelain)
+if [ -n "$dirty" ]; then
+  echo "~/control is not clean, and the images would be named after a commit" >&2
+  echo "that is not what was built:" >&2
+  echo "$dirty" >&2
+  exit 1
+fi
 # Which repository this box pulls from is state outside the checkout, the way
 # the ssh alias was before #496: a line in `.git/config` on this one machine
 # that the deploy depends on and cannot see. A box whose remote had an ssh URL
@@ -57,15 +67,6 @@ if [ "$was" != "$ORIGIN" ]; then
   git remote set-url origin "$ORIGIN"
 fi
 git pull
-# A tree with changes in it, tracked or not, would be built under a commit
-# that is not what was built (dccex ADR-0005 d.4). So the deploy refuses one.
-dirty=$(git status --porcelain)
-if [ -n "$dirty" ]; then
-  echo "~/control is not clean, and the images would be named after a commit" >&2
-  echo "that is not what was built:" >&2
-  echo "$dirty" >&2
-  exit 1
-fi
 # The name of both images, `ghcr.io/rails49/control:<commit>` and
 # `control-web:<commit>`, and the revision they carry (deploy/compose.yaml).
 CONTROL_COMMIT=$(git rev-parse HEAD)

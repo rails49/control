@@ -12,6 +12,7 @@ repository made under `tmp_path`, the way the remote's are in
 `test_deploy_pins_the_remote.py`.
 """
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -21,10 +22,14 @@ DEPLOY = (ROOT / "scripts/deploy.sh").read_text()
 
 
 def block() -> str:
-    """From the tree check to the commit's export."""
+    """The tree check, then the commit's name."""
     start = DEPLOY.index("dirty=$(git status --porcelain)")
-    end = DEPLOY.index("export CONTROL_COMMIT")
-    return DEPLOY[start : DEPLOY.index("\n", end)]
+    check = DEPLOY[start : DEPLOY.index("\nfi\n", start) + 4]
+    named = DEPLOY.index("CONTROL_COMMIT=$(git rev-parse HEAD)")
+    return (
+        check
+        + DEPLOY[named : DEPLOY.index("\n", DEPLOY.index("export CONTROL_COMMIT"))]
+    )
 
 
 def a_repository(where: Path) -> str:
@@ -80,6 +85,11 @@ def test_an_untracked_file_is_refused(tmp_path: Path) -> None:
     assert run_block(tmp_path / "box").returncode != 0
 
 
+def test_the_tree_is_checked_before_the_pull() -> None:
+    """A pull over changes merges around them or stops on git's own words."""
+    assert DEPLOY.index("dirty=$(git status --porcelain)") < DEPLOY.index("git pull")
+
+
 def test_the_commit_is_named_before_compose_builds() -> None:
     assert DEPLOY.index("export CONTROL_COMMIT") < DEPLOY.index("docker compose")
     assert "up -d --build" in DEPLOY
@@ -87,4 +97,4 @@ def test_the_commit_is_named_before_compose_builds() -> None:
 
 def test_the_box_needs_no_node() -> None:
     run = [line for line in DEPLOY.splitlines() if not line.lstrip().startswith("#")]
-    assert not [line for line in run if "pnpm" in line or "node" in line], run
+    assert not [line for line in run if re.search(r"\b(pnpm|npm|node)\b", line)]

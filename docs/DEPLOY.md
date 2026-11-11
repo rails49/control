@@ -72,9 +72,9 @@ a box does.
 `gleis49.org` is the layout server. Any machine will do that has Docker with
 compose and git, and takes ssh by key. It needs no node or pnpm: unlike a
 development machine it serves a built UI rather than vite's, and the UI is
-built inside the `control-web` image. Both run the broker. The installation is already on it, so the door is up, the certificate
-is real, and `https://control.gleis49.org` answers 404 until this stack is
-started.
+built inside the `control-web` image. Both run the broker. The installation
+is already on it, so the door is up, the certificate is real, and
+`https://control.gleis49.org` answers 404 until this stack is started.
 
 **The ACME credential cannot come from 1Password here.** `op` unlocks through
 the desktop app and a headless box has none, while the door has to renew a
@@ -165,9 +165,9 @@ that has not installed the installation is told so before anything comes up.
 ```
 ssh rails49
 cd ~/control
+git status --porcelain    # must print nothing
 git remote set-url origin https://github.com/rails49/control.git
 git pull
-git status --porcelain    # must print nothing
 mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
 export CONTROL_COMMIT=$(git rev-parse HEAD)
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
@@ -180,7 +180,7 @@ docker compose --env-file /etc/rails49/box.env \
 `scripts/deploy.sh` is that sequence, run over ssh from a development machine.
 It stops on a tree that is not clean.
 
-**The images are named by the commit they were built from**:
+The images are named by the commit they were built from:
 `ghcr.io/rails49/control:<commit>` for the apps and
 `ghcr.io/rails49/control-web:<commit>` for the UI, `dev` where no commit is
 named. Each carries the commit as `org.opencontainers.image.revision` too. A
@@ -592,9 +592,10 @@ published, so the door is the only way a browser reaches the bus.
 
 The built UI needs nginx behind the door because the door proxies and does not
 read files. That is the whole of what `web` is: nginx with the UI built into
-its image, and one line of its own config, `deploy/nginx.conf`: `index.html`, which is also what `/` serves, is
-sent with `Cache-Control: no-cache`, so a browser asks the box again on every
-load rather than starting the build before. The files under `assets/` are
+its image, and one line of its own config, `deploy/nginx.conf`: `index.html`,
+which is also what `/` serves, is sent with `Cache-Control: no-cache`, so a
+browser asks the box again on every load rather than starting the build
+before. The files under `assets/` are
 named by a hash of their contents and are sent as nginx sends them
 ([#1123](https://github.com/rails49/control/issues/1123)).
 

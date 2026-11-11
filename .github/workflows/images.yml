@@ -21,7 +21,7 @@ on:
   workflow_call:
     inputs:
       commit:
-        description: The commit to build. A short one or a branch is resolved.
+        description: The commit to build, in full, or a branch.
         required: true
         type: string
     outputs:
@@ -60,15 +60,25 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # The images not yet pushed for this commit, as a JSON list.
+      # The images not yet pushed for this commit, as a JSON list. A tag that
+      # is not there is "not found"; a package that is not there yet refuses
+      # the read. Any other error stops the run, so a registry that fails to
+      # answer cannot cause a rebuild that moves a tag. A refused read of a
+      # package that exists ends in a refused push, which moves nothing.
       - id: missing
         env:
           COMMIT: ${{ steps.commit.outputs.commit }}
         run: |
           missing=()
           for image in control control-web; do
-            docker buildx imagetools inspect "$REGISTRY/$image:$COMMIT" >/dev/null 2>&1 \
-              || missing+=("$image")
+            if docker buildx imagetools inspect "$REGISTRY/$image:$COMMIT" >/dev/null 2>err; then
+              continue
+            elif grep -qiE 'not found|denied|forbidden|unauthorized' err; then
+              missing+=("$image")
+            else
+              cat err >&2
+              exit 1
+            fi
           done
           echo "missing=$(jq -cn '$ARGS.positional' --args "${missing[@]}")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4

@@ -20,6 +20,10 @@ for one at all. The services that did were translators, and no translator is
 this repository's — each lives in a repository of its own, as the one that
 spoke to the command station does in
 [`rails49/dccex`](https://github.com/rails49/dccex) (#587, #595).
+
+Three more hold the images: every built service is named by the commit, every
+build is told the commit, and nothing is mounted from the clone but
+configuration (#1216).
 """
 
 import re
