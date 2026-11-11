@@ -23,9 +23,15 @@ COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 # pushes them off the machine, and a `python:slim` carries none. Without it
 # the backup answers that `/store` is not a repository, which is true of every
 # store and says nothing about the one it was asked about.
+#
+# `libnss-wrapper`, because OpenSSH refuses a uid with no passwd entry and the
+# store runs as the box's person, whose uid this image is not told. The
+# store's start names that uid with it (`deploy/store-start.sh`).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git openssh-client \
+    && apt-get install -y --no-install-recommends git openssh-client libnss-wrapper \
     && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/store-start.sh /usr/local/bin/store-start
 
 # GitHub's host keys, so the first push from a box that has never spoken to
 # github.com is checked against something rather than asked about: nobody is
@@ -66,23 +72,12 @@ ENV PYTHONUNBUFFERED=1
 # command line of its own rather than a subcommand.
 ENV PATH="/app/.venv/bin:$PATH"
 
-# A name for the uid the store runs as. The store runs as the person who
-# deployed the box (#387), and OpenSSH — which makes the deploy key and pushes
-# with it — refuses to run for a uid with no passwd entry. `deploy.sh` hands
-# the build that uid, so the entry is written here, as root, and the tables
-# stay root's: nothing that runs in the container can add a line to them
-# (#570, ADR-0067). A uid the image names already — root, or one the base
-# image ships — is left alone. `/tmp` is the home because ssh reads the home
-# out of this entry and writes its `~/.ssh` there; nothing is kept in it.
-#
-# Last, because a build argument invalidates every layer after it, and the
-# uid of a box does not change between deploys while the source does.
-ARG TC49_UID=1000
-ARG TC49_GID=1000
-RUN (getent group "$TC49_GID" >/dev/null \
-    || groupadd --gid "$TC49_GID" tc49) \
-    && (getent passwd "$TC49_UID" >/dev/null \
-    || useradd --uid "$TC49_UID" --gid "$TC49_GID" --no-create-home \
-    --no-log-init --home-dir /tmp --shell /usr/sbin/nologin tc49)
+# The commit this was built from, on the image as well as in its name
+# (dccex ADR-0005 d.4). Empty where nobody named one; such a build is named
+# `dev`. Last, because a build argument invalidates every layer after it. The
+# source label links the published package to this repository.
+ARG CONTROL_COMMIT=
+LABEL org.opencontainers.image.revision=$CONTROL_COMMIT \
+    org.opencontainers.image.source=https://github.com/rails49/control
 
 CMD ["tc49", "--help"]

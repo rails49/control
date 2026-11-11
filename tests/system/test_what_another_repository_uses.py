@@ -57,12 +57,13 @@ def test_native_mqtt_is_broker_on_1883() -> None:
 
 def test_the_stores_face_is_store_on_8765() -> None:
     """The port is the one `tc49 serve` takes from the command compose gives
-    it, so a `--port` there moves the face as surely as a new default does."""
+    it, so a `--port` there moves the face as surely as a new default does.
+    `store-start` names the store's uid and runs the rest (#1216)."""
     store = services()["store"]
     assert NETWORK in store["networks"]
     run = words(store)
-    assert run[0] == "tc49"
-    assert command_line().parse_args(run[1:]).port == 8765
+    assert run[:2] == ["store-start", "tc49"]
+    assert command_line().parse_args(run[2:]).port == 8765
 
 
 def test_the_brokers_websocket_listener_is_tc49_mqtt() -> None:
