@@ -25,6 +25,7 @@ from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
+from rails49_testing.ports import free_port
 
 from tc49.lib.bus import Payload
 from tc49.lib.clock_row import CLOCK, CLOCK_WANTED
@@ -48,7 +49,6 @@ from tests.brokers import (
     until,
 )
 from tests.harness import ASSETS
-from tests.ports import free_port
 
 RAILROAD_NAME = "crossover-yard"
 RAILROAD = "tc49/layout/state/railroad"

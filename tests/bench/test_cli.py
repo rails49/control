@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from rails49_testing.ports import free_port
 
 from tc49.bench.cli import (
     GENERATORS,
@@ -24,7 +25,6 @@ from tc49.bench.metrics import metrics
 from tc49.bench.runner import find_assets, find_root
 from tc49.store import STORE_ENV, AssetStore, Backup, store_root
 from tests.harness import ASSETS, ROOT, railroads
-from tests.ports import free_port
 
 
 def run_cli(*argv: str) -> str:

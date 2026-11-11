@@ -14,6 +14,7 @@ from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
+from rails49_testing.ports import free_port
 
 from tc49.dispatcher.__main__ import ALIVE_CONFIRMED, serve
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS
@@ -32,7 +33,6 @@ from tests.brokers import (
     until,
 )
 from tests.harness import ASSETS, catalogued
-from tests.ports import free_port
 from tests.startup import WINDOW_S, a_stop_in_the_window_is_acted_on_there
 
 RAILROAD = "crossover-yard"

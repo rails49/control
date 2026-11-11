@@ -16,10 +16,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from rails49_testing.ports import free_port
+
 from tc49.lib.bus import Payload
 from tc49.lib.loading import RAILROAD, RAILROAD_WANTED
 from tests.brokers import Broker, listening, until
-from tests.ports import free_port
 
 START_S = 30.0
 """How long a process is given to be answering. It covers a store client's

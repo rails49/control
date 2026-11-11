@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 import yaml
+from rails49_testing.ports import free_port
 
 from tc49.lib.documents import Documents, reread_roster
 from tc49.lib.fast_clock import KeptClock
@@ -26,7 +27,6 @@ from tc49.lib.settings import (
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
-from tests.ports import free_port
 
 RAILROAD = "crossover-yard"
 

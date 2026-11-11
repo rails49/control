@@ -22,9 +22,9 @@ from collections.abc import Callable, Iterator
 from typing import NoReturn
 
 import pytest
+from rails49_testing.ports import free_port
 
 from tc49.lib.mqtt import MqttBus
-from tests.ports import free_port
 
 
 def listening(port: int) -> bool:
