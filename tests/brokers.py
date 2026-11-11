@@ -19,7 +19,6 @@ import socket
 import subprocess
 import time
 from collections.abc import Callable, Iterator
-from pathlib import Path
 from typing import NoReturn
 
 import pytest
@@ -95,24 +94,20 @@ class Broker:
     the same one: what a broker going away and coming back looks like from a
     client's side.
 
-    `persistence false`, as the deployed one has it, so what it held is gone
-    when it returns: a broker keeps retained values while it runs and nothing
-    across its own restart, which is the railroad coming up at rest
-    (ADR-0059, decision 3).
+    No config file: started with only `-p`, mosquitto listens on loopback,
+    allows anonymous clients and keeps no persistence. No persistence is how
+    the deployed one runs too, so what it held is gone when it returns: a
+    broker keeps retained values while it runs and nothing across its own
+    restart, which is the railroad coming up at rest (ADR-0059, decision 3).
     """
 
-    def __init__(self, conf: Path) -> None:
+    def __init__(self) -> None:
         self.port = free_port()
-        self._conf = conf
-        self._conf.write_text(
-            f"listener {self.port} 127.0.0.1\n"
-            "allow_anonymous true\npersistence false\n"
-        )
         self._running: subprocess.Popen[bytes] | None = None
 
     def start(self) -> bool:
         self._running = subprocess.Popen(
-            ["mosquitto", "-c", str(self._conf)],
+            ["mosquitto", "-p", str(self.port)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -135,10 +130,10 @@ def no_broker(reason: str) -> NoReturn:
 
 
 @pytest.fixture
-def broker(tmp_path: Path) -> Iterator[Broker]:
+def broker() -> Iterator[Broker]:
     if shutil.which("mosquitto") is None:
         no_broker("no mosquitto installed")
-    running = Broker(tmp_path / "mosquitto.conf")
+    running = Broker()
     if not running.start():
         running.stop()
         no_broker("mosquitto would not start")
