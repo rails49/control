@@ -67,11 +67,12 @@ a box does.
 
 ## The layout server
 
-`gleis49.org`, a Mac mini 2018 (`Macmini8,1`) running Ubuntu 26.04, on
-wifi. Unlike a development machine it serves a built UI rather than vite's;
-both run the broker. The installation is already on it, so the door is up,
-the certificate is real, and `https://control.gleis49.org` answers 404 until
-this stack is started.
+`gleis49.org` is the layout server. Any machine will do that has Docker with
+compose, git, and pnpm on the login `PATH`, and takes ssh by key. Unlike a
+development machine it serves a built UI rather than vite's; both run the
+broker. The installation is already on it, so the door is up, the certificate
+is real, and `https://control.gleis49.org` answers 404 until this stack is
+started.
 
 **The ACME credential cannot come from 1Password here.** `op` unlocks through
 the desktop app and a headless box has none, while the door has to renew a
@@ -122,8 +123,8 @@ login only where a password can complete it, so naming the account costs
 nothing. A new machine gets in by having its public key added to
 `~/.ssh/authorized_keys` on the box; there is no password to fall back on.
 
-**This installation's own deploy facts stay in this repository** — the LAN
-address above, the zone, the box, the account — even though
+**This installation's own deploy facts stay in this repository** — the
+zone, the box, the account — even though
 [#318](https://github.com/rails49/control/issues/318) moved an installation's
 *documents* out to a store of its own. The two are different kinds of thing: a
 railroad, its stock and its decoder addresses are a user's data and drift as
