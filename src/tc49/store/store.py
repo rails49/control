@@ -292,13 +292,13 @@ class AssetStore:
     def put_script(self, text: str, name: str) -> None:
         """Create or replace one railroad's translator script.
 
-        Bytes rather than `write_text`, and `read_bytes` on the way out: the
-        text is handed back as it arrived, down to a line ending, because it
-        is source somebody wrote and this store is not the author of it.
+        Written as UTF-8 bytes, and `read_bytes` on the way out: the text is
+        handed back as it arrived, down to a line ending, because it is
+        source somebody wrote and this store is not the author of it.
         """
         path = self._script_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        atomic.write(path, text.encode())
+        atomic.write(path, text)
 
     def clock(self, name: str) -> dict[str, Any]:
         """One railroad's clock document: the start time and the speed-up its
@@ -381,10 +381,10 @@ class AssetStore:
         )
         if any(path.exists() for path in taken):
             raise FileExistsError(f"'{to}' is already a railroad")
-        shutil.copyfile(self._drawing_path(source), self._drawing_path(to))
+        atomic.write(self._drawing_path(to), self._drawing_path(source).read_bytes())
         self.put({**drawing, "drawing": to})
         if roster is not None:
-            shutil.copyfile(self._roster_path(source), self._roster_path(to))
+            atomic.write(self._roster_path(to), self._roster_path(source).read_bytes())
             self.put_roster({**roster, "roster": to}, to)
         if script is not None:
             self.put_script(script, to)

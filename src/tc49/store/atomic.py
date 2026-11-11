@@ -3,8 +3,8 @@
 ``write`` puts the bytes in a temporary file beside the path, named
 ``.<name>.<random>.tmp``, and moves it onto the path with ``os.replace``. A
 reader sees the old file or the new one, never one truncated and part
-written. The leading ``.`` keeps a temporary file out of what the backup
-names, and the backup leaves ``.*.tmp`` out of what it commits.
+written. The backup leaves ``.*.tmp`` out of what it names as moved and
+what it commits (``backup.SKIP_TEMPORARY``).
 """
 
 import os

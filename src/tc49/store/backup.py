@@ -122,7 +122,7 @@ installation. It is a document of the installation like the catalogue is, so
 it is backed up with everything else — a restored store comes back with
 backup still on."""
 
-WRITING = ":(exclude,glob)**/.*.tmp"
+SKIP_TEMPORARY = ":(exclude,glob)**/.*.tmp"
 """The pathspec that leaves out a store write's temporary file
 (`tc49.store.atomic`): one there while a backup runs, or left by a crash, is
 not a document and is neither named as moved nor committed (#1223)."""
@@ -485,7 +485,7 @@ class Backup:
         honest if that ever stops being required.
         """
         said = self._run(
-            self.root, "status", "--porcelain", "-uall", "--", ".", WRITING
+            self.root, "status", "--porcelain", "-uall", "--", ".", SKIP_TEMPORARY
         )
         return documents(said.words) if said.ok else []
 
@@ -1081,7 +1081,7 @@ class Backup:
         changed = self.outstanding()
         if not changed:
             return Said(True, "nothing has moved since the last backup")
-        staged = self._run(self.root, "add", "-A", "--", ".", WRITING)
+        staged = self._run(self.root, "add", "-A", "--", ".", SKIP_TEMPORARY)
         if not staged.ok:
             return staged
         said = self._run(self.root, "commit", "-m", f"backup: {', '.join(changed)}")
@@ -1217,7 +1217,7 @@ class Backup:
             )
             which = named.words if named.ok and named.words else commit
             staged = self._run(
-                self.root, "add", "-A", "--", ".", WRITING, f":(exclude){LOADED}"
+                self.root, "add", "-A", "--", ".", SKIP_TEMPORARY, f":(exclude){LOADED}"
             )
             made = (
                 self._run(

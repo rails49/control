@@ -1,5 +1,6 @@
 """Tests at the AssetStore seam: CRUD contract and scenario validation."""
 
+import os
 import shutil
 import threading
 from pathlib import Path
@@ -774,15 +775,20 @@ def test_a_reader_never_sees_a_document_half_written(tmp_path: Path) -> None:
 
 
 def test_a_write_that_fails_leaves_what_was_there_and_nothing_else(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The last step of a write moves a whole file onto the document's path.
-    When that step is refused — here because a directory stands in the way —
-    what was at the path is untouched and the file that was to replace it is
-    gone (#1223)."""
-    (tmp_path / "installation.yaml" / "kept").mkdir(parents=True)
+    When that step is refused, the document is as it was and the file that
+    was to replace it is gone (#1223)."""
+    store = AssetStore(tmp_path)
+    store.put_installation({"throttle_silence": 10.0})
+    before = (tmp_path / "installation.yaml").read_text()
 
-    with pytest.raises(OSError):
-        AssetStore(tmp_path).put_installation({"throttle_silence": 10.0})
+    def refuse(*_: object) -> None:
+        raise PermissionError("refused")
+
+    monkeypatch.setattr(os, "replace", refuse)
+    with pytest.raises(PermissionError):
+        store.put_installation({"throttle_silence": 20.0})
     assert sorted(p.name for p in tmp_path.iterdir()) == ["installation.yaml"]
-    assert (tmp_path / "installation.yaml" / "kept").is_dir()
+    assert (tmp_path / "installation.yaml").read_text() == before
