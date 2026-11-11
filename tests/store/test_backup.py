@@ -745,8 +745,11 @@ def test_a_file_left_by_a_write_is_neither_named_nor_committed(
     (#1223). One that is there while a backup runs, or that a crash left
     behind, is not a document: it is not offered as moved and not committed."""
     drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
-    left = repository / "layouts" / ".reversing-loops.drawing.yaml.abc123.tmp"
-    left.write_text("drawing: rever")
+    for left in (
+        repository / "layouts" / ".reversing-loops.drawing.yaml.abc123.tmp",
+        repository / ".installation.yaml.def456.tmp",
+    ):
+        left.write_text("drawing: rever")
     backup = Backup(repository, log=lambda _: None)
 
     assert backup.outstanding() == ["reversing-loops"]
