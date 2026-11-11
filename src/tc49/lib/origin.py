@@ -2,9 +2,10 @@
 
 One rule, read at the store's HTTP routes: the face a browser reaches that is
 ours to check. The browser's other way in is the broker's WebSocket listener,
-where the same rule is stated as a proxy middleware on `/mqtt` rather than in
-an app — Mosquitto has no `Origin` setting (ADR-0056, ADR-0059 decision 4) —
-so the rule stays here, written once, however many faces read it (ADR-0055,
+where the installation's `same-origin@docker` middleware checks `/mqtt` instead
+— Mosquitto has no `Origin` setting (ADR-0056, ADR-0059 decision 4,
+[#1212](https://github.com/rails49/control/issues/1212)). That rule does not
+admit a loopback `Origin` whatever the `Host`; this one does (ADR-0055,
 ADR-0057).
 
 `Origin` is written by the browser and a page cannot forge it, which is what

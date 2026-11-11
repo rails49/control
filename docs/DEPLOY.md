@@ -571,8 +571,9 @@ on `websecure` and on the UI port, carry the installation's
 ([rails49/installation](https://github.com/rails49/installation#a-page-on-another-origin),
 [#1212](https://github.com/rails49/control/issues/1212)). It admits a
 handshake with no `Origin`, or one whose `Origin` host and port equal its
-`Host`, which is the rule `lib/origin.py` applies at the store's face. So the
-page works at any name or address it was opened at. A native client sends no
+`Host`, so the page works at any name or address it was opened at. Unlike
+`lib/origin.py` at the store's face, it does not admit a loopback `Origin`
+whatever the `Host`. A native client sends no
 `Origin`, and one on 1883 does not pass this way at all. 9001 is not
 published, so the door is the only way a browser reaches the bus.
 
