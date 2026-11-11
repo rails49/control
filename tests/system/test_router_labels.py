@@ -323,3 +323,97 @@ def test_no_route_file_is_left_beside_the_compose_file() -> None:
         if path.name != COMPOSE.name and "routers" in path.read_text()
     )
     assert not left, f"deploy/{left} is a second route table"
+
+
+UI_PORT_ENTRY_POINT = "control"
+"""The door's entry point for this UI's port, 8081. The installation owns the
+name and the port (rails49/installation#53)."""
+
+COPIED = ["app", "store", "mqtt", "mqtt-foreign", "camera"]
+"""The `websecure` routers. Each has a second router on the UI port, named
+after it with `-port`."""
+
+LAN_ORIGIN = (
+    r"^http://([a-z0-9-]+\.local|10\.[0-9]+\.[0-9]+\.[0-9]+"
+    r"|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+"
+    r"|192\.168\.[0-9]+\.[0-9]+):8081$"
+)
+"""The origins the UI port admits on `/mqtt`, from rails49/installation#53
+decision 5: a page on port 8081 at a `.local` name or an RFC 1918 address."""
+
+
+@pytest.mark.parametrize("name", COPIED)
+def test_the_ui_port_router_copies_its_websecure_router(name: str) -> None:
+    """Same service, middlewares and priority, on the UI port with no TLS and
+    no host: on a box with no certificate there is no name to match."""
+    original = router(name)
+    twin = router(f"{name}-port")
+    assert twin["entrypoints"] == UI_PORT_ENTRY_POINT
+    assert not [key for key in twin if key.startswith("tls.")]
+    assert "Host(" not in twin["rule"]
+    for key in ("service", "middlewares", "priority"):
+        assert twin.get(key) == original.get(key), f"{name}-port differs in {key}"
+
+
+@pytest.mark.parametrize("name", ["app", "store", "mqtt", "camera"])
+def test_the_ui_port_router_keeps_the_rule_without_the_host(name: str) -> None:
+    said = router(name)["rule"]
+    expected = said.removeprefix(f"{HOST} && ") if said != HOST else "PathPrefix(`/`)"
+    assert router(f"{name}-port")["rule"] == expected
+
+
+def test_the_ui_port_refusal_admits_a_lan_origin_on_the_ui_port() -> None:
+    """The origin is matched against a pattern here: the page's host is
+    whatever name or address it was reached at, and none is declared."""
+    said = router("mqtt-foreign-port")["rule"].replace("$$", "$")
+    assert f"!HeaderRegexp(`Origin`, `{LAN_ORIGIN}`)" in said
+    assert "HeaderRegexp(`Origin`, `.`)" in said
+    assert said.startswith("PathPrefix(`/mqtt`)")
+    assert "tc49-mqtt-refused" in router("mqtt-foreign-port")["middlewares"]
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://gleis49.local:8081",
+        "http://10.0.0.5:8081",
+        "http://172.16.1.2:8081",
+        "http://172.31.255.255:8081",
+        "http://192.168.1.20:8081",
+    ],
+)
+def test_the_lan_origin_pattern_admits(origin: str) -> None:
+    assert re.match(LAN_ORIGIN, origin)
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://gleis49.local:8081",
+        "http://gleis49.local:8082",
+        "http://gleis49.local",
+        "http://control.gleis49.org:8081",
+        "http://172.32.0.1:8081",
+        "http://8.8.8.8:8081",
+        "http://evil.local.example.com:8081",
+    ],
+)
+def test_the_lan_origin_pattern_refuses(origin: str) -> None:
+    assert not re.match(LAN_ORIGIN, origin)
+
+
+def test_the_ui_port_refusal_outranks_the_router_it_stands_in_front_of() -> None:
+    assert priority("mqtt-foreign-port") > priority("mqtt-port")
+
+
+def test_a_path_on_the_ui_port_outranks_the_app() -> None:
+    for name in ("store", "mqtt", "mqtt-foreign", "camera"):
+        assert priority(f"{name}-port") > priority("app-port"), f"{name}-port loses"
+
+
+def test_an_empty_box_name_is_admitted_and_an_unset_one_refused() -> None:
+    """An empty `BOX_DOMAIN` is a box with no certificate. `:?` would refuse
+    it along with an unset one."""
+    said = str(document()["x-require-box-domain"])
+    assert said.startswith("${BOX_DOMAIN?")
+    assert not said.startswith("${BOX_DOMAIN:?")
