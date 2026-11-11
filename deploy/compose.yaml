@@ -83,9 +83,8 @@ services:
   #
   # Two listeners: 1883 for native clients, published on the LAN because that
   # is the trust boundary and there is no authentication anywhere (ADR-0042),
-  # and 9001 for a browser, which reaches it only through the door as `/mqtt`.
-  # 9001 is not published: a browser on it would skip the door's origin check
-  # (#1212).
+  # and 9001 for a browser, which reaches it only through the door as `/mqtt`
+  # and is not published (#1212).
   broker:
     image: eclipse-mosquitto:2.1.2-alpine@sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f
     restart: unless-stopped
@@ -99,9 +98,8 @@ services:
     # container with two routers and one service to a default.
     #
     # Both carry the installation's origin check, `same-origin@docker`, ahead
-    # of the prefix strip. Mosquitto has no `Origin` setting, so the check
-    # stands in front of the broker; it is the rule `lib/origin.py` applies at
-    # the store's face (ADR-0056). A handshake with no `Origin` — a native
+    # of the prefix strip, because Mosquitto has no `Origin` setting
+    # (ADR-0056). A handshake with no `Origin` — a native
     # client, `mosquitto_sub`, the suite — goes through; one whose `Origin`
     # host and port differ from its `Host` gets 403 before the upgrade
     # (rails49/installation README, "A page on another origin").

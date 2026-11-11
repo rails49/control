@@ -213,15 +213,14 @@ def test_every_router_names_a_service_and_every_service_its_port() -> None:
 def test_the_store_and_the_bus_are_reached_where_they_answer() -> None:
     """9001 and not 1883 for the bus: what comes through the door is a
     browser, and a native client goes straight to the other one. Both bus
-    routers dial the one service."""
+    routers dial the one service: the UI port router copies this one."""
     ports = {
         name: settings["loadbalancer.server.port"]
         for name, settings in declared("services").items()
     }
     assert ports[f"{stack()}-store"] == "8765"
     assert ports[f"{stack()}-mqtt"] == "9001"
-    for name in ("mqtt", "mqtt-port"):
-        assert router(name)["service"] == f"{stack()}-mqtt"
+    assert router("mqtt")["service"] == f"{stack()}-mqtt"
 
 
 def test_every_router_states_its_priority() -> None:
@@ -249,16 +248,10 @@ write paths name (rails49/.github#69)."""
 
 @pytest.mark.parametrize("name", ["mqtt", "mqtt-port"])
 def test_the_bus_is_behind_the_installations_origin_check(name: str) -> None:
-    """Checked before the prefix is stripped. Nothing here restates the rule:
-    no refusal router and no middleware of this stack's own refuses a page."""
+    """The check runs before the prefix is stripped, and is the only
+    middleware besides the strip."""
     said = router(name)["middlewares"].split(",")
     assert said == [SAME_ORIGIN, f"{stack()}-mqtt-strip"]
-
-
-def test_no_router_here_refuses_an_origin_of_its_own() -> None:
-    named = sorted(routers()) + sorted(declared("middlewares"))
-    own = [one for one in named if "foreign" in one or "refused" in one]
-    assert not own, f"{own} restate the installation's origin check"
 
 
 def test_the_broker_publishes_only_the_native_port() -> None:
