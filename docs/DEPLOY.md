@@ -259,7 +259,7 @@ name, and what the containers below publish is on the LAN beside it.
 | the app, over the certificate | the door's 443 | `https://control.gleis49.org` |
 | the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` under that name |
 | the broker, native clients | 1883 | the LAN address |
-| the broker, a browser | 9001, and `/mqtt` | plaintext on the LAN, or through the door from a TLS page |
+| the broker, a browser | 9001, container-only | `/mqtt` under that name |
 | the camera app, a camera car's picture | 8767, container-only | `/picture` under that name |
 | a photo camera's picture route | 8766, and not this stack's | `/camera` under that name, claimed by the photo camera's own stack |
 
@@ -486,7 +486,6 @@ not build.
 | `web` | `tc49-app` | the bare host: everything no other router claims |
 | `store` | `tc49-store` | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads`, on `:8765` |
 | `broker` | `tc49-mqtt` | `/mqtt`, prefix stripped, to the WebSocket listener on `:9001` |
-| `broker` | `tc49-mqtt-foreign` | the same from a page on another origin, answered 403 |
 | `camera` | `tc49-camera` | `/picture`, on `:8767` |
 
 Each router has a second one named with `-port` — `tc49-app-port` and so on —
@@ -516,31 +515,9 @@ logs an error for each and drops it, and the UI port routers serve the UI.
 **Each router states its priority.** Traefik's default is the rule's length,
 which was legible while every rule sat in one file and is not now that they
 sit on four containers: the app's rule is the bare host and matches every
-path under it, so the store's, the bus's, the camera's and the refusal's each
-say outright
-that they come first. The refusal's precedence over the bus router it stands
-in front of is what this exists to keep, and nothing shows a reader that
-shortening one rule changes what another matches.
-
-**On `websecure` the refusal compares origins whole.** The route file matched
-a pattern with the dots in the name escaped; the name now comes from the
-declaration and a dot inside it cannot be escaped on its way into one, and
-`control.gleis49.org` as a pattern admits `control-gleis49.org`, which
-somebody may register. So the two origins that are the app's own — `https://`
-and `http://`, TLS terminating at the door — are named exactly, and anything
-else carrying an `Origin` is refused. A handshake with no `Origin` is a native
-client and still goes through.
-
-The pattern also admitted the app's own name with a port after it. That is
-dropped rather than written out twice more: the door listens on 443 and 80,
-and a browser leaves a scheme's default port out of `Origin`, so no page the
-door serves sends one.
-
-On the UI port the refusal matches a pattern instead, because the page's host
-is whatever name or address it was reached at, and no file declares it. It
-admits `http://` on port 8081 at a `.local` name or an RFC 1918 IPv4 address
-(rails49/installation#53, decision 5). The pattern has no box name in it, so
-no dot from the declaration can widen what it matches.
+path under it, so the store's, the bus's and the camera's each say outright
+that they come first, and nothing shows a reader that shortening one rule
+changes what another matches.
 
 **Only what the door reaches joins the shared network.** `web`, `store`,
 `broker` and `camera` join `rails49`, the network the installation creates and every stack
@@ -588,10 +565,16 @@ preflight, so this is the whole of what stands between a page somebody's
 browser visits and the gestures a client may publish
 ([ADR-0056](adr/0056-the-browsers-way-onto-the-bus-refuses-a-foreign-origin.md),
 [#349](https://github.com/rails49/control/issues/349)). Mosquitto has no
-`Origin` setting, so the rule is stated in front of it rather than in an app,
-`lib/origin.py` being the same rule at the store's face. A handshake with no
-`Origin` is a native client and goes through, and one on 1883 does not pass
-this way at all.
+`Origin` setting, so the check stands in front of it: both `/mqtt` routers,
+on `websecure` and on the UI port, carry the installation's
+`same-origin@docker` middleware
+([rails49/installation](https://github.com/rails49/installation#a-page-on-another-origin),
+[#1212](https://github.com/rails49/control/issues/1212)). It admits a
+handshake with no `Origin`, or one whose `Origin` host and port equal its
+`Host`, which is the rule `lib/origin.py` applies at the store's face. So the
+page works at any name or address it was opened at. A native client sends no
+`Origin`, and one on 1883 does not pass this way at all. 9001 is not
+published, so the door is the only way a browser reaches the bus.
 
 The built UI needs nginx behind the door because the door proxies and does not
 read files. That is the whole of what `web` is, with one line of its own
@@ -612,9 +595,7 @@ it keeps the UI reachable when DNS or the certificate fails.
 
 Each `websecure` router has a second router on `control` with the same rule
 minus `Host(...)`, the same service, middlewares and priority, and no TLS.
-`tc49-app-port`'s rule is ``PathPrefix(`/`)``. `tc49-mqtt-foreign-port` is the
-exception: it refuses an origin that is not a LAN page on 8081, as described
-above.
+`tc49-app-port`'s rule is ``PathPrefix(`/`)``.
 
 Over plain HTTP a page is not a secure context, and two things stop working:
 
@@ -622,11 +603,6 @@ Over plain HTTP a page is not a secure context, and two things stop working:
   sending `throttle_alive`, and `layout` releases its trains
   ([above](#a-silent-throttle)). Set a longer screen timeout on the phone.
 - "Copy the key" on the backup tab.
-
-On a box with a box name, `http://control.<box name>:8081` loads the page, but
-`/mqtt` refuses it: that host is neither a `.local` name nor an address. Use
-`https://control.<box name>` there, or the `.local` name or the address on
-8081.
 
 ## When it does not work
 
