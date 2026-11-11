@@ -186,6 +186,33 @@ def test_an_app_comes_up_alone_and_leaves_its_rows_retained(
         running.stop()
 
 
+@pytest.mark.parametrize("app", APPS, ids=[app.name for app in APPS])
+def test_an_app_ends_when_its_broker_restarts(
+    app: App, broker: Broker, store: Store, tmp_path: Path
+) -> None:
+    """A broker that restarted holds none of the rows the app wrote, and a
+    rejoined app republishes a row only when its value moves: on the box that
+    left `tc49/layout/state/railroad` missing and every page waiting for the
+    station (#1210). The app ends instead, and its container's restart brings
+    it up cold, as `test_an_app_comes_up_alone_and_leaves_its_rows_retained`
+    has it."""
+    running: Process = app.process(broker, store, tmp_path)
+    running.start()
+    try:
+        if app.store:
+            store.start()
+        name(app, running, broker)
+
+        broker.stop()
+        assert broker.start()
+        assert until(
+            lambda: not running.running, ALONE_S
+        ), f"'{app.name}' rejoined a broker that holds none of its rows:\n{running.said()}"
+        assert "lost, exiting" in running.said()
+    finally:
+        running.stop()
+
+
 def test_the_stores_face_comes_up_on_an_empty_root(tmp_path: Path) -> None:
     """The store started the way the apps are, over a root with nothing in
     it: a fresh box, before anybody has drawn a railroad. It answers rather

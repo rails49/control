@@ -151,7 +151,7 @@ def main() -> None:
     # stands, so a wait for a broker that never comes up ends on it too.
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     to_stderr(f"broker {host}:{port}")
-    bus = MqttBus(host, port, client_id=CLIENT_ID)
+    bus = MqttBus(host, port, client_id=CLIENT_ID, rejoin=False)
     try:
         with contextlib.suppress(KeyboardInterrupt):
             serve(bus, NO_RAILROAD, threading.Event())
