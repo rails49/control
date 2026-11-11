@@ -72,7 +72,7 @@ from tc49.lib.layout import (
 from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
 from tc49.lib.settings import kept_installation, kept_settings
-from tc49.store import yamlfile
+from tc49.store import atomic, yamlfile
 from tc49.store.drawing import Drawing
 
 LOADED = "loaded.yaml"
@@ -298,7 +298,7 @@ class AssetStore:
         """
         path = self._script_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(text.encode())
+        atomic.write(path, text.encode())
 
     def clock(self, name: str) -> dict[str, Any]:
         """One railroad's clock document: the start time and the speed-up its
@@ -326,7 +326,7 @@ class AssetStore:
         kept_clock(doc)
         path = self._clock_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.safe_dump(doc, sort_keys=False))
+        atomic.write(path, yaml.safe_dump(doc, sort_keys=False))
 
     def settings(self, name: str) -> dict[str, Any]:
         """One railroad's settings document (#1126), checked and answered as
@@ -344,7 +344,7 @@ class AssetStore:
         kept_settings(doc)
         path = self._settings_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.safe_dump(doc, sort_keys=False))
+        atomic.write(path, yaml.safe_dump(doc, sort_keys=False))
 
     def copy(self, source: str, to: str) -> None:
         """Copy railroad `source`'s documents under the name `to`: its drawing,
@@ -437,7 +437,7 @@ class AssetStore:
     def put_loaded(self, name: str) -> None:
         """Record `name` as the railroad loaded, replacing what was."""
         self._root.mkdir(parents=True, exist_ok=True)
-        (self._root / LOADED).write_text(yaml.safe_dump({"railroad": name}))
+        atomic.write(self._root / LOADED, yaml.safe_dump({"railroad": name}))
 
     def installation(self) -> dict[str, Any]:
         """The installation's settings document (#1132), checked and answered
@@ -453,7 +453,7 @@ class AssetStore:
         anything is written, and dumped as a railroad's settings are."""
         kept_installation(doc)
         self._root.mkdir(parents=True, exist_ok=True)
-        (self._root / INSTALLATION).write_text(yaml.safe_dump(doc, sort_keys=False))
+        atomic.write(self._root / INSTALLATION, yaml.safe_dump(doc, sort_keys=False))
 
     def catalogue(self) -> dict[str, Model]:
         """The models this installation knows, by name.
@@ -593,7 +593,7 @@ class AssetStore:
             raise ValueError(f"no model '{name}' to hang a photo on")
         if not jpeg.startswith(b"\xff\xd8\xff"):
             raise ValueError(f"photo '{name}': the bytes do not open as a JPEG")
-        self._photo_path(name).write_bytes(jpeg)
+        atomic.write(self._photo_path(name), jpeg)
 
     def get(self, name: str) -> Layout | Scenario:
         if "/" in name:
@@ -615,7 +615,7 @@ class AssetStore:
             scenario = self.validate_scenario(doc)
             path = self._scenario_path(f"{scenario.layout}/{scenario.name}")
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(yaml.safe_dump(doc, sort_keys=False))
+            atomic.write(path, yaml.safe_dump(doc, sort_keys=False))
             return
         if "drawing" not in doc:
             raise ValueError(

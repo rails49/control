@@ -26,6 +26,8 @@ from ruamel.yaml.error import CommentMark
 from ruamel.yaml.representer import RoundTripRepresenter
 from ruamel.yaml.tokens import CommentToken
 
+from tc49.store import atomic
+
 
 class _Writer(RoundTripRepresenter):
     """The round-trip representer, writing a float YAML 1.1 reads as a float.
@@ -92,7 +94,7 @@ def save(path: Path, doc: dict[str, Any]) -> None:
     _round_trip().dump(  # pyright: ignore[reportUnknownMemberType]
         _merge(tree, doc), out
     )
-    path.write_text(out.getvalue())
+    atomic.write(path, out.getvalue())
 
 
 def _merge(into: Any, doc: Any) -> Any:
