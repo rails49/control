@@ -71,6 +71,7 @@ from typing import Any, Protocol, cast
 
 import yaml
 
+from tc49.store import atomic
 from tc49.store.store import LOADED
 
 IDLE_S = 20.0
@@ -120,6 +121,11 @@ survive the next restart, and there is nowhere else that belongs to one
 installation. It is a document of the installation like the catalogue is, so
 it is backed up with everything else — a restored store comes back with
 backup still on."""
+
+WRITING = ":(exclude,glob)**/.*.tmp"
+"""The pathspec that leaves out a store write's temporary file
+(`tc49.store.atomic`): one there while a backup runs, or left by a crash, is
+not a document and is neither named as moved nor committed (#1223)."""
 
 
 LOADED_RAILROAD = "loaded railroad"
@@ -374,7 +380,7 @@ class Backup:
         """Turn automated backup on or off, for good and not for this
         session."""
         self.root.mkdir(parents=True, exist_ok=True)
-        (self.root / SWITCH).write_text(yaml.safe_dump({"automatic": on}))
+        atomic.write(self.root / SWITCH, yaml.safe_dump({"automatic": on}))
 
     def repository(self) -> bool:
         """Whether this store is a git repository in its own right.
@@ -478,7 +484,9 @@ class Backup:
         twice for a store that is its own repository and is what keeps this
         honest if that ever stops being required.
         """
-        said = self._run(self.root, "status", "--porcelain", "-uall", "--", ".")
+        said = self._run(
+            self.root, "status", "--porcelain", "-uall", "--", ".", WRITING
+        )
         return documents(said.words) if said.ok else []
 
     def backups(self, count: int = 10) -> list[dict[str, Any]]:
@@ -1073,7 +1081,7 @@ class Backup:
         changed = self.outstanding()
         if not changed:
             return Said(True, "nothing has moved since the last backup")
-        staged = self._run(self.root, "add", "-A", "--", ".")
+        staged = self._run(self.root, "add", "-A", "--", ".", WRITING)
         if not staged.ok:
             return staged
         said = self._run(self.root, "commit", "-m", f"backup: {', '.join(changed)}")
@@ -1208,7 +1216,9 @@ class Backup:
                 commit,
             )
             which = named.words if named.ok and named.words else commit
-            staged = self._run(self.root, "add", "-A", "--", ".", f":(exclude){LOADED}")
+            staged = self._run(
+                self.root, "add", "-A", "--", ".", WRITING, f":(exclude){LOADED}"
+            )
             made = (
                 self._run(
                     self.root, "commit", "-m", f"restore {which}: {', '.join(moved)}"

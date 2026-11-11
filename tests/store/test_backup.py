@@ -738,6 +738,23 @@ def test_it_commits_what_a_person_drew(repository: Path) -> None:
     )
 
 
+def test_a_file_left_by_a_write_is_neither_named_nor_committed(
+    repository: Path,
+) -> None:
+    """A store write goes through `.<name>.<random>.tmp` beside the document
+    (#1223). One that is there while a backup runs, or that a crash left
+    behind, is not a document: it is not offered as moved and not committed."""
+    drawn(repository, "reversing-loops", "drawing: reversing-loops\n")
+    left = repository / "layouts" / ".reversing-loops.drawing.yaml.abc123.tmp"
+    left.write_text("drawing: rever")
+    backup = Backup(repository, log=lambda _: None)
+
+    assert backup.outstanding() == ["reversing-loops"]
+    assert backup.commit().ok
+    assert run_git(repository, "ls-files") == "layouts/reversing-loops.drawing.yaml\n"
+    assert backup.outstanding() == []
+
+
 def test_a_modified_document_is_named_in_full(repository: Path) -> None:
     """The whole path from git to the list a person reads before pressing the
     button: a tracked document that has been edited is ` M` in git's words,
