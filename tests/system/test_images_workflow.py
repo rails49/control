@@ -11,6 +11,7 @@ build that leaves the repository to its default reads `installation`, not
 this one. Each names it.
 """
 
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, cast
 
@@ -107,3 +108,31 @@ def test_the_box_files_are_the_compose_file_and_what_it_mounts() -> None:
     paths = set(str(uploads[0]["with"]["path"]).split())
     assert paths == {"deploy/compose.yaml"} | mounted()
     assert "deploy/mosquitto.conf" in paths
+
+
+def test_each_join_downloads_only_its_own_images_digests() -> None:
+    """`control`'s pattern must not match `control-web`'s artifacts (#1221)."""
+    jobs = cast(dict[str, dict[str, Any]], workflow()["jobs"])
+    upload = next(
+        s
+        for s in jobs["build"]["steps"]
+        if str(s.get("uses", "")).startswith("actions/upload-artifact@")
+    )
+    download = next(
+        s
+        for s in jobs["join"]["steps"]
+        if str(s.get("uses", "")).startswith("actions/download-artifact@")
+    )
+
+    def expand(template: str, image: str, runner: str = "*") -> str:
+        return template.replace("${{ matrix.image }}", image).replace(
+            "${{ matrix.runner }}", runner
+        )
+
+    images = ["control", "control-web"]
+    for image in images:
+        pattern = expand(download["with"]["pattern"], image)
+        for other in images:
+            for runner in RUNNERS:
+                name = expand(upload["with"]["name"], other, runner)
+                assert fnmatch(name, pattern) == (other == image), (pattern, name)
