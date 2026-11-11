@@ -81,46 +81,30 @@ services:
   # The bus, which every app meets on, each in a process of its own
   # (ADR-0059). Both boxes get one.
   #
-  # Two listeners: 1883 for native clients and 9001 for a browser, published
-  # on the LAN because that is the trust boundary and there is no
-  # authentication anywhere (ADR-0042). A page served over TLS cannot open a
-  # `ws://` socket, which is the defect #174 found in the run view, so 9001 is
-  # also reached through the door as `/mqtt`.
+  # Two listeners: 1883 for native clients, published on the LAN because that
+  # is the trust boundary and there is no authentication anywhere (ADR-0042),
+  # and 9001 for a browser, which reaches it only through the door as `/mqtt`.
+  # 9001 is not published: a browser on it would skip the door's origin check
+  # (#1212).
   broker:
     image: eclipse-mosquitto:2.1.2-alpine@sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f
     restart: unless-stopped
     ports:
       - "1883:1883"
-      - "9001:9001"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-    # The bus behind the door, and the refusal in front of it. Both routers
-    # dial 9001 — a browser's listener; a native client goes straight to 1883
-    # and never comes this way — so the service is named once and each router
-    # says it, rather than leaving a container with two routers and one
-    # service to a default.
+    # The bus behind the door. Both routers dial 9001 — a browser's listener;
+    # a native client goes straight to 1883 and never comes this way — so the
+    # service is named once and each router says it, rather than leaving a
+    # container with two routers and one service to a default.
     #
-    # The refusal is a router of its own carrying a middleware that answers
-    # 403 before the service behind it: a foreign page gets no socket to be
-    # told over. Mosquitto has no `Origin` setting, so the rule is stated here
-    # rather than in an app, `lib/origin.py` being the same rule at the store's
-    # face (ADR-0056, ADR-0059 decision 4).
-    #
-    # On `websecure` the origins it admits are compared whole rather than
-    # matched. The name comes from the box's declaration and a dot inside it
-    # cannot be escaped on its way into a pattern, and `control.gleis49.org` as
-    # a pattern admits `control-gleis49.org`, which somebody may register. Two
-    # of them because TLS terminates at the door and a page on the app's own
-    # origin is the app (ADR-0042, ADR-0055).
-    #
-    # On the UI port the page's host is whatever it was reached at, which no
-    # file declares, so the origin is matched against a pattern with no box
-    # name in it: `http://` on 8081 at a `.local` name or an RFC 1918 address
-    # (rails49/installation#53 decision 5). `$$` is compose's escape for `$`.
-    #
-    # Matching `Origin` at all is what selects the refusal, so a handshake
-    # carrying none — a native client, `mosquitto_sub`, the suite — does not
-    # match it and falls through to the router above: no header, no page.
+    # Both carry the installation's origin check, `same-origin@docker`, ahead
+    # of the prefix strip. Mosquitto has no `Origin` setting, so the check
+    # stands in front of the broker; it is the rule `lib/origin.py` applies at
+    # the store's face (ADR-0056). A handshake with no `Origin` — a native
+    # client, `mosquitto_sub`, the suite — goes through; one whose `Origin`
+    # host and port differ from its `Host` gets 403 before the upgrade
+    # (rails49/installation README, "A page on another origin").
     labels:
       - traefik.enable=true
       - traefik.docker.network=rails49
@@ -129,30 +113,14 @@ services:
       - traefik.http.routers.tc49-mqtt.priority=2
       - traefik.http.routers.tc49-mqtt.entrypoints=websecure
       - traefik.http.routers.tc49-mqtt.service=tc49-mqtt
-      - traefik.http.routers.tc49-mqtt.middlewares=tc49-mqtt-strip
+      - traefik.http.routers.tc49-mqtt.middlewares=same-origin@docker,tc49-mqtt-strip
       - traefik.http.routers.tc49-mqtt.tls.certresolver=le
       - traefik.http.middlewares.tc49-mqtt-strip.stripprefix.prefixes=/mqtt
-      - traefik.http.routers.tc49-mqtt-foreign.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/mqtt`) && HeaderRegexp(`Origin`, `.`) && !Header(`Origin`, `https://control.${BOX_DOMAIN}`) && !Header(`Origin`, `http://control.${BOX_DOMAIN}`)
-      - traefik.http.routers.tc49-mqtt-foreign.priority=3
-      - traefik.http.routers.tc49-mqtt-foreign.entrypoints=websecure
-      - traefik.http.routers.tc49-mqtt-foreign.service=tc49-mqtt
-      - traefik.http.routers.tc49-mqtt-foreign.middlewares=tc49-mqtt-refused
-      - traefik.http.routers.tc49-mqtt-foreign.tls.certresolver=le
       - traefik.http.routers.tc49-mqtt-port.rule=PathPrefix(`/mqtt`)
       - traefik.http.routers.tc49-mqtt-port.priority=2
       - traefik.http.routers.tc49-mqtt-port.entrypoints=control
       - traefik.http.routers.tc49-mqtt-port.service=tc49-mqtt
-      - traefik.http.routers.tc49-mqtt-port.middlewares=tc49-mqtt-strip
-      - traefik.http.routers.tc49-mqtt-foreign-port.rule=PathPrefix(`/mqtt`) && HeaderRegexp(`Origin`, `.`) && !HeaderRegexp(`Origin`, `^http://([a-z0-9-]+\.local|10\.[0-9]+\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+):8081$$`)
-      - traefik.http.routers.tc49-mqtt-foreign-port.priority=3
-      - traefik.http.routers.tc49-mqtt-foreign-port.entrypoints=control
-      - traefik.http.routers.tc49-mqtt-foreign-port.service=tc49-mqtt
-      - traefik.http.routers.tc49-mqtt-foreign-port.middlewares=tc49-mqtt-refused
-      # Traefik has no middleware whose job is to refuse, and this is the one
-      # that answers 403 without reaching the service behind it: no source
-      # address is `255.255.255.255`, the limited broadcast address, so every
-      # request routed here is refused.
-      - traefik.http.middlewares.tc49-mqtt-refused.ipallowlist.sourcerange=255.255.255.255/32
+      - traefik.http.routers.tc49-mqtt-port.middlewares=same-origin@docker,tc49-mqtt-strip
     networks: [default, rails49]
 
   # The store's HTTP face, always on, because the documents are the one thing

@@ -11,16 +11,15 @@ parses and asserts fine, and only a request on a real box says otherwise. What
 is checked is what a reader cannot see is wrong — a hostname written out
 instead of taken from the box's declaration, a router named for a site that
 stopped existing, an app container on a network the door can reach it from,
-and the refusal's precedence left to a rule length that no longer sits beside
-the rule it has to beat.
+and the bus left without the installation's origin check or published past
+the door. A mistake in those last two is a foreign page on the bus rather than
+a dead link.
 
 This is the whole of `control`'s routing since #557: the route file, `proxy`
 and the site variable are gone, and there is no second table anywhere to
-disagree with these labels. The assertions that read that file went with it;
-the ones over the refusal are here, unchanged, and are the highest-value
-assertions in the file — a mistake in them is a foreign page on the bus rather
-than a dead link. Why each rule is written the way it is sits where the rules
-are, in `deploy/compose.yaml` and `docs/DEPLOY.md`, and is not repeated here.
+disagree with these labels. Why each rule is written the way it is sits where
+the rules are, in `deploy/compose.yaml` and `docs/DEPLOY.md`, and is not
+repeated here.
 """
 
 import re
@@ -57,16 +56,9 @@ HOST = f"Host(`{UI_LABEL}.${{BOX_DOMAIN}}`)"
 out of `/etc/rails49/box.env`, so no template is rendered and no file is
 copied."""
 
-DOMAIN = "gleis49.org"
-"""A stand-in for what the declaration holds, for the rules that are read as
-patterns below. The file is read as written, with `${BOX_DOMAIN}` still in
-it — what is asserted is that the declaration is where the name comes from."""
-
 WRITTEN_OUT = "rails49.org"
 """The zone the deleted route file named five times, and the reason naming a
 box was forking this repository. No rule here may spell it."""
-
-ORIGIN = re.compile(r"!Header\(`Origin`, `([^`]+)`\)")
 
 
 def document() -> dict[str, Any]:
@@ -105,11 +97,6 @@ def routers() -> dict[str, dict[str, str]]:
 def router(name: str) -> dict[str, str]:
     """One router by its unprefixed name: `app` is `tc49-app`."""
     return routers()[f"{stack()}-{name}"]
-
-
-def rule(name: str) -> str:
-    """A router's rule with the box's name substituted, as compose would."""
-    return router(name)["rule"].replace("${BOX_DOMAIN}", DOMAIN)
 
 
 def priority(name: str) -> int:
@@ -190,7 +177,7 @@ def test_router_names_are_keyed_to_the_stack() -> None:
     assert not stray, f"{stray} are not keyed to the stack `{stack()}`"
 
 
-@pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign", "camera"])
+@pytest.mark.parametrize("name", ["app", "store", "mqtt", "camera"])
 def test_the_hostname_comes_from_the_boxs_declaration(name: str) -> None:
     """One name, substituted by compose out of the box's own file. A literal
     here is what made naming a box a fork of this repository."""
@@ -199,7 +186,7 @@ def test_the_hostname_comes_from_the_boxs_declaration(name: str) -> None:
     assert WRITTEN_OUT not in said
 
 
-@pytest.mark.parametrize("name", ["app", "store", "mqtt", "mqtt-foreign", "camera"])
+@pytest.mark.parametrize("name", ["app", "store", "mqtt", "camera"])
 def test_every_router_reaches_the_door_over_tls(name: str) -> None:
     settings = router(name)
     assert settings["entrypoints"] == "websecure"
@@ -233,7 +220,7 @@ def test_the_store_and_the_bus_are_reached_where_they_answer() -> None:
     }
     assert ports[f"{stack()}-store"] == "8765"
     assert ports[f"{stack()}-mqtt"] == "9001"
-    for name in ("mqtt", "mqtt-foreign"):
+    for name in ("mqtt", "mqtt-port"):
         assert router(name)["service"] == f"{stack()}-mqtt"
 
 
@@ -248,55 +235,37 @@ def test_every_router_states_its_priority() -> None:
     assert not silent, f"{silent} leave their precedence to their rule's length"
 
 
-def test_the_refusal_outranks_the_router_it_stands_in_front_of() -> None:
-    """The whole of what stands between a page somebody's browser visits and
-    the gestures a client may publish. It matches everything the plain bus
-    router matches, so losing to it would let a foreign page through
-    (ADR-0056)."""
-    assert priority("mqtt-foreign") > priority("mqtt")
-
-
 def test_a_path_outranks_the_app_it_is_served_under() -> None:
     """The app's rule is the bare host and matches every path under it,
     including the store's and the bus's."""
-    for name in ("store", "mqtt", "mqtt-foreign", "camera"):
+    for name in ("store", "mqtt", "camera"):
         assert priority(name) > priority("app"), f"{name} loses to the app"
 
 
-def test_the_refusal_refuses_rather_than_proxies() -> None:
-    """The middleware answers before the service behind it, so a foreign page
-    is given no socket to be told over — which is what the range in
-    `deploy/compose.yaml` makes of it. A routable one lets a foreign page
-    through."""
-    middlewares = declared("middlewares")
-    carried = [
-        middlewares[one] for one in router("mqtt-foreign")["middlewares"].split(",")
-    ]
-    ranges = [
-        one["ipallowlist.sourcerange"]
-        for one in carried
-        if "ipallowlist.sourcerange" in one
-    ]
-    assert ranges, "a foreign handshake is routed somewhere without being refused"
-    assert ranges == ["255.255.255.255/32"]
+SAME_ORIGIN = "same-origin@docker"
+"""The installation's origin check, one middleware every UI's websocket and
+write paths name (rails49/.github#69)."""
 
 
-def test_the_refusal_admits_the_apps_own_origin_and_nothing_else() -> None:
-    """The rule `lib/origin.py` states at the store's face: an origin whose
-    host is the app's own is the app on its own origin and goes through, and
-    anything else carrying one is refused. Two origins and not a pattern, for
-    the reason `deploy/compose.yaml` gives beside them."""
-    assert set(ORIGIN.findall(rule("mqtt-foreign"))) == {
-        f"https://{UI_LABEL}.{DOMAIN}",
-        f"http://{UI_LABEL}.{DOMAIN}",  # TLS terminates at the door
-    }
+@pytest.mark.parametrize("name", ["mqtt", "mqtt-port"])
+def test_the_bus_is_behind_the_installations_origin_check(name: str) -> None:
+    """Checked before the prefix is stripped. Nothing here restates the rule:
+    no refusal router and no middleware of this stack's own refuses a page."""
+    said = router(name)["middlewares"].split(",")
+    assert said == [SAME_ORIGIN, f"{stack()}-mqtt-strip"]
 
 
-def test_a_handshake_with_no_origin_is_not_what_is_refused() -> None:
-    """No header means no page — a native throttle, `mosquitto_sub`, a test
-    client — and those go through, as they do at the store's face. Matching
-    `Origin` at all is what selects the refusing router."""
-    assert "HeaderRegexp(`Origin`, `.`)" in rule("mqtt-foreign")
+def test_no_router_here_refuses_an_origin_of_its_own() -> None:
+    named = sorted(routers()) + sorted(declared("middlewares"))
+    own = [one for one in named if "foreign" in one or "refused" in one]
+    assert not own, f"{own} restate the installation's origin check"
+
+
+def test_the_broker_publishes_only_the_native_port() -> None:
+    """A browser reaches the bus through the door, so the websocket listener
+    is not published on the box. 1883 is, for native clients."""
+    ports: list[str] = services()["broker"].get("ports") or []
+    assert [str(port) for port in ports] == ["1883:1883"]
 
 
 def test_nothing_here_holds_the_boxs_entry_points() -> None:
@@ -329,17 +298,9 @@ UI_PORT_ENTRY_POINT = "control"
 """The door's entry point for this UI's port, 8081. The installation owns the
 name and the port (rails49/installation#53)."""
 
-WEBSECURE_ROUTERS = ["app", "store", "mqtt", "mqtt-foreign", "camera"]
+WEBSECURE_ROUTERS = ["app", "store", "mqtt", "camera"]
 """The `websecure` routers. Each has a second router on the UI port, named
 after it with `-port`."""
-
-LAN_ORIGIN = (
-    r"^http://([a-z0-9-]+\.local|10\.[0-9]+\.[0-9]+\.[0-9]+"
-    r"|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+"
-    r"|192\.168\.[0-9]+\.[0-9]+):8081$"
-)
-"""The origins the UI port admits on `/mqtt`, from rails49/installation#53
-decision 5: a page on port 8081 at a `.local` name or an RFC 1918 address."""
 
 
 @pytest.mark.parametrize("name", WEBSECURE_ROUTERS)
@@ -364,52 +325,8 @@ def test_the_ui_port_router_keeps_the_rule_without_the_host(name: str) -> None:
     assert router(f"{name}-port")["rule"] == expected
 
 
-def test_the_ui_port_refusal_admits_a_lan_origin_on_the_ui_port() -> None:
-    """The origin is matched against a pattern here: the page's host is
-    whatever name or address it was reached at, and none is declared."""
-    said = router("mqtt-foreign-port")["rule"].replace("$$", "$")
-    assert f"!HeaderRegexp(`Origin`, `{LAN_ORIGIN}`)" in said
-    assert "HeaderRegexp(`Origin`, `.`)" in said
-    assert said.startswith("PathPrefix(`/mqtt`)")
-    assert f"{stack()}-mqtt-refused" in router("mqtt-foreign-port")["middlewares"]
-
-
-@pytest.mark.parametrize(
-    "origin",
-    [
-        "http://gleis49.local:8081",
-        "http://10.0.0.5:8081",
-        "http://172.16.1.2:8081",
-        "http://172.31.255.255:8081",
-        "http://192.168.1.20:8081",
-    ],
-)
-def test_the_lan_origin_pattern_admits(origin: str) -> None:
-    assert re.match(LAN_ORIGIN, origin)
-
-
-@pytest.mark.parametrize(
-    "origin",
-    [
-        "https://gleis49.local:8081",
-        "http://gleis49.local:8082",
-        "http://gleis49.local",
-        "http://control.gleis49.org:8081",
-        "http://172.32.0.1:8081",
-        "http://8.8.8.8:8081",
-        "http://evil.local.example.com:8081",
-    ],
-)
-def test_the_lan_origin_pattern_refuses(origin: str) -> None:
-    assert not re.match(LAN_ORIGIN, origin)
-
-
-def test_the_ui_port_refusal_outranks_the_router_it_stands_in_front_of() -> None:
-    assert priority("mqtt-foreign-port") > priority("mqtt-port")
-
-
 def test_a_path_on_the_ui_port_outranks_the_app() -> None:
-    for name in ("store", "mqtt", "mqtt-foreign", "camera"):
+    for name in ("store", "mqtt", "camera"):
         assert priority(f"{name}-port") > priority("app-port"), f"{name}-port loses"
 
 
