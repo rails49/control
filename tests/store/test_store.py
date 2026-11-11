@@ -1,10 +1,12 @@
 """Tests at the AssetStore seam: CRUD contract and scenario validation."""
 
 import shutil
+import threading
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from ruamel.yaml.representer import RepresenterError
 
 from tc49.lib.layout import Layout
@@ -737,3 +739,50 @@ def test_delete_removes_the_document(scratch_store: AssetStore) -> None:
     assert scratch_store.list("crossover-yard") == []
     with pytest.raises(FileNotFoundError):
         scratch_store.get("crossover-yard/meet")
+
+
+def test_a_reader_never_sees_a_document_half_written(tmp_path: Path) -> None:
+    """A document is replaced in one step, so a reader on another thread gets
+    the old one or the new one. Written in place, a read between the
+    truncate and the write found an empty file and raised `TypeError`
+    (#1223)."""
+    store = AssetStore(tmp_path)
+    docs = [{"throttle_silence": 10.0}, {"throttle_silence": 20.0}]
+    store.put_installation(docs[0])
+    done = threading.Event()
+    failed: list[Exception] = []
+    read: list[dict[str, Any]] = []
+
+    def reader() -> None:
+        while not done.is_set():
+            try:
+                read.append(store.installation())
+            except (TypeError, ValueError, yaml.YAMLError) as e:
+                failed.append(e)
+
+    thread = threading.Thread(target=reader)
+    thread.start()
+    try:
+        for i in range(2000):
+            store.put_installation(docs[i % 2])
+    finally:
+        done.set()
+        thread.join()
+
+    assert failed == []
+    assert read and all(doc in docs for doc in read)
+
+
+def test_a_write_that_fails_leaves_what_was_there_and_nothing_else(
+    tmp_path: Path,
+) -> None:
+    """The last step of a write moves a whole file onto the document's path.
+    When that step is refused — here because a directory stands in the way —
+    what was at the path is untouched and the file that was to replace it is
+    gone (#1223)."""
+    (tmp_path / "installation.yaml" / "kept").mkdir(parents=True)
+
+    with pytest.raises(OSError):
+        AssetStore(tmp_path).put_installation({"throttle_silence": 10.0})
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["installation.yaml"]
+    assert (tmp_path / "installation.yaml" / "kept").is_dir()
