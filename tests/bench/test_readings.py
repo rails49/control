@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TextIO
 
 import pytest
+from rails49_testing.broker import Broker, until
 from rails49_testing.ports import free_port
 
 from tc49.bench.cli import main
@@ -37,7 +38,7 @@ from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import MqttBus
 from tc49.store.server import make_server
-from tests.brokers import Broker, drained, settle, until
+from tests.brokers import drained, settle
 from tests.harness import ASSETS, a_railroad, railroads
 
 PERIOD_S = 0.01
@@ -237,7 +238,7 @@ def test_it_comes_up_against_a_broker_that_is_not_there_yet(
     assert not client.up.wait(1), "it said it was up with no broker to be up on"
     assert client.running, "it gave up on a broker that was not up yet"
 
-    assert broker.start()
+    broker.start()
 
     # Reconnected on the client's own backoff, whose first step is a second.
     assert client.up.wait(30), "it never came up once the broker was there"

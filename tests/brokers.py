@@ -1,47 +1,21 @@
-"""A real `mosquitto`, for the suites that test against a broker.
+"""What a suite against a real broker does with an `MqttBus`, and the
+promises the bus keeps there.
 
+The broker itself, a `mosquitto` on a port of its own, and the `broker`
+fixture come from `rails49_testing.broker`, which `tests/conftest.py` loads.
 Here rather than in `tests/harness.py`, which is the in-process assembly and
-nothing else: what these build is a second process on a port of its own, and
-the apps that come up alone against one (ADR-0059, decision 5) each want the
-same fixture.
-
-Where no `mosquitto` is installed the suites that take `broker` skip, so a
-machine without one still runs everything else. Under CI they fail instead:
-a broker is software and belongs in the gate where hardware does not (#372),
-so a failed install has to redden the gate rather than quietly delete every
-suite built on the bus (#423). `CI` in the environment tells the two apart.
+nothing else: the apps that come up alone against a broker (ADR-0059,
+decision 5) each want the same helpers.
 """
 
 import itertools
-import os
-import shutil
-import socket
-import subprocess
 import time
 from collections.abc import Callable, Iterator
-from typing import NoReturn
 
 import pytest
-from rails49_testing.ports import free_port
+from rails49_testing.broker import Broker, until
 
 from tc49.lib.mqtt import MqttBus
-
-
-def listening(port: int) -> bool:
-    try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-            return True
-    except OSError:
-        return False
-
-
-def until(predicate: Callable[[], bool], timeout: float = 5.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if predicate():
-            return True
-        time.sleep(0.01)
-    return False
 
 
 def drained(bus: MqttBus, predicate: Callable[[], bool], timeout: float = 5.0) -> bool:
@@ -87,60 +61,6 @@ def at_least_once_in_any_two_seconds(heard: list[float], seconds: float) -> bool
     no gap of two seconds: from the start, between two, or before the end."""
     edges = [0.0, *heard, seconds]
     return all(later - earlier < 2.0 for earlier, later in itertools.pairwise(edges))
-
-
-class Broker:
-    """A `mosquitto` on a port of its own, stoppable and startable again on
-    the same one: what a broker going away and coming back looks like from a
-    client's side.
-
-    No config file: started with only `-p`, mosquitto listens on loopback,
-    allows anonymous clients and keeps no persistence. No persistence is how
-    the deployed one runs too, so what it held is gone when it returns: a
-    broker keeps retained values while it runs and nothing across its own
-    restart, which is the railroad coming up at rest (ADR-0059, decision 3).
-    """
-
-    def __init__(self) -> None:
-        self.port = free_port()
-        self._running: subprocess.Popen[bytes] | None = None
-
-    def start(self) -> bool:
-        self._running = subprocess.Popen(
-            ["mosquitto", "-p", str(self.port)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return until(lambda: listening(self.port))
-
-    def stop(self) -> None:
-        if self._running is not None:
-            self._running.terminate()
-            self._running.wait(timeout=5)
-            self._running = None
-
-
-def no_broker(reason: str) -> NoReturn:
-    """End the test for want of a broker: a skip on a developer's machine, a
-    failure under CI, where a missing broker is the gate's business and not
-    the test's."""
-    if os.environ.get("CI", "").lower() in ("", "0", "false"):
-        pytest.skip(reason)
-    pytest.fail(reason)
-
-
-@pytest.fixture
-def broker() -> Iterator[Broker]:
-    if shutil.which("mosquitto") is None:
-        no_broker("no mosquitto installed")
-    running = Broker()
-    if not running.start():
-        running.stop()
-        no_broker("mosquitto would not start")
-    try:
-        yield running
-    finally:
-        running.stop()
 
 
 @pytest.fixture

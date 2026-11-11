@@ -1,8 +1,8 @@
 """The apps as processes: what a compose service starts, started from a test.
 
 Here rather than in `tests/harness.py`, which is the in-process assembly, and
-beside `tests/brokers.py`, which is the second process the apps come up
-against: what these build is one container's worth of app — `python -m
+beside `rails49_testing.broker`, which is the second process the apps come
+up against: what these build is one container's worth of app — `python -m
 tc49.<app>` with the flags its `__main__` parses — and the two system suites
 that hold ADR-0059 decision 5 both want the same one.
 
@@ -16,11 +16,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from rails49_testing.broker import Broker, listening, until
 from rails49_testing.ports import free_port
 
 from tc49.lib.bus import Payload
 from tc49.lib.loading import RAILROAD, RAILROAD_WANTED
-from tests.brokers import Broker, listening, until
 
 START_S = 30.0
 """How long a process is given to be answering. It covers a store client's

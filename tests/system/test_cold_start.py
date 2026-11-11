@@ -38,12 +38,13 @@ from json import loads
 from pathlib import Path
 
 import pytest
+from rails49_testing.broker import Broker, until
 
 from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.loading import RAILROAD as ROW
 from tc49.lib.mqtt import MqttBus
 from tests.apps import APPS, App, Process, Store
-from tests.brokers import Broker, drained, settle, until
+from tests.brokers import drained, settle
 from tests.harness import ASSETS, catalogued
 
 RAILROAD = "crossover-yard"
@@ -204,7 +205,7 @@ def test_an_app_ends_when_its_broker_restarts(
         name(app, running, broker)
 
         broker.stop()
-        assert broker.start()
+        broker.start()
         assert until(
             lambda: not running.running, ALONE_S
         ), f"'{app.name}' rejoined a broker that holds none of its rows:\n{running.said()}"
