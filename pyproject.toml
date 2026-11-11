@@ -22,6 +22,7 @@ dev = [
     "types-pyyaml>=6.0.12.20260724",
     "hypothesis>=6.165.8",
     "pytest-xdist>=3.8.0",
+    "rails49-testing",
 ]
 
 [build-system]
@@ -43,3 +44,6 @@ target-version = ["py312"]
 [tool.pyright]
 include = ["src", "tests"]
 typeCheckingMode = "strict"
+
+[tool.uv.sources]
+rails49-testing = { git = "https://github.com/rails49/testing", branch = "main" }
