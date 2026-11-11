@@ -1,0 +1,7 @@
+# What the image builds never read, and a host's binaries that would be wrong
+# in them.
+.git
+.claude
+.venv
+**/node_modules
+ui/dist

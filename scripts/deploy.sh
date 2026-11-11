@@ -19,7 +19,9 @@
 # that name, `control.gleis49.org`, and ssh goes to the box rather than to the
 # label.
 #
-# A login shell, so pnpm is on PATH the way it is when you log in. The strict
+# The box builds both images under the commit it pulled, so it needs Docker
+# and git and no node or pnpm: the UI is built inside the `control-web` image
+# (#1216). A login shell, so PATH is what it is when you log in. The strict
 # options are set inside it rather than as `bash -leu`, because
 # /etc/profile.d/apps-bin-path.sh reads XDG_DATA_DIRS unset and would stop the
 # deploy before it began.
@@ -31,6 +33,16 @@ set -euo pipefail
 # read the rest of the script as the answer. Fail instead.
 export GIT_TERMINAL_PROMPT=0
 cd ~/control
+# A tree with changes in it, tracked or not, would be built under a commit
+# that is not what was built (dccex ADR-0005 d.4). So the deploy refuses one,
+# before a pull merges around the changes.
+dirty=$(git status --porcelain)
+if [ -n "$dirty" ]; then
+  echo "~/control is not clean, and the images would be named after a commit" >&2
+  echo "that is not what was built:" >&2
+  echo "$dirty" >&2
+  exit 1
+fi
 # Which repository this box pulls from is state outside the checkout, the way
 # the ssh alias was before #496: a line in `.git/config` on this one machine
 # that the deploy depends on and cannot see. A box whose remote had an ssh URL
@@ -55,7 +67,10 @@ if [ "$was" != "$ORIGIN" ]; then
   git remote set-url origin "$ORIGIN"
 fi
 git pull
-pnpm --dir ui build
+# The name of both images, `ghcr.io/rails49/control:<commit>` and
+# `control-web:<commit>`, and the revision they carry (deploy/compose.yaml).
+CONTROL_COMMIT=$(git rev-parse HEAD)
+export CONTROL_COMMIT
 # The two files this box is started against, neither of them in this clone.
 # `box.env` is the box's declaration of itself, which every stack on the box
 # reads, and is where the name in the routers' labels comes from; `deploy.env`
@@ -74,16 +89,17 @@ DEPLOY_ENV=/etc/rails49/deploy.env
 # way compose resolves it rather than expanded here.
 mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
 # The uid and gid are this account's, and compose reads them as the user the
-# store and a session run as, and as the uid the image names (ADR-0067) — the
-# shell's environment wins over the `--env-file` below, which is what makes
-# exporting them here enough.
+# store runs as. The image is not told them: the store names its uid when it
+# starts (#1216). The shell's environment wins over the `--env-file` below,
+# which is what makes exporting them here enough.
 TC49_UID=$(id -u)
 TC49_GID=$(id -g)
 export TC49_UID TC49_GID
 # `--build`, because compose builds only when no image is tagged for the
 # service and would otherwise keep one from before the pull. Every app here
 # builds from one context, so a change under `src/` reaches none of them
-# without it (#365).
+# without it (#365). A deploy builds on the box and pulls nothing: a CI outage
+# never blocks one (rails49/.github#71 decision 5).
 # Two profiles, because two things are being asked for. `layout` is the
 # software of a running railroad — the store, the built ui, and the scheduler,
 # dispatcher and driver (ADR-0059, decision 5), the same on every box. `steel`

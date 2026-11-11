@@ -20,6 +20,10 @@ for one at all. The services that did were translators, and no translator is
 this repository's — each lives in a repository of its own, as the one that
 spoke to the command station does in
 [`rails49/dccex`](https://github.com/rails49/dccex) (#587, #595).
+
+Three more hold the images: every built service is named by the commit, every
+build is told the commit, and nothing is mounted from the clone but
+configuration (#1216).
 """
 
 import re
@@ -252,3 +256,51 @@ def test_a_profile_is_read_as_compose_reads_its_name() -> None:
     """Prose around the flag is not part of the name (#621)."""
     assert PROFILE.findall("passes `--profile sim` instead.") == ["sim"]
     assert PROFILE.findall("--profile=steel") == ["steel"]
+
+
+IMAGES = {
+    "deploy/app.Dockerfile": "ghcr.io/rails49/control:${CONTROL_COMMIT:-dev}",
+    "deploy/web.Dockerfile": "ghcr.io/rails49/control-web:${CONTROL_COMMIT:-dev}",
+}
+"""The two images this stack builds, each named by the commit it was built
+from and `dev` where nobody named one (rails49/.github#71 decision 2, #1216).
+A box running a release pulls them; a deploy builds them under the commit."""
+
+
+def test_every_built_service_is_named_by_the_commit() -> None:
+    """`image:` beside `build:`, so a release's images and a box's own build
+    of the same commit are the same name."""
+    built = {name: s for name, s in services().items() if "build" in s}
+    assert built, "no service here is built"
+    wrong = {
+        name: s.get("image")
+        for name, s in built.items()
+        if s.get("image") != IMAGES.get(s["build"]["dockerfile"])
+    }
+    assert not wrong, f"named otherwise: {wrong}"
+
+
+def test_every_build_is_told_the_commit() -> None:
+    """The image carries the commit as a label too (dccex ADR-0005 d.4), from
+    the variable its name is built from, and empty where none was named."""
+    for name, service in services().items():
+        if "build" in service:
+            assert service["build"].get("args") == {
+                "CONTROL_COMMIT": "${CONTROL_COMMIT:-}"
+            }, name
+    for dockerfile in IMAGES:
+        text = (ROOT / dockerfile).read_text()
+        assert "ARG CONTROL_COMMIT=\n" in text, dockerfile
+        assert "org.opencontainers.image.revision=$CONTROL_COMMIT" in text, dockerfile
+
+
+def test_no_service_mounts_code_from_the_clone() -> None:
+    """The UI is built into `control-web` (rails49/.github#71 decision 6), so
+    a box needs no node or pnpm. What a service mounts from the clone is
+    configuration, which is a box file."""
+    mounts = [
+        str(volume)
+        for service in services().values()
+        for volume in service.get("volumes", [])
+    ]
+    assert not [m for m in mounts if m.startswith("../")], mounts

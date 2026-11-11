@@ -70,11 +70,11 @@ a box does.
 ## The layout server
 
 `gleis49.org` is the layout server. Any machine will do that has Docker with
-compose, git, and pnpm on the login `PATH`, and takes ssh by key. Unlike a
-development machine it serves a built UI rather than vite's; both run the
-broker. The installation is already on it, so the door is up, the certificate
-is real, and `https://control.gleis49.org` answers 404 until this stack is
-started.
+compose and git, and takes ssh by key. It needs no node or pnpm: unlike a
+development machine it serves a built UI rather than vite's, and the UI is
+built inside the `control-web` image. Both run the broker. The installation
+is already on it, so the door is up, the certificate is real, and
+`https://control.gleis49.org` answers 404 until this stack is started.
 
 **The ACME credential cannot come from 1Password here.** `op` unlocks through
 the desktop app and a headless box has none, while the door has to renew a
@@ -165,18 +165,29 @@ that has not installed the installation is told so before anything comes up.
 ```
 ssh rails49
 cd ~/control
+git status --porcelain    # must print nothing
 git remote set-url origin https://github.com/rails49/control.git
 git pull
-pnpm --dir ui build
 mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
+export CONTROL_COMMIT=$(git rev-parse HEAD)
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/deploy.env \
   -f deploy/compose.yaml --profile layout --profile steel \
-  up -d --remove-orphans
+  up -d --build --remove-orphans
 ```
 
 `scripts/deploy.sh` is that sequence, run over ssh from a development machine.
+It stops on a tree that is not clean.
+
+The images are named by the commit they were built from:
+`ghcr.io/rails49/control:<commit>` for the apps and
+`ghcr.io/rails49/control-web:<commit>` for the UI, `dev` where no commit is
+named. Each carries the commit as `org.opencontainers.image.revision` too. A
+deploy builds both on the box under the commit it pulled and pulls nothing,
+so a GitHub outage never blocks one. An installation release pulls the same
+names from GHCR, built by `.github/workflows/images.yml`
+([rails49/.github#71](https://github.com/rails49/.github/issues/71)).
 
 **Two `--env-file`s, because two things are being said.** The first is the
 box's declaration, which every stack on the box is started against and which
@@ -247,8 +258,9 @@ Nothing starts this at boot but Docker itself: every service is
 on its own. There is no systemd unit to forget.
 
 **Nothing runs on that box outside a container**, and there is no Python on it
-to run anything else (#354). Every service below is built from one image,
-`deploy/app.Dockerfile`, with a command of its own.
+to run anything else (#354). Every service below but the UI and the broker
+runs one image, `control`, built by `deploy/app.Dockerfile`, with a command
+of its own. The UI is `control-web`, built by `deploy/web.Dockerfile`.
 
 Nothing here publishes 80 or 443: those are the door's, and it is the
 installation's container. What the door serves is a label under the box's
@@ -323,15 +335,16 @@ be made at all. The box's own passwd and group tables came into the store
 read-only for this, which answered it only on a box that keeps its people in
 those files: a mac keeps them in Open Directory, hands the store uid 501, and
 the feature was unreachable there
-([#566](https://github.com/rails49/control/issues/566)). The image names it
-instead: compose builds it with `TC49_UID` and `TC49_GID` as build arguments,
-and the build adds a passwd and a group entry for them where the base image
-has none. The tables stay root's and read-only to the store, so nothing running
-in the container can add a user to them
-([ADR-0067](adr/0067-the-image-names-the-store-uid-at-build.md)). **The uid is
-still the person's** — nothing about whose the documents are changes. A box
-whose account changes uid gets the new name on its next deploy, which rebuilds
-the image anyway.
+([#566](https://github.com/rails49/control/issues/566)). The store names it
+when it starts instead: `store-start` (`deploy/store-start.sh`) writes a
+one-line passwd and group file under `/tmp` for the uid and gid it runs as,
+and runs `tc49 serve` with `nss_wrapper` reading them. The image is not told
+the uid, so one published image serves every box
+([#1216](https://github.com/rails49/control/issues/1216)). `/etc/passwd` and
+`/etc/group` stay root's and read-only to the store, so nothing running in the
+container can add a user to them. **The uid is still the person's** — nothing
+about whose the documents are changes. A box whose account changes uid gets
+the new name the next time the store starts.
 
 **A key that has to be replaced is replaced from `Settings ▸ Backup`.** A key
 GitHub refuses as *Key is already in use* — still held by a repository deleted
@@ -552,7 +565,7 @@ of the page's own on both.
 | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` | vite's own proxy to the store | the store, `:8765` |
 | `/picture` | vite's own proxy to the camera app on `:8767` | the `camera` container, `:8767` |
 | `/camera` | vite's own proxy to a photo camera on `:8766` | the photo camera's own stack, under the same name |
-| everything else | vite, `:5173` | `ui/dist` through nginx |
+| everything else | vite, `:5173` | the UI built into `control-web`, through nginx |
 
 `/camera` is the one row no container of this stack answers: the photo route
 is a photo camera's, outside this repository ([SYSTEM.md](SYSTEM.md)), and vite's
@@ -578,10 +591,11 @@ whatever the `Host`. A native client sends no
 published, so the door is the only way a browser reaches the bus.
 
 The built UI needs nginx behind the door because the door proxies and does not
-read files. That is the whole of what `web` is, with one line of its own
-config, `deploy/nginx.conf`: `index.html`, which is also what `/` serves, is
-sent with `Cache-Control: no-cache`, so a browser asks the box again on every
-load rather than starting the build before. The files under `assets/` are
+read files. That is the whole of what `web` is: nginx with the UI built into
+its image, and one line of its own config, `deploy/nginx.conf`: `index.html`,
+which is also what `/` serves, is sent with `Cache-Control: no-cache`, so a
+browser asks the box again on every load rather than starting the build
+before. The files under `assets/` are
 named by a hash of their contents and are sent as nginx sends them
 ([#1123](https://github.com/rails49/control/issues/1123)).
 
