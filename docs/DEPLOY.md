@@ -69,11 +69,11 @@ a box does.
 
 ## The layout server
 
-`gleis49.org`, a Kamrui JK06 running Ubuntu 24.04, on wifi at
-`192.168.178.56`. Unlike a development machine it serves a built UI rather
-than vite's; both run the broker. The installation is already on it, so the
-door is up, the certificate is real, and `https://control.gleis49.org`
-answers 404 until this stack is started.
+`gleis49.org`, a Mac mini 2018 (`Macmini8,1`) running Ubuntu 26.04, on
+wifi. Unlike a development machine it serves a built UI rather than vite's;
+both run the broker. The installation is already on it, so the door is up,
+the certificate is real, and `https://control.gleis49.org` answers 404 until
+this stack is started.
 
 **The ACME credential cannot come from 1Password here.** `op` unlocks through
 the desktop app and a headless box has none, while the door has to renew a
