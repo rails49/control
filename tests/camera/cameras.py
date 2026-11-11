@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast
 
-from tests.ports import free_port
+from rails49_testing.ports import free_port
 
 USER = "admin"
 PASSWORD = "secret"

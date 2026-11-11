@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from rails49_testing.ports import free_port
 
 from tc49.camera.face import Face
 from tc49.camera.stream import Cameras
@@ -17,7 +18,6 @@ from tc49.lib.documents import Documents
 from tc49.store.server import make_server
 from tests.camera.cameras import AUTHORIZATION, PATH, Camera
 from tests.harness import catalogued
-from tests.ports import free_port
 
 RAILROAD = "oval"
 

@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from rails49_testing.ports import free_port
 
 from tc49.layout.__main__ import OWNED, retained, serve
 from tc49.layout.interface import (
@@ -57,7 +58,6 @@ from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, catalogued
-from tests.ports import free_port
 
 NAME = "crossover-yard"
 END = "up_w.A"

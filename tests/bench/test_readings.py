@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TextIO
 
 import pytest
+from rails49_testing.ports import free_port
 
 from tc49.bench.cli import main
 from tc49.bench.detector import SENSOR, serve
@@ -38,7 +39,6 @@ from tc49.lib.mqtt import MqttBus
 from tc49.store.server import make_server
 from tests.brokers import Broker, drained, settle, until
 from tests.harness import ASSETS, a_railroad, railroads
-from tests.ports import free_port
 
 PERIOD_S = 0.01
 """What the suite waits between turns, where the deployment waits a tenth of a
