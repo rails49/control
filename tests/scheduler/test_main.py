@@ -170,9 +170,7 @@ def rows(heard: list[tuple[str, Payload]], topic: str) -> list[Payload]:
     return [payload for said, payload in heard if said == topic]
 
 
-def test_an_app_is_stoppable_having_never_been_started(
-    tmp_path: Path, store: Store
-) -> None:
+def test_an_app_is_stoppable_having_never_been_started(store: Store) -> None:
     """A test whose body raised before `app.start()` is torn down all the
     same, and the fixture may not turn that one failure into a failure and an
     error on top of it (#560): joining a thread that was never started raises
@@ -182,7 +180,7 @@ def test_an_app_is_stoppable_having_never_been_started(
     that is the state the teardown found. The dispatcher, layout and
     simulator suites hold their app the same way and carry the same guard.
     """
-    App(Broker(tmp_path / "mosquitto.conf"), store).stop()
+    App(Broker(), store).stop()
 
 
 def test_a_cold_start_publishes_the_apps_own_rows(
