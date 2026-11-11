@@ -34,10 +34,10 @@ read by every stack on the box:
 | `BOX_ACME_PROVIDER` | the DNS provider that issues its certificates | `cloudflare` |
 
 So this UI is at <https://control.gleis49.org>, and naming a box is editing one
-file on the box rather than forking this repository. Every box, with a name or
-without, also serves it on its UI port over plain HTTP
-([below](#the-ui-port)). An `A` record for the apex
-and one per label, each holding the box's LAN address, is the installation's
+file on the box rather than forking this repository. Every box, with a
+certificate or without, also serves it on its UI port over plain HTTP
+([below](#the-ui-port)). An `A` record for the apex and one per label, each
+holding the box's LAN address, is the installation's
 step and its README is where it is written; a public record holding a private
 address is the design rather than a trick, since anyone may resolve the name
 and it only works on the LAN.
@@ -521,9 +521,9 @@ that they come first. The refusal's precedence over the bus router it stands
 in front of is what this exists to keep, and nothing shows a reader that
 shortening one rule changes what another matches.
 
-**On `websecure` the refusal compares origins whole.** The route file matched a pattern with
-the dots in the name escaped; the name now comes from the declaration and a
-dot inside it cannot be escaped on its way into one, and
+**On `websecure` the refusal compares origins whole.** The route file matched
+a pattern with the dots in the name escaped; the name now comes from the
+declaration and a dot inside it cannot be escaped on its way into one, and
 `control.gleis49.org` as a pattern admits `control-gleis49.org`, which
 somebody may register. So the two origins that are the app's own — `https://`
 and `http://`, TLS terminating at the door — are named exactly, and anything
@@ -538,8 +538,8 @@ door serves sends one.
 On the UI port the refusal matches a pattern instead, because the page's host
 is whatever name or address it was reached at, and no file declares it. It
 admits `http://` on port 8081 at a `.local` name or an RFC 1918 IPv4 address
-(rails49/installation#53, decision 5); the pattern has no box name in it, so
-the dot problem above does not arise.
+(rails49/installation#53, decision 5). The pattern has no box name in it, so
+no dot from the declaration can widen what it matches.
 
 **Only what the door reaches joins the shared network.** `web`, `store`,
 `broker` and `camera` join `rails49`, the network the installation creates and every stack
@@ -606,7 +606,7 @@ Every box serves `control` over plain HTTP on its UI port, 8081, at
 `http://<hostname>.local:8081` and `http://<address>:8081`. The installation
 owns the port and the door's entry point `control` that listens on it
 ([rails49/installation#53](https://github.com/rails49/installation/issues/53)).
-On a box with no certificate this is the only way in; on a box with a box name
+On a box with no certificate this is the only way in; on a box with a certificate
 it keeps the UI reachable when DNS or the certificate fails.
 
 Each `websecure` router has a second router on `control` with the same rule

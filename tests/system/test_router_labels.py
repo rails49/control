@@ -329,7 +329,7 @@ UI_PORT_ENTRY_POINT = "control"
 """The door's entry point for this UI's port, 8081. The installation owns the
 name and the port (rails49/installation#53)."""
 
-COPIED = ["app", "store", "mqtt", "mqtt-foreign", "camera"]
+WEBSECURE_ROUTERS = ["app", "store", "mqtt", "mqtt-foreign", "camera"]
 """The `websecure` routers. Each has a second router on the UI port, named
 after it with `-port`."""
 
@@ -342,17 +342,19 @@ LAN_ORIGIN = (
 decision 5: a page on port 8081 at a `.local` name or an RFC 1918 address."""
 
 
-@pytest.mark.parametrize("name", COPIED)
+@pytest.mark.parametrize("name", WEBSECURE_ROUTERS)
 def test_the_ui_port_router_copies_its_websecure_router(name: str) -> None:
     """Same service, middlewares and priority, on the UI port with no TLS and
     no host: on a box with no certificate there is no name to match."""
     original = router(name)
-    twin = router(f"{name}-port")
-    assert twin["entrypoints"] == UI_PORT_ENTRY_POINT
-    assert not [key for key in twin if key.startswith("tls.")]
-    assert "Host(" not in twin["rule"]
+    port_router = router(f"{name}-port")
+    assert port_router["entrypoints"] == UI_PORT_ENTRY_POINT
+    assert not [key for key in port_router if key.startswith("tls.")]
+    assert "Host(" not in port_router["rule"]
     for key in ("service", "middlewares", "priority"):
-        assert twin.get(key) == original.get(key), f"{name}-port differs in {key}"
+        assert port_router.get(key) == original.get(
+            key
+        ), f"{name}-port differs in {key}"
 
 
 @pytest.mark.parametrize("name", ["app", "store", "mqtt", "camera"])
@@ -369,7 +371,7 @@ def test_the_ui_port_refusal_admits_a_lan_origin_on_the_ui_port() -> None:
     assert f"!HeaderRegexp(`Origin`, `{LAN_ORIGIN}`)" in said
     assert "HeaderRegexp(`Origin`, `.`)" in said
     assert said.startswith("PathPrefix(`/mqtt`)")
-    assert "tc49-mqtt-refused" in router("mqtt-foreign-port")["middlewares"]
+    assert f"{stack()}-mqtt-refused" in router("mqtt-foreign-port")["middlewares"]
 
 
 @pytest.mark.parametrize(
@@ -411,7 +413,7 @@ def test_a_path_on_the_ui_port_outranks_the_app() -> None:
         assert priority(f"{name}-port") > priority("app-port"), f"{name}-port loses"
 
 
-def test_an_empty_box_name_is_admitted_and_an_unset_one_refused() -> None:
+def test_a_box_with_no_certificate_is_admitted_and_an_undeclared_one_refused() -> None:
     """An empty `BOX_DOMAIN` is a box with no certificate. `:?` would refuse
     it along with an unset one."""
     said = str(document()["x-require-box-domain"])
