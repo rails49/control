@@ -191,7 +191,7 @@ broker_up() {
   if ! docker run -d --name "$BROKER_NAME" \
     -p "$MQTT:1883" -p "$BROKER:9001" \
     -v "$ROOT/deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
-    eclipse-mosquitto:2 >"$LOGS/broker.log" 2>&1; then
+    eclipse-mosquitto:2.1.2-alpine@sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f >"$LOGS/broker.log" 2>&1; then
     echo "  broker failed to start; see $LOGS/broker.log" >&2
     return 1
   fi
