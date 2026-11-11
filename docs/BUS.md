@@ -204,6 +204,12 @@ decision 3). The in-process binding keeps its retained values in memory and
 loses them with the process, which is what leaves `bench` and `sweep`
 unaffected.
 
+So an app does not rejoin a broker that restarted under it. Each app publishes
+a row only when its value moves, and a rejoined app would leave its rows
+missing for good. It ends instead, and its container's restart brings it up
+cold against the empty broker (`lib/mqtt.py`, `rejoin`;
+[#1210](https://github.com/rails49/control/issues/1210)).
+
 **Reaching the bus from a browser.** A page is a client of the broker like
 any other, over the broker's own WebSocket listener, reached on the app's own
 origin as `/mqtt` through the proxy in front of it

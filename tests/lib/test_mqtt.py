@@ -16,7 +16,7 @@ from paho.mqtt import client as paho
 from paho.mqtt.enums import CallbackAPIVersion
 
 from tc49.lib.bus import Bus, Payload
-from tc49.lib.mqtt import MqttBus, address
+from tc49.lib.mqtt import BrokerLost, MqttBus, address
 from tests.brokers import Broker, drained, settle, until
 
 POWER = "tc49/layout/state/power"
@@ -308,8 +308,9 @@ def test_a_text_on_the_wire_is_its_utf8_retained(
 def test_a_lost_connection_is_said_and_retried(
     broker: Broker, buses: Callable[[], MqttBus], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The one thing an app does about its broker going away: keep running,
-    and let a person watching the container see it (ADR-0050, ADR-0059)."""
+    """What a client that rejoins does about its broker going away: keep
+    running, and let a person watching the container see it (ADR-0050,
+    ADR-0059). The apps do not rejoin (#1210)."""
     bus = buses()
     bus.subscribe(POWER, lambda topic, payload: None)
 
@@ -320,6 +321,43 @@ def test_a_lost_connection_is_said_and_retried(
     assert broker.start()
     # Reconnected on the client's own backoff, whose first step is a second.
     assert bus.wait_connected(timeout=30.0)
+
+
+def test_an_app_that_does_not_rejoin_ends_at_the_next_drain(broker: Broker) -> None:
+    """A broker that restarted holds none of the rows the app wrote, and the
+    app publishes a row only when its value moves, so a rejoined app would
+    leave them missing for good (#1210). It ends instead, and a restart
+    brings it up cold."""
+    bus = MqttBus(port=broker.port, rejoin=False)
+    try:
+        assert bus.wait_connected()
+        bus.drain()
+
+        broker.stop()
+        assert until(lambda: not bus.connected)
+        assert broker.start()
+
+        with pytest.raises(BrokerLost) as lost:
+            bus.drain()
+        assert lost.value.code != 0
+    finally:
+        bus.close()
+
+
+def test_an_app_that_does_not_rejoin_still_waits_for_its_first_broker(
+    broker: Broker,
+) -> None:
+    """Only a connection that landed ends the app: one started before its
+    broker waits for it (ADR-0059, decision 5)."""
+    broker.stop()
+    bus = MqttBus(port=broker.port, rejoin=False)
+    try:
+        settle(bus, 1.5)
+        assert broker.start()
+        assert bus.wait_connected(timeout=30.0)
+        bus.drain()
+    finally:
+        bus.close()
 
 
 def test_a_broker_address_is_a_host_and_a_port() -> None:

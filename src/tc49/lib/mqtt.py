@@ -38,6 +38,14 @@ backoff and each loss is said on stderr, so a person watching the container
 sees it. Nothing else is done about it: an app has no answer to its broker
 being down, and the row that says a participant cannot reach its hardware is
 `device/link`, published by whoever knows (ADR-0059 decision 7).
+
+**An app on the railroad does not rejoin** (`rejoin=False`). A broker that
+comes back holds none of the rows the app wrote, and the app publishes a row
+only when its value moves, so a rejoined app would leave them missing for
+good: no railroad named, and every page waiting for the station (#1210).
+Once a connection that landed is lost, the next `drain` raises `BrokerLost`
+and the process ends, and its container's restart brings it up cold against
+the empty broker. A client still waiting for its first connection waits on.
 """
 
 import json
@@ -73,6 +81,12 @@ BROKER_EXAMPLE = "127.0.0.1:1883"
 """What a broker address looks like, for a command line's help and for its
 refusal. 1883 is the listener the deployed broker serves native clients on
 (`deploy/mosquitto.conf`)."""
+
+
+class BrokerLost(SystemExit):
+    """The broker went away under a client that does not rejoin. A
+    `SystemExit`, so the process ends non-zero with this sentence on stderr
+    and the `finally` blocks on the way out still run."""
 
 
 def address(text: str) -> tuple[str, int]:
@@ -121,8 +135,11 @@ class MqttBus:
         port: int = 1883,
         client_id: str = "",
         keepalive: int = 60,
+        rejoin: bool = True,
     ) -> None:
         self._where = f"{host}:{port}"
+        self._rejoin = rejoin
+        self._lost = False
         self._lock = threading.Lock()
         self._subscriptions: list[_Subscription] = []
         self._queue: deque[tuple[str, Payload]] = deque()
@@ -262,7 +279,12 @@ class MqttBus:
         broker and so on a later drain, which is the one place the two
         bindings differ in order — MQTT promises nothing about it either
         (ADR-0008).
+
+        Raises `BrokerLost` once a client that does not rejoin has lost its
+        connection, before delivering anything that arrived since.
         """
+        if self._lost:
+            raise BrokerLost(f"mqtt: connection to {self._where} lost, exiting")
         with self._lock:
             waiting = list(self._queue)
             self._queue.clear()
@@ -333,8 +355,12 @@ class MqttBus:
         reason_code: ReasonCode,
         properties: Properties | None = None,
     ) -> None:
-        if reason_code.is_failure:
+        if not reason_code.is_failure:
+            return
+        if self._rejoin:
             self._say(f"connection to {self._where} lost: {reason_code}, retrying")
+        else:
+            self._lost = True
 
     def _on_message(
         self, client: paho.Client, userdata: object, message: paho.MQTTMessage

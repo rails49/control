@@ -645,6 +645,9 @@ them apart keeps a page reload from being treated like a power cut
   every train again ([Dispatcher](#dispatcher)). A restart contains a cold
   start: the restart is the process coming back, the cold start is the state
   being rebuilt.
+  A broker restart is a restart of every app: the broker holds nothing
+  afterwards, so each app ends and comes back rather than rejoining
+  ([BUS.md](BUS.md#the-bus)).
 - **Recovery** is coming back after the layout lost power. Everything a
   restart loses is lost, and what was believed is now suspect: a train that
   stalled in a tunnel gets lifted out by hand. It ends with a person
