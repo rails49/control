@@ -445,6 +445,13 @@ export async function settingsOpened(shell: TcApp): Promise<TcSettings> {
   return settings(shell);
 }
 
+/** The subheadings of the settings dialog's `tab`, in order (#1238). */
+export function sections(dialog: TcSettings, tab: string): string[] {
+  return [...dialog.renderRoot.querySelectorAll(`sl-tab-panel[name="${tab}"] h3`)].map((heading) =>
+    heading.textContent!.trim(),
+  );
+}
+
 /** The rail down the left, which carries the views and the current view's
  *  commands. */
 export function rail(shell: TcApp): LookRail {

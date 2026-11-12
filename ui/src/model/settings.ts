@@ -322,7 +322,7 @@ function isSpeed(value: unknown): value is number {
   return typeof value === "number" && value > 0 && value <= 1;
 }
 
-/** A speed as the Driving tab shows it: percent of the locomotive's top
+/** A speed as the Driving section shows it: percent of the locomotive's top
  *  speed. Rounded off at the fourth decimal so `0.07` shows `7` and not the
  *  float `7.000000000000001`. */
 export function percentOf(fraction: number): number {

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * The Settings dialog's Sensors tab sets the sensor silence (#1149) and the
+ * The Settings dialog's Sensors section sets the sensor silence (#1149) and the
  * arrival allowance (#1192): each field shows its value off
  * `tc49/layout/state/settings`, and a commit publishes
  * `tc49/layout/settings_wanted` carrying that field alone. What a
@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
-import { settingsOpened, settled } from "./support/shell.js";
+import { sections, settingsOpened, settled } from "./support/shell.js";
 import { brokering, joined, said, unbrokered, written } from "./support/session.js";
 
 beforeEach(brokering);
@@ -58,13 +58,11 @@ async function heard(): Promise<{ shell: TcApp; dialog: TcSettings }> {
   return { shell, dialog: await settingsOpened(shell) };
 }
 
-describe("the Sensors tab", () => {
-  it("comes after Throttles", async () => {
+describe("the Sensors section", () => {
+  it("comes after Throttles, in the Installation tab", async () => {
     const dialog = await settingsOpened(await joined());
-    const tabs = [...dialog.renderRoot.querySelectorAll("sl-tab")].map((tab) =>
-      tab.textContent!.trim(),
-    );
-    expect(tabs.indexOf("Sensors")).toBe(tabs.indexOf("Throttles") + 1);
+    const shown = sections(dialog, "installation");
+    expect(shown.indexOf("Sensors")).toBe(shown.indexOf("Throttles") + 1);
   });
 
   it("shows the silence state/settings says", async () => {

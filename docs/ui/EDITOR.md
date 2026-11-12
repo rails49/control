@@ -84,14 +84,19 @@ both views are of one railroad, so one control asks for it. The gear is drawn
 whether or not a session is joined, and Help after it is the last thing on
 the band.
 
-The dialog has seven tabs, in this order, the last only where the box can be
-turned off. The gear opens it on the first and
-the band's backup note on Backup
-([#899](https://github.com/rails49/control/issues/899), #1075):
+The dialog has three tabs: **Railroad**, **Installation** and **Backup**. The
+gear opens it on Railroad and the band's backup note on Backup
+([#899](https://github.com/rails49/control/issues/899), #1075). Railroad and
+Installation are sections under subheadings in one scrolling panel
+([#1238](https://github.com/rails49/control/issues/1238)): Railroad's are kept
+with the loaded railroad, and Installation's are the installation's whatever
+railroad is loaded, which its first line says.
 
-- **Railroad** lists what the store has, asked again each time the dialog
-  opens, and ticks the one that is loaded, with the name field and the two
-  presses that make a railroad beneath.
+Railroad, in this order:
+
+- **Load a railroad** lists what the store has, asked again each time the
+  dialog opens, and ticks the one that is loaded, with the name field and the
+  two presses that make a railroad beneath.
 - **Points** sets the point gap
   ([#1128](https://github.com/rails49/control/issues/1128)): one field, *Time
   between point commands*, in seconds from `0` to `5` in steps of `0.1`, `0`
@@ -100,7 +105,7 @@ the band's backup note on Backup
   is heard. A commit — a change, not each keystroke — publishes
   `tc49/layout/settings_wanted` with the gap typed, and nothing where it is
   the gap the row already says; a gap outside `0`–`5`, or no number at all,
-  is not sent and the tab says why (`settingChange`, `model/settings.ts`,
+  is not sent and the section says why (`settingChange`, `model/settings.ts`,
   each field's bounds, label and payload its `SETTING_FIELDS` entry). The
   field goes on showing the row, not the press, except that a refused commit
   stays in it beside the reason, however often it is committed, until a
@@ -113,23 +118,19 @@ the band's backup note on Backup
   `speeds` from `tc49/layout/state/settings` times 100, and a commit publishes
   `settings_wanted` with that one speed, the percent over 100, as
   `speeds: {clear}` or `speeds: {caution}`.
+
+Installation, in this order:
+
 - **Throttles** sets the throttle silence (#1134, #1142): one field, *Let go of a silent
-  throttle's trains after*, in seconds from `2` to `60` in steps of `1`, with
-  a hint that it applies whatever railroad is loaded. A commit publishes
-  `settings_wanted` with `throttle_silence` alone.
+  throttle's trains after*, in seconds from `2` to `60` in steps of `1`. A
+  commit publishes `settings_wanted` with `throttle_silence` alone.
 - **Sensors** sets the sensor silence
   ([#1149](https://github.com/rails49/control/issues/1149)) and the arrival
   allowance ([#1192](https://github.com/rails49/control/issues/1192)): *Call a
   sensor unknown once unheard for*, in seconds from `2` to `60` in steps of
   `1`, then *Stop a train that has not arrived after*, in seconds from `5` to
-  `600` in steps of `1`, with the same hint. A commit publishes
+  `600` in steps of `1`. A commit publishes
   `settings_wanted` with `sensor_silence` or `arrival_allowance` alone.
-
-  These tabs read as Points does: dead with the same hint until the row is
-  heard, nothing sent for the value the row already says, and a value out of
-  range or no number not sent, the field keeping it and saying why.
-- **Backup** is where the store is backed up and restored, drawn in the tab
-  and not in a dialog of its own ([Backing the store up](#backing-the-store-up)).
 - **Shutdown** turns the box off (#745). It is there only where the
   installation says this box can be turned off, asked each time the dialog
   opens. Its press asks once more, saying that every app on the box stops and
@@ -138,11 +139,19 @@ the band's backup note on Backup
   has not said whether the track has power; with power on, *Turn off* drains
   the track first, as a load does (below).
 
-The tick is all the loaded entry is — pressing it asks for nothing (#101).
+Driving, Throttles and Sensors read as Points does: dead with the same hint
+until the row is heard, nothing sent for the value the row already says, and a
+value out of range or no number not sent, the field keeping it and saying why.
+
+**Backup** is where the store is backed up and restored, drawn in the tab and
+not in a dialog of its own ([Backing the store up](#backing-the-store-up)).
+
+In Load a railroad the tick is all the loaded entry is — pressing it asks
+for nothing (#101).
 Re-reading the loaded railroad would throw away whatever has been drawn since,
 which is a lot to ask of a click that looks like it does nothing.
 
-**Making a railroad is the Railroad tab's too** (ADR-0072, decision 3). Beneath the
+**Making a railroad is Load a railroad's too** (ADR-0072, decision 3). Beneath the
 list a `Name` field has two presses beside it. **New** writes an empty drawing
 under the name — no roster and no script, a railroad with neither being an
 ordinary one — and **Copy loaded as…** has the store copy every document of
@@ -168,11 +177,11 @@ the list is refused while the drawing is there, since loading another
 railroad would throw it away (table below). With no edits New writes an
 empty drawing as before.
 
-**Deleting a railroad is the Railroad tab's too** (#1074). Every row but two
+**Deleting a railroad is Load a railroad's too** (#1074). Every row but two
 ends in a trash press, `Delete <name>`: the loaded railroad has none, the
 steel runs it and it is deleted by loading another first, and nor has the
 drawing the page holds. Pressed, the row gives way to the question the
-Shutdown tab asks,
+Shutdown section asks,
 `Delete <name>? Its drawing, roster, script, clock and scenarios go.`, with
 **Delete** and **Cancel**; one row asks at a time, and Cancel sends
 nothing. **Delete** has the store delete the railroad whole
@@ -232,7 +241,7 @@ Closing the dialog abandons the press and leaves power as it is, and ON on
 the band, ending the drain, abandons it too. With power `off` a press acts at
 once. With no railroad loaded there are no rails built to change, so power is
 not asked and a new box loads its first railroad here
-(`Drain` in `model/settings.ts`). *Turn off* on the Shutdown tab and *Restore*
+(`Drain` in `model/settings.ts`). *Turn off* in the Shutdown section and *Restore*
 on the Backup tab wait the same way.
 
 The band reads *unsaved* beside the name only where the drawing or the

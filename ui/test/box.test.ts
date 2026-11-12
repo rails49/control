@@ -6,7 +6,7 @@
  * Two parts. The model against a fake `fetch`, because what it reads out of
  * the installation's answers — a yes only on `200` with `can_turn_off: true`,
  * a refusal's words as written — has nothing to do with the dialog. Then the
- * dialog through the app, which draws a **Shutdown** tab only where the
+ * dialog through the app, which draws a **Shutdown** section only where the
  * installation says yes and sends only once the track is dead, draining it
  * first where it has power (#899, ADR-0085 decision 5).
  */
@@ -17,7 +17,14 @@ import "../src/ui/tc-app.js";
 import { canTurnOff, turnOff } from "../src/model/box.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
-import { mounted, type Reply, serving, settingsOpened, settled } from "./support/shell.js";
+import {
+  mounted,
+  type Reply,
+  sections,
+  serving,
+  settingsOpened,
+  settled,
+} from "./support/shell.js";
 import {
   brokering,
   DERIVES,
@@ -153,12 +160,12 @@ function part(dialog: TcSettings): HTMLElement | null {
   return dialog.renderRoot.querySelector<HTMLElement>("div.shutdown");
 }
 
-/** One of the Shutdown tab's presses, by its class. */
+/** One of the Shutdown section's presses, by its class. */
 function press(dialog: TcSettings, which: string): HTMLButtonElement | null {
   return dialog.renderRoot.querySelector<HTMLButtonElement>(`div.shutdown sl-button.${which}`);
 }
 
-/** What the Shutdown tab says beneath its press, `null` where it says nothing. */
+/** What the Shutdown section says beneath its press, `null` where it says nothing. */
 function hint(dialog: TcSettings): string | null {
   return dialog.renderRoot.querySelector("div.shutdown .hint")?.textContent?.trim() ?? null;
 }
@@ -179,38 +186,46 @@ function shown(dialog: TcSettings): string | null {
 }
 
 describe("the dialog's tabs", () => {
-  it("are Railroad, Points, Driving, Throttles and Backup where the box cannot turn off", async () => {
+  it("are Railroad, Installation and Backup, with no Shutdown where the box cannot turn off", async () => {
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(tabs(dialog)).toEqual(["Railroad", "Points", "Driving", "Throttles", "Sensors", "Backup"]);
+    expect(tabs(dialog)).toEqual(["Railroad", "Installation", "Backup"]);
+    expect(sections(dialog, "railroad")).toEqual(["Load a railroad", "Points", "Driving"]);
+    expect(sections(dialog, "installation")).toEqual(["Throttles", "Sensors"]);
   });
 
-  it("are Railroad, Points, Driving, Throttles, Backup and Shutdown where it can", async () => {
+  it("end Installation with Shutdown where the box can turn off (#1238)", async () => {
     installed(CAN);
     const shell = await powered("off");
 
     const dialog = await settingsOpened(shell);
 
-    expect(tabs(dialog)).toEqual([
-      "Railroad",
-      "Points",
-      "Driving",
-      "Throttles",
-      "Sensors",
-      "Backup",
-      "Shutdown",
-    ]);
+    expect(tabs(dialog)).toEqual(["Railroad", "Installation", "Backup"]);
+    expect(sections(dialog, "installation")).toEqual(["Throttles", "Sensors", "Shutdown"]);
+  });
+
+  it("say once at the top of Installation that it holds whatever railroad is loaded", async () => {
+    const dialog = await settingsOpened(await powered("off"));
+
+    const said = [
+      ...dialog.renderRoot.querySelectorAll('sl-tab-panel[name="installation"] .hint'),
+    ].filter((hint) => hint.textContent!.includes("whatever railroad is loaded"));
+
+    expect(said).toHaveLength(1);
+    expect(said[0]).toBe(
+      dialog.renderRoot.querySelector('sl-tab-panel[name="installation"]')!.firstElementChild,
+    );
   });
 
   it("open on Railroad, whichever was shown when the dialog closed", async () => {
     installed(CAN);
     const shell = await powered("off");
     const first = await settingsOpened(shell);
-    first.renderRoot.querySelector("sl-tab-group")!.show("shutdown");
+    first.renderRoot.querySelector("sl-tab-group")!.show("installation");
     await settled(shell);
-    expect(shown(first)).toBe("Shutdown");
+    expect(shown(first)).toBe("Installation");
     first.dispatchEvent(new CustomEvent("settings-closed", { bubbles: true, composed: true }));
     await settled(shell);
 
@@ -220,7 +235,7 @@ describe("the dialog's tabs", () => {
   });
 
   /** Box was the old name of the Shutdown part (#899), and the throttle
-   *  silence's tab is Throttles (#1142): no tab or heading is called Box. */
+   *  silence's section is Throttles (#1142): no tab or heading is called Box. */
   it("call nothing Box", async () => {
     installed(CAN);
     const shell = await powered("off");
@@ -231,7 +246,7 @@ describe("the dialog's tabs", () => {
   });
 });
 
-describe("the dialog's Shutdown tab", () => {
+describe("the dialog's Shutdown section", () => {
   it("is not there where the box answers as localhost does", async () => {
     const shell = await powered("off");
 

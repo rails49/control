@@ -3,10 +3,12 @@
  * railroad (#733, #737,
  * [ADR-0072](../../../docs/adr/0072-the-railroad-is-loaded-from-a-settings-dialog-and-the-store-records-which.md)).
  *
- * Seven tabs, eight where the box can turn off, the dialog opening on the one
- * `tab` names each time — Railroad from the gear, Backup from the band's
- * backup note (#899, #1075). **Railroad**
- * lists what the store holds, the loaded one ticked, and a press on another
+ * Three tabs, the dialog opening on the one `tab` names each time — Railroad
+ * from the gear, Backup from the band's backup note (#899, #1075). Railroad
+ * and Installation are sections under subheadings, Railroad's kept with the
+ * loaded railroad and Installation's the installation's whatever railroad is
+ * loaded, which its first line says (#1238). **Load a railroad**, Railroad's
+ * first section, lists what the store holds, the loaded one ticked, and a press on another
  * asks for it: it publishes `railroad_wanted` through
  * the app and stops there, and the tick moves when the layout's row names the
  * new railroad, which is the only thing that loads one (ADR-0060). **A pick
@@ -28,25 +30,23 @@
  * waits on the track, which it does not touch. **Backup** is a slot the
  * app fills with `tc-backup`, which draws itself in the tab rather than in a
  * dialog of its own: being sent from one dialog to another is a step that
- * does nothing. **Points**, after Railroad, sets the point gap (#1128): how
+ * does nothing. **Points**, after Load a railroad, sets the point gap (#1128): how
  * long `layout` waits after one point command before the next, or before the
  * move waiting on it goes. Its one field shows `point_gap` as
  * `tc49/layout/state/settings` says it, is dead with a hint until that row is
  * heard, and on a commit — a change, not each keystroke — asks for what was
  * typed on `settings-wanted`, the app publishing `settings_wanted`; what
- * `settingChange` refuses is not sent, and the tab says why. The field goes on
+ * `settingChange` refuses is not sent, and the section says why. The field goes on
  * showing the row, not the press (ADR-0035), except that a refused commit
  * stays in it beside the reason until a commit is not refused or the row
- * says a different value for it (#1137). **Driving** and **Throttles**
- * (#1142), after Points, do the same for the driver's speeds at clear and
- * at caution, in percent of the locomotive's top speed, and for the
- * throttle silence, the
- * installation's whatever railroad is loaded (#1134): each commit sends the
- * one field committed. **Sensors**, after Throttles, does the same for the
- * sensor silence and the arrival allowance, both the installation's (#1149,
- * #1192). Each field of these tabs is drawn from its `SETTING_FIELDS` entry
- * (#1185).
- * **Shutdown** turns the box off (#745), and is drawn only
+ * says a different value for it (#1137). **Driving**, after Points, does
+ * the same for the driver's speeds at clear and at caution, in percent of
+ * the locomotive's top speed (#1134): each commit sends the one field
+ * committed. Installation's **Throttles** does the same for the throttle
+ * silence (#1142), and **Sensors**, after it, for the sensor silence and the
+ * arrival allowance (#1149, #1192). Each field of these sections is drawn
+ * from its `SETTING_FIELDS` entry (#1185).
+ * **Shutdown**, Installation's last section, turns the box off (#745), and is drawn only
  * where the installation says this box can be: it is asked each time the
  * dialog opens, and the rest of the dialog does not wait on it. The press asks
  * once more before anything is sent, and then says to unplug the box once its
@@ -65,7 +65,7 @@
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
- * **It decides nothing.** Why the Railroad tab or the Shutdown tab is
+ * **It decides nothing.** Why Load a railroad or Shutdown is
  * refused, and what a point gap, a speed or a silence sends, is `model/settings.ts`, and what is loaded is the row's; the app hands in
  * the row and the power. Whether a name will do is `nameTrouble`'s, as it is for the editor, and
  * a write is refused by the store in its own words (`said`): the dialog shows
@@ -110,9 +110,6 @@ import {
 import { copyRailroad, deleteRailroad, said, saveDrawing } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { settingsStyles } from "./tc-settings.styles.js";
-
-/** What the Throttles and Sensors tabs say beneath their field. */
-const WHATEVER_RAILROAD = html`<p class="hint">This applies whatever railroad is loaded.</p>`;
 
 /** What the dialog says where what a load would discard — the drawing, the
  *  roster or both — could not be saved first; the band and the stock view's
@@ -204,13 +201,13 @@ export class TcSettings extends LitElement {
   /** The press held for a dead track, at most one (`model/settings.ts`). */
   private readonly drain = new Drain();
 
-  /** The tab whose press `drain` holds, `null` while it holds none: that tab
-   *  says "stopping trains…" and its presses are dead. */
+  /** The section whose press `drain` holds, `null` while it holds none:
+   *  that section says "stopping trains…" and its presses are dead. */
   @state() private stopping: "railroad" | "shutdown" | null = null;
 
-  /** The railroad a press on the Railroad tab is for, from the press until
+  /** The railroad a press in Load a railroad is for, from the press until
    *  it has `arrived`, `null` while none is: its row wears the spinner, and
-   *  the tab's presses are dead. */
+   *  the section's presses are dead. */
   @state() private picked: string | null = null;
 
   /** The railroad last asked for that did not arrive within `ANSWER_MS`,
@@ -262,23 +259,28 @@ export class TcSettings extends LitElement {
       <look-dialog open label="Settings" @sl-after-hide=${this.close}>
         <sl-tab-group>
           <sl-tab slot="nav" panel="railroad" ?active=${!backup}>Railroad</sl-tab>
-          <sl-tab slot="nav" panel="points">Points</sl-tab>
-          <sl-tab slot="nav" panel="driving">Driving</sl-tab>
-          <sl-tab slot="nav" panel="throttles">Throttles</sl-tab>
-          <sl-tab slot="nav" panel="sensors">Sensors</sl-tab>
+          <sl-tab slot="nav" panel="installation">Installation</sl-tab>
           <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
-          ${this.canTurnOff ? html`<sl-tab slot="nav" panel="shutdown">Shutdown</sl-tab>` : nothing}
-          <sl-tab-panel name="railroad" ?active=${!backup}>${this.railroads()}</sl-tab-panel>
-          <sl-tab-panel name="points"><div class="points">${this.points()}</div></sl-tab-panel>
-          <sl-tab-panel name="driving"><div class="driving">${this.driving()}</div></sl-tab-panel>
-          <sl-tab-panel name="throttles"><div class="throttles">${this.throttles()}</div></sl-tab-panel>
-          <sl-tab-panel name="sensors"><div class="sensors">${this.sensors()}</div></sl-tab-panel>
+          <sl-tab-panel name="railroad" ?active=${!backup}>
+            <h3>Load a railroad</h3>
+            ${this.railroads()}
+            <h3>Points</h3>
+            <div class="points">${this.points()}</div>
+            <h3>Driving</h3>
+            <div class="driving">${this.driving()}</div>
+          </sl-tab-panel>
+          <sl-tab-panel name="installation">
+            <p class="hint">This applies whatever railroad is loaded.</p>
+            <h3>Throttles</h3>
+            <div class="throttles">${this.throttles()}</div>
+            <h3>Sensors</h3>
+            <div class="sensors">${this.sensors()}</div>
+            ${this.canTurnOff
+              ? html`<h3>Shutdown</h3>
+                  <div class="shutdown">${this.shutdown()}</div>`
+              : nothing}
+          </sl-tab-panel>
           <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
-          ${this.canTurnOff
-            ? html`<sl-tab-panel name="shutdown">
-                <div class="shutdown">${this.shutdown()}</div>
-              </sl-tab-panel>`
-            : nothing}
         </sl-tab-group>
         <sl-button slot="footer" @click=${this.close}>Close</sl-button>
       </look-dialog>
@@ -287,7 +289,7 @@ export class TcSettings extends LitElement {
 
   /**
    * One button per railroad, the loaded one ticked, and beneath them the name
-   * field with New and Copy loaded as…. Where the tab is refused the list
+   * field with New and Copy loaded as…. Where the section is refused the list
    * and both presses are dead and say why once beneath the list, because a
    * list that is dead and silent reads as an app that is broken; Copy alone
    * is dead with nothing loaded, and says so under the presses. A press on
@@ -378,7 +380,7 @@ export class TcSettings extends LitElement {
     `;
   }
 
-  /** The Points tab: the point gap, `0` being no wait (#1128). */
+  /** The Points section: the point gap, `0` being no wait (#1128). */
   private points() {
     return this.setting(
       ["gap"],
@@ -386,7 +388,7 @@ export class TcSettings extends LitElement {
     );
   }
 
-  /** The Driving tab (#1134): the speeds at clear and at caution, in percent
+  /** The Driving section (#1134): the speeds at clear and at caution, in percent
    *  of the locomotive's top speed. */
   private driving() {
     return this.setting(
@@ -395,24 +397,22 @@ export class TcSettings extends LitElement {
     );
   }
 
-  /** The Throttles tab (#1134, #1142): how long a throttle holding trains
-   *  may go silent before `layout` lets go of them. The installation's, so
-   *  it says it holds whatever railroad is loaded. */
+  /** The Throttles section (#1134, #1142): how long a throttle holding
+   *  trains may go silent before `layout` lets go of them. */
   private throttles() {
-    return this.setting(["silence"], WHATEVER_RAILROAD);
+    return this.setting(["silence"], nothing);
   }
 
-  /** The Sensors tab (#1149, #1192): how long a sensor may go unheard, and
-   *  how long a move may take to arrive. The installation's, as the throttle
-   *  silence is. */
+  /** The Sensors section (#1149, #1192): how long a sensor may go unheard,
+   *  and how long a move may take to arrive. */
   private sensors() {
-    return this.setting(["sensorSilence", "arrivalAllowance"], WHATEVER_RAILROAD);
+    return this.setting(["sensorSilence", "arrivalAllowance"], nothing);
   }
 
   /**
-   * A setting tab: an input for each of `fields`, drawn from its
-   * `SETTING_FIELDS` entry, then the tab's `hint`. Each input is dead until
-   * the row says its value, the tab saying so beneath; a commit
+   * A setting section: an input for each of `fields`, drawn from its
+   * `SETTING_FIELDS` entry, then the section's `hint`. Each input is dead until
+   * the row says its value, the section saying so beneath; a commit
    * `settingChange` refuses stays in its field, with the reason beneath it.
    */
   private setting(fields: readonly SettingField[], hint: unknown) {
@@ -476,7 +476,7 @@ export class TcSettings extends LitElement {
   }
 
   /** The row of the railroad whose Delete was pressed: what deleting it
-   *  costs, and **Delete** and **Cancel**, the question the Shutdown tab
+   *  costs, and **Delete** and **Cancel**, the question the Shutdown section
    *  asks before it turns the box off. */
   private deletingRow(name: string) {
     return html`<li class="deleting">
@@ -526,7 +526,7 @@ export class TcSettings extends LitElement {
     );
   }
 
-  /** What a tab says while its press waits for the track to go dead, and the
+  /** What a section says while its press waits for the track to go dead, and the
    *  stop sign beside it: `off` at once, a drain having no time limit. */
   private stoppingTrains() {
     return html`<div class="stopping">
@@ -545,11 +545,11 @@ export class TcSettings extends LitElement {
   }
 
   /**
-   * The Shutdown tab. **Turn the server off…** is dead while the rule refuses or a
+   * The Shutdown section. **Turn the server off…** is dead while the rule refuses or a
    * request is out, with the rule's reason beneath; pressed, it gives way to
    * what turning off costs and **Turn off** and **Cancel**. **Turn off** with
-   * the track live drains it first, and the tab says so with the stop sign
-   * beside it. Once the request is taken the tab says to unplug the box and
+   * the track live drains it first, and the section says so with the stop
+   * sign beside it. Once the request is taken the section says to unplug the box and
    * offers no press.
    */
   private shutdown() {
@@ -704,12 +704,16 @@ export class TcSettings extends LitElement {
     return this.railroad === "" ? null : this.power;
   }
 
-  /** `act` once the track is dead, `tab` saying so until then, and the drain
-   *  asked for where the track has power (`Drain`). */
-  private draining(tab: "railroad" | "shutdown", power: Power | null, act: () => void): void {
+  /** `act` once the track is dead, `section` saying so until then, and the
+   *  drain asked for where the track has power (`Drain`). */
+  private draining(
+    section: "railroad" | "shutdown",
+    power: Power | null,
+    act: () => void,
+  ): void {
     this.drain.abandon();
-    this.stopping = tab;
-    if (tab === "shutdown") this.turning = "stopping";
+    this.stopping = section;
+    if (section === "shutdown") this.turning = "stopping";
     this.acted = false;
     const asked = this.drain.begin(power, () => {
       this.acted = true;
@@ -720,7 +724,7 @@ export class TcSettings extends LitElement {
   }
 
   /** What the dialog draws as waiting, brought in line with `drain`: once it
-   *  acted or gave up, no tab says "stopping trains…". */
+   *  acted or gave up, no section says "stopping trains…". */
   private held(): void {
     if (this.drain.waiting) return;
     if (this.turning === "stopping") this.turning = "idle";
@@ -740,7 +744,7 @@ export class TcSettings extends LitElement {
     this.unanswering();
   }
 
-  /** A press on the Railroad tab for `name`: its row busy from here. */
+  /** A press in Load a railroad for `name`: its row busy from here. */
   private picking(name: string): void {
     this.abandoned();
     this.picked = name;

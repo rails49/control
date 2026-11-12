@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * The Settings dialog's Points tab sets the point gap (#1128): its field
+ * The Settings dialog's Points section sets the point gap (#1128): its field
  * shows `point_gap` off `tc49/layout/state/settings` (#1125), and a commit
  * publishes `tc49/layout/settings_wanted` (#1126). What a commit sends and
  * refuses, and how long a refusal stands, is `model/settings.ts`'s
@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
-import { settingsOpened, settled } from "./support/shell.js";
+import { sections, settingsOpened, settled } from "./support/shell.js";
 import { brokering, joined, said, unbrokered, written } from "./support/session.js";
 
 beforeEach(brokering);
@@ -50,13 +50,10 @@ async function gapped(gap: number): Promise<{ shell: TcApp; dialog: TcSettings }
   return { shell, dialog: await settingsOpened(shell) };
 }
 
-describe("the Points tab", () => {
-  it("comes after Railroad", async () => {
+describe("the Points section", () => {
+  it("comes after Load a railroad, in the Railroad tab", async () => {
     const dialog = await settingsOpened(await joined());
-    const tabs = [...dialog.renderRoot.querySelectorAll("sl-tab")].map((tab) =>
-      tab.textContent!.trim(),
-    );
-    expect(tabs.slice(0, 2)).toEqual(["Railroad", "Points"]);
+    expect(sections(dialog, "railroad").slice(0, 2)).toEqual(["Load a railroad", "Points"]);
   });
 
   it("shows the point gap state/settings says", async () => {
