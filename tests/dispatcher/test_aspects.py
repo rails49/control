@@ -485,11 +485,11 @@ def test_a_trace_line_keeps_the_inventory_field_order() -> None:
     ]
 
 
-def test_a_block_its_own_cars_still_hold_is_not_locked_ahead() -> None:
-    """`t1` is recorded in yard_w before dn_e reads clear, so it still holds
-    dn_e for its own cars. Sent back to dn_e by up_w, it is granted up_w
-    alone: the transit into dn_e is not locked, and dn_e reads occupied. So
-    the move is at `caution` and up_w's exit shows `stop` (#1230)."""
+def test_a_block_the_train_still_occupies_is_not_locked_ahead() -> None:
+    """`t1` is recorded in yard_w before dn_e reads clear, so it still
+    occupies dn_e. Sent back to dn_e by up_w, it is granted up_w alone: the
+    transit into dn_e is not locked, and dn_e reads occupied. So the move is
+    at `caution` and up_w's exit shows `stop` (#1230)."""
     assembly = back_to_dn_e()
 
     last = events(assembly.trace, "move_granted")[-1]
@@ -497,10 +497,9 @@ def test_a_block_its_own_cars_still_hold_is_not_locked_ahead() -> None:
     assert proceed(assembly) == {"yard_w.B": "caution"}
 
 
-def test_a_block_its_own_cars_held_stays_locked_once_it_is_entered() -> None:
-    """dn_e reads clear and `t1` is granted the move into it. The lock it held
-    for its cars is now the block ahead, so the tail leaving up_w does not
-    release it (#1230)."""
+def test_a_block_the_train_occupied_stays_locked_once_it_is_granted_into_it() -> None:
+    """dn_e reads clear and `t1` is granted the move into it, so the tail
+    leaving up_w does not release dn_e (#1230)."""
     assembly = back_to_dn_e()
     ticks(assembly, 1)
     press(assembly, *settled("up_w.A"))
@@ -509,6 +508,16 @@ def test_a_block_its_own_cars_held_stays_locked_once_it_is_entered() -> None:
     assert events(assembly.trace, "move_granted")[-1]["into"] == "dn_e"
     assert assembly.dispatcher.state.locks.get("dn_e") == "t1"
     assert broken(assembly.dispatcher.state) == []
+
+
+def test_a_block_the_train_occupies_and_was_not_granted_into_is_released() -> None:
+    """dn_e still reads occupied, so `t1` is granted up_w and not dn_e. The
+    tail leaving yard_w releases dn_e with the rest behind it (#1230)."""
+    assembly = back_to_dn_e()
+    press(assembly, *settled("up_w.A"))
+    press(assembly, *settled("up_w.A", False))
+
+    assert "dn_e" not in assembly.dispatcher.state.locks
 
 
 def back_to_dn_e() -> Assembly:

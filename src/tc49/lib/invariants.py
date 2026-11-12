@@ -218,6 +218,11 @@ def _crossing(view: View) -> dict[str, str]:
     return kept.crossing if kept is not None else {}
 
 
+def _occupied(view: View) -> dict[str, tuple[str, ...]]:
+    kept = kept_allocation(view.rows.get(ALLOCATION))
+    return kept.occupied if kept is not None else {}
+
+
 def _locks(view: View) -> dict[str, str]:
     """The allocation's lock table, resource to holder, an entry at a time as
     `kept_allocation` reads its two maps."""
@@ -534,20 +539,19 @@ def adr_0029_block_with_its_transit(view: View) -> list[str]:
     """A block held ahead of a train is held together with the transit that
     leads into it
     ([ADR-0029](../../../docs/adr/0029-a-lock-held-ahead-is-a-block-the-check-must-see.md)).
-    A block on the train's `occupied` list is held for its own cars, not
-    ahead of it (#1230)."""
+    A block on the train's `occupied` list is one it occupies, not one it
+    holds ahead (#1230)."""
     locks = _locks(view)
-    kept = kept_allocation(view.rows.get(ALLOCATION))
-    occupied = kept.occupied if kept is not None else {}
+    occupied = _occupied(view)
     lines: list[str] = []
     for journey in _journeys(view):
-        cars = occupied.get(journey.train, ())
+        occupies = occupied.get(journey.train, ())
         for i in range(journey.standing + 1, len(journey.blocks)):
             block, transit = journey.blocks[i], journey.transits[i - 1]
             if (
                 locks.get(block) == journey.train
                 and locks.get(transit) != journey.train
-                and block not in cars
+                and block not in occupies
             ):
                 lines.append(f"{journey.train} holds {block} ahead without {transit}")
     return lines

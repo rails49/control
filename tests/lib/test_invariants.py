@@ -533,19 +533,19 @@ AHEAD_ONE = {k: v for k, v in AHEAD_TWO.items() if k != "west_switch.to_up"}
 """One ahead, and loop_up locked without the transit into it."""
 
 
-def test_a_block_its_own_cars_hold_is_not_held_ahead() -> None:
+def test_a_block_the_train_occupies_is_not_held_ahead() -> None:
     """loop_up is on t1's route and locked to it without the transit into it.
-    On its `occupied` list that lock is its own cars, not a lock ahead
+    On its `occupied` list it is a block t1 occupies, not one it holds ahead
     (#1230)."""
     locked = started(AHEAD_ONE)
-    cars = {
+    occupies = {
         ALLOCATION: {
             **locked[ALLOCATION],
             "occupied": {"t1": ["west_1", "loop_up"]},
         }
     }
 
-    assert adr_0029_block_with_its_transit(view(MEET, cars)) == []
+    assert adr_0029_block_with_its_transit(view(MEET, occupies)) == []
     assert adr_0029_block_with_its_transit(view(MEET, locked))
 
 
