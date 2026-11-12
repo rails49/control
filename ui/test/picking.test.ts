@@ -30,6 +30,7 @@
 import type { LookView } from "@rails49/look";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Drawing } from "../src/model/drawing.js";
 import { ANSWER_MS } from "../src/model/settings.js";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
@@ -621,10 +622,79 @@ describe("New railroad", () => {
 
     await made(shell, "new", "b");
 
-    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/b"]);
+    expect(store.saved).toEqual([
+      { path: "/drawings/b", body: { drawing: "b", symbols: {}, wires: [] } },
+    ]);
     expect(written()).toEqual([
       { topic: RAILROAD_WANTED, payload: { railroad: "b" } },
     ]);
+  });
+});
+
+/**
+ * A drawing made with no railroad loaded has no railroad to be saved into
+ * (#1225). New writes it under the name typed instead of an empty one, so the
+ * drawing becomes the new railroad's, and a pick is refused, since loading
+ * another railroad would throw the drawing away.
+ */
+describe("a drawing made with no railroad loaded", () => {
+  async function stranded(): Promise<TcApp> {
+    const shell = await mounted("edit");
+    await loads(shell, "");
+    session(shell).place("block", [8, 0]);
+    edited(shell);
+    await settled(shell);
+    return shell;
+  }
+
+  it("is what New writes under the name, which is then asked for", async () => {
+    const shell = await stranded();
+
+    const dialog = await made(shell, "new", "b");
+
+    expect(wrong(dialog)).toBeNull();
+    expect(store.saved).toHaveLength(1);
+    const [{ path, body }] = store.saved;
+    expect(path).toBe("/drawings/b");
+    expect((body as { drawing: string }).drawing).toBe("b");
+    expect(Object.keys((body as { symbols: object }).symbols)).toHaveLength(1);
+    expect(written()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "b" } },
+    ]);
+  });
+
+  it("is on the page once the row names the new railroad, and reads as saved", async () => {
+    const shell = await stranded();
+    // The store reads back what it was given.
+    store.read = (name) =>
+      store.saved.find(({ path }) => path === `/drawings/${name}`)!
+        .body as Drawing;
+    await made(shell, "new", "b");
+
+    await loads(shell, "b");
+
+    expect(loaded(shell)).toBe("b");
+    expect(band(shell).querySelector("look-about")!.detail).toBe("");
+    expect(Object.keys(session(shell).drawing.symbols)).toHaveLength(1);
+  });
+  it("refuses a pick, says why, and leaves New live", async () => {
+    const shell = await stranded();
+
+    const dialog = await pick(shell, "otira");
+    await named(shell, dialog, "b");
+
+    expect(written()).toEqual([]);
+    expect(refused(dialog)).toBe(
+      "the drawing has no railroad — press New to keep it",
+    );
+    expect(
+      [
+        ...dialog.renderRoot.querySelectorAll<HTMLButtonElement>(
+          "ul.railroads li button:not(.delete)",
+        ),
+      ].every((one) => one.disabled),
+    ).toBe(true);
+    expect(making(dialog, "new").disabled).toBe(false);
   });
 });
 

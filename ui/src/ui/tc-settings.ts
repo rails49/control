@@ -18,7 +18,8 @@
  * the spinner stops and the row says the layout did not answer. Beneath the list a name
  * and two presses make a railroad (decision 3): **New** writes an empty
  * drawing under the name — no roster and no script, a railroad with neither
- * being an ordinary one — and **Copy loaded as…** has the store copy every
+ * being an ordinary one; with no railroad loaded and edits on the page, it
+ * writes that drawing instead, and a pick is refused (#1225) — and **Copy loaded as…** has the store copy every
  * document of the loaded railroad under it (#729); each then asks for what
  * it wrote, the same way a press on the list does. A row's **Delete** has
  * the store delete that railroad whole (#1074), asking once more in the row
@@ -84,7 +85,7 @@ import "@shoelace-style/shoelace/dist/components/tab/tab.js";
 import "@shoelace-style/shoelace/dist/components/tab-group/tab-group.js";
 import "@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js";
 
-import { emptyDrawing, nameTrouble } from "../model/drawing.js";
+import { emptyDrawing, nameTrouble, type Drawing } from "../model/drawing.js";
 import { canTurnOff, turnOff } from "../model/box.js";
 import {
   ANSWER_MS,
@@ -93,6 +94,7 @@ import {
   committed,
   copyRefusal,
   Drain,
+  pickRefusal,
   refusal,
   reheard,
   SETTING_FIELDS,
@@ -144,6 +146,11 @@ export class TcSettings extends LitElement {
    *  is, nothing is loaded and nothing written (ADR-0085, decision 1). */
   @property({ attribute: false }) saving: () => Promise<boolean> = () =>
     Promise.resolve(true);
+
+  /** The drawing the page holds where no railroad is loaded and it has
+   *  edits, `null` otherwise. It has no railroad to be saved into, so New
+   *  writes it under the name typed instead of an empty drawing (#1225). */
+  @property({ attribute: false }) stranded: Drawing | null = null;
 
   /** The drawing the page holds, `Filing.opened`'s, `""` while none is. */
   @property({ attribute: false }) opened = "";
@@ -292,6 +299,7 @@ export class TcSettings extends LitElement {
    */
   private railroads() {
     const refused = refusal(this.railroad, this.power, this.unsaved);
+    const pickRefused = pickRefusal(this.railroad, this.power, this.unsaved, this.stranded !== null);
     const copyRefused = copyRefusal(this.railroad, this.power, this.unsaved);
     const unnamed = this.name.trim() === "";
     const stopping = this.stopping === "railroad";
@@ -307,7 +315,7 @@ export class TcSettings extends LitElement {
                 <li>
                   <button
                     class=${one === this.railroad ? "loaded" : ""}
-                    ?disabled=${refused !== null || busy}
+                    ?disabled=${pickRefused !== null || busy}
                     @click=${() => void this.wanting(one)}
                   >
                     <span class="tick">${one === this.railroad ? "✓" : ""}</span>
@@ -333,7 +341,7 @@ export class TcSettings extends LitElement {
               `,
             )}
           </ul>`}
-      ${refused === null ? nothing : html`<p class="hint refused">${refused}</p>`}
+      ${pickRefused === null ? nothing : html`<p class="hint refused">${pickRefused}</p>`}
       ${stopping ? this.stoppingTrains() : nothing}
       <div class="making">
         <sl-input
@@ -350,7 +358,7 @@ export class TcSettings extends LitElement {
           class="new"
           size="small"
           ?disabled=${refused !== null || unnamed || this.writing || busy}
-          @click=${() => this.making(refused, (name) => saveDrawing(emptyDrawing(name)))}
+          @click=${() => this.making(refused, (name) => saveDrawing(this.drawn(name)))}
         >
           New
         </sl-button>
@@ -611,7 +619,9 @@ export class TcSettings extends LitElement {
    *  save waiting on power `off` (ADR-0085, decision 1). */
   private wanting(name: string): void {
     if (name === this.railroad || this.picked !== null) return;
-    if (refusal(this.railroad, this.power, this.unsaved) !== null) return;
+    if (pickRefusal(this.railroad, this.power, this.unsaved, this.stranded !== null) !== null) {
+      return;
+    }
     this.picking(name);
     this.draining("railroad", this.supply, () => void this.loading(name));
   }
@@ -651,12 +661,19 @@ export class TcSettings extends LitElement {
     this.draining("railroad", this.supply, () => void this.writingAs(name, write));
   }
 
+  /** What New writes under `name`: the stranded drawing where there is
+   *  one, an empty one otherwise. */
+  private drawn(name: string): Drawing {
+    return this.stranded === null ? emptyDrawing(name) : { ...this.stranded, drawing: name };
+  }
+
   /** The track is dead: the drawing saved, `write` made under `name`, and
-   *  what it wrote asked for. */
+   *  what it wrote asked for. A stranded drawing has nowhere to be saved
+   *  first: New writes it. */
   private async writingAs(name: string, write: (name: string) => Promise<void>): Promise<void> {
     this.writing = true;
     try {
-      if (!(await this.saving())) {
+      if (this.stranded === null && !(await this.saving())) {
         this.wrong = UNSAVED;
         this.picked = null;
         return;
