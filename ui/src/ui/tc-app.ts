@@ -57,6 +57,7 @@ import {
   RAIL,
   backupWords,
   frozen,
+  owed,
   stranded,
   asked,
   driving,
@@ -627,7 +628,10 @@ export class TcApp extends LitElement {
   private supplying(press: PowerState): void {
     const wanted = asked(press);
     if (wanted === "on" && !this.status.built) return;
-    const saving = wanted === "on" ? this.railroad.beforeOn(this.status.power, this.heard) : null;
+    const saving =
+      wanted === "on"
+        ? this.railroad.beforeOn(this.status.power, this.heard, owed(this.standing))
+        : null;
     if (saving === null) {
       this.session?.pressPower(wanted);
       return;

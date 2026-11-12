@@ -98,9 +98,9 @@ export class Railroad {
   private writing: { stock: Stock; landing: Promise<Landing> } | null = null;
   /** How many roster saves have landed, so the stock view can say *Saved*. */
   private kept = 0;
-  /** The railroad a save landing during `beforeOn` named, held to be named
-   *  once when it ends; `null` outside one. */
-  private deferred: string[] | null = null;
+  /** Whether a save landing during `beforeOn` named the loaded railroad,
+   *  held to be named once when it ends; `null` outside one. */
+  private deferred: boolean | null = null;
   /** The drawing's save in flight, `null` while none is. */
   private drawing: Promise<boolean> | null = null;
   /** The reads the store did not answer, to be made again. */
@@ -157,14 +157,19 @@ export class Railroad {
 
   /**
    * Whether the roster holds edits that could not be saved, which the band
-   * marks *unsaved* (#1233): the last save did not land or was refused, or a
-   * length edit waits on power (`Stock.waitsForPower`). Edits a leave would
-   * save say nothing, as the drawing's do (`stranded`, model/commands.ts).
+   * marks *unsaved* (#1233): the last save did not land, a save would be
+   * refused (`Stock.stopsSaving`), or a length edit waits on power
+   * (`Stock.waitsForPower`). Edits a leave would save say nothing, as the
+   * drawing's do (`stranded`, model/commands.ts).
    */
   stranded(power: Power | null, heard: boolean): boolean {
     const stock = this.held;
     if (stock === null || !stock.edits) return false;
-    return this.stockWrong !== null || stock.waitsForPower(power, heard) !== null;
+    return (
+      this.stockWrong !== null ||
+      stock.stopsSaving() !== null ||
+      stock.waitsForPower(power, heard) !== null
+    );
   }
 
   /** What changing the railroad would discard — the drawing, the roster, or
@@ -326,30 +331,30 @@ export class Railroad {
 
   /**
    * What ON saves first, `null` where nothing is owed (ADR-0085, decision 2;
-   * #1233): the drawing where a save is owed (`saveDrawing`), and the roster
-   * where it holds edits that are not waiting on power. Both are written
+   * #1233): the drawing where `drawing` says a save is owed (`owed`,
+   * model/commands.ts), and the roster where it holds edits that are not
+   * waiting on power. Both are written
    * together, and the railroad is named again once, after both have
    * answered, so the power comes on over one build of both. It answers
    * `named` where either named the railroad and neither failed, `landed`
    * where all that was owed landed and named nothing, and `null` where one
    * did not land — what `pressOnSaved` (model/session.ts) waits on.
    */
-  beforeOn(power: Power | null, heard: boolean): Promise<Landing> | null {
-    const drawing = this.owesDrawing(power);
+  beforeOn(power: Power | null, heard: boolean, drawing: boolean): Promise<Landing> | null {
     const stock = this.held;
     const roster =
       stock !== null && stock.edits && stock.waitsForPower(power, heard) === null;
     if (!drawing && !roster) return null;
     const owner = this.deferred === null;
-    if (owner) this.deferred = [];
+    if (owner) this.deferred = false;
     return Promise.all([
       drawing ? this.saveDrawing(power).then((named) => (named ? "named" : null)) : "landed",
       roster ? this.save(power, heard) : "landed",
     ]).then((both) => {
       if (owner) {
-        const named = this.deferred ?? [];
+        const named = this.deferred === true;
         this.deferred = null;
-        if (named.includes(this.last)) this.naming(this.last);
+        if (named) this.naming(this.last);
       }
       if (both.includes(null)) return null;
       return both.includes("named") ? "named" : "landed";
@@ -369,8 +374,9 @@ export class Railroad {
    */
   saveDrawing(power: Power | null, leaving = false): Promise<boolean> {
     if (this.drawing !== null) return this.drawing;
-    if (!this.owesDrawing(power)) return Promise.resolve(false);
-    const railroad = this.last;
+    const railroad = this.filing.opened;
+    if (railroad === "" || railroad !== this.last) return Promise.resolve(false);
+    if (this.filing.saved || power !== "off") return Promise.resolve(false);
     const turn = this.turn;
     this.drawing = this.filing
       .save(this.editor(), leaving)
@@ -389,15 +395,7 @@ export class Railroad {
    *  the other save. */
   private nameAgain(railroad: string): void {
     if (this.deferred === null) this.naming(railroad);
-    else this.deferred.push(railroad);
-  }
-
-  /** Whether a save of the drawing is owed: the drawing open is the loaded
-   *  railroad's, it holds edits, and `power` is `off`. */
-  private owesDrawing(power: Power | null): boolean {
-    const railroad = this.filing.opened;
-    if (railroad === "" || railroad !== this.last) return false;
-    return !this.filing.saved && power === "off";
+    else if (railroad === this.last) this.deferred = true;
   }
 
   /** One of the three reads, for the railroad last named. */
