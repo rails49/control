@@ -206,7 +206,6 @@ and the two presses are dead and say why once beneath the list
 | --- | --- |
 | the layout has not said which railroad is loaded | `the layout has not said which railroad is loaded` |
 | a railroad is loaded and the layout has not said whether the track has power | `the layout has not said whether the track has power` |
-| the roster has unsaved edits | `the roster has unsaved edits — save first` |
 | no railroad is loaded and the page holds edits (the list only; New stays live) | `the drawing has no railroad — press New to keep it` |
 
 **An invalid railroad can be picked**
@@ -236,9 +235,10 @@ not asked and a new box loads its first railroad here
 (`Drain` in `model/settings.ts`). *Turn off* on the Shutdown tab and *Restore*
 on the Backup tab wait the same way.
 
-The band reads *unsaved* beside the name only where the drawing holds edits
-that could not be saved: power came on from elsewhere while this page had
-edits, or the save failed ([Files](#files)). Edits the editor will save when
+The band reads *unsaved* beside the name only where the drawing or the
+roster holds edits that could not be saved: power came on from elsewhere while
+this page had edits, the save failed ([Files](#files)), or the roster's save
+was refused or waits on power ([STOCK.md](STOCK.md#when-it-saves), #1233). Edits the editor will save when
 it is left say nothing; there is no Save button to read them off
 ([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
 
@@ -1118,8 +1118,9 @@ written, where it has edits and track power reads `off`:
 - before ON, which then waits for the build
   ([Track power freezes the drawing](#track-power-freezes-the-drawing));
 - before a railroad is picked, or made with New or Copy loaded as…, in the
-  settings dialog, which then loads. A save that does not land loads
-  nothing, and the dialog says so. With no railroad loaded there is nothing
+  settings dialog, which then loads. The roster is saved there too
+  ([STOCK.md](STOCK.md#when-it-saves), #1233). A save that does not land
+  loads nothing, and the dialog says which document could not be saved. With no railroad loaded there is nothing
   to save into: New writes the drawing as the new railroad's, and a pick is
   refused (#1225).
 
@@ -1134,10 +1135,10 @@ memory, and runs back across saves.
 **Nothing asks before edits are thrown away, because no gesture of a person's
 throws them away.** The railroad arrives on the bus as a fact the layout
 interface reports (#371), and the row moving over unsaved edits is a load
-somebody asked for elsewhere. The settings dialog saves the drawing before a
-load it asks for, and refuses one while the roster the stock view is
-composing is unsaved ([#415](https://github.com/rails49/control/issues/415),
-#733). A restore is refused over either document, in words naming which, *the
+somebody asked for elsewhere. The settings dialog saves the drawing and the
+roster before a load it asks for; it used to refuse one while the roster was
+unsaved ([#415](https://github.com/rails49/control/issues/415), #733, #1233).
+A restore is refused over either document, in words naming which, *the
 drawing*, *the roster* or *the drawing and the roster* (#703). The only
 drawing open is one the store gave, so there is nothing unsaved that is not
 an edit, and a drawing that arrived needing staging counts, because it has
