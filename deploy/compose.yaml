@@ -6,13 +6,17 @@
 # file: being reachable stopped being a railroad's business (#557).
 #
 #   docker compose --env-file /etc/rails49/box.env \
-#     --env-file /etc/rails49/control.env -f deploy/compose.yaml up -d
+#     --env-file /etc/rails49/control.env -f deploy/compose.yaml \
+#     -f deploy/compose.https.yaml up -d
 #
-# Two files, both the box's and neither in this clone. The first is the box's
-# declaration of itself, which every stack on the box is started against, so
-# that two stacks cannot come to different answers about the box's name. The
+# Two env files, both the box's and neither in this clone. The first is the
+# box's declaration of itself, which every stack on the box is started against,
+# so that two stacks cannot come to different answers about the box's name. The
 # second is this stack's own settings — which railroad it comes up on and
 # where its store is. `scripts/deploy.sh` is that command run over ssh.
+#
+# `compose.https.yaml` holds the routers that need the box's name, on the
+# door's `websecure` entry point. A box with no name leaves it out (#1243).
 #
 # The name in every label comes from the declaration by compose substitution —
 # no template is rendered and no file is copied — so a box is named in one
@@ -57,12 +61,13 @@ services:
   # port, including this one, where the image exposes 80 and nothing else. The
   # door would pick that port itself; a reader would have to know it does.
   #
-  # Each router on `websecure` has a second one, named with `-port`, on the
-  # door's entry point `control`: this UI's port, 8081, over plain HTTP, on
-  # every box (rails49/installation#53). Same service, middlewares and
-  # priority; the rule without `Host(...)`, since a box with no certificate has
-  # no name to match. On such a box the `websecure` routers name an entry point
-  # that does not exist, and the door drops them and serves the rest.
+  # The routers here are the `-port` ones, on the door's entry point
+  # `control`: this UI's port, 8081, over plain HTTP, on every box
+  # (rails49/installation#53). Each has a second router on `websecure`, named
+  # without `-port`, in `compose.https.yaml`, which a box loads only when it
+  # has a name (#1243). Same service, middlewares and priority; the rule here
+  # is without `Host(...)`, since a box with no certificate has no name to
+  # match.
   web:
     build:
       context: ..
@@ -76,11 +81,6 @@ services:
       - traefik.enable=true
       - traefik.docker.network=rails49
       - traefik.http.services.tc49-app.loadbalancer.server.port=80
-      - traefik.http.routers.tc49-app.rule=Host(`control.${BOX_DOMAIN}`)
-      - traefik.http.routers.tc49-app.priority=1
-      - traefik.http.routers.tc49-app.entrypoints=websecure
-      - traefik.http.routers.tc49-app.service=tc49-app
-      - traefik.http.routers.tc49-app.tls.certresolver=le
       - traefik.http.routers.tc49-app-port.rule=PathPrefix(`/`)
       - traefik.http.routers.tc49-app-port.priority=1
       - traefik.http.routers.tc49-app-port.entrypoints=control
@@ -116,12 +116,6 @@ services:
       - traefik.enable=true
       - traefik.docker.network=rails49
       - traefik.http.services.tc49-mqtt.loadbalancer.server.port=9001
-      - traefik.http.routers.tc49-mqtt.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/mqtt`)
-      - traefik.http.routers.tc49-mqtt.priority=2
-      - traefik.http.routers.tc49-mqtt.entrypoints=websecure
-      - traefik.http.routers.tc49-mqtt.service=tc49-mqtt
-      - traefik.http.routers.tc49-mqtt.middlewares=same-origin@docker,tc49-mqtt-strip
-      - traefik.http.routers.tc49-mqtt.tls.certresolver=le
       - traefik.http.middlewares.tc49-mqtt-strip.stripprefix.prefixes=/mqtt
       - traefik.http.routers.tc49-mqtt-port.rule=PathPrefix(`/mqtt`)
       - traefik.http.routers.tc49-mqtt-port.priority=2
@@ -208,11 +202,6 @@ services:
       - traefik.enable=true
       - traefik.docker.network=rails49
       - traefik.http.services.tc49-store.loadbalancer.server.port=8765
-      - traefik.http.routers.tc49-store.rule=Host(`control.${BOX_DOMAIN}`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`) || PathPrefix(`/railroads`))
-      - traefik.http.routers.tc49-store.priority=2
-      - traefik.http.routers.tc49-store.entrypoints=websecure
-      - traefik.http.routers.tc49-store.service=tc49-store
-      - traefik.http.routers.tc49-store.tls.certresolver=le
       - traefik.http.routers.tc49-store-port.rule=(PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`) || PathPrefix(`/railroads`))
       - traefik.http.routers.tc49-store-port.priority=2
       - traefik.http.routers.tc49-store-port.entrypoints=control
@@ -349,11 +338,6 @@ services:
       - traefik.enable=true
       - traefik.docker.network=rails49
       - traefik.http.services.tc49-camera.loadbalancer.server.port=8767
-      - traefik.http.routers.tc49-camera.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/picture`)
-      - traefik.http.routers.tc49-camera.priority=2
-      - traefik.http.routers.tc49-camera.entrypoints=websecure
-      - traefik.http.routers.tc49-camera.service=tc49-camera
-      - traefik.http.routers.tc49-camera.tls.certresolver=le
       - traefik.http.routers.tc49-camera-port.rule=PathPrefix(`/picture`)
       - traefik.http.routers.tc49-camera-port.priority=2
       - traefik.http.routers.tc49-camera-port.entrypoints=control

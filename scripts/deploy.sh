@@ -115,7 +115,10 @@ export TC49_UID TC49_GID
 # stack used to start. JMRI is another again: an operator's tool with a compose
 # project of its own, started once by hand from the installation's checkout
 # (rails49/installation ADR-0002).
+# `compose.https.yaml` adds the routers on the door's `websecure` entry point,
+# which need the box's name (#1243).
 docker compose --env-file "$BOX_ENV" --env-file "$CONTROL_ENV" \
-  -f deploy/compose.yaml --profile layout --profile steel \
+  -f deploy/compose.yaml -f deploy/compose.https.yaml \
+  --profile layout --profile steel \
   up -d --build --remove-orphans
 REMOTE

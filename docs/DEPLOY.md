@@ -171,9 +171,14 @@ export CONTROL_COMMIT=$(git rev-parse HEAD)
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/control.env \
-  -f deploy/compose.yaml --profile layout --profile steel \
+  -f deploy/compose.yaml -f deploy/compose.https.yaml \
+  --profile layout --profile steel \
   up -d --build --remove-orphans
 ```
+
+`deploy/compose.https.yaml` holds the routers on the door's `websecure`
+entry point, which need the box's name. On a box with an empty `BOX_DOMAIN`,
+leave it out ([below](#what-the-containers-declare)).
 
 `scripts/deploy.sh` is that sequence, run over ssh from a development machine.
 It stops on a tree that is not clean.
@@ -372,7 +377,8 @@ docker compose --env-file /etc/rails49/box.env \
   --env-file /etc/rails49/control.env -f deploy/compose.yaml rm -sf store
 docker volume rm deploy_keys
 docker compose --env-file /etc/rails49/box.env \
-  --env-file /etc/rails49/control.env -f deploy/compose.yaml up -d --no-deps store
+  --env-file /etc/rails49/control.env -f deploy/compose.yaml \
+  -f deploy/compose.https.yaml up -d --no-deps store
 ```
 
 The store makes itself a new key on the next `Settings ▸ Backup`, in a volume
@@ -519,9 +525,11 @@ started against that one file, so this UI is at `control.$BOX_DOMAIN` and
 naming a box is editing a file on the box rather than forking this repository.
 No template is rendered and no file is copied — compose substitutes it. A box
 with no declaration yet is refused, and compose says which variable is
-missing. A box with no certificate declares `BOX_DOMAIN` empty: its
-`websecure` routers then name an entry point the door does not open, the door
-logs an error for each and drops it, and the UI port routers serve the UI.
+missing. A box with no certificate declares `BOX_DOMAIN` empty and has no
+`websecure` entry point or `le` resolver, so the routers on them sit in
+`deploy/compose.https.yaml`, which only a box with a name loads on top of
+`deploy/compose.yaml` ([#1243](https://github.com/rails49/control/issues/1243)).
+Without that file the UI port routers serve the UI.
 
 **Each router states its priority.** Traefik's default is the rule's length,
 which was legible while every rule sat in one file and is not now that they

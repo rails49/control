@@ -20,6 +20,11 @@ and the site variable are gone, and there is no second table anywhere to
 disagree with these labels. Why each rule is written the way it is sits where
 the rules are, in `deploy/compose.yaml` and `docs/DEPLOY.md`, and is not
 repeated here.
+
+The routers on `websecure` need the box's name, and sit in
+`deploy/compose.https.yaml`, which a box loads on top of `deploy/compose.yaml`
+only when it has one (#1243). The routers here are read as compose merges the
+two files.
 """
 
 import re
@@ -56,6 +61,9 @@ HOST = f"Host(`{UI_LABEL}.${{BOX_DOMAIN}}`)"
 out of `/etc/rails49/box.env`, so no template is rendered and no file is
 copied."""
 
+HTTPS = COMPOSE.with_name("compose.https.yaml")
+"""The routers on `websecure`, which a box with no name leaves out (#1243)."""
+
 WRITTEN_OUT = "rails49.org"
 """The zone the deleted route file named five times, and the reason naming a
 box was forking this repository. No rule here may spell it."""
@@ -63,6 +71,12 @@ box was forking this repository. No rule here may spell it."""
 
 def document() -> dict[str, Any]:
     return cast(dict[str, Any], yaml.safe_load(COMPOSE.read_text()))
+
+
+def https() -> dict[str, dict[str, Any]]:
+    """The services `compose.https.yaml` adds labels to, by name."""
+    said = cast(dict[str, Any], yaml.safe_load(HTTPS.read_text()))
+    return cast(dict[str, dict[str, Any]], said["services"])
 
 
 def stack() -> str:
@@ -77,13 +91,19 @@ def labels(service: dict[str, Any]) -> dict[str, str]:
     return {key: value for key, value in pairs}
 
 
+def merged(name: str) -> dict[str, str]:
+    """A service's labels with `compose.https.yaml`'s on top, as compose
+    merges them: by key."""
+    return labels(services()[name]) | labels(https().get(name, {}))
+
+
 def declared(kind: str) -> dict[str, dict[str, str]]:
     """Every router, middleware or service the labels declare, by name, with
-    its settings — wherever in the file the container carrying it sits."""
+    its settings — wherever in either file the container carrying it sits."""
     pattern = re.compile(rf"^traefik\.http\.{kind}\.([^.]+)\.(.+)$")
     found: dict[str, dict[str, str]] = {}
-    for service in services().values():
-        for key, value in labels(service).items():
+    for name in services():
+        for key, value in merged(name).items():
             said = pattern.match(key)
             if said:
                 found.setdefault(said[1], {})[said[2]] = value
@@ -282,7 +302,7 @@ def test_no_route_file_is_left_beside_the_compose_file() -> None:
     left = sorted(
         str(path.relative_to(where))
         for path in where.rglob("*.yaml")
-        if path.name != COMPOSE.name and "routers" in path.read_text()
+        if path.name not in (COMPOSE.name, HTTPS.name) and "routers" in path.read_text()
     )
     assert not left, f"deploy/{left} is a second route table"
 
@@ -294,6 +314,34 @@ name and the port (rails49/installation#53)."""
 WEBSECURE_ROUTERS = ["app", "store", "mqtt", "camera"]
 """The `websecure` routers. Each has a second router on the UI port, named
 after it with `-port`."""
+
+
+def test_a_box_with_no_name_loads_no_websecure_router() -> None:
+    """`compose.yaml` alone names neither the entry point nor the resolver a
+    box with no name lacks (#1243)."""
+    found = sorted(
+        f"{name}: {key}={value}"
+        for name, service in services().items()
+        for key, value in labels(service).items()
+        if "websecure" in key + value or "certresolver" in key + value
+    )
+    assert not found, f"{found} belong in {HTTPS.name}"
+
+
+def test_the_https_file_holds_only_the_websecure_routers() -> None:
+    """Each label there is one of the `websecure` routers', on a container
+    `compose.yaml` routes; everything both routers of a pair use stays in
+    `compose.yaml`."""
+    assert set(https()) <= REACHED
+    keys = {key for service in https().values() for key in labels(service)}
+    names = {f"{stack()}-{name}" for name in WEBSECURE_ROUTERS}
+    pattern = re.compile(r"^traefik\.http\.routers\.([^.]+)\.")
+    stray = sorted(
+        key for key in keys if not (said := pattern.match(key)) or said[1] not in names
+    )
+    assert not stray, f"{stray} are not a websecure router's"
+    for name in WEBSECURE_ROUTERS:
+        assert router(name)["entrypoints"] == "websecure"
 
 
 @pytest.mark.parametrize("name", WEBSECURE_ROUTERS)

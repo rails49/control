@@ -10,8 +10,8 @@
 # amd64 and an arm64 runner, runs `tests/system/test_images.py` against each,
 # pushes each by digest and joins the two under the commit. An image already
 # pushed for the commit is not rebuilt. The outputs are the full commit and
-# both images' digests. The box files, the compose file and every file it
-# mounts, go up as the artifact `control-box-files`, at the archive's root.
+# both images' digests. The box files, the two compose files and every file
+# they mount, go up as the artifact `control-box-files`, at the archive's root.
 #
 # The caller grants `packages: write`. The workflow runs in the caller's
 # context, so every checkout and every build names this repository.
@@ -86,6 +86,7 @@ jobs:
           name: control-box-files
           path: |
             deploy/compose.yaml
+            deploy/compose.https.yaml
             deploy/mosquitto.conf
 
   build:
