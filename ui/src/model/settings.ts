@@ -95,19 +95,18 @@ export function restoreRefusal(
 
 /**
  * Why a pick from the list is refused, `null` where it is not: everything
- * `refusal` holds, and then a drawing on the page with no railroad loaded
- * (`stranded`). It has no railroad to be saved into, so a load would throw
- * it away; New keeps it (#1225).
+ * `refusal` holds, and then `unfiled`, the page holding edits with no
+ * railroad loaded (#1225).
  */
 export function pickRefusal(
   loaded: string | null,
   power: Power | null,
   unsaved: string | null,
-  stranded: boolean,
+  unfiled: boolean,
 ): string | null {
   const refused = refusal(loaded, power, unsaved);
   if (refused !== null) return refused;
-  if (stranded) return "the drawing has no railroad — press New to keep it";
+  if (unfiled) return "the drawing has no railroad — press New to keep it";
   return null;
 }
 
