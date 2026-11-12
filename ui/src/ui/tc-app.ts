@@ -409,6 +409,7 @@ export class TcApp extends LitElement {
         .power=${this.status.power}
         .unsaved=${this.railroad.stock?.edits ? "the roster" : null}
         .saving=${this.keeping}
+        .stranded=${this.filing.opened === "" && this.filing.edits ? this.editor.drawing : null}
         .opened=${this.filing.opened}
         .built=${this.status.built}
         .allocated=${this.status.allocated}

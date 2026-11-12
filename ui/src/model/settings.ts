@@ -94,6 +94,24 @@ export function restoreRefusal(
 }
 
 /**
+ * Why a pick from the list is refused, `null` where it is not: everything
+ * `refusal` holds, and then a drawing on the page with no railroad loaded
+ * (`stranded`). It has no railroad to be saved into, so a load would throw
+ * it away; New keeps it (#1225).
+ */
+export function pickRefusal(
+  loaded: string | null,
+  power: Power | null,
+  unsaved: string | null,
+  stranded: boolean,
+): string | null {
+  const refused = refusal(loaded, power, unsaved);
+  if (refused !== null) return refused;
+  if (stranded) return "the drawing has no railroad — press New to keep it";
+  return null;
+}
+
+/**
  * Why Copy loaded as… is refused, `null` where it is not: everything
  * `refusal` holds, and then a row naming `""` — nothing is loaded, so there
  * is nothing to copy. The first railroad on a new box is New's, not Copy's.

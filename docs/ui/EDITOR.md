@@ -159,6 +159,15 @@ was written. Both presses are dead while the name is blank and for the list's
 reasons below; Copy is also dead with no railroad loaded, saying
 `no railroad is loaded to copy`, that box's first railroad being New's.
 
+**A drawing made with no railroad loaded is New's** (#1225). The Edit view
+takes edits on a box with nothing loaded, and they have no railroad to be
+saved into: the band reads *unsaved* beside `no railroad loaded`. New then
+writes that drawing under the name instead of an empty one, with no save
+first, and loads it, so the drawing becomes the new railroad's. A pick from
+the list is refused while the drawing is there, since loading another
+railroad would throw it away (table below). With no edits New writes an
+empty drawing as before.
+
 **Deleting a railroad is the Railroad tab's too** (#1074). Every row but two
 ends in a trash press, `Delete <name>`: the loaded railroad has none, the
 steel runs it and it is deleted by loading another first, and nor has the
@@ -198,6 +207,7 @@ and the two presses are dead and say why once beneath the list
 | the layout has not said which railroad is loaded | `the layout has not said which railroad is loaded` |
 | a railroad is loaded and the layout has not said whether the track has power | `the layout has not said whether the track has power` |
 | the roster has unsaved edits | `the roster has unsaved edits — save first` |
+| no railroad is loaded and the page holds edits (the list only; New stays live) | `the drawing has no railroad — press New to keep it` |
 
 **An invalid railroad can be picked**
 ([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
@@ -1109,7 +1119,9 @@ written, where it has edits and track power reads `off`:
   ([Track power freezes the drawing](#track-power-freezes-the-drawing));
 - before a railroad is picked, or made with New or Copy loaded as…, in the
   settings dialog, which then loads. A save that does not land loads
-  nothing, and the dialog says so.
+  nothing, and the dialog says so. With no railroad loaded there is nothing
+  to save into: New writes the drawing as the new railroad's, and a pick is
+  refused (#1225).
 
 A save asked for while one is in flight is that one, so a page hidden and
 then closed writes once. Edits made while power is on or draining, which
