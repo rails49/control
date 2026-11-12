@@ -73,8 +73,8 @@ describe("where the broker is", () => {
    *  mixed content, which the browser refuses outright, so the page would
    *  never connect on the layout server at all (ADR-0042). */
   it("follows the page's own scheme", () => {
-    expect(brokerAt({ protocol: "https:", host: "control.gleis49.org", search: "" })).toBe(
-      "wss://control.gleis49.org/mqtt",
+    expect(brokerAt({ protocol: "https:", host: "control.example.org", search: "" })).toBe(
+      "wss://control.example.org/mqtt",
     );
     expect(brokerAt({ protocol: "http:", host: "localhost:5173", search: "" })).toBe(
       "ws://localhost:5173/mqtt",
@@ -97,7 +97,7 @@ describe("where the broker is", () => {
     expect(
       brokerAt({
         protocol: "https:",
-        host: "control.gleis49.org",
+        host: "control.example.org",
         search: "?broker=ws://127.0.0.1:9001",
       }),
     ).toBe("ws://127.0.0.1:9001");

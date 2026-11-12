@@ -27,13 +27,13 @@ anywhere you would not hand a throttle.
 `/etc/rails49/box.env`, written once when the installation is installed and
 read by every stack on the box:
 
-| variable | what it says | on this box |
+| variable | what it says | for example |
 | --- | --- | --- |
-| `BOX_DOMAIN` | the name the box is reached at, or empty for a box with no certificate | `gleis49.org` |
+| `BOX_DOMAIN` | the name the box is reached at, or empty for a box with no certificate | `example.org` |
 | `BOX_UIS` | the UIs it serves, one label each | `control jmri` |
 | `BOX_ACME_PROVIDER` | the DNS provider that issues its certificates | `cloudflare` |
 
-So this UI is at <https://control.gleis49.org>, and naming a box is editing one
+So this UI is at `https://control.example.org`, and naming a box is editing one
 file on the box rather than forking this repository. Every box, with a
 certificate or without, also serves it on its UI port over plain HTTP
 ([below](#the-ui-port)). An `A` record for the apex and one per label, each
@@ -84,12 +84,13 @@ a box does.
 
 ## The layout server
 
-`gleis49.org` is the layout server. Any machine will do that has Docker with
-compose and git, and takes ssh by key. It needs no node or pnpm: unlike a
-development machine it serves a built UI rather than vite's, and the UI is
-built inside the `control-web` image. Both run the broker. The installation
-is already on it, so the door is up, the certificate is real, and
-`https://control.gleis49.org` answers 404 until this stack is started.
+The layout server is a box such as a 2018 Mac mini, Ubuntu 26.04. Any machine
+will do that has Docker with compose and git, and takes ssh by key. It needs
+no node or pnpm: unlike a development machine it serves a built UI rather than
+vite's, and the UI is built inside the `control-web` image. Both run the
+broker. The installation is already on it, so the door is up, the certificate
+is real, and `https://control.example.org` answers 404 until this stack is
+started.
 
 **The ACME credential cannot come from 1Password here.** `op` unlocks through
 the desktop app and a headless box has none, while the door has to renew a
@@ -100,54 +101,37 @@ rather than editing it in place. It is the installation's file and `control`
 never reads it; `control`'s own `/etc/rails49/control.env` beside it holds no
 secret at all.
 
-**`rails49` is an ssh alias**, and it is a convenience rather than something
-the deploy needs. `scripts/deploy.sh` names `ttmetro@gleis49.org` in
-full, because the alias lives in `~/.ssh/config` — a personal file that
-collects every host its owner has ever reached, is in no repository, and once
-lost the stanza and took the deploy down with it (#488, #496). Nothing that
-runs unattended may depend on a file like that.
-
-What you type by hand is still `ssh rails49`, here and further down the page.
-The stanza sits in `~/.ssh/config` itself and is in no repository at all, which
-is the reason the paragraph above exists rather than an oversight: a machine
-that has never seen it deploys anyway. On one that wants the alias, add it:
+**`rails49` is an ssh alias**, and `scripts/deploy.sh` deploys to it.
+`CONTROL_BOX` names another target: `CONTROL_BOX=<user>@<host>
+scripts/deploy.sh`. The alias lives in `~/.ssh/config`, a personal file in no
+repository, so each developer maps it to their own box and the repository
+names none (#1240). A machine without the stanza deploys only once it adds one
+or sets `CONTROL_BOX` (#488, #496). `ssh rails49` is also what you type by
+hand, here and further down the page:
 
 ```ssh-config
-Host gleis49 rails49
-    HostName gleis49.org
-    User ttmetro
+Host rails49
+    HostName example.org
+    User <user>
 ```
-
-Two names for one box. `gleis49` is what the box is called and is what to
-reach for; `rails49` is the project's name and is what this page and years of
-typing already say, so dropping it would break a line somebody has written
-down.
 
 `HostName` is the DNS name rather than `rails49.local` on purpose: the record
 is independent of what the box calls itself, so renaming the machine cannot cut
-off the deploy. It had to survive exactly that when the host was renamed from
-`blocks49`.
+off the deploy.
 
-The account is named here, on a public page, and what that costs depends on the
-box rather than on this project's design. [ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)
+Who may open a shell on the box depends on the box rather than on this
+project's design. [ADR-0042](adr/0042-the-edge-terminates-tls-and-the-lan-is-the-trust-boundary.md)
 says everyone on the LAN may drive the railroad; it says nothing about who may
 open a shell, which is a separate surface with real authentication. **The box is
 key-only.** `PasswordAuthentication no` sits in
 `/etc/ssh/sshd_config.d/50-cloud-init.conf`, the file the installer had left at
 `yes` ([#497](https://github.com/rails49/control/issues/497)); check it with
-`sudo sshd -T | grep -i passwordauthentication`. A published name is half of a
-login only where a password can complete it, so naming the account costs
-nothing. A new machine gets in by having its public key added to
-`~/.ssh/authorized_keys` on the box; there is no password to fall back on.
+`sudo sshd -T | grep -i passwordauthentication`. A new machine gets in by
+having its public key added to `~/.ssh/authorized_keys` on the box; there is
+no password to fall back on.
 
-**This installation's own deploy facts stay in this repository** — the
-zone, the box, the account — even though
-[#318](https://github.com/rails49/control/issues/318) moved an installation's
-*documents* out to a store of its own. The two are different kinds of thing: a
-railroad, its stock and its decoder addresses are a user's data and drift as
-the layout changes, while this page is how this project's own stack is run.
-Splitting it would leave a general page nobody can follow beside a private one
-nobody reviews.
+**This repository names no box** — the zone is in the box's `box.env`, and
+the box and the account are in each developer's `~/.ssh/config` (#1240).
 
 **The box pulls over HTTPS — `https://github.com/rails49/control.git`.** The
 repository is public, so an anonymous fetch needs no credential: nothing is
@@ -161,9 +145,8 @@ Clone with that URL, and a box that was cloned with another one still deploys:
 replaced when it replaced one. Which remote a box pulls from is state outside
 the checkout — a line in `.git/config` on that one machine — and it took the
 deploy down on 2026-09-20, when the box's ssh remote met a key GitHub no longer
-accepted ([#541](https://github.com/rails49/control/issues/541)). It is the
-same fault as the ssh alias, and gets the same answer: the deploy depends on
-nothing that is not in this checkout.
+accepted ([#541](https://github.com/rails49/control/issues/541)). The deploy
+depends on no remote set on the box.
 
 The deploy carries that line itself rather than calling a script under
 `scripts/`, the way it calls `store-root.sh` below. It runs before the pull,
@@ -283,7 +266,7 @@ name, and what the containers below publish is on the LAN beside it.
 
 | runs on the layout server | port | reached how |
 | --- | --- | --- |
-| the app, over the certificate | the door's 443 | `https://control.gleis49.org` |
+| the app, over the certificate | the door's 443 | `https://control.example.org` |
 | the store's HTTP face | 8765, container-only | `/backup`, `/drawings`, `/review`, `/layouts`, `/rosters`, `/catalogue`, `/railroads` under that name |
 | the broker, native clients | 1883 | the LAN address |
 | the broker, a browser | 9001, container-only | `/mqtt` under that name |
@@ -483,7 +466,7 @@ Most home routers strip private addresses out of answers from upstream DNS —
 DNS rebind protection, and it is the one thing that can break this design. A
 FritzBox has it under **Home Network → Network**, the **Network Settings**
 tab, at the foot of the page behind the **Change Advanced Network Settings**
-button, on its **DNS Rebind Protection** tab, where `gleis49.org` goes
+button, on its **DNS Rebind Protection** tab, where the box's domain goes
 in the exception list. It is one field, it survives a reboot, and it rides
 along in the configuration backup. AVM exposes no API for it, so this is the
 only step here that cannot be scripted.
@@ -647,13 +630,13 @@ Rename the file as [above](#what-the-box-declares) and deploy again.
 **Compose stops on an unset `BOX_DOMAIN`** — it was run without
 `--env-file /etc/rails49/box.env`. The message names the variable it wanted.
 
-**`https://control.gleis49.org` answers 404** — the door is up and this stack
+**`https://control.example.org` answers 404** — the door is up and this stack
 is not, or its containers are not on the shared network. `docker compose
 --env-file /etc/rails49/box.env --env-file /etc/rails49/control.env -f
 deploy/compose.yaml ps` says which.
 
 **The name resolves to nothing, or to `0.0.0.0`** — DNS rebind protection at
-the router, above. `dig control.gleis49.org @1.1.1.1` answers correctly while
+the router, above. `dig control.example.org @1.1.1.1` answers correctly while
 the router does not, which is how to tell this apart from a wrong record.
 
 **No certificate, or the door's log says a challenge failed** — the
