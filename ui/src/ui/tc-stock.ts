@@ -1,7 +1,7 @@
 /**
  * The stock view (ui/STOCK.md), as
  * [stock-mockup.html](../../../docs/ui/images/stock-mockup.html) lays it out:
- * a bar across the top with the one Save, and below it two columns — the list
+ * a bar across the top saying what is unsaved, and below it two columns — the list
  * of trains, cars or models, and the editor of the item chosen in it (#978).
  *
  * The railroad it is editing is not its own: the app holds the loaded railroad
@@ -10,9 +10,10 @@
  * **No session**, like the editor: this is a document view. **It reads no
  * document either**: the roster and the catalogue are the loaded railroad's to
  * read, to read again where the store did not answer, and to drop when the row
- * names another railroad, and the one Save is its too (`model/railroad.ts`,
- * #758). What this sends itself is a model's `DELETE` and a picture asked of
- * the camera (#976, #629).
+ * names another railroad, and saving them is its too, done by the app when
+ * this view is left (`model/railroad.ts`, #758, #1233). What this sends
+ * itself is a model's `DELETE` and a picture asked of the camera (#976,
+ * #629).
  *
  * It works nothing out. Every length, kind and function shown is
  * `model/stock.ts`'s answer, and so is every refusal and every key minted: a
@@ -92,7 +93,7 @@ const KIND: Record<string, string> = {
   special: "Special",
 };
 
-/** How long *Saved* stands in the bar once a Save lands, and how long what
+/** How long *Saved* stands in the bar once a save lands, and how long what
  *  the picker did stands at the foot of the view. */
 const SAVED_MS = 2500;
 const TOLD_MS = 4000;
@@ -129,8 +130,12 @@ export class TcStock extends LitElement {
    *  (`RunStatus.placed`). */
   @property({ attribute: false }) placed: readonly string[] = [];
 
+  /** Whether this is the view on screen: a save that lands while it is
+   *  says *Saved* for a moment. */
+  @property({ attribute: false }) current = false;
+
   /** The run's track power, as the session says (`RunStatus.power`), `null`
-   *  with no session. The length guard and the Save read it (ADR-0071). */
+   *  with no session. The length guard reads it (ADR-0071). */
   @property({ attribute: false }) power: Power | null = null;
 
   /** The railroad the broker's row names (`RunStatus.railroad`), `null` while
@@ -160,18 +165,21 @@ export class TcStock extends LitElement {
   @state() private car: string | null = null;
 
   /** The model chosen, by key; the first there is where it names none. A
-   *  model made here is held under a key Save replaces, and `Stock.keyOf`
+   *  model made here is held under a key the save replaces, and `Stock.keyOf`
    *  finds it under the new one. */
   @state() private model: string | null = null;
 
   /** What an edit was refused with, by this screen before the store had to
    *  see it. What the store said about reading the documents or the last
-   *  Save is the loaded railroad's `stockTrouble`, said in the same place. */
+   *  save is the loaded railroad's `stockTrouble`, said in the same place. */
   @state() private trouble: string | null = null;
 
-  /** Whether *Saved* is standing in the bar: for a moment after a Save
-   *  lands. */
+  /** Whether *Saved* is standing in the bar: for a moment after a save
+   *  lands while this view is current. */
   @state() private landed = false;
+
+  /** `Railroad.landings` as this view last read it. */
+  private landings = 0;
 
   /** The model the camera is being waited on for, `null` where none is. */
   @state() private taking: string | null = null;
@@ -257,6 +265,7 @@ export class TcStock extends LitElement {
   }
 
   override willUpdate(): void {
+    this.heldSaved();
     // The loaded railroad holds other documents — another railroad, or none —
     // so what was chosen and said belongs to the ones that went.
     if (this.stock === this.held) return;
@@ -304,35 +313,22 @@ export class TcStock extends LitElement {
 
   // --- the bar --------------------------------------------------------------
 
-  /** *Stock*, the railroad's name, what is unsaved, and the one Save. */
+  /** *Stock*, the railroad's name, and what is unsaved. There is no Save:
+   *  the app saves when the view is left (#1233). */
   private bar() {
-    const stock = this.stock;
     const said = this.said();
-    const waits = stock?.waitsForPower(this.power, this.heard) ?? null;
     return html`
       <header class="bar">
         <h1>Stock</h1>
         <span class="railroad">${this.railroad?.name ?? ""}</span>
         <span class=${`said ${said.tone}`}>${said.words}</span>
-        <button
-          class="save"
-          title=${waits ?? this.unwritable() ?? nothing}
-          ?disabled=${
-            stock === null ||
-            this.railroad?.saving === true ||
-            !stock.edits ||
-            waits !== null
-          }
-          @click=${this.save}
-        >
-          Save
-        </button>
       </header>
     `;
   }
 
   /** What the bar says, and in which tone: what was refused, why nothing can
-   *  be written, why Save waits, how much is unsaved — or that nothing is. */
+   *  be written, why the save waits, how much is unsaved — or that nothing
+   *  is. */
   private said(): { words: string; tone: string } {
     const stock = this.stock;
     const trouble = this.trouble ?? this.railroad?.stockTrouble ?? null;
@@ -651,7 +647,7 @@ export class TcStock extends LitElement {
    * The model editor, from the top as the mockup draws it: the photo, name,
    * kind, scale, length, notes, the decoder and its functions, and what uses
    * the model with the Delete beside it. Every edit is the document's to
-   * hold and Save's to write; only Delete goes to the store at once.
+   * hold and the save's to write; only Delete goes to the store at once.
    */
   private modelEditor(key: string) {
     const stock = this.stock!;
@@ -765,7 +761,7 @@ export class TcStock extends LitElement {
   /**
    * The photo frame and its two presses. A file dropped on the frame at any
    * time, or chosen, is the model's photo from then on; the camera's picture
-   * is too, its bytes kept as they are. Either is written by Save, after the
+   * is too, its bytes kept as they are. Either is written by the save, after the
    * model's document (#630).
    */
   private photoFrame(key: string) {
@@ -1150,7 +1146,7 @@ export class TcStock extends LitElement {
    * its name, its model, its address and camera, what is different from the
    * model — length, functions, notes — and the trains holding it, with Remove
    * at the top right, dead while a train does. Every edit is the roster's to
-   * hold and Save's to write.
+   * hold and the save's to write.
    */
   private carEditor(car: CarRow) {
     const name = car.name;
@@ -1487,7 +1483,7 @@ export class TcStock extends LitElement {
    * The train editor, from the top as the mockup draws it (#980): the first
    * locomotive's photo, the name, the priority, the cars as a strip of
    * tiles head first with Add at its end, and what follows from them, with
-   * Unmake at the top right. Every edit is the roster's to hold and Save's to
+   * Unmake at the top right. Every edit is the roster's to hold and the save's to
    * write. Placing the train is the run view's (ADR-0039).
    */
   private trainEditor(train: TrainRow) {
@@ -1930,8 +1926,8 @@ export class TcStock extends LitElement {
   /**
    * Why there is nothing here to write into, or `null` where there is. The
    * two documents are what a press that writes writes into, and until they
-   * are read there are none: the New buttons and Save are dead with this on
-   * them (#565).
+   * are read there are none: the New buttons are dead with this on them
+   * (#565).
    */
   private unwritable(): string | null {
     if (this.stock !== null) return null;
@@ -1951,7 +1947,7 @@ export class TcStock extends LitElement {
   };
 
   /** *New model* in the list, chosen, with its name selected to be typed
-   *  over. It is written by Save, which mints its key from its name. */
+   *  over. It is written by the save, which mints its key from its name. */
   private async newModel(stock: Stock): Promise<void> {
     this.model = stock.newModel();
     this.editing = true;
@@ -1997,24 +1993,20 @@ export class TcStock extends LitElement {
     return Object.keys(trains).sort()[0] ?? null;
   }
 
-  /**
-   * The one Save, which is the loaded railroad's (`model/railroad.ts`): each
-   * changed model, each changed photo, then the roster, and what the store
-   * said in the bar. *Saved* stands there for a moment once it has landed.
-   */
-  private save = async (): Promise<void> => {
-    const railroad = this.railroad;
-    if (railroad === undefined) return;
-    this.trouble = null;
-    await railroad.save(this.power, this.heard);
-    const stock = railroad.stock;
-    if (stock === null || stock.edits || railroad.stockTrouble !== null) return;
+  /** A roster save landed since the last render, which the app made — on
+   *  ON, say. Where this view is current, *Saved* stands in the bar for a
+   *  moment; a save made as the view was left says nothing on return. */
+  private heldSaved(): void {
+    const landings = this.railroad?.landings ?? 0;
+    if (landings === this.landings) return;
+    this.landings = landings;
+    if (!this.current) return;
     this.landed = true;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.landed = false;
     }, SAVED_MS);
-  };
+  }
 
   /** An edit that cannot refuse, through `did` all the same so the screen
    *  redraws and the last refusal is taken down. */
@@ -2039,7 +2031,7 @@ export class TcStock extends LitElement {
     this.back = field;
     this.beat++;
     this.landed = false;
-    // What the last Save was refused with is about a roster that has moved
+    // What the last save was refused with is about a roster that has moved
     // since, and the app reads what is unsaved off the railroad.
     this.railroad?.edited();
   }

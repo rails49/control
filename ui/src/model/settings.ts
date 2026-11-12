@@ -5,10 +5,10 @@
  * Loading another railroad rebuilds the rails a train stands on, so it waits
  * for track power `off`, as it does under ADR-0060 — and where the track has
  * power the press takes it off itself, draining and acting once `off` is read
- * (`Drain`; ADR-0085, decision 5); and it throws away what
- * the page holds of the railroad being left, so it waits for the roster's
- * unsaved edits to be saved. The drawing's are not waited for: the app saves
- * them before the load (ADR-0085, decision 1). A page that has not heard which
+ * (`Drain`; ADR-0085, decision 5). It would throw away what the page holds
+ * of the railroad being left, so the app saves the drawing and the roster
+ * before the load and the load goes no further where either does not land
+ * (ADR-0085, decision 1; #1233). A page that has not heard which
  * railroad is loaded has no binding on the other end to ask. New and Copy
  * loaded as… end in a load of what they wrote, so they wait on the same
  * (ADR-0072, decision 4), and Copy on a railroad being loaded to copy.
@@ -36,8 +36,7 @@ const UNHEARD = "the layout has not said whether the track has power";
  * - `loaded` is `null`: the layout has not said which railroad is loaded, so
  *   no binding is there to answer a press;
  * - a railroad is loaded and the layout has not said whether the track has
- *   power: a drain could not be seen to end;
- * - something is unsaved: the load would discard it.
+ *   power: a drain could not be seen to end.
  *
  * Power on or draining refuses nothing: the press drains first (`Drain`).
  *
@@ -45,18 +44,11 @@ const UNHEARD = "the layout has not said whether the track has power";
  * heard, `""` none loaded (#727). With none loaded there are no rails built
  * to change under anything, so power is not asked: a binding with nothing
  * loaded reads no supply, and the first railroad on a new box is loaded from
- * here. `unsaved` is what the load would discard that nothing saves first —
- * `"the roster"`, in `Railroad.unsaved`'s words (`model/railroad.ts`) — and
- * `null` while nothing is.
+ * here.
  */
-export function refusal(
-  loaded: string | null,
-  power: Power | null,
-  unsaved: string | null,
-): string | null {
+export function refusal(loaded: string | null, power: Power | null): string | null {
   if (loaded === null) return "the layout has not said which railroad is loaded";
   if (loaded !== "" && power === null) return UNHEARD;
-  if (unsaved !== null) return `${unsaved} has unsaved edits — save first`;
   return null;
 }
 
@@ -101,10 +93,9 @@ export function restoreRefusal(
 export function pickRefusal(
   loaded: string | null,
   power: Power | null,
-  unsaved: string | null,
   unfiled: boolean,
 ): string | null {
-  const refused = refusal(loaded, power, unsaved);
+  const refused = refusal(loaded, power);
   if (refused !== null) return refused;
   if (unfiled) return "the drawing has no railroad — press New to keep it";
   return null;
@@ -115,12 +106,8 @@ export function pickRefusal(
  * `refusal` holds, and then a row naming `""` — nothing is loaded, so there
  * is nothing to copy. The first railroad on a new box is New's, not Copy's.
  */
-export function copyRefusal(
-  loaded: string | null,
-  power: Power | null,
-  unsaved: string | null,
-): string | null {
-  const refused = refusal(loaded, power, unsaved);
+export function copyRefusal(loaded: string | null, power: Power | null): string | null {
+  const refused = refusal(loaded, power);
   if (refused !== null) return refused;
   if (loaded === "") return "no railroad is loaded to copy";
   return null;

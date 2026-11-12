@@ -31,7 +31,9 @@ import type { LookView } from "@rails49/look";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Drawing } from "../src/model/drawing.js";
+import type { Railroad } from "../src/model/railroad.js";
 import { ANSWER_MS } from "../src/model/settings.js";
+import type { Stock } from "../src/model/stock.js";
 import "../src/ui/tc-app.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
@@ -93,6 +95,11 @@ async function dark(): Promise<TcApp> {
   const shell = await joined();
   await said(shell, POWER, { power: "off" });
   return shell;
+}
+
+/** The roster the page holds, edited as the stock view edits it. */
+function held(shell: TcApp): Stock {
+  return (shell as unknown as { railroad: Railroad }).railroad.stock!;
 }
 
 /** The dialog's railroads, each as its name and its tick. */
@@ -477,6 +484,37 @@ describe("the dialog against unsaved edits", () => {
     expect(written()).toEqual([]);
     expect(wrong(dialog)).toBe(
       "the drawing could not be saved, so nothing was loaded",
+    );
+  });
+
+  /** The roster is saved before a load as the drawing is, and a roster that
+   *  could not be saved loads nothing (#1233). */
+  it("saves the roster, then asks for the railroad picked", async () => {
+    const shell = await dark();
+    held(shell).newModel();
+
+    const dialog = await pick(shell, "otira");
+
+    expect(refused(dialog)).toBeNull();
+    expect(store.saved.map(({ path }) => path)).toEqual([
+      "/catalogue/new-model",
+      "/rosters/toy",
+    ]);
+    expect(written()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "otira" } },
+    ]);
+  });
+
+  it("asks for nothing where the roster save is refused, and says so", async () => {
+    const shell = await dark();
+    held(shell).addTrain("empty");
+
+    const dialog = await pick(shell, "otira");
+
+    expect(store.saved).toEqual([]);
+    expect(written()).toEqual([]);
+    expect(wrong(dialog)).toBe(
+      "the roster could not be saved, so nothing was loaded",
     );
   });
 

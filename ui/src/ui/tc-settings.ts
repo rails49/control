@@ -114,9 +114,12 @@ import { settingsStyles } from "./tc-settings.styles.js";
 /** What the Throttles and Sensors tabs say beneath their field. */
 const WHATEVER_RAILROAD = html`<p class="hint">This applies whatever railroad is loaded.</p>`;
 
-/** What the dialog says where the drawing a load would discard could not be
- *  saved first; the band's trouble chip says why (ADR-0085). */
-const UNSAVED = "the drawing could not be saved, so nothing was loaded";
+/** What the dialog says where what a load would discard — the drawing, the
+ *  roster or both — could not be saved first; the band and the stock view's
+ *  bar say why (ADR-0085, #1233). */
+function unsaved(what: string): string {
+  return `${what} could not be saved, so nothing was loaded`;
+}
 
 @customElement("tc-settings")
 export class TcSettings extends LitElement {
@@ -136,16 +139,13 @@ export class TcSettings extends LitElement {
   /** The supply as the run reads it, `null` with no session joined. */
   @property({ attribute: false }) power: Power | null = null;
 
-  /** What a load would discard, in `Railroad.unsaved`'s words
-   *  (`model/railroad.ts`), `null` while nothing is unsaved. The drawing is
-   *  not among it: `saving` saves that before a load (ADR-0085). */
-  @property({ attribute: false }) unsaved: string | null = null;
-
-  /** Asked before a pick, New or Copy loaded as…: the drawing saved where a
-   *  save is owed, answering whether nothing is left unsaved. Where something
-   *  is, nothing is loaded and nothing written (ADR-0085, decision 1). */
-  @property({ attribute: false }) saving: () => Promise<boolean> = () =>
-    Promise.resolve(true);
+  /** Asked before a pick, New or Copy loaded as…: the drawing and the roster
+   *  saved where each holds edits, answering what is left unsaved in
+   *  `Railroad.unsaved`'s words (`model/railroad.ts`), `null` for nothing.
+   *  Where something is, nothing is loaded and nothing written, and the
+   *  dialog says which (ADR-0085, decision 1; #1233). */
+  @property({ attribute: false }) saving: () => Promise<string | null> = () =>
+    Promise.resolve(null);
 
   /** The drawing the page holds where no railroad is loaded and it has
    *  edits, `null` otherwise. New writes it under the name typed, and a pick
@@ -298,9 +298,9 @@ export class TcSettings extends LitElement {
    * railroad is made on (ADR-0072, decision 6).
    */
   private railroads() {
-    const refused = refusal(this.railroad, this.power, this.unsaved);
+    const refused = refusal(this.railroad, this.power);
     const pickRefused = this.pickRefused;
-    const copyRefused = copyRefusal(this.railroad, this.power, this.unsaved);
+    const copyRefused = copyRefusal(this.railroad, this.power);
     const unnamed = this.name.trim() === "";
     const stopping = this.stopping === "railroad";
     const busy = stopping || this.picked !== null;
@@ -624,10 +624,12 @@ export class TcSettings extends LitElement {
     this.draining("railroad", this.supply, () => void this.loading(name));
   }
 
-  /** The track is dead: the drawing saved, then the railroad asked for. */
+  /** The track is dead: the drawing and the roster saved, then the railroad
+   *  asked for. */
   private async loading(name: string): Promise<void> {
-    if (!(await this.saving())) {
-      this.wrong = UNSAVED;
+    const left = await this.saving();
+    if (left !== null) {
+      this.wrong = unsaved(left);
       this.picked = null;
       return;
     }
@@ -661,7 +663,7 @@ export class TcSettings extends LitElement {
 
   /** Why a pick from the list is refused, `null` where it is not. */
   private get pickRefused(): string | null {
-    return pickRefusal(this.railroad, this.power, this.unsaved, this.unfiled !== null);
+    return pickRefusal(this.railroad, this.power, this.unfiled !== null);
   }
 
   /** What New writes under `name`: the unfiled drawing where there is one,
@@ -670,14 +672,15 @@ export class TcSettings extends LitElement {
     return this.unfiled === null ? emptyDrawing(name) : { ...this.unfiled, drawing: name };
   }
 
-  /** The track is dead: the drawing saved, `write` made under `name`, and
-   *  what it wrote asked for. An unfiled drawing is not saved first: New
-   *  writes it. */
+  /** The track is dead: the drawing and the roster saved, `write` made under
+   *  `name`, and what it wrote asked for. An unfiled drawing is not saved
+   *  first: New writes it. */
   private async writingAs(name: string, write: (name: string) => Promise<void>): Promise<void> {
     this.writing = true;
     try {
-      if (this.unfiled === null && !(await this.saving())) {
-        this.wrong = UNSAVED;
+      const left = this.unfiled === null ? await this.saving() : null;
+      if (left !== null) {
+        this.wrong = unsaved(left);
         this.picked = null;
         return;
       }

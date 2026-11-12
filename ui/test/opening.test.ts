@@ -176,9 +176,9 @@ describe("the row naming no railroad", () => {
 });
 
 /**
- * The roster is the railroad's other document, and the stock view holds it
- * unsaved the same way the editor holds the drawing (#415). Switching view
- * changes no railroad, so nothing is read again.
+ * The roster is the railroad's other document, and leaving the stock view
+ * saves it the way leaving the editor saves the drawing (#415, #1233).
+ * Switching view changes no railroad, so nothing is read again.
  */
 describe("the roster across a look at another view", () => {
   const HOPPER: ModelDoc = { model: "hopper", kind: "freight", length: 100 };

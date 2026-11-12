@@ -28,6 +28,7 @@ import {
   mounted,
   serving,
   settled,
+  shows,
   stocking,
   type Answers,
   type Take,
@@ -116,6 +117,13 @@ async function pressed(shell: TcApp, selector: string): Promise<void> {
   await settled(shell);
 }
 
+/** The view left for the run view and come back to, which is what saves
+ *  (#1233). */
+async function left(shell: TcApp): Promise<void> {
+  await shows(shell, "run");
+  await shows(shell, "stock");
+}
+
 async function tab(shell: TcApp, which: "trains" | "cars" | "models"): Promise<void> {
   await pressed(shell, `button.tab[data-tab="${which}"]`);
 }
@@ -180,7 +188,7 @@ describe("a card's photo", () => {
 });
 
 describe("a file dropped or chosen", () => {
-  it("reaches PUT /catalogue/<model>/photo as the conversion's output, on Save", async () => {
+  it("reaches PUT /catalogue/<model>/photo as the conversion's output, once the view is left", async () => {
     const shell = await opened();
     const file = phone();
 
@@ -189,7 +197,7 @@ describe("a file dropped or chosen", () => {
     expect(vi.mocked(toJpeg)).toHaveBeenCalledWith(file);
     expect(framed(shell)).toBe(CONVERTED.shown);
     expect(photos()).toEqual([]);
-    await pressed(shell, ".bar button.save");
+    await left(shell);
 
     expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: CONVERTED.jpeg }]);
     expect(card(shell, "model")).toBe("/catalogue/sbb-re460/photo?v=1");
@@ -198,7 +206,7 @@ describe("a file dropped or chosen", () => {
   it("is the photo the same way where it is chosen with Choose file…", async () => {
     const shell = await opened();
     await picked(shell, phone());
-    await pressed(shell, ".bar button.save");
+    await left(shell);
 
     expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: CONVERTED.jpeg }]);
   });
@@ -242,13 +250,13 @@ describe("a picture the camera took", () => {
     expect(text(shell, ".model-editor button.take")).toBe("Retake photo");
   });
 
-  it("goes to the store as the camera's own bytes, on Save", async () => {
+  it("goes to the store as the camera's own bytes, once the view is left", async () => {
     store.camera = WORKING;
     const shell = await opened();
     await pressed(shell, ".model-editor button.take");
 
     expect(text(shell, ".bar .said")).toBe("1 unsaved change");
-    await pressed(shell, ".bar button.save");
+    await left(shell);
 
     expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: TOOK }]);
     expect(vi.mocked(toJpeg)).not.toHaveBeenCalled();
@@ -283,7 +291,7 @@ describe("a model made with a photo", () => {
     await settled(shell);
     await dropped(shell, phone());
 
-    await pressed(shell, ".bar button.save");
+    await left(shell);
 
     expect(store.saved.map((one) => one.path)).toEqual([
       "/catalogue/ae-6-6",
@@ -293,18 +301,18 @@ describe("a model made with a photo", () => {
     expect(card(shell, "model[aria-current='true']")).toBe("/catalogue/ae-6-6/photo?v=1");
   });
 
-  it("keeps the photo for the next Save where the store refuses it", async () => {
+  it("keeps the photo for the next save where the store refuses it", async () => {
     const shell = await opened();
     await dropped(shell, phone());
     store.refuses = (path) =>
       path.endsWith("/photo") ? { status: 400, error: "not a JPEG" } : null;
 
-    await pressed(shell, ".bar button.save");
+    await left(shell);
 
     expect(text(shell, ".bar .said")).toBe("not a JPEG");
     expect(framed(shell)).toBe(CONVERTED.shown);
     store.refuses = () => null;
-    await pressed(shell, ".bar button.save");
+    await left(shell);
     expect(photos()).toEqual([{ path: "/catalogue/sbb-re460/photo", body: CONVERTED.jpeg }]);
   });
 });

@@ -32,42 +32,35 @@ import type { Backup } from "../src/model/store.js";
 
 describe("why the railroad part is refused", () => {
   it("is refused while the layout has not said which railroad is loaded", () => {
-    expect(refusal(null, "on", "the drawing")).toBe(
+    expect(refusal(null, "on")).toBe(
       "the layout has not said which railroad is loaded",
     );
-    expect(refusal(null, "off", null)).toBe(
+    expect(refusal(null, "off")).toBe(
       "the layout has not said which railroad is loaded",
     );
   });
 
   it("is refused while a railroad is loaded and the layout has not said the supply", () => {
-    expect(refusal("otira", null, "the roster")).toBe(
+    expect(refusal("otira", null)).toBe(
       "the layout has not said whether the track has power",
     );
   });
 
   /** The press drains the track itself (ADR-0085, decision 5). */
   it.each(["on", "draining"] as const)("is open while the track reads %s", (power) => {
-    expect(refusal("otira", power, null)).toBeNull();
+    expect(refusal("otira", power)).toBeNull();
   });
 
-  it("is refused over unsaved edits, naming what holds them", () => {
-    expect(refusal("otira", "off", "the drawing")).toBe(
-      "the drawing has unsaved edits — save first",
-    );
-    expect(refusal("", null, "the roster")).toBe(
-      "the roster has unsaved edits — save first",
-    );
-  });
-
-  it("is open with the track dead and nothing unsaved", () => {
-    expect(refusal("otira", "off", null)).toBeNull();
+  /** Unsaved edits refuse nothing: the app saves them before the load
+   *  (#1233). */
+  it("is open with the track dead", () => {
+    expect(refusal("otira", "off")).toBeNull();
   });
 
   /** A binding with nothing loaded reads no supply, and the first railroad on
    *  a new box is loaded from the dialog (ADR-0072, decision 6). */
   it("is open with no railroad loaded, whatever the supply has said", () => {
-    expect(refusal("", null, null)).toBeNull();
+    expect(refusal("", null)).toBeNull();
   });
 });
 
@@ -75,23 +68,20 @@ describe("why the railroad part is refused", () => {
  *  loaded railroad to copy (#737). */
 describe("why Copy loaded as… is refused", () => {
   it("is refused for the railroad part's reason first", () => {
-    expect(copyRefusal(null, "off", null)).toBe(
+    expect(copyRefusal(null, "off")).toBe(
       "the layout has not said which railroad is loaded",
     );
-    expect(copyRefusal("otira", null, null)).toBe(
+    expect(copyRefusal("otira", null)).toBe(
       "the layout has not said whether the track has power",
-    );
-    expect(copyRefusal("", "off", "the roster")).toBe(
-      "the roster has unsaved edits — save first",
     );
   });
 
   it("is refused with no railroad loaded, there being nothing to copy", () => {
-    expect(copyRefusal("", null, null)).toBe("no railroad is loaded to copy");
+    expect(copyRefusal("", null)).toBe("no railroad is loaded to copy");
   });
 
-  it("is open with a railroad loaded, the track dead and nothing unsaved", () => {
-    expect(copyRefusal("otira", "off", null)).toBeNull();
+  it("is open with a railroad loaded and the track dead", () => {
+    expect(copyRefusal("otira", "off")).toBeNull();
   });
 });
 
@@ -99,19 +89,19 @@ describe("why Copy loaded as… is refused", () => {
  *  the layout having said so (#745). */
 describe("why a pick from the list is refused", () => {
   it("is refused for what refuses the railroad part, first", () => {
-    expect(pickRefusal(null, "off", null, true)).toBe(
+    expect(pickRefusal(null, "off", true)).toBe(
       "the layout has not said which railroad is loaded",
     );
   });
 
   it("is refused while the page holds a drawing with no railroad", () => {
-    expect(pickRefusal("", null, null, true)).toBe(
+    expect(pickRefusal("", null, true)).toBe(
       "the drawing has no railroad — press New to keep it",
     );
   });
 
   it("is open with no railroad loaded and no drawing on the page", () => {
-    expect(pickRefusal("", null, null, false)).toBeNull();
+    expect(pickRefusal("", null, false)).toBeNull();
   });
 });
 

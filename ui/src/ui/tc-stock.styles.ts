@@ -98,26 +98,6 @@ export const stockStyles = css`
     font-weight: 600;
   }
 
-  button.save {
-    flex: none;
-    height: 40px;
-    padding: 0 20px;
-    border: 0;
-    border-radius: 12px;
-    background: var(--chosen);
-    color: var(--body);
-    font-size: 15px;
-    font-weight: 650;
-    cursor: pointer;
-  }
-
-  button.save:disabled {
-    border: 1px solid var(--rule);
-    background: var(--paper);
-    color: var(--hint);
-    cursor: default;
-  }
-
   /* --- the two columns --- */
 
   .cols {
