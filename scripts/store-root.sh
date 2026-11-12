@@ -12,7 +12,7 @@
 # missing when compose starts, and the daemon makes that one instead (#442).
 #
 # So the answer has to be compose's answer, and compose reads the same
-# variable out of `--env-file /etc/rails49/deploy.env` with the deploy shell's
+# variable out of `--env-file /etc/rails49/control.env` with the deploy shell's
 # own environment winning over the file. That precedence is what a box moving
 # its store depends on: the value sits in the file, which the deploy shell
 # knows nothing about, and expanding `${TC49_STORE:-$HOME/tc49}` in the shell
@@ -24,7 +24,7 @@
 # (docs/DEPLOY.md).
 set -euo pipefail
 
-ENV_FILE=${1:-/etc/rails49/deploy.env}
+ENV_FILE=${1:-/etc/rails49/control.env}
 DEFAULT=$HOME/tc49
 NAME=TC49_STORE
 

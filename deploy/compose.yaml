@@ -6,7 +6,7 @@
 # file: being reachable stopped being a railroad's business (#557).
 #
 #   docker compose --env-file /etc/rails49/box.env \
-#     --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d
+#     --env-file /etc/rails49/control.env -f deploy/compose.yaml up -d
 #
 # Two files, both the box's and neither in this clone. The first is the box's
 # declaration of itself, which every stack on the box is started against, so

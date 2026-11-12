@@ -33,6 +33,22 @@ set -euo pipefail
 # read the rest of the script as the answer. Fail instead.
 export GIT_TERMINAL_PROMPT=0
 cd ~/control
+# The two files this box is started against, neither of them in this clone.
+# `box.env` is the box's declaration of itself, which every stack on the box
+# reads, and is where the name in the routers' labels comes from;
+# `control.env` is this stack's own settings, read by compose and by
+# `scripts/store-root.sh` below, so the two cannot come to different answers
+# about the same variable (#442). Both sit in the installation's directory, so
+# the box has one rather than two (#557).
+BOX_ENV=/etc/rails49/box.env
+CONTROL_ENV=/etc/rails49/control.env
+# The file was `deploy.env` until #1218. A box that has only the old name is
+# told to rename it, before the pull.
+if [ -e /etc/rails49/deploy.env ] && [ ! -e "$CONTROL_ENV" ]; then
+  echo "/etc/rails49/deploy.env is named control.env now; rename it with" >&2
+  echo "sudo mv /etc/rails49/deploy.env $CONTROL_ENV" >&2
+  exit 1
+fi
 # A tree with changes in it, tracked or not, would be built under a commit
 # that is not what was built (dccex ADR-0005 d.4). So the deploy refuses one,
 # before a pull merges around the changes.
@@ -71,15 +87,6 @@ git pull
 # `control-web:<commit>`, and the revision they carry (deploy/compose.yaml).
 CONTROL_COMMIT=$(git rev-parse HEAD)
 export CONTROL_COMMIT
-# The two files this box is started against, neither of them in this clone.
-# `box.env` is the box's declaration of itself, which every stack on the box
-# reads, and is where the name in the routers' labels comes from; `deploy.env`
-# is this stack's own settings, read by compose below and by the script above
-# it, so the two cannot come to different answers about the same variable
-# (#442). Both sit in the installation's directory, so the box has one rather
-# than two (#557).
-BOX_ENV=/etc/rails49/box.env
-DEPLOY_ENV=/etc/rails49/deploy.env
 # The store's directory, made here rather than left to Docker. A bind mount
 # whose source is missing is created by the daemon as root, and the person is
 # then shut out of their own documents: no editing, no `git init`, no putting
@@ -87,7 +94,7 @@ DEPLOY_ENV=/etc/rails49/deploy.env
 # `TC49_STORE` moves the store and a box that moves it says so in the env
 # file, which this shell knows nothing about — so the path is resolved the
 # way compose resolves it rather than expanded here.
-mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"
+mkdir -p "$(scripts/store-root.sh "$CONTROL_ENV")"
 # The uid and gid are this account's, and compose reads them as the user the
 # store runs as. The image is not told them: the store names its uid when it
 # starts (#1216). The shell's environment wins over the `--env-file` below,
@@ -112,7 +119,7 @@ export TC49_UID TC49_GID
 # stack used to start. JMRI is another again: an operator's tool with a compose
 # project of its own, started once by hand from the installation's checkout
 # (rails49/installation ADR-0002).
-docker compose --env-file "$BOX_ENV" --env-file "$DEPLOY_ENV" \
+docker compose --env-file "$BOX_ENV" --env-file "$CONTROL_ENV" \
   -f deploy/compose.yaml --profile layout --profile steel \
   up -d --build --remove-orphans
 REMOTE
