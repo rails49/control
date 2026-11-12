@@ -4,7 +4,7 @@ workflow (rails49/.github#71 decisions 1, 2 and 8, #1216).
 It is called, never triggered: no pull request or merge builds an image. It
 takes a commit, builds both images at it on each architecture's own runner,
 and outputs both digests. It also hands over this stack's box files: the
-compose file and every file it mounts.
+two compose files and every file they mount.
 
 The workflow runs in the calling repository's context, so a checkout or a
 build that leaves the repository to its default reads `installation`, not
@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 WORKFLOW = ROOT / ".github/workflows/images.yml"
 COMPOSE = ROOT / "deploy/compose.yaml"
+HTTPS = ROOT / "deploy/compose.https.yaml"
 
 RUNNERS = ["ubuntu-24.04", "ubuntu-24.04-arm"]
 
@@ -86,19 +87,20 @@ def test_every_build_reads_the_checkout() -> None:
 
 
 def mounted() -> set[str]:
-    """The files under `deploy/` the compose file mounts."""
-    document = cast(dict[str, Any], yaml.safe_load(COMPOSE.read_text()))
-    services = cast(dict[str, dict[str, Any]], document["services"])
+    """The files under `deploy/` the compose files mount."""
     found: set[str] = set()
-    for service in services.values():
-        for volume in service.get("volumes", []):
-            source = str(volume).split(":")[0]
-            if source.startswith("./"):
-                found.add("deploy/" + source[2:])
+    for path in (COMPOSE, HTTPS):
+        document = cast(dict[str, Any], yaml.safe_load(path.read_text()))
+        services = cast(dict[str, dict[str, Any]], document["services"])
+        for service in services.values():
+            for volume in service.get("volumes", []):
+                source = str(volume).split(":")[0]
+                if source.startswith("./"):
+                    found.add("deploy/" + source[2:])
     return found
 
 
-def test_the_box_files_are_the_compose_file_and_what_it_mounts() -> None:
+def test_the_box_files_are_the_compose_files_and_what_they_mount() -> None:
     uploads = [
         s
         for s in uses("actions/upload-artifact")
@@ -106,7 +108,7 @@ def test_the_box_files_are_the_compose_file_and_what_it_mounts() -> None:
     ]
     assert len(uploads) == 1
     paths = set(str(uploads[0]["with"]["path"]).split())
-    assert paths == {"deploy/compose.yaml"} | mounted()
+    assert paths == {"deploy/compose.yaml", "deploy/compose.https.yaml"} | mounted()
     assert "deploy/mosquitto.conf" in paths
 
 

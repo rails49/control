@@ -1,0 +1,48 @@
+# The routers that need the box's name: one on the door's `websecure` entry
+# point for each container in `compose.yaml` that a browser reaches, with its
+# certificate from the door's resolver `le`. A box loads this file on top of
+# `compose.yaml` only when `BOX_DOMAIN` names it (#1243). A box with no name
+# has neither the entry point nor the resolver, and is served by the `-port`
+# routers in `compose.yaml` alone.
+#
+#   docker compose --env-file /etc/rails49/box.env \
+#     --env-file /etc/rails49/control.env \
+#     -f deploy/compose.yaml -f deploy/compose.https.yaml up -d
+#
+# Each router here dials a service `compose.yaml` declares, and `tc49-mqtt`
+# names the strip middleware it shares with `tc49-mqtt-port`. Compose merges
+# these labels into the services' own.
+
+services:
+  web:
+    labels:
+      - traefik.http.routers.tc49-app.rule=Host(`control.${BOX_DOMAIN}`)
+      - traefik.http.routers.tc49-app.priority=1
+      - traefik.http.routers.tc49-app.entrypoints=websecure
+      - traefik.http.routers.tc49-app.service=tc49-app
+      - traefik.http.routers.tc49-app.tls.certresolver=le
+
+  broker:
+    labels:
+      - traefik.http.routers.tc49-mqtt.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/mqtt`)
+      - traefik.http.routers.tc49-mqtt.priority=2
+      - traefik.http.routers.tc49-mqtt.entrypoints=websecure
+      - traefik.http.routers.tc49-mqtt.service=tc49-mqtt
+      - traefik.http.routers.tc49-mqtt.middlewares=same-origin@docker,tc49-mqtt-strip
+      - traefik.http.routers.tc49-mqtt.tls.certresolver=le
+
+  store:
+    labels:
+      - traefik.http.routers.tc49-store.rule=Host(`control.${BOX_DOMAIN}`) && (PathPrefix(`/backup`) || PathPrefix(`/drawings`) || PathPrefix(`/review`) || PathPrefix(`/layouts`) || PathPrefix(`/rosters`) || PathPrefix(`/catalogue`) || PathPrefix(`/railroads`))
+      - traefik.http.routers.tc49-store.priority=2
+      - traefik.http.routers.tc49-store.entrypoints=websecure
+      - traefik.http.routers.tc49-store.service=tc49-store
+      - traefik.http.routers.tc49-store.tls.certresolver=le
+
+  camera:
+    labels:
+      - traefik.http.routers.tc49-camera.rule=Host(`control.${BOX_DOMAIN}`) && PathPrefix(`/picture`)
+      - traefik.http.routers.tc49-camera.priority=2
+      - traefik.http.routers.tc49-camera.entrypoints=websecure
+      - traefik.http.routers.tc49-camera.service=tc49-camera
+      - traefik.http.routers.tc49-camera.tls.certresolver=le
