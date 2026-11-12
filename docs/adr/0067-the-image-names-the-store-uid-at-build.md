@@ -1,5 +1,7 @@
 # The image names the store's uid at build
 
+*Superseded by [rails49/.github ADR-0023](https://github.com/rails49/.github/blob/main/docs/adr/0023-a-box-runs-an-installation-release-of-published-images.md) (rails49/.github#71): one published image serves every box, and the store gets its passwd entry from `nss_wrapper` at start.*
+
 Records the decision behind [#570](https://github.com/rails49/control/issues/570),
 which reviewed the fix for [#566](https://github.com/rails49/control/issues/566).
 
