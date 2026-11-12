@@ -529,6 +529,40 @@ def test_depth_counts_past_a_block_a_train_explains_in_the_aspects() -> None:
     )
 
 
+AHEAD_ONE = {k: v for k, v in AHEAD_TWO.items() if k != "west_switch.to_up"}
+"""One ahead, and loop_up locked without the transit into it."""
+
+
+def test_a_block_its_own_cars_hold_is_not_held_ahead() -> None:
+    """loop_up is on t1's route and locked to it without the transit into it.
+    On its `occupied` list that lock is its own cars, not a lock ahead
+    (#1230)."""
+    locked = started(AHEAD_ONE)
+    cars = {
+        ALLOCATION: {
+            **locked[ALLOCATION],
+            "occupied": {"t1": ["west_1", "loop_up"]},
+        }
+    }
+
+    assert adr_0029_block_with_its_transit(view(MEET, cars)) == []
+    assert adr_0029_block_with_its_transit(view(MEET, locked))
+
+
+def test_depth_counts_a_block_only_with_its_transit_in_the_aspects() -> None:
+    """loop_up is locked to t1 and the transit into it is not, so the depth
+    from west_1 is one: `caution` there, `stop` over the move into loop_up
+    (#1230)."""
+    rows = started(AHEAD_ONE) | {POWER: {"power": "on"}}
+    caution = {ASPECTS: {"aspects": {"west_1.B": "caution", "w_main.B": "stop"}}}
+    clear = {ASPECTS: {"aspects": {"west_1.B": "clear", "w_main.B": "caution"}}}
+
+    assert (
+        breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | caution, []) == []
+    )
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | clear, [])
+
+
 def test_a_train_refused_its_next_move_lights_nothing_in_the_aspects() -> None:
     """Two ahead locked, and refused the move into the first of them: `stop`
     along its route is the right answer, and only with the refusal on its

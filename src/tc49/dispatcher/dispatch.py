@@ -394,16 +394,25 @@ def transit_blocks(layout: Layout, transit: str) -> set[str]:
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
     """How many blocks of `route` past index `standing` are locked to `train`
-    and may be entered, counted until the first that is not locked, is out of
-    use or is disputed, and none at all where `standing` is out of use, since
-    no train is let out of one (#1152, #1160, #1164)."""
+    with the transit into them and may be entered, counted until the first
+    that is not locked with its transit, is out of use or is disputed, and
+    none at all where `standing` is out of use, since no train is let out of
+    one (#1152, #1160, #1164). A block locked without its transit is held for
+    the train's own cars, not ahead of it (#1230)."""
     out = state.out_of_use
     disputes = state.disputed_blocks
     if route.blocks[standing] in out:
         return 0
     depth = 0
-    for block in route.blocks[standing + 1 :]:
-        if state.locks.get(block) != train or block in out or block in disputes:
+    for block, transit in zip(
+        route.blocks[standing + 1 :], route.transits[standing:], strict=True
+    ):
+        if (
+            state.locks.get(block) != train
+            or state.locks.get(transit) != train
+            or block in out
+            or block in disputes
+        ):
             break
         depth += 1
     return depth
@@ -1965,12 +1974,17 @@ class Dispatcher:
         """The whole train is in the block the move entered: the transit, and
         anything of the train's still behind it, are released in one
         `lock_released`, and this move and any older are no longer followed. A
-        transit a later move has taken again is not this one's to give up."""
+        transit a later move has taken again is not this one's to give up, nor
+        is a block the train's route still has ahead of it: it held that one
+        for its own cars and has since been let into it (#1230)."""
         state = self._state
         occupying = state.occupied[train]
         transit = each.move.transit
         if transit in occupying:
-            self._give_up(train, occupying[: occupying.index(transit) + 1])
+            active = state.active.get(train)
+            ahead = active.route.blocks[active.cur_index :] if active else ()
+            behind = occupying[: occupying.index(transit) + 1]
+            self._give_up(train, [r for r in behind if r not in ahead])
         following = state.following[train]
         del following[: following.index(each) + 1]
 

@@ -334,16 +334,19 @@ def _locked_ahead(
     out_of_use: frozenset[str] = frozenset(),
     disputed: frozenset[str] = frozenset(),
 ) -> int:
-    """How many blocks of the route past `index` are locked to its train and may
-    be entered, counted until the first that is not locked, is out of use or
-    is disputed, and none at all where the block at `index` is out of use
-    (#1152, #1160, #1164)."""
+    """How many blocks of the route past `index` are locked to its train with
+    the transit into them and may be entered, counted until the first that is
+    not locked with its transit, is out of use or is disputed, and none at all
+    where the block at `index` is out of use (#1152, #1160, #1164, #1230)."""
     if journey.blocks[index] in out_of_use:
         return 0
     depth = 0
-    for block in journey.blocks[index + 1 :]:
+    for block, transit in zip(
+        journey.blocks[index + 1 :], journey.transits[index:], strict=True
+    ):
         if (
             locks.get(block) != journey.train
+            or locks.get(transit) != journey.train
             or block in out_of_use
             or block in disputed
         ):
@@ -531,14 +534,20 @@ def adr_0029_block_with_its_transit(view: View) -> list[str]:
     """A block held ahead of a train is held together with the transit that
     leads into it
     ([ADR-0029](../../../docs/adr/0029-a-lock-held-ahead-is-a-block-the-check-must-see.md)).
-    """
+    A block on the train's `occupied` list is held for its own cars, not
+    ahead of it (#1230)."""
     locks = _locks(view)
+    kept = kept_allocation(view.rows.get(ALLOCATION))
+    occupied = kept.occupied if kept is not None else {}
     lines: list[str] = []
     for journey in _journeys(view):
+        cars = occupied.get(journey.train, ())
         for i in range(journey.standing + 1, len(journey.blocks)):
             block, transit = journey.blocks[i], journey.transits[i - 1]
-            if locks.get(block) == journey.train and locks.get(transit) != (
-                journey.train
+            if (
+                locks.get(block) == journey.train
+                and locks.get(transit) != journey.train
+                and block not in cars
             ):
                 lines.append(f"{journey.train} holds {block} ahead without {transit}")
     return lines
