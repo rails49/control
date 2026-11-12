@@ -638,7 +638,7 @@ describe("New railroad", () => {
  * another railroad would throw the drawing away.
  */
 describe("a drawing made with no railroad loaded", () => {
-  async function stranded(): Promise<TcApp> {
+  async function drawnWithNothingLoaded(): Promise<TcApp> {
     const shell = await mounted("edit");
     await loads(shell, "");
     session(shell).place("block", [8, 0]);
@@ -648,7 +648,7 @@ describe("a drawing made with no railroad loaded", () => {
   }
 
   it("is what New writes under the name, which is then asked for", async () => {
-    const shell = await stranded();
+    const shell = await drawnWithNothingLoaded();
 
     const dialog = await made(shell, "new", "b");
 
@@ -664,7 +664,7 @@ describe("a drawing made with no railroad loaded", () => {
   });
 
   it("is on the page once the row names the new railroad, and reads as saved", async () => {
-    const shell = await stranded();
+    const shell = await drawnWithNothingLoaded();
     // The store reads back what it was given.
     store.read = (name) =>
       store.saved.find(({ path }) => path === `/drawings/${name}`)!
@@ -677,8 +677,9 @@ describe("a drawing made with no railroad loaded", () => {
     expect(band(shell).querySelector("look-about")!.detail).toBe("");
     expect(Object.keys(session(shell).drawing.symbols)).toHaveLength(1);
   });
+
   it("refuses a pick, says why, and leaves New live", async () => {
-    const shell = await stranded();
+    const shell = await drawnWithNothingLoaded();
 
     const dialog = await pick(shell, "otira");
     await named(shell, dialog, "b");
@@ -695,6 +696,34 @@ describe("a drawing made with no railroad loaded", () => {
       ].every((one) => one.disabled),
     ).toBe(true);
     expect(making(dialog, "new").disabled).toBe(false);
+  });
+
+  it("reads unsaved in the band beside no railroad loaded", async () => {
+    const shell = await drawnWithNothingLoaded();
+
+    expect(loaded(shell)).toBe("no railroad loaded");
+    expect(band(shell).querySelector("look-about")!.detail).toBe("unsaved");
+  });
+
+  /** A row naming a railroad whose drawing could not be read leaves the page
+   *  with no drawing open, but a railroad is loaded: Copy still saves first,
+   *  and a pick is not refused for want of one. */
+  it("is not one where the row names a railroad whose read failed", async () => {
+    store.read = () => {
+      throw new Error("no drawing");
+    };
+    const shell = await dark();
+    session(shell).place("block", [8, 0]);
+    edited(shell);
+    await settled(shell);
+
+    const dialog = await made(shell, "copy", "b");
+
+    expect(refused(dialog)).toBeNull();
+    expect(written()).toEqual([]);
+    expect(wrong(dialog)).toBe(
+      "the drawing could not be saved, so nothing was loaded",
+    );
   });
 });
 

@@ -15,6 +15,7 @@ import {
   committed,
   Drain,
   percentOf,
+  pickRefusal,
   refusal,
   reheard,
   restoreRefusal,
@@ -96,6 +97,24 @@ describe("why Copy loaded as… is refused", () => {
 
 /** Turning the box off waits on the track being dead, a stop included, and on
  *  the layout having said so (#745). */
+describe("why a pick from the list is refused", () => {
+  it("is refused for what refuses the railroad part, first", () => {
+    expect(pickRefusal(null, "off", null, true)).toBe(
+      "the layout has not said which railroad is loaded",
+    );
+  });
+
+  it("is refused while the page holds a drawing with no railroad", () => {
+    expect(pickRefusal("", null, null, true)).toBe(
+      "the drawing has no railroad — press New to keep it",
+    );
+  });
+
+  it("is open with no railroad loaded and no drawing on the page", () => {
+    expect(pickRefusal("", null, null, false)).toBeNull();
+  });
+});
+
 describe("why turning the box off is refused", () => {
   it("is refused while the layout has not said whether the track has power", () => {
     expect(boxRefusal(null)).toBe("the layout has not said whether the track has power");
