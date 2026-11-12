@@ -2155,8 +2155,8 @@ def test_the_app_reaches_every_route_on_its_own_origin(tmp_path: Path) -> None:
         same = Request(
             f"{url}/drawings",
             headers={
-                "Origin": "https://control.gleis49.org",
-                "Host": "control.gleis49.org",
+                "Origin": "https://control.example.org",
+                "Host": "control.example.org",
             },
             method="GET",
         )

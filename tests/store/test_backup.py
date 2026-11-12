@@ -1139,7 +1139,7 @@ def test_a_clone_made_by_hand_pushes_and_gets_an_upstream(
 def test_a_store_cloned_from_an_empty_repository_pushes_its_first_backup(
     tmp_path: Path,
 ) -> None:
-    """gleis49's own case: `git clone` of a repository made empty in a web
+    """A layout server's own case: `git clone` of a repository made empty in a web
     form, with none of the settings adoption writes. The clone has a remote
     and no branch on it, and the store's first push is what makes one (#689)."""
     remote = tmp_path / "remote.git"
@@ -1692,7 +1692,7 @@ def test_a_move_that_fails_leaves_backup_where_it_was(
 
 def backed_up_three_times(repository: Path, tmp_path: Path) -> tuple[Backup, str]:
     """A store backed up to bare repository A with three backups, every one
-    of them pushed: what gleis49 had when its repository went (#698)."""
+    of them pushed: what a layout server had when its repository went (#698)."""
     old = str(tmp_path / "a.git")
     run_git(tmp_path, "init", "-q", "--bare", "-b", "main", old)
     run_git(repository, "remote", "add", "origin", old)

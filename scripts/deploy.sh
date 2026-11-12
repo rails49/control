@@ -3,21 +3,15 @@
 # Update the layout server and bring its stack back up (docs/DEPLOY.md).
 #
 #   scripts/deploy.sh
+#   CONTROL_BOX=<user>@<host> scripts/deploy.sh
 #
 # Every command runs on the layout server. An ssh command on a line of its own
 # opens a session, and what came after it would run on this machine instead,
 # so the whole sequence is fed to a shell there.
 #
-# The host is named in full rather than as `rails49`, which is an ssh alias and
-# lives in `~/.ssh/config` — a personal file that is in no repository. A machine
-# whose config has lost the stanza had a broken deploy (#488, #496); naming the
-# host here means the deploy depends on nothing outside this checkout. `ssh
-# rails49` stays what you type by hand (docs/DEPLOY.md).
-#
-# The box is `gleis49.org`, which is the name it is declared under and reached
-# at now that the door is the installation's (#557). This UI is a label under
-# that name, `control.gleis49.org`, and ssh goes to the box rather than to the
-# label.
+# The box is the ssh alias `rails49`, which each developer maps to their own
+# box in `~/.ssh/config`, and `CONTROL_BOX` names another. The repository names
+# no box (#1240). ssh goes to the box rather than to the label this UI is under.
 #
 # The box builds both images under the commit it pulled, so it needs Docker
 # and git and no node or pnpm: the UI is built inside the `control-web` image
@@ -27,7 +21,9 @@
 # deploy before it began.
 set -euo pipefail
 
-ssh ttmetro@gleis49.org bash -l -s <<'REMOTE'
+BOX=${CONTROL_BOX:-rails49}
+
+ssh "$BOX" bash -l -s <<'REMOTE'
 set -euo pipefail
 # The heredoc is this shell's stdin, so a prompt for a git credential would
 # read the rest of the script as the answer. Fail instead.
