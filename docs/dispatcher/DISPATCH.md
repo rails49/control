@@ -374,7 +374,7 @@ through `e`, over `T`, into `Y` through `f`:
 | the move is granted | `T` is occupied |
 | `X.e` occupied then clear, or occupied at the grant and then clear | `X` is released |
 | `Y.f` occupied | `Y` is occupied, and the train may be granted its next move |
-| `Y.f` then clear | `T` is released, with anything of that train's still behind it |
+| `Y.f` then clear | `T` is released, with anything of that train's still behind it except a block on its route ahead whose transit in it holds |
 
 A long train runs through blocks without stopping, its next move granted while its
 tail is behind it. A short train reads clear behind first, which releases `X` and

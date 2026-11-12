@@ -397,8 +397,8 @@ def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
     with the transit into them and may be entered, counted until the first
     that is not locked with its transit, is out of use or is disputed, and
     none at all where `standing` is out of use, since no train is let out of
-    one (#1152, #1160, #1164). A block locked without its transit is held for
-    the train's own cars, not ahead of it (#1230)."""
+    one (#1152, #1160, #1164). A block locked without its transit is one the
+    train occupies, not one it holds ahead (#1230)."""
     out = state.out_of_use
     disputes = state.disputed_blocks
     if route.blocks[standing] in out:
@@ -1975,18 +1975,31 @@ class Dispatcher:
         anything of the train's still behind it, are released in one
         `lock_released`, and this move and any older are no longer followed. A
         transit a later move has taken again is not this one's to give up, nor
-        is a block the train's route still has ahead of it: it held that one
-        for its own cars and has since been let into it (#1230)."""
+        is a block on the train's route ahead whose transit in is locked to it
+        (#1230)."""
         state = self._state
         occupying = state.occupied[train]
         transit = each.move.transit
         if transit in occupying:
-            active = state.active.get(train)
-            ahead = active.route.blocks[active.cur_index :] if active else ()
+            entered = self._entered_ahead(train)
             behind = occupying[: occupying.index(transit) + 1]
-            self._give_up(train, [r for r in behind if r not in ahead])
+            self._give_up(train, [r for r in behind if r not in entered])
         following = state.following[train]
         del following[: following.index(each) + 1]
+
+    def _entered_ahead(self, train: str) -> set[str]:
+        """The blocks on the train's route from the one it is granted into on,
+        each with the transit into it locked to the train."""
+        state = self._state
+        active = state.active.get(train)
+        if active is None:
+            return set()
+        route = active.route
+        return {
+            route.blocks[i]
+            for i in range(max(active.cur_index, 1), len(route.blocks))
+            if state.locks.get(route.transits[i - 1]) == train
+        }
 
     def _give_up(self, train: str, resources: list[str]) -> None:
         """What a train has left behind it, off its list and released."""

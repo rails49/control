@@ -1052,8 +1052,9 @@ against every move that expects that sensor
 through `e`, over T, into Y through `f`: the grant puts T on what the train occupies;
 `X.e` occupied then clear, or occupied at the grant and then clear, releases X; `Y.f`
 occupied says the head is in, so Y is occupied and the train may be granted its next
-move; `Y.f` then clear releases T with anything of that train's still behind it, and
-ends the request at its last block. The far sensor of Y reading occupied says the
+move; `Y.f` then clear releases T with anything of that train's still behind it,
+except a block on its route ahead whose transit in it holds (#1230), and ends the
+request at its last block. The far sensor of Y reading occupied says the
 head is in where `f` said nothing, and ends the request too. Any other reading
 changes nothing for any train, so a person backing a train at a platform moves
 nothing. Every changed reading ends in a **sweep** over the whole waiting set, as does
