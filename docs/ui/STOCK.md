@@ -20,11 +20,12 @@ not put a train on it: the flow the app exists for stopped one step short.
 As [stock-mockup.html](images/stock-mockup.html) lays it out, in the
 throttle's visual style ([#978](https://github.com/rails49/control/issues/978)).
 
-**A bar across the top**: *Stock*, the loaded railroad's name, what is unsaved,
-and the one **Save**. It says *Everything is saved*, *<n> unsaved changes*,
-*Saved* for a moment after a Save lands, or the refusal standing: a field's,
-Save's own (the length guard, a train with nothing in it, nothing loaded), or
-the store's.
+**A bar across the top**: *Stock*, the loaded railroad's name, and what is
+unsaved. It says *Everything is saved*, *<n> unsaved changes*, *Saved* for a
+moment after a save lands while the view is on screen, or the refusal
+standing: a field's, the save's own (the length guard, a train with nothing in
+it, nothing loaded), or the store's. There is no Save button: the view saves
+when it is left ([When it saves](#when-it-saves)).
 
 **Two columns below it**: the list, `minmax(300px, 380px)`, and the editor of
 the item chosen in it. Where the view is narrower than 760 px — its own width,
@@ -112,7 +113,7 @@ Emptying the field takes the camera off and keeps the car. Anything else is refu
 not a camera address — write the camera's host name or IP address*, and a
 camera another car carries with *car 'van-1' already carries camera 'cam-1'*:
 one camera in two cars would put one picture on two trains, which the store
-refuses as well (`lib/stock.py`). It reaches the store on Save, in the whole
+refuses as well (`lib/stock.py`). It reaches the store with the next save, in the whole
 `PUT /rosters/<railroad>`, and the length guard does not hold it: it moves
 nothing the dispatcher fits.
 
@@ -121,20 +122,50 @@ nothing the dispatcher fits.
 and lives in the roster; where it stands belongs to the run. You make it up
 here and put it on the layout in the run view.
 
-**Save writes the roster whole.** `PUT /rosters/<railroad>` is the document, so
+### When it saves
+
+**The view saves when it is left**, at the moments the editor saves the
+drawing ([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
+decision 1; [#1233](https://github.com/rails49/control/issues/1233)): when
+another view is chosen, when the page is hidden or closed (`visibilitychange`
+to hidden, `pagehide`), before ON, and before a railroad is picked, made or
+copied in the settings dialog. There is no Save button and no timer. A save
+asked for while one is in flight is that one. With nothing unsaved nothing is
+written.
+
+The page hidden or closed sends the models and the roster with `keepalive`, so
+they outlive the page. A photo goes without it: `keepalive` caps request bodies
+at 64 KiB, so a photo may not be written when the page closes.
+
+**A save that is refused writes nothing**: a train with nothing in it, a
+function number listed twice, a function with no name. The edits stay on the
+page, the bar shows the refusal, the band marks the roster *unsaved*, and the
+next leave tries again. A save the store refuses or does not answer is marked
+the same way. Closing the page loses edits that could not be saved. The band
+says nothing about edits a leave would save.
+
+**ON with unsaved roster edits saves them first.** Where a length changed,
+power comes on once the apps have built what was saved, as ON does for the
+drawing; otherwise it comes on once the save lands. A save that does not land
+turns nothing on. **A pick, New or Copy loaded as… in the settings dialog saves
+the roster first** as it saves the drawing; a save that does not land loads
+nothing, and the dialog says *the roster could not be saved, so nothing was
+loaded*.
+
+**A save writes the roster whole.** `PUT /rosters/<railroad>` is the document, so
 a car left out is a car removed and removing one needs no verb. The store
 validates it against the catalogue and writes nothing where it does not
 validate, so a refusal arrives in the validator's own words and is shown on the
-screen that caused it. An edit made while Save is writing stays an edit for
-the next Save ([#723](https://github.com/rails49/control/issues/723)).
+screen that caused it. An edit made while a save is writing stays an edit for
+the next one ([#723](https://github.com/rails49/control/issues/723)).
 
-**A train with nothing in it cannot be saved.** Making one up and pressing
-Save is the order of work this screen invites, so the screen refuses that save
+**A train with nothing in it cannot be saved.** Making one up and leaving the
+view is the order of work this screen invites, so the screen refuses that save
 itself, before the `PUT`, naming the train: *train 'ore' has nothing in it —
 press Add to put a car or a model in it, or unmake it*. The store refuses the same
 document — an empty `cars` list names no cars (`lib/stock.py`) — so a roster
 it takes is always one `/rosters/<railroad>/trains` can answer, and the roster
-on disk is unchanged either way. Save stays enabled: there is still something
+on disk is unchanged either way. The edits stay: there is still something
 to give the store once the train is filled
 ([#412](https://github.com/rails49/control/issues/412)). A hand-edited file can
 say the same train the other way — naming neither `cars` nor a length — and the
@@ -157,16 +188,17 @@ never both. Saving the roster unedited keeps the stated length as it was
 The note says what that costs before the press: it names the stated number and
 says that filling the train in takes it. Emptying the train again does not
 bring it back — the train is the ordinary shape by then, and an empty one is
-refused at Save ([#412](https://github.com/rails49/control/issues/412)). The
+refused when saved ([#412](https://github.com/rails49/control/issues/412)). The
 stated length is a property of the older shape that the conversion consumes,
 so the screen owes the price before the press rather than the number
 afterwards ([#448](https://github.com/rails49/control/issues/448)).
 
-**Unsaved roster edits refuse what would discard them.** The railroad is the
-app's and both its documents go with it, so a load in the settings dialog and
-a restore are refused while either is unsaved, in words naming which document
-is at stake: *the drawing*, *the roster*, or *the drawing and the roster*
-(#703, #733). A railroad arriving on `tc49/layout/state/railroad` is **not**
+**A restore is refused over unsaved edits.** The railroad is the app's and
+both its documents go with it, so a restore is refused while either is
+unsaved, in words naming which document is at stake: *the drawing*, *the
+roster*, or *the drawing and the roster* (#703). A load in the settings dialog
+saves both first instead ([When it saves](#when-it-saves)); it was refused over
+the roster until #1233 (#733). A railroad arriving on `tc49/layout/state/railroad` is **not**
 refused: it is what the apps are running, not a press of this page's, and the
 page follows it (#371, ADR-0060); a row naming `""` is no railroad, and this
 view holds none for it. A rake composed and not saved used to go with no
@@ -174,7 +206,7 @@ trace, the guard reading only the drawing
 ([#415](https://github.com/rails49/control/issues/415)). The words are
 the loaded railroad's, as the documents are: `ui/src/model/railroad.ts` holds
 the `Stock` and the filing both, says which of them holds edits, and the app
-hands the dialogs what to refuse over (#758). **Switching view
+hands the Backup tab what to refuse over (#758). **Switching view
 changes no railroad**, so nothing is read again and the rake comes back as it
 was left. Closing or reloading the browser is not refused; neither is the
 drawing.
@@ -235,7 +267,7 @@ the store refusing functions on a model without one (`lib/stock.py`).
 **Toggle · Hold** (`latching` · `momentary`, GLOSSARY.md **Function**) and a
 remove. *Add a function* takes the lowest number not in use. A number listed
 twice says *F2 is listed twice. One number names one function.* under the rows,
-and Save is refused while it stands; so is a function with no name, *F1 needs
+and the save is refused while it stands; so is a function with no name, *F1 needs
 a name.* A latching function's document says nothing about its mode, absent
 reading as latching.
 
@@ -286,7 +318,7 @@ model's, with the model's length as its placeholder and under the length
 guard. **Functions**, where the model has a decoder or the car an address: the
 model's shown as chips — number, name, *hold* on a momentary one — and *This
 car's decoder is different: give it its own functions*, which copies them onto
-the car as function rows edited as the model editor's are, Save refused the
+the car as function rows edited as the model editor's are, the save refused the
 same way while a number is listed twice or a function has no name. *Use the
 model's functions again* takes the car's own off. **Notes**: the model's shown
 above, read-only, and a textarea for the car's own `notes`, kept apart from
@@ -378,16 +410,17 @@ Placing the train is the run view's
 
 ## Saving
 
-**One Save**: each changed model's document with `PUT /catalogue/<model>`, then
+**One save**, made when the view is left ([When it saves](#when-it-saves)):
+each changed model's document with `PUT /catalogue/<model>`, then
 each changed photo with `PUT /catalogue/<model>/photo` under `image/jpeg`,
 then the roster with `PUT /rosters/<railroad>`. That is the order the store
 takes them in: it refuses a photo of a model it has not got, and a roster
 naming one, whole (`lib/stock.py`, [#630](https://github.com/rails49/control/issues/630)).
-A refusal stops the Save where it happened, as
+A refusal stops the save where it happened, as
 [#718](https://github.com/rails49/control/issues/718) has it: what was written
-stays written, and what was not is still an edit for the next Save.
+stays written, and what was not is still an edit for the next save.
 
-**A new model is written by Save**, no longer the moment it is made. *New
+**A new model is written by the save**, no longer the moment it is made. *New
 model* adds *New model* — *New model (2)* where that is taken — to the list,
 chosen, with its name selected to be typed over: a passenger car in H0, 200 mm,
 with no decoder. It is put in trains and given cars like any other before it is
@@ -439,12 +472,12 @@ a caller to read out of it — and is said under the frame as *no picture:*
 followed by the status and its text, or by what the fetch said, with the press
 live again: a camera plugged in a minute later is a picture a minute later.
 
-**A photo chosen, dropped or taken is the page's until Save writes it**, shown
+**A photo chosen, dropped or taken is the page's until a save writes it**, shown
 in the frame and on the card meanwhile and counted among the unsaved changes.
 Once written the card asks for `?v=<n>`, because the bytes at that URL have
 changed and the browser is holding the ones from before; the store drops a
 query string, so it is the same route (#630). A photo the store refuses stays
-on the page for the next Save.
+on the page for the next save.
 
 **A photo is the model's and never the car's.** An item with a photo of its own
 would be a second kind of picture to keep, and what a person is telling apart
@@ -475,26 +508,29 @@ is invalid also reads, and whose lengths stay editable. Nothing is
 latched: once the row is heard again with power off, lengths are editable
 (#804).
 
-A correction is an edit to the page, and reaches the store on the roster's
-**Save**. While power is on or draining, **Save is disabled if the unsaved edits
-change a length**, titled `a length has changed — turn track power off to save`:
-the layout builds only with power off, so a length saved then could not be
-built. While the row naming the railroad is not heard it is disabled for the
-same edits, titled `a length has changed — the layout has not said whether the
-track has power`. Other roster edits save as before. **A save that changed a length names
+A correction is an edit to the page, and reaches the store with the roster's
+next save. While power is on or draining, **nothing is written if the unsaved
+edits change a length** — all of them wait, not only the length — and the bar
+says `a length has changed — turn track power off to save`: the layout builds
+only with power off, so a length saved then could not be built. While the row
+naming the railroad is not heard the same edits wait, the bar saying `a length
+has changed — the layout has not said whether the track has power`. Either
+way the band marks the roster *unsaved*, and the edits are written the next
+time the view is left with power off (#1233). Roster edits that change no
+length save with power on. **A save that changed a length names
 the loaded railroad again** on `tc49/layout/railroad_wanted`, so the dispatcher
 fits trains with the new length; a train now longer than its block comes off
-the layout and is listed as **unfit**. A save pressed while the broker was up
+the layout and is listed as **unfit**. A save made while the broker was up
 that lands after it has gone owes the request: it is sent once the broker is back, the row names the
 same railroad and power reads off, and dropped if the row names another
 railroad or none (#803).
 
-A **model** corrected in its editor is written by that Save too, with
+A **model** corrected in its editor is written by that save too, with
 `PUT /catalogue/<model>`, before the roster: each changed model once, as it
 then stands, then the roster
 ([#718](https://github.com/rails49/control/issues/718)). A refusal stops the
-Save where it happened and is said in the bar. A model already written stays
-written; what was not written is still an edit, and the next Save writes it. If
+save where it happened and is said in the bar. A model already written stays
+written; what was not written is still an edit, and the next save writes it. If
 a model was written before the refusal, the railroad is named again all the
 same: power is off, and the dispatcher must not go on fitting trains by a length
 the store no longer holds. A model correction names the railroad again whether
@@ -504,7 +540,7 @@ or functions alone names nothing, moving no length.
 **A model made here and not yet saved is outside the guard.** No train the
 dispatcher fits is made of a model the store has not got, so its length is
 editable with power on and is no length edit: making a product during a run
-does not hold the Save.
+does not hold the save.
 
 This is a **UI guard in one browser**. `tc-app.ts` holds the run state — track
 power, and which trains the session says are placed — and passes it down, the
@@ -517,7 +553,7 @@ This view is one of the app's views of the loaded railroad (ADR-0038), and
 nothing is loaded until the broker names a railroad
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 Until then there is no roster and no catalogue, and **the presses that write
-are dead with the reason on them** — the New buttons and Save: *load a
+are dead with the reason on them** — the New buttons: *load a
 railroad first* where none has been named, and *the roster and the catalogue
 are not read yet* where one has and its read has not landed. The bar says the
 same, or which of the three ways that read failed, below.
@@ -555,10 +591,10 @@ the message stood until somebody reloaded the page. The try is the loaded
 railroad's, one timer for the drawing, the roster and the trains, made whichever
 view is current, and dropped when the row names another railroad. So is what
 was being composed: a roster edited for the railroad that was open goes when
-another is loaded, the app having asked about it first (#415). A Save still in
+another is loaded, the app having saved it first (#1233). A save still in
 flight then writes its answer onto nothing the new railroad shows (#758).
 
-**A Save that did not land leaves everything it did not write**, with the
+**A save that did not land leaves everything it did not write**, with the
 message in the bar — *PUT /catalogue/hopper answered 404* — so a model made
 here, its photo and the roster naming it are all still there to write again
 once the store is reachable.
@@ -601,7 +637,7 @@ questions Delete and a new car's address ask, and the picker, are look's `look-d
 is. The view's layout, the bar, the tabs and the cards follow the mockup; its
 colours are the app's palette.
 
-`ui/src/model/stock.ts` holds the edits Save writes: each changed model, each
+`ui/src/model/stock.ts` holds the edits a save writes: each changed model, each
 photo waiting, and the function rows a document keyed by number cannot hold
 while a number is listed twice. `ui/src/model/railroad.ts` mints the keys and
 writes them in the store's order. A model's `DELETE` is `ui/src/model/store.ts`'s,
@@ -621,8 +657,7 @@ strip beside a drawing surface — the editor's palette, the run view's roster
 ([#169](https://github.com/rails49/control/issues/169)) — and this view has no
 surface, so it declares its own columns and leaves `--pane` alone. It puts
 no commands on the rail either: `RAIL.stock` is empty, there being no viewport
-to move, and a `Save` there would be a second Save meaning something other than
-the one beside it. The views are the whole of this view's rail
+to move, and the view saves when it is left. The views are the whole of this view's rail
 ([ADR-0064](../adr/0064-the-chrome-is-a-band-and-a-rail.md)).
 
 Its entry in `VIEWS` in `ui/src/model/views.ts` names its glyph,
@@ -638,19 +673,23 @@ names, a car refused a second place in a train, an entry moved, a priority,
 the derived length, kind and functions, what holds a car or a
 model, the length guard, and the model editor's rules: New model's names, the
 key minted from a name and kept, a name refused, the decoder and its function
-rows with their mode, a number listed twice stopping Save, a photo held for
-Save; and the car editor's: an address out of 1 to 10239 or another car's
-refused, a car's own notes, and its own functions copied from the model,
-stopping Save while one has no name, and taken off again. `ui/test/railroad.test.ts` has Save write a model made here, its photo
-and the roster, in that order and under the key minted.
+rows with their mode, a number listed twice stopping the save, a photo held
+for the save; and the car editor's: an address out of 1 to 10239 or another
+car's refused, a car's own notes, and its own functions copied from the model,
+stopping the save while one has no name, and taken off again.
+`ui/test/railroad.test.ts` has a save write a model made here, its photo and
+the roster, in that order and under the key minted; a save asked for during
+one being that one; the writes going with `keepalive` where the page is
+leaving; every edit waiting with a length while power is on; and what ON
+saves first, naming the railroad once.
 
 `ui/test/making.test.ts` mounts the app in this view against a store with no
 `catalogue/` and no roster — and, for the older shape, against one answering a
-train that states its length — and drives the controls: the bar's words, a
-model written by Save and not before, a model named `Ae 6/6` saved under
+train that states its length — and drives the controls: the bar's words and no
+Save in it, a model written when the view is left and not before, a model named `Ae 6/6` saved under
 `ae-6-6`, a duplicate name refused and put back, the decoder switch and the
 function rows reaching the document with `mode`, a duplicate function number
-refusing Save, Delete dead while the model is used, asking and sending
+refusing the save, Delete dead while the model is used, asking and sending
 `DELETE` where it is not, and the store's refusal under it; the car editor —
 a second car of a decoder model asked for its address and refusing the first
 car's, an address refused and put back, a camera address set, refused and
@@ -669,9 +708,13 @@ while a dragged tile is held near its edge, flip writing
 `Re 4/4 II` and a train named `S 1/S 2` saved; a train made up of a locomotive
 and three hoppers, the document that reaches `PUT /rosters/<railroad>` with one
 car entry and three model entries, the guard killing a field while track power
-is on, Save waiting for power off when a length changed and then naming the
-railroad again, a corrected model written before the roster and kept for the
-next Save where it is refused, the run view showing a train made up here
+is on, the save waiting for power off when a length changed — every edit with
+it, the band marking the roster unsaved — and then naming the railroad again, a
+corrected model written before the roster and kept for the next save where it
+is refused, a refused save marked unsaved on the band, the roster saved on a
+switch of view, on the page hidden with `keepalive`, and on ON — power coming
+on after the build where a length changed and at once otherwise, and not at
+all where the save is refused —, the run view showing a train made up here
 without a reload, the row an older roster's train draws and the first entry
 converting it, the chosen train moving when the one it named is unmade and
 carried when that one is renamed, the field a refusal puts back, the edit
@@ -684,14 +727,14 @@ the store fails as this screen shows them. The words themselves are
 `toJpeg` replaced: the photo route a model's, a car's and a train's card show,
 *No photo* where it did not load, a dropped and a chosen file reaching
 `PUT /catalogue/<model>/photo` as the conversion's output under `image/jpeg`
-on Save, a file that is no picture and one the browser cannot read refused in
+once the view is left, a file that is no picture and one the browser cannot read refused in
 words, the frame while the camera is waited on and the dead press with it, the
-camera's own bytes on Save, what a `502` reads as, a model made with a photo
+camera's own bytes once the view is left, what a `502` reads as, a model made with a photo
 written as the document, the photo and the roster under the key minted, and a
-photo the store refused kept for the next Save. What the camera answers is the
+photo the store refused kept for the next save. What the camera answers is the
 shell's (`ui/test/support/shell.ts`, `camera`), that route being a photo
 camera's and no app of this repository's.
 
-The question over unsaved roster edits is `ui/test/opening.test.ts`'s, beside
-the drawing's: it is the app's question about the app's railroad, and what the
-two documents have to say about it belongs in one place (#415).
+A pick in the settings dialog saving the roster first, and loading nothing
+where that save is refused, is `ui/test/picking.test.ts`'s, beside the
+drawing's (#1233).
