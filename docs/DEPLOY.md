@@ -49,7 +49,7 @@ credentials — and the declaration stays something you can paste into an issue
 while debugging a headless box.
 
 `control` adds one file of its own in that directory,
-`/etc/rails49/deploy.env`: where the store is rooted, the driver's two
+`/etc/rails49/control.env`: where the store is rooted, the driver's two
 speeds if the defaults do not suit the locomotives
 ([below](#the-drivers-speeds)). How long `layout` waits on a silent throttle
 is set in the Settings dialog instead ([below](#a-silent-throttle)). One
@@ -57,6 +57,15 @@ directory rather
 than two, so the box has one place its settings sit. Which device the command
 station is on is the mirror's, `DCCEX_STATION_DEVICE` in
 [`rails49/dccex`](https://github.com/rails49/dccex)'s `compose.box.yaml`.
+
+The file was `deploy.env` until
+[#1218](https://github.com/rails49/control/issues/1218). On a box that has
+only the old name, `scripts/deploy.sh` stops before it pulls and says to
+rename it:
+
+```
+sudo mv /etc/rails49/deploy.env /etc/rails49/control.env
+```
 
 ## Working on the app
 
@@ -82,7 +91,7 @@ certificate months from now with nobody present. So `/etc/rails49/acme.env` is
 where that secret sits on disk, owned `root:docker` and mode 640, outside every
 clone, written once from a machine that does have `op`. Revoke and rewrite it
 rather than editing it in place. It is the installation's file and `control`
-never reads it; `control`'s own `/etc/rails49/deploy.env` beside it holds no
+never reads it; `control`'s own `/etc/rails49/control.env` beside it holds no
 secret at all.
 
 **`rails49` is an ssh alias**, and it is a convenience rather than something
@@ -168,11 +177,11 @@ cd ~/control
 git status --porcelain    # must print nothing
 git remote set-url origin https://github.com/rails49/control.git
 git pull
-mkdir -p "$(scripts/store-root.sh /etc/rails49/deploy.env)"
+mkdir -p "$(scripts/store-root.sh /etc/rails49/control.env)"
 export CONTROL_COMMIT=$(git rev-parse HEAD)
 export TC49_UID=$(id -u) TC49_GID=$(id -g)
 docker compose --env-file /etc/rails49/box.env \
-  --env-file /etc/rails49/deploy.env \
+  --env-file /etc/rails49/control.env \
   -f deploy/compose.yaml --profile layout --profile steel \
   up -d --build --remove-orphans
 ```
@@ -250,7 +259,7 @@ held 2560, and `dccex-usb` could not start until it was gone.
 compose take the name from the `deploy/` directory, so `docker logs
 tc49-store-1` is the same container on every clone. Addressing a service
 rather than a container — `docker compose --env-file /etc/rails49/box.env
---env-file /etc/rails49/deploy.env -f deploy/compose.yaml logs scheduler` —
+--env-file /etc/rails49/control.env -f deploy/compose.yaml logs scheduler` —
 needs no name at all.
 
 Nothing starts this at boot but Docker itself: every service is
@@ -371,10 +380,10 @@ says which. Only the store mounts it, so nothing else comes down:
 ```
 cd ~/control
 docker compose --env-file /etc/rails49/box.env \
-  --env-file /etc/rails49/deploy.env -f deploy/compose.yaml rm -sf store
+  --env-file /etc/rails49/control.env -f deploy/compose.yaml rm -sf store
 docker volume rm deploy_keys
 docker compose --env-file /etc/rails49/box.env \
-  --env-file /etc/rails49/deploy.env -f deploy/compose.yaml up -d --no-deps store
+  --env-file /etc/rails49/control.env -f deploy/compose.yaml up -d --no-deps store
 ```
 
 The store makes itself a new key on the next `Settings ▸ Backup`, in a volume
@@ -398,8 +407,8 @@ others
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 They are the railroad's, set on the Settings dialog's **Driving** tab and kept
 with the railroad, not anything on the box: the driver's service takes no
-environment, and the two driver variables an older `/etc/rails49/deploy.env`
-may still set are read by nothing
+environment, and the two driver variables `/etc/rails49/control.env` may
+still set on an older box are read by nothing
 ([#1133](https://github.com/rails49/control/issues/1133)). A changed speed
 applies from the next grant; whether a train's traction follows it is
 `layout`'s to decide.
@@ -427,7 +436,7 @@ allowance, how long a move may run without arriving, from 5 to 600 seconds and
 The camera app reads each camera car's camera with Basic auth
 ([ADR-0082](adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
 Two variables on the camera's service say the login, set in
-`/etc/rails49/deploy.env`:
+`/etc/rails49/control.env`:
 
 ```sh
 TC49_CAMERA_USER=admin
@@ -625,12 +634,16 @@ Over plain HTTP a page is not a secure context, and two things stop working:
 installation is not up on this box. It creates that network, and every stack
 that serves a UI joins it.
 
+**`scripts/deploy.sh` stops and says to rename `deploy.env`** — the box was
+set up before [#1218](https://github.com/rails49/control/issues/1218).
+Rename the file as [above](#what-the-box-declares) and deploy again.
+
 **Compose stops on an unset `BOX_DOMAIN`** — it was run without
 `--env-file /etc/rails49/box.env`. The message names the variable it wanted.
 
 **`https://control.gleis49.org` answers 404** — the door is up and this stack
 is not, or its containers are not on the shared network. `docker compose
---env-file /etc/rails49/box.env --env-file /etc/rails49/deploy.env -f
+--env-file /etc/rails49/box.env --env-file /etc/rails49/control.env -f
 deploy/compose.yaml ps` says which.
 
 **The name resolves to nothing, or to `0.0.0.0`** — DNS rebind protection at

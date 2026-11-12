@@ -131,15 +131,15 @@ def test_the_image_carries_the_directory_the_keys_volume_lands_on() -> None:
 
 def test_the_deploy_makes_the_store_directory_before_compose() -> None:
     """Made by something that knows whose it is, rather than by the daemon."""
-    made = DEPLOY.index('mkdir -p "$(scripts/store-root.sh "$DEPLOY_ENV")"')
+    made = DEPLOY.index('mkdir -p "$(scripts/store-root.sh "$CONTROL_ENV")"')
     assert made < DEPLOY.index("docker compose")
 
 
 def test_the_deploy_asks_the_env_file_compose_is_given() -> None:
     """One name for the file, so the directory made and the directory mounted
     cannot be resolved out of two different places (#442)."""
-    assert "DEPLOY_ENV=/etc/rails49/deploy.env" in DEPLOY
-    assert '--env-file "$DEPLOY_ENV"' in DEPLOY
+    assert "CONTROL_ENV=/etc/rails49/control.env" in DEPLOY
+    assert '--env-file "$CONTROL_ENV"' in DEPLOY
 
 
 def store_root(env_file: Path, store: str | None = None) -> str:
@@ -159,7 +159,7 @@ def store_root(env_file: Path, store: str | None = None) -> str:
 
 
 def env_file(tmp_path: Path, text: str) -> Path:
-    written = tmp_path / "deploy.env"
+    written = tmp_path / "control.env"
     written.write_text(text)
     return written
 
