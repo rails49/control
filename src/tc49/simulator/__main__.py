@@ -31,11 +31,11 @@ once as the app starts; it takes
 `layout` keeps it, so the Settings dialog works on a simulated railroad as on
 steel. It keeps and says the point gap and every one of the installation's
 settings and runs on none of them, sending no point command, holding no
-throttle, reading no sensor report and timing no move (#1140, #1149, #1188). Neither the drain
-period nor the two delays is a flag — nothing outside this process has an
-opinion about how often it takes what the broker's network thread left
-waiting, and what a transit costs is this binding's own stand-in for travel
-time rather than a number a person restarts a container to change (ADR-0030).
+throttle, reading no sensor report and timing no move (#1140, #1149, #1188). The drain
+period is not a flag: nothing outside this process has an opinion about how
+often it takes what the broker's network thread left waiting. The two delays
+a train is carried on are, `--transit` and `--clear`, which compose fills from
+the box's env file (#1229).
 
 The startup order is `lib/startup.py`'s, and its third step holds one thing
 here, as in `layout`: the settled readings a previous process left are cleared,
@@ -83,7 +83,9 @@ whoever published it is another container, and a bug there must not take the
 thing that watches the railroad down with it.
 """
 
+import argparse
 import contextlib
+import math
 import signal
 import sys
 import threading
@@ -106,17 +108,12 @@ CLIENT_ID = "tc49-simulator"
 than a random string. Nothing in the contract reads it: a topic has one
 writing role and no payload says who published (BUS.md, rule 4)."""
 
-TRANSIT_S = 30.0
-CLEAR_S = 30.0
-"""The two fixed delays a deployed simulator carries a train on: the head
-reaching the sensor it enters by, then the tail clearing the sensor it left by
-and, a second `CLEAR_S` on, the one it entered by. Stated here
-rather than left to the constructor's defaults so that what a transit costs on
-a running box is read off the process that runs it, and passed in rather than
-flagged for ADR-0030's reason — a delay this binding chose is not a distance
-divided by a speed, and the railroad it stands in for is the one thing that
-could say otherwise. The suite shortens them, a test that waited out a real
-transit spending half a minute on one move."""
+TRANSIT_S = 5.0
+CLEAR_S = 5.0
+"""The two delays a deployed simulator carries a train on unless `--transit`
+and `--clear` say others: the head reaching the sensor it enters by, then the
+tail clearing the sensor it left by and, a second `CLEAR_S` on, the one it
+entered by. A move takes `TRANSIT_S + 2 * CLEAR_S` (#1229)."""
 
 ALIVE_CONFIRMED = "tc49/layout/alive_confirmed"
 """`layout`'s saying it is up, said by this binding in its place: a page names
@@ -346,17 +343,48 @@ def _waiting(stop: threading.Event, alive: Alive) -> Callable[[float], None]:
     return wait
 
 
-def main() -> None:
-    parser = command_line(
+def seconds(value: str) -> float:
+    """A delay as the command line gives it: a positive, finite number of
+    seconds."""
+    try:
+        delay = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number") from None
+    if not math.isfinite(delay) or delay <= 0:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a positive number")
+    return delay
+
+
+def parser() -> argparse.ArgumentParser:
+    """The flags compose passes this app: `command_line`'s, and the two
+    delays."""
+    parsing = command_line(
         prog="python -m tc49.simulator",
         description="Run the simulator against a broker: the second"
         " binding of the layout interface, standing in for the steel.",
     )
-    args = parser.parse_args()
+    parsing.add_argument(
+        "--transit",
+        type=seconds,
+        default=TRANSIT_S,
+        help="seconds from a move's start to the head reaching the next block",
+    )
+    parsing.add_argument(
+        "--clear",
+        type=seconds,
+        default=CLEAR_S,
+        help="seconds for the tail to clear each sensor after that",
+    )
+    return parsing
+
+
+def main() -> None:
+    parsing = parser()
+    args = parsing.parse_args()
     try:
         host, port = address(args.broker)
     except ValueError as refused:
-        parser.error(str(refused))
+        parsing.error(str(refused))
     # A signal is what ends this app, and SIGTERM is the one a container is
     # stopped with: given SIGINT's own handler it raises where the process
     # stands, so a wait for a store that never comes up ends on it too.
@@ -365,7 +393,14 @@ def main() -> None:
     bus = MqttBus(host, port, client_id=CLIENT_ID, rejoin=False)
     try:
         with contextlib.suppress(KeyboardInterrupt):
-            serve(bus, Documents(args.store), NO_RAILROAD, threading.Event())
+            serve(
+                bus,
+                Documents(args.store),
+                NO_RAILROAD,
+                threading.Event(),
+                transit_s=args.transit,
+                clear_s=args.clear,
+            )
     finally:
         bus.close()
 

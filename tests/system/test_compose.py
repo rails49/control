@@ -224,6 +224,17 @@ def test_the_two_bindings_share_no_profile() -> None:
     )
 
 
+def test_the_simulator_takes_its_delays_from_the_env_file() -> None:
+    """A box sets how long a simulated move takes in its env file, and one
+    that sets nothing runs at 5 s: compose fills each flag from its variable,
+    and `5` where the variable is unset or empty (#1229)."""
+    run = words(services()["simulator"])
+    flags = dict(pairwise(run))
+
+    assert flags.get("--transit") == "${TC49_SIM_TRANSIT_S:-5}"
+    assert flags.get("--clear") == "${TC49_SIM_CLEAR_S:-5}"
+
+
 def test_the_deploy_asks_for_declared_profiles() -> None:
     """A profile no service declares is not an error: compose starts every
     other service and exits 0 (#616). So a renamed or misspelled `steel`

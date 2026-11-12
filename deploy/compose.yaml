@@ -310,7 +310,9 @@ services:
     command:
       ["python", "-m", "tc49.simulator",
        "--broker", "broker:1883",
-       "--store", "http://store:8765"]
+       "--store", "http://store:8765",
+       "--transit", "${TC49_SIM_TRANSIT_S:-5}",
+       "--clear", "${TC49_SIM_CLEAR_S:-5}"]
 
   # A translator was the sixth service: the device vocabulary turned into the
   # command station's own language, over the mirror rather than the device

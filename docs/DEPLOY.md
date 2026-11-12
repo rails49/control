@@ -51,7 +51,12 @@ while debugging a headless box.
 `control` adds one file of its own in that directory,
 `/etc/rails49/control.env`: where the store is rooted, the driver's two
 speeds if the defaults do not suit the locomotives
-([below](#the-drivers-speeds)). How long `layout` waits on a silent throttle
+([below](#the-drivers-speeds)), and on a box with no steel how long the
+simulator takes over a move (#1229): `TC49_SIM_TRANSIT_S`, the seconds from a
+move's start to the train's head entering the next block, and
+`TC49_SIM_CLEAR_S`, the seconds for its tail to clear each sensor after that.
+Both are 5 where unset, so a move takes 15 s. A changed value applies once the
+`simulator` container is recreated (`up -d`). How long `layout` waits on a silent throttle
 is set in the Settings dialog instead ([below](#a-silent-throttle)). One
 directory rather
 than two, so the box has one place its settings sit. Which device the command
