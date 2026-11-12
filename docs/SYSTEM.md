@@ -1379,9 +1379,8 @@ stop — stays private hardware configuration.
 
 The **simulator** is a discrete-event engine: on an accepted
 `move` it schedules what the sensors at the train's block ends would read on
-steel, on two delays of its own, `transit` and `clearing`, 5 s each unless a
-box sets others (`TC49_SIM_TRANSIT_S`, `TC49_SIM_CLEAR_S`,
-[DEPLOY.md](DEPLOY.md), #1229), and it
+steel, on two delays of its own, the transit delay and the clearing delay,
+which a box sets ([DEPLOY.md](DEPLOY.md#what-the-box-declares), #1229), and it
 owns pacing and termination — a batch run jumps the clock event to event and
 stops when nothing is scheduled, nothing pending and no train rolling
 ([BENCHMARKS.md](bench/BENCHMARKS.md#termination)); live mode sleeps the same

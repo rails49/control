@@ -31,11 +31,11 @@ once as the app starts; it takes
 `layout` keeps it, so the Settings dialog works on a simulated railroad as on
 steel. It keeps and says the point gap and every one of the installation's
 settings and runs on none of them, sending no point command, holding no
-throttle, reading no sensor report and timing no move (#1140, #1149, #1188). The drain
-period is not a flag: nothing outside this process has an opinion about how
-often it takes what the broker's network thread left waiting. The two delays
-a train is carried on are, `--transit` and `--clear`, which compose fills from
-the box's env file (#1229).
+throttle, reading no sensor report and timing no move (#1140, #1149, #1188).
+The drain period is not a flag: nothing outside this process has an opinion
+about how often it takes what the broker's network thread left waiting. The
+two delays a train is carried on are flags, `--transit` and `--clear`. Compose
+fills them from the box's env file (#1229).
 
 The startup order is `lib/startup.py`'s, and its third step holds one thing
 here, as in `layout`: the settled readings a previous process left are cleared,
@@ -355,36 +355,37 @@ def seconds(value: str) -> float:
     return delay
 
 
-def parser() -> argparse.ArgumentParser:
+def simulator_command_line() -> argparse.ArgumentParser:
     """The flags compose passes this app: `command_line`'s, and the two
     delays."""
-    parsing = command_line(
+    parser = command_line(
         prog="python -m tc49.simulator",
         description="Run the simulator against a broker: the second"
         " binding of the layout interface, standing in for the steel.",
     )
-    parsing.add_argument(
+    parser.add_argument(
         "--transit",
         type=seconds,
         default=TRANSIT_S,
-        help="seconds from a move's start to the head reaching the next block",
+        help="seconds from a move's start to the head reaching the next block"
+        f" (default {TRANSIT_S:g})",
     )
-    parsing.add_argument(
+    parser.add_argument(
         "--clear",
         type=seconds,
         default=CLEAR_S,
-        help="seconds for the tail to clear each sensor after that",
+        help=f"seconds for the tail to clear each sensor after that (default {CLEAR_S:g})",
     )
-    return parsing
+    return parser
 
 
 def main() -> None:
-    parsing = parser()
-    args = parsing.parse_args()
+    parser = simulator_command_line()
+    args = parser.parse_args()
     try:
         host, port = address(args.broker)
     except ValueError as refused:
-        parsing.error(str(refused))
+        parser.error(str(refused))
     # A signal is what ends this app, and SIGTERM is the one a container is
     # stopped with: given SIGINT's own handler it raises where the process
     # stands, so a wait for a store that never comes up ends on it too.
