@@ -13,12 +13,14 @@ from tc49.dispatcher.dispatch import (
     Request,
     State,
     aspects,
+    broken,
 )
 from tc49.dispatcher.locking import Move
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
 from tc49.lib.scenario import TrainSpec
+from tests.generate import LAYOUTS, ROSTERS
 from tests.harness import events, load, power, press, run, settled, ticks
 from tests.invariants import check
 
@@ -55,8 +57,9 @@ def a_route(layout: Layout) -> Route:
 
 def a_state(layout: Layout, route: Route, ahead: int) -> State:
     """`t` standing at the head of `route` with `ahead` blocks locked past it,
-    the power on."""
+    each with the transit into it, the power on."""
     locks = {route.blocks[i]: "t" for i in range(ahead + 1)}
+    locks |= {route.transits[i]: "t" for i in range(ahead)}
     request = Request("t-1", "t", f"{route.blocks[0]}.B", (), 0)
     return State(
         layout,
@@ -480,3 +483,44 @@ def test_a_trace_line_keeps_the_inventory_field_order() -> None:
         "into",
         "aspect",
     ]
+
+
+def test_a_block_its_own_cars_still_hold_is_not_locked_ahead() -> None:
+    """`t1` is recorded in yard_w before dn_e reads clear, so it still holds
+    dn_e for its own cars. Sent back to dn_e by up_w, it is granted up_w
+    alone: the transit into dn_e is not locked, and dn_e reads occupied. So
+    the move is at `caution` and up_w's exit shows `stop` (#1230)."""
+    assembly = back_to_dn_e()
+
+    last = events(assembly.trace, "move_granted")[-1]
+    assert (last["into"], last["aspect"]) == ("up_w", "caution")
+    assert proceed(assembly) == {"yard_w.B": "caution"}
+
+
+def test_a_block_its_own_cars_held_stays_locked_once_it_is_entered() -> None:
+    """dn_e reads clear and `t1` is granted the move into it. The lock it held
+    for its cars is now the block ahead, so the tail leaving up_w does not
+    release it (#1230)."""
+    assembly = back_to_dn_e()
+    ticks(assembly, 1)
+    press(assembly, *settled("up_w.A"))
+    press(assembly, *settled("up_w.A", False))
+
+    assert events(assembly.trace, "move_granted")[-1]["into"] == "dn_e"
+    assert assembly.dispatcher.state.locks.get("dn_e") == "t1"
+    assert broken(assembly.dispatcher.state) == []
+
+
+def back_to_dn_e() -> Assembly:
+    """`t1` run from yard_e toward yard_w and recorded there by an early
+    reading, before dn_e reads clear, then sent back to dn_e by up_w."""
+    layout, roster = LAYOUTS["crossover-yard"], ROSTERS["crossover-yard"]
+    assembly = assemble_live(
+        layout, roster, {"t1": TrainSpec("yard_e", "B-to-A")}, Incremental
+    )
+    check(assembly, Incremental)
+    press(assembly, REQUEST_WANTED, {"train": "t1", "dest": ["dn_e.A", "yard_w.B"]})
+    ticks(assembly, 2)
+    press(assembly, *settled("yard_w.A"))
+    press(assembly, REQUEST_WANTED, {"train": "t1", "dest": ["dn_e.A"]})
+    return assembly
