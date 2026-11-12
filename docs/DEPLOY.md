@@ -407,8 +407,8 @@ others
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 They are the railroad's, set on the Settings dialog's **Driving** tab and kept
 with the railroad, not anything on the box: the driver's service takes no
-environment, and the two driver variables `/etc/rails49/control.env` may
-still set on an older box are read by nothing
+environment, and the two driver variables an older box may still set in
+`/etc/rails49/control.env` are read by nothing
 ([#1133](https://github.com/rails49/control/issues/1133)). A changed speed
 applies from the next grant; whether a train's traction follows it is
 `layout`'s to decide.

@@ -42,12 +42,11 @@ cd ~/control
 # the box has one rather than two (#557).
 BOX_ENV=/etc/rails49/box.env
 CONTROL_ENV=/etc/rails49/control.env
-# The file was `deploy.env` until #1218, and JMRI reads it under the new name
-# too. Compose would stop on the missing file without saying why, so a box
-# that has only the old one is told to rename it before anything moves.
+# The file was `deploy.env` until #1218. A box that has only the old name is
+# told to rename it, before the pull.
 if [ -e /etc/rails49/deploy.env ] && [ ! -e "$CONTROL_ENV" ]; then
   echo "/etc/rails49/deploy.env is named control.env now; rename it with" >&2
-  echo "sudo mv /etc/rails49/deploy.env /etc/rails49/control.env" >&2
+  echo "sudo mv /etc/rails49/deploy.env $CONTROL_ENV" >&2
   exit 1
 fi
 # A tree with changes in it, tracked or not, would be built under a commit

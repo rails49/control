@@ -1,9 +1,9 @@
 """The stack's own settings are `/etc/rails49/control.env` (#1218).
 
 The file was `deploy.env` until rails49/installation#65 decision 14 named
-each stack's settings after the stack, beside the box's `box.env`. JMRI reads
-the same file. A box that still has only `deploy.env` is told to rename it
-before the deploy changes anything.
+each stack's settings after the stack, beside the box's `box.env`. A box
+that still has only `deploy.env` is told to rename it before the deploy
+pulls.
 
 The lines that check are run here against a directory made under `tmp_path`
 in place of `/etc/rails49`, the way the tree check's are in
@@ -53,7 +53,7 @@ def test_a_box_with_only_the_old_name_is_told_to_rename_it(tmp_path: Path) -> No
     assert f"mv {etc}/deploy.env {etc}/control.env" in ran.stderr
 
 
-def test_a_box_with_the_new_name_goes_on(tmp_path: Path) -> None:
+def test_a_box_with_the_new_name_passes_the_check(tmp_path: Path) -> None:
     ran = run_block(a_box(tmp_path, "control.env"))
     assert (ran.returncode, ran.stderr) == (0, "")
 
@@ -64,12 +64,13 @@ def test_an_old_file_left_beside_the_new_one_is_not_read(tmp_path: Path) -> None
 
 
 def test_the_check_comes_before_the_pull() -> None:
-    """A box told to rename its file has not moved."""
-    assert DEPLOY.index("BOX_ENV=") < DEPLOY.index("git pull")
+    """A box told to rename its file has not pulled."""
+    assert DEPLOY.index("[ -e /etc/rails49/deploy.env ]") < DEPLOY.index("git pull")
 
 
 def test_compose_is_started_against_both_files() -> None:
     assert f"CONTROL_ENV={ETC}/control.env" in DEPLOY
+    assert f"BOX_ENV={ETC}/box.env" in DEPLOY
     assert '--env-file "$BOX_ENV" --env-file "$CONTROL_ENV"' in DEPLOY
 
 
