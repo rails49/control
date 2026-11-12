@@ -364,9 +364,10 @@ export async function readRoster(railroad: string): Promise<RosterDoc> {
 /** Create or replace one railroad's roster. Strict, unlike a drawing: the
  *  store validates it against the installation's catalogue and writes nothing
  *  where it does not validate, so a refusal arrives as a thrown error carrying
- *  the validator's words. */
-export async function saveRoster(roster: RosterDoc): Promise<void> {
-  await ask("PUT", `/rosters/${encodeURIComponent(roster.roster)}`, roster);
+ *  the validator's words. `leaving` is a page being hidden or closed: the
+ *  write goes with `keepalive`, as `saveDrawing`'s does (#1233). */
+export async function saveRoster(roster: RosterDoc, leaving = false): Promise<void> {
+  await ask("PUT", `/rosters/${encodeURIComponent(roster.roster)}`, roster, leaving);
 }
 
 /**
@@ -436,9 +437,9 @@ export async function readModel(name: string): Promise<ModelDoc> {
 
 /** Create or replace one model. The store validates it and writes nothing
  *  where it does not validate, so a refusal arrives as a thrown error
- *  carrying the validator's words. */
-export async function saveModel(model: ModelDoc): Promise<void> {
-  await ask("PUT", `/catalogue/${encodeURIComponent(model.model)}`, model);
+ *  carrying the validator's words. `leaving` is as `saveRoster`'s. */
+export async function saveModel(model: ModelDoc, leaving = false): Promise<void> {
+  await ask("PUT", `/catalogue/${encodeURIComponent(model.model)}`, model, leaving);
 }
 
 /** Delete one model, its photo going with it. The store refuses a model a

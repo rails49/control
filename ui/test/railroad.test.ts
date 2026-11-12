@@ -43,6 +43,8 @@ function failure(how: Failing, path: string): Error {
 class Fake implements Store, StockStore {
   asked: string[] = [];
   saved: string[] = [];
+  /** The writes that went with `keepalive`, by path. */
+  kept: string[] = [];
   failing: Record<string, Failing> = {};
   /** What the store refuses each drawing with on review, by name, so a late
    *  review is told apart from the one that should stand. */
@@ -130,11 +132,13 @@ class Fake implements Store, StockStore {
     return this.ask("/catalogue", () => ({ hopper: HOPPER }));
   }
 
-  saveRoster(roster: RosterDoc): Promise<void> {
+  saveRoster(roster: RosterDoc, leaving = false): Promise<void> {
+    if (leaving) this.kept.push(`/rosters/${roster.roster}`);
     return this.write(`/rosters/${roster.roster}`);
   }
 
-  saveModel(model: ModelDoc): Promise<void> {
+  saveModel(model: ModelDoc, leaving = false): Promise<void> {
+    if (leaving) this.kept.push(`/catalogue/${model.model}`);
     return this.write(`/catalogue/${model.model}`);
   }
 
@@ -480,7 +484,7 @@ describe("what changing the railroad would discard", () => {
   });
 });
 
-describe("the roster's Save", () => {
+describe("the roster's save", () => {
   /** `toy` loaded, with a model's length corrected and a car's address
    *  given: two documents to write. */
   async function edited() {
@@ -497,7 +501,7 @@ describe("the roster's Save", () => {
 
     const reached = await railroad.save("off");
 
-    expect(reached).toBe(true);
+    expect(reached).toBe("named");
     expect(names).toEqual(["toy"]);
     expect(store.saved).toEqual(["/catalogue/hopper", "/rosters/toy"]);
     expect(railroad.unsaved).toBeNull();
@@ -517,7 +521,7 @@ describe("the roster's Save", () => {
     stock.setPhoto(key, { jpeg: new Uint8Array([1]), shown: "data:," });
     stock.newCar(key);
 
-    expect(await railroad.save("off")).toBe(false);
+    expect(await railroad.save("off")).toBe("landed");
 
     expect(store.saved).toEqual([
       "/catalogue/ae-6-6",
@@ -529,13 +533,13 @@ describe("the roster's Save", () => {
     expect(railroad.unsaved).toBeNull();
   });
 
-  it("answers false and names nothing where no length moved", async () => {
+  it("answers landed and names nothing where no length moved", async () => {
     const { railroad, store, names } = made();
     railroad.named("toy");
     await flushed();
     railroad.stock!.carAddress("hopper-1", "7");
 
-    expect(await railroad.save("off")).toBe(false);
+    expect(await railroad.save("off")).toBe("landed");
     expect(store.saved).toEqual(["/rosters/toy"]);
     expect(names).toEqual([]);
   });
@@ -545,61 +549,101 @@ describe("the roster's Save", () => {
     const { railroad, store, names } = await edited();
     store.failing["/catalogue/hopper"] = "refused";
 
-    expect(await railroad.save("off")).toBe(false);
+    expect(await railroad.save("off")).toBeNull();
 
     expect(names).toEqual([]);
   });
 
-  it("is saving until the write answers, and writes once per press", async () => {
-    const { railroad, store } = await edited();
+  it("is the save in flight where one is asked for during it, and writes once", async () => {
+    const { railroad, store, names } = await edited();
     const answer = store.hold("/rosters/");
 
     const first = railroad.save("off");
     await flushed();
-    expect(railroad.saving).toBe(true);
-    expect(await railroad.save("off")).toBe(false);
+    const second = railroad.save("off");
+    expect(second).toBe(first);
 
     answer();
-    await first;
 
-    expect(railroad.saving).toBe(false);
+    expect(await first).toBe("named");
     expect(store.saved.filter((path) => path.startsWith("/rosters/"))).toEqual([
       "/rosters/toy",
     ]);
+    expect(names).toEqual(["toy"]);
+  });
+
+  it("writes nothing and answers landed where the roster holds no edits", async () => {
+    const { railroad, store } = made();
+    railroad.named("toy");
+    await flushed();
+
+    expect(await railroad.save("off")).toBe("landed");
+
+    expect(store.saved).toEqual([]);
+  });
+
+  /** A page being hidden or closed: what it writes has to outlive it. The
+   *  photo goes without, `keepalive` capping a body at 64 KiB (#1233). */
+  it("sends the models and the roster with keepalive where the page is leaving", async () => {
+    const { railroad, store } = await edited();
+
+    await railroad.save("off", true, true);
+
+    expect(store.kept).toEqual(["/catalogue/hopper", "/rosters/toy"]);
+  });
+
+  it("counts the saves that landed", async () => {
+    const { railroad, store } = await edited();
+    expect(railroad.landings).toBe(0);
+    store.failing["/rosters/toy"] = "refused";
+    await railroad.save("off");
+    expect(railroad.landings).toBe(0);
+
+    delete store.failing["/rosters/toy"];
+    await railroad.save("off");
+
+    expect(railroad.landings).toBe(1);
   });
 
   it("leaves what was written where a refusal stops it partway", async () => {
-    const { railroad, store } = await edited();
+    const { railroad, store, names } = await edited();
     store.failing["/rosters/toy"] = "refused";
 
     const reached = await railroad.save("off");
 
-    expect(reached).toBe(true);
+    expect(reached).toBeNull();
+    expect(names).toEqual(["toy"]);
     expect(store.saved).toEqual(["/catalogue/hopper"]);
     expect(railroad.stock!.corrections).toEqual([]);
     expect(railroad.unsaved).toBe("the roster");
     expect(railroad.stockTrouble).toBe("no such thing as /rosters/toy");
-    expect(railroad.saving).toBe(false);
+    expect(railroad.stranded("off", true)).toBe(true);
   });
 
-  it("writes nothing with a length edit while the rails have power, and says why", async () => {
+  /** Every edit waits with the length, the address among them (#1233). The
+   *  stock view says why from `Stock.waitsForPower`, so nothing stands as
+   *  trouble, and the band marks the roster unsaved. */
+  it("writes nothing with a length edit while the rails have power", async () => {
     const { railroad, store } = await edited();
 
-    expect(await railroad.save("on")).toBe(false);
+    expect(await railroad.save("on")).toBeNull();
 
     expect(store.saved).toEqual([]);
-    expect(railroad.stockTrouble).not.toBeNull();
+    expect(railroad.stockTrouble).toBeNull();
+    expect(railroad.stranded("on", true)).toBe(true);
+    expect(railroad.stranded("off", true)).toBe(false);
   });
 
   /** A page that has lost the broker cannot know whether the track has power
    *  (#804). */
-  it("writes nothing with a length edit while the row is not heard, and says why", async () => {
+  it("writes nothing with a length edit while the row is not heard", async () => {
     const { railroad, store } = await edited();
 
-    expect(await railroad.save(null, false)).toBe(false);
+    expect(await railroad.save(null, false)).toBeNull();
 
     expect(store.saved).toEqual([]);
-    expect(railroad.stockTrouble).toBe(LENGTH_UNHEARD);
+    expect(railroad.stock!.waitsForPower(null, false)).toBe(LENGTH_UNHEARD);
+    expect(railroad.stranded(null, false)).toBe(true);
   });
 
   it("writes nothing with a train that has nothing in it, and says why", async () => {
@@ -608,10 +652,11 @@ describe("the roster's Save", () => {
     await flushed();
     railroad.stock!.addTrain("empty");
 
-    expect(await railroad.save("off")).toBe(false);
+    expect(await railroad.save("off")).toBeNull();
 
     expect(store.saved).toEqual([]);
     expect(railroad.stockTrouble).toContain("train 'empty' has nothing in it");
+    expect(railroad.stranded("off", true)).toBe(true);
   });
 
   it("changes nothing the next railroad shows where the row moved while it was in flight", async () => {
@@ -625,9 +670,8 @@ describe("the roster's Save", () => {
     await flushed();
     answer();
 
-    expect(await saving).toBe(false);
+    expect(await saving).toBeNull();
     expect(railroad.stockTrouble).toBeNull();
-    expect(railroad.saving).toBe(false);
     expect(railroad.stock?.roster.roster).toBe("otira");
   });
 
@@ -734,6 +778,61 @@ describe("the drawing's save", () => {
 
     expect(filing.saved).toBe(false);
     expect(names).toEqual([]);
+  });
+});
+
+/** What ON saves first: the drawing where a save is owed, the roster where
+ *  it holds edits not waiting on power (ADR-0085, decision 2; #1233). */
+describe("what ON saves first", () => {
+  async function loaded() {
+    const made_ = made();
+    made_.railroad.named("toy");
+    await flushed();
+    return made_;
+  }
+
+  it("is nothing where nothing is owed", async () => {
+    const { railroad } = await loaded();
+    expect(railroad.beforeOn("off", true)).toBeNull();
+  });
+
+  it("answers landed for a roster edit that moved no length", async () => {
+    const { railroad, store, names } = await loaded();
+    railroad.stock!.carAddress("hopper-1", "7");
+
+    expect(await railroad.beforeOn("off", true)).toBe("landed");
+
+    expect(store.saved).toEqual(["/rosters/toy"]);
+    expect(names).toEqual([]);
+  });
+
+  it("answers named for a length with the drawing beside it, and names the railroad once", async () => {
+    const { railroad, filing, editor, store, names } = await loaded();
+    railroad.stock!.modelLength("hopper", 110, "off");
+    await filing.edited(editor);
+    store.saved.length = 0;
+
+    expect(await railroad.beforeOn("off", true)).toBe("named");
+
+    expect(store.saved).toEqual(["/drawings/toy", "/catalogue/hopper", "/rosters/toy"]);
+    expect(names).toEqual(["toy"]);
+  });
+
+  it("answers null where the roster is refused, the drawing landing", async () => {
+    const { railroad, filing, editor } = await loaded();
+    railroad.stock!.addTrain("empty");
+    await filing.edited(editor);
+
+    expect(await railroad.beforeOn("off", true)).toBeNull();
+    expect(filing.saved).toBe(true);
+  });
+
+  it("leaves a length waiting on power out of it", async () => {
+    const { railroad, store } = await loaded();
+    railroad.stock!.modelLength("hopper", 110, "off");
+
+    expect(railroad.beforeOn("draining", true)).toBeNull();
+    expect(store.saved).toEqual([]);
   });
 });
 

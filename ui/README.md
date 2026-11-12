@@ -99,7 +99,7 @@ src/
                  again as a JPEG at most 1600 px wide
     railroad.ts  the loaded railroad's documents: read when the row names
                  it, read again until the store answers, the drawing's save
-                 and the roster's Save, and naming the railroad again when
+                 and the roster's, and naming the railroad again when
                  either lands
     widgets.ts   the drawing's widgets: the name a new one gets, what it
                  starts with, its topic, and why a name or a value will not do
@@ -161,7 +161,7 @@ src/
     tc-band-clock.ts  the fast clock on the band, and the dialog that sets it
     wake.ts        the screen kept awake while any of this page's throttles
                    holds a train
-    tc-stock.ts    the stock view: a bar with the one Save, the list of
+    tc-stock.ts    the stock view: a bar saying what is unsaved, the list of
                    trains, cars or models, and the editor of the one chosen
     dismissal.ts   the overlay a menu drops over the page, worn by all three
                    menu systems: the press outside that dismisses, and the

@@ -14,6 +14,7 @@
  * values; nothing is asserted twice.
  */
 
+import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
@@ -23,7 +24,9 @@ import type { TcBackup } from "../src/ui/tc-backup.js";
 import type { TcStock } from "../src/ui/tc-stock.js";
 import { RETRY_MS } from "../src/model/store.js";
 import {
+  band,
   mounted,
+  power,
   running,
   serving,
   settled,
@@ -252,13 +255,11 @@ async function answered(shell: TcApp, addr: string): Promise<void> {
   await pressed(shell, "look-dialog.address .set");
 }
 
-/** The one Save, in the bar. */
-function saving(shell: TcApp): HTMLButtonElement {
-  return part(shell, ".bar button.save") as HTMLButtonElement;
-}
-
+/** The view left for the run view and come back to, which is what saves the
+ *  roster and the models changed: the bar has no Save (#1233). */
 async function saved(shell: TcApp): Promise<void> {
-  await pressed(shell, ".bar button.save");
+  await shows(shell, "run");
+  await shows(shell, "stock");
 }
 
 /**
@@ -316,22 +317,24 @@ describe("with no railroad loaded", () => {
 });
 
 describe("the bar", () => {
-  it("names the railroad and says everything is saved", async () => {
+  it("names the railroad, says everything is saved, and has no Save", async () => {
     const shell = await opened();
     expect(part(shell, ".bar h1").textContent).toBe("Stock");
     expect(part(shell, ".bar .railroad").textContent).toBe("toy");
     expect(bar(shell)).toBe("Everything is saved");
-    expect(saving(shell).disabled).toBe(true);
+    expect(parts(shell, ".bar button")).toEqual([]);
   });
 
-  it("counts what is unsaved, and says Saved once a Save lands", async () => {
+  /** A save made as the view was left says nothing on return: *Saved* is for
+   *  a save that lands while the view is on screen (#1233). */
+  it("counts what is unsaved, and says everything is saved on return once leaving wrote it", async () => {
     const shell = await opened();
     await product(shell, "hopper", "freight", "100");
     expect(bar(shell)).toBe("4 unsaved changes");
 
     await saved(shell);
 
-    expect(bar(shell)).toBe("Saved");
+    expect(bar(shell)).toBe("Everything is saved");
   });
 });
 
@@ -1480,14 +1483,15 @@ describe("making up a train", () => {
     expect(trouble(shell)).toBe(
       "train 'ore' has nothing in it — press Add to put a car or a model in it, or unmake it",
     );
-    // Still there to be filled, and the press is still there to make again.
+    // Still there to be filled, and the next leave tries again.
     expect(cards(shell)).toEqual(["ore"]);
-    expect(saving(shell).disabled).toBe(false);
+    expect(marked(shell)).toBe("unsaved");
 
     await add(shell, "models", "hopper");
     await saved(shell);
     expect(written()!.trains.ore!.cars).toEqual([{ model: "hopper" }]);
     expect(trouble(shell)).toBeNull();
+    expect(marked(shell)).toBe("");
   });
 });
 
@@ -1532,8 +1536,22 @@ const HELD = "track power is on — turn it off to correct a length";
 const WAITS = "a length has changed — turn track power off to save";
 const UNHEARD =
   "the layout has not said whether the track has power, so a length cannot be corrected";
-const UNHEARD_WAITS =
-  "a length has changed — the layout has not said whether the track has power";
+
+const POWER_WANTED = "tc49/layout/power_wanted";
+const RAILROAD = "tc49/layout/state/railroad";
+
+/** The band's word beside the railroad's name: *unsaved* where edits could
+ *  not be saved. */
+function marked(shell: TcApp): string {
+  return band(shell).querySelector("look-about")!.detail;
+}
+
+/** What the page has asked for on `power_wanted`. */
+function powers(): unknown[] {
+  return published().filter(
+    (one) => (one as { topic: string }).topic === POWER_WANTED,
+  );
+}
 
 /** What the page has asked for on `railroad_wanted`. */
 function wants(): unknown[] {
@@ -1660,13 +1678,12 @@ describe("the length guard", () => {
       await typed(shell, await length(shell, "hopper"), "110");
       expect(trouble(shell)).toBe(UNHEARD);
 
-      expect(saving(shell).disabled).toBe(true);
-      expect(saving(shell).title).toBe(UNHEARD_WAITS);
       await saved(shell);
       expect(store.saved).toEqual([]);
+      expect(marked(shell)).toBe("unsaved");
     });
 
-    it("lifts once the row is heard again with power off, and Save writes", async () => {
+    it("lifts once the row is heard again with power off, and leaving writes", async () => {
       const shell = await opened();
       await placed(shell, "off");
       await typed(shell, await car(shell, "length"), "150");
@@ -1679,7 +1696,6 @@ describe("the length guard", () => {
       for (const field of await every(shell)) {
         expect(field.disabled).toBe(false);
       }
-      expect(saving(shell).disabled).toBe(false);
       await saved(shell);
       expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
     });
@@ -1703,28 +1719,45 @@ describe("the length guard", () => {
 
 /**
  * A length correction is saved with the roster (ADR-0071, decision 6). The
- * layout builds only with power off, so while power is on or draining the Save
- * waits if its edits change a length; a save that changed one names the loaded
- * railroad again, so the dispatcher fits trains with the new length.
+ * layout builds only with power off, so while power is on or draining leaving
+ * the view writes nothing where the edits change a length — the other edits
+ * waiting with it (#1233); a save that changed one names the loaded railroad
+ * again, so the dispatcher fits trains with the new length.
  */
-describe("the roster's Save with a length corrected", () => {
-  it("is dead while power is on, and says why", async () => {
+describe("the roster's save with a length corrected", () => {
+  it("writes nothing while power is on, the other edits waiting with it, and says why", async () => {
     const shell = await opened();
     await placed(shell, "off");
+    store.saved.length = 0;
     await typed(shell, await car(shell, "length"), "150");
+    await typed(shell, await car(shell, "addr"), "7");
     await said(shell, POWER, { power: "on" });
 
-    expect(saving(shell).disabled).toBe(true);
-    expect(saving(shell).title).toBe(WAITS);
+    await saved(shell);
+
+    expect(store.saved).toEqual([]);
+    expect(bar(shell)).toBe(WAITS);
+    expect(marked(shell)).toBe("unsaved");
+
+    await said(shell, POWER, { power: "off" });
+    expect(marked(shell)).toBe("");
+    await saved(shell);
+
+    expect(written()!.cars!["arnold-ce68"]).toMatchObject({ length: 150, addr: "7" });
+    expect(wants()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+    ]);
   });
 
-  it("is live while power is on for any other roster edit", async () => {
+  it("writes any other roster edit while power is on", async () => {
     const shell = await opened();
     await placed(shell, "on");
     await typed(shell, await car(shell, "addr"), "7");
 
-    expect(saving(shell).disabled).toBe(false);
-    expect(saving(shell).title).toBe("");
+    await saved(shell);
+
+    expect(written()!.cars!["arnold-ce68"]!.addr).toBe("7");
+    expect(wants()).toEqual([]);
   });
 
   it("writes the roster and then names the loaded railroad again, with power off", async () => {
@@ -1740,7 +1773,7 @@ describe("the roster's Save with a length corrected", () => {
     expect(wants()).toEqual([
       { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
     ]);
-    expect(saving(shell).disabled).toBe(true);
+    expect(bar(shell)).toBe("Everything is saved");
   });
 
   /** A save that lands with the broker gone has nobody to name the railroad
@@ -1775,8 +1808,9 @@ describe("the roster's Save with a length corrected", () => {
     ]);
   });
 
-  /** A model's length corrected on its row is written on Save, before the
-   *  roster, and names the railroad again like any other length (#718). */
+  /** A model's length corrected on its row is written as the view is left,
+   *  before the roster, and names the railroad again like any other length
+   *  (#718). */
   describe("on a model's row", () => {
     /** Correct the hopper, in the model editor. */
     async function corrected(shell: TcApp, mm: string): Promise<void> {
@@ -1793,7 +1827,6 @@ describe("the roster's Save with a length corrected", () => {
       store.saved.length = 0;
       await corrected(shell, "110");
       expect(store.saved).toEqual([]);
-      expect(saving(shell).disabled).toBe(false);
 
       await saved(shell);
 
@@ -1806,19 +1839,21 @@ describe("the roster's Save with a length corrected", () => {
       expect(wants()).toEqual([
         { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
       ]);
-      expect(saving(shell).disabled).toBe(true);
     });
 
     it.each(["on", "draining"] as const)(
-      "is dead while power is %s, and says why",
+      "writes nothing while power is %s, and says why",
       async (power) => {
         const shell = await opened();
         await placed(shell, "off");
+        store.saved.length = 0;
         await corrected(shell, "110");
         await said(shell, POWER, { power });
 
-        expect(saving(shell).disabled).toBe(true);
-        expect(saving(shell).title).toBe(WAITS);
+        await saved(shell);
+
+        expect(store.saved).toEqual([]);
+        expect(bar(shell)).toBe(WAITS);
       },
     );
 
@@ -1838,7 +1873,7 @@ describe("the roster's Save with a length corrected", () => {
       expect(wants()).toEqual([
         { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
       ]);
-      expect(saving(shell).disabled).toBe(false);
+      expect(marked(shell)).toBe("unsaved");
 
       store.intercepted = () => null;
       store.saved.length = 0;
@@ -1859,7 +1894,6 @@ describe("the roster's Save with a length corrected", () => {
       expect(store.saved).toEqual([]);
       expect(trouble(shell)).not.toBeNull();
       expect(wants()).toEqual([]);
-      expect(saving(shell).disabled).toBe(false);
 
       store.intercepted = () => null;
       await saved(shell);
@@ -1876,20 +1910,19 @@ describe("the roster's Save with a length corrected", () => {
     });
   });
 
-  /** With nothing loaded there is no roster to write into: Save is dead and
-   *  nothing is named. */
+  /** With nothing loaded there is no roster to write into: nothing is
+   *  written and nothing is named. */
   it("names nothing with no railroad loaded", async () => {
     const shell = await mounted("stock");
-    expect(saving(shell).disabled).toBe(true);
     await saved(shell);
     expect(store.saved).toEqual([]);
     expect(wants()).toEqual([]);
   });
 });
 
-/** Save is dead while its own write is in flight and the rest of the screen
- *  is not: an edit made meanwhile is written by the next Save (#723). */
-describe("the roster's Save in flight", () => {
+/** One save at a time: leaving again while one is in flight is that one, and
+ *  an edit made meanwhile is written by the next (#723, #1233). */
+describe("the roster's save in flight", () => {
   /** The next `PUT` on a path starting with `prefix` held in flight, and the
    *  press that lets it answer, settled. */
   function holding(shell: TcApp, prefix = "/rosters/"): () => Promise<void> {
@@ -1909,7 +1942,7 @@ describe("the roster's Save in flight", () => {
     return store.saved.filter((one) => one.path.startsWith("/rosters/")).length;
   }
 
-  it("is dead from the press until the write answers, and writes once", async () => {
+  it("writes once where the view is left again before the write answers", async () => {
     const shell = await opened();
     await placed(shell, "off");
     store.saved.length = 0;
@@ -1917,17 +1950,14 @@ describe("the roster's Save in flight", () => {
     const answer = holding(shell);
 
     await saved(shell);
-    expect(saving(shell).disabled).toBe(true);
-    // A second press on the dead button writes nothing more. The guard behind
-    // it, for a press that reached the handler anyway, is `railroad.test.ts`'s.
     await saved(shell);
     await answer();
 
     expect(puts()).toBe(1);
-    expect(saving(shell).disabled).toBe(true);
+    expect(bar(shell)).toBe("Saved");
   });
 
-  it("is dead while a corrected model is written", async () => {
+  it("writes a corrected model once where the view is left again during its write", async () => {
     const shell = await opened();
     await placed(shell, "off");
     store.saved.length = 0;
@@ -1935,9 +1965,6 @@ describe("the roster's Save in flight", () => {
     const answer = holding(shell, "/catalogue/");
 
     await saved(shell);
-    expect(saving(shell).disabled).toBe(true);
-    // A second press on the dead button writes nothing more. The guard behind
-    // it, for a press that reached the handler anyway, is `railroad.test.ts`'s.
     await saved(shell);
     await answer();
 
@@ -1945,10 +1972,9 @@ describe("the roster's Save in flight", () => {
       "/catalogue/hopper",
       "/rosters/toy",
     ]);
-    expect(saving(shell).disabled).toBe(true);
   });
 
-  it("is live again once the write is refused", async () => {
+  it("says the refusal once the write is refused, and the band marks it unsaved", async () => {
     const shell = await opened();
     await placed(shell, "off");
     await typed(shell, await car(shell, "addr"), "7");
@@ -1956,11 +1982,11 @@ describe("the roster's Save in flight", () => {
     between((path) => path.startsWith("/rosters/"));
 
     await saved(shell);
-    expect(saving(shell).disabled).toBe(true);
+    expect(marked(shell)).toBe("");
     await answer();
 
     expect(trouble(shell)).not.toBeNull();
-    expect(saving(shell).disabled).toBe(false);
+    expect(marked(shell)).toBe("unsaved");
   });
 
   it("keeps an edit typed during the write, and is live for it", async () => {
@@ -1975,11 +2001,11 @@ describe("the roster's Save in flight", () => {
 
     expect(written()!.cars!["arnold-ce68"]!.addr).toBe("7");
     expect((await car(shell, "addr")).value).toBe("8");
-    expect(saving(shell).disabled).toBe(false);
+    expect(bar(shell)).toBe("1 unsaved change");
 
     await saved(shell);
     expect(written()!.cars!["arnold-ce68"]!.addr).toBe("8");
-    expect(saving(shell).disabled).toBe(true);
+    expect(bar(shell)).toBe("Saved");
   });
 
   it("keeps a length typed during the write waiting for power off", async () => {
@@ -1993,8 +2019,124 @@ describe("the roster's Save in flight", () => {
     await answer();
     await said(shell, POWER, { power: "on" });
 
-    expect(saving(shell).disabled).toBe(true);
-    expect(saving(shell).title).toBe(WAITS);
+    expect(bar(shell)).toBe(WAITS);
+    expect(marked(shell)).toBe("unsaved");
+  });
+});
+
+/**
+ * The roster is saved at the moments the drawing is: the view left, the page
+ * hidden or closed, and ON (ADR-0085, decision 1; #1233). What the save writes
+ * and names is `Railroad`'s, and tested there (test/railroad.test.ts); these
+ * check the ways in.
+ */
+describe("when the roster is saved", () => {
+  /** Whether each `PUT` went with `keepalive`, by path, wrapped round the
+   *  store. */
+  function kept(): { path: string; keepalive: boolean }[] {
+    const through = globalThis.fetch;
+    const seen: { path: string; keepalive: boolean }[] = [];
+    globalThis.fetch = ((path: string, init?: RequestInit) => {
+      if (init?.method === "PUT") seen.push({ path, keepalive: init.keepalive === true });
+      return through(path, init);
+    }) as typeof fetch;
+    return seen;
+  }
+
+  /** The band's power toggle pressed, asking `on` from `off`. */
+  async function on(shell: TcApp): Promise<void> {
+    press(power(shell), "toggle");
+    await settled(shell);
+  }
+
+  it("writes the roster once on a switch to the run view", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await typed(shell, await car(shell, "addr"), "7");
+
+    await shows(shell, "run");
+
+    expect(store.saved.map((one) => one.path)).toEqual(["/rosters/toy"]);
+    await shows(shell, "stock");
+    expect(bar(shell)).toBe("Everything is saved");
+  });
+
+  it("writes nothing on a switch with nothing unsaved", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+
+    await saved(shell);
+
+    expect(store.saved).toEqual([]);
+  });
+
+  it("writes the models and the roster with keepalive when the page is hidden", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, await length(shell, "hopper"), "110");
+    const seen = kept();
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    try {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await settled(shell);
+    } finally {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
+
+    expect(seen).toEqual([
+      { path: "/catalogue/hopper", keepalive: true },
+      { path: "/rosters/toy", keepalive: true },
+    ]);
+  });
+
+  it("writes a length on ON, and sends on only once the build arrives", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await typed(shell, await car(shell, "length"), "150");
+
+    await on(shell);
+
+    expect(written()!.cars!["arnold-ce68"]!.length).toBe(150);
+    expect(wants()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+    ]);
+    expect(powers()).toEqual([]);
+
+    await said(shell, RAILROAD, { name: "toy", built: true });
+
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
+  });
+
+  it("writes any other edit on ON, sends on at once, and says Saved", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    await typed(shell, await car(shell, "addr"), "7");
+
+    await on(shell);
+
+    expect(written()!.cars!["arnold-ce68"]!.addr).toBe("7");
+    expect(wants()).toEqual([]);
+    expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
+    expect(bar(shell)).toBe("Saved");
+  });
+
+  it("sends nothing on ON where the save is refused", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await train(shell, "empty");
+
+    await on(shell);
+
+    expect(store.saved).toEqual([]);
+    expect(powers()).toEqual([]);
+    expect(trouble(shell)).toContain("train 'empty' has nothing in it");
   });
 });
 

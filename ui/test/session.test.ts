@@ -24,6 +24,7 @@ import {
   Session,
   silent,
   type Client,
+  type Landing,
 } from "../src/model/session.js";
 import { Panel } from "../src/model/panel.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
@@ -267,15 +268,15 @@ describe("ON waiting for the build", () => {
     stood.broker.retains(RAILROAD, { name: "toy", at: 5, built: true });
     stood.broker.opens();
     stood.broker.says(STATE_POWER, { power: "off", at: 5 });
-    let answer: (reached: boolean) => void = () => {};
+    let answer: (landing: Landing) => void = () => {};
     stood.session.pressOnSaved(
       "toy",
-      new Promise<boolean>((resolve) => (answer = resolve)),
+      new Promise<Landing>((resolve) => (answer = resolve)),
     );
     return {
       ...stood,
       landed: async (reached) => {
-        answer(reached);
+        answer(reached ? "named" : null);
         for (let turn = 0; turn < 5; turn++) await Promise.resolve();
       },
     };
@@ -355,6 +356,20 @@ describe("ON waiting for the build", () => {
     stood.broker.says(RAILROAD, { name: "other", at: 6 });
     stood.broker.says(RAILROAD, { name: "toy", at: 7 });
     expect(written(stood)).toEqual([]);
+  });
+
+  /** A roster save that moved no length named nothing, so there is no
+   *  build to wait for (#1233). */
+  it("sends on at once where the save landed and named nothing", async () => {
+    const stood = standing();
+    stood.broker.retains(RAILROAD, { name: "toy", at: 5, built: true });
+    stood.broker.opens();
+    stood.broker.says(STATE_POWER, { power: "off", at: 5 });
+
+    stood.session.pressOnSaved("toy", Promise.resolve("landed"));
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+
+    expect(written(stood)).toEqual([ON]);
   });
 });
 

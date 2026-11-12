@@ -53,6 +53,11 @@ import {
   type TraceEvent,
 } from "./trace.js";
 
+/** What a save ON waits on came to: `named` — it landed and named the
+ *  railroad again, so the apps build; `landed` — it landed and named nothing;
+ *  `null` — it did not land (`pressOnSaved`). */
+export type Landing = "named" | "landed" | null;
+
 /**
  * What the session knows about the run that the band and the rail do not:
  * whether a session is joined and answering, how far it has got, and what it
@@ -711,22 +716,25 @@ export class Session {
    * saved, never over the build before it. Naming the railroad again is the
    * save's own (`Railroad`, model/railroad.ts), so nothing is named here.
    *
-   * ON is waiting from the call on. A save that answers `false` sends
-   * nothing. Nor does a row saying `built: false`, which built nothing: a
+   * ON is waiting from the call on. A save that answers `null` sends
+   * nothing. One that answers `landed` named nothing, there being nothing new
+   * to build, and sends `on` at once — a roster save that moved no length
+   * (#1233). Nor is anything sent for a row saying `built: false`, which built nothing: a
    * drawing that is not a valid drawing runs no train. Nor is anything sent
    * where a row names another railroad first, or another power press comes
    * first, while the write is out or the build has not arrived — a STOP while
    * waiting is a person changing their mind.
    */
-  pressOnSaved(railroad: string, saved: Promise<boolean>): void {
+  pressOnSaved(railroad: string, saved: Promise<Landing>): void {
     const waiting = { railroad, after: null as number | null, saving: true };
     this.building = waiting;
     void saved
-      .catch(() => false)
+      .catch(() => null)
       .then((landed) => {
         if (this.building !== waiting) return;
-        if (!landed) {
+        if (landed !== "named") {
           this.building = null;
+          if (landed === "landed") this.pressPower("on");
           return;
         }
         waiting.after = this.stamped;

@@ -131,7 +131,7 @@ export interface FnRow {
 /** Whose function rows: a model's, by key, or a car's own, by name. */
 export type FnOwner = string | { car: string };
 
-/** Where a model made on this page is held until Save writes it: a key no
+/** Where a model made on this page is held until a save writes it: a key no
  *  document has, `/` being what no file's name may hold (`check_name`). */
 const FRESH = "new/";
 
@@ -340,7 +340,7 @@ export function heldBy(what: string, holders: string[]): string {
  * a correction could only be built with power off, the layout answering
  * `railroad_wanted` only then. With power off, or no session (`null`) on a
  * page that holds no roster from one, it is on, placed trains or not: the
- * roster's Save names the railroad again and the rebuild keeps the trains
+ * roster's save names the railroad again and the rebuild keeps the trains
  * that still fit
  * ([ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
  * ui/STOCK.md#the-length-guard).
@@ -368,11 +368,11 @@ export function lengthHeld(
     : "the layout has not said whether the track has power, so a length cannot be corrected";
 }
 
-/** What the roster's Save says while a length edit waits for power off. */
+/** What the roster's save says while a length edit waits for power off. */
 export const LENGTH_WAITS =
   "a length has changed — turn track power off to save";
 
-/** What the roster's Save says while a length edit waits for the row naming
+/** What the roster's save says while a length edit waits for the row naming
  *  the railroad to be heard again, and with it whether the track has power. */
 export const LENGTH_UNHEARD =
   "a length has changed — the layout has not said whether the track has power";
@@ -483,12 +483,12 @@ export type Added =
  * `PUT` on `/rosters/<railroad>` are inverses, and a car left out is a car
  * removed (#388).
  *
- * **One Save writes everything**: each changed model's document, then each
+ * **One save writes everything**: each changed model's document, then each
  * changed photo, then the roster (#718, #978). They are documents on three
  * routes, and the order is the store's: a roster naming a model the
  * installation has not got is refused whole, and so is a photo of a model it
  * has not got (#392, #630). A model made here is held under a key no document
- * has until that Save mints its own from its name (`keyFor`).
+ * has until that save mints its own from its name (`keyFor`).
  *
  * Every method that can refuse answers with the words to show and changes
  * nothing, rather than throwing: a refusal here is an ordinary answer about a
@@ -508,7 +508,7 @@ export class Stock {
   /** The models changed and not yet written, by key. */
   private changed = new Set<string>();
   /** The models made on this page that the store has not got, by key: under
-   *  a `FRESH` key until Save mints theirs, and under it until the write
+   *  a `FRESH` key until a save mints theirs, and under it until the write
    *  lands. */
   private fresh = new Set<string>();
   /** How many models this page has made, which the `FRESH` keys count. */
@@ -559,13 +559,13 @@ export class Stock {
   }
 
   /** Whether those edits change a length, which is what makes the roster's
-   *  Save wait for power off and, once it lands, name the railroad again so
+   *  save wait for power off and, once it lands, name the railroad again so
    *  the dispatcher fits trains with the new length (ADR-0071). */
   get lengthEdits(): boolean {
     return this.lengthAt > this.stored;
   }
 
-  /** The models changed and not yet written, as Save is to write them: each
+  /** The models changed and not yet written, as the save is to write them: each
    *  once, as it stands, its function rows written into it. */
   get corrections(): ModelDoc[] {
     return [...this.changed]
@@ -581,7 +581,7 @@ export class Stock {
     this.fresh.delete(model.model);
   }
 
-  /** The photos chosen, dropped or taken and not yet written, as Save is to
+  /** The photos chosen, dropped or taken and not yet written, as the save is to
    *  write them: after the models, the store refusing a photo for a model it
    *  has not got (#630). */
   get photos(): [string, Picture][] {
@@ -602,9 +602,9 @@ export class Stock {
     this.stored = this.countOf.get(written)!;
   }
 
-  /** Why the roster's Save waits, or `null` where it does not: a length edit
-   *  with track power on or draining, or with the row not `heard` (#804). Any
-   *  other edit saves as ever — it moves nothing the dispatcher fits. */
+  /** Why the roster's save waits, or `null` where it does not: a length edit
+   *  with track power on or draining, or with the row not `heard` (#804). Every
+   *  edit waits with it, the roster being written whole (#1233). */
   waitsForPower(power: Power | null, heard: boolean = true): string | null {
     if (!this.lengthEdits) return null;
     if (trackLive(power)) return LENGTH_WAITS;
@@ -618,8 +618,8 @@ export class Stock {
    * `cars` list (`store/stock.py`), and a train that reached it would come
    * back a refusal about a document rather than about the row on the screen.
    * Refused here, the words are this screen's own and the saved roster is
-   * unchanged. `edits` stays true — there is still something to give the
-   * store once the train is filled — so Save stays enabled (#412).
+   * unchanged. `edits` stays true: there is still something to give the
+   * store once the train is filled (#412).
    *
    * A train that **states its length and names no cars** is not that train:
    * it names no `cars` list at all, which is the shape the store keeps legal
@@ -1173,18 +1173,18 @@ export class Stock {
   // --- models ---------------------------------------------------------------
 
   /** One model by key, `null` where the catalogue has none. A `FRESH` key
-   *  Save has minted another for still finds it. */
+   *  the save has minted another for still finds it. */
   model(key: string): ModelDoc | null {
     return this.models[this.keyOf(key)] ?? null;
   }
 
-  /** The key a model is filed under now: `key`, or what Save minted for it. */
+  /** The key a model is filed under now: `key`, or what the save minted for it. */
   keyOf(key: string): string {
     return this.minted.get(key) ?? key;
   }
 
   /** Whether the store has not got this model yet: it was made on this page
-   *  and no Save has written it. Deleting one is dropping it here. */
+   *  and no save has written it. Deleting one is dropping it here. */
   isFresh(key: string): boolean {
     return this.fresh.has(this.keyOf(key));
   }
@@ -1199,7 +1199,7 @@ export class Stock {
     return this.written.get(this.keyOf(key)) ?? 0;
   }
 
-  /** A photo for the model, written by the next Save. */
+  /** A photo for the model, written by the next save. */
   setPhoto(key: string, picture: Picture): void {
     const at = this.keyOf(key);
     if (this.models[at] === undefined) return;
@@ -1210,7 +1210,7 @@ export class Stock {
   /**
    * A model made here: *New model*, or *New model (2)* where that is taken,
    * and nothing else said — a passenger car in H0 with no decoder, which is
-   * what the person is about to change. It is written by Save, ahead of the
+   * what the person is about to change. It is written by the save, ahead of the
    * roster, so the roster never names a model the store lacks (#978).
    */
   newModel(): string {
@@ -1274,7 +1274,7 @@ export class Stock {
 
   /** Correcting a product's length changes every item of that product, which
    *  is the whole reason the length lives here as well as on the car. Refused
-   *  while track power is on or draining. Written on the roster's Save.
+   *  while track power is on or draining. Written on the roster's save.
    *
    *  A model made here and not yet written is none of that: no train the
    *  dispatcher fits is made of it, so its length is neither held nor a
@@ -1361,7 +1361,7 @@ export class Stock {
   }
 
   /** A function's number, F0 to F68. One listed twice stands, said to be
-   *  wrong, and stops Save while it does (`functionTrouble`). */
+   *  wrong, and stops the save while it does (`functionTrouble`). */
   functionNumber(key: FnOwner, at: number, typed: string): string | null {
     const number = typed.trim().replace(/^[Ff]/, "");
     if (!/^\d+$/.test(number) || Number(number) > TOP_FUNCTION) {
@@ -1380,7 +1380,7 @@ export class Stock {
   }
 
   /** What is wrong with a model's function rows, or `null` where nothing is:
-   *  a number listed twice, or a function with no name. Either stops Save —
+   *  a number listed twice, or a function with no name. Either stops the save —
    *  the store would refuse the document (`lib/stock.py`). */
   functionTrouble(key: FnOwner): string | null {
     const twice = this.listedTwice(key);
@@ -1429,7 +1429,7 @@ export class Stock {
 
   /**
    * Every model made here given the key it is filed under, minted from its
-   * name (`keyFor`) — what Save does first, so what it writes names keys the
+   * name (`keyFor`) — what a save does first, so what it writes names keys the
    * store will have. The roster's references move with it, and that is no
    * edit: the document says what it said, under the key it will be read by.
    */
@@ -1462,7 +1462,7 @@ export class Stock {
   private put(key: string, model: ModelDoc): void {
     this.putModel(model);
     this.changed.add(key);
-    // Counted as an edit to the roster, which Save writes after the models:
+    // Counted as an edit to the roster, which the save writes after the models:
     // the change is outstanding until a roster written after it lands.
     this.write({});
   }
@@ -1478,7 +1478,7 @@ export class Stock {
 
   /** A model's function rows, and the document's `functions` written from
    *  them: a number listed twice is the later row's in the document until it
-   *  is put right, Save being refused meanwhile. A latching function says
+   *  is put right, the save being refused meanwhile. A latching function says
    *  nothing about its mode, that being what absent reads as. */
   private setRows(key: FnOwner, rows: FnRow[]): void {
     const functions: Record<string, ModelFn> = {};
