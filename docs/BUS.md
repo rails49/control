@@ -940,9 +940,9 @@ what a drop would cost:
   Loading a railroad clears it with the other `layout` rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
   The page shows the gap in the Settings
-  dialog's Points tab, the speeds in its Driving tab, the throttle silence in
-  its Throttles tab and the sensor silence and the arrival allowance in its
-  Sensors tab
+  dialog's Points section, the speeds in its Driving section, the throttle
+  silence in its Throttles section and the sensor silence and the arrival
+  allowance in its Sensors section
   ([#1134](https://github.com/rails49/control/issues/1134),
   [#1142](https://github.com/rails49/control/issues/1142),
   [#1149](https://github.com/rails49/control/issues/1149),
@@ -978,9 +978,10 @@ what a drop would cost:
   silences and the allowance: it sends no point command, holds no throttle
   and times no move
   ([#1140](https://github.com/rails49/control/issues/1140)). The page
-  publishes the gap from the Settings dialog's Points tab, one speed at a
-  time from its Driving tab, the throttle silence from its Throttles tab and
-  the sensor silence and the arrival allowance from its Sensors tab, each
+  publishes the gap from the Settings dialog's Points section, one speed at a
+  time from its Driving section, the throttle silence from its Throttles
+  section and the sensor silence and the arrival allowance from its Sensors
+  section, each
   commit carrying the one field committed
   ([#1126](https://github.com/rails49/control/issues/1126),
   [#1131](https://github.com/rails49/control/issues/1131),

@@ -2,7 +2,8 @@ import { css } from "lit";
 
 /**
  * The settings dialog (`tc-settings`): its tabs, the Backup tab drawn by
- * `tc-backup` and the others laid out as below.
+ * `tc-backup` and the others laid out as below. A section's subheading reads
+ * as `tc-backup`'s does.
  *
  * A railroad is a row that acts where it is pressed, unlike a backup in
  * `tc-backup`, which is chosen and then restored from the press beneath the
@@ -12,7 +13,7 @@ import { css } from "lit";
  * reads its own. The name field and the two presses that make a railroad sit
  * in one row beneath, the field taking the width the presses leave, and what
  * refused a name or a write reads under that row in the weight a thing wrong
- * reads in. The Shutdown tab reads the same way: its press, and beneath it why
+ * reads in. The Shutdown section reads the same way: its press, and beneath it why
  * it is dead or what the installation refused it with; asked once more, what
  * turning off costs and the two presses in a row beneath it. A press waiting
  * for the track to go dead reads "stopping trains…" with the stop sign in a
@@ -20,10 +21,22 @@ import { css } from "lit";
  * row, and one the layout did not answer says so there, in the weight a
  * thing missing reads in. A row's trash sits at its end, and pressed, the
  * row gives way to what deleting it costs and the two presses beside it.
- * The Points, Driving and Throttles tabs are narrow fields, the hints beneath
- * them.
+ * The Points, Driving, Throttles and Sensors sections are narrow fields, the
+ * hints beneath them.
  */
 export const settingsStyles = css`
+  h3 {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--hint);
+  }
+
+  h3:first-child {
+    margin-top: 0;
+  }
+
   .hint {
     margin: 0.2rem 0;
     color: var(--hint);

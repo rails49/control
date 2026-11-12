@@ -807,10 +807,10 @@ export class Session {
   }
 
   /** A setting committed in the Settings dialog — the point gap in its
-   *  Points tab, a speed in Driving, the throttle silence in Throttles, the
-   *  sensor silence in Sensors: one `settings_wanted` carrying that one
+   *  Points section, a speed in Driving, the throttle silence in Throttles,
+   *  the sensor silence in Sensors: one `settings_wanted` carrying that one
    *  (#1126, #1128, #1134, #1149). `layout`
-   *  answers on `state/settings`, and the tab shows that row coming back. */
+   *  answers on `state/settings`, and the section shows that row coming back. */
   pressSettings(change: SettingsChange): void {
     this.send(settingsWanted(change));
   }
