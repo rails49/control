@@ -10,11 +10,6 @@ longer true. `tc49/dispatch/cancel_wanted` and `tc49/dispatch/request_cancelled`
 are that surface, and a dead train's locks no longer survive until restart.
 Nothing else here changes.
 
-**Noted for [#1229](https://github.com/rails49/control/issues/1229),
-2026-11-12:** the simulator's two delays are 5 s by default and set per box,
-in [DEPLOY.md](../DEPLOY.md) and SYSTEM.md. The "30 s the default" below is
-out of date. Nothing else here changes.
-
 `tc49/layout/boundary` is a requirement the simulator invented. The simulator
 simulates a subset of the app's features — it is not the app, and it adds no
 requirement of its own to any contract.

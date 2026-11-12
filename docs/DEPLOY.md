@@ -56,8 +56,9 @@ simulator takes over a move (#1229): `TC49_SIM_TRANSIT_S`, the seconds from a
 move's start to the train's head entering the next block, and
 `TC49_SIM_CLEAR_S`, the seconds for its tail to clear each sensor after that.
 Both are 5 where unset, so a move takes 15 s. A changed value applies once the
-`simulator` container is recreated (`up -d`). How long `layout` waits on a silent throttle
-is set in the Settings dialog instead ([below](#a-silent-throttle)). One
+`simulator` container is recreated (`up -d`). How long `layout` waits on a
+silent throttle is set in the Settings dialog instead
+([below](#a-silent-throttle)). One
 directory rather
 than two, so the box has one place its settings sit. Which device the command
 station is on is the mirror's, `DCCEX_STATION_DEVICE` in
