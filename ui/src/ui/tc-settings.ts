@@ -117,7 +117,7 @@ const WHATEVER_RAILROAD = html`<p class="hint">This applies whatever railroad is
 /** What the dialog says where what a load would discard — the drawing, the
  *  roster or both — could not be saved first; the band and the stock view's
  *  bar say why (ADR-0085, #1233). */
-function unsaved(what: string): string {
+function notLoaded(what: string): string {
   return `${what} could not be saved, so nothing was loaded`;
 }
 
@@ -629,7 +629,7 @@ export class TcSettings extends LitElement {
   private async loading(name: string): Promise<void> {
     const left = await this.saving();
     if (left !== null) {
-      this.wrong = unsaved(left);
+      this.wrong = notLoaded(left);
       this.picked = null;
       return;
     }
@@ -680,7 +680,7 @@ export class TcSettings extends LitElement {
     try {
       const left = this.unfiled === null ? await this.saving() : null;
       if (left !== null) {
-        this.wrong = unsaved(left);
+        this.wrong = notLoaded(left);
         this.picked = null;
         return;
       }

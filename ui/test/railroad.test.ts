@@ -659,6 +659,22 @@ describe("the roster's save", () => {
     expect(railroad.stranded("off", true)).toBe(true);
   });
 
+  /** An edit elsewhere takes the refusal's words down, and the train still
+   *  stops every save, so the band keeps the mark. */
+  it("stays stranded over an empty train after an unrelated edit", async () => {
+    const { railroad } = made();
+    railroad.named("toy");
+    await flushed();
+    railroad.stock!.addTrain("empty");
+    await railroad.save("off");
+
+    railroad.stock!.carAddress("hopper-1", "7");
+    railroad.edited();
+
+    expect(railroad.stockTrouble).toBeNull();
+    expect(railroad.stranded("off", true)).toBe(true);
+  });
+
   it("changes nothing the next railroad shows where the row moved while it was in flight", async () => {
     const { railroad, store } = await edited();
     const answer = store.hold("/rosters/");
@@ -793,14 +809,14 @@ describe("what ON saves first", () => {
 
   it("is nothing where nothing is owed", async () => {
     const { railroad } = await loaded();
-    expect(railroad.beforeOn("off", true)).toBeNull();
+    expect(railroad.beforeOn("off", true, false)).toBeNull();
   });
 
   it("answers landed for a roster edit that moved no length", async () => {
     const { railroad, store, names } = await loaded();
     railroad.stock!.carAddress("hopper-1", "7");
 
-    expect(await railroad.beforeOn("off", true)).toBe("landed");
+    expect(await railroad.beforeOn("off", true, false)).toBe("landed");
 
     expect(store.saved).toEqual(["/rosters/toy"]);
     expect(names).toEqual([]);
@@ -812,7 +828,7 @@ describe("what ON saves first", () => {
     await filing.edited(editor);
     store.saved.length = 0;
 
-    expect(await railroad.beforeOn("off", true)).toBe("named");
+    expect(await railroad.beforeOn("off", true, true)).toBe("named");
 
     expect(store.saved).toEqual(["/drawings/toy", "/catalogue/hopper", "/rosters/toy"]);
     expect(names).toEqual(["toy"]);
@@ -823,7 +839,7 @@ describe("what ON saves first", () => {
     railroad.stock!.addTrain("empty");
     await filing.edited(editor);
 
-    expect(await railroad.beforeOn("off", true)).toBeNull();
+    expect(await railroad.beforeOn("off", true, true)).toBeNull();
     expect(filing.saved).toBe(true);
   });
 
@@ -831,7 +847,7 @@ describe("what ON saves first", () => {
     const { railroad, store } = await loaded();
     railroad.stock!.modelLength("hopper", 110, "off");
 
-    expect(railroad.beforeOn("draining", true)).toBeNull();
+    expect(railroad.beforeOn("draining", true, false)).toBeNull();
     expect(store.saved).toEqual([]);
   });
 });
