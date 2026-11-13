@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@rails49/look':
-        specifier: github:rails49/look#v0.11.0
-        version: https://codeload.github.com/rails49/look/tar.gz/b71547a61833ad417394772a139bb28d3e005395(@shoelace-style/shoelace@2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.18))(lit@3.3.3)
+        specifier: github:rails49/look#v0.12.0
+        version: https://codeload.github.com/rails49/look/tar.gz/71482c04f98445e9428fd338ff95c89357330613(@shoelace-style/shoelace@2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.18))(lit@3.3.3)
       '@shoelace-style/shoelace':
         specifier: ^2.20.1
         version: 2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.18)
@@ -233,9 +233,9 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@rails49/look@https://codeload.github.com/rails49/look/tar.gz/b71547a61833ad417394772a139bb28d3e005395':
-    resolution: {gitHosted: true, integrity: sha512-t8MRhbB21M825kkKkT7Se7AlDcya3pn6EaWaqVuojFl2+GRT6n5ZUF9kpdSTHLVQhmPzIBs00vYNJSPy5CM2qA==, tarball: https://codeload.github.com/rails49/look/tar.gz/b71547a61833ad417394772a139bb28d3e005395}
-    version: 0.11.0
+  '@rails49/look@https://codeload.github.com/rails49/look/tar.gz/71482c04f98445e9428fd338ff95c89357330613':
+    resolution: {gitHosted: true, integrity: sha512-cPx0h7sMSK6OC36wy1Gy72bOt56VLVvEkvX2IEcKRQ+QXG9TuKFFKuqQj1wHhIsiiexyt+36aeGZIcHd4pXQUA==, tarball: https://codeload.github.com/rails49/look/tar.gz/71482c04f98445e9428fd338ff95c89357330613}
+    version: 0.12.0
     hasBin: true
     peerDependencies:
       '@shoelace-style/shoelace': ^2.20.1
@@ -1019,7 +1019,7 @@ snapshots:
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@rails49/look@https://codeload.github.com/rails49/look/tar.gz/b71547a61833ad417394772a139bb28d3e005395(@shoelace-style/shoelace@2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.18))(lit@3.3.3)':
+  '@rails49/look@https://codeload.github.com/rails49/look/tar.gz/71482c04f98445e9428fd338ff95c89357330613(@shoelace-style/shoelace@2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.18))(lit@3.3.3)':
     dependencies:
       '@shoelace-style/shoelace': 2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.18)
       lit: 3.3.3
