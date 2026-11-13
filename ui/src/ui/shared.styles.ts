@@ -59,16 +59,19 @@ export const palette = unsafeCSS(
 
 /**
  * Whole rule set. A section of the settings dialog, in `tc-settings` and
- * `tc-backup`: a `fieldset` in a thin border, its `legend` the section's name
- * set into the top edge (#1246).
+ * `tc-backup`: a `fieldset` on a tinted background with no border, its
+ * `legend` the section's name inside the tint, above what it names (#1248).
+ * A legend floated full width is drawn inside the box rather than on its top
+ * edge.
  */
 export const sections = css`
   fieldset {
     min-width: 0;
-    margin: 1rem 0 0;
-    padding: 0.4rem 0.8rem 0.7rem;
-    border: 1px solid var(--rule);
-    border-radius: 4px;
+    margin: 0.75rem 0 0;
+    padding: 0.6rem 0.8rem 0.7rem;
+    border: none;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--ink) 7%, transparent);
   }
 
   fieldset:first-child {
@@ -76,8 +79,15 @@ export const sections = css`
   }
 
   legend {
-    padding: 0 0.3rem;
+    float: left;
+    width: 100%;
+    margin-bottom: 0.4rem;
+    padding: 0;
     font-weight: var(--sl-font-weight-semibold);
+  }
+
+  legend + * {
+    clear: left;
   }
 `;
 

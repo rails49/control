@@ -5,8 +5,8 @@
  *
  * Three tabs, the dialog opening on the one `tab` names each time — Railroad
  * from the gear, Backup from the band's backup note (#899, #1075). Railroad
- * and Installation are sections, each in a box with its name set into the
- * top edge (#1246), Railroad's kept with the
+ * and Installation are sections, each a tinted box with its name at its
+ * head (#1246, #1248), Railroad's kept with the
  * loaded railroad and Installation's the installation's whatever railroad is
  * loaded, which its first line says (#1238). **Load a railroad**, Railroad's
  * first section, lists what the store holds, the loaded one ticked, and a press on another
