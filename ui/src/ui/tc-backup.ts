@@ -156,8 +156,10 @@ export class TcBackup extends LitElement {
                   : "Turn automatic backup on"}
               </sl-button>
             </div>
-            <h3>Backups</h3>
-            ${this.backups(stands.backups)}
+            <fieldset>
+              <legend>Backups</legend>
+              ${this.backups(stands.backups)}
+            </fieldset>
           `}
       ${backing.trouble === null
         ? nothing

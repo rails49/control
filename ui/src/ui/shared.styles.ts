@@ -58,6 +58,30 @@ export const palette = unsafeCSS(
 // Interpolated at the top level of a sheet, selectors and all: `${symbols}`.
 
 /**
+ * Whole rule set. A section of the settings dialog, in `tc-settings` and
+ * `tc-backup`: a `fieldset` in a thin border, its `legend` the section's name
+ * set into the top edge (#1246).
+ */
+export const sections = css`
+  fieldset {
+    min-width: 0;
+    margin: 1rem 0 0;
+    padding: 0.4rem 0.8rem 0.7rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+
+  fieldset:first-child {
+    margin-top: 0;
+  }
+
+  legend {
+    padding: 0 0.3rem;
+    font-weight: var(--sl-font-weight-semibold);
+  }
+`;
+
+/**
  * Whole rule sets. The symbols themselves, drawn the same on the canvas and
  * on a palette tile: both are the symbol's own coordinates, one grid square to
  * one user unit, so one set of rules serves both and a tile shows what will be

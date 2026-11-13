@@ -1,5 +1,7 @@
 import { css } from "lit";
 
+import { sections } from "./shared.styles.js";
+
 /**
  * The settings dialog's Backup tab (`tc-backup`).
  *
@@ -92,13 +94,7 @@ export const backupStyles = css`
     color: var(--hint);
   }
 
-  h3 {
-    margin: 1rem 0 0.4rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--hint);
-  }
+  ${sections}
 
   ul.backups {
     margin: 0;
