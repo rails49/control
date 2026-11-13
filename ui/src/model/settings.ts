@@ -364,13 +364,13 @@ export interface SettingSpec {
 /** Each input of the setting tabs (#1128, #1134, #1149, #1192). */
 export const SETTING_FIELDS: Record<SettingField, SettingSpec> = {
   gap: {
-    label: "Time between point commands",
+    label: "Delay between point commands",
     class: "gap",
     min: 0,
     max: POINT_GAP_MAX_S,
     step: 0.1,
     unit: "seconds",
-    what: "the time between point commands",
+    what: "the delay between point commands",
     of: (settings) => settings.pointGap,
     wanted: (value) => ({ point_gap: value }),
   },

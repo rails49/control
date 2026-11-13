@@ -322,8 +322,8 @@ const FIELDS: Record<
   gap: {
     own: "0.50",
     unreadable: { ...HEARD, pointGap: null },
-    number: "the time between point commands is a number of seconds",
-    range: "the time between point commands is from 0 to 5 seconds",
+    number: "the delay between point commands is a number of seconds",
+    range: "the delay between point commands is from 0 to 5 seconds",
     outside: ["7", "-0.1", "5.01"],
     sent: [
       ["1.2", { point_gap: 1.2 }],

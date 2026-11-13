@@ -31,7 +31,7 @@
  * waits on the track, which it does not touch. **Backup** is a slot the
  * app fills with `tc-backup`, which draws itself in the tab rather than in a
  * dialog of its own: being sent from one dialog to another is a step that
- * does nothing. **Points**, after Load a railroad, sets the point gap (#1128): how
+ * does nothing. **Points (turnouts and slips)**, after Load a railroad, sets the point gap (#1128): how
  * long `layout` waits after one point command before the next, or before the
  * move waiting on it goes. Its one field shows `point_gap` as
  * `tc49/layout/state/settings` says it, is dead with a hint until that row is
@@ -40,7 +40,7 @@
  * `settingChange` refuses is not sent, and the section says why. The field goes on
  * showing the row, not the press (ADR-0035), except that a refused commit
  * stays in it beside the reason until a commit is not refused or the row
- * says a different value for it (#1137). **Driving**, after Points, does
+ * says a different value for it (#1137). **Automatic driving**, after Points, does
  * the same for the driver's speeds at clear and at caution, in percent of
  * the locomotive's top speed (#1134): each commit sends the one field
  * committed. Installation's **Throttles** does the same for the throttle
@@ -268,11 +268,11 @@ export class TcSettings extends LitElement {
               ${this.railroads()}
             </fieldset>
             <fieldset>
-              <legend>Points</legend>
+              <legend>Points (turnouts and slips)</legend>
               <div class="points">${this.points()}</div>
             </fieldset>
             <fieldset>
-              <legend>Driving</legend>
+              <legend>Automatic driving</legend>
               <div class="driving">${this.driving()}</div>
             </fieldset>
           </sl-tab-panel>
@@ -393,15 +393,12 @@ export class TcSettings extends LitElement {
     `;
   }
 
-  /** The Points section: the point gap, `0` being no wait (#1128). */
+  /** The Points section: the point gap (#1128, #1250). */
   private points() {
-    return this.setting(
-      ["gap"],
-      html`<p class="hint">0 means no wait: each point command goes as soon as the last.</p>`,
-    );
+    return this.setting(["gap"], nothing);
   }
 
-  /** The Driving section (#1134): the speeds at clear and at caution, in percent
+  /** The Automatic driving section (#1134, #1250): the speeds at clear and at caution, in percent
    *  of the locomotive's top speed. */
   private driving() {
     return this.setting(

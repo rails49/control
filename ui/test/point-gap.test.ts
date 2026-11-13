@@ -53,7 +53,10 @@ async function gapped(gap: number): Promise<{ shell: TcApp; dialog: TcSettings }
 describe("the Points section", () => {
   it("comes after Load a railroad, in the Railroad tab", async () => {
     const dialog = await settingsOpened(await joined());
-    expect(sections(dialog, "railroad").slice(0, 2)).toEqual(["Load a railroad", "Points"]);
+    expect(sections(dialog, "railroad").slice(0, 2)).toEqual([
+      "Load a railroad",
+      "Points (turnouts and slips)",
+    ]);
   });
 
   it("shows the point gap state/settings says", async () => {
@@ -72,7 +75,7 @@ describe("the Points section", () => {
     const { shell, dialog } = await gapped(0.8);
     await committed(shell, dialog, "7");
     expect(field(dialog).value).toBe("7");
-    expect(hints(dialog)).toContain("the time between point commands is from 0 to 5 seconds");
+    expect(hints(dialog)).toContain("the delay between point commands is from 0 to 5 seconds");
     expect(written()).toEqual([]);
   });
 });

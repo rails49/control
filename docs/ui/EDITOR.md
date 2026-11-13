@@ -97,8 +97,8 @@ Railroad, in this order:
 - **Load a railroad** lists what the store has, asked again each time the
   dialog opens, and ticks the one that is loaded, with the name field and the
   two presses that make a railroad beneath.
-- **Points** sets the point gap
-  ([#1128](https://github.com/rails49/control/issues/1128)): one field, *Time
+- **Points (turnouts and slips)** sets the point gap
+  ([#1128](https://github.com/rails49/control/issues/1128)): one field, *Delay
   between point commands*, in seconds from `0` to `5` in steps of `0.1`, `0`
   being no wait. It shows `point_gap` as `tc49/layout/state/settings` says it
   and is dead, saying `the layout has not said its settings`, until that row
@@ -111,7 +111,7 @@ Railroad, in this order:
   stays in it beside the reason, however often it is committed, until a
   commit is not refused or the row says a different gap
   ([#1137](https://github.com/rails49/control/issues/1137)).
-- **Driving** sets the driver's speeds
+- **Automatic driving** sets the driver's speeds
   ([#1134](https://github.com/rails49/control/issues/1134)): two fields,
   *Speed at clear* and *Speed at caution*, each in percent of the
   locomotive's top speed from `1` to `100` in steps of `1`. Each shows
