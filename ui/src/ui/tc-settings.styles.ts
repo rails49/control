@@ -4,8 +4,8 @@ import { sections } from "./shared.styles.js";
 
 /**
  * The settings dialog (`tc-settings`): its tabs, the Backup tab drawn by
- * `tc-backup` and the others laid out as below. A section is a box with its name
- * set into the top edge, as in `tc-backup` (#1246).
+ * `tc-backup` and the others laid out as below. A section is a tinted box with its
+ * name at its head, as in `tc-backup` (#1246, #1248).
  *
  * A railroad is a row that acts where it is pressed, unlike a backup in
  * `tc-backup`, which is chosen and then restored from the press beneath the
