@@ -20,7 +20,7 @@ import pytest
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
 from tc49.dispatcher.dispatch import Active, Request, State, aspects
-from tc49.dispatcher.locking import Move, Refused, _unsafe_obstacle, safety_view
+from tc49.dispatcher.locking import Move, Refused, safety_view
 from tc49.dispatcher.routing import Route, candidates
 from tc49.dispatcher.safety import finishable
 from tc49.lib.bus import Payload
@@ -292,17 +292,18 @@ def test_a_block_out_of_use_names_no_holder_whoever_stands_in_it() -> None:
 
 
 def test_an_unsafe_verdict_names_no_holder_for_a_block_out_of_use() -> None:
-    state = State(
-        drawing(MEET),
-        {"parked": 600, "runner": 600},
-        {"w_main": "parked", "e_main": "runner"},
-        {"parked": "w_main", "runner": "e_main"},
-        {},
-        power=ON,
-        unknown_sensors=frozenset({"w_main.B"}),
-    )
+    """`runner`'s route ends through `e_main`, where `parked` stands with a
+    sensor that has not reported."""
+    layout = drawing(MEET)
+    route = standing(layout, "west_1", "w_main", "loop_up", "e_main", "east_1")
+    state = under_way(layout, {"runner": route}, ["e_main.A"])
+    state.roster["parked"] = 600
+    state.locks["e_main"] = "parked"
+    state.block_of["parked"] = "e_main"
 
-    assert _unsafe_obstacle(["loop_up", "w_main"], state, "runner") == ("w_main", "")
+    assert Incremental(layout, 2).grant("runner", state) == Refused(
+        Refusal.UNSAFE, [{"resource": "e_main", "holder": ""}]
+    )
 
 
 def test_a_train_is_not_named_for_its_own_residue() -> None:
