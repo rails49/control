@@ -400,7 +400,7 @@ The driver turns a grant's aspect into a speed, a fraction of each
 locomotive's maximum: `clear` 0.6 and `caution` 0.3 until a person sets
 others
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
-They are the railroad's, set on the Settings dialog's **Driving** tab and kept
+They are the railroad's, set in the Settings dialog's **Automatic driving** section and kept
 with the railroad, not anything on the box: the driver's service takes no
 environment, and the two driver variables an older box may still set in
 `/etc/rails49/control.env` are read by nothing

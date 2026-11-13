@@ -23,8 +23,10 @@ import { sections } from "./shared.styles.js";
  * row, and one the layout did not answer says so there, in the weight a
  * thing missing reads in. A row's trash sits at its end, and pressed, the
  * row gives way to what deleting it costs and the two presses beside it.
- * The Points, Driving, Throttles and Sensors sections are narrow fields, the
- * hints beneath them.
+ * The Points, Automatic driving, Throttles and Sensors sections are narrow
+ * fields, the hints beneath them. A field's label runs on one line past its
+ * field where the window is wider than 30rem (#1250): `white-space` is
+ * inherited, so the label inside `sl-input` takes it from the host.
  */
 export const settingsStyles = css`
   ${sections}
@@ -128,6 +130,15 @@ export const settingsStyles = css`
   .throttles sl-input,
   .sensors sl-input {
     max-width: 14rem;
+  }
+
+  @media (min-width: 30rem) {
+    .points sl-input,
+    .driving sl-input,
+    .throttles sl-input,
+    .sensors sl-input {
+      white-space: nowrap;
+    }
   }
 
   .shutdown {

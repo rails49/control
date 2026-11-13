@@ -192,7 +192,11 @@ describe("the dialog's tabs", () => {
     const dialog = await settingsOpened(shell);
 
     expect(tabs(dialog)).toEqual(["Railroad", "Installation", "Backup"]);
-    expect(sections(dialog, "railroad")).toEqual(["Load a railroad", "Points", "Driving"]);
+    expect(sections(dialog, "railroad")).toEqual([
+      "Load a railroad",
+      "Points (turnouts and slips)",
+      "Automatic driving",
+    ]);
     expect(sections(dialog, "installation")).toEqual(["Throttles", "Sensors"]);
   });
 

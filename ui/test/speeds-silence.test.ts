@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * The Settings dialog's Driving and Throttles sections set the driver's speeds
+ * The Settings dialog's Automatic driving and Throttles sections set the driver's speeds
  * and the throttle silence (#1134): their fields show `speeds` and
  * `throttle_silence` off `tc49/layout/state/settings` (#1130), and a commit
  * publishes `tc49/layout/settings_wanted` carrying that field alone (#1131).
@@ -56,10 +56,13 @@ async function heard(): Promise<{ shell: TcApp; dialog: TcSettings }> {
   return { shell, dialog: await settingsOpened(shell) };
 }
 
-describe("the Driving and Throttles sections", () => {
-  it("are Driving after Points in Railroad, and Throttles first in Installation", async () => {
+describe("the Automatic driving and Throttles sections", () => {
+  it("are Automatic driving after Points in Railroad, and Throttles first in Installation", async () => {
     const dialog = await settingsOpened(await joined());
-    expect(sections(dialog, "railroad").slice(1, 3)).toEqual(["Points", "Driving"]);
+    expect(sections(dialog, "railroad").slice(1, 3)).toEqual([
+      "Points (turnouts and slips)",
+      "Automatic driving",
+    ]);
     expect(sections(dialog, "installation")[0]).toBe("Throttles");
   });
 
