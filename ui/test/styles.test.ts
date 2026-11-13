@@ -35,6 +35,7 @@ import { COLOURS, DARK } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
 import { appStyles } from "../src/ui/tc-app.styles.js";
+import { backupStyles } from "../src/ui/tc-backup.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { drivingStyles } from "../src/ui/tc-driving.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
@@ -42,6 +43,7 @@ import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
+import { settingsStyles } from "../src/ui/tc-settings.styles.js";
 import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
 
 /**
@@ -50,6 +52,7 @@ import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
  */
 const sheets: Record<string, CSSResult> = {
   appStyles,
+  backupStyles,
   canvasStyles,
   drivingStyles,
   editorStyles,
@@ -58,6 +61,7 @@ const sheets: Record<string, CSSResult> = {
   paletteStyles,
   panelStyles,
   rosterStyles,
+  settingsStyles,
   throttleStyles,
 };
 

@@ -445,9 +445,11 @@ export async function settingsOpened(shell: TcApp): Promise<TcSettings> {
   return settings(shell);
 }
 
-/** The subheadings of the settings dialog's `tab`, in order (#1238). */
+/** The names of the settings dialog's sections on `tab`, each a box, in
+ *  order (#1238, #1246). */
 export function sections(dialog: TcSettings, tab: string): string[] {
-  return [...dialog.renderRoot.querySelectorAll(`sl-tab-panel[name="${tab}"] h3`)].map((heading) =>
+  const legends = `sl-tab-panel[name="${tab}"] > fieldset > legend`;
+  return [...dialog.renderRoot.querySelectorAll(legends)].map((heading) =>
     heading.textContent!.trim(),
   );
 }

@@ -1,9 +1,11 @@
 import { css } from "lit";
 
+import { sections } from "./shared.styles.js";
+
 /**
  * The settings dialog (`tc-settings`): its tabs, the Backup tab drawn by
- * `tc-backup` and the others laid out as below. A section's subheading reads
- * as `tc-backup`'s does.
+ * `tc-backup` and the others laid out as below. A section is a box with its name
+ * set into the top edge, as in `tc-backup` (#1246).
  *
  * A railroad is a row that acts where it is pressed, unlike a backup in
  * `tc-backup`, which is chosen and then restored from the press beneath the
@@ -25,17 +27,7 @@ import { css } from "lit";
  * hints beneath them.
  */
 export const settingsStyles = css`
-  h3 {
-    margin: 1rem 0 0.4rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--hint);
-  }
-
-  h3:first-child {
-    margin-top: 0;
-  }
+  ${sections}
 
   .hint {
     margin: 0.2rem 0;

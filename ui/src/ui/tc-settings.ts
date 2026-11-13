@@ -5,7 +5,8 @@
  *
  * Three tabs, the dialog opening on the one `tab` names each time — Railroad
  * from the gear, Backup from the band's backup note (#899, #1075). Railroad
- * and Installation are sections under subheadings, Railroad's kept with the
+ * and Installation are sections, each in a box with its name set into the
+ * top edge (#1246), Railroad's kept with the
  * loaded railroad and Installation's the installation's whatever railroad is
  * loaded, which its first line says (#1238). **Load a railroad**, Railroad's
  * first section, lists what the store holds, the loaded one ticked, and a press on another
@@ -262,22 +263,34 @@ export class TcSettings extends LitElement {
           <sl-tab slot="nav" panel="installation">Installation</sl-tab>
           <sl-tab slot="nav" panel="backup" ?active=${backup}>Backup</sl-tab>
           <sl-tab-panel name="railroad" ?active=${!backup}>
-            <h3>Load a railroad</h3>
-            ${this.railroads()}
-            <h3>Points</h3>
-            <div class="points">${this.points()}</div>
-            <h3>Driving</h3>
-            <div class="driving">${this.driving()}</div>
+            <fieldset>
+              <legend>Load a railroad</legend>
+              ${this.railroads()}
+            </fieldset>
+            <fieldset>
+              <legend>Points</legend>
+              <div class="points">${this.points()}</div>
+            </fieldset>
+            <fieldset>
+              <legend>Driving</legend>
+              <div class="driving">${this.driving()}</div>
+            </fieldset>
           </sl-tab-panel>
           <sl-tab-panel name="installation">
             <p class="hint">This applies whatever railroad is loaded.</p>
-            <h3>Throttles</h3>
-            <div class="throttles">${this.throttles()}</div>
-            <h3>Sensors</h3>
-            <div class="sensors">${this.sensors()}</div>
+            <fieldset>
+              <legend>Throttles</legend>
+              <div class="throttles">${this.throttles()}</div>
+            </fieldset>
+            <fieldset>
+              <legend>Sensors</legend>
+              <div class="sensors">${this.sensors()}</div>
+            </fieldset>
             ${this.canTurnOff
-              ? html`<h3>Shutdown</h3>
-                  <div class="shutdown">${this.shutdown()}</div>`
+              ? html`<fieldset>
+                  <legend>Shutdown</legend>
+                  <div class="shutdown">${this.shutdown()}</div>
+                </fieldset>`
               : nothing}
           </sl-tab-panel>
           <sl-tab-panel name="backup" ?active=${backup}><slot name="backup"></slot></sl-tab-panel>
