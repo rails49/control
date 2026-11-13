@@ -60,7 +60,8 @@ export const palette = unsafeCSS(
 /**
  * Whole rule set. A section of the settings dialog, in `tc-settings` and
  * `tc-backup`: a `fieldset` on a tinted background with no border, its
- * `legend` the section's name inside the tint, above what it names (#1248).
+ * `legend` the section's name inside the tint, above what it names (#1248),
+ * bold and a step larger than the labels beneath it (#1253).
  * A legend floated full width is drawn inside the box rather than on its top
  * edge.
  */
@@ -81,9 +82,10 @@ export const sections = css`
   legend {
     float: left;
     width: 100%;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.5rem;
     padding: 0;
-    font-weight: var(--sl-font-weight-semibold);
+    font-size: var(--sl-font-size-large);
+    font-weight: var(--sl-font-weight-bold);
   }
 
   legend + * {
