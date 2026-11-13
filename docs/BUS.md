@@ -1116,7 +1116,9 @@ payload is read defensively, and one that fails the read is dropped.
   of `{resource, holder}` — the block or transit that blocked a candidate, and
   the train holding it. `held` is a block or transit held by another train
   (`Refusal.HELD`), never the run. `holder` is `""` for a block on
-  `state/disputed`, whoever holds its lock ([#1164](https://github.com/rails49/control/issues/1164)). A grant not made because power is not `on`
+  `state/disputed` or a block out of use (either of its sensors on
+  `state/unknown_sensors`), whoever holds its lock ([#1164](https://github.com/rails49/control/issues/1164), [#1254](https://github.com/rails49/control/issues/1254)),
+  and it is never the train the refusal is for. A grant not made because power is not `on`
   is not announced here
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;

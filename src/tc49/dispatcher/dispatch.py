@@ -295,14 +295,19 @@ class State:
         A block that reads occupied is not entered, whoever holds it, the
         train's own residue included (ADR-0077): a cut of cars would be hit,
         and a stuck detector takes the block out of use until it reads clear.
-        The holder is "" for a disputed block, whoever holds its lock, since
-        what stands there is nobody's train (#1164), and otherwise whoever
-        holds it, "" where nobody does. A block out of use by a sensor not
-        reporting answers the same (#1152)."""
+        A block out of use by a sensor not reporting answers the same (#1152).
+        The holder is "" for a disputed block or a block out of use, whoever
+        holds its lock, since what stops the train is a sensor and not a
+        train (#1164, #1254); "" for `train`'s own residue; and otherwise
+        whoever holds it, "" where nobody does."""
         if self.reads_occupied(resource) or resource in self.out_of_use:
-            holder = (
-                "" if resource in self.disputed_blocks else self.locks.get(resource, "")
-            )
+            holder = self.locks.get(resource, "")
+            if (
+                holder == train
+                or resource in self.disputed_blocks
+                or resource in self.out_of_use
+            ):
+                holder = ""
             return (Refusal.HELD, resource, holder)
         holder = self.locks.get(resource)
         if holder is not None and holder != train:
