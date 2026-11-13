@@ -285,6 +285,18 @@ describe("a refused request's note", () => {
     expect(notes(element)).toEqual(["waits for a sensor of b to read clear"]);
   });
 
+  /** `goods` stands in `a`, whose sensor has not reported: the dispatcher
+   *  names no holder, and the note asks for the sensor and not for `goods`
+   *  (#1254). */
+  it("says a block out of use is to report", async () => {
+    const { shell, element } = await serving([goods([{ resource: "a", holder: "" }])]);
+    await said(shell, "tc49/layout/state/unknown_sensors", {
+      sensors: [{ sensor: "a.A", reason: "no report since start", reported: false }],
+    });
+    await settled(shell);
+    expect(notes(element)).toEqual(["waits for a sensor of a to report"]);
+  });
+
   /** Any one of them moving may free a route. */
   it("joins distinct holders of one kind with or", async () => {
     const local: Listed = { id: "l1", train: "local", depart: "d.A", dest: ["b.B"] };
