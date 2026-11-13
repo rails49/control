@@ -1617,6 +1617,7 @@ export class Panel {
       // leave the block it last stood in.
       (holder, resource) =>
         resource in this.layout.blocks ? resource : (this.stood.get(holder) ?? resource),
+      new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor))),
     );
   }
 

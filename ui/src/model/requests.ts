@@ -71,10 +71,12 @@ export interface RequestRow {
 
 /** The rows, one per request in list order. `standsIn` is the block a train
  *  holding `resource` is to leave: the resource itself where it is a block,
- *  and where it is a transit the block the train stands in. */
+ *  and where it is a transit the block the train stands in. `outOfUse` is the
+ *  blocks either of whose sensors `state/unknown_sensors` lists. */
 export function requestRows(
   requests: readonly Listed[],
   standsIn: (holder: string, resource: string) => string = (_, resource) => resource,
+  outOfUse: ReadonlySet<string> = new Set(),
 ): RequestRow[] {
   const byId = new Map(requests.map((request) => [request.id, request]));
   const listed = new Set(requests.map((request) => request.train));
@@ -92,7 +94,7 @@ export function requestRows(
     ...(after === undefined ? {} : { after }),
     ...(refused === undefined || refused.obstacles.length === 0
       ? {}
-      : { note: waitsFor(refused, listed, standsIn) }),
+      : { note: waitsFor(refused, listed, standsIn, outOfUse) }),
     ...(cancelling === undefined ? {} : { cancelling }),
   }));
 }
@@ -105,18 +107,22 @@ export function requestRows(
  * - a train with a request of its own will pass by itself;
  * - a train with none never moves, so a person has to give it a request;
  * - a block held by no train, holder `""`, waits for a sensor of it to read
- *   clear, whoever holds its lock where it is disputed (#1164).
+ *   clear, whoever holds its lock where it is disputed (#1164);
+ * - a block out of use, holder `""` too, waits for a sensor of it to report
+ *   (#1254).
  */
 function waitsFor(
   refused: Refused,
   listed: ReadonlySet<string>,
   standsIn: (holder: string, resource: string) => string,
+  outOfUse: ReadonlySet<string>,
 ): string[] {
   const passing = new Set<string>();
   const parked = new Map<string, string>();
   const clearing = new Set<string>();
+  const reporting = new Set<string>();
   for (const { resource, holder } of refused.obstacles) {
-    if (holder === "") clearing.add(resource);
+    if (holder === "") (outOfUse.has(resource) ? reporting : clearing).add(resource);
     else if (listed.has(holder)) passing.add(holder);
     else if (!parked.has(holder)) parked.set(holder, standsIn(holder, resource));
   }
@@ -128,6 +134,9 @@ function waitsFor(
   }
   if (clearing.size > 0) {
     sentences.push(`waits for a sensor of ${or([...clearing])} to read clear`);
+  }
+  if (reporting.size > 0) {
+    sentences.push(`waits for a sensor of ${or([...reporting])} to report`);
   }
   return sentences;
 }
