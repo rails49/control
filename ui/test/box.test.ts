@@ -186,6 +186,11 @@ function shown(dialog: TcSettings): string | null {
 }
 
 describe("the dialog's tabs", () => {
+  it("are in look's large dialog, which grows with the window (#1250)", async () => {
+    const dialog = await settingsOpened(await powered("off"));
+    expect(dialog.renderRoot.querySelector("look-dialog")!.getAttribute("size")).toBe("large");
+  });
+
   it("are Railroad, Installation and Backup, with no Shutdown where the box cannot turn off", async () => {
     const shell = await powered("off");
 

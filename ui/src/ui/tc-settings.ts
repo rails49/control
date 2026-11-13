@@ -63,6 +63,9 @@
  * and a restore's wait in the Backup tab with it: the app hands `tc-backup`
  * no `backing` while the dialog is shut.
  *
+ * The dialog is look's large one, growing with the window (look#48), so a
+ * long backup message has room on a large screen.
+ *
  * It is a dialog and not a view: a view shows or edits the loaded railroad,
  * and this chooses which one that is (ADR-0072, decision 1).
  *
@@ -257,7 +260,7 @@ export class TcSettings extends LitElement {
     // one shown.
     const backup = this.tab === "backup";
     return html`
-      <look-dialog open label="Settings" @sl-after-hide=${this.close}>
+      <look-dialog open label="Settings" size="large" @sl-after-hide=${this.close}>
         <sl-tab-group>
           <sl-tab slot="nav" panel="railroad" ?active=${!backup}>Railroad</sl-tab>
           <sl-tab slot="nav" panel="installation">Installation</sl-tab>
