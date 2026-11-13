@@ -157,7 +157,8 @@ def _launchable(
     with the blocks out of use left in: a request a failed sensor stands in the
     way of has to wait, and not be rejected (#1152). So a train standing in a
     block out of use, and one every route of which crosses such a block, is
-    refused `held`, naming the block, the first on the first route.
+    refused `held`, naming the block, the first on the first route, and no
+    holder (#1254).
     """
     length = state.roster[req.train]
     busy = congested(state, req.train)
@@ -169,21 +170,18 @@ def _launchable(
     if not every:
         return None
     block = next(b for b in every[0].blocks if b in out)
-    return Refused(
-        Refusal.HELD, [{"resource": block, "holder": state.locks.get(block, "")}]
-    )
+    return Refused(Refusal.HELD, [{"resource": block, "holder": ""}])
 
 
 def _standing_refusal(train: str, state: ReadOnlyState) -> Refused | None:
     """Why an active train may not leave the block it stands in, where it is out
-    of use: refused `held`, naming that block, whatever it holds beyond (#1152)."""
+    of use: refused `held`, naming that block and no holder, whatever it holds
+    beyond (#1152, #1254)."""
     active = state.active[train]
     block = active.route.blocks[active.cur_index]
     if block not in state.out_of_use:
         return None
-    return Refused(
-        Refusal.HELD, [{"resource": block, "holder": state.locks.get(block, "")}]
-    )
+    return Refused(Refusal.HELD, [{"resource": block, "holder": ""}])
 
 
 class FullRoute:
@@ -421,17 +419,19 @@ def _unsafe_obstacle(
     nothing is locked yet — the block another active train is committed to
     parking on, or the first remaining block that reads occupied with nobody
     standing in it or is out of use, holder "" where nobody holds it (ADR-0077,
-    #1152)."""
+    #1152). A block out of use names no holder, and neither does `train`'s own
+    lock, as `State.obstacle` answers (#1254)."""
     for block in remaining:
         holder = state.locks.get(block)
         if holder is not None and holder != train:
-            return (block, holder)
+            return (block, "" if block in state.out_of_use else holder)
     for other in sorted(state.active):
         dest = state.active[other].route.arrival_block
         if other != train and dest in remaining:
             return (dest, other)
     still = standing_still(state)
     for block in remaining:
-        if block in still:
-            return (block, state.locks.get(block, ""))
-    return (remaining[-1], state.locks.get(remaining[-1], ""))
+        if block in still and (found := state.obstacle(block, train)) is not None:
+            return (block, found[2])
+    holder = state.locks.get(remaining[-1], "")
+    return (remaining[-1], "" if holder == train else holder)

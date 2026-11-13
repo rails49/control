@@ -69,11 +69,13 @@ exist, and the rest of the railroad runs ([#1152](https://github.com/rails49/con
 This section covers the sensor cause; [GLOSSARY.md](../../GLOSSARY.md)'s
 **Out of use** lists every cause.
 
-- **Nothing in.** `State.obstacle` answers `held` for it, with holder `""` where
-  nobody holds it, as for a block with a sensor reading occupied, whoever asks. There is no
-  refusal reason of its own.
-- **Nothing out.** A train standing in one is refused `held`, naming that block,
-  at a launch and at each grant.
+- **Nothing in.** `State.obstacle` answers `held` for it, as for a block with a
+  sensor reading occupied, whoever asks. The holder is `""` whoever holds its
+  lock: what stops the train is a sensor, and a train standing there cannot
+  move either ([#1254](https://github.com/rails49/control/issues/1254)). There is
+  no refusal reason of its own.
+- **Nothing out.** A train standing in one is refused `held`, naming that block
+  and holder `""`, at a launch and at each grant.
 - **No route through.** The route chooser leaves such routes out (*Route
   selection*).
 - **A committed route stays.** A train whose route crosses the block is not

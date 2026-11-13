@@ -20,7 +20,7 @@ import pytest
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
 from tc49.dispatcher.dispatch import Active, Request, State, aspects
-from tc49.dispatcher.locking import Move, Refused, safety_view
+from tc49.dispatcher.locking import Move, Refused, _unsafe_obstacle, safety_view
 from tc49.dispatcher.routing import Route, candidates
 from tc49.dispatcher.safety import finishable
 from tc49.lib.bus import Payload
@@ -215,7 +215,7 @@ def test_an_idle_train_standing_in_the_block_launches_nothing(
 
     assert routes(assembly) == []
     assert leaves(assembly, "request_rejected") == []
-    assert last_refusal(assembly) == held("w_main", "runner")
+    assert last_refusal(assembly) == held("w_main")
 
     press(assembly, PLACEMENT_WANTED, {"train": "runner", "block": "loop_up"})
 
@@ -271,8 +271,54 @@ def test_an_active_train_standing_in_the_block_is_granted_nothing(
     state = under_way(layout, {"runner": route}, ["w_main.B"])
 
     assert strategy(layout, 2).grant("runner", state) == Refused(
-        Refusal.HELD, [{"resource": "w_main", "holder": "runner"}]
+        Refusal.HELD, [{"resource": "w_main", "holder": ""}]
     )
+
+
+def test_a_block_out_of_use_names_no_holder_whoever_stands_in_it() -> None:
+    """What stops a train there is the sensor, and the train standing in the
+    block cannot move either (#1254)."""
+    state = State(
+        drawing(MEET),
+        {"parked": 600, "runner": 600},
+        {"w_main": "parked", "e_main": "runner"},
+        {"parked": "w_main", "runner": "e_main"},
+        {},
+        power=ON,
+        unknown_sensors=frozenset({"w_main.B"}),
+    )
+
+    assert state.obstacle("w_main", "runner") == (Refusal.HELD, "w_main", "")
+
+
+def test_an_unsafe_verdict_names_no_holder_for_a_block_out_of_use() -> None:
+    state = State(
+        drawing(MEET),
+        {"parked": 600, "runner": 600},
+        {"w_main": "parked", "e_main": "runner"},
+        {"parked": "w_main", "runner": "e_main"},
+        {},
+        power=ON,
+        unknown_sensors=frozenset({"w_main.B"}),
+    )
+
+    assert _unsafe_obstacle(["loop_up", "w_main"], state, "runner") == ("w_main", "")
+
+
+def test_a_train_is_not_named_for_its_own_residue() -> None:
+    """It waits for the block's sensor to read clear, and not for itself (#1254)."""
+    state = State(
+        drawing(MEET),
+        {"runner": 600},
+        {"w_main": "runner", "e_main": "runner"},
+        {"runner": "e_main"},
+        {},
+        power=ON,
+        readings={"w_main.A": True},
+        residue={"w_main"},
+    )
+
+    assert state.obstacle("w_main", "runner") == (Refusal.HELD, "w_main", "")
 
 
 def test_a_train_standing_in_the_block_is_frozen_for_every_other_train() -> None:
