@@ -66,6 +66,7 @@ import {
   type Standing,
 } from "../model/commands.js";
 import { Backing } from "../model/backup.js";
+import { update } from "../model/box.js";
 import type { ClockChange, FastClock } from "../model/clock.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
@@ -106,6 +107,9 @@ const CONTROLS = "sl-input, sl-select, input, textarea";
  *  the press asking for the loaded railroad again to leave on the bus. */
 const RELOAD_MS = 500;
 
+/** How often the page asks the installation whether it offers an update. */
+const UPDATE_MS = 60 * 60 * 1000;
+
 @customElement("tc-app")
 export class TcApp extends LitElement {
   static override styles = appStyles;
@@ -143,6 +147,12 @@ export class TcApp extends LitElement {
 
   /** What stops the hourly ask about backup, held for when the app goes. */
   private unwatch: (() => void) | null = null;
+
+  /** The installation release the box's status page offers to update to,
+   *  `null` for none (`model/box.ts`, #1259). Asked when the app comes up and
+   *  every hour after; `asking` is that timer. */
+  @state() private offered: string | null = null;
+  private asking: ReturnType<typeof setInterval> | null = null;
 
   /** How the page reloads after a restore. A seam so a suite can see that it
    *  would, `location.reload` ending the document the suite runs in. */
@@ -211,11 +221,20 @@ export class TcApp extends LitElement {
     // (#688).
     void this.backing.load();
     this.unwatch = this.backing.watch();
+    const ask = (): void => {
+      void update().then((release) => {
+        this.offered = release;
+      });
+    };
+    ask();
+    this.asking = setInterval(ask, UPDATE_MS);
   }
 
   override disconnectedCallback(): void {
     this.unwatch?.();
     this.unwatch = null;
+    if (this.asking !== null) clearInterval(this.asking);
+    this.asking = null;
     window.removeEventListener("keydown", this.key);
     window.removeEventListener("hashchange", this.hashed);
     window.removeEventListener("pagehide", this.hiding);
@@ -452,7 +471,8 @@ export class TcApp extends LitElement {
    * invalid drawing (its title the store's refusal), what the hardware says is wrong with the supply,
    * each lock-table rule the dispatcher found broken (#1118), each thing the
    * detectors dispute (#1154), the sensors not reporting (#1153),
-   * and backup that is not running — and the fast clock (ADR-0090);
+   * backup that is not running, and an installation update the box offers
+   * (#1259) — and the fast clock (ADR-0090);
    * then the driving control, the last of the band's items, and track power;
    * then the gear, and look's Help after it (org ADR-0020, #873).
    *
@@ -485,6 +505,14 @@ export class TcApp extends LitElement {
               word=${note.says}
               label=${note.why}
               @look-press=${() => this.settingsOpen("backup")}
+            ></look-band-press>`}
+        ${this.offered === null
+          ? nothing
+          : html`<look-band-press
+              data-update
+              word="Update"
+              label=${`Update to ${this.offered} is available`}
+              @look-press=${() => window.open("/box/", "_blank")}
             ></look-band-press>`}
         <tc-band-clock
           .clock=${this.clock}
