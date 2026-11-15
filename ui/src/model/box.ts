@@ -10,13 +10,19 @@
 
 import { said } from "./store.js";
 
+/** How often `watchUpdate` asks again: hourly. */
+export const UPDATE_MS = 60 * 60 * 1000;
+
+/** What `GET /box` answers, as far as this reads it. */
+type BoxBody = { can_turn_off?: unknown; update?: unknown } | null;
+
 /** The JSON body of a `200` to `GET /box`, `null` for any other answer, a
  *  body that is not JSON and a rejection included. */
-async function box(): Promise<{ can_turn_off?: unknown; update?: unknown } | null> {
+async function box(): Promise<BoxBody> {
   try {
     const response = await fetch("/box");
     if (response.status !== 200) return null;
-    return (await response.json()) as { can_turn_off?: unknown; update?: unknown } | null;
+    return (await response.json()) as BoxBody;
   } catch {
     return null;
   }
@@ -35,6 +41,18 @@ export async function canTurnOff(): Promise<boolean> {
 export async function update(): Promise<string | null> {
   const release = (await box())?.update;
   return typeof release === "string" ? release : null;
+}
+
+/** Ask `update` now and every `every` milliseconds after, handing each answer
+ *  to `told`, until the answer is called. */
+export function watchUpdate(
+  told: (release: string | null) => void,
+  every: number = UPDATE_MS,
+): () => void {
+  const ask = (): void => void update().then(told);
+  ask();
+  const timer = setInterval(ask, every);
+  return () => clearInterval(timer);
 }
 
 /** Ask the installation to turn the box off: `null` on a `202`, otherwise the

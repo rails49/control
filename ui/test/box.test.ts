@@ -14,12 +14,12 @@
  * the same `GET /box`, and the band shows a press for it while there is one.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import "../src/ui/tc-app.js";
-import { canTurnOff, turnOff, update } from "../src/model/box.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LookBandPress } from "@rails49/look";
 import { press as pressOn } from "@rails49/look/testing";
+
+import "../src/ui/tc-app.js";
+import { canTurnOff, turnOff, update, UPDATE_MS } from "../src/model/box.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
 import {
@@ -126,9 +126,14 @@ describe("the release the box offers an update to (#1259)", () => {
 
   it("is null on a body with no update", async () => {
     answering(200, '{"can_turn_off": true}');
-    expect(await update()).toBeNull();
 
+    expect(await update()).toBeNull();
+  });
+
+  /** What vite answers at `localhost`: its own page, under a 200. */
+  it("is null on a 200 that is not JSON", async () => {
     answering(200, "<!doctype html><html></html>");
+
     expect(await update()).toBeNull();
   });
 
@@ -523,6 +528,25 @@ describe("the band's update press (#1259)", () => {
 
   it("is not there where the box answers as localhost does", async () => {
     expect(offer(await mounted("run"))).toBeNull();
+  });
+
+  /** A page left open: an hour after it loaded the app asks again, and the
+   *  press follows the answer. */
+  it("follows the box's answer an hour after load", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      installed({ status: 200, body: '{"update": null}' });
+      const shell = await mounted("run");
+      expect(offer(shell)).toBeNull();
+
+      installed({ status: 200, body: '{"update": "2026.11.2"}' });
+      await vi.advanceTimersByTimeAsync(UPDATE_MS);
+      await settled(shell);
+
+      expect(offer(shell)!.label).toBe("Update to 2026.11.2 is available");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens the box's status page in a new tab", async () => {
