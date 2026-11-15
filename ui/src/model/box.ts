@@ -10,18 +10,31 @@
 
 import { said } from "./store.js";
 
+/** The JSON body of a `200` to `GET /box`, `null` for any other answer, a
+ *  body that is not JSON and a rejection included. */
+async function box(): Promise<{ can_turn_off?: unknown; update?: unknown } | null> {
+  try {
+    const response = await fetch("/box");
+    if (response.status !== 200) return null;
+    return (await response.json()) as { can_turn_off?: unknown; update?: unknown } | null;
+  } catch {
+    return null;
+  }
+}
+
 /** Whether the installation says this box can be turned off. Only a `200`
  *  whose JSON body has `can_turn_off === true` is yes; anything else is no,
  *  a rejection included. */
 export async function canTurnOff(): Promise<boolean> {
-  try {
-    const response = await fetch("/box");
-    if (response.status !== 200) return false;
-    const body = (await response.json()) as unknown;
-    return (body as { can_turn_off?: unknown } | null)?.can_turn_off === true;
-  } catch {
-    return false;
-  }
+  return (await box())?.can_turn_off === true;
+}
+
+/** The release the box's status page at `/box/` offers "Update to" for
+ *  (#1259): a `200` whose JSON `update` is a string; `null` for anything
+ *  else, a rejection included. */
+export async function update(): Promise<string | null> {
+  const release = (await box())?.update;
+  return typeof release === "string" ? release : null;
 }
 
 /** Ask the installation to turn the box off: `null` on a `202`, otherwise the
