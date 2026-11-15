@@ -138,3 +138,18 @@ def test_each_join_downloads_only_its_own_images_digests() -> None:
             for runner in RUNNERS:
                 name = expand(upload["with"]["name"], other, runner)
                 assert fnmatch(name, pattern) == (other == image), (pattern, name)
+
+
+def test_each_build_caches_its_layers_in_ghcr() -> None:
+    """One cache per image and architecture, with every stage's layers, so a
+    release rebuilds and a box pulls only the layers that changed
+    (rails49/.github#80)."""
+    build = next(
+        s for s in uses("docker/build-push-action") if s.get("name") == "build"
+    )
+    ref = (
+        "type=registry,ref=${{ env.REGISTRY }}/${{ matrix.image }}"
+        ":buildcache-${{ runner.arch }}"
+    )
+    assert build["with"]["cache-from"] == ref
+    assert build["with"]["cache-to"] == ref + ",mode=max"

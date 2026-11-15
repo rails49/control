@@ -118,6 +118,10 @@ jobs:
           build-args: CONTROL_COMMIT=${{ needs.commit.outputs.commit }}
           load: true
           tags: ci/${{ matrix.image }}
+          # Layers that did not change since the last build are taken from GHCR,
+          # so a box pulls only the ones that did (rails49/.github#80).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ matrix.image }}:buildcache-${{ runner.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ matrix.image }}:buildcache-${{ runner.arch }},mode=max
       - uses: astral-sh/setup-uv@v5
       - name: test
         env:
