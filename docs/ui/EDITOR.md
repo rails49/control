@@ -290,6 +290,14 @@ page left open shows a copy that fell behind after it loaded; a single failed
 push says nothing, `behind` waiting a day
 ([#691](https://github.com/rails49/control/issues/691)).
 
+**And an installation update the box offers**, as an *Update* press whose
+tooltip is *Update to <release> is available*; pressing it opens the box's
+status page, `/box/`, in a new tab, where the update is started. The release
+is `update` in `GET /box`'s answer, and the press shows only while that is a
+string. The app asks when the page loads and every hour after. At
+`localhost` nothing answers `/box`, so nothing shows
+([#1259](https://github.com/rails49/control/issues/1259)).
+
 **Nothing that is going right reads in it**
 ([#517](https://github.com/rails49/control/issues/517)). The band was six
 entries with five of them saying the ordinary thing — `drawing frozen connected
