@@ -9,15 +9,21 @@
  * dialog through the app, which draws a **Shutdown** section only where the
  * installation says yes and sends only once the track is dead, draining it
  * first where it has power (#899, ADR-0085 decision 5).
+ *
+ * And the release the box offers an update to (#1259): the model reads it off
+ * the same `GET /box`, and the band shows a press for it while there is one.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
-import { canTurnOff, turnOff } from "../src/model/box.js";
+import { canTurnOff, turnOff, update } from "../src/model/box.js";
+import type { LookBandPress } from "@rails49/look";
+import { press as pressOn } from "@rails49/look/testing";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcSettings } from "../src/ui/tc-settings.js";
 import {
+  band,
   mounted,
   type Reply,
   sections,
@@ -95,6 +101,41 @@ describe("whether the box can be turned off", () => {
     rejecting();
 
     expect(await canTurnOff()).toBe(false);
+  });
+});
+
+describe("the release the box offers an update to (#1259)", () => {
+  it("is the release on a 200 naming one", async () => {
+    const calls = answering(200, '{"can_turn_off": true, "update": "2026.11.2"}');
+
+    expect(await update()).toBe("2026.11.2");
+    expect(calls).toEqual([{ path: "/box", method: "GET" }]);
+  });
+
+  it("is null on a 200 naming none", async () => {
+    answering(200, '{"can_turn_off": true, "update": null}');
+
+    expect(await update()).toBeNull();
+  });
+
+  it("is null on a status that is not ok", async () => {
+    answering(404, '{"update": "2026.11.2"}');
+
+    expect(await update()).toBeNull();
+  });
+
+  it("is null on a body with no update", async () => {
+    answering(200, '{"can_turn_off": true}');
+    expect(await update()).toBeNull();
+
+    answering(200, "<!doctype html><html></html>");
+    expect(await update()).toBeNull();
+  });
+
+  it("is null where nothing answers", async () => {
+    rejecting();
+
+    expect(await update()).toBeNull();
   });
 });
 
@@ -456,5 +497,50 @@ describe("the dialog's Shutdown section", () => {
     const dialog = await settingsOpened(shell);
 
     expect(press(dialog, "turn")!.hasAttribute("disabled")).toBe(true);
+  });
+});
+
+/** The band's press for an installation update, `null` where it shows none. */
+function offer(shell: TcApp): LookBandPress | null {
+  return band(shell).querySelector<LookBandPress>("look-band-press[data-update]");
+}
+
+describe("the band's update press (#1259)", () => {
+  it("shows with the release in its tooltip while the box offers one", async () => {
+    installed({ status: 200, body: '{"can_turn_off": true, "update": "2026.11.2"}' });
+
+    const shell = await mounted("run");
+
+    expect(offer(shell)!.word).toBe("Update");
+    expect(offer(shell)!.label).toBe("Update to 2026.11.2 is available");
+  });
+
+  it("is not there where the box offers none", async () => {
+    installed({ status: 200, body: '{"can_turn_off": true, "update": null}' });
+
+    expect(offer(await mounted("run"))).toBeNull();
+  });
+
+  it("is not there where the box answers as localhost does", async () => {
+    expect(offer(await mounted("run"))).toBeNull();
+  });
+
+  it("opens the box's status page in a new tab", async () => {
+    installed({ status: 200, body: '{"update": "2026.11.2"}' });
+    const shell = await mounted("run");
+    const opened: unknown[][] = [];
+    const was = window.open;
+    window.open = ((...args: unknown[]) => {
+      opened.push(args);
+      return null;
+    }) as typeof window.open;
+
+    try {
+      pressOn(offer(shell)!);
+    } finally {
+      window.open = was;
+    }
+
+    expect(opened).toEqual([["/box/", "_blank"]]);
   });
 });
