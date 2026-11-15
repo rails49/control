@@ -66,7 +66,7 @@ import {
   type Standing,
 } from "../model/commands.js";
 import { Backing } from "../model/backup.js";
-import { update } from "../model/box.js";
+import { watchUpdate } from "../model/box.js";
 import type { ClockChange, FastClock } from "../model/clock.js";
 import { emptyDrawing } from "../model/drawing.js";
 import { Editor } from "../model/editor.js";
@@ -106,9 +106,6 @@ const CONTROLS = "sl-input, sl-select, input, textarea";
 /** How long the page waits after a restore before it reloads: long enough for
  *  the press asking for the loaded railroad again to leave on the bus. */
 const RELOAD_MS = 500;
-
-/** How often the page asks the installation whether it offers an update. */
-const UPDATE_MS = 60 * 60 * 1000;
 
 @customElement("tc-app")
 export class TcApp extends LitElement {
@@ -150,9 +147,11 @@ export class TcApp extends LitElement {
 
   /** The installation release the box's status page offers to update to,
    *  `null` for none (`model/box.ts`, #1259). Asked when the app comes up and
-   *  every hour after; `asking` is that timer. */
+   *  every hour after. */
   @state() private offered: string | null = null;
-  private asking: ReturnType<typeof setInterval> | null = null;
+
+  /** What stops the hourly ask about an update, held for when the app goes. */
+  private unwatchUpdate: (() => void) | null = null;
 
   /** How the page reloads after a restore. A seam so a suite can see that it
    *  would, `location.reload` ending the document the suite runs in. */
@@ -221,20 +220,16 @@ export class TcApp extends LitElement {
     // (#688).
     void this.backing.load();
     this.unwatch = this.backing.watch();
-    const ask = (): void => {
-      void update().then((release) => {
-        this.offered = release;
-      });
-    };
-    ask();
-    this.asking = setInterval(ask, UPDATE_MS);
+    this.unwatchUpdate = watchUpdate((release) => {
+      this.offered = release;
+    });
   }
 
   override disconnectedCallback(): void {
     this.unwatch?.();
     this.unwatch = null;
-    if (this.asking !== null) clearInterval(this.asking);
-    this.asking = null;
+    this.unwatchUpdate?.();
+    this.unwatchUpdate = null;
     window.removeEventListener("keydown", this.key);
     window.removeEventListener("hashchange", this.hashed);
     window.removeEventListener("pagehide", this.hiding);
