@@ -350,13 +350,12 @@ describe("the Backup tab", () => {
     expect(surface.renderRoot.querySelector("details.move sl-input")).not.toBeNull();
   });
 
-  /** The clipboard API is there only over HTTPS or on localhost, and most
-   *  boxes serve the UI over plain HTTP, so there is no copy press: one
-   *  click selects the key, and a line under it says so (#1236). */
+  /** There is no copy press: one click selects the key, and a line under it
+   *  says so (#1236). */
   it.each([
-    ["no repository", UNBACKED],
-    ["a repository", KEPT],
-  ])("says how to copy the key, with no copy press, as %s", async (_, stands) => {
+    ["before", UNBACKED],
+    ["once", KEPT],
+  ])("says how to copy the key, with no copy press, %s the store is a repository", async (_, stands) => {
     const { dialog: surface } = await dialog(stands);
     const buttons = [...surface.renderRoot.querySelectorAll("sl-button")];
     expect(buttons.some((button) => (button.textContent ?? "").includes("Copy the key"))).toBe(

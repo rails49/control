@@ -621,9 +621,7 @@ minus `Host(...)`, the same service, middlewares and priority, and no TLS.
 Over plain HTTP a page is not a secure context, and the screen wake lock stops
 working. A phone that sleeps while holding a train stops sending
 `throttle_alive`, and `layout` releases its trains
-([above](#a-silent-throttle)). Set a longer screen timeout on the phone. The
-backup tab has no copy press for the same reason: one click selects the key
-([#1236](https://github.com/rails49/control/issues/1236)).
+([above](#a-silent-throttle)). Set a longer screen timeout on the phone.
 
 ## When it does not work
 
