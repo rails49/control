@@ -40,10 +40,13 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/icon/icon.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
+import "@shoelace-style/shoelace/dist/components/switch/switch.js";
+import type SlSwitch from "@shoelace-style/shoelace/dist/components/switch/switch.js";
 
 import type { Backing } from "../model/backup.js";
 import type { Backup, BackupDoc, Copy } from "../model/store.js";
@@ -147,14 +150,14 @@ export class TcBackup extends LitElement {
               >
                 Back up now
               </sl-button>
-              <sl-button
+              <sl-switch
+                .checked=${live(stands.automatic)}
                 ?disabled=${backing.busy}
-                @click=${() => void backing.automatic(!stands.automatic)}
+                @sl-change=${(event: Event) =>
+                  void backing.automatic((event.target as SlSwitch).checked)}
               >
-                ${stands.automatic
-                  ? "Turn automatic backup off"
-                  : "Turn automatic backup on"}
-              </sl-button>
+                Automatic backup
+              </sl-switch>
             </div>
             <fieldset>
               <legend>Backups</legend>

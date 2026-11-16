@@ -36,8 +36,8 @@ Once, in a browser, and no terminal
    — and press *Back up to it*.
 
 The store clones the repository and moves the clone's `.git` in under the
-drawings already there, which become the first backup. Then *Turn automatic
-backup on* in the same tab, which writes `backup.yaml` in the store. It is
+drawings already there, which become the first backup. Then switch
+*Automatic backup* on in the same tab, which writes `backup.yaml` in the store. It is
 a document of the installation like the catalogue is, so it is backed up with
 the rest, and a box that takes the store over from its repository comes back
 with backup on.
