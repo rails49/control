@@ -643,10 +643,6 @@ as on a run:
 A selected widget is drawn in the selection's colour. What a widget shows on
 a run is the run view's ([PANEL.md](PANEL.md)).
 
-The generic connection symbol is not placed and not drawn. It has no fixed pin
-set to place, migration is over, and since station-C east was redrawn from real
-symbols (#58) it has no users left at all.
-
 ### Units and colours
 
 One grid square is the unit G. Every dimension on the canvas is a fraction
@@ -1509,10 +1505,6 @@ written is a disagreement someone typed, which the editor leaves alone.
 
 A component that declares no transit is not a junction, so a terminal
 capping a block end is not among the junctions `review` reports.
-
-A drawing that still has a generic connection symbol has to open, so the editor
-draws it as a box with the pins it declares and no turnout detail. It stays off
-the palette, having no fixed pin set to place.
 
 The app's session reads the bus off the broker alongside it
 ([PANEL.md](PANEL.md#implementation)).
