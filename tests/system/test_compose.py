@@ -172,9 +172,7 @@ def test_no_service_names_a_railroad() -> None:
     layout interface starts on it (ADR-0072, decision 5): a service passing
     `--railroad` would start an app on the railroad an env file named rather
     than on the one its rails were built to, and the app refuses the flag
-    anyway. Nor is `TC49_RAILROAD` read anywhere in the file: compose ignores
-    an unused variable, so a box whose env file still sets it starts as any
-    other does."""
+    anyway. Nor is `TC49_RAILROAD` read anywhere in the file."""
     naming = sorted(
         name for name, service in services().items() if RAILROAD in words(service)
     )
