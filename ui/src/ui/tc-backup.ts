@@ -244,11 +244,12 @@ export class TcBackup extends LitElement {
    * Always there once the store has one: a key that has to be pasted again —
    * the repository was remade, the box was — is needed exactly when the
    * store is a repository already, so it folds away rather than going.
+   * One click selects the whole key, and the line under it says so (#1236).
    */
   private key(key: string | null, repository: boolean, busy: boolean) {
     if (key === null) return nothing;
     const shown = html`<pre class="key">${key}</pre>
-      <sl-button size="small" @click=${() => void copy(key)}>Copy the key</sl-button>
+      <p class="hint">click the key to select it, then copy it</p>
       ${this.renewal(busy)}`;
     return repository
       ? html`<details class="key">
@@ -480,17 +481,6 @@ export class TcBackup extends LitElement {
     this.address = "";
     this.renewing = false;
     this.discarding = false;
-  }
-}
-
-/** The key onto the clipboard, where the browser allows it. Where it does
- *  not — a page not served over TLS, a browser asked too soon — the key is
- *  still on the screen to select, so a refusal here is nothing to say. */
-async function copy(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // selectable on the screen either way
   }
 }
 
