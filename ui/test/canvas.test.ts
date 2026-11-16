@@ -1447,6 +1447,22 @@ describe("a widget in the editor", () => {
     expect(current.querySelector("rect, svg")).toBeNull();
   });
 
+  it("draws a text widget's default with its codes read, as a run does (#1280)", async () => {
+    const canvas = await canvasOn(
+      {
+        ...WIDGETS,
+        widgets: { current: { kind: "text", at: [2, 1], default: "\x1b[1mStop\x1b[0m" } },
+      },
+      UNREVIEWED,
+    );
+    const text = canvas.renderRoot.querySelector('[data-widget="current"] .widget-text')!;
+    const runs = [...text.querySelectorAll("tspan")];
+    expect(runs.map((one) => [one.textContent, one.getAttribute("class")])).toEqual([
+      ["Stop", "bold"],
+    ]);
+    expect(text.classList).not.toContain("placeholder");
+  });
+
   it("shows a text widget with no default by its name, in the hint's colour", async () => {
     const canvas = await canvasOn(
       { ...WIDGETS, widgets: { current: { kind: "text", at: [2, 1] } } },
