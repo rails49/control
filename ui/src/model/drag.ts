@@ -34,9 +34,8 @@ import { nearest, pressableAt, under } from "./under.js";
  *  one. The editor allows the same before a press on a pin is a drag. */
 const SLOP = 4;
 
-/** The same for a finger, which rolls as it lifts (#893), and how far a long
- *  press may travel before it is a drag instead (#1275). */
-export const TOUCH_SLOP = 12;
+/** The same for a finger, which rolls as it lifts (#893). */
+const TOUCH_SLOP = 12;
 
 /** How far from a tap, in squares, the offered point it throws may be: a
  *  fingertip covers about a square at the zoom a panel is read at (#893). */
@@ -364,8 +363,9 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
 }
 
 /** Whether the pointer has travelled too far from a press for its release to
- *  be a click: further on a touch screen, a finger rolling as it lifts. */
-function strayed(press: { screen: Point; touch: boolean }, screen: Point): boolean {
+ *  be a click: further on a touch screen, a finger rolling as it lifts. The
+ *  canvas asks the same of a long press (#1275). */
+export function strayed(press: { screen: Point; touch: boolean }, screen: Point): boolean {
   return (
     Math.hypot(screen.x - press.screen.x, screen.y - press.screen.y) >
     (press.touch ? TOUCH_SLOP : SLOP)
