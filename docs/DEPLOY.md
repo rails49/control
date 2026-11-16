@@ -200,8 +200,7 @@ it is built on a railroad and starts on it after a reboot, so a box comes back
 on the railroad its rails were built to; every other app follows the row the
 binding publishes. Nothing in the env file names one: `TC49_RAILROAD` did until
 [#731](https://github.com/rails49/control/issues/731), and a box then came back
-on the railroad the env file named, whatever a person had loaded since. An env
-file still setting it is ignored. A person loads another railroad from the
+on the railroad the env file named, whatever a person had loaded since. A person loads another railroad from the
 settings dialog behind the band's gear while the apps run, and every app
 follows without a restart
 ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
@@ -380,8 +379,7 @@ others
 ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)).
 They are the railroad's, set in the Settings dialog's **Automatic driving** section and kept
 with the railroad, not anything on the box: the driver's service takes no
-environment, and the two driver variables an older box may still set in
-`/etc/rails49/control.env` are read by nothing
+environment
 ([#1133](https://github.com/rails49/control/issues/1133)). A changed speed
 applies from the next grant; whether a train's traction follows it is
 `layout`'s to decide.

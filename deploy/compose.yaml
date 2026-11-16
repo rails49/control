@@ -231,7 +231,7 @@ services:
   # until #731, with no default since `gotthard` put four of these into a
   # restart loop on the first box booted against an empty store (#564); a box
   # came back on the railroad the env file named rather than on the one its
-  # rails were built to, and an env file still setting it is ignored.
+  # rails were built to.
   #
   # `layout` and `simulator` are two bindings of one interface and never run
   # together: one writing role (ADR-0035) means each is asked for by a profile
