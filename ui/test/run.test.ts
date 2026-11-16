@@ -49,6 +49,7 @@ import {
   unbrokered,
   written,
 } from "./support/session.js";
+import { trainDoc } from "./support/trains.js";
 
 beforeEach(brokering);
 
@@ -446,7 +447,7 @@ describe("the picture on the shared canvas", () => {
     };
     serving({
       drawings: ["yard"],
-      rosterOf: () => ({ goods: { length: 400 } }),
+      rosterOf: () => ({ goods: trainDoc(400) }),
       read: () => structuredClone(YARD),
       review: () =>
         Promise.resolve({ ...CLEAN, layout: LAYOUT, explain: EXPLAIN }),

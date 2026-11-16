@@ -19,6 +19,7 @@ import type { ViewId } from "../../src/model/views.js";
 import type { TcApp } from "../../src/ui/tc-app.js";
 import { Broker } from "./broker.js";
 import { CLEAN, mounted, serving, settled } from "./shell.js";
+import { trainDoc } from "./trains.js";
 
 export { Broker } from "./broker.js";
 
@@ -31,21 +32,20 @@ export const RAILROAD = "tc49/layout/state/railroad";
  *  place; `shunter` is the train that is off the layout, which is an ordinary
  *  state and not a fault (ADR-0039). */
 export const STOCK = {
-  goods: {
-    length: 400,
+  goods: trainDoc(400, {
     // What a person driving `goods` can switch, by the names a catalogue
     // gives them: the throttle's whole source for its buttons (ADR-0045).
     functions: [
-      { name: "headlights", values: ["off", "on"] },
-      { name: "vacuum", values: ["off", "low", "high"] },
+      { name: "headlights", mode: "latching" },
+      { name: "vacuum", mode: "latching" },
     ],
     // The model of its first locomotive, which the throttle draws it as.
     locomotive: "BR 218",
     // Its cars' addresses, head first, which the throttle shows (#1033).
     addresses: ["12", "47"],
-  },
+  }),
   // Nothing to switch, which is most of the stock a railroad owns.
-  shunter: { length: 200 },
+  shunter: trainDoc(200),
 };
 
 /** Two blocks and nothing joining them: enough to derive, enough to paint, and

@@ -1472,8 +1472,8 @@ describe("what a person can switch", () => {
   const FUNCTIONS = "tc49/layout/state/functions";
   const FUNCTION_WANTED = "tc49/layout/function_wanted";
 
-  /** The toy roster with `goods` declaring these functions, by name, or by
-   *  name and mode as the trains route gives them. */
+  /** The toy roster with `goods` declaring these functions, by name for a
+   *  latching one, or by name and mode as the trains route gives them. */
   function declaring(...declared: (string | Fn)[]): void {
     serving({
       drawings: ["toy"],
@@ -1482,7 +1482,7 @@ describe("what a person can switch", () => {
         goods: {
           ...STOCK.goods,
           functions: declared.map((one) =>
-            typeof one === "string" ? { name: one } : one,
+            typeof one === "string" ? { name: one, mode: "latching" } : one,
           ),
         },
       }),
