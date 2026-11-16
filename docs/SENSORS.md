@@ -1,11 +1,10 @@
 # Sensors
 
-How a layout owner whose track sensors are wired to hardware of their own gets
-the readings to `control`. A script of the owner's reads the hardware and
-publishes each reading on the bus. The contract it meets is
+How a layout owner with detectors of their own on the track, wired to hardware
+of their own, gets the readings to `control`. A script of the owner's reads the
+hardware and publishes each reading on the bus. The contract it meets is
 [`tc49/layout/sensor` in BUS.md](BUS.md#event-inventory), which says what a
-report carries and what a publisher owes. This page does not repeat it. No
-script is kept in any repository.
+report carries and what a publisher owes. No script is kept in any repository.
 
 ## The broker
 
@@ -34,8 +33,9 @@ example a table in the script. It needs neither the drawing's `sensors` field
 nor `tc49/layout/state/railroad`.
 
 Loading another railroad can change which block ends exist
-([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)),
-so the table has to match the railroad loaded. A report for a block end not on
+([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+The owner then edits the table, or the script keeps one table per railroad
+and picks it by the name on `tc49/layout/state/railroad`. A report for a block end not on
 the drawing still gets a settled row, but is never listed on
 `tc49/layout/state/unknown_sensors`. A misspelled `addr` is seen from the other
 side: the block end it was meant for stays listed, with the reason
@@ -45,14 +45,15 @@ side: the block end it was meant for stays listed, with the reason
 
 Each block end gets its reports from one source
 ([BUS.md](BUS.md#event-inventory)). A railroad may mix sources across block
-ends, for example a camera in the open and track sensors in a tunnel.
+ends, for example a camera in the open and the owner's detectors in a tunnel.
 
-The camera is [rails49/occupancy-service](https://github.com/rails49/occupancy-service),
+The camera's publisher is [rails49/occupancy-service](https://github.com/rails49/occupancy-service),
 with its [`control` profile](https://github.com/rails49/occupancy-service#the-shipped-profiles).
-It reports each sensor its archive places, under the id the archive gives it.
-The block ends a script reports get no sensor in the archive.
+Its archive is the file that places the sensors in the camera's picture. The
+service reports each of them under the id the archive gives it. The block ends a
+script reports get no sensor in the archive.
 
-## Which sensors fit
+## Which detectors fit
 
 BUS.md asks that a sensor read `occupied` without a break from the moment a
 train's head reaches it until its tail has left it.
@@ -82,7 +83,8 @@ it and nothing acts on what it says. Say what is wrong, such as
 A script that stops sending has its sensors listed once the sensor silence
 runs out, with the reason `no report for <n> s`. The silence is set in the
 Settings dialog ([EDITOR.md](ui/EDITOR.md)). Sending `unknown` for every
-sensor before a clean stop says why at once.
+sensor before a clean stop lists them after the settling time instead, with
+the script's `reason`.
 
 ## The other direction
 

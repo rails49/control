@@ -585,11 +585,11 @@ what a drop would cost:
   any time. `control` does not guard this: a `clear` reported between two cars
   is taken for the train's tail
   ([#1167](https://github.com/rails49/control/issues/1167)). A sensor has one
-  publisher: `layout` believes every report and does not know the sender, so a
-  camera's `clear` between two of a track sensor's `occupied` reports is taken
-  for the train's tail. Nothing enforces this. A railroad may mix sources
-  across sensors, and [SENSORS.md](SENSORS.md) is how a layout owner publishes
-  their own. `layout` settles each report,
+  publisher. `layout` does not know the sender, so a camera's `clear` between
+  two `occupied` reports from another detector counts as such a `clear`.
+  Nothing enforces this. A railroad may mix detectors across sensors, and
+  [SENSORS.md](SENSORS.md) is how a layout owner publishes their own. `layout`
+  settles each report,
   believing every report and dropping one whose `addr` is unreadable, and the
   page shows it, a repeat of the level already shown adding no line and causing
   no redraw.
