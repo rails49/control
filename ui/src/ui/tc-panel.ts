@@ -323,7 +323,7 @@ export class TcPanel extends LitElement {
    * Which train was clicked is `trainAt`'s answer, the same question the press
    * that takes hold of one asks (model/drag.ts), so the two can never
    * disagree. A press that had started a drag — a long press on a touch screen
-   * raises `contextmenu` — has been abandoned by the machine, the menu taking
+   * opens the menu too — has been abandoned by the machine, the menu taking
    * the gesture over.
    */
   private offer(event: CustomEvent<Clicked>): void {

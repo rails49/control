@@ -1084,6 +1084,228 @@ describe("a train's photo in its block", () => {
   });
 });
 
+/** A long press with a finger or a pen opens the menu a right-click opens
+ *  (#1275). */
+describe("a long press", () => {
+  /** `goods` standing in `west` over x 0…6, `east` free over x 20…26, and a
+   *  turnout below `west` offered a throw. */
+  const RAILROAD: Drawing = {
+    drawing: "block-and-point",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      east: { kind: "block", at: [20, 0], length: 1000 },
+      point: { kind: "turnout", at: [0, 4], addr: "8" },
+    },
+    wires: [],
+  };
+
+  const LIVE: Overlay = {
+    blocks: new Map([
+      ["west", { state: "occupied", train: "goods", named: "goods" }],
+      ["east", { state: "free" }],
+    ]),
+    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    aspects: new Map(),
+    detected: new Map(),
+    positions: new Map(),
+    stuck: new Map(),
+    offered: new Map(),
+    markers: [],
+    widgets: new Map(),
+    locomotives: new Map(),
+  };
+
+  const OFFERED = new Map([["point", { addr: "8", position: "thrown" as const }]]);
+
+  let canvas: TcCanvas;
+  let menus: object[];
+  let sent: string[];
+
+  async function running(): Promise<void> {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    menus = [];
+    sent = [];
+    canvas = document.createElement("tc-canvas");
+    canvas.mode = "run";
+    canvas.drawing = structuredClone(RAILROAD);
+    canvas.review = reviewed([]);
+    canvas.live = LIVE;
+    canvas.machine = schedulingMachine(new Drag(), {
+      painted: () => ({
+        drawing: canvas.drawing,
+        review: canvas.review!,
+        blocks: LIVE.blocks,
+        offered: OFFERED,
+      }),
+      submit: (drop) => sent.push(`drop ${drop.block}`),
+      remove: (train) => sent.push(`remove ${train}`),
+      throwPoint: (wanted) => sent.push(`throw ${wanted.addr}`),
+      pressWidget: (name) => sent.push(`widget ${name}`),
+      onRoster: () => false,
+      showName: (block) => sent.push(`name ${block}`),
+    });
+    canvas.addEventListener("canvas-menu", (event) =>
+      menus.push((event as CustomEvent<object>).detail),
+    );
+    document.body.append(canvas);
+    await canvas.updateComplete;
+  }
+
+  /** The same railroad in the editor, driven by its own machine. */
+  async function editing(): Promise<Editor> {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    menus = [];
+    canvas = document.createElement("tc-canvas");
+    const editor = new Editor(structuredClone(RAILROAD));
+    canvas.editor = editor;
+    canvas.review = reviewed([]);
+    canvas.machine = editingMachine(
+      new Gesture(),
+      () => editor,
+      () => canvas.review ?? UNREVIEWED,
+      () => false,
+    );
+    canvas.addEventListener("canvas-menu", (event) =>
+      menus.push((event as CustomEvent<object>).detail),
+    );
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    return editor;
+  }
+
+  afterEach(() => {
+    canvas.remove();
+    vi.useRealTimers();
+  });
+
+  function pointer(
+    name: string,
+    x: number,
+    y: number,
+    pointerType = "touch",
+    pointerId = 1,
+  ) {
+    canvas.renderRoot.querySelector("svg")!.dispatchEvent(
+      new PointerEvent(name, {
+        bubbles: true,
+        clientX: x,
+        clientY: y,
+        pointerType,
+        pointerId,
+      }),
+    );
+  }
+
+  it("opens the menu over a train held for half a second, and the release does nothing", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5);
+    vi.advanceTimersByTime(499);
+    expect(menus).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(menus).toEqual([{ x: 3, y: 0.5, train: "goods", block: "west" }]);
+    pointer("pointerup", 3, 0.5);
+    vi.advanceTimersByTime(5000);
+    expect(sent).toEqual([]);
+  });
+
+  it("opens it the same for a pen", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5, "pen");
+    vi.advanceTimersByTime(500);
+    expect(menus).toEqual([{ x: 3, y: 0.5, train: "goods", block: "west" }]);
+    pointer("pointerup", 3, 0.5, "pen");
+    expect(sent).toEqual([]);
+  });
+
+  it("throws no point released after a long press on it", async () => {
+    await running();
+    pointer("pointerdown", 0.5, 4.5);
+    vi.advanceTimersByTime(500);
+    pointer("pointerup", 0.5, 4.5);
+    expect(sent).toEqual([]);
+    expect(menus).toEqual([]);
+  });
+
+  it("throws the point on a tap, the timer running out after the release", async () => {
+    await running();
+    pointer("pointerdown", 0.5, 4.5);
+    vi.advanceTimersByTime(400);
+    pointer("pointerup", 0.5, 4.5);
+    vi.advanceTimersByTime(5000);
+    expect(sent).toEqual(["throw 8"]);
+    expect(menus).toEqual([]);
+  });
+
+  it("shows the name on a tap on a train, and opens no menu", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5);
+    pointer("pointerup", 3, 0.5);
+    vi.advanceTimersByTime(500);
+    expect(sent).toEqual(["name west"]);
+    expect(menus).toEqual([]);
+  });
+
+  it("drags a train moved past the slop before the half second", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5);
+    pointer("pointermove", 23, 0.5);
+    vi.advanceTimersByTime(500);
+    expect(menus).toEqual([]);
+    pointer("pointerup", 23, 0.5);
+    expect(sent).toEqual(["drop east"]);
+  });
+
+  it("opens no menu once a second finger lands", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5, "touch", 1);
+    pointer("pointerdown", 5, 0.5, "touch", 2);
+    vi.advanceTimersByTime(500);
+    expect(menus).toEqual([]);
+  });
+
+  it("leaves a mouse held still to the machine", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5, "mouse");
+    vi.advanceTimersByTime(500);
+    expect(menus).toEqual([]);
+  });
+
+  it("opens one menu where the browser raises contextmenu on the long press too", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5);
+    vi.advanceTimersByTime(500);
+    canvas.renderRoot
+      .querySelector("svg")!
+      .dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 3, clientY: 0.5 }),
+      );
+    expect(menus).toHaveLength(1);
+  });
+
+  it("opens the editor's menu over a symbol, and the release moves nothing", async () => {
+    const editor = await editing();
+    pointer("pointerdown", 3, 0.5);
+    vi.advanceTimersByTime(500);
+    expect(menus).toMatchObject([{ x: 3, y: 0.5, symbol: "west" }]);
+    pointer("pointermove", 3, 20.5);
+    pointer("pointerup", 3, 20.5);
+    expect(editor.drawing.symbols.west!.at).toEqual([0, 0]);
+    expect([...editor.selection]).toEqual(["west"]);
+  });
+
+  it("drops a symbol drag the press began inside its slop", async () => {
+    // The editor's drag starts after 4 pixels and the long press allows 12,
+    // so a press can be both: the menu takes it, and the release moves
+    // nothing.
+    const editor = await editing();
+    pointer("pointerdown", 3, 0.5);
+    pointer("pointermove", 3, 8.5);
+    vi.advanceTimersByTime(500);
+    pointer("pointerup", 3, 8.5);
+    expect(editor.drawing.symbols.west!.at).toEqual([0, 0]);
+  });
+});
+
 /**
  * A point on a run (ADR-0068, #666). The lit road says how a point on it lies,
  * so nothing on a lit point is drawn set against; an unlit point whose

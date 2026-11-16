@@ -34,8 +34,9 @@ import { nearest, pressableAt, under } from "./under.js";
  *  one. The editor allows the same before a press on a pin is a drag. */
 const SLOP = 4;
 
-/** The same for a finger, which rolls as it lifts (#893). */
-const TOUCH_SLOP = 12;
+/** The same for a finger, which rolls as it lifts (#893), and how far a long
+ *  press may travel before it is a drag instead (#1275). */
+export const TOUCH_SLOP = 12;
 
 /** How far from a tap, in squares, the offered point it throws may be: a
  *  fingertip covers about a square at the zoom a panel is read at (#893). */

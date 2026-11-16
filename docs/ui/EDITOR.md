@@ -509,9 +509,10 @@ it landed on under it, so spreading or closing them zooms about their midpoint
 and moving them together pans. The second finger landing abandons whatever the
 first began — a drag, a band, a press — as a cancel, and nothing the fingers
 do is a gesture again until the last of them lifts; `model/pinch.ts` has the
-arithmetic. Both directions of the wheel were there from the start and
-neither was findable, so the rail carries a minus and a plus beside Fit and the
-keyboard has `+`, `-` and `0`. All of it is both modes': the run view gained
+arithmetic. A finger or a pen held still for half a second opens the
+right-click menu, as on a run (#1275). Both directions of the wheel were there
+from the start and neither was findable, so the rail carries a minus and a
+plus beside Fit and the keyboard has `+`, `-` and `0`. All of it is both modes': the run view gained
 every bit of it by being drawn here. **Fit** frames `scene.fitBox`, which is
 also what an exported file is drawn in, so a view fitted and a file written
 frame the same thing — the marks that sit on the sheet without being pins, a
