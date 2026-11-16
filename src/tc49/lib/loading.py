@@ -53,9 +53,9 @@ lists it. Published by whichever binding of the layout interface is running
 BUILT = "built"
 """The row's say on whether anything was built from the railroad it names
 (ADR-0085, decision 4). `false` is a railroad named and recorded as loaded
-whose drawing is not a valid drawing, so nothing was built from it; anything
-else, an absent field included, reads as built, so a row from an older
-writer means what it meant (#889)."""
+whose drawing is not a valid drawing, so nothing was built from it, and
+`true` is the railroad built from its drawing. A row naming a railroad
+without one is malformed and dropped (#889, #1263)."""
 
 RAILROAD_WANTED = "tc49/layout/railroad_wanted"
 """The gesture behind that row: a person choosing which railroad the apps
@@ -161,10 +161,11 @@ class Loaded:
         none of its rows, so the placements stand on the broker for the build
         that comes once the drawing is fixed (ADR-0071). That build is a row
         on the same name with a new stamp, or on another name, and is taken
-        as any other (#889).
+        as any other (#889). A row with no `built` is malformed, and dropped
+        as one with no name is (#1263).
         """
         name = payload.get("name")
-        if not isinstance(name, str) or not name or payload.get(BUILT) is False:
+        if not isinstance(name, str) or not name or payload.get(BUILT) is not True:
             return
         row = (name, payload.get(AT))
         if name == self._name:

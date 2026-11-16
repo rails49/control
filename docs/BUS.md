@@ -531,9 +531,8 @@ what a drop would cost:
   **`built: false` is a railroad named and not built**
   ([ADR-0085](adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)
   decision 4, [#889](https://github.com/rails49/control/issues/889)). `built`
-  is `true` where the railroad named was built from its drawing, as before,
-  and an absent `built` reads as `true`, so a row from an older writer means
-  what it meant. `false` is a railroad whose drawing is not a **valid
+  is `true` where the railroad named was built from its drawing, and a row
+  naming a railroad with no `built` is malformed and dropped. `false` is a railroad whose drawing is not a **valid
   drawing**: the binding records it in the store as loaded and publishes it
   with a new `at` — after a restart on it, after a save of the loaded
   railroad, and after a pick under another name. On the steel that is a
