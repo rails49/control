@@ -140,7 +140,7 @@ export class TcBackup extends LitElement {
                     <summary>back up to another repository</summary>
                     ${this.adopt(stands.key, backing.busy)}
                   </details>`
-              : this.adopt(stands.key, backing.busy)}
+              : html`${this.steps(stands)} ${this.adopt(stands.key, backing.busy)}`}
             ${this.key(stands.key, stands.repository, backing.busy)} ${this.said()}
             <div class="presses">
               <sl-button
@@ -199,11 +199,36 @@ export class TcBackup extends LitElement {
   }
 
   /**
+   * What sets backup up, for a store that is no repository and inside none:
+   * that it has not been configured, and three numbered steps, the key step
+   * before the press. A store with no key of its own has no key step
+   * (#1237).
+   */
+  private steps(stands: BackupDoc) {
+    if (stands.inside !== null) return nothing;
+    return html`<p>Backup has not been configured. To set up automatic backup to GitHub:</p>
+      <ol class="steps">
+        <li>Create an empty, private repository on GitHub (no README, no licence).</li>
+        ${stands.key === null
+          ? nothing
+          : html`<li>
+              On GitHub, in that repository, go to Settings ▸ Deploy keys ▸ Add
+              deploy key, paste the key below, and tick <em>Allow write access</em>.
+            </li>`}
+        <li>
+          Enter the repository's SSH address (Code ▸ SSH) below and press
+          <em>Back up to it</em>.
+        </li>
+      </ol>`;
+  }
+
+  /**
    * The address of a repository the person made, and the press that backs up
    * to it: the way in for a store that is no repository, and folded away for
    * one that is, where the same press moves backup to an empty repository.
    * Which of those it is, and bringing a repository's backups into an empty
-   * store, is the store's to say (#355, #688).
+   * store, is the store's to say (#355, #688). A store with no key of its own
+   * says what git pushes with instead.
    */
   private adopt(key: string | null, busy: boolean) {
     return html`<div class="adopt">
@@ -227,15 +252,7 @@ export class TcBackup extends LitElement {
             this store has no key of its own, so git pushes with whatever this
             machine's ssh already has
           </p>`
-        : html`<p class="hint">
-            a deploy key opens one repository: remove it from a repository
-            before deleting that repository, or GitHub refuses it on the next
-            as already in use
-          </p>`}
-      <p class="hint">
-        an empty repository is backed up to; one holding backups is brought
-        into an empty store
-      </p>
+        : nothing}
     </div>`;
   }
 
@@ -244,6 +261,7 @@ export class TcBackup extends LitElement {
    * Always there once the store has one: a key that has to be pasted again —
    * the repository was remade, the box was — is needed exactly when the
    * store is a repository already, so it folds away rather than going.
+   * Headed "Deploy key" either way, which is what GitHub calls it (#1237).
    * One click selects the whole key, and the line under it says so (#1236).
    */
   private key(key: string | null, repository: boolean, busy: boolean) {
@@ -253,10 +271,11 @@ export class TcBackup extends LitElement {
       ${this.renewal(busy)}`;
     return repository
       ? html`<details class="key">
-          <summary>this store's key</summary>
+          <summary>Deploy key</summary>
           ${shown}
         </details>`
-      : shown;
+      : html`<h3 class="key">Deploy key</h3>
+          ${shown}`;
   }
 
   /**

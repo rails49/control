@@ -310,14 +310,67 @@ describe("the Backup tab", () => {
   });
 
   /** A store that is no repository is the ordinary state of a fresh
-   *  installation. What it needs reads as what to make; the key the store
-   *  made for itself is there to paste; and nothing here runs `git init`
-   *  (ADR-0053, #355). */
-  it("says what backup needs, and shows the key to paste", async () => {
+   *  installation: the tab says backup has not been configured and lists the
+   *  steps that configure it, the key to paste under them. Nothing here runs
+   *  `git init` (ADR-0053, #355, #1237). */
+  it("says backup has not been configured, and lists the steps that configure it", async () => {
     const { dialog: surface } = await dialog(UNBACKED);
-    expect(reads(surface)).toContain("create an empty private repository");
+    expect(reads(surface)).toContain(
+      "Backup has not been configured. To set up automatic backup to GitHub:",
+    );
+    const steps = [...surface.renderRoot.querySelectorAll("ol.steps li")].map((step) =>
+      (step.textContent ?? "").replace(/\s+/g, " ").trim(),
+    );
+    expect(steps).toEqual([
+      "Create an empty, private repository on GitHub (no README, no licence).",
+      "On GitHub, in that repository, go to Settings ▸ Deploy keys ▸ Add deploy key, paste the key below, and tick Allow write access.",
+      "Enter the repository's SSH address (Code ▸ SSH) below and press Back up to it.",
+    ]);
     expect(reads(surface)).toContain("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheSuite");
     expect(reads(surface)).not.toContain("git init");
+  });
+
+  /** A workstation started without `--keys` has no key to paste, so the
+   *  key step goes and the tab says what git pushes with instead. */
+  it("leaves out the key step for a store with no key of its own", async () => {
+    const { dialog: surface } = await dialog({ ...UNBACKED, key: null });
+    const steps = [...surface.renderRoot.querySelectorAll("ol.steps li")];
+    expect(steps).toHaveLength(2);
+    expect(steps[1]!.textContent).toContain("Back up to it");
+    expect(reads(surface)).toContain("this store has no key of its own");
+  });
+
+  /** The steps are all the tab says before backup is configured: the
+   *  one-key-one-repository rule and the new box's way in are in
+   *  docs/store/BACKUP.md (#1237). */
+  it("says nothing before backup is configured beyond the steps", async () => {
+    const { dialog: surface } = await dialog(UNBACKED);
+    for (const gone of [
+      "a deploy key opens one repository",
+      "an empty repository is backed up to",
+      "draw nothing",
+      "git said",
+    ]) {
+      expect(reads(surface)).not.toContain(gone);
+    }
+  });
+
+  /** A store inside another repository is nobody's to set up, so it gets
+   *  no steps. */
+  it("lists no steps for a store inside another repository", async () => {
+    const { dialog: surface } = await dialog({ ...UNBACKED, inside: "/home/somebody/control" });
+    expect(surface.renderRoot.querySelector("ol.steps")).toBeNull();
+  });
+
+  /** The key is called what GitHub calls it, before and after (#1237). */
+  it("heads the key Deploy key, whether or not the store is a repository", async () => {
+    const before = (await dialog(UNBACKED)).dialog;
+    const heading = before.renderRoot.querySelector("h3.key");
+    expect(heading?.textContent).toBe("Deploy key");
+    expect(heading?.nextElementSibling?.matches("pre.key")).toBe(true);
+    document.body.replaceChildren();
+    const once = (await dialog()).dialog;
+    expect(once.renderRoot.querySelector("details.key summary")?.textContent).toBe("Deploy key");
   });
 
   /** The way in: an address typed, one press, and the store clones it. The
@@ -392,12 +445,6 @@ describe("the Backup tab", () => {
     expect(reads(surface)).toContain(
       "the copy goes to git@github.com:somebody/railroad-2.git",
     );
-  });
-
-  it("says a deploy key opens one repository", async () => {
-    const { dialog: surface } = await dialog(UNBACKED);
-    expect(reads(surface)).toContain("a deploy key opens one repository");
-    expect(reads(surface)).toContain("before deleting that repository");
   });
 
   /** The key in use stops working until the new one is added, so *New key*
