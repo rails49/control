@@ -1194,9 +1194,10 @@ brings in ([#694](https://github.com/rails49/control/issues/694)). Neither this 
 nor anything behind it runs `git init`, makes a remote or resolves a conflict.
 
 A store nobody has made a repository is the ordinary state of a fresh
-installation, so what backup needs reads as what to make rather than as a
-fault, the key to paste into that repository's deploy keys is on the screen
-beside it, and everything else in the editor is unaffected.
+installation, so the tab says backup has not been configured and lists the
+steps that configure it rather than reading as a fault, the key to paste
+into that repository's deploy keys under them, and everything else in the
+editor is unaffected ([#1237](https://github.com/rails49/control/issues/1237)).
 
 **It says so when nobody is looking.** The app asks the store where backup
 stands when it comes up and every hour after, and the band says what is wrong

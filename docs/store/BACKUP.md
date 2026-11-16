@@ -24,10 +24,10 @@ store ([Moving to a new box](#moving-to-a-new-box)). The routes are in
 ## Setting one up
 
 Once, in a browser, and no terminal
-([#355](https://github.com/rails49/control/issues/355)). Until then
-`Settings ▸ Backup` says "Backup has not been configured" and lists the same
-three steps, with the store's key under the heading *Deploy key*
-([#1237](https://github.com/rails49/control/issues/1237)):
+([#355](https://github.com/rails49/control/issues/355)). Until a repository
+is adopted, `Settings ▸ Backup` says "Backup has not been configured" and
+lists the same three steps, with the store's key under the heading *Deploy
+key* ([#1237](https://github.com/rails49/control/issues/1237)):
 
 1. Create an **empty, private repository** on GitHub — no README, no
    licence.
@@ -38,9 +38,10 @@ three steps, with the store's key under the heading *Deploy key*
    `git@github.com:you/my-railroad.git`) and press *Back up to it*.
 
 The key goes on before the press: *Back up to it* reads the repository with
-the store's key, and a private repository answers `ERROR: Repository not
-found.` until the key is on it. The tab shows git's first `ERROR:` or `fatal:`
-line, not the advice git prints after it.
+the store's key, and GitHub refuses until the key is on it. A refusal shows
+the first line of what git said, such as `git@github.com: Permission denied
+(publickey).` or `ERROR: Repository not found.`, without the advice git
+prints after it.
 
 The store clones the repository and moves the clone's `.git` in under the
 drawings already there, which become the first backup. Then switch
@@ -336,10 +337,9 @@ old one deleted, or another wanted — with no terminal
 
 The store asks the address with `git ls-remote` first. Anything listed there is
 refused — "… already holds backups, and backup moves only to an empty
-repository" — and an address git cannot reach is refused with git's error
-line. An
-empty one is given the store's branch, every earlier backup with it so each
-stays restorable, and only once that push worked does `origin` name the new
+repository" — and an address git cannot reach is refused with the first
+line of what git said. An empty one is given the store's branch, every
+earlier backup with it so each stays restorable, and only once that push worked does `origin` name the new
 address and the branch follow it; the tab says "backing up to *address*,
 with *n* backups". A push that fails leaves the store backing up where it did.
 

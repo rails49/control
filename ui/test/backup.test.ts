@@ -362,7 +362,7 @@ describe("the Backup tab", () => {
     expect(surface.renderRoot.querySelector("ol.steps")).toBeNull();
   });
 
-  /** The key is called what GitHub calls it, before and after (#1237). */
+  /** The key is headed Deploy key, before and after (#1237). */
   it("heads the key Deploy key, whether or not the store is a repository", async () => {
     const before = (await dialog(UNBACKED)).dialog;
     const heading = before.renderRoot.querySelector("h3.key");
