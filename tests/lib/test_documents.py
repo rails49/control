@@ -251,11 +251,11 @@ def test_the_installations_sensor_silence_is_kept_beside_the_throttle_silence(
     }
 
 
-def test_an_installation_kept_before_the_sensor_silence_reads_at_the_default(
+def test_an_installation_without_a_sensor_silence_reads_at_the_default(
     url: str, root: Path
 ) -> None:
-    """A box that set its throttle silence before there was a sensor silence
-    keeps what it set and comes up at the default for the rest (#1149)."""
+    """A document giving only its throttle silence keeps what it gives and
+    comes up at the default for the rest (#1149)."""
     (root / "installation.yaml").write_text("throttle_silence: 12\n")
     assert client(url).installation() == KeptInstallation(12.0, SENSOR_SILENCE_S)
 
@@ -276,11 +276,11 @@ def test_the_installations_arrival_allowance_is_kept_beside_the_silences(
     assert client(url).installation() == KeptInstallation(10.0, 20.0, 120.0)
 
 
-def test_an_installation_kept_before_the_arrival_allowance_reads_at_sixty(
+def test_an_installation_without_an_arrival_allowance_reads_at_sixty(
     url: str, root: Path
 ) -> None:
-    """A box that set its two silences before there was an allowance keeps
-    what it set and comes up at the default allowance (#1188)."""
+    """A document giving its two silences alone keeps what it gives and comes
+    up at the default allowance (#1188)."""
     (root / "installation.yaml").write_text(
         "throttle_silence: 10\nsensor_silence: 20\n"
     )

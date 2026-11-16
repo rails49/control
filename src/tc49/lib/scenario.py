@@ -105,8 +105,9 @@ def validate_scenario(doc: Any, layout: Layout, roster: Roster) -> Scenario:
         if at not in layout.blocks:
             raise ValueError(f"{where}: train '{train}' starts at unknown block '{at}'")
         facing = spec["facing"]
-        # A bare end letter is refused rather than read: one vocabulary, and
-        # guessing which way round an `A` meant would turn the train (#241).
+        # A value outside the two runs, a bare end letter among them, is
+        # refused rather than read: guessing which way round an `A` meant
+        # would turn the train (#241).
         if facing not in FACINGS:
             raise ValueError(
                 f"{where}: train '{train}' facing must be"

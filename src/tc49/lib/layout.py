@@ -184,7 +184,7 @@ def check_required(doc: Any, what: str, required: set[str]) -> dict[str, Any]:
     carries as well.
 
     That is what a stock document needs: an unknown key there is a field
-    someone added for a manufacturer or a shelf number, and an older reader
+    someone added for a manufacturer or a shelf number, and the reader
     ignores it rather than refusing the file (#285). The drawing and the
     scenario stay strict, and say so by calling `check_keys`.
     """
