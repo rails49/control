@@ -214,25 +214,25 @@ def test_a_placement_lands_above_a_paragraph_held_by_a_block_list(
     path = tmp_path / "d.yaml"
     path.write_text(
         "symbols:\n"
-        "  gap:\n"
-        "    kind: connection\n"
-        "    pins:\n"
-        "      - A\n"
-        "      - B\n"
+        "  points:\n"
+        "    kind: turnout\n"
+        "    at:\n"
+        "      - 1\n"
+        "      - 2\n"
         "\n"
         "  # the paragraph introducing east\n"
         "  east: {kind: terminal}\n"
     )
     doc: dict[str, Any] = {
         "symbols": {
-            "gap": {"kind": "connection", "pins": ["A", "B"], "at": [1, 2]},
+            "points": {"kind": "turnout", "at": [1, 2], "rot": 90},
             "east": {"kind": "terminal"},
         }
     }
     yamlfile.save(path, doc)
 
     lines = path.read_text().splitlines()
-    assert lines.index("    at: [1, 2]") < lines.index(
+    assert lines.index("    rot: 90") < lines.index(
         "  # the paragraph introducing east"
     )
 

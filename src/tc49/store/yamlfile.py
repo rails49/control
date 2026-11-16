@@ -159,8 +159,8 @@ def _trailing_slot(node: Any) -> tuple[Any, Any, int] | None:
 
     A mapping holds it against its last key, a block sequence against its last
     item, and in a different slot each time. Where the last value is itself a
-    collection the comment goes to *that* one, so a symbol ending in a block
-    list of pins keeps the next symbol's paragraph one level down. The
+    collection the comment goes to *that* one, so a symbol ending in an `at`
+    written as a block list keeps the next symbol's paragraph one level down. The
     innermost holder wins, being the one physically nearest the text.
     """
     candidates: list[tuple[Any, Any, int]] = []
