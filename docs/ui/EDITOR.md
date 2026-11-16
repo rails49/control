@@ -640,9 +640,11 @@ On the canvas a widget is its face alone, with no box, name or kind
 as on a run:
 
 - A **text** widget is its words, run from its square the way `align` says
-  and cut only at the canvas's edge. The editor shows its default, or its name
-  and a question mark in the hint's colour where it has none, so it can be
-  seen and taken: `current?`. A press lands on the words.
+  and cut only at the canvas's edge. The editor shows its default, its codes
+  read for bold and colour as on a run ([PANEL.md](PANEL.md#what-it-shows)), or its
+  name and a question mark in the hint's colour where it has none, so it can
+  be seen and taken: `current?`. A press lands on the words, as wide as the
+  characters the codes leave.
 - A **button** is a ring round a disc on its one square.
 - A **toggle** is a rounded track with a knob across its two squares, shown in
   its default position, or off where it has none.
@@ -986,6 +988,23 @@ another widget has is refused beside the field and the old name stays; a
 symbol's name is no clash, the two being apart. A toggle whose On and Off are
 the same is refused the same way. A text widget's Default left empty, and a
 toggle's Default `none`, are written out of the document.
+
+A text widget's Default takes the ANSI codes a row does, with ESC, which
+cannot be typed, written `\e`
+([#1280](https://github.com/rails49/control/issues/1280)): the field shows
+each ESC of the default as `\e`, each `\e` typed is ESC, and Apply writes ESC
+to the drawing. `\e` always means ESC, and other backslashes are kept as
+typed. The field's help names the codes: `\e[1m` bold, `\e[22m` bold off,
+`\e[31m` red, `\e[33m` amber, `\e[32m` green, `\e[39m` colour off and
+`\e[0m` all off. Under it a preview draws the default as a run does, bold and
+coloured, following the field as it is typed; an empty default shows none.
+Beside it four buttons, **Bold**, **Red**, **Amber** and **Green**, put a
+start code before the selected text and its own end code after it —
+`\e[1m…\e[22m`, `\e[31m…\e[39m`, `\e[33m…\e[39m`, `\e[32m…\e[39m` — or, with
+nothing selected, both at the cursor with the cursor between them. None
+inserts `\e[0m`, so bold and a colour overlap without one ending the other. A
+button's Payload and a toggle's On and Off are sent as typed and are not read
+this way.
 
 Transit names are not edited here. A drawing can still write one on a symbol's
 leg and derivation honours it — a name on a turnout's straight leg is taken by

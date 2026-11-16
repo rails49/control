@@ -404,8 +404,10 @@ a toggle carries no words, so a text widget beside it says what it does.
   `1` is bold and `22` ends it; `31` or `91` is red, `33` or `93` amber and
   `32` or `92` green, in look's `--red`, `--amber` and `--green`, and `39`
   ends the colour; `0` resets both. Any other code, and every other escape
-  sequence, is removed from what is shown. The words run over the track and
-  are cut only at the canvas's edge.
+  sequence, is removed from what is shown. The same codes can be entered in
+  the Default from the editor's dialog, ESC written `\e`
+  ([EDITOR.md](EDITOR.md#properties)). The words run over the track and are
+  cut only at the canvas's edge.
 - A **button** is a ring round a disc. The disc is drawn lighter while a
   press is held, a press being sent and not kept.
 - A **toggle** is a rounded track with a knob, showing its position read off
