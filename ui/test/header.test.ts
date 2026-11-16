@@ -267,7 +267,7 @@ describe("the fast clock", () => {
     await bandClock(shell).updateComplete;
     expect(face(shell)).toBeNull();
 
-    await said(shell, RAILROAD, { name: "toy" });
+    await said(shell, RAILROAD, { name: "toy", built: true });
     await said(shell, STATE_CLOCK, { at: 3, time: TEN_PAST, speed_up: 1 });
     await bandClock(shell).updateComplete;
     expect(face(shell)).not.toBeNull();
