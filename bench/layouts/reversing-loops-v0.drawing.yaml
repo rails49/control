@@ -259,8 +259,8 @@ symbols:
   # And it is TWO connections, not one. The two leads share no track: sw50 sits
   # on blue 1's, sw49 and sw48 on blue 2's, and the two run parallel from
   # station-A without meeting. A junction is what derivation finds, not what a
-  # generic symbol asserts, so the one opaque box splits into the two throats
-  # it always was — named for Rocrail's block ids for the two lines, `b1` and
+  # layout asserts, so the one connection the layout declared splits into the
+  # two throats it always was — named for Rocrail's block ids for the two lines, `b1` and
   # `b2`, which the header maps.
   #
   # That is also what ends this junction's blanket exclusivity, which it had
