@@ -14,18 +14,32 @@
  * in, as the symbol dialog does (ADR-0023): a name that is not one topic level
  * or that another widget has, and a toggle whose on and off are the same. Apply does nothing until all of
  * them are gone, and the old name stays.
+ *
+ * **A text widget's Default takes ANSI codes with ESC written `\e`** (#1280),
+ * ESC being what cannot be typed: the field shows each ESC of the default as
+ * `\e` and turns each `\e` typed into ESC, so the drawing stores ANSI, the
+ * same as a row a script posts, and `ansi()` stays the one parser. `\e`
+ * always means ESC; there is no writing a backslash and an `e`. Under the
+ * field a preview draws the default as a run does, and four buttons, Bold,
+ * Red, Amber and Green, put a start code before the selected text and its
+ * own end code after it — never `\e[0m`, so bold and a colour overlap
+ * without one ending the other. A button's payload and a toggle's on and off
+ * are sent as typed and are not read this way.
  */
 
 import { LitElement, html, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property, query, state } from "lit/decorators.js";
 import { lookTheme, type LookDialog } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 
+import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
+
 import type { WidgetSpec } from "../model/drawing.js";
 import {
+  ansi,
   toggleTrouble,
   widgetTopic,
   widgetTrouble,
@@ -44,7 +58,13 @@ export interface WidgetProperties {
 /** The kind's own text fields, by the key each writes. */
 const TEXTS: Record<WidgetSpec["kind"], { key: "default" | "payload" | "on" | "off"; label: string; help: string }[]> = {
   text: [
-    { key: "default", label: "Default", help: "Shown until a row arrives." },
+    {
+      key: "default",
+      label: "Default",
+      help:
+        "Shown until a row arrives. \\e is ESC: \\e[1m bold, \\e[22m bold off, " +
+        "\\e[31m red, \\e[33m amber, \\e[32m green, \\e[39m colour off, \\e[0m all off.",
+    },
   ],
   button: [
     { key: "payload", label: "Payload", help: "What a press sends, as typed." },
@@ -54,6 +74,25 @@ const TEXTS: Record<WidgetSpec["kind"], { key: "default" | "payload" | "on" | "o
     { key: "off", label: "Off", help: "What switching it off sends. It differs from On." },
   ],
 };
+
+/** The four buttons beside a text widget's Default, each its start and end
+ *  code as the field shows them. */
+const CODES: { word: string; start: string; end: string }[] = [
+  { word: "Bold", start: "\\e[1m", end: "\\e[22m" },
+  { word: "Red", start: "\\e[31m", end: "\\e[39m" },
+  { word: "Amber", start: "\\e[33m", end: "\\e[39m" },
+  { word: "Green", start: "\\e[32m", end: "\\e[39m" },
+];
+
+/** A default as its field shows it: each ESC as `\e`. */
+function shown(text: string): string {
+  return text.replaceAll("\x1b", "\\e");
+}
+
+/** A default as typed in its field: each `\e` an ESC. */
+function typed(text: string): string {
+  return text.replaceAll("\\e", "\x1b");
+}
 
 @customElement("tc-widget-properties")
 export class TcWidgetProperties extends LitElement {
@@ -69,6 +108,9 @@ export class TcWidgetProperties extends LitElement {
 
   @state() private draft: WidgetSpec = { kind: "text", at: [0, 0] };
   @state() private name = "";
+
+  /** A text widget's Default field, which the four buttons write into. */
+  @query("sl-input.default") private defaultField!: SlInput;
 
   override willUpdate(changed: Map<string, unknown>): void {
     if (changed.has("editing") && this.editing !== null) {
@@ -98,7 +140,9 @@ export class TcWidgetProperties extends LitElement {
           value=${widgetTopic(this.draft.kind, this.name)}
         ></sl-input>
         ${this.draft.kind === "text" ? this.words() : nothing}
-        ${TEXTS[this.draft.kind].map((field) => this.text(field))}
+        ${this.draft.kind === "text"
+          ? this.coded()
+          : TEXTS[this.draft.kind].map((field) => this.text(field))}
         ${this.draft.kind === "toggle" ? this.position() : nothing}
         <sl-button slot="footer" @click=${this.close}>Cancel</sl-button>
         <sl-button slot="footer" variant="primary" @click=${this.apply}>
@@ -132,6 +176,60 @@ export class TcWidgetProperties extends LitElement {
         }}
       ></sl-input>
     `;
+  }
+
+  /** A text widget's Default, with ESC written `\e`, the four buttons beside
+   *  it and the preview under it. */
+  private coded() {
+    const [field] = TEXTS.text;
+    const runs = ansi(this.draft.default ?? "");
+    return html`
+      <sl-input
+        class="default"
+        label=${field!.label}
+        help-text=${field!.help}
+        .value=${shown(this.draft.default ?? "")}
+        @sl-input=${(event: Event) => {
+          this.draft = {
+            ...this.draft,
+            default: typed((event.target as HTMLInputElement).value),
+          };
+        }}
+      ></sl-input>
+      <div class="codes">
+        ${CODES.map(
+          (code) => html`<sl-button size="small" @click=${() => this.wrap(code.start, code.end)}
+            >${code.word}</sl-button
+          >`,
+        )}
+      </div>
+      ${runs.length === 0
+        ? nothing
+        : html`<div class="preview">${runs.map(
+            ({ text, bold, colour }) =>
+              html`<span class=${[bold ? "bold" : "", colour ?? ""].join(" ").trim()}
+                >${text}</span
+              >`,
+          )}</div>`}
+    `;
+  }
+
+  /** Put `start` before the Default's selected text and `end` after it,
+   *  the text staying selected; with nothing selected, both at the cursor
+   *  and the cursor between them. */
+  private async wrap(start: string, end: string): Promise<void> {
+    const field = this.defaultField;
+    const text = field.value;
+    const from = field.input?.selectionStart ?? text.length;
+    const to = field.input?.selectionEnd ?? from;
+    this.draft = {
+      ...this.draft,
+      default: typed(text.slice(0, from) + start + text.slice(from, to) + end + text.slice(to)),
+    };
+    await this.updateComplete;
+    await field.updateComplete;
+    field.focus();
+    field.setSelectionRange(from + start.length, to + start.length);
   }
 
   /** A text widget's text size and alignment; a button and a toggle have no
