@@ -69,11 +69,6 @@ function stock(roster: RosterDoc = OVAL): Stock {
 
 const EMPTY: RosterDoc = { roster: "oval", trains: {} };
 
-/** The shape a roster written before #223 has: a train stating its length and
- *  naming no cars, which the store keeps legal for an older file and answers
- *  as written (`store/stock.py`, #414). */
-const OLDER: RosterDoc = { roster: "oval", trains: { goods: { length: 400 } } };
-
 describe("what a train derives to", () => {
   it("is the sum of every entry, car and model alike", () => {
     expect(trainLength(OVAL.trains.ore!, OVAL, CATALOGUE)).toBe(122 + 100 * 3);
@@ -134,65 +129,6 @@ describe("what a train derives to", () => {
       { name: "headlights", mode: "latching" },
       { name: "vacuum", mode: "latching" },
     ]);
-  });
-});
-
-/** A roster written before #223 states a train's length and names no cars.
- *  The store keeps it legal and answers the file as written, so the screen
- *  reads one: the derivations answer for what is not there, and the first
- *  entry converts the train (#414). */
-describe("a train that states its length and names no cars", () => {
-  it("is as long as it says, having no cars to sum", () => {
-    expect(trainLength(OLDER.trains.goods!, OLDER, CATALOGUE)).toBe(400);
-  });
-
-  /** The same answer `tc49.lib.roster.Train` gives the same document: there
-   *  is no car to read a kind or a function off. */
-  it("has no kind and no functions", () => {
-    expect(trainKind(OLDER.trains.goods!, OLDER, CATALOGUE)).toBeNull();
-    expect(trainFunctions(OLDER.trains.goods!, OLDER, CATALOGUE)).toEqual([]);
-  });
-
-  it("draws as a row with its stated length and nothing in it", () => {
-    const [row] = stock(OLDER).trains();
-    expect(row).toMatchObject({
-      train: "goods",
-      length: 400,
-      kind: null,
-      stated: true,
-    });
-    expect(row!.entries).toEqual([]);
-    expect(row!.functions).toEqual([]);
-  });
-
-  it("is not a train with nothing in it, and stops no save", () => {
-    const screen = stock(OLDER);
-    expect(screen.stopsSaving()).toBeNull();
-    expect(screen.edits).toBe(false);
-    expect(screen.roster.trains.goods).toEqual({ length: 400 });
-  });
-
-  /** A train says one or the other and never both, and the store refuses one
-   *  that says both: the first entry drops the stated number, and the length
-   *  is derived from then on. */
-  it("becomes the ordinary shape when something is put in it", () => {
-    const screen = stock(OLDER);
-    screen.append("goods", { model: "hopper" });
-    expect(screen.roster.trains.goods).toEqual({ cars: [{ model: "hopper" }] });
-    expect(screen.trains()[0]).toMatchObject({
-      length: 100,
-      kind: "freight",
-      stated: false,
-    });
-  });
-
-  it("keeps its stated length through a rename of a car", () => {
-    const screen = stock({
-      ...OLDER,
-      cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
-    });
-    expect(screen.renameCar("krokodil-a", "krokodil")).toBeNull();
-    expect(screen.roster.trains.goods).toEqual({ length: 400 });
   });
 });
 
@@ -328,12 +264,12 @@ describe("making up a train", () => {
   });
 
   /** The same rule from a **hand-edited file**, which is a supported way to
-   *  work: a train naming neither `cars` nor a length is the same train with
+   *  work: a train naming no `cars` at all is the same train with
    *  nothing in it, and the store refuses it in the same words as an empty
    *  `cars` list (`lib/stock.py`, *names no cars*). Composing cannot make it
    *  — `addTrain` writes an empty list — so the guard reads the shape rather
    *  than the key, and the words stay the screen's about the row (#447). */
-  it("stops the save for a train naming neither cars nor a length", () => {
+  it("stops the save for a train naming no cars", () => {
     const words =
       "train 'goods' has nothing in it — press Add to put a car or a model in it, or unmake it";
     expect(stock({ roster: "oval", trains: { goods: {} } }).stopsSaving()).toBe(
@@ -342,8 +278,6 @@ describe("making up a train", () => {
     expect(
       stock({ roster: "oval", trains: { goods: { cars: [] } } }).stopsSaving(),
     ).toBe(words);
-    // The older shape states its length and names no cars, and goes on saving.
-    expect(stock(OLDER).stopsSaving()).toBeNull();
   });
 
   it("stops nothing where every train has something in it", () => {

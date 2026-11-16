@@ -168,30 +168,10 @@ it takes is always one `/rosters/<railroad>/trains` can answer, and the roster
 on disk is unchanged either way. The edits stay: there is still something
 to give the store once the train is filled
 ([#412](https://github.com/rails49/control/issues/412)). A hand-edited file can
-say the same train the other way — naming neither `cars` nor a length — and the
+say the same train the other way — naming no `cars` at all — and the
 store refuses that in the same words, so the screen catches it in the same
 sentence: the guard reads a train with nothing in it rather than the key it is
 written with ([#447](https://github.com/rails49/control/issues/447)).
-
-**A roster written before [#223](https://github.com/rails49/control/issues/223)
-opens here.** Such a file states a train's length and names no cars, and the
-store keeps that shape legal for a person's own older file and answers it as
-written (`lib/stock.py`, `_train`). The train is drawn as a row with that
-length, nothing in it, no kind and no functions — the derivations answer for
-what is not there, as `tc49.lib.roster.Train` does for the same document — and
-a note above its strip says it states its length and names no cars. **Composing it
-converts it**: the first thing put in it drops the stated number, and the
-length is the sum of its cars from then on, a train saying one of the two and
-never both. Saving the roster unedited keeps the stated length as it was
-([#414](https://github.com/rails49/control/issues/414)).
-
-The note says what that costs before the press: it names the stated number and
-says that filling the train in takes it. Emptying the train again does not
-bring it back — the train is the ordinary shape by then, and an empty one is
-refused when saved ([#412](https://github.com/rails49/control/issues/412)). The
-stated length is a property of the older shape that the conversion consumes,
-so the screen owes the price before the press rather than the number
-afterwards ([#448](https://github.com/rails49/control/issues/448)).
 
 **A restore is refused over unsaved edits.** The railroad is the app's and
 both its documents go with it, so a restore is refused while either is
@@ -684,8 +664,7 @@ leaving; every edit waiting with a length while power is on; and what ON
 saves first, naming the railroad once.
 
 `ui/test/making.test.ts` mounts the app in this view against a store with no
-`catalogue/` and no roster — and, for the older shape, against one answering a
-train that states its length — and drives the controls: the bar's words and no
+`catalogue/` and no roster, and drives the controls: the bar's words and no
 Save in it, a model written when the view is left and not before, a model named `Ae 6/6` saved under
 `ae-6-6`, a duplicate name refused and put back, the decoder switch and the
 function rows reaching the document with `mode`, a duplicate function number
@@ -715,8 +694,7 @@ is refused, a refused save marked unsaved on the band, the roster saved on a
 switch of view, on the page hidden with `keepalive`, and on ON — power coming
 on after the build where a length changed and at once otherwise, and not at
 all where the save is refused —, the run view showing a train made up here
-without a reload, the row an older roster's train draws and the first entry
-converting it, the chosen train moving when the one it named is unmade and
+without a reload, the chosen train moving when the one it named is unmade and
 carried when that one is renamed, the field a refusal puts back, the edit
 standing in a field that a frame about the railroad leaves alone, the presses
 that write being dead with nothing loaded (#565), and the three ways a call to
