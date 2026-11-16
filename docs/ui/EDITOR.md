@@ -622,8 +622,13 @@ neither, only Properties… and Delete. Nothing keeps a widget off a symbol or
 another widget, so its ghost is never blocked; it is drawn over the symbols,
 and a press there takes the widget, a pin under it still starting a wire.
 
-A new one lands on the square under the pointer, a toggle's two squares
-centred on it, and is named for its kind with the lowest number no widget
+A widget moves by half squares when the selection holds only widgets, so it
+can sit between two rows of track. A selection that holds a symbol moves by
+whole squares, and the widgets in it keep their offset from the symbols.
+Symbols, wires and bends stay on whole squares.
+
+A new one lands on the half square nearest the pointer, a toggle's two
+squares centred on it, and is named for its kind with the lowest number no widget
 has, `text1`, `button1`, `toggle1`. It writes what the store needs and
 nothing else: a button's `payload` is its own name, and a toggle's `on` and
 `off` are `on` and `off`, which must differ. A text widget's words are left to
