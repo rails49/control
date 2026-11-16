@@ -58,8 +58,8 @@ def validate_model(doc: Any, name: str) -> Model:
     The file names itself, as a roster does, and the name is the key every
     car refers to it by — so a file whose `model:` disagrees with its path is
     refused rather than filed under one name and referred to by the other.
-    What a person reads is `name`, which is the key where it is absent, so
-    every file written before it existed still reads (#975).
+    What a person reads is `name`, which is the key where it is absent
+    (#975).
     """
     where = f"model '{name}'"
     spec = check_required(doc, f"{where} document", {"model", "kind", "length"})
@@ -392,9 +392,8 @@ def _functions(spec: Any, where: str) -> dict[str, Function]:
     A name and how its button answers are the whole of the entry: a function
     is one bit, so there is nothing a value list could say that a translator
     could send (ADR-0063).
-    A `values` an older file still states is an unknown key like any other
-    here and is ignored, which is what `check_required` is lenient for — no
-    catalogue has to be rewritten to be read.
+    A `values` is an unknown key like any other here and is ignored, which is
+    what `check_required` is lenient for.
     """
     functions: dict[str, Function] = {}
     for number, entry in as_mapping(spec or {}, f"{where}: functions").items():

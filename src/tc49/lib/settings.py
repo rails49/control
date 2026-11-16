@@ -228,9 +228,7 @@ def kept_installation(doc: object) -> KeptInstallation:
     """The `KeptInstallation` a store document says, or `ValueError` or
     `TypeError` naming what is wrong with it: any of `throttle_silence`,
     `sensor_silence` and `arrival_allowance`, at least one, each in range, and
-    nothing else. One left out is its default, so a document written before
-    there was a sensor silence or an arrival allowance reads as it did
-    (#1149, #1188)."""
+    nothing else. One left out is its default (#1149, #1188)."""
     if not isinstance(doc, dict):
         raise TypeError(
             "the installation's settings are a document of 'throttle_silence',"

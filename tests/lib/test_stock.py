@@ -31,7 +31,7 @@ RE460 = {
     "length": 220,
     "functions": {
         "0": {"name": "headlights"},
-        "5": {"name": "vacuum", "values": ["off", "low", "high"]},
+        "5": {"name": "vacuum"},
     },
 }
 IC2000 = {"model": "sbb-ic2000", "kind": "passenger", "length": 270}
@@ -61,9 +61,6 @@ def test_a_model_is_a_length_a_kind_and_what_each_function_does() -> None:
     model = CATALOGUE["sbb-re460"]
     assert (model.kind, model.length) == ("locomotive", 220)
     assert model.functions["0"] == Function("headlights")
-    # A function is a name on a number and nothing else, so the `values` an
-    # older file states is an unknown key like any other and is ignored
-    # (ADR-0063).
     assert model.functions["5"] == Function("vacuum")
 
 

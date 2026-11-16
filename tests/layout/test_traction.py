@@ -244,10 +244,10 @@ def test_a_facing_naming_another_block_is_no_facing_for_this_move() -> None:
     assert app.position == {"single": "dn_e"}
 
 
-def test_a_facing_this_build_cannot_spell_is_no_facing() -> None:
-    """The `<block>.<A-to-B|B-to-A>` form is the vocabulary, and the bare end
-    letter it once was is retired (#241): a value outside it is not guessed
-    at, and the move waits for one this build can read."""
+def test_a_facing_outside_the_vocabulary_is_no_facing() -> None:
+    """The `<block>.<A-to-B|B-to-A>` form is the vocabulary, and a bare end
+    letter is outside it (#241): a value outside it is not guessed
+    at, and the move waits for one it can read."""
     bus, app = ready("single", "up_w.B")
     written = commanded(bus)
     move(bus, "single", "crossover", "to_dn", "dn_e", 1.0)

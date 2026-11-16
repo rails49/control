@@ -383,9 +383,9 @@ def test_a_throttle_for_a_train_with_no_facing_writes_nothing() -> None:
     assert speeds(written) == []
 
 
-def test_a_facing_this_build_cannot_spell_is_no_facing() -> None:
-    """The `<block>.<A-to-B|B-to-A>` form is the vocabulary, and the bare end
-    letter it once was is retired (#241)."""
+def test_a_facing_outside_the_vocabulary_is_no_facing() -> None:
+    """The `<block>.<A-to-B|B-to-A>` form is the vocabulary, and a bare end
+    letter is outside it (#241)."""
     bus, written = held("single", "up_w.B")
     turns(bus, "single", 0.6)
 

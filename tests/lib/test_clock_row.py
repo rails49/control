@@ -197,8 +197,8 @@ def test_an_installation_is_read_with_both_silences() -> None:
     assert _installation_of(doc) == (KeptInstallation(12.0, 10.0), [])
 
 
-def test_an_installation_kept_with_the_throttle_silence_alone_still_reads() -> None:
-    """As a box that set it before there was a sensor silence has it (#1149)."""
+def test_an_installation_kept_with_the_throttle_silence_alone_reads() -> None:
+    """The sensor silence left out is its default (#1149)."""
     assert _installation_of({"throttle_silence": 12}) == (
         KeptInstallation(12.0),
         [],

@@ -397,8 +397,7 @@ export interface ModelDoc {
 
 /** One function on a model: what it is called, and how its button answers.
  *  A function is one bit, so a value list would be describing something no
- *  throttle can ask for; a `values` an older file states is ignored at both
- *  ends (ADR-0063). */
+ *  throttle can ask for; a `values` is ignored at both ends (ADR-0063). */
 export interface ModelFn {
   name: string;
   /** `latching`, on at one press and off at the next, or `momentary`, on only

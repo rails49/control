@@ -564,12 +564,11 @@ def test_facing_must_be_one_of_the_two_runs_across_a_block(
         scratch_store.put(doc)
 
 
-def test_the_end_letter_facing_once_was_is_refused(
+def test_a_facing_that_is_a_bare_end_letter_is_refused(
     scratch_store: AssetStore,
 ) -> None:
-    """`B` is what this document said before #241 and it is not read as
-    anything now: the refusal names the train, so a file written for an older
-    build is a load-time error rather than a train pointed the other way."""
+    """`B` names an end and no run (#241): the refusal names the train, so
+    the file is a load-time error rather than a train pointed the other way."""
     doc = meet_document()
     doc["trains"]["freight_1"]["facing"] = "B"
     with pytest.raises(ValueError, match="meet.*freight_1.*facing.*'B'"):
