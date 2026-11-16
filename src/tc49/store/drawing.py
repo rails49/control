@@ -34,7 +34,6 @@ from typing import Any, cast
 
 from tc49.lib.layout import (
     as_mapping,
-    check_concurrent,
     check_keys,
     check_length,
     check_name,
@@ -866,10 +865,9 @@ class Drawing:
     ) -> str:
         """A derived name is a pure function of the two block ends, so moving
         a symbol never renames a transit. A symbol transit written with a name
-        overrides it: that is how the generic connection symbol passes its
-        hand-picked names through unchanged, and how a junction drawn from real
-        symbols keeps them — the name goes on the symbol transit the way
-        through takes, so one symbol names every way that crosses it."""
+        overrides it: that is how a junction keeps the names its layout
+        picked — the name goes on the symbol transit the way through takes, so
+        one symbol names every way that crosses it."""
         overrides = sorted(
             {
                 self.symbols[name].names[local]
@@ -956,8 +954,6 @@ def _symbol(where: str, name: str, spec: Any) -> Symbol:
         return Symbol(name, kind, PINS[kind], label=str(spec["label"]))
     if kind in LIBRARY:
         return _library_symbol(where, name, spec, kind)
-    if kind == "connection":
-        return _connection_symbol(where, name, spec)
     raise ValueError(f"{where}: unknown kind {kind!r}")
 
 
@@ -1062,65 +1058,6 @@ def _connection_of(where: str, spec: Any) -> str:
         return ""
     check_name(spec["connection"], f"{where}: connection")
     return str(spec["connection"])
-
-
-def _connection_symbol(where: str, name: str, spec: Any) -> Symbol:
-    check_keys(
-        spec,
-        where,
-        {"kind", "pins", "transits"},
-        {"concurrent", "connection"} | _PLACEMENT,
-    )
-
-    pins: list[str] = []
-    raw_pins = spec["pins"]
-    if not isinstance(raw_pins, list) or not cast(list[Any], raw_pins):
-        raise ValueError(f"{where}: pins must be a non-empty list")
-    for pin in cast(list[Any], raw_pins):
-        check_name(pin, f"{where}: pin")
-        if pin in pins:
-            raise ValueError(f"{where}: duplicate pin '{pin}'")
-        pins.append(str(pin))
-
-    raw_transits = spec["transits"]
-    names_transits = isinstance(raw_transits, dict)
-    if names_transits:
-        declared = list(cast(dict[str, Any], raw_transits).items())
-        for transit, _ in declared:
-            check_name(transit, f"{where}: transit")
-    elif isinstance(raw_transits, list):
-        declared = [
-            (str(i), pair) for i, pair in enumerate(cast(list[Any], raw_transits))
-        ]
-    else:
-        raise TypeError(
-            f"{where}: transits must be a mapping of names to pin pairs, or a"
-            f" list of pin pairs to take derived names"
-        )
-
-    transits: dict[str, tuple[str, str]] = {}
-    for transit, raw_pair in declared:
-        pair = _pin_pair(raw_pair, f"{where}: transit '{transit}'")
-        for pin in pair:
-            if pin not in pins:
-                raise ValueError(
-                    f"{where}: transit '{transit}' names unknown pin '{pin}'"
-                )
-        transits[transit] = pair
-
-    if "concurrent" in spec and not names_transits:
-        raise ValueError(f"{where}: concurrent needs named transits")
-    concurrent = check_concurrent(spec.get("concurrent"), transits, where)
-
-    return Symbol(
-        name,
-        "connection",
-        tuple(pins),
-        transits,
-        concurrent,
-        names={transit: transit for transit in transits} if names_transits else {},
-        connection=_connection_of(where, spec),
-    )
 
 
 def _widget(where: str, name: Any, spec: Any) -> Widget:

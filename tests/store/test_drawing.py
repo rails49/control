@@ -43,12 +43,27 @@ def two_blocks(**symbols: Any) -> dict[str, Any]:
     }
 
 
-def gap_symbol(*, named: bool = True) -> dict[str, Any]:
-    return {
-        "kind": "connection",
-        "pins": ["A", "B"],
-        "transits": {"span": ["A", "B"]} if named else [["A", "B"]],
-    }
+def gap_symbol(*, named: bool = True, connection: str = "gap") -> dict[str, Any]:
+    """A turnout that is a junction by itself, its straight road the one way
+    between two blocks: its diverging leg is capped by a terminal, wired by
+    `gap_wires`."""
+    spec: dict[str, Any] = {"kind": "turnout", "connection": connection}
+    if named:
+        spec["names"] = {"straight": "span"}
+    return spec
+
+
+def gap_wires(toe: str, straight: str, gap: str = "gap") -> list[list[str]]:
+    """`gap`'s straight road from `toe` to `straight`, and the terminal that
+    caps its diverging leg, which the caller names `<gap>_stop`."""
+    return [
+        [toe, f"{gap}.toe"],
+        [f"{gap}.straight", straight],
+        [f"{gap}.diverging", f"{gap}_stop.P"],
+    ]
+
+
+STOP = {"kind": "terminal"}
 
 
 def flipped(wire: Any) -> Any:
@@ -60,8 +75,8 @@ def flipped(wire: Any) -> Any:
 
 
 def spanned(**symbols: Any) -> dict[str, Any]:
-    doc = two_blocks(gap=gap_symbol(), **symbols)
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
+    doc = two_blocks(gap=gap_symbol(), gap_stop=STOP, **symbols)
+    doc["wires"] += gap_wires("west.B", "east.A")
     return doc
 
 
@@ -207,28 +222,18 @@ def test_station_c_west_keeps_its_names_and_gains_the_pairs_its_ladder_allows() 
 # --- pass 1: components give the connections -------------------------------
 
 
-def test_a_connection_with_no_transits_derives_nothing() -> None:
-    doc = two_blocks(gap={"kind": "connection", "pins": ["A", "B"], "transits": {}})
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
-    assert derive(doc)["connections"] == {}
-
-
 def test_a_bend_belongs_to_the_connection_it_joins() -> None:
     doc = two_blocks(
         north=block(),
         north_stop={"kind": "terminal"},
-        gap={
-            "kind": "connection",
-            "pins": ["A", "B", "C"],
-            "transits": [["A", "B"], ["A", "C"]],
-        },
+        gap={"kind": "turnout", "connection": "gap"},
         bend={"kind": "pin"},
     )
     doc["wires"] += [
-        ["west.B", "gap.A"],
-        ["gap.B", "bend.P"],
+        ["west.B", "gap.toe"],
+        ["gap.straight", "bend.P"],
         ["bend.P", "east.A"],
-        ["gap.C", "north.A"],
+        ["gap.diverging", "north.A"],
         ["north.B", "north_stop.P"],
     ]
     derived = derive(doc)
@@ -317,24 +322,27 @@ def test_a_named_wire_that_joins_no_blocks_is_refused() -> None:
         derive(doc)
 
 
-def test_a_way_leading_back_into_its_own_end_is_refused() -> None:
-    """Leaving a block end and arriving back through it is a reversal, not a
-    transit, so the drawing refuses it rather than deriving `west.B` twice."""
+def reversing_loop() -> dict[str, Any]:
+    """`west.B` into a turnout whose straight and diverging legs are joined
+    through a bend: a balloon loop with no block on it."""
     doc = two_blocks(
-        loop={
-            "kind": "connection",
-            "pins": ["A", "B", "C"],
-            "transits": [["A", "B"], ["C", "A"]],
-        },
+        loop={"kind": "turnout", "connection": "loop"},
         bend={"kind": "pin"},
         east_head={"kind": "terminal"},
     )
     doc["wires"] += [
-        ["west.B", "loop.A"],
-        ["loop.B", "bend.P"],
-        ["bend.P", "loop.C"],
+        ["west.B", "loop.toe"],
+        ["loop.straight", "bend.P"],
+        ["bend.P", "loop.diverging"],
         ["east.A", "east_head.P"],
     ]
+    return doc
+
+
+def test_a_way_leading_back_into_its_own_end_is_refused() -> None:
+    """Leaving a block end and arriving back through it is a reversal, not a
+    transit, so the drawing refuses it rather than deriving `west.B` twice."""
+    doc = reversing_loop()
     with pytest.raises(ValueError, match="leads back into it"):
         derive(doc)
 
@@ -349,17 +357,14 @@ def test_a_component_with_no_connection_symbol_is_refused() -> None:
 # --- pass 2: walking symbol transits gives the connection transits ---------
 
 
-def test_a_three_pin_junction_derives_one_transit_per_symbol_transit() -> None:
+def test_a_junction_derives_one_transit_per_symbol_transit() -> None:
     doc = two_blocks(
         north=block(),
         north_stop={"kind": "terminal"},
         junction={
-            "kind": "connection",
-            "pins": ["toe", "straight", "diverging"],
-            "transits": {
-                "through": ["toe", "straight"],
-                "branch": ["toe", "diverging"],
-            },
+            "kind": "turnout",
+            "connection": "junction",
+            "names": {"straight": "through", "diverging": "branch"},
         },
     )
     doc["wires"] += [
@@ -377,12 +382,9 @@ def test_a_three_pin_junction_derives_one_transit_per_symbol_transit() -> None:
 def test_a_transit_into_a_terminal_symbol_is_not_derived() -> None:
     doc = two_blocks(
         junction={
-            "kind": "connection",
-            "pins": ["toe", "straight", "diverging"],
-            "transits": {
-                "through": ["toe", "straight"],
-                "branch": ["toe", "diverging"],
-            },
+            "kind": "turnout",
+            "connection": "junction",
+            "names": {"straight": "through", "diverging": "branch"},
         },
         siding_stop={"kind": "terminal"},
     )
@@ -397,14 +399,11 @@ def test_a_transit_into_a_terminal_symbol_is_not_derived() -> None:
 def test_a_portal_pair_joins_its_wires_and_derives_to_nothing() -> None:
     doc = two_blocks(
         gap=gap_symbol(),
+        gap_stop=STOP,
         here={"kind": "portal", "label": "staging"},
         there={"kind": "portal", "label": "staging"},
     )
-    doc["wires"] += [
-        ["west.B", "gap.A"],
-        ["gap.B", "here.P"],
-        ["there.P", "east.A"],
-    ]
+    doc["wires"] += [*gap_wires("west.B", "here.P"), ["there.P", "east.A"]]
     assert derive(doc)["connections"] == {
         "gap": {"transits": {"span": ["east.A", "west.B"]}}
     }
@@ -414,58 +413,9 @@ def test_a_portal_pair_joins_its_wires_and_derives_to_nothing() -> None:
 
 
 def crossover() -> dict[str, Any]:
-    """Four blocks meeting at one generic connection that declares two of its
-    four transits concurrent — crossover-yard's shape, in miniature."""
-    doc: dict[str, Any] = {
-        "drawing": "d",
-        "symbols": {
-            "crossover": {
-                "kind": "connection",
-                "pins": ["uw", "ue", "dw", "de"],
-                "transits": {
-                    "up_straight": ["uw", "ue"],
-                    "dn_straight": ["dw", "de"],
-                    "up_to_dn": ["uw", "de"],
-                    "dn_to_up": ["dw", "ue"],
-                },
-                "concurrent": [["up_straight", "dn_straight"]],
-            }
-        },
-        "wires": [],
-    }
-    for name, pin in (("up_w", "uw"), ("up_e", "ue"), ("dn_w", "dw"), ("dn_e", "de")):
-        doc["symbols"][name] = block()
-        doc["symbols"][f"{name}_stop"] = {"kind": "terminal"}
-        near, far = ("B", "A") if name.endswith("_w") else ("A", "B")
-        doc["wires"] += [
-            [f"{name}.{near}", f"crossover.{pin}"],
-            [f"{name}.{far}", f"{name}_stop.P"],
-        ]
-    return doc
-
-
-def test_declared_symbol_concurrency_passes_through() -> None:
-    assert derive(crossover())["connections"]["crossover"]["concurrent"] == [
-        ["dn_straight", "up_straight"]
-    ]
-
-
-def test_transits_sharing_a_bend_conflict() -> None:
-    """A bend declares no concurrency, so two transits through the same one
-    exclude each other exactly as two transits through a shared frog do."""
-    doc = crossover()
-    doc["symbols"]["crossover"]["concurrent"] = [
-        ["up_straight", "dn_straight"],
-        ["up_straight", "dn_to_up"],
-    ]
-    doc["symbols"]["bend"] = {"kind": "pin"}
-    doc["wires"] = [w for w in doc["wires"] if w != ["up_e.A", "crossover.ue"]]
-    doc["wires"] += [["up_e.A", "bend.P"], ["bend.P", "crossover.ue"]]
-    # up_straight and dn_to_up both run through the bend, so the pair the
-    # symbol declares is composed away; dn_straight does not touch it.
-    assert derive(doc)["connections"]["crossover"]["concurrent"] == [
-        ["dn_straight", "up_straight"]
-    ]
+    """crossover-yard, the railroad whose crossover composes one concurrent
+    pair out of four turnouts and a crossing, as a document to change."""
+    return read("crossover-yard.drawing.yaml")
 
 
 # --- the symbol library ---------------------------------------------------
@@ -587,14 +537,16 @@ def test_an_unnamed_junction_of_several_symbols_is_refused() -> None:
 
 
 def test_symbols_of_one_junction_disagreeing_on_its_name_are_refused() -> None:
-    doc = spanned(bend={"kind": "pin"})
-    doc["symbols"]["gap"]["connection"] = "west_end"
-    doc["symbols"]["other"] = {**gap_symbol(), "connection": "east_end"}
-    doc["wires"] = [w for w in doc["wires"] if w != ["gap.B", "east.A"]]
+    doc = two_blocks(
+        gap=gap_symbol(connection="west_end"),
+        gap_stop=STOP,
+        other=gap_symbol(named=False, connection="east_end"),
+        other_stop=STOP,
+    )
     doc["wires"] += [
-        ["gap.B", "bend.P"],
-        ["bend.P", "other.A"],
-        ["other.B", "east.A"],
+        *gap_wires("west.B", "other.toe"),
+        ["other.straight", "east.A"],
+        ["other.diverging", "other_stop.P"],
     ]
     with pytest.raises(ValueError, match="are one connection"):
         derive(doc)
@@ -603,14 +555,14 @@ def test_symbols_of_one_junction_disagreeing_on_its_name_are_refused() -> None:
 def test_two_junctions_taking_the_same_name_are_refused() -> None:
     doc = two_blocks(
         middle=block(),
-        west_gap={**gap_symbol(named=False), "connection": "join"},
-        east_gap={**gap_symbol(named=False), "connection": "join"},
+        west_gap=gap_symbol(named=False, connection="join"),
+        west_gap_stop=STOP,
+        east_gap=gap_symbol(named=False, connection="join"),
+        east_gap_stop=STOP,
     )
     doc["wires"] += [
-        ["west.B", "west_gap.A"],
-        ["west_gap.B", "middle.A"],
-        ["middle.B", "east_gap.A"],
-        ["east_gap.B", "east.A"],
+        *gap_wires("west.B", "middle.A", "west_gap"),
+        *gap_wires("middle.B", "east.A", "east_gap"),
     ]
     with pytest.raises(ValueError, match="two junctions are named 'join'"):
         derive(doc)
@@ -671,7 +623,7 @@ def test_transits_that_run_together_are_not_listed_as_exclusive() -> None:
     assert ["dn_straight", "up_straight"] not in [pair["transits"] for pair in excluded]
     assert {
         "transits": ["dn_straight", "dn_to_up"],
-        "shared": ["crossover"],
+        "shared": ["dn_w_points"],
     } in excluded
 
 
@@ -907,9 +859,9 @@ def ganged_across_concurrent() -> dict[str, Any]:
     """Two ways that may run at once, each crossing a point on address
     `1`, one straight and one diverging."""
     doc = crossover()
-    for name, pin, leg, spare in (
-        ("up", "uw", "straight", "diverging"),
-        ("dn", "dw", "diverging", "straight"),
+    for name, leg, spare in (
+        ("up", "straight", "diverging"),
+        ("dn", "diverging", "straight"),
     ):
         points = f"sw{name}"
         doc["symbols"][points] = {
@@ -918,10 +870,10 @@ def ganged_across_concurrent() -> dict[str, Any]:
             "connection": "crossover",
         }
         doc["symbols"][f"{points}_stop"] = {"kind": "terminal"}
-        doc["wires"].remove([f"{name}_w.B", f"crossover.{pin}"])
+        doc["wires"].remove([f"{name}_w.B", f"{name}_w_points.toe"])
         doc["wires"] += [
             [f"{name}_w.B", f"{points}.toe"],
-            [f"{points}.{leg}", f"crossover.{pin}"],
+            [f"{points}.{leg}", f"{name}_w_points.toe"],
             [f"{points}.{spare}", f"{points}_stop.P"],
         ]
     return doc
@@ -1219,10 +1171,11 @@ def test_a_label_three_portals_wear_is_reported_the_same_way() -> None:
 def test_a_drawing_whose_labels_all_pair_reports_no_unpaired_portal() -> None:
     doc = two_blocks(
         gap=gap_symbol(),
+        gap_stop=STOP,
         here={"kind": "portal", "label": "staging"},
         there={"kind": "portal", "label": "staging"},
     )
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "here.P"], ["there.P", "east.A"]]
+    doc["wires"] += [*gap_wires("west.B", "here.P"), ["there.P", "east.A"]]
     review = Drawing.from_document(doc).review()
     assert review["unpaired_portals"] == []
     assert review["refused"] is None
@@ -1322,47 +1275,46 @@ def test_a_way_looping_back_into_its_block_is_the_offending_way() -> None:
     drawing cannot point at one (ADR-0024). The walk that failed is what the
     editor lights, in the shape `explain` gives a transit's way, so the canvas
     lights it with the machinery the netlist pane already uses."""
-    doc = two_blocks(
-        loop={
-            "kind": "connection",
-            "pins": ["A", "B", "C"],
-            "transits": [["A", "B"], ["C", "A"]],
-        },
-        bend={"kind": "pin"},
-        east_head={"kind": "terminal"},
-    )
-    doc["wires"] += [
-        ["west.B", "loop.A"],
-        ["loop.B", "bend.P"],
-        ["bend.P", "loop.C"],
-        ["east.A", "east_head.P"],
-    ]
-    review = Drawing.from_document(doc).review()
+    review = Drawing.from_document(reversing_loop()).review()
     assert review["refused"] is not None
     assert review["offending"] == [
         {
             "ends": ["west.B", "west.B"],
-            "way": [["loop", "0"], ["bend", ""], ["loop", "1"]],
+            "way": [["loop", "straight"], ["bend", ""], ["loop", "diverging"]],
         }
     ]
+
+
+def passing_loop() -> dict[str, Any]:
+    """`west` and `east` joined by two roads between a turnout at each end,
+    with no block on either: two ways between one pair of block ends."""
+    doc = two_blocks(
+        west_points={"kind": "turnout", "connection": "gap"},
+        east_points={"kind": "turnout", "connection": "gap"},
+    )
+    doc["wires"] += [
+        ["west.B", "west_points.toe"],
+        ["west_points.straight", "east_points.straight"],
+        ["west_points.diverging", "east_points.diverging"],
+        ["east_points.toe", "east.A"],
+    ]
+    return doc
 
 
 def test_two_transits_deriving_one_name_come_back_as_both_ways() -> None:
     """Two paths joining one pair of block ends: neither is the offender, so
     both light."""
-    doc = two_blocks(
-        gap={
-            "kind": "connection",
-            "pins": ["A", "B"],
-            "transits": [["A", "B"], ["A", "B"]],
-        }
-    )
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
-    review = Drawing.from_document(doc).review()
+    review = Drawing.from_document(passing_loop()).review()
     assert "two transits named" in review["refused"]
     assert review["offending"] == [
-        {"ends": ["east.A", "west.B"], "way": [["gap", "0"]]},
-        {"ends": ["east.A", "west.B"], "way": [["gap", "1"]]},
+        {
+            "ends": ["east.A", "west.B"],
+            "way": [["east_points", "straight"], ["west_points", "straight"]],
+        },
+        {
+            "ends": ["east.A", "west.B"],
+            "way": [["east_points", "diverging"], ["west_points", "diverging"]],
+        },
     ]
 
 
@@ -1384,8 +1336,8 @@ def test_a_drawing_that_derives_offends_no_way() -> None:
 
 
 def test_unnamed_transits_take_a_name_derived_from_their_block_ends() -> None:
-    doc = two_blocks(gap=gap_symbol(named=False))
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
+    doc = two_blocks(gap=gap_symbol(named=False), gap_stop=STOP)
+    doc["wires"] += gap_wires("west.B", "east.A")
     assert list(derive(doc)["connections"]["gap"]["transits"]) == ["east_A__west_B"]
 
 
@@ -1394,16 +1346,15 @@ def test_a_named_symbol_transit_overrides_the_derived_name() -> None:
 
 
 def test_derived_names_do_not_depend_on_drawing_order_or_pin_ids() -> None:
-    doc = two_blocks(gap=gap_symbol(named=False))
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
+    doc = two_blocks(gap=gap_symbol(named=False), gap_stop=STOP)
+    doc["wires"] += gap_wires("west.B", "east.A")
 
-    shuffled = two_blocks(
-        gap={"kind": "connection", "pins": ["y", "x"], "transits": [["y", "x"]]}
-    )
+    # The turnout the other way round: its toe now faces east.
+    shuffled = two_blocks(gap=gap_symbol(named=False), gap_stop=STOP)
     shuffled["symbols"] = dict(reversed(list(shuffled["symbols"].items())))
-    shuffled["wires"] = [["gap.y", "east.A"], ["west.B", "gap.x"]] + list(
-        reversed(shuffled["wires"])
-    )
+    shuffled["wires"] = [
+        flipped(wire) for wire in gap_wires("east.A", "west.B")
+    ] + list(reversed(shuffled["wires"]))
 
     assert yaml.safe_dump(derive(doc), sort_keys=False) == yaml.safe_dump(
         derive(shuffled), sort_keys=False
@@ -1429,66 +1380,64 @@ def test_the_derived_layout_survives_a_drawing_file_reorder(name: str) -> None:
 
 def test_the_derived_layout_has_canonical_key_order() -> None:
     doc = crossover()
-    doc["symbols"]["crossover"]["concurrent"] = [
-        ["up_to_dn", "dn_to_up"],
-        ["up_straight", "dn_straight"],
-    ]
     doc["symbols"] = dict(reversed(list(doc["symbols"].items())))
+    doc["wires"] = [flipped(wire) for wire in reversed(doc["wires"])]
     derived = derive(doc)
-    assert list(derived["blocks"]) == ["dn_e", "dn_w", "up_e", "up_w"]
+    assert list(derived["blocks"]) == [
+        "dn_e",
+        "dn_w",
+        "up_e",
+        "up_w",
+        "yard_e",
+        "yard_w",
+    ]
     assert list(derived["connections"]["crossover"]["transits"]) == [
         "dn_straight",
         "dn_to_up",
         "up_straight",
         "up_to_dn",
     ]
-    # Pairs sorted within, and the list of them sorted.
+    # The pair sorted within.
     assert derived["connections"]["crossover"]["concurrent"] == [
-        ["dn_straight", "up_straight"],
-        ["dn_to_up", "up_to_dn"],
+        ["dn_straight", "up_straight"]
     ]
 
 
 def test_connections_are_in_canonical_order() -> None:
     doc = two_blocks(
         middle=block(),
-        west_gap={**gap_symbol(named=False)},
-        east_gap={**gap_symbol(named=False)},
+        west_gap=gap_symbol(named=False, connection="west_gap"),
+        west_gap_stop=STOP,
+        east_gap=gap_symbol(named=False, connection="east_gap"),
+        east_gap_stop=STOP,
     )
     doc["wires"] += [
-        ["west.B", "west_gap.A"],
-        ["west_gap.B", "middle.A"],
-        ["middle.B", "east_gap.A"],
-        ["east_gap.B", "east.A"],
+        *gap_wires("west.B", "middle.A", "west_gap"),
+        *gap_wires("middle.B", "east.A", "east_gap"),
     ]
     assert list(derive(doc)["connections"]) == ["east_gap", "west_gap"]
 
 
 def test_colliding_derived_names_are_refused() -> None:
-    doc = two_blocks(
-        gap={
-            "kind": "connection",
-            "pins": ["A", "B"],
-            "transits": [["A", "B"], ["A", "B"]],
-        }
-    )
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "east.A"]]
     with pytest.raises(ValueError, match="two transits named 'east_A__west_B'"):
-        derive(doc)
+        derive(passing_loop())
 
 
 # --- refusals: an incomplete drawing saves but never derives --------------
 
 
 def dangling() -> dict[str, Any]:
-    doc = two_blocks(gap=gap_symbol())
-    doc["wires"].append(["west.B", "gap.A"])  # east.A and gap.B left unwired
+    doc = two_blocks(gap=gap_symbol(), gap_stop=STOP)
+    # east.A and gap.straight left unwired
+    doc["wires"] += [["west.B", "gap.toe"], ["gap.diverging", "gap_stop.P"]]
     return doc
 
 
 def unpaired_portal() -> dict[str, Any]:
-    doc = two_blocks(gap=gap_symbol(), here={"kind": "portal", "label": "staging"})
-    doc["wires"] += [["west.B", "gap.A"], ["gap.B", "here.P"], ["east.A", "here.P"]]
+    doc = two_blocks(
+        gap=gap_symbol(), gap_stop=STOP, here={"kind": "portal", "label": "staging"}
+    )
+    doc["wires"] += [*gap_wires("west.B", "here.P"), ["east.A", "here.P"]]
     return doc
 
 
@@ -1499,7 +1448,7 @@ def test_a_dangling_pin_refuses_to_derive() -> None:
 
 def test_an_over_wired_pin_refuses_to_derive() -> None:
     doc = spanned()
-    doc["wires"].append(["gap.B", "west.B"])
+    doc["wires"].append(["gap.straight", "west.B"])
     with pytest.raises(ValueError, match="takes one wire, got 2"):
         derive(doc)
 
@@ -1542,18 +1491,6 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     (lambda d: d["symbols"].update(gap={"kind": "signal"}), "unknown kind"),
     (lambda d: d["wires"].append(["west.B", "gap.Z"]), "unknown pin"),
     (lambda d: d["wires"].append(["west.B", "west.B"]), "distinct pins"),
-    (
-        lambda d: d["symbols"]["gap"]["transits"].update(span=["A", "Z"]),
-        "unknown pin",
-    ),
-    (
-        lambda d: d["symbols"]["gap"].update(concurrent=[["span", "other"]]),
-        "unknown transit",
-    ),
-    (
-        lambda d: d["symbols"]["gap"].update(transits=[["A", "B"]]),
-        "concurrent needs named transits",
-    ),
     (
         lambda d: d["symbols"].update(points={"kind": "turnout", "concurrent": []}),
         "unknown key",
@@ -1827,9 +1764,19 @@ def test_a_block_takes_no_label() -> None:
         Drawing.from_document(doc)
 
 
+def test_the_generic_connection_symbol_is_an_unknown_kind() -> None:
+    """A junction is drawn from the library or is a named wire; a symbol
+    declaring its own pins and transits is no kind the format has."""
+    doc = two_blocks(
+        gap={"kind": "connection", "pins": ["A", "B"], "transits": [["A", "B"]]}
+    )
+    with pytest.raises(ValueError, match="symbol 'gap': unknown kind 'connection'"):
+        Drawing.from_document(doc)
+
+
 @pytest.mark.parametrize("mutate, message", _SCHEMA_ERRORS)
 def test_schema_errors(mutate: Mutate, message: str) -> None:
-    doc = two_blocks(gap={**gap_symbol(), "concurrent": []})
+    doc = two_blocks(gap=gap_symbol())
     mutate(doc)
     with pytest.raises((ValueError, TypeError), match=message):
         Drawing.from_document(doc)
