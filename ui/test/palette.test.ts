@@ -51,4 +51,14 @@ describe("the palette", () => {
     tiles[1]!.dispatchEvent(new PointerEvent("pointerdown", { button: 0 }));
     expect(taken).toEqual(["toggle"]);
   });
+
+  /** The word `text` is drawn at the large size so it reads at the tile's
+   *  size; a new text widget still starts at normal (#1279). */
+  it("draws the text tile's word at the large size", async () => {
+    const palette = document.createElement("tc-palette");
+    document.body.append(palette);
+    await palette.updateComplete;
+    const tile = palette.renderRoot.querySelector('button[title="Text"]')!;
+    expect(tile.querySelector("text")!.getAttribute("font-size")).toBe("0.55");
+  });
 });

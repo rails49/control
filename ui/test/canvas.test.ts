@@ -1457,6 +1457,30 @@ describe("a widget in the editor", () => {
     expect(text.classList).toContain("placeholder");
   });
 
+  /** The ghost shows what a drop places, so its words are at the size a new
+   *  text widget starts at, not the palette tile's larger one (#1279). */
+  it("draws a text widget in flight at the normal size, and drops one with no size", async () => {
+    const canvas = await canvasOn(WIDGETS, UNREVIEWED);
+    canvas.editor!.beginPlace("text");
+    const svg = canvas.renderRoot.querySelector("svg")!;
+    svg.dispatchEvent(
+      new PointerEvent("pointermove", { bubbles: true, clientX: 6.2, clientY: 5.2 }),
+    );
+    await canvas.updateComplete;
+    const ghost = canvas.renderRoot.querySelector(".ghost .widget-text")!;
+    expect(ghost.getAttribute("font-size")).toBe("0.4");
+    svg.dispatchEvent(
+      new PointerEvent("pointerup", { bubbles: true, clientX: 6.2, clientY: 5.2 }),
+    );
+    const placed = Object.entries(canvas.editor!.widgets).filter(
+      ([name]) => !(name in WIDGETS.widgets!),
+    );
+    expect(placed).toHaveLength(1);
+    expect(placed[0]![1].kind).toBe("text");
+    expect(placed[0]![1]).not.toHaveProperty("text");
+    canvas.remove();
+  });
+
   it("shows a toggle at its default, or off where it has none", async () => {
     const canvas = await canvasOn(
       {

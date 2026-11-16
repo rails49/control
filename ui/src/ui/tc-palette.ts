@@ -16,7 +16,8 @@
  * The fifth group is the widgets: a button, a toggle and a text (ADR-0087).
  * They are dragged out the same way, and the editor names them as it places
  * them. A tile shows the face a new one has (#939): a button, a toggle and
- * the word `text`.
+ * the word `text`, the word drawn at the large size so it reads at the tile's
+ * size (#1279).
  */
 
 import { LitElement, html } from "lit";
@@ -123,7 +124,7 @@ export class TcPalette extends LitElement {
         aria-label=${WIDGET_TITLES[kind]}
       >
         <svg viewBox=${`-0.2 -0.2 ${w + 0.4} ${h + 0.4}`}>
-          <g class=${`widget ${kind}`}>${widgetSample(kind, [0, 0])}</g>
+          <g class=${`widget ${kind}`}>${widgetSample(kind, [0, 0], "large")}</g>
         </svg>
       </button>
     `;
