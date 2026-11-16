@@ -775,7 +775,7 @@ export class TcCanvas extends LitElement {
    *
    * It is the artwork the placed symbol will have, on the grid it will sit on,
    * so what a drop does is visible before the drop: the ghost snaps cell by
-   * cell, `r` and `f` turn it under the pointer, and the squares another
+   * cell, a widget's by half squares, `r` and `f` turn it under the pointer, and the squares another
    * symbol already has are tinted — those squares and not the whole footprint,
    * so the one in the way is the one the eye goes to, rather than the drop
    * failing silently (EDITOR.md#canvas). Off the canvas there is no pointer

@@ -128,15 +128,18 @@ export class Gesture {
     // The drag holds its last legal offset while the pointer is over an
     // obstacle, and catches up once the offset is clear again, so a drag across
     // a crowded row is never wasted and never lands on anything. A lone bend
-    // follows the faces instead, which are half a square apart.
+    // follows the faces instead, which are half a square apart. Widgets alone
+    // move by half squares; with a symbol among them, by the symbol's whole
+    // squares, so each keeps its offset from the symbols.
     if (this.drag !== null) {
       const bend = this.loneBend(editor);
       if (bend !== null) {
         this.drag = { ...this.drag, to: point, ...this.toFace(editor, bend, point) };
         return "render";
       }
-      const dx = Math.round(point.x - this.drag.from.x);
-      const dy = Math.round(point.y - this.drag.from.y);
+      const step = editor.holdsSymbol ? 1 : 0.5;
+      const dx = Math.round((point.x - this.drag.from.x) / step) * step;
+      const dy = Math.round((point.y - this.drag.from.y) / step) * step;
       if (!editor.canMove(dx, dy)) return "quiet";
       this.drag = { ...this.drag, to: point, dx, dy };
       return "render";

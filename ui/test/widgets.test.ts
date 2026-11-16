@@ -40,7 +40,7 @@ function sheet(): Editor {
 
 /** A widget of each kind dropped off the palette, the pointer at the middle
  *  of a square: a text widget and a button land on that square, and a
- *  toggle's two squares centre on the pointer as near as the grid allows. */
+ *  toggle's two squares centre on the pointer, half a square left of it. */
 function placed(): Editor {
   const editor = sheet();
   (["text", "button", "toggle"] as const).forEach((kind, row) => {
@@ -76,9 +76,25 @@ describe("placing a widget", () => {
     expect(editor.widgets).toEqual({
       text1: { kind: "text", at: [6, 4] },
       button1: { kind: "button", at: [6, 6], payload: "button1" },
-      toggle1: { kind: "toggle", at: [6, 8], on: "on", off: "off" },
+      toggle1: { kind: "toggle", at: [5.5, 8], on: "on", off: "off" },
     });
     expect(editor.drawing.symbols).toEqual({ sw1: { kind: "turnout", at: [0, 0] } });
+  });
+
+  it("lands on the half square nearest the pointer", () => {
+    const editor = sheet();
+    editor.beginPlace("button");
+    expect(editor.placementAt(3.0, 4.8)!.at).toEqual([2.5, 4.5]);
+    editor.cancelPending();
+    editor.beginPlace("toggle");
+    expect(editor.placementAt(3.3, 4.8)!.at).toEqual([2.5, 4.5]);
+  });
+
+  it("leaves a symbol on whole squares", () => {
+    const editor = sheet();
+    editor.beginPlace("turnout");
+    const [c, r] = editor.placementAt(3.3, 4.8)!.at;
+    expect(Number.isInteger(c) && Number.isInteger(r)).toBe(true);
   });
 
   it("selects what it placed", () => {
@@ -133,21 +149,36 @@ describe("placing a widget", () => {
 });
 
 describe("moving a widget", () => {
-  it("takes the widget under a press and drags it by whole squares", () => {
+  it("takes the widget under a press and drags it by half squares", () => {
     const editor = placed();
     dragged(editor, { x: 6.2, y: 4.5 }, { x: 9.4, y: 5.6 });
     expect(editor.widgets.text1!.at).toEqual([9, 5]);
     expect(editor.widgets.button1!.at).toEqual([6, 6]);
   });
 
+  it("moves half a square in a selection of widgets alone", () => {
+    const editor = placed();
+    dragged(editor, { x: 6.2, y: 4.5 }, { x: 6.9, y: 4.5 });
+    expect(editor.widgets.text1!.at).toEqual([6.5, 4]);
+  });
+
+  /** Each widget keeps its offset from the symbols it moves with. */
+  it("moves by whole squares in a selection holding a symbol", () => {
+    const editor = placed();
+    editor.select(["sw1", selectionKey("toggle1")]);
+    dragged(editor, { x: 6, y: 8.5 }, { x: 6.7, y: 8.5 });
+    expect(editor.widgets.toggle1!.at).toEqual([6.5, 8]);
+    expect(editor.drawing.symbols.sw1!.at).toEqual([1, 0]);
+  });
+
   it("moves with symbols in one selection, and undoes in one step", () => {
     const editor = placed();
     editor.select(["sw1", selectionKey("toggle1")]);
     editor.move(2, 1);
-    expect(editor.widgets.toggle1!.at).toEqual([8, 9]);
+    expect(editor.widgets.toggle1!.at).toEqual([7.5, 9]);
     expect(editor.drawing.symbols.sw1!.at).toEqual([2, 1]);
     editor.undo();
-    expect(editor.widgets.toggle1!.at).toEqual([6, 8]);
+    expect(editor.widgets.toggle1!.at).toEqual([5.5, 8]);
     expect(editor.drawing.symbols.sw1!.at).toEqual([0, 0]);
   });
 
