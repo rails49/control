@@ -1,11 +1,9 @@
 # Drawing format and derivation
 
 The drawing document type and the derivation of layouts from it, decided in
-#41 and implemented in `src/tc49/store/drawing.py`: the generic connection
-symbol and the derivation passes in #42, the symbols of fixed geometry in #44.
-Every railroad is drawn (#43), each converted mechanically from the layout it
-was written as, then `crossover-yard` redrawn from real symbols on top of that
-and `reversing-loops`'s station-A and station-C west in #46.
+#41 and implemented in `src/tc49/store/drawing.py`: the derivation passes in
+#42, the symbols of fixed geometry in #44. Every railroad is drawn (#43) from
+those symbols, wires and portals.
 The store serves drawings alone (#45): a layout is derived on `get` and is not
 a file, which is what [LAYOUT.md](LAYOUT.md) describes. Order of work:
 derivation (Python, no UI), then the
@@ -133,23 +131,6 @@ their footprints and pin positions differ. An earlier draft had an `angle`
 placement property picking between several appearances of a crossing; no
 committed drawing ever used it and it is removed.
 
-### The generic connection symbol
-
-An N-pin symbol that declares its transits and concurrency verbatim.
-Derivation passes it through unchanged, so every existing layout converts to
-a drawing mechanically and losslessly, and a junction whose real geometry is
-not yet drawn can be modelled anyway, then refined one junction at a time. A
-junction drawn this way shows no turnout detail on the panel.
-
-Migration is over and the kind has no users left, so it is legacy. It loads, it
-derives, and the [editor](../ui/EDITOR.md) gives it no support at all: it is
-neither placed nor drawn, having no fixed pin set to place. `facing-pair`'s one
-use was a plain joint, which is now a named wire (#48); `single-track-meet`'s
-four were turnouts, redrawn as such (#56); and `reversing-loops`'s station-C
-east, the last, was drawn from turnouts in #58, which is where the declared
-transits and the netlist's tiles were finally compared — and the tiles won.
-Whether the kind leaves the format is a decision in its own right.
-
 ### Portals
 
 A portal joins distant parts of a drawing without a wire across the whole
@@ -200,10 +181,9 @@ symbols:
   or a slip an optional `addr`, and a turnout an optional `closed_leg`
   ([Hardware ids](#hardware-ids)); a terminal and a
   free-standing pin (`kind: pin`) nothing.
-  A symbol of fixed geometry takes only the names below. The generic connection
-  symbol declares its `pins`, its `transits`, and optionally which pairs of
-  them are `concurrent`. Every kind also takes the placement keys of
-  [Geometry](#geometry).
+  A symbol of fixed geometry also takes the names below, and every kind takes
+  the placement keys of [Geometry](#geometry). Any other kind is refused: a
+  junction is drawn from the library or is a named wire.
 - **A block's key is its only name.** It is short and stable because it
   prefixes every transit id on the bus and in traces, and it is what the editor
   draws in the block. A block carried a display `label` for the platform's real
@@ -211,8 +191,7 @@ symbols:
   being read, so the second name was dropped (#82). `label` now belongs to a
   portal alone, where it pairs two mouths.
 - **Pins are written `<symbol>.<pin>`.** A block's are its ends `A` and `B`;
-  a one-pin symbol's is `P`; the symbol table above gives the rest, and a
-  generic connection symbol names its own.
+  a one-pin symbol's is `P`; the symbol table above gives the rest.
 - **A wire is a pair of pins**, and `wires:` is the whole of the topology. A
   wire joining two blocks directly is written as a mapping instead, carrying
   the `connection` name for the transit it becomes. Where the wire runs on the
@@ -222,10 +201,7 @@ symbols:
   no other way to be named.
 - **`names` gives a symbol's transits the names the derived transits take.**
   It is keyed by the symbol transit, `{ straight: up_straight }`, so the name
-  goes where the way through goes. The generic connection symbol writes the
-  same thing by writing its `transits` as a mapping, the key being the derived
-  name; written instead as a list of pin pairs, each takes the derived default.
-  `concurrent` needs the mapping form, having nothing else to name.
+  goes where the way through goes.
 
 The schema is checked when the document loads, so a drawing that loads is
 well-formed. The pin rules are checked at derivation instead, which is what
@@ -507,8 +483,8 @@ order.
 
 A connection's name is authored rather than derived: it is what the symbols of
 its component write as `connection`, and where they write nothing, the name of
-the one symbol that declares transits — a junction that is one turnout, or one
-generic connection symbol, names itself. Both are things someone wrote in the
+the one symbol that declares transits — a junction that is one turnout names
+itself. Both are things someone wrote in the
 drawing rather than artefacts of drawing order, so neither breaks the rule
 above, but renaming the symbol of a one-symbol junction does rename its
 connection. A junction drawn from several symbols that writes no `connection`
@@ -566,34 +542,3 @@ back on one. And the order of `symbols:` is the file's, not the editor's: a
 symbol keeps the place it was written in and a new one is added at the end,
 which keeps a moved symbol out of the diff at the cost of ignoring a reorder.
 None of the three can change a derived layout.
-
-## How the layouts were converted into drawings
-
-Migration was compulsory, since a railroad that has not been drawn cannot be
-loaded, and the generic connection symbol made it mechanical. A `to_drawing`
-tool read a layout document and wrote the drawing that derives it:
-
-- each block became a block symbol with its length;
-- each connection became one generic connection symbol of the same name,
-  carrying its transits, their hand-picked names and its `concurrent` verbatim;
-- a block end was a pin on that symbol, named for the end it held — `up_w.B`
-  wiring to `crossover.up_w_B` — so the wire list was one line per block end;
-- a block end no connection held got a terminal symbol, which kept the derived
-  terminal blocks the same.
-
-The conversion was lossless by construction, which is what let the four
-railroads migrate with no topology re-typed; their reasoning comments moved
-into the drawings by hand, so no rationale was lost either. What it could not
-supply is geometry — a junction arrived as one opaque symbol, and refining it
-into turnouts and crossings was a separate, reviewable step, done for
-`crossover-yard` in #44, for `reversing-loops`'s station-A and station-C west
-in #46, and for station-C east in #58. Refining is also where a drawing can
-start disagreeing with what was declared, which is what had stopped station-C
-east: drawing it moved three of its five transits and split it into the two
-throats its two lines actually make.
-
-The tool did its job and has been removed (#121). It had had no caller since
-#45, and no human will hand-author a layout, so the one use that could have
-kept it alive — importing a layout from somewhere else — is not coming; what
-remained was a round-trip test charging every layout schema change for a
-function nothing called.

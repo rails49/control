@@ -26,13 +26,12 @@
 .tick { stroke-width: 0.045; }
 .wireline { stroke: #1f6feb; stroke-width: 2; stroke-dasharray: 6, 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 .symbol.selected .track, .symbol.selected .wire { stroke: #1f6feb; }
-.symbol.selected .block-body, .symbol.selected .opaque { stroke: #1f6feb; }
+.symbol.selected .block-body { stroke: #1f6feb; }
 .wire { stroke: #12151a; stroke-width: 0.15; stroke-linecap: round; }
-.opaque { fill: rgb(237, 234, 228); stroke: #12151a; stroke-width: 0.075; stroke-dasharray: 0.3, 0.15; }
 .symbol .track.lit { stroke: #a55b12; stroke-width: 0.24; }
 .symbol .bend.lit { fill: #a55b12; }
 .symbol .tick.lit { stroke: #a55b12; stroke-width: 0.0675; }
-.symbol .block-body.lit, .symbol .opaque.lit { fill: #f4e3cd; stroke: #a55b12; }
+.symbol .block-body.lit { fill: #f4e3cd; stroke: #a55b12; }
 .name { font: 0.22px system-ui, sans-serif; fill: #1c1f24; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
 .pin { fill: #22c55e; }
 .pin.red { fill: #cc2936; }
