@@ -51,6 +51,7 @@ export const backupStyles = css`
 
   .presses {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
     margin: 0.8rem 0 0.2rem;
   }

@@ -13,6 +13,7 @@
 
 import type { LookBandPress } from "@rails49/look";
 import { press as pressOn } from "@rails49/look/testing";
+import type SlSwitch from "@shoelace-style/shoelace/dist/components/switch/switch.js";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import "../src/ui/tc-backup.js";
@@ -255,6 +256,19 @@ function press(surface: TcBackup, label: string): void {
   (found as HTMLElement).click();
 }
 
+/** The automatic backup switch. */
+function switched(surface: TcBackup): SlSwitch {
+  return surface.renderRoot.querySelector<SlSwitch>("sl-switch")!;
+}
+
+/** Flip the switch as a person would, and let the store answer. */
+async function flip(surface: TcBackup, checked: boolean): Promise<void> {
+  switched(surface).checked = checked;
+  switched(surface).dispatchEvent(new CustomEvent("sl-change"));
+  await new Promise((settle) => setTimeout(settle, 0));
+  await surface.updateComplete;
+}
+
 /** The Restore press, beneath the backups. */
 function restoring(surface: TcBackup): HTMLButtonElement {
   return [...surface.renderRoot.querySelectorAll("sl-button")].find((button) =>
@@ -274,7 +288,7 @@ describe("the Backup tab", () => {
     expect(surface.renderRoot.querySelector("look-dialog")).toBeNull();
     expect(reads(surface)).toContain("/home/somebody/tc49");
     expect(reads(surface)).toContain("Back up now");
-    expect(reads(surface)).toContain("Turn automatic backup on");
+    expect(reads(surface)).toContain("Automatic backup");
     expect(surface.renderRoot.querySelectorAll("ul.backups button")).toHaveLength(2);
     const restore = restoring(surface);
     expect(restore.getAttribute("variant")).toBe("warning");
@@ -416,16 +430,31 @@ describe("the Backup tab", () => {
     expect(reads(surface)).toContain("backup: reversing-loops");
   });
 
-  it("names the switch by what pressing it will do", async () => {
+  /** The switch shows what the store says, not what was asked: a store
+   *  that kept backup off flips it back (#1269). */
+  it("switches automatic backup in the store", async () => {
     const { dialog: surface, store } = await dialog();
-    expect(reads(surface)).toContain("Turn automatic backup on");
+    expect(switched(surface).checked).toBe(false);
 
-    press(surface, "Turn automatic backup on");
-    await new Promise((settle) => setTimeout(settle, 0));
-    await surface.updateComplete;
-
+    await flip(surface, true);
     expect(store.asked).toContain("switch true");
-    expect(reads(surface)).toContain("Turn automatic backup off");
+    expect(switched(surface).checked).toBe(true);
+
+    await flip(surface, false);
+    expect(store.asked).toContain("switch false");
+    expect(switched(surface).checked).toBe(false);
+  });
+
+  it("flips the switch back when the store keeps backup as it was", async () => {
+    const { dialog: surface, store } = await dialog();
+    store.switchBackup = (automatic) => {
+      store.asked.push(`switch ${String(automatic)}`);
+      return Promise.resolve({ ...store.stands });
+    };
+
+    await flip(surface, true);
+    expect(store.asked).toContain("switch true");
+    expect(switched(surface).checked).toBe(false);
   });
 
   /** Restoring takes two presses — the one that chooses a backup and the one
