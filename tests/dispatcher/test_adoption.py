@@ -378,8 +378,7 @@ def test_a_retained_value_that_states_no_picture_is_a_cold_start(
 ) -> None:
     """A retained value is a payload like any other and rule 4 exempts no
     payload for having once been the dispatcher's own: what is waiting on a
-    broker that outlived the app can be hand-edited or written by an older
-    build (#278). Every one of these raised an `AttributeError` out of the
+    broker that outlived the app can be hand-edited (#278). Every one of these raised an `AttributeError` out of the
     constructor while the picture was subscripted — not a dropped frame but
     an app that does not start at all, and at the moment this value exists
     for.

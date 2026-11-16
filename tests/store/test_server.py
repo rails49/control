@@ -593,11 +593,11 @@ def test_a_model_named_as_another_is_refused(store: AssetStore, backup: Backup) 
     assert handle(store, backup, "PUT", "/catalogue/sbb-ae66", doc)[0] == 200
 
 
-def test_every_committed_model_still_loads_and_saves_unchanged(
+def test_every_committed_model_loads_and_saves_unchanged(
     store: AssetStore, backup: Backup
 ) -> None:
-    """Written before a model had a name, a decoder or a mode, each reads as
-    it did and is accepted back as it is."""
+    """A model leaving out its name, decoder or mode reads at the defaults
+    and is accepted back as it is."""
     models = handle(store, backup, "GET", "/catalogue", None)[1]["models"]
     assert set(models) == {path.stem for path in (ASSETS / "catalogue").glob("*.yaml")}
     for key, doc in models.items():

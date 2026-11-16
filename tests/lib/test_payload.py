@@ -1354,8 +1354,8 @@ def test_an_earlier_stamp_is_ignored_and_nothing_is_raised() -> None:
 
 
 def test_an_unstamped_value_is_accepted_and_clears_the_held_stamp() -> None:
-    """The publisher owns the value, so one carrying no stamp — an older
-    build, or a hand-edited file — is taken. Ordering then restarts from the
+    """The publisher owns the value, so one carrying no stamp — a
+    hand-edited file — is taken. Ordering then restarts from the
     next stamped value: keeping the old stamp would leave it refusing values
     whose own stamp is gone."""
     ordering = Ordering()
