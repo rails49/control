@@ -128,6 +128,11 @@ SKIP_TEMPORARY = ":(exclude,glob)**/.*.tmp"
 not a document and is neither named as moved nor committed (#1223)."""
 
 
+UNSET = "backup has not been configured"
+"""What a backup press is refused with in a store that is in no repository
+and where backup needs nothing else said (#1237)."""
+
+
 LOADED_RAILROAD = "loaded railroad"
 """What the store's record of the loaded railroad is called where a person
 reads it (ADR-0072 decision 5)."""
@@ -182,6 +187,16 @@ def git(root: Path, *args: str, timeout: float | None = None) -> Said:
     except OSError as missing:  # no git on this machine, or no such directory
         return Said(False, str(missing))
     return Said(done.returncode == 0, f"{done.stdout}{done.stderr}".strip())
+
+
+def error_line(words: str) -> str:
+    """git's first `ERROR:` or `fatal:` line, which says what went wrong —
+    `ERROR: Repository not found.` — without ssh's notes before it or git's
+    advice after it; all of `words` where there is no such line (#1237)."""
+    for line in words.splitlines():
+        if line.startswith(("ERROR:", "fatal:")):
+            return line
+    return words
 
 
 def document(path: str) -> str:
@@ -411,6 +426,11 @@ class Backup:
         top = self._inside()
         return str(top) if top is not None and top != self.root.resolve() else None
 
+    def _refusal(self) -> str:
+        """Why a press is refused in a store that is no repository: the first
+        thing backup needs, or :data:`UNSET` where it needs nothing said."""
+        return (self.needs() or [UNSET])[0]
+
     def needs(self) -> list[str]:
         """What backup has not got, in the words a person is offered it in.
 
@@ -420,14 +440,10 @@ class Backup:
         The three ways of having no repository are told apart, because they
         send a person to different places. A store **inside** another
         repository is not one to adopt into — it is `bench/`, and the
-        repository it is in is this checkout. A store that is in none is told
-        what to make and where to enter it (:meth:`adopt`) — or, a new box
-        taking an old one's place, which repository to enter into a store
-        with nothing drawn in it (#694) — with git's own words after it, because git itself may be what is missing and those
-        words are the only way to tell. Where there is a key to add, it says
-        that a deploy key opens one repository, and to take it off the old
-        one before deleting that, since a deleted repository keeps its keys
-        in use (#692).
+        repository it is in is this checkout. A store that is in none needs
+        nothing said here: the tab draws the steps that set backup up (#1237).
+        Where `rev-parse` refuses in other words — git itself missing, say —
+        those words are the entry, being the only way to tell.
 
         A key this store cannot push with is the fourth, and it is appended
         rather than returned on its own: a store may be no repository *and*
@@ -443,28 +459,8 @@ class Backup:
             )
         elif top is None:
             said = self._run(self.root, "rev-parse", "--show-toplevel")
-            key = (
-                " add the key below to it under Settings ▸ Deploy keys, with"
-                " write access, and"
-                if self.key() is not None
-                else ""
-            )
-            one = (
-                " A deploy key opens one repository: to move to another, delete"
-                " it from the old repository under Settings ▸ Deploy keys"
-                " before deleting that repository, because a deleted"
-                " repository keeps its keys in use."
-                if key
-                else ""
-            )
-            wrong.append(
-                f"{self.root} is not a git repository — create an empty"
-                f" private repository on github.com,{key} enter its address"
-                f" below.{one} A new server taking over an old one's railroad"
-                " is the same press: draw nothing first, and enter the"
-                " address of the repository the old server backed up to (Moving"
-                f" to a new box in docs/store/BACKUP.md). git said: {said.words}"
-            )
+            if "not a git repository" not in said.words:
+                wrong.append(said.words)
         elif not self._run(self.root, "remote").words:
             wrong.append(
                 "no remote, so a backup stays on this machine — `git"
@@ -863,7 +859,8 @@ class Backup:
         **Empty** for a store is no document under it; the backup switch
         alone counts as empty, being written before anything is drawn.
         For a repository it is no refs, asked with `ls-remote` before
-        anything else is done. Two histories are never mixed: a store with
+        anything else is done; a refusal there is git's :func:`error_line`.
+        Two histories are never mixed: a store with
         documents and a repository with backups is a choice between them,
         and the refusal names both rather than guessing.
 
@@ -905,7 +902,7 @@ class Backup:
                 timeout=self._push_timeout_s,
             )
             if not listed.ok:
-                return listed  # git's words: unreachable, refused, no such
+                return Said(False, error_line(listed.words))
             holds = bool(listed.words)
             if mine:
                 where = self.remote()
@@ -1077,7 +1074,7 @@ class Backup:
         timer exists to avoid.
         """
         if not self.repository():
-            return Said(False, self.needs()[0])
+            return Said(False, self._refusal())
         changed = self.outstanding()
         if not changed:
             return Said(True, "nothing has moved since the last backup")
@@ -1110,7 +1107,7 @@ class Backup:
         that is failing rather than as silence (#443).
         """
         if not self.repository():
-            return Said(False, self.needs()[0])
+            return Said(False, self._refusal())
         unusable = self._unusable()
         said = (
             Said(False, unusable)
@@ -1180,7 +1177,7 @@ class Backup:
         """
         with self._lock:
             if not self.repository():
-                return Said(False, self.needs()[0])
+                return Said(False, self._refusal())
             dirty = self._restorable()
             if dirty:
                 return Said(
