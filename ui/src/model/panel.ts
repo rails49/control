@@ -721,7 +721,7 @@ export class Panel {
         const { trains, crossing, occupied, locks, requests } = event as unknown as {
           trains: Record<string, string>;
           crossing?: Record<string, string>;
-          occupied?: Record<string, string[]>;
+          occupied: Record<string, string[]>;
           locks: Record<string, string>;
           requests: {
             id: string;
@@ -740,17 +740,7 @@ export class Panel {
         // it has left it. Its name is drawn in each block on its list, and in
         // that last block where the list has none (#897, #1172).
         this.crossing = new Map(Object.entries(crossing ?? {}));
-        // A retained value from before `occupied` still draws: each train's
-        // list is its `trains` block and the transit `crossing` names.
-        this.occupied =
-          occupied !== undefined
-            ? new Map(Object.entries(occupied))
-            : new Map(
-                Object.entries(trains).map(([train, block]): [string, string[]] => {
-                  const transit = this.crossing.get(train);
-                  return [train, transit === undefined ? [block] : [block, transit]];
-                }),
-              );
+        this.occupied = new Map(Object.entries(occupied));
         this.stood = new Map(Object.entries(trains));
         this.standing = new Map(
           Object.entries(trains)

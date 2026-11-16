@@ -66,6 +66,7 @@ async function standing(): Promise<TcApp> {
   const shell = await joined();
   await said(shell, ALLOCATION, {
     trains: { goods: "a", shunter: "b" },
+    occupied: { goods: ["a"], shunter: ["b"] },
     locks: { a: "goods", b: "shunter" },
     requests: [],
   });

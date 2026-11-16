@@ -175,6 +175,7 @@ describe("the run view's request list", () => {
     const shell = await joined();
     await said(shell, ALLOCATION, {
       trains: { goods: "a", express: "c", local: "d" },
+      occupied: { goods: ["a"], express: ["c"], local: ["d"] },
       locks: { a: "goods" },
       requests: LISTED,
     });
@@ -231,6 +232,7 @@ describe("a refused request's note", () => {
     await said(shell, ALLOCATION, {
       trains: TRAINS,
       crossing: { crosser: "sw.side" },
+      occupied: { express: ["c"], goods: ["a"], parked: ["b"], crosser: ["d", "sw.side"] },
       locks: { a: "goods", b: "parked", c: "express", "sw.side": "crosser" },
       requests,
     });
@@ -381,6 +383,7 @@ describe("a held cancel", () => {
   async function picture(shell: TcApp, requests: Listed[]): Promise<void> {
     await said(shell, ALLOCATION, {
       trains: { express: "c" },
+      occupied: { express: ["c"] },
       locks: { c: "express", "sw.side": "express", a: "express" },
       requests,
     });

@@ -75,7 +75,12 @@ function written(): unknown[] {
 const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 
 /** The dispatcher's picture with `goods` standing in `a`. */
-const PICTURE = { trains: { goods: "a" }, locks: { a: "goods" }, requests: [] };
+const PICTURE = {
+  trains: { goods: "a" },
+  occupied: { goods: ["a"] },
+  locks: { a: "goods" },
+  requests: [],
+};
 
 /** An app in the throttle view, joined, with `goods` on the layout and the
  *  track live: what every test below starts from. */
@@ -266,6 +271,7 @@ function mine(): string {
 const GRANTED = {
   trains: { goods: "a" },
   crossing: { goods: "j.over" },
+  occupied: { goods: ["a", "j.over"] },
   locks: { a: "goods", "j.over": "goods", b: "goods" },
   requests: [
     {
@@ -294,6 +300,7 @@ async function taken(shell: TcApp): Promise<void> {
 /** `shunter` placed beside `goods`, in `b`: two trains to pick from. */
 const BOTH = {
   trains: { goods: "a", shunter: "b" },
+  occupied: { goods: ["a"], shunter: ["b"] },
   locks: { a: "goods", b: "shunter" },
   requests: [],
 };
@@ -1010,6 +1017,7 @@ describe("the blocks", () => {
     await said(shell, ALLOCATION, {
       trains: { goods: "a" },
       crossing: { goods: "j.over" },
+      occupied: { goods: ["a", "j.over"] },
       locks: { a: "goods", "j.over": "goods" },
       requests: [],
     });
@@ -1054,6 +1062,7 @@ describe("the train's thumbnail", () => {
     const shell = await driving();
     await said(shell, ALLOCATION, {
       trains: { shunter: "b" },
+      occupied: { shunter: ["b"] },
       locks: { b: "shunter" },
       requests: [],
     });
@@ -1091,6 +1100,7 @@ describe("the train's thumbnail", () => {
     const shell = await driving();
     await said(shell, ALLOCATION, {
       trains: { shunter: "b" },
+      occupied: { shunter: ["b"] },
       locks: { b: "shunter" },
       requests: [],
     });
@@ -1361,7 +1371,7 @@ describe("the camera car's picture", () => {
     [
       "the train leaves state/allocation",
       (shell: TcApp) =>
-        said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] }),
+        said(shell, ALLOCATION, { trains: {}, occupied: {}, locks: {}, requests: [] }),
     ],
     ["the run view is shown", (shell: TcApp) => shows(shell, "run")],
   ])("is gone once %s", async (_, then) => {
@@ -1461,7 +1471,7 @@ describe("giving it back", () => {
     const shell = await driving();
     await taken(shell);
 
-    await said(shell, ALLOCATION, { trains: {}, locks: {}, requests: [] });
+    await said(shell, ALLOCATION, { trains: {}, occupied: {}, locks: {}, requests: [] });
 
     expect(offered(shell)).toEqual([]);
     expect(lever(shell)).toBeNull();
@@ -1532,6 +1542,7 @@ describe("what a person can switch", () => {
     const shell = await driving();
     await said(shell, ALLOCATION, {
       trains: { shunter: "b" },
+      occupied: { shunter: ["b"] },
       locks: { b: "shunter" },
       requests: [],
     });
@@ -1933,6 +1944,7 @@ describe("with the rails dead", () => {
     const shell = await driving();
     await said(shell, ALLOCATION, {
       trains: { goods: "a", shunter: "b", coal: "c" },
+      occupied: { goods: ["a"], shunter: ["b"], coal: ["c"] },
       locks: { a: "goods", b: "shunter", c: "coal" },
       requests: [],
     });
@@ -2045,6 +2057,7 @@ describe("a row of throttles", () => {
    *  roster: it is on the layout all the same, so it gets a cab. */
   const THREE = {
     trains: { goods: "a", shunter: "b", coal: "c" },
+    occupied: { goods: ["a"], shunter: ["b"], coal: ["c"] },
     locks: { a: "goods", b: "shunter", c: "coal" },
     requests: [],
   };

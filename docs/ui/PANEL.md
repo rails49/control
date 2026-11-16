@@ -205,11 +205,10 @@ a train is occupied by it, and that train explains its readings.
 so a page opened at any moment draws what every other page draws. `occupied`
 gives each train's blocks and transits, tail to head: a block on a list is
 occupied, and stays so with both its sensors clear. A lock on no list is held
-ahead, or the residue of a train taken off, and draws locked. A value written
-before `occupied` existed draws each train's list as its `trains` block and
-the transit `crossing` names. Where a train is, for the roster and for a drop,
-is `trains` less `crossing`. Between pictures, `lock_released` takes a resource
-off the train's list and `train_placed` sets the list to the one block
+ahead, or the residue of a train taken off, and draws locked. Where a train
+is, for the roster and for a drop, is `trains` less `crossing`. Between
+pictures, `lock_released` takes a resource off the train's list and
+`train_placed` sets the list to the one block
 ([#1172](https://github.com/rails49/control/issues/1172)).
 
 A request renders in three layers, each appearing when the bus first makes it
