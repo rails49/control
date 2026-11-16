@@ -74,6 +74,21 @@ export const backupStyles = css`
     grid-column: 1 / -1;
   }
 
+  ol.steps {
+    margin: 0.2rem 0 0.4rem;
+    padding-left: 1.4rem;
+  }
+
+  ol.steps li {
+    margin: 0.2rem 0;
+  }
+
+  h3.key {
+    margin: 0.8rem 0 0;
+    font-size: inherit;
+    font-weight: var(--sl-font-weight-semibold);
+  }
+
   pre.key {
     margin: 0.5rem 0 0.3rem;
     padding: 0.4rem 0.5rem;
