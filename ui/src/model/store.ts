@@ -326,16 +326,9 @@ export interface CarDoc {
  *  and its kind are derived from those cars and are never written down, which
  *  is what `/rosters/<railroad>/trains` answers with. */
 export interface RosterTrain {
-  /** Absent on a train written before [#223](https://github.com/rails49/control/issues/223),
-   *  which states its length instead. The store keeps that shape legal on
-   *  purpose (`store/stock.py`, `_train`) and answers the file as written, so
-   *  a document read here has it. */
+  /** Absent from a hand-edited file that leaves it out, which the store
+   *  refuses on a save as a train with nothing in it (#447). */
   cars?: Coupled[];
-  /** The **stated length**, present only on that older shape and never
-   *  written beside `cars` — a train may say one or the other and never both,
-   *  and the store refuses one that says both. A train's length is otherwise
-   *  the sum of its cars and is never authored. */
-  length?: number;
   /** Lowest number highest, and absent is lowest of all. No default number is
    *  written into a document. */
   priority?: number;

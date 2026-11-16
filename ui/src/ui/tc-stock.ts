@@ -1536,14 +1536,6 @@ export class TcStock extends LitElement {
             <h3>Cars</h3>
             <span class="hint">Drag to reorder.</span>
           </div>
-          ${
-            train.stated
-              ? html`<p class="hint stated">
-                  states its length and names no cars — press Add to fill it in,
-                  and the stated ${train.length} mm goes
-                </p>`
-              : nothing
-          }
           <div class="ends"><span>← Head</span><span>Tail</span></div>
           <div class="strip">
             ${train.entries.map((entry, at) => this.tile(name, entry, at))}
