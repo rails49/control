@@ -8,8 +8,7 @@ something else under that name, so the deploy refuses one, as dccex's does
 the `control-web` image.
 
 The lines that check the tree and name the commit are run here against a
-repository made under `tmp_path`, the way the remote's are in
-`test_deploy_pins_the_remote.py`.
+repository made under `tmp_path`.
 """
 
 import re

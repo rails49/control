@@ -38,13 +38,6 @@ cd ~/control
 # the box has one rather than two (#557).
 BOX_ENV=/etc/rails49/box.env
 CONTROL_ENV=/etc/rails49/control.env
-# The file was `deploy.env` until #1218. A box that has only the old name is
-# told to rename it, before the pull.
-if [ -e /etc/rails49/deploy.env ] && [ ! -e "$CONTROL_ENV" ]; then
-  echo "/etc/rails49/deploy.env is named control.env now; rename it with" >&2
-  echo "sudo mv /etc/rails49/deploy.env $CONTROL_ENV" >&2
-  exit 1
-fi
 # A tree with changes in it, tracked or not, would be built under a commit
 # that is not what was built (dccex ADR-0005 d.4). So the deploy refuses one,
 # before a pull merges around the changes.
@@ -54,29 +47,6 @@ if [ -n "$dirty" ]; then
   echo "that is not what was built:" >&2
   echo "$dirty" >&2
   exit 1
-fi
-# Which repository this box pulls from is state outside the checkout, the way
-# the ssh alias was before #496: a line in `.git/config` on this one machine
-# that the deploy depends on and cannot see. A box whose remote had an ssh URL
-# GitHub no longer had a key for stopped the deploy before it did anything
-# (#541), so the deploy sets it rather than trusting it.
-#
-# HTTPS, because the repository is public: nothing to register, no key to
-# rotate, and no credential on the box. The prompt is off above, so a challenge
-# fails rather than stalls.
-#
-# Written out here rather than kept in a script under `scripts/`, which is
-# where `store-root.sh` belongs. This runs *before* the pull, and everything
-# under `scripts/` on that box is whatever it last pulled — on the box this
-# rescues, which cannot pull at all, a script would never arrive (#543). These
-# lines come from the dev box's checkout with the rest of the heredoc.
-ORIGIN=https://github.com/rails49/control.git
-was=$(git remote get-url origin)
-if [ "$was" != "$ORIGIN" ]; then
-  # Only when it changed one: a box that drifted leaves the old URL in the
-  # deploy log, and a box that was right says nothing.
-  echo "origin was $was; pulling from $ORIGIN" >&2
-  git remote set-url origin "$ORIGIN"
 fi
 git pull
 # The name of both images, `ghcr.io/rails49/control:<commit>` and
