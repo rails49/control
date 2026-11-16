@@ -150,12 +150,11 @@ def test_a_retained_facing_is_adopted_in_place_of_the_placement() -> None:
     }
 
 
-def test_a_facing_spelled_the_old_way_is_refused() -> None:
-    """A retained row written by a build from before #241 carries
-    `dn_e.A`, which meant the end the train departs by and reads as no run at
-    all. It is dropped rather than guessed at — reading it as `A-to-B` would
-    turn the train round — and `freight_1` falls back to the placement the
-    document gives it."""
+def test_a_facing_that_is_a_bare_end_letter_is_refused() -> None:
+    """A retained row carrying `dn_e.A` names an end and no run at all
+    (#241). It is dropped rather than guessed at — reading it as `A-to-B`
+    would turn the train round — and `freight_1` falls back to the placement
+    the document gives it."""
     bus = retaining({FACING: {"facing": {"freight_1": "dn_e.A"}}})
     seen = collect(bus, FACING)
     Scheduler(bus, yard(), seeded(), TIMETABLE)
@@ -170,10 +169,9 @@ def test_a_facing_spelled_the_old_way_is_refused() -> None:
 def test_a_retained_value_that_states_no_facing_map_is_a_cold_start() -> None:
     """A retained value is a payload like any other, and rule 4 exempts no
     payload for having once been the scheduler's own: what is waiting on a
-    broker that outlived the app can be hand-edited or written by an older
-    build (#277). The first three raised out of the constructor while the
-    value was subscripted, which is worse than a dropped frame — the app did
-    not start at all. The scheduler starts as a cold start does instead,
+    broker that outlived the app can be hand-edited (#277). The first three
+    raised out of the constructor while the value was subscripted, which is
+    worse than a dropped frame — the app did not start at all. The scheduler starts as a cold start does instead,
     holding the seed its constructor was given, because a value it cannot
     read tells it nothing and refusing to start tells a person even less."""
     unreadable: list[object] = [

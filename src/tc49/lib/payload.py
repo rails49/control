@@ -104,10 +104,10 @@ would be the drift this module exists to prevent.
 The scheduler's **retained facing** is read here for a third reason (#277):
 it is the first payload here whose reader is also its writer. A retained value
 is handed back at construction by a broker that outlived the app, it can be
-hand-edited there or have been written by an older build, and rule 4 exempts
-no payload for having once been the reader's own. What subscripting one gives
-is not a dropped frame but an app that does not start at all, so the scheduler
-reads it and starts cold where it cannot.
+hand-edited there, and rule 4 exempts no payload for having once been the
+reader's own. What subscripting one gives is not a dropped frame but an app
+that does not start at all, so the scheduler reads it and starts cold where it
+cannot.
 
 The dispatcher's **retained allocation picture** is the second of those, and
 the same rule (#278). A retained value being a payload is not a property of
@@ -1207,8 +1207,8 @@ def desired_speed(payload: object) -> float | None:
     frame it cannot read is dropped and a translator that raised on one would
     be taken down by whatever published it (#289). `layout` is the single
     writer of every one of these rows and rule 4 exempts no payload for that
-    — a retained value can be hand-edited or left by an older build, which is
-    why the scheduler reads its own facing back.
+    — a retained value can be hand-edited, which is why the scheduler reads
+    its own facing back.
 
     A **boolean is not a speed**, refused ahead of the numeric read the way a
     stamp refuses one: JSON `true` is an `int` in Python and would otherwise
@@ -1272,10 +1272,10 @@ def desired_function(payload: object) -> bool | None:
     A **boolean**, and the one desired row that carries no name at all: a
     function is one bit on the wire wherever it was checked, so the row
     carries the bit itself and not a word out of a catalogue (ADR-0063). The
-    strings `off` and `on` it once carried are values no more — a payload
-    stating one states nothing this reads, and is refused here rather than
-    at a translator, which is where the value domain of a desired row is read
-    for every translator at once.
+    strings `off` and `on` are no value — a payload stating one states
+    nothing this reads, and is refused here rather than at a translator,
+    which is where the value domain of a desired row is read for every
+    translator at once.
     """
     if not isinstance(payload, dict):
         return None
@@ -1343,10 +1343,9 @@ def kept_allocation(payload: object) -> KeptAllocation | None:
 
     The dispatcher's own last value, and the second payload here whose reader
     is also its writer (#278): a bus binding that outlived the app hands it
-    back at construction, where it can have been hand-edited or written by an
-    older build, and rule 4 exempts no payload for having once been the
-    reader's own. Subscripting one gives not a dropped frame but an app that
-    does not start at all, and the moment that value exists for is the
+    back at construction, where it can have been hand-edited, and rule 4
+    exempts no payload for having once been the reader's own. Subscripting
+    one gives not a dropped frame but an app that does not start at all, and the moment that value exists for is the
     recovery after a restart or a power cut — exactly when it is most likely
     to be damaged.
 

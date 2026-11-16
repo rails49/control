@@ -1151,8 +1151,8 @@ def test_an_observed_position_is_one_a_point_can_be_in() -> None:
 
 def test_a_desired_function_is_a_boolean_and_a_word_is_no_value() -> None:
     """A function is one bit on the wire wherever it was checked, so the row
-    carries the bit (ADR-0063). The strings `off` and `on` it once carried
-    are read as nothing at all, here rather than at each translator."""
+    carries the bit (ADR-0063). The strings `off` and `on` are read as
+    nothing at all, here rather than at each translator."""
     assert desired_function({"addr": "3", "function": "2", "value": True}) is True
     assert desired_function({"addr": "3", "function": "2", "value": False}) is False
     unreadable: list[object] = [

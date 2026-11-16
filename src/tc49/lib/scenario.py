@@ -105,9 +105,8 @@ def validate_scenario(doc: Any, layout: Layout, roster: Roster) -> Scenario:
         if at not in layout.blocks:
             raise ValueError(f"{where}: train '{train}' starts at unknown block '{at}'")
         facing = spec["facing"]
-        # The end letter this once was is refused rather than read: one
-        # vocabulary, and a document written for an older build says
-        # something the new one would take the other way round (#241).
+        # A bare end letter is refused rather than read: one vocabulary, and
+        # guessing which way round an `A` meant would turn the train (#241).
         if facing not in FACINGS:
             raise ValueError(
                 f"{where}: train '{train}' facing must be"
