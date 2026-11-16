@@ -45,6 +45,13 @@ keygen = pytest.mark.skipif(
 )
 
 
+# What `git rev-parse` answers in a directory that is in no repository.
+NOT_A_REPOSITORY = (
+    "fatal: not a git repository (or any parent up to mount point /)\n"
+    "Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set)."
+)
+
+
 class FakeGit:
     """A git that answers what the test says and remembers what it was asked.
 
@@ -70,6 +77,8 @@ class FakeGit:
         self.branch: list[int] = []
         # The `-c` settings each push was handed, in order.
         self.settings: list[tuple[str, ...]] = []
+        # What `ls-remote` answers: an empty repository by default.
+        self.listed = Said(True, "")
 
     def __call__(self, root: Path, *given: str, timeout: float | None = None) -> Said:
         settings, args = said_with(given)
@@ -77,8 +86,10 @@ class FakeGit:
         if args[0] == "push":
             self.settings.append(settings)
         if args[0] == "rev-parse":
+            if self.toplevel == "":
+                return Said(False, NOT_A_REPOSITORY)
             top = self.toplevel if self.toplevel is not None else str(root)
-            return Said(self.toplevel != "", top)
+            return Said(True, top)
         if args[0] == "status":
             # Stripped, because `git` strips what it ran before anybody sees
             # it: a first line whose status is ` M` arrives without its
@@ -92,6 +103,8 @@ class FakeGit:
         if args[0] == "push":
             self.deadline = timeout
             return self.pushes
+        if args[0] == "ls-remote":
+            return self.listed
         if args[0] == "log" and "@{u}..HEAD" in args:
             if not self.upstream:
                 return Said(False, "fatal: no upstream configured for branch 'main'")
@@ -628,41 +641,43 @@ def test_a_copy_that_has_been_failing_for_a_day_says_so(
 # --- a store that is not a repository ----------------------------------------
 
 
-def test_a_store_that_is_not_a_repository_says_what_backup_needs(
+def test_a_store_that_is_not_a_repository_needs_nothing_said(
     tmp_path: Path,
 ) -> None:
-    """A normal state and not a fault: the store works, backup is offered, and
-    what it says is what to make and where to enter it, with git's own words
-    after it — a machine with no git at all is the other thing this covers,
-    and those words are the only way to tell. Nothing here runs `git init`
-    either way (ADR-0053)."""
+    """A normal state and not a fault: the store works, and the tab draws the
+    setup steps itself, so `needs` has nothing to add (#1237). Nothing here
+    runs `git init` (ADR-0053)."""
     backup = Backup(tmp_path, run=FakeGit(toplevel=""))
     assert not backup.repository()
-    assert "create an empty private repository" in backup.needs()[0]
-    assert "key" not in backup.needs()[0]  # it was given nowhere to keep one
-    assert not backup.commit().ok
-    assert not backup.restore().ok
-    assert not backup.push().ok
+    assert backup.needs() == []
+    for refused in (backup.commit(), backup.restore(), backup.push()):
+        assert refused == Said(False, "backup has not been configured")
 
 
-def test_a_store_that_is_not_a_repository_points_a_new_box_to_its_section(
+@keygen
+def test_a_store_with_a_key_that_is_not_a_repository_needs_nothing_said(
     tmp_path: Path,
 ) -> None:
-    """The other way in from no repository is an old box's: draw nothing, and
-    enter the repository it backed up to. The setup words say so and name
-    the page that walks through it (#694)."""
-    words = Backup(tmp_path, run=FakeGit(toplevel="")).needs()[0]
-    assert "draw nothing" in words
-    assert "Moving to a new box in docs/store/BACKUP.md" in words
+    """The key the tab shows under its steps adds nothing to `needs` either
+    (#1237)."""
+    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=tmp_path / "keys")
+    assert backup.key() is not None
+    assert backup.needs() == []
 
 
-def test_the_setup_words_call_the_box_a_server(tmp_path: Path) -> None:
-    """A person knows the box as the server: the words they read say so, and
-    only the section they point to keeps its title (#1022)."""
-    words = Backup(tmp_path, run=FakeGit(toplevel="")).needs()[0]
-    assert "A new server taking over" in words
-    assert "the old server backed up to" in words
-    assert "box" not in words.replace("Moving to a new box", "")
+def test_git_refusing_for_another_reason_is_what_backup_needs(
+    tmp_path: Path,
+) -> None:
+    """Only git's "not a git repository" is the ordinary state; any other
+    refusal of `rev-parse` is passed on in git's words (#1237)."""
+
+    class Refusing:
+        def __call__(
+            self, root: Path, *args: str, timeout: float | None = None
+        ) -> Said:
+            return Said(False, "git: command not found")
+
+    assert Backup(tmp_path, run=Refusing()).needs() == ["git: command not found"]
 
 
 def test_a_store_inside_a_larger_repository_is_not_one(tmp_path: Path) -> None:
@@ -1216,20 +1231,7 @@ def test_a_store_makes_a_key_of_its_own_on_first_ask(tmp_path: Path) -> None:
     assert shown is not None and shown.startswith("ssh-ed25519 ")
     assert backup.key() == shown
     assert (keys / "id_ed25519").exists()
-    assert "add the key below" in backup.needs()[0]
     assert backup.status()["key"] == shown
-
-
-@keygen
-def test_what_backup_needs_says_a_deploy_key_opens_one_repository(
-    tmp_path: Path,
-) -> None:
-    """A deleted repository keeps its keys in use, so the setup text says to
-    take the key off the old repository before deleting it (#692)."""
-    backup = Backup(tmp_path / "tc49", run=FakeGit(toplevel=""), keys=tmp_path / "keys")
-    need = backup.needs()[0]
-    assert "opens one repository" in need
-    assert "before deleting that repository" in need
 
 
 def test_a_store_given_nowhere_to_keep_a_key_has_none(tmp_path: Path) -> None:
@@ -1928,10 +1930,26 @@ def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(
 
     said = backup.adopt(str(tmp_path / "nowhere.git"))
 
-    assert not said.ok
-    assert "nowhere.git" in said.words
+    assert said == Said(
+        False, f"fatal: '{tmp_path / 'nowhere.git'}' does not appear to be a git repository"
+    )
     assert not (root / ".git").exists()
     assert list(root.iterdir()) == []
+
+
+def test_a_refused_address_is_answered_by_gits_error_line(tmp_path: Path) -> None:
+    """git's first `ERROR:` line says what went wrong; ssh's notes before it
+    and git's advice after it are left out (#1237)."""
+    run = FakeGit(toplevel="")
+    run.listed = Said(
+        False,
+        "Warning: Permanently added 'github.com' (ED25519) to the list of known"
+        " hosts.\nERROR: Repository not found.\nfatal: Could not read from remote"
+        " repository.\n\nPlease make sure you have the correct access rights\nand"
+        " the repository exists.",
+    )
+    said = Backup(tmp_path, run=run).adopt("git@github.com:somebody/railroad.git")
+    assert said == Said(False, "ERROR: Repository not found.")
 
 
 def test_adopting_nowhere_is_refused(tmp_path: Path) -> None:

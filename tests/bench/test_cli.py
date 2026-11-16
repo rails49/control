@@ -187,17 +187,13 @@ def test_generate_writes_the_checkout_it_runs_in_unless_told_another(
 
 def test_the_banner_says_where_backup_stands(tmp_path: Path) -> None:
     """A store that is no repository is an ordinary state, so the banner says
-    what backup needs rather than the command refusing to come up (ADR-0053).
-    What it names is what to make and where to enter it (#355) — this never
-    runs `git init` for anybody."""
+    that backup has not been configured rather than the command refusing to
+    come up (ADR-0053, #1237) — this never runs `git init` for anybody."""
     backup = Backup(tmp_path, log=lambda _: None)
-    off = backing(backup)
-    assert "backup  off" in off
-    assert "create an empty private repository" in off
+    assert backing(backup) == "  backup  off: backup has not been configured\n"
 
     backup.switch(True)
-    assert "on, but" in backing(backup)
-    assert "create an empty private repository" in backing(backup)
+    assert backing(backup) == "  backup  on, but backup has not been configured\n"
 
 
 # --- how `tc49 serve` ends (#410) ---------------------------------------------

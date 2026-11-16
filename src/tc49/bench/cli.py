@@ -67,7 +67,7 @@ from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
 from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, Backup, store_root, symbols
-from tc49.store.backup import IDLE_S, PUSH_S, Watch
+from tc49.store.backup import IDLE_S, PUSH_S, UNSET, Watch
 from tc49.store.server import make_server
 
 GENERATORS: dict[str, Callable[[], str]] = {
@@ -330,7 +330,7 @@ def backing(backup: Backup) -> str:
     a save is what arms the idle timer, and two committing one store would
     each be committing the other's half-finished work (#321).
     """
-    missing = backup.needs()
+    missing = backup.needs() or ([] if backup.repository() else [UNSET])
     if not backup.automatic:
         stands = "off" + (f": {missing[0]}" if missing else "")
     elif missing:

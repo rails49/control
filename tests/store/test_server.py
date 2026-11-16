@@ -2547,6 +2547,7 @@ def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
     """The ordinary state of a fresh installation. Backup says what it needs
     and nothing else changes — nothing here runs `git init`; the way in is a
     repository the person made (#355)."""
+    (tmp_path / "not-a-repo").mkdir()
     backup = Backup(tmp_path / "not-a-repo", log=lambda _: None)
     assert handle(store, backup, "GET", "/drawings", None)[0] == 200
     assert (
@@ -2559,7 +2560,7 @@ def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
     status, body = handle(store, backup, "GET", "/backup", None)
     assert status == 200
     assert body["repository"] is False
-    assert "create an empty private repository" in body["needs"][0]
+    assert body["needs"] == []
 
 
 def test_a_page_on_this_machine_reaches_a_store_whose_host_was_rewritten(
