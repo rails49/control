@@ -226,9 +226,8 @@ class Train:
     @property
     def locomotive(self) -> str | None:
         """The model of the train's first locomotive, head first, else `None`
-        — which a train of wagons only, or one stating its length and naming
-        no cars, is. A car's kind is its own where it states one, so it is
-        `Car.kind` that is read, not the model's. What the throttle draws the
+        — which a train of wagons only is. A car's kind is its own where it
+        states one, so it is `Car.kind` that is read, not the model's. What the throttle draws the
         train as (ui/THROTTLE.md); a model name is not a decoder detail.
         """
         for coupled in self.cars:
@@ -239,8 +238,7 @@ class Train:
     @property
     def camera(self) -> str | None:
         """Where the train's camera answers: the first car, head first, that
-        carries one, else `None` — which a train stating its length, naming
-        no cars, always is. The `camera` app reads it to relay the picture
+        carries one, else `None`. The `camera` app reads it to relay the picture
         (ADR-0082); no view does, since it is an address.
         """
         for coupled in self.cars:
