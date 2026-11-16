@@ -210,12 +210,8 @@ export function stands(
 /**
  * The sum of a train's parts, `null` where any entry names something the
  * documents do not have: a length that left one item out would be a wrong
- * number rather than a missing one.
- *
- * A train that names no cars answers its **stated length**, which is what a
- * roster written before #223 has and what `tc49.lib.roster.Train.length`
- * answers for the same document. `null` where it states none, a train being
- * made up having no length yet.
+ * number rather than a missing one. `null` too where the train names no
+ * cars, a train being made up having no length yet.
  */
 export function trainLength(
   train: RosterTrain,
@@ -223,7 +219,7 @@ export function trainLength(
   catalogue: Record<string, ModelDoc>,
 ): number | null {
   const made = train.cars ?? [];
-  if (made.length === 0) return train.length ?? null;
+  if (made.length === 0) return null;
   let total = 0;
   for (const entry of made) {
     const one = stands(entry, roster, catalogue);
@@ -454,11 +450,6 @@ export interface TrainRow {
   locomotive: string | null;
   priority: number | null;
   placed: boolean;
-  /** Whether it **states its length and names no cars**, which is the shape a
-   *  roster written before #223 has: the length is that stated number rather
-   *  than a sum, there is no kind and no function to read off a car, and the
-   *  first entry converts it (#414). */
-  stated: boolean;
 }
 
 /** What a model put in a train went in as (`Stock.addModel`): a model
@@ -621,11 +612,7 @@ export class Stock {
    * unchanged. `edits` stays true: there is still something to give the
    * store once the train is filled (#412).
    *
-   * A train that **states its length and names no cars** is not that train:
-   * it names no `cars` list at all, which is the shape the store keeps legal
-   * for an older file, and saving the roster back keeps it as it was (#414).
-   *
-   * A train naming **neither** key is that train again, said another way: the
+   * A train naming no `cars` at all is that train again, said another way: the
    * store refuses it in the same words as the empty list (`lib/stock.py`,
    * *names no cars*). Composing cannot write it — `addTrain` makes an empty
    * list — but a hand-edited roster file can, and is answered as written, so
@@ -634,10 +621,7 @@ export class Stock {
   stopsSaving(): string | null {
     const empty = Object.entries(this.doc.trains)
       .sort(([one], [other]) => (one < other ? -1 : 1))
-      .find(
-        ([, train]) =>
-          train.length === undefined && (train.cars ?? []).length === 0,
-      );
+      .find(([, train]) => (train.cars ?? []).length === 0);
     if (empty !== undefined) {
       return (
         `train '${empty[0]}' has nothing in it — press Add to put a car or a` +
@@ -719,7 +703,6 @@ export class Stock {
         locomotive: this.locomotive(made),
         priority: made.priority ?? null,
         placed: onLayout.has(train),
-        stated: made.length !== undefined,
       }))
       .sort(
         (one, other) =>
@@ -860,9 +843,6 @@ export class Stock {
    * Put something at the tail of a train: a car, or a model, which gives an
    * anonymous item. **One item cannot stand in a train twice**, so a car the
    * train already has is refused.
-   *
-   * The first entry on a train that **states its length** converts it: the
-   * stated number goes and the length is derived from then on (#414).
    *
    * A train still under the name New train gave it is renamed after its
    * first locomotive in the same edit (`named`, #1005); `trainNow` says the
@@ -1566,14 +1546,8 @@ export class Stock {
   }
 
   /**
-   * One train's entries, changed.
-   *
-   * A train says **either** a stated length **or** cars and never both, the
-   * store refusing one that says both, so the first entry on a train that
-   * stated its length drops the stated number and the train becomes the
-   * ordinary shape (#414). An edit that leaves such a train with no entries
-   * leaves it as it was: there was nothing in it to change. The train is
-   * written under the name `as`.
+   * One train's entries, changed, and the train written under the name
+   * `as`.
    */
   private inTrain(
     train: string,
@@ -1583,19 +1557,12 @@ export class Stock {
     const made = this.doc.trains[train];
     if (made === undefined) return;
     const cars = change(made.cars ?? []);
-    if (made.length !== undefined) {
-      if (cars.length === 0) return;
-      const { length: _stated, ...rest } = made;
-      this.write({ trains: this.rekeyed(train, as, { ...rest, cars }) });
-      return;
-    }
     this.write({ trains: this.rekeyed(train, as, { ...made, cars }) });
   }
 
   /** Every train's entries with one car's name changed, so a rename does not
    *  leave a train naming a car the railroad has not. A train that names no
-   *  cars is left as written: giving it an empty list would state a length
-   *  beside one, which the store refuses (#414). */
+   *  cars is left as written, there being nothing in it to rename. */
   private renamed(was: string, name: string): Record<string, RosterTrain> {
     const trains: Record<string, RosterTrain> = {};
     for (const [key, train] of Object.entries(this.doc.trains)) {
