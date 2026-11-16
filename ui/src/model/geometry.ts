@@ -18,7 +18,7 @@
  */
 
 import { PINS, type Kind, type Rotation } from "../symbols.generated.js";
-import { pinsOf, type SymbolSpec } from "./drawing.js";
+import type { SymbolSpec } from "./drawing.js";
 
 export interface Point {
   x: number;
@@ -100,39 +100,14 @@ export function anchorIn(kind: Kind, pin: string): Point {
   return point;
 }
 
-/**
- * A generic connection symbol declares its own pins, so it has no footprint in
- * the library: it takes a box tall enough to hold them, half down each side.
- * That draws no turnout detail, which is all the symbol claims to know.
- */
-function opaque(spec: SymbolSpec): {
-  footprint: Footprint;
-  anchors: Record<string, Point>;
-} {
-  const pins = pinsOf(spec);
-  const down = Math.max(1, Math.ceil(pins.length / 2));
-  const anchors: Record<string, Point> = {};
-  pins.forEach((pin, index) => {
-    const side = index < down ? 0 : 2;
-    anchors[pin] = { x: side, y: (side === 0 ? index : index - down) + 0.5 };
-  });
-  return { footprint: { w: 2, h: down }, anchors };
-}
-
 /** The footprint and pin anchors a placement gives a symbol, local to `at`. */
 export function placed(spec: SymbolSpec): {
   footprint: Footprint;
   anchors: Record<string, Point>;
 } {
-  const base =
-    spec.kind === "connection"
-      ? opaque(spec)
-      : {
-          footprint: FOOTPRINTS[spec.kind],
-          anchors: ANCHORS[spec.kind] as Record<string, Point>,
-        };
-  const { footprint, move } = placement(spec, base.footprint);
-  return { footprint, anchors: map(base.anchors, move) };
+  const { footprint, move } = placement(spec, FOOTPRINTS[spec.kind]);
+  const anchors = ANCHORS[spec.kind] as Record<string, Point>;
+  return { footprint, anchors: map(anchors, move) };
 }
 
 /**
@@ -250,9 +225,7 @@ export function transformOf(spec: SymbolSpec): string {
 
 /** A kind's footprint before it is turned. */
 export function footprintOf(spec: SymbolSpec): Footprint {
-  return spec.kind === "connection"
-    ? opaque(spec).footprint
-    : FOOTPRINTS[spec.kind];
+  return FOOTPRINTS[spec.kind];
 }
 
 /** The squares a placed symbol occupies. A bend occupies none. */
