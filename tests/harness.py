@@ -27,7 +27,7 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DRAINING
 from tc49.lib.layout import Layout
-from tc49.lib.roster import Roster, Train
+from tc49.lib.roster import Car, Coupled, Roster, Train
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
@@ -135,6 +135,14 @@ def a_railroad() -> tuple[Layout, Roster]:
     return railroad(AssetStore(ASSETS), railroads()[0])
 
 
+def train(length: int, priority: int | None = None) -> Train:
+    """A train of one hauled car of `length`, which is all a suite that cares
+    only how long a train is needs: a train's length is the sum of its cars
+    and is never stated (`lib.roster.Train`)."""
+    car = Car(f"bench-{length}", "freight", length)
+    return Train((Coupled(car),), priority)
+
+
 def stock(**lengths: int) -> Roster:
     """A roster of a suite's own: the trains a railroad owns and how long each
     is (ADR-0039).
@@ -144,9 +152,7 @@ def stock(**lengths: int) -> Roster:
     scenario places nowhere is exactly the train that comes up **off the
     layout**.
     """
-    return Roster(
-        "test", {name: Train(stated_length=length) for name, length in lengths.items()}
-    )
+    return Roster("test", {name: train(length) for name, length in lengths.items()})
 
 
 def events(

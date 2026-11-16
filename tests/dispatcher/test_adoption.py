@@ -25,9 +25,14 @@ from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS, Adopted, restored
 from tc49.lib.bus import InProcessBus, Payload
-from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import Recording, load, retaining, subscribed_before_publishing
+from tests.harness import (
+    Recording,
+    load,
+    retaining,
+    subscribed_before_publishing,
+    train,
+)
 
 POWER = "tc49/layout/state/power"
 REQUESTS = "tc49/dispatch/request_submitted"
@@ -71,7 +76,7 @@ def restarted(
             roster,
             trains={
                 **roster.trains,
-                **{train: Train(stated_length=600) for train in added},
+                **{name: train(600) for name in added},
             },
         )
         scenario = replace(

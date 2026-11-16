@@ -186,34 +186,27 @@ def _train(
     """A train: an ordered list of the stock it is made up of, head first.
 
     Its length and its kind are derived from those cars and are never
-    authored. A train stating `length` and naming no cars is the shape the
-    committed rosters had before #223 rewrote them into cars, and it still
-    loads for the sake of an older file; stating both would be two ways to
-    know one length, which is the field that rots, so it is refused.
+    authored: a train stating `length` would be two ways to know one length,
+    which is the field that rots, so it is refused.
 
     **An empty `cars` list names no cars** and is refused in the same words as
-    a train naming neither key: there is no length to derive for such a train
-    (`lib.roster.Train.length`), so a roster the store took would be one
-    `GET /rosters/<name>/trains` could not answer (#412).
+    a train with no `cars` key: a train is the cars it is made up of, and one
+    of none would be a train of no length on every run view (#412).
 
     The catalogue is here because an entry may name a model rather than a car
     (ADR-0061), and a model is what such an entry is built from.
     """
     spec = as_mapping(doc, where)
-    if "cars" in spec and "length" in spec:
+    if "length" in spec:
         raise ValueError(
-            f"{where}: states a length and names cars — a train's length is"
-            " the sum of its cars and is never authored"
+            f"{where}: states a length — a train's length is the sum of its"
+            " cars and is never authored"
         )
-    if "cars" not in spec and "length" not in spec:
+    if "cars" not in spec:
         raise ValueError(f"{where}: names no cars")
     priority = spec.get("priority")
     if priority is not None and not isinstance(priority, int):
         raise ValueError(f"{where}: priority must be an integer, got {priority!r}")
-    if "length" in spec:
-        return Train(
-            stated_length=check_length(spec["length"], where), priority=priority
-        )
 
     if not isinstance(spec["cars"], list):
         raise TypeError(f"{where}: cars must be a list, head first")
