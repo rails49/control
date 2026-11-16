@@ -204,8 +204,8 @@ functions:                # function number -> what it does on this product
 - **`model` is the key and `name` is what a person reads.** The key is minted
   once, when the model is created, and never changes on a rename, so no car
   has to be rewritten. The name may hold any character, `Ae 6/6` included,
-  and is a non-empty string after trimming; absent, the key is the name, so a
-  file written before names existed still reads. A `PUT` giving a name
+  and is a non-empty string after trimming; absent, the key is the name. A
+  `PUT` giving a name
   another model in the catalogue already has is refused:
   `there is already a model 'Ae 6/6'`.
 - **`scale` is one of eight strings.** YAML reads `scale: 0` as an integer,
@@ -240,9 +240,8 @@ functions:                # function number -> what it does on this product
   `high` would be naming states no translator could send
   ([ADR-0063](../adr/0063-the-desired-half-may-ask-for-what-the-observed-half-cannot-report.md)).
   What people mean by a range is decoder configuration, a different capability
-  that would be a different row. A `values:` an older file still states is an
-  unknown key like any other here and is ignored, so no catalogue has to be
-  rewritten to be read.
+  that would be a different row. A `values:` is an unknown key like any other
+  here and is ignored.
 - **A function is latching or momentary**: on at one press and off at the
   next, or on only while the throttle's button is held (GLOSSARY.md,
   **Function**). `mode` absent reads as `latching`; anything but the two
@@ -349,7 +348,7 @@ trains:
   car.
 - **Unknown keys are ignored, not refused**, at every level of both stock
   documents. A field for the manufacturer, or the shelf a locomotive lives on,
-  may be added and an older reader keeps working. This is deliberately the
+  may be added and is ignored. This is deliberately the
   opposite of the drawing and the scenario, which stay strict: stock is a
   person's own catalogue of physical things and grows fields that no version
   of this software will ever read. What is *required* is still required, so a
@@ -445,9 +444,8 @@ requests:
   required at placement, `A-to-B` meaning it would depart nose-first through
   that block's `B` end. Refused at load where no connection holds the end it
   would depart through — a train facing a wall could never leave — and
-  refused there too where it is written as the bare end letter this key
-  carried before [#241](https://github.com/rails49/control/issues/241), which
-  is not read as anything now. Routes are
+  refused there too where it is anything but those two values, a bare end
+  letter included. Routes are
   strict pass-throughs
   ([ADR-0001](../adr/0001-no-reversal-within-a-route.md)), so after placement
   facing follows from the routes run and only a scheduler tracks it: the
