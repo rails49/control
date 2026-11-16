@@ -25,7 +25,7 @@ import type { Position } from "../symbols.generated.js";
 import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
 import { requestRows, type Refused, type RequestRow } from "./requests.js";
-import type { Explained, Layout } from "./store.js";
+import type { Explained, Layout, TrainDoc } from "./store.js";
 import {
   Ordering,
   sensorReport,
@@ -144,7 +144,7 @@ export interface RosterRow extends Placed {
  * that hid it would hide the thing the operator can see.
  */
 export function roster(
-  stock: Record<string, { length: number; locomotive?: string | null }>,
+  stock: Record<string, Pick<TrainDoc, "length" | "locomotive">>,
   placed: readonly Placed[],
   refused: ReadonlyMap<string, string> = new Map(),
 ): RosterRow[] {
@@ -301,7 +301,7 @@ export interface Overlay {
  * from (`roster`), so a block and the pane's row show one picture.
  */
 export function locomotives(
-  stock: Record<string, { locomotive?: string | null }>,
+  stock: Record<string, Pick<TrainDoc, "locomotive">>,
   blocks: ReadonlyMap<string, BlockView>,
 ): Map<string, string> {
   return new Map(

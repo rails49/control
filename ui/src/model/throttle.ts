@@ -31,8 +31,7 @@ export interface CabFunction {
   name: string;
   /** `latching`, on at one press and off at the next, or `momentary`, on
    *  only while its button is held, like a horn (GLOSSARY.md, **Function**).
-   *  Whatever the trains route says that is not `momentary` — `latching`, or
-   *  nothing from a store older than #977 — latches. */
+   *  Whatever the trains route says that is not `momentary` latches. */
   mode: "latching" | "momentary";
   on: boolean;
 }

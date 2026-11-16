@@ -24,6 +24,7 @@ import {
   type TrainsDoc,
 } from "../src/model/store.js";
 import { CLEAN } from "./support/shell.js";
+import { trainDoc } from "./support/trains.js";
 
 const HOPPER: ModelDoc = { model: "hopper", kind: "freight", length: 100 };
 
@@ -116,7 +117,7 @@ class Fake implements Store, StockStore {
   }
 
   readTrains(railroad: string): Promise<TrainsDoc> {
-    const trains: Record<string, TrainDoc> = { [`${railroad}-goods`]: { length: 400 } };
+    const trains: Record<string, TrainDoc> = { [`${railroad}-goods`]: trainDoc(400) };
     return this.ask(`/rosters/${railroad}/trains`, () => ({ roster: railroad, trains }));
   }
 

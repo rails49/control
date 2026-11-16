@@ -241,22 +241,18 @@ export interface TrainsDoc {
  *  here: a decoder detail is no view's (ui/THROTTLE.md). */
 export interface TrainDoc {
   length: number;
-  /** Absent from an older store's answer, which is a train with nothing to
-   *  switch rather than a document to refuse. */
-  functions?: Fn[];
+  functions: Fn[];
   /** Whether a car in the train carries a camera — never where it answers,
-   *  which is the `camera` app's (ADR-0082). Absent from an older store's
-   *  answer, read as `false`. */
-  camera?: boolean;
+   *  which is the `camera` app's (ADR-0082). */
+  camera: boolean;
   /** The `model` of the train's first locomotive, head first, which the
    *  throttle draws the train as; `null` where the train has none. A model
-   *  name is not a decoder detail. Absent from an older store's answer, read
-   *  as `null`. */
-  locomotive?: string | null;
+   *  name is not a decoder detail. */
+  locomotive: string | null;
   /** The address of every car that has one, head first, which the throttle
    *  shows for a person to drive the train from another throttle and never
-   *  writes (#1033). Absent from an older store's answer, read as none. */
-  addresses?: string[];
+   *  writes (#1033). */
+  addresses: string[];
 }
 
 /** One thing a person can switch on a train, by the name the catalogue gives
@@ -266,9 +262,8 @@ export interface TrainDoc {
 export interface Fn {
   name: string;
   /** `latching` or `momentary`, as the catalogue says the function answers
-   *  its button; always on the store's answer since #977, and absent from an
-   *  older store's, read as `latching`. */
-  mode?: string;
+   *  its button. */
+  mode: string;
 }
 
 export async function readTrains(railroad: string): Promise<TrainsDoc> {
