@@ -217,6 +217,7 @@ def test_the_picture_a_previous_process_left_is_adopted(
         {
             "trains": {"freight_1": "yard_w"},
             "crossing": {},
+            "occupied": {},
             "locks": {"yard_w": "freight_1"},
             "requests": [],
         },

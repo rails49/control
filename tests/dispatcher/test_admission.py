@@ -172,6 +172,7 @@ def test_a_request_for_a_train_off_the_layout_is_answered() -> None:
         "tc49/dispatch/state/allocation": {
             "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
             "crossing": {},
+            "occupied": {},
             "locks": {},
             "requests": [],
         }

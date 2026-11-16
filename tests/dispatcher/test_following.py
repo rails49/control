@@ -529,15 +529,6 @@ def test_a_restart_holds_and_publishes_what_the_picture_says_a_train_occupies() 
     assert broken(state) == []
 
 
-def test_a_restart_on_a_value_without_the_field_starts() -> None:
-    picture = {key: value for key, value in PICTURE.items() if key != "occupied"}
-
-    _, dispatcher = adopted({ALLOCATION: picture})
-
-    assert dispatcher.state.occupied["freight_1"] == ["dn_w"]
-    assert dispatcher.state.locks == {"dn_w": TRAIN, "up_e": "express_2"}
-
-
 def test_a_restart_reads_the_field_an_entry_at_a_time() -> None:
     layout, roster, _ = load("crossover-yard/meet")
     picture = {

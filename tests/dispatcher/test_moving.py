@@ -70,6 +70,7 @@ def test_a_restored_crossing_hint_with_no_request_is_moving() -> None:
             ALLOCATION: {
                 "trains": {"express_2": "up_w", "freight_1": "dn_e"},
                 "crossing": {"freight_1": "crossover.dn_straight"},
+                "occupied": {},
                 "locks": {},
                 "requests": [],
             }
