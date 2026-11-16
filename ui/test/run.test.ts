@@ -123,7 +123,7 @@ describe("joining the railroad the broker runs", () => {
   it("is fed what was on the broker before it connected", async () => {
     const shell = await mounted("run");
     const broker = Broker.last!;
-    broker.retains(RAILROAD, { name: "toy" });
+    broker.retains(RAILROAD, { name: "toy", built: true });
     broker.retains("tc49/layout/state/driving", { driving: "automatic" });
     broker.retains("tc49/dispatch/state/allocation", {
       trains: { goods: "a" },

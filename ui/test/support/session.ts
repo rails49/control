@@ -114,9 +114,9 @@ export function unbrokered(): void {
 export async function loads(shell: TcApp, railroad: string): Promise<void> {
   const broker = Broker.last!;
   if (broker.connected) {
-    broker.says(RAILROAD, { name: railroad });
+    broker.says(RAILROAD, { name: railroad, built: true });
   } else {
-    broker.retains(RAILROAD, { name: railroad });
+    broker.retains(RAILROAD, { name: railroad, built: true });
     broker.opens();
   }
   await settled(shell);

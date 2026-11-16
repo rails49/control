@@ -76,7 +76,7 @@ function answer(stood: Stood, railroad: string): void {
 /** A session joined to the toy railroad, the broker answering. */
 function joined(): Stood {
   const stood = standing();
-  stood.broker.retains(RAILROAD, { name: "toy" });
+  stood.broker.retains(RAILROAD, { name: "toy", built: true });
   stood.broker.opens();
   return stood;
 }
@@ -231,12 +231,12 @@ describe("a railroad press made while the broker has gone", () => {
 
   it("is dropped where the row names another railroad", () => {
     const stood = owing();
-    stood.broker.retains(RAILROAD, { name: "other" });
+    stood.broker.retains(RAILROAD, { name: "other", built: true });
     stood.broker.opens();
     stood.broker.says(STATE_POWER, { power: "off" });
     expect(written(stood)).toEqual([]);
 
-    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(RAILROAD, { name: "toy", built: true });
     stood.broker.says(STATE_POWER, { power: "off" });
 
     expect(written(stood)).toEqual([]);
@@ -303,7 +303,7 @@ describe("ON waiting for the build", () => {
 
   it("reads a row with no built as built", async () => {
     const stood = await saved();
-    stood.broker.says(RAILROAD, { name: "toy", at: 6 });
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
     expect(written(stood)).toEqual([ON]);
   });
 
@@ -313,7 +313,7 @@ describe("ON waiting for the build", () => {
     stood.broker.opens();
     expect(written(stood)).toEqual([]);
 
-    stood.broker.says(RAILROAD, { name: "toy", at: 6 });
+    stood.broker.says(RAILROAD, { name: "toy", at: 6, built: true });
 
     expect(written(stood)).toEqual([ON]);
   });
@@ -353,8 +353,8 @@ describe("ON waiting for the build", () => {
 
   it("sends nothing where the row names another railroad first", async () => {
     const stood = await saved();
-    stood.broker.says(RAILROAD, { name: "other", at: 6 });
-    stood.broker.says(RAILROAD, { name: "toy", at: 7 });
+    stood.broker.says(RAILROAD, { name: "other", at: 6, built: true });
+    stood.broker.says(RAILROAD, { name: "toy", at: 7, built: true });
     expect(written(stood)).toEqual([]);
   });
 
@@ -380,7 +380,7 @@ describe("power with no panel model", () => {
   it("is read off the row all the same", () => {
     const stood = standing();
     stood.answering = false;
-    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.retains(RAILROAD, { name: "toy", built: true });
     stood.broker.opens();
     stood.session.documents(stored("toy"), null, STOCK);
 
@@ -406,7 +406,7 @@ describe("a railroad named and not built", () => {
 
   it("reads a row with no built, or another built, as built", () => {
     const stood = standing();
-    stood.broker.retains(RAILROAD, { name: "toy", at: 5 });
+    stood.broker.retains(RAILROAD, { name: "toy", at: 5, built: true });
     stood.broker.opens();
     expect(stood.session.status.built).toBe(true);
 
@@ -442,7 +442,7 @@ describe("the rows that arrive before the documents", () => {
       locks: { a: "goods" },
       requests: [],
     });
-    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.retains(RAILROAD, { name: "toy", built: true });
     stood.broker.opens();
 
     expect(stood.names).toEqual(["toy"]);
@@ -463,7 +463,7 @@ describe("the rows that arrive before the documents", () => {
     for (let i = 0; i < HELD; i++)
       stood.broker.says(STATE_DRIVING, { driving: "manual" });
     stood.broker.says(STATE_DRIVING, { driving: "automatic" });
-    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(RAILROAD, { name: "toy", built: true });
 
     answer(stood, "toy");
 
@@ -562,7 +562,7 @@ describe("a sensor report", () => {
     stood.broker.opens();
     for (let i = 0; i <= HELD; i++) stood.broker.says(SENSOR, report("occupied"));
     stood.broker.says(STATE_DRIVING, { driving: "automatic" });
-    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(RAILROAD, { name: "toy", built: true });
 
     answer(stood, "toy");
 
@@ -609,7 +609,7 @@ describe("the fast clock", () => {
   it("reads the clock off state/clock, panel model or none", () => {
     const stood = standing();
     stood.answering = false;
-    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.retains(RAILROAD, { name: "toy", built: true });
     stood.broker.opens();
     expect(stood.session.clock).toBeNull();
 
@@ -636,7 +636,7 @@ describe("the fast clock", () => {
     stood.broker.says(RAILROAD, { name: "" });
     expect(stood.session.clock).toBeNull();
 
-    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(RAILROAD, { name: "toy", built: true });
     stood.broker.says(STATE_CLOCK, { at: 2, time: 61, speed_up: 1 });
     stood.broker.closes();
     expect(stood.session.clock).toBeNull();
@@ -646,7 +646,7 @@ describe("the fast clock", () => {
     const stood = joined();
     stood.broker.says(STATE_CLOCK, { at: 1, time: 60, speed_up: 1 });
 
-    stood.broker.says(RAILROAD, { name: "other" });
+    stood.broker.says(RAILROAD, { name: "other", built: true });
 
     expect(stood.session.clock).toBeNull();
   });
@@ -717,7 +717,7 @@ describe("the layout's settings", () => {
 
     stood.broker.says(RAILROAD, { name: "" });
     expect(stood.session.status.settings).toBeNull();
-    stood.broker.says(RAILROAD, { name: "toy" });
+    stood.broker.says(RAILROAD, { name: "toy", built: true });
 
     expect(stood.session.status.settings).toBeNull();
   });
@@ -726,7 +726,7 @@ describe("the layout's settings", () => {
     const stood = joined();
     stood.broker.says(STATE_SETTINGS, ROW);
 
-    stood.broker.says(RAILROAD, { name: "other" });
+    stood.broker.says(RAILROAD, { name: "other", built: true });
 
     expect(stood.session.status.settings).toBeNull();
   });
@@ -995,7 +995,7 @@ describe("the allocation since the row", () => {
   it("is kept where it landed before the row, on a fresh connection", () => {
     const stood = standing();
     stood.broker.retains(ALLOCATION, PICTURE);
-    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.retains(RAILROAD, { name: "toy", built: true });
     stood.broker.opens();
 
     expect(stood.session.status.allocated).toBe(true);
@@ -1005,7 +1005,7 @@ describe("the allocation since the row", () => {
     const stood = joined();
     stood.broker.says(ALLOCATION, PICTURE);
 
-    stood.broker.says(RAILROAD, { name: "other" });
+    stood.broker.says(RAILROAD, { name: "other", built: true });
     expect(stood.session.status.allocated).toBe(false);
 
     stood.broker.says(ALLOCATION, PICTURE);
@@ -1015,7 +1015,7 @@ describe("the allocation since the row", () => {
   it("is there while its panel model is not built", () => {
     const stood = standing();
     stood.answering = false;
-    stood.broker.retains(RAILROAD, { name: "toy" });
+    stood.broker.retains(RAILROAD, { name: "toy", built: true });
     stood.broker.opens();
 
     stood.broker.says(ALLOCATION, PICTURE);

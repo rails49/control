@@ -105,6 +105,13 @@ describe("a railroad named with built: false", () => {
     expect(current(shell)).toBe("run");
   });
 
+  it("is not read from a row naming a railroad with no built", async () => {
+    const shell = await restarted({ name: "toy", at: 5 });
+
+    expect(opened(shell)).not.toBe("toy");
+    expect(current(shell)).toBe("run");
+  });
+
   it("opens the Edit view once, not on every row saying so again", async () => {
     const shell = await restarted({ name: "toy", at: 5, built: false });
     await shows(shell, "stock");

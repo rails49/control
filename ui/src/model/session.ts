@@ -85,8 +85,8 @@ export interface RunStatus {
   driving: DrivingMode | null;
   /** Whether the apps built anything from the railroad the row names:
    *  `false` where the row says `built: false`, its drawing not being a valid
-   *  drawing, and `true` otherwise — a row with no `built`, a row naming
-   *  none, and no row yet among them (BUS.md). The railroad stays named
+   *  drawing, and `true` otherwise — a row naming none and no row yet
+   *  among them (BUS.md). The railroad stays named
    *  either way, and the app opens its drawing in the Edit view to be fixed
    *  ([ADR-0085](../../../docs/adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
    *  decision 4). */
@@ -569,8 +569,11 @@ export class Session {
     if (topic === RAILROAD) {
       const name = event["name"];
       if (typeof name !== "string") return;
+      // A row naming a railroad says whether it was built, or is malformed.
+      const stated = event["built"];
+      if (name !== "" && typeof stated !== "boolean") return;
       const at = event["at"];
-      const built = event["built"] !== false;
+      const built = stated !== false;
       this.rebuilt(name, typeof at === "number" ? at : null, built);
       const unbuilt = name !== "" && !built;
       const turned = unbuilt !== this.unbuilt;
