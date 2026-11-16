@@ -546,7 +546,7 @@ def _kept(retained: object) -> dict[str, str]:
     as a cold start does.
 
     What is left here is the vocabulary, which is the layout's question: this
-    value may have been written by an older build, so a value outside it is
+    value may have been hand-edited on the broker, so a value outside it is
     dropped and the train falls back to what its placement gives — the seed
     under it where a document places it, and no facing at all until a person
     places it where none does (#241). Guessing which way round an `A` meant is

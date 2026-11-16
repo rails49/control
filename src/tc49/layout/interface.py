@@ -1329,8 +1329,8 @@ class LayoutInterface:
     def _points(self, train: str) -> str | None:
         """The facing this app holds for the train, or None where it holds
         none it can spell: none published for that train, or a value outside
-        the `<block>.<A-to-B|B-to-A>` form, which the bare end letter this
-        topic once carried is (#241)."""
+        the `<block>.<A-to-B|B-to-A>` form, a bare end letter among them
+        (#241)."""
         facing = self._facing.get(train)
         if facing is None or end_letter(facing) not in FACINGS:
             return None

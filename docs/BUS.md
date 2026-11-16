@@ -1008,9 +1008,9 @@ payload is read defensively, and one that fails the read is dropped.
   make across its block, `<block>.A-to-B` or `<block>.B-to-A`; a train facing
   `<block>.A-to-B` would depart through that block's B end (GLOSSARY.md,
   **Facing**). A move changes it when the dispatcher records the train in
-  the block entered, not at the grant. The bare end letter this value once carried is refused rather
-  than read, a retained row written by an older build losing that train's
-  facing rather than turning it round. Kept through a rebuild under the same
+  the block entered, not at the grant. A bare end letter is refused rather
+  than read, the row losing that train's facing rather than turning it
+  round. Kept through a rebuild under the same
   railroad name and adopted as after a restart; cleared when another railroad
   is loaded ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 

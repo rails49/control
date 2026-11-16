@@ -379,10 +379,10 @@ def test_the_same_pair_in_order_is_the_power_off() -> None:
 
 
 def test_an_unstamped_value_is_taken_and_ordering_starts_again() -> None:
-    """The publisher owns the value: one carrying no stamp — an older build
-    of the binding, or a value hand-edited into a retained file — is acted
-    on, and the stamp held against the topic goes with it. Refusing it would
-    leave the dispatcher routing over track nobody had heard from.
+    """The publisher owns the value: one carrying no stamp — a value
+    hand-edited into a retained file — is acted on, and the stamp held
+    against the topic goes with it. Refusing it would leave the dispatcher
+    routing over track nobody had heard from.
     """
     bus = Unstamped(Clock())
     dispatcher = dispatcher_on(bus)
