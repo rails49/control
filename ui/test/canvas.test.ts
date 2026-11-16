@@ -1263,6 +1263,15 @@ describe("a long press", () => {
     expect(menus).toEqual([]);
   });
 
+  it("opens no menu for a pen held still while two fingers pinch", async () => {
+    await running();
+    pointer("pointerdown", 3, 0.5, "touch", 1);
+    pointer("pointerdown", 5, 0.5, "touch", 2);
+    pointer("pointerdown", 3, 0.5, "pen", 3);
+    vi.advanceTimersByTime(500);
+    expect(menus).toEqual([]);
+  });
+
   it("leaves a mouse held still to the machine", async () => {
     await running();
     pointer("pointerdown", 3, 0.5, "mouse");

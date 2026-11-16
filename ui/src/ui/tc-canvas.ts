@@ -21,7 +21,7 @@
 import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import { TOUCH_SLOP } from "../model/drag.js";
+import { strayed } from "../model/drag.js";
 import {
   emptyDrawing,
   symbolOf,
@@ -166,11 +166,12 @@ export class TcCanvas extends LitElement {
    *  runs out the press opens the menu (#1275). */
   private holding: {
     id: number;
+    point: Point;
     screen: Point;
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
   /** The pointer whose long press opened the menu, until it lifts. */
-  private held: number | null = null;
+  private menuOpenedBy: number | null = null;
 
   private watch = new ResizeObserver(() => this.square());
 
@@ -185,7 +186,7 @@ export class TcCanvas extends LitElement {
     this.timers.clear();
     this.naming = new Set();
     this.stopHolding();
-    this.held = null;
+    this.menuOpenedBy = null;
     super.disconnectedCallback();
   }
 
@@ -939,9 +940,10 @@ export class TcCanvas extends LitElement {
     );
     if (
       event.button === 0 &&
+      this.pinch === null &&
       (event.pointerType === "touch" || event.pointerType === "pen")
     ) {
-      this.hold(event);
+      this.hold(event.pointerId, point, { x: event.clientX, y: event.clientY });
     }
   }
 
@@ -950,8 +952,7 @@ export class TcCanvas extends LitElement {
     const holding = this.holding;
     if (
       holding?.id === event.pointerId &&
-      Math.hypot(event.clientX - holding.screen.x, event.clientY - holding.screen.y) >
-        TOUCH_SLOP
+      strayed({ screen: holding.screen, touch: true }, { x: event.clientX, y: event.clientY })
     ) {
       this.stopHolding();
     }
@@ -1061,22 +1062,19 @@ export class TcCanvas extends LitElement {
 
   /**
    * A finger or a pen pressed: the right-click menu opens if it rests within
-   * the slop for `HELD_FOR` (#1275). The press is abandoned first, so
-   * whatever it began — a train taken hold of, a throw, a symbol dragged — is
-   * gone, and its release means nothing.
+   * a finger's slop for `HELD_FOR` (#1275). When the timer runs out, whatever
+   * the press began — a train taken hold of, a throw, a symbol dragged — is
+   * abandoned before the menu opens, and its release means nothing.
    */
-  private hold(event: PointerEvent): void {
+  private hold(id: number, point: Point, screen: Point): void {
     this.stopHolding();
-    const id = event.pointerId;
-    const screen = { x: event.clientX, y: event.clientY };
     const timer = setTimeout(() => {
       this.holding = null;
-      this.held = id;
-      this.pointer = null;
+      this.menuOpenedBy = id;
       if (this.machine.abandon() !== "quiet") this.requestUpdate();
-      this.open(this.gridAt(screen.x, screen.y) ?? { x: 0, y: 0 }, screen);
+      this.open(point, screen);
     }, HELD_FOR);
-    this.holding = { id, screen, timer };
+    this.holding = { id, point, screen, timer };
   }
 
   /** The long press waiting on its timer, dropped. */
@@ -1089,15 +1087,15 @@ export class TcCanvas extends LitElement {
   /** A pointer lifted or left: its long press, waiting or done, is over. */
   private release(id: number): void {
     if (this.holding?.id === id) this.stopHolding();
-    if (this.held === id) this.held = null;
+    if (this.menuOpenedBy === id) this.menuOpenedBy = null;
   }
 
-  /** The right-click. Ignored after a long press has opened the menu with the
-   *  pointer still down, so a browser that raises `contextmenu` on a long
-   *  press too (Chrome on Android) opens one menu and not two. */
+  /** The right-click, ignored from a long press opening the menu until its
+   *  pointer lifts: a browser that raises `contextmenu` on a long press too
+   *  (Chrome on Android) opens one menu. */
   private menu(event: MouseEvent): void {
     event.preventDefault();
-    if (this.held !== null) return;
+    if (this.menuOpenedBy !== null) return;
     this.stopHolding();
     this.open(this.squareAt(event), { x: event.clientX, y: event.clientY });
   }
