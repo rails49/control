@@ -24,16 +24,23 @@ store ([Moving to a new box](#moving-to-a-new-box)). The routes are in
 ## Setting one up
 
 Once, in a browser, and no terminal
-([#355](https://github.com/rails49/control/issues/355)):
+([#355](https://github.com/rails49/control/issues/355)). Until then
+`Settings ▸ Backup` says "Backup has not been configured" and lists the same
+three steps, with the store's key under the heading *Deploy key*
+([#1237](https://github.com/rails49/control/issues/1237)):
 
-1. Make an **empty, private repository** on github.com — no README, no
-   licence, nothing in it.
-2. Open `Settings ▸ Backup`. The tab shows the key this store made for
-   itself. Copy it and paste it into that repository under *Settings ▸ Deploy
-   keys*, with *Allow write access* ticked. It is the public half; pasting it
-   somewhere wrong loses nothing.
-3. Enter the repository's ssh address — `git@github.com:you/my-railroad.git`
-   — and press *Back up to it*.
+1. Create an **empty, private repository** on GitHub — no README, no
+   licence.
+2. On GitHub, in that repository, go to *Settings ▸ Deploy keys ▸ Add deploy
+   key*, paste the key the tab shows, and tick *Allow write access*. It is the
+   public half; pasting it somewhere wrong loses nothing.
+3. Enter the repository's SSH address (*Code ▸ SSH*,
+   `git@github.com:you/my-railroad.git`) and press *Back up to it*.
+
+The key goes on before the press: *Back up to it* reads the repository with
+the store's key, and a private repository answers `ERROR: Repository not
+found.` until the key is on it. The tab shows git's first `ERROR:` or `fatal:`
+line, not the advice git prints after it.
 
 The store clones the repository and moves the clone's `.git` in under the
 drawings already there, which become the first backup. Then switch
@@ -69,7 +76,8 @@ and so does a file whose name, or a folder's on its path, starts with `.` —
 the `.DS_Store` Finder leaves behind is nobody's drawing
 ([#706](https://github.com/rails49/control/issues/706)).
 Until a repository is adopted the store still works: the server comes up, the
-editor saves, and backup says what is missing.
+editor saves, and a backup press is refused with "backup has not been
+configured".
 
 **The key.** It is made by the store the first time the tab asks for it,
 where `tc49 serve --keys` gave it somewhere to keep one — on the layout server
@@ -87,8 +95,7 @@ pushes with whatever ssh key that machine already has, and the tab says so.
 registered on another repository with *Key is already in use*. To move to
 another, delete it from the old repository under *Settings ▸ Deploy keys*
 before deleting that repository, because a deleted repository keeps its keys
-in use; the tab's setup text says the same
-([#692](https://github.com/rails49/control/issues/692)).
+in use ([#692](https://github.com/rails49/control/issues/692)).
 
 **New key** is for when that was not done: the old repository is gone and
 GitHub still answers *Key is already in use*, or the key has leaked. It
@@ -309,8 +316,7 @@ box had loaded.
 Drawing anything on the new box before step 3 makes its store not empty, and
 the tab then refuses, naming both the store's documents and the
 repository's backups: the two are never merged. `backup.yaml` alone is not a
-document, so turning backup on or off first changes nothing. The tab's
-setup text, on a store that is no repository yet, points here
+document, so turning backup on or off first changes nothing
 ([#694](https://github.com/rails49/control/issues/694)).
 
 ## Moving to another repository
@@ -330,7 +336,8 @@ old one deleted, or another wanted — with no terminal
 
 The store asks the address with `git ls-remote` first. Anything listed there is
 refused — "… already holds backups, and backup moves only to an empty
-repository" — and an address git cannot reach is refused in git's words. An
+repository" — and an address git cannot reach is refused with git's error
+line. An
 empty one is given the store's branch, every earlier backup with it so each
 stays restorable, and only once that push worked does `origin` name the new
 address and the branch follow it; the tab says "backing up to *address*,
