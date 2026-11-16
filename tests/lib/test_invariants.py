@@ -845,15 +845,15 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         adr_0054_traction_zeroed_at_start,
         BENCH,
         {traction("3"): {"addr": "3", "speed": 0.3}},
-        [(RAILROAD, {"name": "bench"}), wrote("3", 0.0), moved()],
-        [(RAILROAD, {"name": "bench"}), moved()],
+        [(RAILROAD, {"name": "bench", "built": True}), wrote("3", 0.0), moved()],
+        [(RAILROAD, {"name": "bench", "built": True}), moved()],
     ),
     (
         adr_0060_new_railroad_only_while_off,
         BENCH,
-        {RAILROAD: {"name": "bench"}, POWER: {"power": "on"}},
-        [(POWER, {"power": "off"}), (RAILROAD, {"name": "yard"})],
-        [(RAILROAD, {"name": "yard"})],
+        {RAILROAD: {"name": "bench", "built": True}, POWER: {"power": "on"}},
+        [(POWER, {"power": "off"}), (RAILROAD, {"name": "yard", "built": True})],
+        [(RAILROAD, {"name": "yard", "built": True})],
     ),
     (
         adr_0062_moving_to_the_tail,
@@ -881,12 +881,12 @@ HISTORY_CASES: list[tuple[Breaches, str, Rows, Messages, Messages]] = [
         BENCH,
         {},
         [
-            (RAILROAD, {"name": "bench"}),
+            (RAILROAD, {"name": "bench", "built": True}),
             (WANTED_TRACK, {"power": "off"}),
             (POWER, {"power": "off"}),
         ],
         [
-            (RAILROAD, {"name": "bench"}),
+            (RAILROAD, {"name": "bench", "built": True}),
             (WANTED_TRACK, {"power": "off"}),
             (POWER, {"power": "on"}),
         ],
@@ -1593,11 +1593,14 @@ def test_a_retained_railroad_handed_again_is_no_start() -> None:
     """A late subscriber on `#` is handed `state/railroad` and then
     `state/power` as they stand, which is not `layout` coming up."""
     rows: Rows = {
-        RAILROAD: {"name": "bench"},
+        RAILROAD: {"name": "bench", "built": True},
         POWER: {"power": "on"},
         traction("3"): {"addr": "3", "speed": 0.3},
     }
-    replayed: Messages = [(RAILROAD, {"name": "bench"}), (POWER, {"power": "on"})]
+    replayed: Messages = [
+        (RAILROAD, {"name": "bench", "built": True}),
+        (POWER, {"power": "on"}),
+    ]
     for breaches in (adr_0074_comes_up_off, adr_0054_traction_zeroed_at_start):
         assert breaches_over(breaches, BENCH, rows, [*replayed, moved()]) == []
 

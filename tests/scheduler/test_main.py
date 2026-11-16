@@ -287,7 +287,7 @@ def test_it_rebuilds_on_the_railroad_the_row_names(
     assert hand.wait_connected()
     hand.publish(FACING, {"facing": {"freight_1": "yard_w.A-to-B"}})
     assert drained(witness, lambda: rows(heard, FACING)[-1]["facing"] != {})
-    hand.publish(RAILROAD_ROW, {"name": OTHER})
+    hand.publish(RAILROAD_ROW, {"name": OTHER, "built": True})
 
     assert drained(
         witness, lambda: rows(heard, FACING)[-1]["facing"] == {}, timeout=15.0
@@ -311,7 +311,7 @@ def test_a_railroad_the_store_does_not_have_is_said_and_not_taken(
 
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
-    hand.publish(RAILROAD_ROW, {"name": "atlantis"})
+    hand.publish(RAILROAD_ROW, {"name": "atlantis", "built": True})
 
     assert until(
         lambda: any("atlantis" in line for line in app.said), 15.0

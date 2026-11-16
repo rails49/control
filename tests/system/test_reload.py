@@ -182,7 +182,7 @@ def load(bus: MqttBus, railroad: str) -> None:
     binding of the layout interface that is running is the row's writer and
     answers `railroad_wanted` instead, so it is driven by `pick` below
     (ADR-0060)."""
-    bus.publish(RAILROAD, {"name": railroad})
+    bus.publish(RAILROAD, {"name": railroad, "built": True})
 
 
 def pick(bus: MqttBus, railroad: str) -> None:

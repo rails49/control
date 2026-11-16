@@ -78,7 +78,7 @@ def test_a_follower_takes_another_name_on_the_row() -> None:
     loaded = Loaded(WAS)
     loaded.follow(bus)
 
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     bus.drain()
 
     assert (loaded.name, loaded.moved) == (NOW, True)
@@ -91,7 +91,7 @@ def test_a_follower_does_not_move_on_its_own_railroad() -> None:
     loaded = Loaded(WAS)
     loaded.follow(bus)
 
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
 
     assert loaded.moved is False
@@ -105,11 +105,11 @@ def test_a_follower_rebuilds_its_railroad_built_again() -> None:
     bus = InProcessBus(clock)
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
 
     clock.advance(1.0)
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
 
     assert (loaded.name, loaded.moved) == (WAS, True)
@@ -123,10 +123,10 @@ def test_a_follower_does_not_rebuild_on_the_build_handed_over_again() -> None:
     bus = InProcessBus(clock)
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
     clock.advance(1.0)
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
     assert loaded.moved
 
@@ -142,10 +142,11 @@ def test_a_row_on_the_same_name_with_no_stamp_is_not_a_build() -> None:
     bus = bused()
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
 
-    loaded._said(RAILROAD, {"name": WAS})  # pyright: ignore[reportPrivateUsage]
+    said = {"name": WAS, BUILT: True}
+    loaded._said(RAILROAD, said)  # pyright: ignore[reportPrivateUsage]
 
     assert loaded.moved is False
 
@@ -158,7 +159,7 @@ def test_a_follower_builds_nothing_on_a_railroad_named_and_not_built() -> None:
     bus = InProcessBus(clock)
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": WAS})
+    bus.publish(RAILROAD, {"name": WAS, BUILT: True})
     bus.drain()
 
     clock.advance(1.0)
@@ -170,6 +171,19 @@ def test_a_follower_builds_nothing_on_a_railroad_named_and_not_built() -> None:
     bus.publish(RAILROAD, {"name": NOW, BUILT: False})
     bus.drain()
     assert (loaded.name, loaded.moved) == (WAS, False), "a pick that is invalid"
+
+
+def test_a_follower_drops_a_row_that_does_not_say_whether_it_was_built() -> None:
+    """A row naming a railroad with no `built` is malformed, and dropped as a
+    row with no name is (#1263)."""
+    bus = bused()
+    loaded = Loaded(WAS)
+    loaded.follow(bus)
+
+    bus.publish(RAILROAD, {"name": NOW})
+    bus.drain()
+
+    assert (loaded.name, loaded.moved) == (WAS, False)
 
 
 def test_a_follower_takes_the_build_that_arrives_once_the_drawing_is_valid() -> None:
@@ -299,7 +313,7 @@ def test_the_answerer_ignores_the_state_row_it_writes() -> None:
     answering.follow(bus)
     dark(bus)
 
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     bus.drain()
 
     assert (answering.name, answering.moved) == (WAS, False)
@@ -374,7 +388,7 @@ def test_a_refused_row_is_not_tried_again_by_a_follower() -> None:
     bus = bused()
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     bus.drain()
     loaded.keep(WAS)
 
@@ -490,7 +504,7 @@ def moved() -> Loaded:
     bus = bused()
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     bus.drain()
     return loaded
 
@@ -548,8 +562,8 @@ def test_a_saved_drawing_that_does_not_derive_keeps_the_railroad_running() -> No
     bus = bused()
     loaded = Loaded(WAS)
     loaded.follow(bus)
-    bus.publish(RAILROAD, {"name": WAS, AT: 1.0})
-    bus.publish(RAILROAD, {"name": WAS, AT: 2.0})
+    bus.publish(RAILROAD, {"name": WAS, AT: 1.0, BUILT: True})
+    bus.publish(RAILROAD, {"name": WAS, AT: 2.0, BUILT: True})
     bus.drain()
     reading = Reading(refuses=ValueError("pin 'yard_e.B' takes one wire"), of=WAS)
     said: list[str] = []
@@ -606,7 +620,7 @@ def test_an_app_that_was_named_no_railroad_waits_for_one() -> None:
     read and nothing to fail on: the app stands, and the row naming a
     railroad is what builds it."""
     bus = bused()
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     said: list[str] = []
     reading = Reading()
     loaded = Loaded(NO_RAILROAD)
@@ -624,7 +638,7 @@ def test_a_railroad_the_store_does_not_have_leaves_the_app_standing() -> None:
     decision — is a restart loop. It says what the store said and stands
     instead, and the railroad named next is what it comes up on."""
     bus = bused()
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     refused = FileNotFoundError(f"no drawing '{WAS}'")
     reading = Reading(refuses=refused, of=WAS)
     said: list[str] = []
@@ -685,7 +699,7 @@ def test_a_follower_standing_publishes_nothing() -> None:
     """Only the binding owns the row (ADR-0035): a follower standing on it
     leaves it as the binding left it."""
     bus = bused()
-    bus.publish(RAILROAD, {"name": NOW})
+    bus.publish(RAILROAD, {"name": NOW, BUILT: True})
     bus.drain()
 
     standing_on(Loaded(NO_RAILROAD), Reading(), [], bus)
