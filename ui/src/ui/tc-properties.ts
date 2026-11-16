@@ -50,12 +50,11 @@ import {
   motorised,
   named,
   symbolTrouble,
-  type AnyKind,
   type SymbolSpec,
   type TurnoutLeg,
 } from "../model/drawing.js";
 import { lengthTrouble } from "../model/rules.js";
-import { PINS } from "../symbols.generated.js";
+import { PINS, type Kind } from "../symbols.generated.js";
 import { propertiesStyles } from "./tc-properties.styles.js";
 
 /** What the dialog hands back: a new name where it changed, the spec, and
@@ -335,7 +334,7 @@ export class TcProperties extends LitElement {
 /** Whether a kind has anything to edit: a name of its own, a portal's label,
  *  or a motor's address. A pin, a terminal and a fixed crossing have none of
  *  them, and the menu offers them no properties. */
-export function editable(kind: AnyKind): boolean {
+export function editable(kind: Kind): boolean {
   return named(kind) || kind === "portal" || motorised(kind);
 }
 

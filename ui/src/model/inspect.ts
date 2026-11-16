@@ -16,8 +16,8 @@
 import { symbolOf, wireKey, wirePins, type Wire } from "./drawing.js";
 import type { Review, Transit } from "./store.js";
 
-/** A symbol lit whole, having no leg of its own the artwork draws: a joiner,
- *  a block end, the generic connection box. */
+/** A symbol lit whole, having no leg of its own the artwork draws: a joiner
+ *  or a block end. */
 export const WHOLE = "*";
 
 /** Which transit is selected, as the connection and the name within it. */

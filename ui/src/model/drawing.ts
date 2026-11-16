@@ -33,22 +33,11 @@ export type Wire =
   | [PinRef, PinRef]
   | { pins: [PinRef, PinRef]; connection: string };
 
-/**
- * The kinds the editor draws, plus the generic connection symbol.
- *
- * That one is legacy and not on the palette: it has no fixed pin set, so there
- * is nothing to place, and its last user is `reversing-loops`'s station-C east, which is to
- * be redrawn from real symbols (#35). Until then a drawing that has one still
- * has to open, so it is drawn as a box with the pins it declares and no
- * turnout detail, which is exactly what it says about itself.
- */
-export type AnyKind = Kind | "connection";
-
 /** A turnout's two legs, which its toe reaches. */
 export type TurnoutLeg = "straight" | "diverging";
 
 export interface SymbolSpec {
-  kind: AnyKind;
+  kind: Kind;
   /** The grid cell of the symbol's top-left square. */
   at?: [number, number];
   rot?: Rotation;
@@ -82,16 +71,11 @@ export interface SymbolSpec {
   connection?: string;
   /** Transit names, keyed by the symbol leg the way through takes. */
   names?: Record<string, string>;
-  /** The generic connection symbol declares its own pins and transits. */
-  pins?: string[];
-  transits?: Record<string, [string, string]> | [string, string][];
-  concurrent?: [string, string][];
 }
 
-/** A symbol's pins: the library's, or the ones a generic connection symbol
- *  declares for itself. */
+/** A symbol's pins, which its kind fixes. */
 export function pinsOf(spec: SymbolSpec): readonly string[] {
-  return spec.kind === "connection" ? (spec.pins ?? []) : PINS[spec.kind];
+  return PINS[spec.kind];
 }
 
 /**
@@ -105,13 +89,10 @@ export function pinsOf(spec: SymbolSpec): readonly string[] {
  * a fixed crossing has nothing to command, a pin and a terminal are wiring,
  * and a portal is known by its label. The hidden ones are still in the yaml and
  * still read in the netlist pane.
- *
- * The generic connection symbol is here because its name is the only handle on
- * it, the kind being legacy and on its way out (#35).
  */
-const NAMED = new Set<AnyKind>(["block", "connection"]);
+const NAMED = new Set<Kind>(["block"]);
 
-export function named(kind: AnyKind): boolean {
+export function named(kind: Kind): boolean {
   return NAMED.has(kind);
 }
 
@@ -122,7 +103,7 @@ export function named(kind: AnyKind): boolean {
  * takes none. The library's leg-to-position table is the roll of them, so
  * there is no second list here to fall out of step with it.
  */
-export function motorised(kind: AnyKind): kind is MotorisedKind {
+export function motorised(kind: Kind): kind is MotorisedKind {
   return kind in POSITIONS;
 }
 

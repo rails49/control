@@ -17,11 +17,11 @@ import {
   pinsOf,
   symbolOf,
   wirePins,
-  type AnyKind,
   type Drawing,
   type PinRef,
 } from "./drawing.js";
 import type { Joint, Junction, Review } from "./store.js";
+import type { Kind } from "../symbols.generated.js";
 import {
   selectionKey,
   widgetCentre,
@@ -50,7 +50,7 @@ export interface Under {
   /** The symbol's kind, which is what says whether it has properties to open
    *  and whether its name is the user's. The menu asks rather than reaching
    *  into the drawing itself. */
-  kind: AnyKind | null;
+  kind: Kind | null;
   /** The widget, where the point is on one and on no pin. */
   widget: string | null;
   junction: Junction | null;

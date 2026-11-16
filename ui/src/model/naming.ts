@@ -149,8 +149,7 @@ function number(name: string): number {
  * transit, and the drawing schema gives it no `connection` to write
  * (store/DRAWING.md). Writing one refused the whole document, and since a
  * refused drawing cannot be reviewed the editor could not say which key it
- * was. Clearing the ones that cannot wear it repairs a drawing an older
- * editor wrote.
+ * was.
  */
 export function nameJunction(
   drawing: Drawing,
@@ -161,7 +160,6 @@ export function nameJunction(
     const spec: SymbolSpec | undefined = drawing.symbols[symbol];
     if (spec === undefined) continue;
     if (declares(spec)) spec.connection = name;
-    else delete spec.connection;
   }
 }
 
@@ -169,7 +167,7 @@ export function nameJunction(
  *  runs through. The same question the store asks to work out what a junction
  *  is called: only a symbol declaring a transit is part of the answer. */
 function declares(spec: SymbolSpec): boolean {
-  return spec.kind === "connection" || spec.kind in TRANSITS;
+  return spec.kind in TRANSITS;
 }
 
 /** Write a name onto a joint. The name goes on one segment of the chain and

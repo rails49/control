@@ -40,15 +40,6 @@ const sheet = css`
     stroke-linecap: round;
   }
 
-  /* The generic connection symbol shows no turnout detail, which is what it
-     says about itself. */
-  .opaque {
-    fill: color-mix(in srgb, var(--track) 12%, var(--body));
-    stroke: var(--track);
-    stroke-width: ${0.5 * W};
-    stroke-dasharray: ${2 * W} ${W};
-  }
-
   /* A lit way, leg by leg: the legs of the symbols on it. In edit mode it is
      the transit chosen in the netlist pane; in run mode it is a committed
      route — the same claim, made by the dispatcher instead of the pointer. */
@@ -80,8 +71,7 @@ const sheet = css`
 
   /* A block's body covers all but the stubs of its track, so the end of a lit
      transit would otherwise be two orange flecks. */
-  .symbol .block-body.lit,
-  .symbol .opaque.lit {
+  .symbol .block-body.lit {
     fill: var(--lit-body);
     stroke: var(--lit);
   }
@@ -164,8 +154,7 @@ const editing = css`
     stroke: var(--chosen);
   }
 
-  .symbol.selected .block-body,
-  .symbol.selected .opaque {
+  .symbol.selected .block-body {
     stroke: var(--chosen);
   }
 
@@ -188,8 +177,7 @@ const editing = css`
     fill: var(--wrong);
   }
 
-  .symbol.offending .block-body.lit,
-  .symbol.offending .opaque.lit {
+  .symbol.offending .block-body.lit {
     fill: var(--wrong-body);
     stroke: var(--wrong);
   }
