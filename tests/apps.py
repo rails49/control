@@ -152,7 +152,7 @@ class App:
         (ADR-0060)."""
         if self.answers:
             return RAILROAD_WANTED, {"railroad": railroad}
-        return RAILROAD, {"name": railroad}
+        return RAILROAD, {"name": railroad, "built": True}
 
 
 APPS = (
