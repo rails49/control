@@ -263,7 +263,9 @@ def test_the_allocation_a_dispatcher_left_is_held_before_the_build(
     it is constructed (#960), so the wait before the build has to have it."""
     left = MqttBus(port=broker.port)
     assert left.wait_connected()
-    left.publish(ALLOCATION, {"trains": {"freight_1": BLOCK}, "crossing": {}})
+    left.publish(
+        ALLOCATION, {"trains": {"freight_1": BLOCK}, "crossing": {}, "occupied": {}}
+    )
     assert until(lambda: ALLOCATION in left.last_values)
     left.close()
 

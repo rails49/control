@@ -677,10 +677,8 @@ def adr_0076_occupied_is_locked(view: View) -> list[str]:
     """Each entry on `occupied` is locked to that train, and each train's block
     in `trains` is on its list unless it is crossing
     ([ADR-0076](../../../docs/adr/0076-a-broken-lock-table-holds-the-run.md),
-    #1171). A value with no `occupied` states no list."""
+    #1171)."""
     row = view.rows.get(ALLOCATION)
-    if not isinstance(_fields(row).get("occupied"), dict):
-        return []
     kept = kept_allocation(row)
     if kept is None:
         return []

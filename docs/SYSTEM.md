@@ -804,8 +804,8 @@ from it instead. Its `trains`, `crossing` and `occupied` are adopted before the
 standing locks are published: `occupied` per train and per entry, only for a train
 that kept its restored position and only an entry this railroad has and no other
 train has taken, with the train's own block appended if absent. Each entry is locked
-and published with the standing locks, a value with no `occupied` adopts none, and
-what is on a list stays occupied until the train's next move or a placement
+and published with the standing locks, a value with no `occupied` is a cold
+start, as one with no `trains` is, and what is on a list stays occupied until the train's next move or a placement
 ([#1171](https://github.com/rails49/control/issues/1171)). Lengths still come from
 the roster, and `locks` and `requests` are not adopted at all, so what a train holds
 ahead is not rebuilt, no move is followed, and the queue comes back empty.

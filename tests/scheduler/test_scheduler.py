@@ -240,6 +240,7 @@ def recorded(
         {
             "trains": {train: block},
             "crossing": {} if crossing is None else {train: crossing},
+            "occupied": {},
             "locks": {},
             "requests": [],
         },
@@ -543,6 +544,7 @@ def test_a_restart_reads_the_kept_facing_off_a_retained_crossing() -> None:
             ALLOCATION: {
                 "trains": {"freight_1": "yard_w"},
                 "crossing": {"freight_1": "west_ladder.to_dn"},
+                "occupied": {},
                 "locks": {},
                 "requests": [],
             },

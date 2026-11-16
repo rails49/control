@@ -83,6 +83,7 @@ RESTORED: dict[str, Payload] = {
     ALLOCATION: {
         "trains": {"express_2": "up_w", "freight_1": "dn_e"},
         "crossing": {"freight_1": "crossover.dn_straight"},
+        "occupied": {},
         "locks": {},
         "requests": [],
     }

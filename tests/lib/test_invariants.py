@@ -134,6 +134,7 @@ def allocation(
     return {
         "trains": trains or {},
         "crossing": crossing or {},
+        "occupied": {},
         "locks": locks or {},
         "requests": requests or [],
     }
