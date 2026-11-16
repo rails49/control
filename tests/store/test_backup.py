@@ -1939,8 +1939,8 @@ def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(
 
 
 def test_a_refused_address_is_answered_by_gits_error_line(tmp_path: Path) -> None:
-    """git's first `ERROR:` line says what went wrong; ssh's notes before it
-    and git's advice after it are left out (#1237)."""
+    """git's first line says what went wrong; ssh's warnings before it and
+    git's advice after it are left out (#1237)."""
     run = FakeGit(toplevel="")
     run.listed = Said(
         False,
@@ -1951,6 +1951,22 @@ def test_a_refused_address_is_answered_by_gits_error_line(tmp_path: Path) -> Non
     )
     said = Backup(tmp_path, run=run).adopt("git@github.com:somebody/railroad.git")
     assert said == Said(False, "ERROR: Repository not found.")
+
+
+def test_a_key_github_does_not_know_is_answered_by_sshs_line(
+    tmp_path: Path,
+) -> None:
+    """The setup step most often missed: the key not yet on the repository,
+    which GitHub answers at login (#1237)."""
+    run = FakeGit(toplevel="")
+    run.listed = Said(
+        False,
+        "git@github.com: Permission denied (publickey).\nfatal: Could not read"
+        " from remote repository.\n\nPlease make sure you have the correct"
+        " access rights\nand the repository exists.",
+    )
+    said = Backup(tmp_path, run=run).adopt("git@github.com:somebody/railroad.git")
+    assert said == Said(False, "git@github.com: Permission denied (publickey).")
 
 
 def test_adopting_nowhere_is_refused(tmp_path: Path) -> None:

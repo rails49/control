@@ -261,7 +261,7 @@ export class TcBackup extends LitElement {
    * Always there once the store has one: a key that has to be pasted again —
    * the repository was remade, the box was — is needed exactly when the
    * store is a repository already, so it folds away rather than going.
-   * Headed "Deploy key" either way, which is what GitHub calls it (#1237).
+   * Headed "Deploy key" either way (#1237).
    * One click selects the whole key, and the line under it says so (#1236).
    */
   private key(key: string | null, repository: boolean, busy: boolean) {

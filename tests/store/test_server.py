@@ -2544,10 +2544,10 @@ def test_a_save_lands_over_a_remote_that_cannot_be_reached(
 def test_a_store_that_is_no_repository_serves_and_saves_as_it_always_did(
     store: AssetStore, tmp_path: Path
 ) -> None:
-    """The ordinary state of a fresh installation. Backup says what it needs
-    and nothing else changes — nothing here runs `git init`; the way in is a
-    repository the person made (#355)."""
-    (tmp_path / "not-a-repo").mkdir()
+    """The ordinary state of a fresh installation, its directory not made
+    yet. Backup needs nothing said, the tab drawing the steps that configure
+    it, and nothing else changes — nothing here runs `git init`; the way in is
+    a repository the person made (#355, #1237)."""
     backup = Backup(tmp_path / "not-a-repo", log=lambda _: None)
     assert handle(store, backup, "GET", "/drawings", None)[0] == 200
     assert (

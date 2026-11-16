@@ -128,7 +128,7 @@ SKIP_TEMPORARY = ":(exclude,glob)**/.*.tmp"
 not a document and is neither named as moved nor committed (#1223)."""
 
 
-UNSET = "backup has not been configured"
+NOT_CONFIGURED = "backup has not been configured"
 """What a backup press is refused with in a store that is in no repository
 and where backup needs nothing else said (#1237)."""
 
@@ -190,11 +190,12 @@ def git(root: Path, *args: str, timeout: float | None = None) -> Said:
 
 
 def error_line(words: str) -> str:
-    """git's first `ERROR:` or `fatal:` line, which says what went wrong —
-    `ERROR: Repository not found.` — without ssh's notes before it or git's
-    advice after it; all of `words` where there is no such line (#1237)."""
+    """The first line of a refusal, which says what went wrong —
+    `ERROR: Repository not found.`, `git@github.com: Permission denied
+    (publickey).` — without ssh's `Warning:` lines before it or git's advice
+    after it; all of `words` where there is no such line (#1237)."""
     for line in words.splitlines():
-        if line.startswith(("ERROR:", "fatal:")):
+        if line.strip() and not line.startswith("Warning:"):
             return line
     return words
 
@@ -428,8 +429,9 @@ class Backup:
 
     def _refusal(self) -> str:
         """Why a press is refused in a store that is no repository: the first
-        thing backup needs, or :data:`UNSET` where it needs nothing said."""
-        return (self.needs() or [UNSET])[0]
+        thing backup needs, or :data:`NOT_CONFIGURED` where it needs nothing
+        said."""
+        return (self.needs() or [NOT_CONFIGURED])[0]
 
     def needs(self) -> list[str]:
         """What backup has not got, in the words a person is offered it in.
@@ -441,7 +443,8 @@ class Backup:
         send a person to different places. A store **inside** another
         repository is not one to adopt into — it is `bench/`, and the
         repository it is in is this checkout. A store that is in none needs
-        nothing said here: the tab draws the steps that set backup up (#1237).
+        nothing said here, nor does one whose directory is not made yet: the
+        tab draws the steps that set backup up (#1237).
         Where `rev-parse` refuses in other words — git itself missing, say —
         those words are the entry, being the only way to tell.
 
@@ -459,7 +462,7 @@ class Backup:
             )
         elif top is None:
             said = self._run(self.root, "rev-parse", "--show-toplevel")
-            if "not a git repository" not in said.words:
+            if self.root.is_dir() and "not a git repository" not in said.words:
                 wrong.append(said.words)
         elif not self._run(self.root, "remote").words:
             wrong.append(
