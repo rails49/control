@@ -17,9 +17,8 @@ from typing import Any
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import OFF, ON
-from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import events, leaves, load, power, press, stock, ticks
+from tests.harness import events, leaves, load, power, press, stock, ticks, train
 
 REQUESTS = "tc49/dispatch/request_submitted"
 REORDER_WANTED = "tc49/dispatch/reorder_wanted"
@@ -79,10 +78,10 @@ def test_a_new_request_goes_in_after_every_request_of_the_same_or_higher_priorit
     roster = replace(
         roster,
         trains={
-            "low": Train(stated_length=600, priority=2),
-            "fast": Train(stated_length=600, priority=1),
-            "none": Train(stated_length=600),
-            "express": Train(stated_length=600, priority=1),
+            "low": train(600, 2),
+            "fast": train(600, 1),
+            "none": train(600),
+            "express": train(600, 1),
         },
     )
     assembly = assemble_live(

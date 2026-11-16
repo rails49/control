@@ -250,8 +250,8 @@ functions:                # function number -> what it does on this product
 - **The function number is written as a string**, because YAML integer keys
   and JSON object keys do not agree. It is refused with that message rather
   than silently coerced.
-- **An installation with no `catalogue/` knows no models**, which is a
-  railroad whose stock is still written the old way and not a fault.
+- **An installation with no `catalogue/` knows no models**, which is not a
+  fault: a railroad whose cars name no model needs none.
 
 ## Roster schema
 
@@ -344,12 +344,9 @@ trains:
   train kinds, so an engine shed takes `[light engine]` and never
   `[locomotive]`
   ([ADR-0046](../adr/0046-a-blocks-role-and-filter-are-advice-to-the-generator.md)).
-  A train that names cars and states a length as well is refused — two ways to
-  know one length is the field that rots. A train that states a length and
-  names *no* cars is the shape the committed rosters had before
-  [#223](https://github.com/rails49/control/issues/223) rewrote them, and it
-  still loads so that an older file does; nothing committed is written that
-  way, every library train being one synthetic `bench-<length>` car.
+  A train that states a length is refused — two ways to know one length is
+  the field that rots. Every library train is one synthetic `bench-<length>`
+  car.
 - **Unknown keys are ignored, not refused**, at every level of both stock
   documents. A field for the manufacturer, or the shelf a locomotive lives on,
   may be added and an older reader keeps working. This is deliberately the

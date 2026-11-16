@@ -24,9 +24,8 @@ from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.dispatcher.dispatch import ALLOCATION
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.inventory import AT, DRAINING, OFF, ON
-from tc49.lib.roster import Train
 from tc49.lib.scenario import TrainSpec
-from tests.harness import load, power, retaining, settled
+from tests.harness import load, power, retaining, settled, train
 
 DISPUTED = "tc49/dispatch/state/disputed"
 SETTLED = "tc49/layout/state/settled/sensor/dn_w.A"
@@ -61,7 +60,7 @@ def restored(
             roster,
             trains={
                 **roster.trains,
-                **{train: Train(stated_length=600) for train in added},
+                **{name: train(600) for name in added},
             },
         )
         scenario = replace(
