@@ -173,43 +173,27 @@ class Train:
     """A train the railroad has made up: an ordered list of cars, head first.
 
     Its length and its kind are **derived, never authored** — a length is one
-    fact and the roster's whole job is that it stays one. `stated_length` is
-    the one exception and it is the migration's: a roster written before
-    [#223](https://github.com/rails49/control/issues/223) states a train's
-    length and names no cars, and one still loads. No committed roster is
-    written that way any more, #223 having rewritten the five into cars; the
-    exception is what a person's own older file gets. A train may say one or
-    the other and never both.
+    fact and the roster's whole job is that it stays one.
     """
 
     cars: tuple[Coupled, ...] = ()
     priority: int | None = None
-    stated_length: int | None = None
 
     @property
     def length(self) -> int:
         """The sum of the train's cars, which is the whole of what the
         dispatcher's fit check reads a roster for."""
-        if self.cars:
-            return sum(coupled.car.length for coupled in self.cars)
-        if self.stated_length is None:
-            raise ValueError("train has neither cars nor a stated length")
-        return self.stated_length
+        return sum(coupled.car.length for coupled in self.cars)
 
     @property
-    def kind(self) -> str | None:
+    def kind(self) -> str:
         """What the train is, from **the cars it hauls, ignoring
         locomotives**: every hauled train has one, so counting them would
         make every train *mixed* and the classification would say nothing.
         Exactly one sort hauled gives that sort, more than one gives `mixed`,
         and nothing but locomotives is a `light engine` (GLOSSARY.md,
         **Kind**).
-
-        A train that names no cars has no kind to derive, which is what a
-        roster written the pre-#223 way says about every one of its trains.
         """
-        if not self.cars:
-            return None
         hauled = {
             coupled.car.kind for coupled in self.cars if coupled.car.kind != LOCOMOTIVE
         }
