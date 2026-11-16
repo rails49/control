@@ -236,9 +236,7 @@ export function trainLength(
  * nothing but locomotives is a `light engine` (GLOSSARY.md, **Kind**).
  *
  * A train that names nothing the documents have has no kind to derive, the
- * same answer as a train that names nothing at all — and as one that states
- * its length and names no cars, there being no car to read a kind off
- * (`tc49.lib.roster.Train.kind`).
+ * same answer as a train that names nothing at all.
  */
 export function trainKind(
   train: RosterTrain,
