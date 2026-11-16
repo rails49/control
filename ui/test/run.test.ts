@@ -127,6 +127,7 @@ describe("joining the railroad the broker runs", () => {
     broker.retains("tc49/layout/state/driving", { driving: "automatic" });
     broker.retains("tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -337,6 +338,7 @@ describe("the picture on the shared canvas", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -372,6 +374,7 @@ describe("the picture on the shared canvas", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -457,6 +460,7 @@ describe("the picture on the shared canvas", () => {
     await loads(shell, "yard");
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods", "c.t": "goods" },
       requests: [],
     });
@@ -704,6 +708,7 @@ describe("a block naming a train overdue", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });

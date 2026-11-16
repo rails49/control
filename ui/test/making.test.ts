@@ -1590,6 +1590,7 @@ async function placed(
   store.rosterOf = () => ({ ore: trainDoc(422) });
   await said(shell, "tc49/dispatch/state/allocation", {
     trains: { ore: "a" },
+    occupied: { ore: ["a"] },
     locks: { a: "ore" },
     requests: [],
   });

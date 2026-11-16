@@ -100,6 +100,7 @@ function placed(model: Panel): void {
     {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: { a: "t1" },
       requests: [],
     },
@@ -259,6 +260,7 @@ describe("request layers", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: { a: "t1" },
       requests: [{ id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"] }],
     });
@@ -455,6 +457,10 @@ describe("request layers", () => {
     event: "allocation",
     trains: { t1: "a", t2: "c" },
     crossing: transits,
+    occupied: {
+      t1: transits["t1"] === undefined ? ["a"] : ["a", transits["t1"]],
+      t2: transits["t2"] === undefined ? ["c"] : ["c", transits["t2"]],
+    },
     locks,
     requests: [],
   });
@@ -730,6 +736,7 @@ describe("the run's picture", () => {
   const PICTURE = {
     event: "allocation",
     trains: { t1: "b" },
+    occupied: { t1: ["b"] },
     locks: { b: "t1", "jt.back": "t1", c: "t1" },
     requests: [
       {
@@ -793,6 +800,7 @@ describe("the run's picture", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: { a: "t1" },
       requests: [
         { id: "t1-7", train: "t1", depart: "a.B", dest: ["b.A", "c.A"] },
@@ -911,6 +919,7 @@ describe("facing", () => {
       {
         event: "allocation",
         trains: { t1: "a", t2: "c" },
+        occupied: { t1: ["a"], t2: ["c"] },
         locks: {},
         requests: [],
       },
@@ -1104,6 +1113,7 @@ describe("a request in flight", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: {},
       requests: [{ id: "t1-9", train: "t1", depart: "a.B", dest: ["b.A"] }],
     });
@@ -1322,6 +1332,7 @@ describe("what state/allocation says a train occupies", () => {
   const picture = (fields: Record<string, unknown>): Partial<TraceEvent> => ({
     event: "allocation",
     trains: { t: "b" },
+    occupied: { t: ["b"] },
     locks: {},
     requests: [],
     ...fields,
@@ -1499,32 +1510,6 @@ describe("what state/allocation says a train occupies", () => {
     expect(model.lit().state.get("sw1")).toBe("locked");
   });
 
-  it("draws a value with no occupied from trains and crossing", () => {
-    const model = panel();
-    feed(model, {
-      event: "allocation",
-      trains: { t: "a", u: "c" },
-      crossing: { t: "sw.main" },
-      locks: { a: "t", "sw.main": "t", b: "t", c: "u" },
-      requests: [],
-    });
-    expect(model.blocks().get("a")).toMatchObject({
-      state: "occupied",
-      train: "t",
-      named: "t",
-    });
-    expect(model.blocks().get("b")).toMatchObject({
-      state: "locked",
-      train: "t",
-    });
-    expect(model.blocks().get("c")).toMatchObject({
-      state: "occupied",
-      train: "u",
-      named: "u",
-    });
-    expect(model.lit().state.get("sw1")).toBe("occupied");
-  });
-
   it("draws a removed train's residue locked with no name", () => {
     const model = panel();
     feed(model, {
@@ -1643,6 +1628,7 @@ describe("where a train is named", () => {
     feed(model, {
       event: "allocation",
       trains: {},
+      occupied: {},
       locks: { a: "t1" },
       requests: [],
     });
@@ -1666,17 +1652,6 @@ describe("where a train is named", () => {
     });
     expect(model.blocks().get("b")?.crossing).toBeUndefined();
     expect(model.placed()).toEqual([{ train: "t1", block: "b" }]);
-  });
-
-  it("leaves a picture without one standing every train it names", () => {
-    const model = panel();
-    const { occupied: _, ...older } = CROSSING;
-    feed(model, CROSSING, { ...older, crossing: {} });
-    expect(model.blocks().get("a")).toMatchObject({
-      state: "occupied",
-      train: "t1",
-      named: "t1",
-    });
   });
 
   it("is forgotten when a replay starts over", () => {
@@ -1805,6 +1780,7 @@ describe("the sensors not reporting", () => {
         event: "allocation",
         trains: { t1: "a" },
         crossing: {},
+        occupied: { t1: ["a"] },
         locks: { a: "t1" },
         requests: [],
       },
@@ -2016,6 +1992,7 @@ describe("the trains the run has placed", () => {
     feed(model, {
       event: "allocation",
       trains: { t2: "b", t1: "a" },
+      occupied: { t2: ["b"], t1: ["a"] },
       locks: { a: "t1", b: "t2" },
       requests: [],
     });
@@ -2034,6 +2011,7 @@ describe("the trains the run has placed", () => {
       event: "allocation",
       trains: { t1: "a" },
       crossing: { t1: "sw.main" },
+      occupied: { t1: ["a", "sw.main"] },
       locks: { a: "t1", "sw.main": "t1", b: "t1" },
       requests: [],
     });
@@ -2051,6 +2029,7 @@ describe("the trains the run has placed", () => {
       {
         event: "allocation",
         trains: { t1: "a" },
+        occupied: { t1: ["a"] },
         locks: { a: "t1" },
         requests: [],
       },
@@ -2069,7 +2048,7 @@ describe("the trains the run has placed", () => {
   it("has nothing to say about an empty layout", () => {
     const model = panel();
     expect(model.placed()).toEqual([]);
-    feed(model, { event: "allocation", trains: {}, locks: {}, requests: [] });
+    feed(model, { event: "allocation", trains: {}, occupied: {}, locks: {}, requests: [] });
     expect(model.placed()).toEqual([]);
   });
 });
@@ -2100,6 +2079,7 @@ describe("which blocks are free to place in", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: { a: "t1", b: "t1" },
       requests: [],
     });
@@ -2113,6 +2093,7 @@ describe("which blocks are free to place in", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: { a: "t1" },
       requests: [
         {
@@ -2135,6 +2116,7 @@ describe("which blocks are free to place in", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "a" },
+      occupied: { t1: ["a"] },
       locks: { a: "t1", "sw.side": "t1", c: "t1" },
       requests: [
         {
@@ -2156,6 +2138,7 @@ describe("which blocks are free to place in", () => {
     feed(model, {
       event: "allocation",
       trains: { t1: "c" },
+      occupied: { t1: ["c"] },
       locks: { c: "t1" },
       requests: [
         {
@@ -2323,6 +2306,7 @@ describe("the detectors' dispute", () => {
     event: "allocation",
     trains: { t1: "a" },
     crossing: {},
+    occupied: { t1: ["a"] },
     locks: { a: "t1" },
     requests: [],
   };
@@ -2335,17 +2319,6 @@ describe("the detectors' dispute", () => {
       train: "t1",
       dispute: "occupied",
     });
-  });
-
-  it("reads a row with a trains key without it", () => {
-    // A row left by a dispatcher from before #1164: `trains` says nothing here.
-    const model = panel();
-    feed(model, STANDING, { event: "disputed", trains: ["t1"], blocks: ["b"] });
-    expect(model.disputes()).toEqual({ blocks: ["b"] });
-    expect(model.disputeFaults()).toEqual([
-      "b: a sensor reads occupied and no train is there",
-    ]);
-    expect(model.blocks().get("a")?.dispute).toBeUndefined();
   });
 
   it("says a disputed block reads occupied, with nothing in it", () => {

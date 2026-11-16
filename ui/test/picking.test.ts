@@ -68,7 +68,7 @@ const POWER_WANTED = "tc49/layout/power_wanted";
 const ALLOCATION = "tc49/dispatch/state/allocation";
 
 /** The dispatcher's picture of a railroad it has just built: nothing on it. */
-const EMPTY = { trains: {}, locks: {}, requests: [] };
+const EMPTY = { trains: {}, occupied: {}, locks: {}, requests: [] };
 
 /** The railroads this store has, the toy one among them: a list with one
  *  entry could not tell a choice from a tick. */

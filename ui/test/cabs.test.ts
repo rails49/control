@@ -50,7 +50,13 @@ function standing(model: Panel): void {
   feed(
     model,
     { event: "lock_granted", train: "t1", resources: ["a"] },
-    { event: "allocation", trains: { t1: "a" }, locks: { a: "t1" }, requests: [] },
+    {
+      event: "allocation",
+      trains: { t1: "a" },
+      occupied: { t1: ["a"] },
+      locks: { a: "t1" },
+      requests: [],
+    },
     { event: "facing", facing: { t1: "a.A-to-B" } },
   );
 }
@@ -128,6 +134,7 @@ describe("a move outstanding", () => {
     event: "allocation",
     trains: { t1: "a" },
     crossing: { t1: "j.over" },
+    occupied: { t1: ["a", "j.over"] },
     locks: { a: "t1", "j.over": "t1", b: "t1" },
     requests: [{ id: "t1-1", train: "t1", depart: "a.B", dest: ["b.A"], route: ["a", "j.over", "b"] }],
   };
@@ -169,7 +176,7 @@ describe("a move outstanding", () => {
     const model = panel();
     feed(model, GRANTED);
     expect(model.granted().has("t1")).toBe(true);
-    feed(model, { event: "allocation", trains: {}, locks: {}, requests: [] });
+    feed(model, { event: "allocation", trains: {}, occupied: {}, locks: {}, requests: [] });
     expect(model.granted().size).toBe(0);
   });
 });
@@ -212,7 +219,13 @@ describe("what the train faces", () => {
     feed(
       model,
       { event: "lock_granted", train: "t1", resources: ["a"] },
-      { event: "allocation", trains: { t1: "a" }, locks: { a: "t1" }, requests: [] },
+      {
+        event: "allocation",
+        trains: { t1: "a" },
+        occupied: { t1: ["a"] },
+        locks: { a: "t1" },
+        requests: [],
+      },
     );
     expect(drive(model)[0]).toMatchObject({ nose: null, aspect: null, tailAspect: null });
   });
@@ -288,6 +301,7 @@ describe("the trains there are to drive", () => {
       event: "allocation",
       trains: { t1: "a" },
       crossing: { t1: "j.over" },
+      occupied: { t1: ["a", "j.over"] },
       locks: { a: "t1" },
       requests: [],
     });
@@ -299,6 +313,7 @@ describe("the trains there are to drive", () => {
     feed(model, {
       event: "allocation",
       trains: { zulu: "a", alpha: "b" },
+      occupied: { zulu: ["a"], alpha: ["b"] },
       locks: {},
       requests: [],
     });

@@ -48,7 +48,7 @@ const ALLOCATION = "tc49/dispatch/state/allocation";
 /** The dispatcher's picture with `goods` standing in `a`, and whatever
  *  requests it has for the train. */
 function picture(requests: unknown[] = []): Record<string, unknown> {
-  return { trains: { goods: "a" }, locks: { a: "goods" }, requests };
+  return { trains: { goods: "a" }, occupied: { goods: ["a"] }, locks: { a: "goods" }, requests };
 }
 
 /** A right-click on the drawing surface, and whether the browser was left to
@@ -181,6 +181,7 @@ describe("a menu the run has outlived", () => {
 
     await said(shell, ALLOCATION, {
       trains: { goods: "b" },
+      occupied: { goods: ["b"] },
       locks: { b: "goods" },
       requests: [],
     });

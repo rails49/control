@@ -212,6 +212,7 @@ describe("a run on a railroad not built", () => {
     await shows(shell, "run");
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
