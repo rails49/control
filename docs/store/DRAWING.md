@@ -86,7 +86,6 @@ transits.
 | 90° crossing | `crossing_90` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | drawn upright |
 | 90° crossing, diagonal | `crossing_90d` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | drawn at 45 degrees |
 | Portal | `portal` | 1 (`P`) | none | n/a | paired by label; the pair is a wire |
-| Connection (generic) | `connection` | N | declared | declared | format only, not in the editor palette |
 
 A crossing and the slips share four pins, two per route, named for the route
 and the side: `a1` and `b1` on one side, `a2` and `b2` on the other. The two

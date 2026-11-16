@@ -59,7 +59,7 @@ export type Reading = "occupied" | "clear" | "unknown";
  * stroke knows which legs run over it: a crossing's route is two half-strokes
  * meeting at the frog, and a slip lights its entry half, its tick and its exit
  * half. `WHOLE` lights every stroke, which is what a symbol with no legs the
- * artwork draws — a joiner, a block end, the generic box — is lit by.
+ * artwork draws — a joiner or a block end — is lit by.
  *
  * `dark` names the block ends that carry no signal, which `dark` in
  * inspect.ts works out. It defaults to none, so a palette tile and a drag
