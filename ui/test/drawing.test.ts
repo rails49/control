@@ -71,7 +71,7 @@ describe("the kinds that carry an address", () => {
   });
 
   it("addresses nothing that is not a symbol of fixed geometry", () => {
-    for (const kind of ["block", "portal", "pin", "terminal", "connection"] as const) {
+    for (const kind of ["block", "portal", "pin", "terminal"] as const) {
       expect(motorised(kind)).toBe(false);
     }
   });

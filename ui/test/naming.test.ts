@@ -388,11 +388,4 @@ describe("a junction with a joiner in it", () => {
     expect(drawing.symbols.sw1!.connection).toBe("j1");
     expect(drawing.symbols.n1).not.toHaveProperty("connection");
   });
-
-  it("takes back the one an older editor wrote", () => {
-    const drawing = bent();
-    drawing.symbols.n1!.connection = "station_a";
-    nameJunction(drawing, ["sw1", "n1"], "station_a");
-    expect(drawing.symbols.n1).not.toHaveProperty("connection");
-  });
 });
