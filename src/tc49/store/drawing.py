@@ -185,7 +185,7 @@ class Widget:
 
     name: str
     kind: str
-    at: tuple[int, int]
+    at: tuple[float, float]  # whole or half squares, unlike a symbol's
     text: str = "normal"
     align: str = "center"
     # A text widget's text, or a toggle's position, `on` or `off`: what it
@@ -1076,7 +1076,7 @@ def _widget(where: str, name: Any, spec: Any) -> Widget:
         )
     required, optional = WIDGET_KINDS[kind]
     check_keys(spec, where, {"kind", "at"} | required, set(optional))
-    _check_geometry({"at": spec["at"]}, where)
+    at = _widget_at(spec["at"], where)
     text = spec.get("text", "normal")
     if text not in WIDGET_TEXT:
         raise ValueError(f"{where}: text must be one of {list(WIDGET_TEXT)}")
@@ -1096,15 +1096,26 @@ def _widget(where: str, name: Any, spec: Any) -> Widget:
         )
     if kind == "toggle" and strings.get("default", "on") not in ("on", "off"):
         raise ValueError(f"{where}: default must be 'on' or 'off'")
-    at = cast(list[int], spec["at"])
     return Widget(
         name,
         kind,
-        (at[0], at[1]),
+        at,
         text=text,
         align=align,
         **strings,
     )
+
+
+def _widget_at(at: Any, where: str) -> tuple[float, float]:
+    """A widget's square, which may be a half one so that it sits between two
+    rows of track. A bool is a YAML `true`, not a number."""
+    numbers = cast(list[Any], at) if isinstance(at, list) else []
+    if len(numbers) != 2 or not all(
+        isinstance(n, int | float) and not isinstance(n, bool) and (2 * n) % 1 == 0
+        for n in numbers
+    ):
+        raise ValueError(f"{where}: at must be two whole or half numbers, got {at!r}")
+    return (numbers[0], numbers[1])
 
 
 def _check_geometry(spec: Any, where: str) -> None:

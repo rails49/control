@@ -249,15 +249,18 @@ and the layout is the same with or without one.
 widgets:
   current: { kind: text, at: [2, 1], text: normal, align: center, default: '—' }
   lights:  { kind: toggle, at: [2, 3], on: '{"lights": true}', off: '{"lights": false}', default: off }
-  horn:    { kind: button, at: [6, 3], payload: horn }
+  horn:    { kind: button, at: [6.5, 3], payload: horn }
 ```
 
 - **The key is the widget's name.** It ends the widget's topic, so it is one
   topic level: letters, digits, `_` and `-`. It is unique among widgets.
 - **`kind` is `text`, `button` or `toggle`.**
-- **`at` is the one grid cell a widget is drawn from**, and a widget takes no
-  size ([#938](https://github.com/rails49/control/issues/938)). A button
-  covers that cell, a toggle that cell and the next to its right, and a text
+- **`at` is the square a widget is drawn from**, at a whole or a half square
+  ([#1277](https://github.com/rails49/control/issues/1277)), so `[2.5, 1]`
+  puts it half a square right of `[2, 1]` and it can sit between two rows of
+  track. A symbol's `at` stays two integers. A widget takes no size
+  ([#938](https://github.com/rails49/control/issues/938)). A button covers
+  that square, a toggle that square and the next to its right, and a text
   widget's words run from it as `align` says. A widget does not turn, so it
   takes neither `rot` nor `flip`.
 - **A text widget's `text` sets the size of its words**, `small`, `normal` or
