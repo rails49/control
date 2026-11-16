@@ -350,6 +350,22 @@ describe("the Backup tab", () => {
     expect(surface.renderRoot.querySelector("details.move sl-input")).not.toBeNull();
   });
 
+  /** The clipboard API is there only over HTTPS or on localhost, and most
+   *  boxes serve the UI over plain HTTP, so there is no copy press: one
+   *  click selects the key, and a line under it says so (#1236). */
+  it.each([
+    ["no repository", UNBACKED],
+    ["a repository", KEPT],
+  ])("says how to copy the key, with no copy press, as %s", async (_, stands) => {
+    const { dialog: surface } = await dialog(stands);
+    const buttons = [...surface.renderRoot.querySelectorAll("sl-button")];
+    expect(buttons.some((button) => (button.textContent ?? "").includes("Copy the key"))).toBe(
+      false,
+    );
+    const hint = surface.renderRoot.querySelector("pre.key + p.hint");
+    expect(hint?.textContent).toBe("click the key to select it, then copy it");
+  });
+
   /** A store already backed up, whose repository went or which wants
    *  another: the address field and the press are there under a label that
    *  says it moves, and the press hands the store the new address, which
