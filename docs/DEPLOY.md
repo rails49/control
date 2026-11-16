@@ -64,15 +64,6 @@ than two, so the box has one place its settings sit. Which device the command
 station is on is the mirror's, `DCCEX_STATION_DEVICE` in
 [`rails49/dccex`](https://github.com/rails49/dccex)'s `compose.box.yaml`.
 
-The file was `deploy.env` until
-[#1218](https://github.com/rails49/control/issues/1218). On a box that has
-only the old name, `scripts/deploy.sh` stops before it pulls and says to
-rename it:
-
-```
-sudo mv /etc/rails49/deploy.env /etc/rails49/control.env
-```
-
 ## Working on the app
 
 `scripts/dev.sh` needs none of this. It starts vite on `localhost:5173`, the
@@ -140,19 +131,7 @@ secret on its disk beyond the door's `acme.env`. `scripts/deploy.sh` exports
 `GIT_TERMINAL_PROMPT=0`, so a request for a username fails loudly rather than
 reading the rest of the deploy as the answer.
 
-Clone with that URL, and a box that was cloned with another one still deploys:
-`scripts/deploy.sh` sets the remote before every pull, and prints the URL it
-replaced when it replaced one. Which remote a box pulls from is state outside
-the checkout — a line in `.git/config` on that one machine — and it took the
-deploy down on 2026-09-20, when the box's ssh remote met a key GitHub no longer
-accepted ([#541](https://github.com/rails49/control/issues/541)). The deploy
-depends on no remote set on the box.
-
-The deploy carries that line itself rather than calling a script under
-`scripts/`, the way it calls `store-root.sh` below. It runs before the pull,
-and what is under `scripts/` on the box is whatever the box last pulled —
-which on a box that cannot pull is nothing
-([#543](https://github.com/rails49/control/issues/543)).
+Clone with that URL. The box pulls from the `origin` its clone has.
 
 **The shared network is the installation's**, made under a fixed name every
 stack on the box joins — see
@@ -164,7 +143,6 @@ that has not installed the installation is told so before anything comes up.
 ssh rails49
 cd ~/control
 git status --porcelain    # must print nothing
-git remote set-url origin https://github.com/rails49/control.git
 git pull
 mkdir -p "$(scripts/store-root.sh /etc/rails49/control.env)"
 export CONTROL_COMMIT=$(git rev-parse HEAD)
@@ -630,10 +608,6 @@ Over plain HTTP a page is not a secure context, and two things stop working:
 **`network rails49 declared as external, but could not be found`** — the
 installation is not up on this box. It creates that network, and every stack
 that serves a UI joins it.
-
-**`scripts/deploy.sh` stops and says to rename `deploy.env`** — the box was
-set up before [#1218](https://github.com/rails49/control/issues/1218).
-Rename the file as [above](#what-the-box-declares) and deploy again.
 
 **Compose stops on an unset `BOX_DOMAIN`** — it was run without
 `--env-file /etc/rails49/box.env`. The message names the variable it wanted.
