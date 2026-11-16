@@ -505,13 +505,19 @@ export function widgetFace(
 }
 
 /** A widget of a kind as its palette tile and the ghost on its way from the
- *  palette show it: a new one's face, a text widget's words the word `text`. */
+ *  palette show it: a new one's face, a text widget's words the word `text`,
+ *  drawn at `size` — `normal`, what a new one starts at, unless the caller
+ *  asks for another (the palette's tile asks for `large`, #1279). */
 export function widgetSample(
   kind: WidgetKind,
   at: [number, number],
+  size: NonNullable<WidgetSpec["text"]> = "normal",
 ): SVGTemplateResult {
   const spec = newWidget(kind, kind, at);
-  if (kind === "text") spec.default = "text";
+  if (kind === "text") {
+    spec.default = "text";
+    spec.text = size;
+  }
   return widgetFace(kind, spec, false);
 }
 
