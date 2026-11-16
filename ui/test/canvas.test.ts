@@ -1474,3 +1474,86 @@ describe("a widget in the editor", () => {
     expect(track("lit")).toContain("on");
   });
 });
+
+/** A widget's `at` may be a half square (#1278), and the canvas draws and
+ *  hit-tests it where it says, in the editor and on a run. */
+describe("a widget on a half square", () => {
+  const HALVES: Drawing = {
+    drawing: "halves",
+    symbols: {},
+    wires: [],
+    widgets: {
+      whole: { kind: "button", at: [2, 1], payload: "whole" },
+      half: { kind: "button", at: [2.5, 1], payload: "half" },
+    },
+  };
+
+  const QUIET: Overlay = {
+    blocks: new Map(),
+    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    aspects: new Map(),
+    detected: new Map(),
+    positions: new Map(),
+    stuck: new Map(),
+    offered: new Map(),
+    markers: [],
+    widgets: new Map(),
+    locomotives: new Map(),
+  };
+
+  function ringX(canvas: TcCanvas, name: string): number {
+    return Number(
+      canvas.renderRoot
+        .querySelector(`[data-widget="${name}"] .widget-ring`)!
+        .getAttribute("cx"),
+    );
+  }
+
+  /** happy-dom's `getScreenCTM` is the identity, so a client pixel is a
+   *  square. */
+  function click(canvas: TcCanvas, x: number, y: number): void {
+    const svg = canvas.renderRoot.querySelector("svg")!;
+    for (const name of ["pointerdown", "pointerup"]) {
+      svg.dispatchEvent(
+        new PointerEvent(name, { bubbles: true, clientX: x, clientY: y }),
+      );
+    }
+  }
+
+  it("is drawn half a square right of a whole one, and a press takes it, in the editor", async () => {
+    const canvas = await canvasOn(HALVES, UNREVIEWED);
+    expect(ringX(canvas, "half") - ringX(canvas, "whole")).toBe(0.5);
+    click(canvas, 3.2, 1.5);
+    expect([...canvas.editor!.selection]).toEqual(["widget/half"]);
+    canvas.remove();
+  });
+
+  it("is drawn half a square right of a whole one, and a press takes it, on a run", async () => {
+    const pressed: string[] = [];
+    const canvas = document.createElement("tc-canvas");
+    canvas.mode = "run";
+    canvas.drawing = structuredClone(HALVES);
+    canvas.review = reviewed([]);
+    canvas.live = QUIET;
+    canvas.machine = schedulingMachine(new Drag(), {
+      painted: () => ({
+        drawing: canvas.drawing,
+        review: canvas.review!,
+        blocks: QUIET.blocks,
+        offered: new Map(),
+      }),
+      submit: () => undefined,
+      remove: () => undefined,
+      throwPoint: () => undefined,
+      pressWidget: (name) => pressed.push(name),
+      onRoster: () => false,
+      showName: () => undefined,
+    });
+    document.body.append(canvas);
+    await canvas.updateComplete;
+    expect(ringX(canvas, "half") - ringX(canvas, "whole")).toBe(0.5);
+    click(canvas, 3.2, 1.5);
+    expect(pressed).toEqual(["half"]);
+    canvas.remove();
+  });
+});

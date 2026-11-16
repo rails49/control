@@ -229,8 +229,11 @@ export class Editor {
    *
    * The footprint centres on the pointer, against the orientation it is being
    * dragged in rather than the kind's own, so a turn that transposes 6×1 into
-   * 1×6 re-centres with it. `at` is a whole cell, so an even-width footprint
-   * lands half a square off; that is as close as the grid allows.
+   * 1×6 re-centres with it. A symbol's `at` is a whole cell, so an
+   * even-width footprint lands half a square off; that is as close as the
+   * grid allows. A widget's `at` is the nearest half square, so it can sit
+   * between two rows of track and a toggle's two squares centre on the
+   * pointer to the nearest half.
    */
   placementAt(x: number, y: number): Landing | null {
     const placing = this.placing;
@@ -240,10 +243,11 @@ export class Editor {
       symbol === null
         ? widgetFootprint(placing.kind as WidgetKind)
         : [placed(symbol).footprint.w, placed(symbol).footprint.h];
-    const at: [number, number] = [
-      Math.round(x - w / 2),
-      Math.round(y - h / 2),
-    ];
+    const snap =
+      symbol === null
+        ? (v: number) => Math.round(2 * v) / 2
+        : (v: number) => Math.round(v);
+    const at: [number, number] = [snap(x - w / 2), snap(y - h / 2)];
     // Nothing checks whether a widget overlaps anything (store/DRAWING.md), so
     // a widget is never in the way and never has anything in its way.
     const blocked =
@@ -413,6 +417,13 @@ export class Editor {
     return this.chosenSymbols.every((name) =>
       clear(movedBy(this.at(name), dx, dy), this.current.symbols, this.chosen),
     );
+  }
+
+  /** Whether the selection holds a symbol, rather than widgets alone: a drag
+   *  of one moves by whole squares, so the widgets in it keep their offset
+   *  from the symbols, and a drag of widgets alone by half squares. */
+  get holdsSymbol(): boolean {
+    return this.chosenSymbols.length > 0;
   }
 
   /** The squares more than one symbol covers. Rotate and flip may make one,

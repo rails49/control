@@ -253,6 +253,7 @@ describe("saving", () => {
     editor.placeWidget("text", [0, 4]);
     editor.placeWidget("button", [4, 4]);
     editor.placeWidget("toggle", [8, 4]);
+    editor.placeWidget("button", [4.5, 6]);
     editor.editWidget("text1", "current", {
       ...editor.widgets.text1!,
       align: "left",
@@ -269,6 +270,7 @@ describe("saving", () => {
       current: { kind: "text", at: [0, 4], align: "left", default: "—" },
       button1: { kind: "button", at: [4, 4], payload: "button1" },
       toggle1: { kind: "toggle", at: [8, 4], on: "on", off: "off" },
+      button2: { kind: "button", at: [4.5, 6], payload: "button2" },
     });
   });
 
