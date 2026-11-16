@@ -1931,7 +1931,8 @@ def test_an_address_that_cannot_be_reached_is_refused_in_gits_words(
     said = backup.adopt(str(tmp_path / "nowhere.git"))
 
     assert said == Said(
-        False, f"fatal: '{tmp_path / 'nowhere.git'}' does not appear to be a git repository"
+        False,
+        f"fatal: '{tmp_path / 'nowhere.git'}' does not appear to be a git repository",
     )
     assert not (root / ".git").exists()
     assert list(root.iterdir()) == []
