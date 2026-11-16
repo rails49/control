@@ -613,7 +613,8 @@ The fifth group is the widgets: a button, a toggle and a text
 A widget is not a symbol. It sits in the drawing's own `widgets` mapping
 ([DRAWING.md](../store/DRAWING.md#widgets)), has no pins, and nothing derives
 from it. Each tile shows the face a new one has: a button, a toggle and the
-word `text`.
+word `text`. The word is drawn at the `large` size so it reads at the tile's
+size, while a new text widget starts at `normal`.
 
 A widget is dragged out, selected, moved, rubber-banded, deleted and undone
 the way a symbol is. It does not turn: `r` and `f` leave one in flight as it
