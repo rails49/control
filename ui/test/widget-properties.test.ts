@@ -174,6 +174,79 @@ describe("what the store would refuse", () => {
   });
 });
 
+/** ESC is written `\\e` in a text widget's Default, with a preview and four
+ *  buttons putting the codes in (#1280). */
+describe("a text widget's codes", () => {
+  /** Press one of the dialog's buttons by its word. */
+  async function pressed(dialog: TcWidgetProperties, word: string): Promise<void> {
+    const buttons = [...dialog.renderRoot.querySelectorAll("sl-button")];
+    (buttons.find((one) => one.textContent!.trim() === word) as HTMLElement).click();
+    await dialog.updateComplete;
+  }
+
+  /** The preview's runs, each its text and its classes. */
+  function preview(dialog: TcWidgetProperties): [string, string][] {
+    return [...dialog.renderRoot.querySelectorAll(".preview span")].map((one) => [
+      one.textContent!,
+      one.getAttribute("class") ?? "",
+    ]);
+  }
+
+  it("hands back ESC for each \\e typed", async () => {
+    const dialog = await opened("text1", TEXT);
+    await typed(dialog, "Default", "\\e[1mStop\\e[0m");
+    expect(applying(dialog)).toEqual([
+      { was: "text1", name: "text1", spec: { ...TEXT, default: "\x1b[1mStop\x1b[0m" } },
+    ]);
+  });
+
+  it("shows a stored ESC as \\e", async () => {
+    const dialog = await opened("text1", { ...TEXT, default: "\x1b[31mhot\x1b[39m" });
+    expect(field(dialog, "Default").value).toBe("\\e[31mhot\\e[39m");
+  });
+
+  it("keeps a button's payload as typed", async () => {
+    const dialog = await opened("button1", BUTTON);
+    await typed(dialog, "Payload", "\\e[1m");
+    expect(applying(dialog)[0]!.spec.payload).toBe("\\e[1m");
+  });
+
+  it("previews the default as a run draws it", async () => {
+    const dialog = await opened("text1", TEXT);
+    expect(dialog.renderRoot.querySelector(".preview")).toBeNull();
+    await typed(
+      dialog,
+      "Default",
+      "Track \\e[1mfour\\e[31m blocked\\e[22;32m clear\\e[0m now",
+    );
+    expect(preview(dialog)).toEqual([
+      ["Track ", ""],
+      ["four", "bold"],
+      [" blocked", "bold red"],
+      [" clear", "green"],
+      [" now", ""],
+    ]);
+  });
+
+  it("wraps the selected text in a colour's codes", async () => {
+    const dialog = await opened("text1", TEXT);
+    await typed(dialog, "Default", "a blocked b");
+    field(dialog, "Default").setSelectionRange(2, 9);
+    await pressed(dialog, "Red");
+    expect(field(dialog, "Default").value).toBe("a \\e[31mblocked\\e[39m b");
+  });
+
+  it("puts both codes at the cursor, and the cursor between them", async () => {
+    const dialog = await opened("text1", TEXT);
+    await typed(dialog, "Default", "a ");
+    field(dialog, "Default").setSelectionRange(2, 2);
+    await pressed(dialog, "Bold");
+    const input = field(dialog, "Default");
+    expect(input.value).toBe("a \\e[1m\\e[22m");
+    expect([input.input.selectionStart, input.input.selectionEnd]).toEqual([7, 7]);
+  });
+});
+
 describe("closing", () => {
   // happy-dom has no Web Animations, which a select's dropdown and the
   // dialog run on hiding: each finishes at once.
