@@ -44,6 +44,7 @@ import {
   unbrokered,
   written as published,
 } from "./support/session.js";
+import { trainDoc } from "./support/trains.js";
 
 let store: Answers;
 
@@ -1586,7 +1587,7 @@ async function placed(
 ): Promise<void> {
   await ore(shell);
   await saved(shell);
-  store.rosterOf = () => ({ ore: { length: 422 } });
+  store.rosterOf = () => ({ ore: trainDoc(422) });
   await said(shell, "tc49/dispatch/state/allocation", {
     trains: { ore: "a" },
     locks: { a: "ore" },
@@ -2147,7 +2148,7 @@ describe("the run view and the screen beside it", () => {
     const shell = await opened();
     await ore(shell);
     await saved(shell);
-    store.rosterOf = () => ({ ore: { length: 422 } });
+    store.rosterOf = () => ({ ore: trainDoc(422) });
 
     await shows(shell, "run");
 
@@ -2164,7 +2165,7 @@ describe("the run view and the screen beside it", () => {
 
   it("keeps the roster it joined with until the view becomes current", async () => {
     const shell = await opened();
-    store.rosterOf = () => ({ ore: { length: 422 } });
+    store.rosterOf = () => ({ ore: trainDoc(422) });
     const rows = () =>
       running(shell)
         .renderRoot.querySelector("tc-roster")!

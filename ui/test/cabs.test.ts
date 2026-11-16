@@ -12,9 +12,10 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { Panel } from "../src/model/panel.js";
-import type { Explained, Layout } from "../src/model/store.js";
+import type { Explained, Layout, TrainDoc } from "../src/model/store.js";
 import { cabs, driveRefusal } from "../src/model/throttle.js";
 import type { TraceEvent } from "../src/model/trace.js";
+import { trainDoc } from "./support/trains.js";
 
 /** Two blocks joined by one transit: enough for a train to stand, face an
  *  end, be granted a route and have a block ahead of it. */
@@ -60,7 +61,7 @@ const HERE = "th-here";
 const ELSEWHERE = "th-elsewhere";
 
 /** What the model answers, put together the way the session does. */
-function drive(model: Panel, stock = {}) {
+function drive(model: Panel, stock: Record<string, TrainDoc> = {}) {
   const placed = model.placed();
   return cabs({
     placed,
@@ -275,7 +276,7 @@ describe("the trains there are to drive", () => {
   it("offers the trains the railroad has placed and no others", () => {
     const model = panel();
     standing(model);
-    expect(drive(model, { t1: { length: 400 }, spare: { length: 200 } }).map((cab) => cab.train)).toEqual([
+    expect(drive(model, { t1: trainDoc(400), spare: trainDoc(200) }).map((cab) => cab.train)).toEqual([
       "t1",
     ]);
   });
@@ -310,10 +311,12 @@ describe("what a person can switch", () => {
     const model = panel();
     standing(model);
     const stock = {
-      t1: {
-        length: 400,
-        functions: [{ name: "headlights" }, { name: "vacuum" }],
-      },
+      t1: trainDoc(400, {
+        functions: [
+          { name: "headlights", mode: "latching" },
+          { name: "vacuum", mode: "latching" },
+        ],
+      }),
     };
     expect(drive(model, stock)[0]!.functions).toEqual([
       { name: "headlights", mode: "latching", on: false },
@@ -321,25 +324,20 @@ describe("what a person can switch", () => {
     ]);
   });
 
-  /** The trains route gives every function its mode since #977; an older
-   *  store's leaves it out, and that latches. */
-  it("carries each function's mode, latching where the route says none", () => {
+  it("carries each function's mode", () => {
     const model = panel();
     standing(model);
     const stock = {
-      t1: {
-        length: 400,
+      t1: trainDoc(400, {
         functions: [
           { name: "horn", mode: "momentary" },
           { name: "headlights", mode: "latching" },
-          { name: "vacuum" },
         ],
-      },
+      }),
     };
     expect(drive(model, stock)[0]!.functions.map(({ name, mode }) => [name, mode])).toEqual([
       ["horn", "momentary"],
       ["headlights", "latching"],
-      ["vacuum", "latching"],
     ]);
   });
 
@@ -348,14 +346,19 @@ describe("what a person can switch", () => {
   it("has none where the cars declare none, and none for a train off the roster", () => {
     const model = panel();
     standing(model);
-    expect(drive(model, { t1: { length: 400 } })[0]!.functions).toEqual([]);
+    expect(drive(model, { t1: trainDoc(400) })[0]!.functions).toEqual([]);
     expect(drive(model)[0]!.functions).toEqual([]);
   });
 });
 
 describe("which functions are on", () => {
   const STOCK = {
-    t1: { length: 400, functions: [{ name: "headlights" }, { name: "vacuum" }] },
+    t1: trainDoc(400, {
+      functions: [
+        { name: "headlights", mode: "latching" },
+        { name: "vacuum", mode: "latching" },
+      ],
+    }),
   };
 
   function on(model: Panel): Record<string, boolean> {
@@ -417,17 +420,16 @@ describe("the train's picture", () => {
   it("is the trains route's locomotive", () => {
     const model = panel();
     standing(model);
-    const stock = { t1: { length: 400, locomotive: "BR 218" } };
+    const stock = { t1: trainDoc(400, { locomotive: "BR 218" }) };
     expect(drive(model, stock)[0]!.locomotive).toBe("BR 218");
   });
 
-  /** An older store leaves the field out, and a train the picture has and
-   *  the roster does not has no roster entry at all. */
-  it("is null where the field is absent or null, or the roster lacks the train", () => {
+  /** A train the picture has and the roster does not has no roster entry at
+   *  all. */
+  it("is null where the route says null, or the roster lacks the train", () => {
     const model = panel();
     standing(model);
-    expect(drive(model, { t1: { length: 400 } })[0]!.locomotive).toBeNull();
-    expect(drive(model, { t1: { length: 400, locomotive: null } })[0]!.locomotive).toBeNull();
+    expect(drive(model, { t1: trainDoc(400, { locomotive: null }) })[0]!.locomotive).toBeNull();
     expect(drive(model)[0]!.locomotive).toBeNull();
   });
 });
@@ -437,14 +439,14 @@ describe("the train's addresses", () => {
   it("are the trains route's, head first", () => {
     const model = panel();
     standing(model);
-    const stock = { t1: { length: 400, addresses: ["12", "47"] } };
+    const stock = { t1: trainDoc(400, { addresses: ["12", "47"] }) };
     expect(drive(model, stock)[0]!.addresses).toEqual(["12", "47"]);
   });
 
-  it("are none where the field is absent or the roster lacks the train", () => {
+  it("are none where the route names none or the roster lacks the train", () => {
     const model = panel();
     standing(model);
-    expect(drive(model, { t1: { length: 400 } })[0]!.addresses).toEqual([]);
+    expect(drive(model, { t1: trainDoc(400) })[0]!.addresses).toEqual([]);
     expect(drive(model)[0]!.addresses).toEqual([]);
   });
 });
@@ -455,15 +457,13 @@ describe("the camera a train carries", () => {
   it("is there exactly where the trains route says camera: true", () => {
     const model = panel();
     standing(model);
-    expect(drive(model, { t1: { length: 400, camera: true } })[0]!.camera).toBe(true);
+    expect(drive(model, { t1: trainDoc(400, { camera: true }) })[0]!.camera).toBe(true);
   });
 
-  /** An older store leaves the field out: a train with no camera. */
-  it("is not there where the route says false, leaves the field out, or lacks the train", () => {
+  it("is not there where the route says false, or lacks the train", () => {
     const model = panel();
     standing(model);
-    expect(drive(model, { t1: { length: 400, camera: false } })[0]!.camera).toBe(false);
-    expect(drive(model, { t1: { length: 400 } })[0]!.camera).toBe(false);
+    expect(drive(model, { t1: trainDoc(400) })[0]!.camera).toBe(false);
     expect(drive(model)[0]!.camera).toBe(false);
   });
 });

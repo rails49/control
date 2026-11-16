@@ -2180,7 +2180,7 @@ describe("which blocks are free to place in", () => {
 describe("the roster's rows", () => {
   const STOCK = {
     goods: { length: 400, locomotive: "BR 218" },
-    shunter: { length: 200 },
+    shunter: { length: 200, locomotive: null },
   };
 
   it("marks the placed trains and leaves the rest off the layout", () => {
@@ -2301,7 +2301,7 @@ describe("a refused placement", () => {
   it("puts it on the train's roster row", () => {
     expect(
       roster(
-        { goods: { length: 400 } },
+        { goods: { length: 400, locomotive: null } },
         [],
         new Map([["goods", "b is not free"]]),
       ),

@@ -41,6 +41,7 @@ import {
   type Answers,
 } from "./support/shell.js";
 import { DERIVES, loads, stored as derived, unbrokered } from "./support/session.js";
+import { trainDoc } from "./support/trains.js";
 
 /** A drawing a red pin short of nothing, one per name the store has. */
 function stored(name: string): Drawing {
@@ -254,7 +255,7 @@ describe("the store not answering for the railroad the row names", () => {
       drawings: ["toy", "otira"],
       read: derived,
       review: () => Promise.resolve(DERIVES),
-      rosterOf: (railroad) => ({ [`${railroad}-goods`]: { length: 400 } }),
+      rosterOf: (railroad) => ({ [`${railroad}-goods`]: trainDoc(400) }),
       documentOf: (railroad) => ({
         roster: railroad,
         trains: { [`${railroad}-ore`]: { cars: [{ model: "hopper" }] } },
