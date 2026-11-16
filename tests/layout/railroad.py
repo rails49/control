@@ -244,7 +244,7 @@ def wired(
     clock = Clock()
     bus = InProcessBus(clock)
     if allocated is not None:
-        bus.publish(ALLOCATION, {"trains": allocated, "crossing": {}})
+        bus.publish(ALLOCATION, {"trains": allocated, "crossing": {}, "occupied": {}})
     app = LayoutInterface(
         bus,
         railroad(),

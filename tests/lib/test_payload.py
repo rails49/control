@@ -1215,6 +1215,7 @@ def test_a_retained_allocation_reads_as_the_two_maps_a_restart_takes() -> None:
         {
             "trains": {"express_2": "up_w", "freight_1": "dn_e"},
             "crossing": {"freight_1": "crossover.dn_straight"},
+            "occupied": {},
             "locks": {"up_w": "express_2"},
             "requests": [{"id": "freight_1-1"}],
         }
@@ -1224,14 +1225,14 @@ def test_a_retained_allocation_reads_as_the_two_maps_a_restart_takes() -> None:
     )
 
 
-def test_an_allocation_that_states_two_empty_maps_is_still_an_allocation() -> None:
+def test_an_allocation_that_states_three_empty_maps_is_still_an_allocation() -> None:
     """An idle railroad nothing has placed a train on: the allocation states
-    two maps and both are empty, which is an allocation and not the absence of
+    three maps and all are empty, which is an allocation and not the absence of
     one. The dispatcher does the same with it either way, and the reader still
     has to tell them apart — a value that says nothing about where the trains
     are is not the same claim as one that says nowhere."""
     assert kept_allocation(
-        {"trains": {}, "crossing": {}, "locks": {}, "requests": []}
+        {"trains": {}, "crossing": {}, "occupied": {}, "locks": {}, "requests": []}
     ) == KeptAllocation({}, {})
 
 
@@ -1242,8 +1243,8 @@ def test_a_value_stating_no_allocation_reads_as_none() -> None:
     while it subscripted rather than read (#278) — an app that does not start
     at all, which is worse than a dropped frame.
 
-    Both maps have to be a map: the two are one statement about where the
-    railroad stood, and a value carrying half of it was written by something
+    The three maps have to be maps: they are one statement about where the
+    railroad stood, and a value carrying part of it was written by something
     other than the contract."""
     refused: list[object] = [
         None,  # nothing retained under the topic
@@ -1256,6 +1257,8 @@ def test_a_value_stating_no_allocation_reads_as_none() -> None:
         {"trains": "up_w", "crossing": {}},  # a value where a map belongs
         {"trains": ["express_2"], "crossing": {}},  # trains without blocks
         {"trains": {}, "crossing": ["freight_1"]},  # trains without transits
+        {"trains": {}, "crossing": {}},  # no occupied
+        {"trains": {}, "crossing": {}, "occupied": ["freight_1"]},
     ]
     for payload in refused:
         assert kept_allocation(payload) is None, payload
@@ -1272,6 +1275,7 @@ def test_a_train_an_allocation_names_unreadably_loses_itself_and_no_other() -> N
         {
             "trains": {"express_2": "up_w", "freight_1": 7, "local_3": "station_c_2"},
             "crossing": {"express_2": None, "local_3": "crossover.up_straight"},
+            "occupied": {},
         }
     ) == KeptAllocation(
         {"express_2": "up_w", "local_3": "station_c_2"},
@@ -1441,8 +1445,6 @@ def test_an_allocation_reads_what_each_train_occupies_an_entry_at_a_time() -> No
     assert kept.occupied == {"a": ("x", "y")}
 
 
-def test_an_allocation_with_no_occupied_map_states_no_lists() -> None:
+def test_an_allocation_with_no_occupied_map_states_no_allocation() -> None:
     for stated in ({}, {"occupied": "x"}):
-        kept = kept_allocation({"trains": {}, "crossing": {}, **stated})
-        assert kept is not None
-        assert kept.occupied == {}
+        assert kept_allocation({"trains": {}, "crossing": {}, **stated}) is None

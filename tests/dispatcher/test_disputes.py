@@ -34,6 +34,7 @@ PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 MOVED: dict[str, Any] = {
     "trains": {"express_2": "up_w", "freight_1": "dn_e"},
     "crossing": {},
+    "occupied": {},
     "locks": {},
     "requests": [],
 }

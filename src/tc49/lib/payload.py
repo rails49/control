@@ -1350,10 +1350,10 @@ def kept_allocation(payload: object) -> KeptAllocation | None:
     recovery after a restart or a power cut — exactly when it is most likely
     to be damaged.
 
-    Both maps have to be maps, and a value stating either otherwise states no
-    allocation: the two are one statement about where the railroad stood,
-    and a value carrying half of it was written by something other than the
-    contract. Within each, entries are read one train at a time as
+    The three maps have to be maps, and a value stating any of them otherwise
+    states no allocation: they are one statement about where the railroad
+    stood, and a value carrying part of it was written by something other
+    than the contract. Within each, entries are read one train at a time as
     `kept_facing` reads them, so a value naming one train badly loses that
     train and keeps the rest. Whether a block or a transit named here is on
     this railroad is the layout's question and the dispatcher's, as it is for
@@ -1363,25 +1363,24 @@ def kept_allocation(payload: object) -> KeptAllocation | None:
         return None
     fields = cast(dict[str, object], payload)
     trains, crossing = fields.get("trains"), fields.get("crossing")
-    if not isinstance(trains, dict) or not isinstance(crossing, dict):
+    occupied = fields.get("occupied")
+    if not all(isinstance(each, dict) for each in (trains, crossing, occupied)):
         return None
     return KeptAllocation(
         _named(cast(dict[object, object], trains)),
         _named(cast(dict[object, object], crossing)),
-        _occupying(fields.get("occupied")),
+        _occupying(cast(dict[object, object], occupied)),
     )
 
 
-def _occupying(stated: object) -> dict[str, tuple[str, ...]]:
+def _occupying(stated: dict[object, object]) -> dict[str, tuple[str, ...]]:
     """What each train occupies, per train and per entry: an entry that is no
     string costs itself, and a train whose value is no list costs that train."""
-    if not isinstance(stated, dict):
-        return {}
     return {
         train: tuple(
             entry for entry in cast(list[object], listed) if isinstance(entry, str)
         )
-        for train, listed in cast(dict[object, object], stated).items()
+        for train, listed in stated.items()
         if isinstance(train, str) and isinstance(listed, list)
     }
 

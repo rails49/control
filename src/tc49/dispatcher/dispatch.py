@@ -714,7 +714,7 @@ def restored(
     train occupies, one block per train where the picture says no more, the
     queue comes back empty, and no request id resumes (ADR-0033). So what a
     train occupies stays locked with no move behind it, until its next move or a
-    placement (#1171), and a value from before `occupied` still starts. Stock
+    placement (#1171). Stock
     stays the **roster**'s, so the picture's word
     for a train it does not carry is dropped, and a train the picture does not
     name falls back to its cold placement.

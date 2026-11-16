@@ -403,6 +403,7 @@ def test_the_dispatcher_clears_the_picture_it_held_and_rebuilds(
             {
                 "trains": {WAS_TRAIN: "yard_w"},
                 "crossing": {},
+                "occupied": {},
                 "locks": {"yard_w": WAS_TRAIN},
                 "requests": [],
             },

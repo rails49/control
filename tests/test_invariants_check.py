@@ -38,7 +38,12 @@ def bus(
 
 
 def placed(holder: str) -> Payload:
-    return {"trains": {"t1": "w_main"}, "crossing": {}, "locks": {"w_main": holder}}
+    return {
+        "trains": {"t1": "w_main"},
+        "crossing": {},
+        "occupied": {"t1": ["w_main"]},
+        "locks": {"w_main": holder},
+    }
 
 
 def test_one_apps_invariant_fails_at_the_message_that_breaks_it() -> None:
@@ -66,6 +71,7 @@ def test_two_blocks_ahead_is_not_asked_of_full_route() -> None:
     picture: Payload = {
         "trains": {"t1": "west_1"},
         "crossing": {},
+        "occupied": {"t1": ["west_1"]},
         "locks": {resource: "t1" for resource in route},
         "requests": [{"id": "r1", "train": "t1", "dest": ["e_main.A"], "route": route}],
     }

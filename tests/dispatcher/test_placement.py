@@ -492,6 +492,7 @@ def test_a_placement_clears_whatever_the_train_was_crossing(tmp_path: Path) -> N
                 "freight_1": "west_ladder.to_dn",
                 "leviathan": "east_ladder.from_dn",
             },
+            "occupied": {},
             "locks": {},
             "requests": [],
         }
@@ -532,6 +533,7 @@ def test_a_train_adoption_placed_nowhere_can_be_put_on_the_layout(
         "tc49/dispatch/state/allocation": {
             "trains": {"freight_1": "dn_e", "railcar_3": "yard_w"},
             "crossing": {},
+            "occupied": {},
             "locks": {},
             "requests": [],
         }
@@ -668,6 +670,7 @@ def test_a_removal_releases_everything_the_train_held(tmp_path: Path) -> None:
         "tc49/dispatch/state/allocation": {
             "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
             "crossing": {"freight_1": "west_ladder.to_dn"},
+            "occupied": {},
             "locks": {},
             "requests": [],
         }
@@ -816,6 +819,7 @@ def test_a_hand_placed_train_no_document_placed_survives_a_restart(
         "tc49/dispatch/state/allocation": {
             "trains": {"shunter": "up_w"},
             "crossing": {},
+            "occupied": {},
             "locks": {},
             "requests": [],
         }
@@ -838,6 +842,7 @@ def test_a_picture_naming_stock_the_railroad_lacks_is_not_adopted(
         "tc49/dispatch/state/allocation": {
             "trains": {"ghost": "up_w"},
             "crossing": {},
+            "occupied": {},
             "locks": {},
             "requests": [],
         }
