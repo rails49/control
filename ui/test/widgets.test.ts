@@ -385,6 +385,16 @@ describe("where a widget is (#939)", () => {
     const large = widgetBounds("t", { kind: "text", at: [0, 0], default: "A", text: "large" });
     expect(large.w).toBeGreaterThan(short.w);
   });
+
+  it("counts only the characters a text widget's codes leave (#1280)", () => {
+    const plain = widgetBounds("t", { kind: "text", at: [0, 0], default: "Stop" });
+    const coded = widgetBounds("t", {
+      kind: "text",
+      at: [0, 0],
+      default: "\x1b[1mStop\x1b[0m",
+    });
+    expect(coded).toEqual(plain);
+  });
 });
 
 describe("what the editor shows of a text widget", () => {

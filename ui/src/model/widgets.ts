@@ -119,10 +119,19 @@ export function toggleTrouble(spec: WidgetSpec): string | null {
     : null;
 }
 
-/** What the editor shows of a text widget: its default, or its name and a
- *  question mark where it has none, so that it can be seen and taken. */
+/** What the editor shows of a text widget: its default with its codes read,
+ *  as a run draws it (#1280), or its name and a question mark where that
+ *  leaves no words, so that it can be seen and taken. */
+export function editorRuns(name: string, spec: WidgetSpec): Run[] {
+  const runs = ansi(spec.default ?? "");
+  return runs.length > 0 ? runs : [{ text: `${name}?`, bold: false, colour: null }];
+}
+
+/** The words of `editorRuns`, the characters `ansi()` keeps. */
 export function editorText(name: string, spec: WidgetSpec): string {
-  return spec.default || `${name}?`;
+  return editorRuns(name, spec)
+    .map((run) => run.text)
+    .join("");
 }
 
 /**

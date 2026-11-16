@@ -35,7 +35,7 @@ import {
 import { WHOLE } from "../model/inspect.js";
 import {
   ansi,
-  editorText,
+  editorRuns,
   newWidget,
   togglePosition,
   type Run,
@@ -453,8 +453,9 @@ function n(value: number): number {
  * - A text widget is its words alone, run from its cell the way `align` says.
  *   On a run they are the row, else the default, else nothing, the row's ANSI
  *   bold and colours as runs of their own (`ansi`). In the editor they are
- *   the default, or the name and a question mark in the hint's colour where
- *   there is none (`editorText`). Nothing cuts them but the canvas's edge.
+ *   the default, its codes read as on a run, or the name and a question mark
+ *   in the hint's colour where there is none (`editorRuns`). Nothing cuts
+ *   them but the canvas's edge.
  * - A button is a ring round a disc.
  * - A toggle is a rounded track with a knob: at the right on a green track
  *   for `on`, at the left for `off`, and in the middle where the position is
@@ -488,14 +489,12 @@ export function widgetFace(
       <circle class="widget-knob" cx=${c + knob} cy=${r + 0.5} r=${WIDGET.knob} />
     `;
   }
-  const runs: Run[] = running
-    ? ansi(row ?? spec.default ?? "")
-    : [{ text: editorText(name, spec), bold: false, colour: null }];
+  const runs: Run[] = running ? ansi(row ?? spec.default ?? "") : editorRuns(name, spec);
   const align = spec.align ?? "center";
   const x = align === "left" ? c : align === "right" ? c + 1 : c + 0.5;
   const anchor = align === "left" ? "start" : align === "right" ? "end" : "middle";
   return svg`
-    <text class=${!running && !spec.default ? "widget-text placeholder" : "widget-text"}
+    <text class=${!running && ansi(spec.default ?? "").length === 0 ? "widget-text placeholder" : "widget-text"}
           x=${x} y=${r + 0.5} text-anchor=${anchor} dominant-baseline="central"
           font-size=${WIDGET.text[spec.text ?? "normal"]}>${runs.map(
             ({ text, bold, colour }) =>
