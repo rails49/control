@@ -215,6 +215,7 @@ describe("why a placement was refused", () => {
     await said(shell, "tc49/dispatch/train_placed", { train: "shunter", block: "a" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { shunter: "a" },
+      occupied: { shunter: ["a"] },
       locks: { a: "shunter" },
       requests: [],
     });
@@ -271,6 +272,7 @@ describe("what fills it in a live session", () => {
 
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -289,6 +291,7 @@ describe("what fills it in a live session", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -325,6 +328,7 @@ describe("its drags", () => {
     const shell = await joined();
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -473,6 +477,7 @@ describe("its drags", () => {
     await said(shell, "tc49/layout/state/power", { power: "on" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -493,6 +498,7 @@ describe("its drags", () => {
     await said(shell, "tc49/layout/state/power", { power: "on" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods", b: "goods" },
       requests: [],
     });
@@ -508,6 +514,7 @@ describe("its drags", () => {
     await said(shell, "tc49/layout/state/power", { power: "on" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [
         { id: "r1", train: "goods", depart: "a.B", dest: ["b.A"], route: ["a", "b"] },
@@ -536,6 +543,7 @@ describe("its drags", () => {
     await said(shell, "tc49/layout/state/power", { power: "on" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });

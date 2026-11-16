@@ -439,6 +439,7 @@ describe("the rows that arrive before the documents", () => {
     stood.broker.retains(STATE_DRIVING, { driving: "automatic" });
     stood.broker.retains(ALLOCATION, {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -739,6 +740,7 @@ describe("what it answers", () => {
     const stood = joined();
     stood.broker.says(ALLOCATION, {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });
@@ -774,6 +776,7 @@ describe("the throttle", () => {
   const TAKEN = "tc49/layout/state/taken";
   const PICTURE = {
     trains: { goods: "a" },
+    occupied: { goods: ["a"] },
     locks: { a: "goods" },
     requests: [],
   };
@@ -794,6 +797,7 @@ describe("the throttle", () => {
     const stood = powered();
     stood.broker.says(ALLOCATION, {
       trains: { goods: "a", shunter: "b" },
+      occupied: { goods: ["a"], shunter: ["b"] },
       locks: { a: "goods", b: "shunter" },
       requests: [],
     });
@@ -981,7 +985,7 @@ describe("the throttle", () => {
  *  railroad: what the settings dialog waits on before it closes on a pick
  *  (#902). */
 describe("the allocation since the row", () => {
-  const PICTURE = { trains: {}, locks: {}, requests: [] };
+  const PICTURE = { trains: {}, occupied: {}, locks: {}, requests: [] };
 
   it("is not there until the dispatcher says it", () => {
     const stood = joined();

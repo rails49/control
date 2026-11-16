@@ -935,6 +935,7 @@ describe("what follows a restore", () => {
     await said(shell, "tc49/layout/state/power", { power: "off" });
     await said(shell, "tc49/dispatch/state/allocation", {
       trains: { goods: "a" },
+      occupied: { goods: ["a"] },
       locks: { a: "goods" },
       requests: [],
     });

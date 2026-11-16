@@ -67,6 +67,7 @@ const POWER_WANTED = "tc49/layout/power_wanted";
 /** The run's picture with one train standing in block `a`. */
 const STANDING = {
   trains: { goods: "a" },
+  occupied: { goods: ["a"] },
   locks: { a: "goods" },
   requests: [],
 };
