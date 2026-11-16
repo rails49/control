@@ -1505,6 +1505,8 @@ _SCHEMA_ERRORS: list[tuple[Mutate, str]] = [
     (lambda d: d["symbols"].update(here={"kind": "portal"}), "missing key"),
     (lambda d: d["symbols"]["west"].update(at=[1, 2, 3]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(at=["a", "b"]), "at must be two integers"),
+    # Only a widget takes half squares (#1277).
+    (lambda d: d["symbols"]["west"].update(at=[0.5, 0]), "at must be two integers"),
     (lambda d: d["symbols"]["west"].update(rot=45), "rot must be one of"),
     (lambda d: d["symbols"]["west"].update(flip="yes"), "flip must be true or false"),
     # A fixed crossing has no motor, so there is nothing for an address to
@@ -1846,6 +1848,13 @@ def test_a_drawing_without_widgets_has_none() -> None:
     assert Drawing.from_document(spanned()).widgets == {}
 
 
+def test_a_widget_sits_on_a_half_square() -> None:
+    """Beside the track, between two rows of it (#1277)."""
+    widget = {"kind": "button", "at": [2.5, -0.5], "payload": "horn"}
+    doc = {**spanned(), "widgets": {"horn": widget}}
+    assert Drawing.from_document(doc).widgets["horn"].at == (2.5, -0.5)
+
+
 def test_the_widgets_the_editor_writes_load() -> None:
     """What the editor places (#928, #939): the schema's defaults left
     unwritten, a button's payload its own name and a toggle's on and off
@@ -1856,6 +1865,7 @@ def test_the_widgets_the_editor_writes_load() -> None:
         "button1": {"kind": "button", "at": [4, 4], "payload": "button1"},
         "toggle1": {"kind": "toggle", "at": [8, 4], "on": "on", "off": "off"},
         "text1": {"kind": "text", "at": [0, 6]},
+        "button2": {"kind": "button", "at": [4.5, 6], "payload": "button2"},
     }
     drawing = Drawing.from_document({**spanned(), "widgets": written})
     assert set(drawing.widgets) == set(written)
@@ -1886,6 +1896,8 @@ def _renamed(to: Any) -> Mutate:
     return mutate
 
 
+_WIDGET_AT = "widget 'horn': at must be two whole or half numbers"
+
 _WIDGET_ERRORS: list[tuple[Mutate, str]] = [
     (_renamed("a.b"), r"widget name 'a\.b'"),
     (_renamed("a/b"), "widget name 'a/b'"),
@@ -1897,8 +1909,11 @@ _WIDGET_ERRORS: list[tuple[Mutate, str]] = [
     (lambda d: d.update(widgets={"w": "text"}), "widget 'w' must be a mapping"),
     (_widget_error("horn", kind="slider"), "widget 'horn': unknown kind 'slider'"),
     (_widget_error("horn", kind=None), "widget 'horn': unknown kind None"),
-    (_widget_error("horn", at=[1]), "widget 'horn': at must be two integers"),
-    (_widget_error("horn", at=[1, "2"]), "widget 'horn': at must be two integers"),
+    (_widget_error("horn", at=[1]), _WIDGET_AT),
+    (_widget_error("horn", at=[1, "2"]), _WIDGET_AT),
+    (_widget_error("horn", at=[1.25, 0]), _WIDGET_AT),
+    (_widget_error("horn", at=[True, 0]), _WIDGET_AT),
+    (_widget_error("horn", at=[1, 2, 3]), _WIDGET_AT),
     (_widget_error("horn", at=None), r"widget 'horn': missing key\(s\) \['at'\]"),
     (
         _widget_error("horn", size=[3, 1]),
