@@ -21,6 +21,7 @@
 import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import { TOUCH_SLOP } from "../model/drag.js";
 import {
   emptyDrawing,
   symbolOf,
@@ -76,6 +77,10 @@ export type Mode = "edit" | "run";
 /** How long a tap on a block shows its train's name in place of the photo,
  *  in milliseconds (#1018). */
 const NAMED_FOR = 3000;
+
+/** How long a finger or a pen rests before the press opens the right-click
+ *  menu, in milliseconds (#1275). */
+const HELD_FOR = 500;
 
 /**
  * What the canvas lights, worked out once a render: the legs of the symbols on
@@ -157,6 +162,15 @@ export class TcCanvas extends LitElement {
     screen: DOMMatrix;
     from: Pair;
   } | null = null;
+  /** A finger or a pen pressed and not yet moved past the slop: when the timer
+   *  runs out the press opens the menu (#1275). */
+  private holding: {
+    id: number;
+    screen: Point;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+  /** The pointer whose long press opened the menu, until it lifts. */
+  private held: number | null = null;
 
   private watch = new ResizeObserver(() => this.square());
 
@@ -170,6 +184,8 @@ export class TcCanvas extends LitElement {
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
     this.naming = new Set();
+    this.stopHolding();
+    this.held = null;
     super.disconnectedCallback();
   }
 
@@ -921,10 +937,24 @@ export class TcCanvas extends LitElement {
       }),
       point,
     );
+    if (
+      event.button === 0 &&
+      (event.pointerType === "touch" || event.pointerType === "pen")
+    ) {
+      this.hold(event);
+    }
   }
 
   private moved(event: PointerEvent): void {
     if (this.fingered(event)) return;
+    const holding = this.holding;
+    if (
+      holding?.id === event.pointerId &&
+      Math.hypot(event.clientX - holding.screen.x, event.clientY - holding.screen.y) >
+        TOUCH_SLOP
+    ) {
+      this.stopHolding();
+    }
     const point = this.squareAt(event);
     if (this.panning !== null) {
       this.view = {
@@ -948,6 +978,7 @@ export class TcCanvas extends LitElement {
   }
 
   private up(event: PointerEvent): void {
+    this.release(event.pointerId);
     if (this.lifted(event)) return;
     const point = this.squareAt(event);
     this.panning = null;
@@ -959,6 +990,7 @@ export class TcCanvas extends LitElement {
 
   /** The pointer left the sheet, or the gesture under it was cancelled. */
   private left(event: PointerEvent): void {
+    this.release(event.pointerId);
     if (this.lifted(event)) return;
     this.pointer = null;
     this.panning = null;
@@ -985,6 +1017,7 @@ export class TcCanvas extends LitElement {
       const [a, b] = [...this.fingers.keys()] as [number, number];
       this.pointer = null;
       this.panning = null;
+      this.stopHolding();
       const outcome = this.machine.abandon();
       if (outcome !== "quiet") this.requestUpdate();
       if (screen === null) return true;
@@ -1027,20 +1060,61 @@ export class TcCanvas extends LitElement {
   }
 
   /**
-   * The right-click, told what was clicked: the machine's ruling, passed on to
-   * the view with where the pointer was. What is in it is the machine's — the
-   * symbol and the joint in the editor, the train standing there on a run —
-   * and a null `found` opens no menu.
+   * A finger or a pen pressed: the right-click menu opens if it rests within
+   * the slop for `HELD_FOR` (#1275). The press is abandoned first, so
+   * whatever it began — a train taken hold of, a throw, a symbol dragged — is
+   * gone, and its release means nothing.
    */
+  private hold(event: PointerEvent): void {
+    this.stopHolding();
+    const id = event.pointerId;
+    const screen = { x: event.clientX, y: event.clientY };
+    const timer = setTimeout(() => {
+      this.holding = null;
+      this.held = id;
+      this.pointer = null;
+      if (this.machine.abandon() !== "quiet") this.requestUpdate();
+      this.open(this.gridAt(screen.x, screen.y) ?? { x: 0, y: 0 }, screen);
+    }, HELD_FOR);
+    this.holding = { id, screen, timer };
+  }
+
+  /** The long press waiting on its timer, dropped. */
+  private stopHolding(): void {
+    if (this.holding === null) return;
+    clearTimeout(this.holding.timer);
+    this.holding = null;
+  }
+
+  /** A pointer lifted or left: its long press, waiting or done, is over. */
+  private release(id: number): void {
+    if (this.holding?.id === id) this.stopHolding();
+    if (this.held === id) this.held = null;
+  }
+
+  /** The right-click. Ignored after a long press has opened the menu with the
+   *  pointer still down, so a browser that raises `contextmenu` on a long
+   *  press too (Chrome on Android) opens one menu and not two. */
   private menu(event: MouseEvent): void {
     event.preventDefault();
-    const point = this.squareAt(event);
+    if (this.held !== null) return;
+    this.stopHolding();
+    this.open(this.squareAt(event), { x: event.clientX, y: event.clientY });
+  }
+
+  /**
+   * The menu asked for at a point, by a right-click or a long press: the
+   * machine's ruling, passed on to the view with where the pointer was. What
+   * is in it is the machine's — the symbol and the joint in the editor, the
+   * train standing there on a run — and a null `found` opens no menu.
+   */
+  private open(point: Point, screen: Point): void {
     const { outcome, found } = this.machine.menu(point);
     this.apply(outcome, point);
     if (found === null) return;
     this.dispatchEvent(
       new CustomEvent("canvas-menu", {
-        detail: { x: event.clientX, y: event.clientY, ...found },
+        detail: { ...screen, ...found },
         bubbles: true,
         composed: true,
       }),
