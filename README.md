@@ -18,6 +18,8 @@ This repo (eventually) implements the features described in the docs:
 - [Architecture](docs/ARCHITECTURE.md) — how the repository is organized and
   how it is tested.
 - [Glossary](GLOSSARY.md) — canonical terms; decisions in [docs/adr](docs/adr).
+- [Sensors](docs/SENSORS.md) — for a layout owner: how a script of theirs
+  publishes the readings of their own detectors.
 - [Deploy](docs/DEPLOY.md) — what a box runs: the containers, the two files
   they are started against, and the routers they declare for the
   installation's door, living in [deploy/](deploy).
