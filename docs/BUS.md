@@ -584,7 +584,13 @@ what a drop would cost:
   point it watches until its tail has left it, and `unknown` may be reported at
   any time. `control` does not guard this: a `clear` reported between two cars
   is taken for the train's tail
-  ([#1167](https://github.com/rails49/control/issues/1167)). `layout` settles it,
+  ([#1167](https://github.com/rails49/control/issues/1167)). **One publisher per
+  sensor**: `layout` believes every report and does not know the sender, so a
+  camera's `clear` between two of a current detector's `occupied` reports for the
+  same sensor is taken for the train's tail, as above. Two sensors may have
+  different publishers. Nothing enforces the rule
+  ([#1245](https://github.com/rails49/control/issues/1245),
+  [SENSORS.md](SENSORS.md)). `layout` settles it,
   believing every report and dropping one whose `addr` is unreadable, and the
   page shows it, a repeat of the level already shown adding no line and causing
   no redraw.
