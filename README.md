@@ -21,6 +21,8 @@ This repo (eventually) implements the features described in the docs:
 - [Deploy](docs/DEPLOY.md) — what a box runs: the containers, the two files
   they are started against, and the routers they declare for the
   installation's door, living in [deploy/](deploy).
+- [Sensors](docs/SENSORS.md) — how a layout owner publishes the readings of
+  their own track sensors.
 
 Each app's implementation details live beside it:
 
