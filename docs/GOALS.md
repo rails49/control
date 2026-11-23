@@ -73,9 +73,10 @@ The rolling stock traveling or parked on the tracks, in three levels
   block; while crossing it occupies the transit and, until its tail has been
   seen to leave, the block behind as well. It must fit in every block of its
   route, and it fits a block when it is no longer than the block. A route
-  through a shorter block is refused, and so is a placement on one. Exceptions
-  to the first are intended, for one block or for one request, and are not
-  designed. A train let into a block shorter than itself would occupy whatever
+  through a shorter block is refused, and so is a placement on one. A
+  railroad's settings may let a route end in or pass through a shorter block;
+  a placement on one is always refused. Exceptions for one block or one
+  request are intended and not designed. A train let into a block shorter than itself would occupy whatever
   its tail has not been seen to leave, turnouts included, and what lies behind
   it could not be reached while it stands there. It is outside the deadlock
   argument until the check is extended to it.
