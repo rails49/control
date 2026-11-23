@@ -1281,8 +1281,9 @@ class Dispatcher:
         prunes only on fit, which that setting lifts, and on the simple-path
         rule, congestion enters solely as a sort key and `k` only caps the
         list, so one route is all this has to find. `short_blocks` changes at
-        run time: turned off between here and the launch, it can leave an end
-        admitted here with no route, and the launch rejects it `unreachable`.
+        run time: turned off between admission and the launch, it can leave
+        the request with no route to any end admitted, and the launch rejects
+        it `unreachable`.
         """
         return bool(
             candidates(
