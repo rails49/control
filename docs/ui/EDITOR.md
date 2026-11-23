@@ -118,6 +118,12 @@ Railroad, in this order:
   `speeds` from `tc49/layout/state/settings` times 100, and a commit publishes
   `settings_wanted` with that one speed, the percent over 100, as
   `speeds: {clear}` or `speeds: {caution}`.
+  The section ends with a checkbox, *Send trains into blocks shorter than
+  themselves* ([#1288](https://github.com/rails49/control/issues/1288)). It
+  shows `short_blocks` from `tc49/layout/state/settings`, is dead with the
+  section's hint until the row says it, and when ticked or unticked publishes
+  `settings_wanted` with `short_blocks` alone. Placing a train still needs a
+  block it fits.
 
 Installation, in this order:
 

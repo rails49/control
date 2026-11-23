@@ -43,7 +43,9 @@
  * says a different value for it (#1137). **Automatic driving**, after Points, does
  * the same for the driver's speeds at clear and at caution, in percent of
  * the locomotive's top speed (#1134): each commit sends the one field
- * committed. Installation's **Throttles** does the same for the throttle
+ * committed. It ends with a checkbox letting the dispatcher send a train into
+ * a block shorter than itself, showing `short_blocks` and sending it alone
+ * when ticked or unticked (#1288). Installation's **Throttles** does the same for the throttle
  * silence (#1142), and **Sensors**, after it, for the sensor silence and the
  * arrival allowance (#1149, #1192). Each field of these sections is drawn
  * from its `SETTING_FIELDS` entry (#1185).
@@ -82,6 +84,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import { lookTheme } from "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
+import "@shoelace-style/shoelace/dist/components/checkbox/checkbox.js";
 import "@shoelace-style/shoelace/dist/components/icon/icon.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 import "@shoelace-style/shoelace/dist/components/spinner/spinner.js";
@@ -402,11 +405,23 @@ export class TcSettings extends LitElement {
   }
 
   /** The Automatic driving section (#1134, #1250): the speeds at clear and at caution, in percent
-   *  of the locomotive's top speed. */
+   *  of the locomotive's top speed, then the checkbox for `short_blocks`, dead
+   *  while the row does not say it (#1288). */
   private driving() {
+    const shortBlocks = this.settings?.shortBlocks ?? null;
     return this.setting(
       ["clear", "caution"],
-      html`<p class="hint">In percent of the locomotive's top speed.</p>`,
+      html`<p class="hint">In percent of the locomotive's top speed.</p>
+        <sl-checkbox
+          class="short"
+          help-text="A train sent so stands with its tail outside the block. Placing a train still needs a block it fits."
+          ?checked=${live(shortBlocks === true)}
+          ?disabled=${shortBlocks === null}
+          @sl-change=${(event: Event) =>
+            this.settingsWanted({ short_blocks: (event.target as HTMLInputElement).checked })}
+          >Send trains into blocks shorter than themselves</sl-checkbox
+        >`,
+      shortBlocks === null,
     );
   }
 
@@ -425,11 +440,12 @@ export class TcSettings extends LitElement {
   /**
    * A setting section: an input for each of `fields`, drawn from its
    * `SETTING_FIELDS` entry, then the section's `hint`. Each input is dead until
-   * the row says its value, the section saying so beneath; a commit
+   * the row says its value, the section saying so beneath — as it does where
+   * `hintUnheard`, the hint holding an input of its own; a commit
    * `settingChange` refuses stays in its field, with the reason beneath it.
    */
-  private setting(fields: readonly SettingField[], hint: unknown) {
-    const unheard = fields.some((field) => this.unheard(field));
+  private setting(fields: readonly SettingField[], hint: unknown, hintUnheard = false) {
+    const unheard = hintUnheard || fields.some((field) => this.unheard(field));
     return html`
       ${fields.map((field) => this.input(field))} ${hint}
       ${unheard ? html`<p class="hint unheard">${SETTINGS_UNHEARD}</p>` : nothing}
@@ -478,10 +494,14 @@ export class TcSettings extends LitElement {
     const typed = (event.target as HTMLInputElement).value;
     const { refusals, sent } = committed(this.settingRefused, field, typed, this.settings);
     this.settingRefused = refusals;
-    if (sent === null) return;
+    if (sent !== null) this.settingsWanted(sent);
+  }
+
+  /** `change` asked for on `settings-wanted`. */
+  private settingsWanted(change: SettingsChange): void {
     this.dispatchEvent(
       new CustomEvent<SettingsChange>("settings-wanted", {
-        detail: sent,
+        detail: change,
         bubbles: true,
         composed: true,
       }),

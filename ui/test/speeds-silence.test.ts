@@ -5,6 +5,7 @@
  * and the throttle silence (#1134): their fields show `speeds` and
  * `throttle_silence` off `tc49/layout/state/settings` (#1130), and a commit
  * publishes `tc49/layout/settings_wanted` carrying that field alone (#1131).
+ * The section's checkbox does the same for `short_blocks` (#1288).
  * What a commit sends and refuses is `settingChange`'s (`settings.test.ts`);
  * this is the dialog through the app.
  */
@@ -52,8 +53,14 @@ async function heard(): Promise<{ shell: TcApp; dialog: TcSettings }> {
     point_gap: 0.5,
     speeds: { clear: 0.6, caution: 0.3 },
     throttle_silence: 5,
+    short_blocks: false,
   });
   return { shell, dialog: await settingsOpened(shell) };
+}
+
+/** The Automatic driving section's checkbox for `short_blocks`. */
+function shortBlocks(dialog: TcSettings): HTMLInputElement {
+  return dialog.renderRoot.querySelector<HTMLInputElement>("div.driving sl-checkbox.short")!;
 }
 
 describe("the Automatic driving and Throttles sections", () => {
@@ -83,5 +90,40 @@ describe("the Automatic driving and Throttles sections", () => {
     const { shell, dialog } = await heard();
     await committed(shell, dialog, tab, which, typed);
     expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload }]);
+  });
+});
+
+describe("the Automatic driving section's short_blocks checkbox (#1288)", () => {
+  it("shows short_blocks off state/settings, and can be ticked", async () => {
+    const { dialog } = await heard();
+    expect(shortBlocks(dialog).checked).toBe(false);
+    expect(shortBlocks(dialog).disabled).toBe(false);
+  });
+
+  it("publishes a tick as short_blocks alone", async () => {
+    const { shell, dialog } = await heard();
+    const wanted: unknown[] = [];
+    dialog.addEventListener("settings-wanted", (event) =>
+      wanted.push((event as CustomEvent).detail),
+    );
+    const box = shortBlocks(dialog);
+    box.checked = true;
+    box.dispatchEvent(new Event("sl-change"));
+    await settled(shell);
+    expect(wanted).toEqual([{ short_blocks: true }]);
+    expect(written()).toEqual([{ topic: SETTINGS_WANTED, payload: { short_blocks: true } }]);
+  });
+
+  it("is dead while state/settings does not say it", async () => {
+    const shell = await joined();
+    await said(shell, STATE_SETTINGS, {
+      at: 1,
+      point_gap: 0.5,
+      speeds: { clear: 0.6, caution: 0.3 },
+      throttle_silence: 5,
+    });
+    const dialog = await settingsOpened(shell);
+    expect(shortBlocks(dialog).disabled).toBe(true);
+    expect(dialog.renderRoot.querySelector("div.driving p.unheard")).not.toBeNull();
   });
 });
