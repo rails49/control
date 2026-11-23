@@ -1276,11 +1276,13 @@ class Dispatcher:
     def _reaches(self, origin: str, depart: str, end: str, train: str) -> bool:
         """Whether any route out of `origin` by `depart` arrives at `end`.
 
-        A pure function of layout, origin, departure end, arrival end and
-        train length: asked with no block out of use, `candidates` prunes only
-        on fit and on the simple-path rule, congestion enters solely as a sort
-        key and `k` only caps the list, so one route is all this has to find
-        and nothing between here and the launch can change the answer.
+        A pure function of layout, origin, departure end, arrival end, train
+        length and `short_blocks`: asked with no block out of use, `candidates`
+        prunes only on fit, which that setting lifts, and on the simple-path
+        rule, congestion enters solely as a sort key and `k` only caps the
+        list, so one route is all this has to find. `short_blocks` changes at
+        run time: turned off between here and the launch, it can leave an end
+        admitted here with no route, and the launch rejects it `unreachable`.
         """
         return bool(
             candidates(
