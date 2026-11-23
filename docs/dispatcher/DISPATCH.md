@@ -145,12 +145,13 @@ need different information:
   the railroad's `short_blocks`: route selection prunes only on fit, which
   that setting lifts, and on the simple-path rule, congestion enters solely
   as a sort key and `k` only caps the list. The setting is the one input
-  that changes at run time, with no rebuild: a person who turns it off
-  between admission and the launch can leave an admitted request with no
-  route, and the launch attempt rejects it `unreachable`. **Otherwise
-  reachability waits for the launch attempt only when a predecessor is still
-  pending** — so `request_rejected` can also be published at the first
-  launch attempt, and rejection is not purely an admission-time answer. The departure block is re-checked there for the same
+  that changes at run time: a person who turns it off between admission and
+  the launch can leave an admitted request with no route, and the launch
+  attempt rejects it `unreachable`. **Otherwise reachability waits for the
+  launch attempt only when a predecessor is still pending** — so
+  `request_rejected` can also be published at the first launch attempt, and
+  rejection is not purely an admission-time answer. The departure block is
+  re-checked there for the same
   reason, so `wrong_origin` is not an admission-only answer either: a request
   whose train ran no route at all — its work ahead having been degenerate, or
   refused — has only the block it stated, and one that has gone stale while
@@ -522,8 +523,8 @@ part, so a layout binding that publishes no occupancy disputes nothing
 and `Y` are granted together, which is what makes a transit never held across a
 wait — the premise the whole deadlock argument rests on.
 A route that `short_blocks` lets into a block shorter than the train is
-outside that argument until the check is extended to it: the train occupies
-whatever its tail has not been seen to leave
+outside that argument until the argument is extended to such blocks: the train
+occupies whatever its tail has not been seen to leave, turnouts included
 ([GOALS.md](../GOALS.md)).
 
 **Grant order** — within a sweep, active trains first (by request arrival
