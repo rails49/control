@@ -628,20 +628,18 @@ def adr_0063_power_follows_the_hardware(view: View) -> list[str]:
     return ["power reads on while the hardware reports it off or a link down"]
 
 
-def adr_0071_placed_where_it_fits(view: View) -> list[str]:
-    """Every placed train stands in a block of the loaded drawing that is long
-    enough for it
+def adr_0071_placed_in_the_drawing(view: View) -> list[str]:
+    """Every placed train stands in a block of the loaded drawing
     ([ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
-    A train the roster does not hold has no length to fit."""
-    lengths = view.roster.lengths()
-    lines: list[str] = []
-    for train, block in sorted(_trains(view).items()):
-        length = view.layout.blocks.get(block)
-        if length is None:
-            lines.append(f"{train} stands in {block}, which the drawing has not")
-        elif train in lengths and lengths[train] > length:
-            lines.append(f"{train} of {lengths[train]} stands in {block} of {length}")
-    return lines
+    Length is not asked (#1287): a train sent into a shorter block while the
+    railroad's settings say `short_blocks` still stands there once a person
+    turns the setting off, and a breach would drain the railroad. Placement
+    and restore keep the length check themselves."""
+    return [
+        f"{train} stands in {block}, which the drawing has not"
+        for train, block in sorted(_trains(view).items())
+        if block not in view.layout.blocks
+    ]
 
 
 def adr_0071_unfit_is_not_placed(view: View) -> list[str]:
@@ -820,10 +818,9 @@ INVARIANTS: tuple[Invariant, ...] = (
     ),
     Invariant(
         "0071",
-        "Every placed train stands in a block of the loaded drawing that is"
-        " long enough for it.",
+        "Every placed train stands in a block of the loaded drawing.",
         (ALLOCATION,),
-        adr_0071_placed_where_it_fits,
+        adr_0071_placed_in_the_drawing,
     ),
     Invariant(
         "0071",
