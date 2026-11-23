@@ -3,7 +3,9 @@
  *
  * The canvas is a grid of squares. A symbol occupies whole squares and its
  * pins sit at the centres of square sides, which is why it turns in quarters
- * and flips rather than taking a free angle (EDITOR.md). Everything here is in
+ * and flips rather than taking a free angle (EDITOR.md). A turnout also turns
+ * by 45 degrees, which swaps it for a second form with its straight road on
+ * the diagonal (`TURNOUT_45`). Everything here is in
  * square units, with the origin at the top left of the grid; pixels are the
  * canvas component's business.
  *
@@ -36,7 +38,7 @@ export const FOOTPRINTS: Record<Kind, Footprint> = {
   terminal: { w: 1, h: 1 },
   portal: { w: 1, h: 1 },
   pin: { w: 1, h: 1 },
-  turnout: { w: 1, h: 1 },
+  turnout: { w: 2, h: 1 },
   crossing: { w: 2, h: 1 },
   crossing_90: { w: 1, h: 1 },
   crossing_90d: { w: 2, h: 1 },
@@ -61,17 +63,34 @@ const DIAMOND = {
   b2: { x: 1.5, y: 0 },
 };
 
+/**
+ * A turnout takes a slip's two squares and three of its four pin sites. Its
+ * frog is the face centre the two squares share, in both forms.
+ *
+ * Turned a multiple of 90 degrees the straight road is the horizontal, `a1`
+ * to `a2`, and the diverging road leaves for `b2`. Turned 45 degrees more the
+ * straight road is the diagonal of the mirrored slip, and the diverging road
+ * leaves along the horizontal.
+ */
+const TURNOUT = {
+  toe: DIAMOND.a1,
+  straight: DIAMOND.a2,
+  diverging: DIAMOND.b2,
+};
+
+const TURNOUT_45 = {
+  toe: { x: 0.5, y: 0 },
+  straight: { x: 1.5, y: 1 },
+  diverging: { x: 2, y: 0.5 },
+};
+
 export const ANCHORS: { [K in Kind]: Record<(typeof PINS)[K][number], Point> } =
   {
     block: { A: { x: 0, y: 0.5 }, B: { x: 6, y: 0.5 } },
     terminal: { P: { x: 0, y: 0.5 } },
     portal: { P: { x: 0, y: 0.5 } },
     pin: { P: { x: 0, y: 0.5 } },
-    turnout: {
-      toe: { x: 0, y: 0.5 },
-      straight: { x: 1, y: 0.5 },
-      diverging: { x: 0.5, y: 0 },
-    },
+    turnout: TURNOUT,
     crossing: DIAMOND,
     single_slip: DIAMOND,
     double_slip: DIAMOND,
@@ -93,11 +112,25 @@ export const ANCHORS: { [K in Kind]: Record<(typeof PINS)[K][number], Point> } =
   };
 
 /** Where a kind's pin sits in the symbol's own coordinates, which is where the
- *  artwork's legs have to end for the strokes and the wires to meet. */
-export function anchorIn(kind: Kind, pin: string): Point {
-  const point = (ANCHORS[kind] as Record<string, Point>)[pin];
+ *  artwork's legs have to end for the strokes and the wires to meet. `rot`
+ *  picks a turnout's form and moves nothing else. */
+export function anchorIn(kind: Kind, pin: string, rot: Rotation = 0): Point {
+  const point = own({ kind, rot })[pin];
   if (point === undefined) throw new Error(`'${kind}' has no pin '${pin}'`);
   return point;
+}
+
+/** A symbol's anchors before it is flipped and turned. */
+function own(spec: SymbolSpec): Record<string, Point> {
+  return spec.kind === "turnout" && (spec.rot ?? 0) % 90 !== 0
+    ? TURNOUT_45
+    : ANCHORS[spec.kind];
+}
+
+/** The quarter turns a placement makes. The 45 degrees a turnout may have
+ *  beyond them are its form, not a turn. */
+function quarters(spec: SymbolSpec): number {
+  return Math.floor((spec.rot ?? 0) / 90);
 }
 
 /** The footprint and pin anchors a placement gives a symbol, local to `at`. */
@@ -106,8 +139,7 @@ export function placed(spec: SymbolSpec): {
   anchors: Record<string, Point>;
 } {
   const { footprint, move } = placement(spec, FOOTPRINTS[spec.kind]);
-  const anchors = ANCHORS[spec.kind] as Record<string, Point>;
-  return { footprint, anchors: map(anchors, move) };
+  return { footprint, anchors: map(own(spec), move) };
 }
 
 /**
@@ -132,7 +164,7 @@ function placement(
     const across = w;
     moves.push(({ x, y }) => ({ x: across - x, y }));
   }
-  for (let turn = (spec.rot ?? 0) / 90; turn > 0; turn--) {
+  for (let turn = quarters(spec); turn > 0; turn--) {
     const down = h;
     moves.push(({ x, y }) => ({ x: down - y, y: x }));
     turns.unshift(`translate(${down} 0) rotate(90)`);
@@ -175,14 +207,14 @@ export function anchorOf(spec: SymbolSpec, pin: string): Point {
  * A, which is what keeps the label from turning over as the block is flipped.
  */
 export function labelTurn(spec: SymbolSpec): number {
-  return (spec.rot ?? 0) % 180 === 0 ? 0 : -90;
+  return quarters(spec) % 2 === 0 ? 0 : -90;
 }
 
 /** The transform that puts text at `local` inside a symbol's own group and
  *  turns it as the label is turned outside it: the symbol's flip and quarter
  *  turns undone, then `labelTurn`, so it is never upside down or mirrored. */
 export function uprightAt(spec: SymbolSpec, local: Point): string {
-  const turn = labelTurn(spec) - (spec.rot ?? 0);
+  const turn = labelTurn(spec) - 90 * quarters(spec);
   return `translate(${local.x} ${local.y})${spec.flip ? " scale(-1 1)" : ""} rotate(${turn})`;
 }
 
@@ -298,9 +330,11 @@ function key([c, r]: [number, number]): string {
   return `${c},${r}`;
 }
 
-/** A quarter turn clockwise, keeping `at` where it is. */
+/** One step clockwise, keeping `at` where it is: 45 degrees for a turnout,
+ *  a quarter turn for every other kind. */
 export function turned<T extends SymbolSpec>(spec: T): T {
-  return { ...spec, rot: (((spec.rot ?? 0) + 90) % 360) as Rotation };
+  const step = spec.kind === "turnout" ? 45 : 90;
+  return { ...spec, rot: (((spec.rot ?? 0) + step) % 360) as Rotation };
 }
 
 /** Mirrored across the symbol's own vertical axis. */

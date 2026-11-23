@@ -38,7 +38,6 @@ import {
   BLOCK,
   COLOURS,
   HAIRLINE,
-  SLIP,
   TERMINAL,
   W,
 } from "../render/units.js";
@@ -145,8 +144,7 @@ export const symbols = css`
      and a class of that name here would be inherited by the lamps of every
      signal at stop, which sit inside a group carrying the aspect's name. */
   .buffer,
-  .portal-mouth,
-  .tick {
+  .portal-mouth {
     fill: none;
     stroke: var(--track);
     stroke-linecap: butt;
@@ -171,10 +169,6 @@ export const symbols = css`
   .portal-mouth {
     stroke: var(--hint);
     stroke-width: ${HAIRLINE};
-  }
-
-  .tick {
-    stroke-width: ${SLIP.weight};
   }
 
   /* A widget is its face alone (#939): a text widget's words and a button in

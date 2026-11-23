@@ -123,20 +123,11 @@ export const PORTAL = {
 };
 
 /**
- * A slip's tick: the road it has and a plain crossing has not, drawn as two
- * strokes, one parallel to each of the two legs the road joins. `off` is how
- * far a stroke sits from its leg's centreline, and `arm` how far it runs from
- * the corner where the two offset lines cross.
- *
- * The tick carries its own weight rather than the portal mouth's hairline. It
- * is the one mark that has to read against 45 degree track beside it, and at a
- * hairline it did not (#59), so it is half again as heavy and a third longer.
- * `lit` is what it grows to when a transit takes the slip road, kept in
- * proportion to the weight rather than pinned to a number of its own.
+ * How far from the frog a diverging road's curve begins and ends, along the
+ * leg it is in line with: the length of a 45 degree leg, so the curve of a
+ * turnout whose straight road is horizontal ends on its diverging pin.
  */
-const TICK = 0.045;
-
-export const SLIP = { off: 0.22, arm: 0.182, weight: TICK, lit: 1.5 * TICK };
+export const CURVE = Math.SQRT1_2;
 
 /**
  * The label inside a block, which is the only text a symbol carries.

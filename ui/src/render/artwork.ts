@@ -6,10 +6,11 @@
  *
  * Every leg is drawn from the anchors `geometry.ts` gives, so the artwork and
  * the wires meet by construction, and every dimension that is not an anchor is
- * a named constant in `units.ts`. Each kind has exactly one appearance
- * (EDITOR.md#symbol-geometry): diagonal legs are always 45 degrees, and a wire
- * meeting one at another angle reads as a rounded bend rather than a kink,
- * because every stroke ends in a round cap.
+ * a named constant in `units.ts`. A turnout has two forms, one for each
+ * direction its straight road can take, and every other kind exactly one
+ * appearance (EDITOR.md#symbol-geometry): diagonal legs are always 45 degrees,
+ * and a wire meeting one at another angle reads as a rounded bend rather than
+ * a kink, because every stroke ends in a round cap.
  */
 
 import { svg, type SVGTemplateResult } from "lit";
@@ -40,7 +41,7 @@ import {
   togglePosition,
   type Run,
 } from "../model/widgets.js";
-import { BEND, BLOCK, PORTAL, SLIP, TERMINAL, W, WIDGET } from "./units.js";
+import { BEND, BLOCK, CURVE, PORTAL, TERMINAL, W, WIDGET } from "./units.js";
 
 const NONE: ReadonlySet<string> = new Set();
 /** What a signal shows, as the dispatcher publishes it (GLOSSARY.md). */
@@ -55,10 +56,9 @@ export type Reading = "occupied" | "clear" | "unknown";
 /**
  * Draw a symbol, with the legs a chosen transit takes lit.
  *
- * The way is lit leg by leg rather than symbol by symbol (EDITOR.md), so a
- * stroke knows which legs run over it: a crossing's route is two half-strokes
- * meeting at the frog, and a slip lights its entry half, its tick and its exit
- * half. `WHOLE` lights every stroke, which is what a symbol with no legs the
+ * The way is lit leg by leg rather than symbol by symbol (EDITOR.md), and
+ * every leg of a turnout, a crossing or a slip is one stroke from pin to pin.
+ * `WHOLE` lights every stroke, which is what a symbol with no legs the
  * artwork draws — a joiner or a block end — is lit by.
  *
  * `dark` names the block ends that carry no signal, which `dark` in
@@ -96,15 +96,13 @@ export function artwork(
     case "pin":
       return bend(on);
     case "turnout":
-      return turnout(on, set);
+      return turnout(spec, on, set);
     case "crossing":
     case "crossing_90":
     case "crossing_90d":
-      return crossed(spec.kind, on);
     case "single_slip":
-      return crossed(spec.kind, on, ["slip"], set);
     case "double_slip":
-      return crossed(spec.kind, on, ["slip_1", "slip_2"], set);
+      return crossed(spec.kind, on, set);
   }
 }
 
@@ -113,26 +111,20 @@ export function artwork(
 type Lit = (...legs: string[]) => string;
 
 /** Whether a stroke is set against: every leg over it wants the position the
- *  point is not in, so the road it draws is not one the point offers. A
- *  stroke a leg of either position runs over is on the way whichever way the
- *  point lies, which is what keeps a slip's half-strokes drawn. */
+ *  point is not in, so the road it draws is not one the point offers. */
 type Against = (legs: readonly string[]) => boolean;
 
 const NEITHER: Against = () => false;
 
 /** The library declares which position each leg wants, so where a point lies
- *  is enough to say which roads it does not offer. A turnout closing on its
- *  diverging leg wants the reverse of the library's. A kind with no motor —
+ *  is enough to say which roads it does not offer. A kind with no motor —
  *  a fixed crossing, a block — has none whatever it is handed. */
 function against(spec: SymbolSpec, position: Position | undefined): Against {
   const { kind } = spec;
   if (position === undefined || !motorised(kind)) return NEITHER;
-  const closed = spec.closed_leg ?? "straight";
-  const table: Record<string, Position> = POSITIONS[kind];
-  const wants = (leg: string): Position =>
-    kind === "turnout" ? (leg === closed ? "closed" : "thrown") : table[leg]!;
+  const wants: Record<string, Position> = POSITIONS[kind];
   return (legs) =>
-    legs.length > 0 && legs.every((leg) => wants(leg) !== position);
+    legs.length > 0 && legs.every((leg) => wants[leg] !== position);
 }
 
 /**
@@ -316,17 +308,24 @@ function bend(on: Lit): SVGTemplateResult {
   return svg`<circle class="bend lit" cx=${p.x} cy=${p.y} r=${BEND} />`;
 }
 
-/** Each road drawn from the toe, so lighting the diverging leg lights the way
- *  a train actually takes rather than the curve beyond the frog. The diverging
- *  road is the one 45 degree leg ending on a face centre, which is how
- *  turnouts stack between parallel station tracks. */
-function turnout(on: Lit, set: Against = NEITHER): SVGTemplateResult {
-  const p = (pin: string) => anchorIn("turnout", pin);
+/**
+ * Each road drawn from the toe, so lighting the diverging leg lights the way
+ * a train actually takes rather than the curve beyond the frog. The straight
+ * road is the one straight stroke and the diverging road a curve, so the
+ * drawing shows which is which. The frog is the middle of the straight road.
+ */
+function turnout(
+  spec: SymbolSpec,
+  on: Lit,
+  set: Against = NEITHER,
+): SVGTemplateResult {
+  const p = (pin: string) => anchorIn("turnout", pin, spec.rot);
+  const frog = middle(p("toe"), p("straight"));
   return svg`${roads(
     on,
     [
       { legs: ["straight"], d: path(p("toe"), p("straight")) },
-      { legs: ["diverging"], d: path(p("toe"), p("diverging")) },
+      { legs: ["diverging"], d: curve(frog, p("toe"), p("diverging")) },
     ],
     set,
   )}`;
@@ -336,55 +335,45 @@ function turnout(on: Lit, set: Against = NEITHER): SVGTemplateResult {
  * A crossing, a slip, or one of the two 90 degree crossings: the same drawing
  * from the same four pins, differing only in where those pins are.
  *
- * Each route is two half-strokes meeting at the frog, and a slip's tick joins
- * its two legs there. Which legs run over a half-stroke is read off
- * the library: every transit through the pin it ends at lights it, which is
- * what makes a lit slip its entry half, its tick and its exit half.
+ * Each leg the library declares is one stroke between its two pins: a through
+ * route, `a` or `b`, straight across the frog, and a slip road the curve a
+ * turnout's diverging road is.
  */
 function crossed(
   kind: LibraryKind,
   on: Lit,
-  slips: string[] = [],
   set: Against = NEITHER,
 ): SVGTemplateResult {
   const p = (pin: string) => anchorIn(kind, pin);
   const frog = middle(p("a1"), p("a2"));
   const legs = TRANSITS[kind] as Record<string, readonly [string, string]>;
-  const over = (pin: string) =>
-    Object.keys(legs).filter((leg) => legs[leg]!.includes(pin));
   return svg`${roads(
     on,
-    [
-      ...["a1", "a2", "b1", "b2"].map((pin) => ({
-        legs: over(pin),
-        d: path(p(pin), frog),
-      })),
-      ...slips.map((leg) => {
-        const [from, to] = legs[leg]!;
-        return { legs: [leg], as: "tick", d: tick(frog, p(from), p(to)) };
-      }),
-    ],
+    Object.entries(legs).map(([leg, [from, to]]) => ({
+      legs: [leg],
+      d:
+        leg === "a" || leg === "b"
+          ? path(p(from), p(to))
+          : curve(frog, p(from), p(to)),
+    })),
     set,
   )}`;
 }
 
 /**
- * A slip's tick: two strokes, one parallel to each of the two legs the road
- * joins, meeting where their offset lines cross.
- *
- * It falls in the obtuse sector between the two legs, which is the only pair a
- * slip road can join, so where the tick is says which road the symbol has. One
- * path rather than two, so the corner mitres itself and a lit slip is three
- * strokes: its entry half, its tick, its exit half.
+ * A road that turns 45 degrees at the frog: in line with one leg to `CURVE`
+ * short of the frog, one quadratic curve with the frog as its control point
+ * to `CURVE` past it, then in line with the other leg. It leaves and meets
+ * both pins in line, so a wire carrying on from either does not kink.
  */
-function tick(frog: Point, from: Point, to: Point): string {
-  const u = unit(frog, from);
-  const v = unit(frog, to);
-  const into = unit(frog, { x: frog.x + u.x + v.x, y: frog.y + u.y + v.y });
-  const corner = crossing(off(frog, u, into), u, off(frog, v, into), v);
-  return `M${n(corner.x + u.x * SLIP.arm)} ${n(corner.y + u.y * SLIP.arm)}
-    L${n(corner.x)} ${n(corner.y)}
-    L${n(corner.x + v.x * SLIP.arm)} ${n(corner.y + v.y * SLIP.arm)}`;
+function curve(frog: Point, from: Point, to: Point): string {
+  const near = (pin: Point): Point => {
+    const along = unit(frog, pin);
+    return { x: frog.x + along.x * CURVE, y: frog.y + along.y * CURVE };
+  };
+  const [a, b] = [near(from), near(to)];
+  return `M${n(from.x)} ${n(from.y)} L${n(a.x)} ${n(a.y)}
+    Q${n(frog.x)} ${n(frog.y)} ${n(b.x)} ${n(b.y)} L${n(to.x)} ${n(to.y)}`;
 }
 
 /** A unit vector from one point toward another. */
@@ -393,39 +382,24 @@ function unit(from: Point, to: Point): Point {
   return { x: (to.x - from.x) / span, y: (to.y - from.y) / span };
 }
 
-/** The frog shifted `SLIP.off` off a leg, on the side `into` points: a point of
- *  the line the tick's stroke along that leg runs down. */
-function off(frog: Point, along: Point, into: Point): Point {
-  const dot = into.x * along.x + into.y * along.y;
-  const away = unit(
-    { x: 0, y: 0 },
-    { x: into.x - dot * along.x, y: into.y - dot * along.y },
-  );
-  return { x: frog.x + away.x * SLIP.off, y: frog.y + away.y * SLIP.off };
-}
-
-/** Where two lines cross, each given as a point and a direction. */
-function crossing(p: Point, u: Point, q: Point, v: Point): Point {
-  const span =
-    ((q.x - p.x) * v.y - (q.y - p.y) * v.x) / (u.x * v.y - u.y * v.x);
-  return { x: p.x + u.x * span, y: p.y + u.y * span };
-}
-
-/** The roads of a symbol, lit ones last: legs share track where they meet,
- *  and a lit stroke drawn under an unlit one would be half hidden. Sorting is
- *  stable, so unlit roads keep the order they are written in. */
+/**
+ * The roads of a symbol, drawn in three layers: those set against first, then
+ * the unlit, then the lit. Legs share track where they meet, and a faint
+ * stroke over a solid one, or an unlit over a lit, would hide half of it.
+ * Sorting is stable, so roads of one layer keep the order they are written in.
+ */
 function roads(
   on: Lit,
-  drawn: { legs: string[]; d: string; as?: string }[],
+  drawn: { legs: string[]; d: string }[],
   set: Against = NEITHER,
 ): SVGTemplateResult[] {
+  const layer = (legs: string[]) =>
+    set(legs) ? 0 : on(...legs) === "" ? 1 : 2;
   return [...drawn]
-    .sort(
-      (a, b) => (on(...a.legs) === "" ? 0 : 1) - (on(...b.legs) === "" ? 0 : 1),
-    )
+    .sort((a, b) => layer(a.legs) - layer(b.legs))
     .map(
-      ({ legs, d, as }) =>
-        svg`<path class=${`${as ?? "track"}${on(...legs)}${
+      ({ legs, d }) =>
+        svg`<path class=${`track${on(...legs)}${
           set(legs) ? " against" : ""
         }`} d=${d} />`,
     );

@@ -144,7 +144,7 @@ describe("placing a widget", () => {
     editor.dropPending(6.5, 4.5);
     expect(editor.widgets.toggle1).not.toHaveProperty("rot");
     editor.beginPlace("turnout");
-    expect(editor.pending).toEqual({ kind: "turnout", rot: 90 });
+    expect(editor.pending).toEqual({ kind: "turnout", rot: 45 });
   });
 });
 
@@ -225,7 +225,7 @@ describe("turning", () => {
     editor.rotate();
     editor.flip();
     expect(editor.widgets.text1).toEqual({ kind: "text", at: [6, 4] });
-    expect(editor.drawing.symbols.sw1).toMatchObject({ rot: 90, flip: true });
+    expect(editor.drawing.symbols.sw1).toMatchObject({ rot: 45, flip: true });
   });
 
   it("is not a change at all with only widgets selected", () => {

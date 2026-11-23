@@ -112,7 +112,7 @@ test("the same keys still reach the canvas from outside a control", async () => 
 
   key(window, "r");
 
-  expect(editing.drawing.symbols["sw1"]!.rot).toBe(90);
+  expect(editing.drawing.symbols["sw1"]!.rot).toBe(45);
 });
 
 /**
@@ -129,7 +129,7 @@ test("the canvas keys reach it whatever the rail is showing", async () => {
   key(window, "r");
   for (const name of ["0", "+", "-"]) key(window, name);
 
-  expect(editing.drawing.symbols["sw1"]!.rot).toBe(90);
+  expect(editing.drawing.symbols["sw1"]!.rot).toBe(45);
   expect(asked()).toBe(3);
 });
 

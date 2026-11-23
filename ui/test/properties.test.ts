@@ -15,7 +15,6 @@ import type { Properties, TcProperties } from "../src/ui/tc-properties.js";
 import type { SymbolSpec } from "../src/model/drawing.js";
 import type SlInput from "@shoelace-style/shoelace/dist/components/input/input.js";
 import type SlCheckbox from "@shoelace-style/shoelace/dist/components/checkbox/checkbox.js";
-import type SlSelect from "@shoelace-style/shoelace/dist/components/select/select.js";
 
 /** The dialog, opened on one symbol. The drawing holds that symbol's name
  *  and, where the caller says so, the names of its neighbours too. */
@@ -184,70 +183,14 @@ describe("a reported address", () => {
   });
 });
 
-/**
- * Which leg a turnout's closed position takes (#1060). The straight road is
- * the in-line leg unless the grid forced it onto the 45° one.
- */
-describe("a turnout's closed leg", () => {
-  function choice(dialog: TcProperties): SlSelect | undefined {
-    return dialog.renderRoot.querySelector<SlSelect>("sl-select") ?? undefined;
-  }
-
-  /** Pick a leg, and put the dropdown away as Shoelace does: its
-   *  `sl-after-hide` bubbles up through the dialog. */
-  async function chosen(dialog: TcProperties, value: string): Promise<void> {
-    const select = choice(dialog)!;
-    select.value = value;
-    select.dispatchEvent(new CustomEvent("sl-change"));
-    select.dispatchEvent(
-      new CustomEvent("sl-after-hide", { bubbles: true, composed: true }),
-    );
-    await dialog.updateComplete;
-  }
-
-  it("stays open when the dropdown closes", async () => {
-    const dialog = await opened("sw1", { kind: "turnout" });
-    let closed = false;
-    dialog.addEventListener("properties-closed", () => {
-      closed = true;
-    });
-    await chosen(dialog, "diverging");
-    expect(closed).toBe(false);
-  });
-
-  it("is offered on a turnout and on no slip", async () => {
-    expect(choice(await opened("sw1", { kind: "turnout" }))?.label).toBe(
-      "Closed (0) takes",
-    );
-    for (const kind of ["single_slip", "double_slip"] as const) {
-      expect(choice(await opened("sw1", { kind }))).toBeUndefined();
+/** A turnout's straight road is turned onto the diagonal (#1295), so the pane
+ *  asks for no leg. */
+describe("a point's closed leg", () => {
+  it("is offered on no kind", async () => {
+    for (const kind of ["turnout", "single_slip", "double_slip"] as const) {
+      const dialog = await opened("sw1", { kind });
+      expect(dialog.renderRoot.querySelector("sl-select")).toBeNull();
     }
-  });
-
-  it("shows the in-line leg where the drawing says nothing", async () => {
-    expect(choice(await opened("sw1", { kind: "turnout" }))!.value).toBe(
-      "straight",
-    );
-  });
-
-  it("writes closed_leg: diverging when the 45° leg is chosen", async () => {
-    const dialog = await opened("sw1", { kind: "turnout", addr: "111" });
-    await chosen(dialog, "diverging");
-    expect((await applied(dialog)).spec).toEqual({
-      kind: "turnout",
-      addr: "111",
-      closed_leg: "diverging",
-    });
-  });
-
-  it("removes the key when set back to the in-line leg", async () => {
-    const dialog = await opened("sw1", {
-      kind: "turnout",
-      addr: "111",
-      closed_leg: "diverging",
-    });
-    await chosen(dialog, "straight");
-    expect((await applied(dialog)).spec).toEqual({ kind: "turnout", addr: "111" });
   });
 });
 

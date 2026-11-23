@@ -616,14 +616,14 @@ describe("the run view's machine", () => {
       });
 
       it("throws the nearer of two offered points", () => {
-        // `sw2` at x 8…9 on row 1, diagonally beside `sw`.
+        // `sw2` standing on end at x 9…10, on rows 0 and 1, beside `sw`.
         const TWO: Painted = {
           ...POINTS,
           drawing: {
             ...POINTS.drawing,
             symbols: {
               ...POINTS.drawing.symbols,
-              sw2: { kind: "turnout", at: [8, 1], addr: "9" },
+              sw2: { kind: "turnout", at: [9, 0], rot: 90, addr: "9" },
             },
           },
           offered: new Map([
@@ -632,8 +632,8 @@ describe("the run view's machine", () => {
           ]),
         };
         // Both taps on a bare square, each within a square of both points.
-        const NEARER_SW2 = { x: 8.2, y: 0.9 };
-        const NEARER_SW = { x: 7.8, y: 1.1 };
+        const NEARER_SW2 = { x: 8.8, y: 1.05 };
+        const NEARER_SW = { x: 8.6, y: 1.1 };
         const { thrown, it } = machine(TWO);
         it.down(NEARER_SW2, tap(OVER_CANVAS));
         it.up(NEARER_SW2, OVER_CANVAS);

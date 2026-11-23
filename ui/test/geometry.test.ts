@@ -10,7 +10,9 @@ import {
   labelAnchor,
   labelTurn,
   placed,
+  turned,
 } from "../src/model/geometry.js";
+import { TURNOUT_ROTATIONS } from "../src/symbols.generated.js";
 
 describe("footprints and pins", () => {
   it("puts a block's ends on the two short faces", () => {
@@ -58,16 +60,111 @@ describe("footprints and pins", () => {
       .toEqual(before);
   });
 
-  it("mirrors a turnout's diverging leg without moving its toe", () => {
+  it("mirrors a turnout across its footprint", () => {
     const at: [number, number] = [0, 0];
     expect(anchorOf({ kind: "turnout", at, flip: true }, "toe")).toEqual({
-      x: 1,
+      x: 2,
       y: 0.5,
     });
     expect(anchorOf({ kind: "turnout", at, flip: true }, "diverging")).toEqual({
       x: 0.5,
       y: 0,
     });
+  });
+
+  it("gives a turnout a slip's two squares and three of its pin sites", () => {
+    // #1295's table: unturned the straight road is the horizontal, and at 45
+    // degrees it is the diagonal of the mirrored slip.
+    const pins = (spec: SymbolSpec) =>
+      ["toe", "straight", "diverging"].map((pin) => anchorOf(spec, pin));
+    expect(pins({ kind: "turnout" })).toEqual([
+      { x: 0, y: 0.5 },
+      { x: 2, y: 0.5 },
+      { x: 1.5, y: 0 },
+    ]);
+    expect(pins({ kind: "turnout", rot: 45 })).toEqual([
+      { x: 0.5, y: 0 },
+      { x: 1.5, y: 1 },
+      { x: 2, y: 0.5 },
+    ]);
+    const slip = (spec: SymbolSpec) =>
+      ["a1", "a2", "b1", "b2"].map((pin) => anchorOf(spec, pin));
+    expect(slip({ kind: "single_slip" })).toEqual(
+      expect.arrayContaining(pins({ kind: "turnout" })),
+    );
+    expect(slip({ kind: "single_slip", flip: true })).toEqual(
+      expect.arrayContaining(pins({ kind: "turnout", rot: 45 })),
+    );
+  });
+
+  it("turns a turnout through 16 orientations, all on face centres", () => {
+    const heading = (from: { x: number; y: number }, to: { x: number; y: number }) =>
+      (Math.round((Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI) + 360) % 360;
+    const span = (from: { x: number; y: number }, to: { x: number; y: number }) =>
+      Math.hypot(to.x - from.x, to.y - from.y);
+    const seen = new Set<string>();
+    for (const rot of TURNOUT_ROTATIONS) {
+      for (const flip of [false, true]) {
+        const spec: SymbolSpec = { kind: "turnout", rot, flip };
+        const { footprint, anchors } = placed(spec);
+        const [toe, straight, diverging] = [
+          anchors.toe!,
+          anchors.straight!,
+          anchors.diverging!,
+        ];
+        const where = `rot ${rot}${flip ? " flip" : ""}`;
+        seen.add(JSON.stringify([toe, straight, diverging]));
+
+        // Each pin is the centre of a face on the footprint's edge.
+        for (const { x, y } of [toe, straight, diverging]) {
+          const onSide = (x === 0 || x === footprint.w) && y % 1 === 0.5;
+          const onEnd = (y === 0 || y === footprint.h) && x % 1 === 0.5;
+          expect(onSide || onEnd, where).toBe(true);
+        }
+
+        // The frog is the face centre the two squares share.
+        const frog = { x: (toe.x + straight.x) / 2, y: (toe.y + straight.y) / 2 };
+        expect(frog, where).toEqual({ x: footprint.w / 2, y: footprint.h / 2 });
+
+        // `rot` is the straight road's heading, clockwise from east, and the
+        // diverging road leaves 45 degrees to its left; a flip mirrors both.
+        const mirrored = (180 - (rot % 90) + rot - (rot % 90)) % 360;
+        const along = heading(toe, straight);
+        expect(along, where).toBe(flip ? mirrored : rot);
+        expect(heading(frog, diverging), where).toBe(
+          (along + (flip ? 45 : 315)) % 360,
+        );
+        expect(span(toe, straight), where).toBeCloseTo(
+          along % 90 === 0 ? 2 : Math.SQRT2,
+        );
+        expect(span(frog, diverging), where).toBeCloseTo(
+          along % 90 === 0 ? Math.SQRT1_2 : 1,
+        );
+      }
+    }
+    expect(seen.size).toBe(16);
+  });
+
+  it("steps a turnout by 45 degrees and every other kind by 90", () => {
+    let turnout: SymbolSpec = { kind: "turnout" };
+    const steps: (number | undefined)[] = [];
+    for (let step = 0; step < 8; step++) {
+      turnout = turned(turnout);
+      steps.push(turnout.rot);
+    }
+    expect(steps).toEqual([45, 90, 135, 180, 225, 270, 315, 0]);
+    for (const kind of ["single_slip", "double_slip", "crossing", "block"] as const) {
+      expect(turned<SymbolSpec>({ kind }).rot).toBe(90);
+      expect(turned<SymbolSpec>({ kind, rot: 270 }).rot).toBe(0);
+    }
+  });
+
+  it("keeps a turnout's footprint through a 45 degree step", () => {
+    expect(placed({ kind: "turnout", rot: 45 }).footprint).toEqual({ w: 2, h: 1 });
+    expect(placed({ kind: "turnout", rot: 90 }).footprint).toEqual({ w: 1, h: 2 });
+    expect(placed({ kind: "turnout", rot: 135 }).footprint).toEqual({ w: 1, h: 2 });
+    expect(labelTurn({ kind: "turnout", rot: 45 })).toBe(0);
+    expect(labelTurn({ kind: "turnout", rot: 135 })).toBe(-90);
   });
 
   it("keeps every pin at a face centre, whatever the placement", () => {
@@ -96,7 +193,10 @@ describe("footprints and pins", () => {
 
   it("covers whole squares, and none at all for a bend", () => {
     expect(cellsOf({ kind: "block", at: [1, 1] })).toHaveLength(6);
-    expect(cellsOf({ kind: "turnout", at: [1, 1] })).toEqual([[1, 1]]);
+    expect(cellsOf({ kind: "turnout", at: [1, 1] })).toEqual([
+      [1, 1],
+      [2, 1],
+    ]);
     expect(cellsOf({ kind: "crossing", at: [0, 0] })).toEqual([
       [0, 0],
       [1, 0],
@@ -135,7 +235,7 @@ describe("a point of the symbol's own coordinates", () => {
     for (const rot of [0, 90, 180, 270] as const) {
       for (const flip of [false, true]) {
         const spec: SymbolSpec = { kind: "turnout", at: [1, 2], rot, flip };
-        expect(gridPointOf(spec, { x: 0.5, y: 0 })).toEqual(
+        expect(gridPointOf(spec, { x: 1.5, y: 0 })).toEqual(
           anchorOf(spec, "diverging"),
         );
       }

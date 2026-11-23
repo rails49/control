@@ -33,9 +33,6 @@ export type Wire =
   | [PinRef, PinRef]
   | { pins: [PinRef, PinRef]; connection: string };
 
-/** A turnout's two legs, which its toe reaches. */
-export type TurnoutLeg = "straight" | "diverging";
-
 export interface SymbolSpec {
   kind: Kind;
   /** The grid cell of the symbol's top-left square. */
@@ -64,9 +61,6 @@ export interface SymbolSpec {
   label?: string;
   /** What the hardware behind a motorised symbol answers to. */
   addr?: string;
-  /** A turnout's: the leg its closed position takes, thrown taking the other.
-   *  Absent is `straight`, and the editor writes only `diverging`. */
-  closed_leg?: TurnoutLeg;
   /** The junction this symbol belongs to. */
   connection?: string;
   /** Transit names, keyed by the symbol leg the way through takes. */
