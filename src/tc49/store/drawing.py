@@ -51,9 +51,9 @@ from tc49.lib.layout import (
 # kinds rather than two appearances of one because their footprints and pin
 # positions differ (ui/EDITOR.md).
 #
-# `LIBRARY`, `POSITIONS`, `PINS` and `ROTATIONS` are public because the
-# editor's TypeScript is generated from them (symbols.py); the rest of the
-# module's constants are its own.
+# `LIBRARY`, `POSITIONS`, `PINS`, `ROTATIONS` and `TURNOUT_ROTATIONS` are
+# public because the editor's TypeScript is generated from them (symbols.py);
+# the rest of the module's constants are its own.
 _CROSS = ("a1", "a2", "b1", "b2")
 _THROUGH = {"a": ("a1", "a2"), "b": ("b1", "b2")}
 LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
@@ -73,9 +73,6 @@ LIBRARY: dict[str, dict[str, tuple[str, str]]] = {
 #
 # It is also the roll of kinds that have a motor at all, which is what takes an
 # `addr`; a fixed crossing is not in it and takes none.
-#
-# A turnout's row is the default: one with `closed_leg: diverging` wants the
-# reverse, which `Symbol.position` reads.
 POSITIONS: dict[str, dict[str, str]] = {
     "turnout": {"straight": "closed", "diverging": "thrown"},
     "single_slip": {"a": "closed", "b": "closed", "slip": "thrown"},
@@ -109,9 +106,12 @@ _JOINERS = frozenset({BEND, "portal"})
 # Where a symbol sits on the canvas (ADR-0018). Derivation reads none of it, so
 # the schema check is all there is: a placement that loads is well-formed, and
 # nothing downstream can be changed by moving anything. Every kind is drawn one
-# way, so where it sits is the whole of its geometry.
+# way, so where it sits is the whole of its geometry. A turnout turns in 45
+# degree steps, which is what puts its straight road on a diagonal; every other
+# kind turns in quarters.
 _PLACEMENT = frozenset({"at", "rot", "flip"})
 ROTATIONS = (0, 90, 180, 270)
+TURNOUT_ROTATIONS = (0, 45, 90, 135, 180, 225, 270, 315)
 
 # A widget: text, a button or a toggle placed beside the track (ADR-0087). Its
 # name ends its topic, so it is one topic level. Every kind takes a place and
@@ -160,9 +160,6 @@ class Symbol:
     length: int = 0
     label: str = ""  # a portal's, which pairs it with its mate
     addr: str = ""  # a motorised symbol's, naming what the hardware answers to
-    # A turnout's: the leg its closed position takes, thrown taking the other.
-    # Where the grid puts the straight road on the 45° leg, it is `diverging`.
-    closed_leg: str = "straight"
     # A block's signals, by the end each stands at: the address of the signal
     # installed there, absent where an end carries none.
     signals: dict[str, str] = field(default_factory=dict[str, str])
@@ -170,12 +167,6 @@ class Symbol:
     # knows that sensor by. One per end, always, the drawing writing only the
     # ends whose address is not the default (ADR-0063).
     sensors: dict[str, str] = field(default_factory=dict[str, str])
-
-    def position(self, leg: str) -> str:
-        """The position a way over `leg` of this motorised symbol wants."""
-        if self.kind == "turnout":
-            return "closed" if leg == self.closed_leg else "thrown"
-        return POSITIONS[self.kind][leg]
 
 
 @dataclass(frozen=True)
@@ -419,7 +410,7 @@ class Drawing:
                     for symbol, local in named[way][1]:
                         points = self.symbols[symbol]
                         if points.addr and points.kind in POSITIONS:
-                            position = points.position(local)
+                            position = POSITIONS[points.kind][local]
                             wanted[points.addr][position].add(symbol)
                 for addr, at in sorted(wanted.items()):
                     if len(at) > 1:
@@ -850,7 +841,7 @@ class Drawing:
         for symbol, local in used:
             points = self.symbols[symbol]
             if points.addr and points.kind in POSITIONS:
-                wanted.add((points.addr, points.position(local)))
+                wanted.add((points.addr, POSITIONS[points.kind][local]))
         return [
             {
                 "addr": addr,
@@ -1019,15 +1010,8 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
     optional = {"names", "connection"} | _PLACEMENT
     if kind in POSITIONS:
         optional.add("addr")
-    if kind == "turnout":
-        optional.add("closed_leg")
     check_keys(spec, where, {"kind"}, optional)
     transits = LIBRARY[kind]
-    closed_leg = spec.get("closed_leg", "straight")
-    if kind == "turnout" and (
-        not isinstance(closed_leg, str) or closed_leg not in transits
-    ):
-        raise ValueError(f"{where}: closed_leg must be one of {list(transits)}")
 
     names: dict[str, str] = {}
     for transit, authored in as_mapping(
@@ -1048,7 +1032,6 @@ def _library_symbol(where: str, name: str, spec: Any, kind: str) -> Symbol:
         # Nothing checks an address, so nothing but the yaml's own quoting
         # separates the accessory number 31 from the string "31" (ADR-0022).
         addr=str(spec.get("addr", "")),
-        closed_leg=closed_leg,
     )
 
 
@@ -1127,8 +1110,9 @@ def _check_geometry(spec: Any, where: str) -> None:
             raise ValueError(f"{where}: at must be two integers, got {at!r}")
         if len(cast(list[Any], at)) != 2:
             raise ValueError(f"{where}: at must be two integers, got {at!r}")
-    if "rot" in spec and spec["rot"] not in ROTATIONS:
-        raise ValueError(f"{where}: rot must be one of {list(ROTATIONS)}")
+    rotations = TURNOUT_ROTATIONS if spec.get("kind") == "turnout" else ROTATIONS
+    if "rot" in spec and spec["rot"] not in rotations:
+        raise ValueError(f"{where}: rot must be one of {list(rotations)}")
     if "flip" in spec and not isinstance(spec["flip"], bool):
         raise ValueError(f"{where}: flip must be true or false")
 

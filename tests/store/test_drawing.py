@@ -1683,55 +1683,50 @@ def test_reversing_loops_ganged_points_come_out_one_entry_each() -> None:
     )
 
 
-def test_a_turnout_closed_on_its_diverging_leg_wants_closed_there() -> None:
-    """Where the grid puts the straight road on the 45° leg, the turnout says
-    so, and a way over that leg wants it closed (#1060)."""
-    points = derive(throat(addr="31", closed_leg="diverging"))["connections"]["points"]
+def test_a_turnout_at_45_closes_on_its_straight_leg() -> None:
+    """`closed` takes `straight` and `thrown` takes `diverging` however the
+    turnout is turned (#1295)."""
+    points = derive(throat(addr="31", rot=45))["connections"]["points"]
     assert points["points"] == {
-        "east_A__west_B": [{"addr": "31", "position": "thrown"}],
-        "north_A__west_B": [{"addr": "31", "position": "closed"}],
+        "east_A__west_B": [{"addr": "31", "position": "closed"}],
+        "north_A__west_B": [{"addr": "31", "position": "thrown"}],
     }
 
 
-def test_a_turnout_closed_on_its_diverging_leg_is_no_fault_beside_its_mate() -> None:
-    """Two turnouts on one address, the way wanting opposite legs of them,
-    move as one where one of them closes on its diverging leg (#1060)."""
-    assert len(Drawing.from_document(ganged_in_series()).review()["motor_faults"]) == 1
-    doc = ganged_in_series()
-    doc["symbols"]["swb"]["closed_leg"] = "diverging"
-    assert Drawing.from_document(doc).review()["motor_faults"] == []
+@pytest.mark.parametrize("rot", [0, 45, 90, 135, 180, 225, 270, 315])
+@pytest.mark.parametrize("flip", [False, True])
+def test_a_turnout_loads_at_each_of_its_eight_turns(rot: int, flip: bool) -> None:
+    """A turnout turns in 45° steps, flipped and not (#1295)."""
+    Drawing.from_document(
+        two_blocks(points={"kind": "turnout", "rot": rot, "flip": flip})
+    )
 
 
 @pytest.mark.parametrize(
     "spec",
     [
-        {"kind": "single_slip", "closed_leg": "straight"},
-        {"kind": "double_slip", "closed_leg": "slip_1"},
-        {"kind": "turnout", "closed_leg": "curved"},
-        {"kind": "turnout", "closed_leg": "toe"},
-        {"kind": "turnout", "closed_leg": ["diverging"]},
+        {"kind": "turnout", "rot": 30},
+        {"kind": "turnout", "rot": 360},
+        {"kind": "turnout", "rot": "45"},
+        {"kind": "single_slip", "rot": 45},
+        {"kind": "double_slip", "rot": 135},
+        {"kind": "crossing", "rot": 225},
+        {"kind": "terminal", "rot": 315},
     ],
 )
-def test_a_closed_leg_on_a_slip_or_naming_no_leg_is_refused(
-    spec: dict[str, Any],
-) -> None:
-    """A slip's roads are already drawn apart, and a turnout has two legs
-    (#1060)."""
-    with pytest.raises(ValueError, match="symbol 'points'"):
+def test_a_turn_the_kind_does_not_take_is_refused(spec: dict[str, Any]) -> None:
+    """Only a turnout takes the 45° steps, and it takes no other (#1295)."""
+    with pytest.raises(ValueError, match="symbol 'points': rot must be one of"):
         Drawing.from_document(two_blocks(points=spec))
 
 
-@pytest.mark.parametrize("name", RAILROADS)
-def test_a_turnout_saying_it_closes_straight_derives_as_one_saying_nothing(
-    name: str,
-) -> None:
-    """Absent means `straight`, so no committed railroad changes (#1060)."""
-    doc = read(f"{name}.drawing.yaml")
-    said = read(f"{name}.drawing.yaml")
-    for spec in said["symbols"].values():
-        if spec["kind"] == "turnout":
-            spec["closed_leg"] = "straight"
-    assert derive(said) == derive(doc)
+def test_closed_leg_is_refused() -> None:
+    """A turnout's straight road is turned onto the diagonal instead
+    (#1295)."""
+    with pytest.raises(ValueError, match=r"symbol 'points': unknown key\(s\)"):
+        Drawing.from_document(
+            two_blocks(points={"kind": "turnout", "closed_leg": "diverging"})
+        )
 
 
 def test_placement_loads_and_derives_to_the_same_layout() -> None:
