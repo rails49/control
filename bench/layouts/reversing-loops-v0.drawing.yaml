@@ -105,9 +105,9 @@ symbols:
   # used only for the admission fit check (does the train fit the destination).
 
   # station-C through tracks
-  station_c_1: {kind: block, length: 1500, at: [7, 11]}
-  station_c_2: {kind: block, length: 1500, at: [8, 12]}
-  station_c_3: {kind: block, length: 1500, at: [9, 13]}
+  station_c_1: {kind: block, length: 1500, at: [8, 11]}
+  station_c_2: {kind: block, length: 1500, at: [10, 12]}
+  station_c_3: {kind: block, length: 1500, at: [12, 13]}
   # station-C sidings, north-east: off track 1's east lead (Rocrail c6, c5)
   station_c_4: {kind: block, length: 900, at: [7, 10], rot: 180}
   station_c_5: {kind: block, length: 900, at: [7, 9], rot: 180}
@@ -116,14 +116,14 @@ symbols:
   station_c_7: {kind: block, length: 900, at: [2, 15], rot: 180}
 
   # station-A through tracks, and its siding
-  station_a_1: {kind: block, length: 1200, at: [21, 1]}
-  station_a_2: {kind: block, length: 1200, at: [22, 2]}
-  station_a_3: {kind: block, length: 1200, at: [22, 3]}
-  station_a_4: {kind: block, length: 700, at: [29, 3]}
+  station_a_1: {kind: block, length: 1200, at: [27, 1]}
+  station_a_2: {kind: block, length: 1200, at: [29, 2]}
+  station_a_3: {kind: block, length: 1200, at: [29, 3]}
+  station_a_4: {kind: block, length: 700, at: [37, 3]}
 
   # The three line sections between the stations
   line_blue_1: {kind: block, length: 3000, at: [18, 5], rot: 270}
-  line_blue_2: {kind: block, length: 3000, at: [17, 5], rot: 270}
+  line_blue_2: {kind: block, length: 3000, at: [16, 5], rot: 270}
   line_yellow: {kind: block, length: 4000, at: [5, 5], rot: 90}
 
   # station-A — ONE junction, drawn from its real geometry (#46), which is the
@@ -153,42 +153,42 @@ symbols:
   # they take the derived name: their two block ends.
 
   # The WX310, west of the station: a turnout on each leg at each end, and the
-  # crossing where the two diagonals meet. Each turnout's diverging leg lands
-  # on the crossing pin above or below it, so all four of those wires are of
-  # zero length; `b` runs from the upper leg's west points down to the lower
+  # crossing where the two diagonals meet. The upper two turnouts' diverging
+  # legs land on the crossing's pins and the lower two reach theirs over a
+  # 45 degree wire, each in line with the route it joins; `b` runs from the upper leg's west points down to the lower
   # leg's east points and `a` the other way, which is a drawing choice and not
   # a topological one.
   #
   # Rocrail hops the yellow's lead over blue 2's on connector tiles rather than
   # crossing it, and #35 has those two movements running together, so there is
   # no second crossing here.
-  sw17: {kind: turnout, connection: station_a, at: [18, 1], flip: true, rot: 180} # blue 2: on, or cross down
-  sw18: {kind: turnout, connection: station_a, at: [19, 1], rot: 180} # A ends: on, or cross down
-  sw19: {kind: turnout, connection: station_a, at: [19, 4]} # yellow/blue 1: on, or cross up
-  sw20: {kind: turnout, connection: station_a, at: [20, 4], flip: true} # B ends: on, or cross up
-  sw16: {kind: crossing_90d, connection: station_a, at: [18, 2]} # the WX310 itself
+  sw17: {kind: turnout, connection: station_a, at: [21, 1], flip: true, rot: 180} # blue 2: on, or cross down
+  sw18: {kind: turnout, connection: station_a, at: [23, 1], rot: 180} # A ends: on, or cross down
+  sw19: {kind: turnout, connection: station_a, at: [20, 4]} # yellow/blue 1: on, or cross up
+  sw20: {kind: turnout, connection: station_a, at: [24, 4], flip: true} # B ends: on, or cross up
+  sw16: {kind: crossing_90d, connection: station_a, at: [22, 2]} # the WX310 itself
 
   # Where the lower leg splits: the yellow runs on west, blue 1 turns south.
   sw51: {kind: turnout, connection: station_a, at: [18, 4], rot: 180}
 
   # The west ladder, fanning the upper leg into the A ends of tracks 1-3.
-  sw41: {kind: turnout, connection: station_a, at: [20, 1], flip: true, rot: 180}
-  sw42: {kind: turnout, connection: station_a, at: [21, 2], flip: true, rot: 180}
+  sw41: {kind: turnout, connection: station_a, at: [25, 1], flip: true, rot: 180}
+  sw42: {kind: turnout, connection: station_a, at: [27, 2], flip: true, rot: 180}
 
   # The return loop off the east end: single track, so a bend rather than a
   # junction, and what puts the B ends on the lower leg. It sits well east of
   # everything, which is what keeps its two long wires clear of the station.
-  return_loop: {kind: pin, at: [43, 4]}
+  return_loop: {kind: pin, at: [49, 4]}
 
   # The east ladder. sw39 sits on track 3's own lead, so the siding is its
   # straight leg and the ladder its diverging one.
-  sw35: {kind: turnout, connection: station_a, at: [29, 1], rot: 180}
-  sw36: {kind: turnout, connection: station_a, at: [28, 2], rot: 180}
+  sw35: {kind: turnout, connection: station_a, at: [38, 1], rot: 180}
+  sw36: {kind: turnout, connection: station_a, at: [36, 2], rot: 180}
   sw39:
     kind: turnout
     connection: station_a
     names: {straight: siding_4} # a4 trails off a3, per the Rocrail netlist
-    at: [28, 3]
+    at: [35, 3]
 
   # station-C west, drawn from real symbols (#46): the yellow line fans out to all
   # three through tracks down a ladder, and the two south sidings trail off
@@ -209,7 +209,7 @@ symbols:
     kind: turnout
     connection: station_c_west
     names: {straight: yellow_2}
-    at: [7, 12]
+    at: [8, 12]
     flip: true
     rot: 180
   # ASSUMED, and the one thing here the tiles do not settle: sw44's point faces
@@ -220,7 +220,7 @@ symbols:
     kind: turnout
     connection: station_c_west
     names: {straight: yellow_3}
-    at: [8, 13]
+    at: [10, 13]
     rot: 180
   sw45:
     kind: turnout
@@ -271,13 +271,13 @@ symbols:
     kind: turnout
     connection: station_c_east_b1
     names: {straight: blue_1_2, diverging: blue_1_3}
-    at: [15, 12]
+    at: [18, 12]
     rot: 180
   sw49: # blue 2's lead: track 1, or on to the sidings
     kind: turnout
     connection: station_c_east_b2
     names: {straight: blue_2_1}
-    at: [13, 11]
+    at: [14, 11]
     flip: true
   sw48: # the north-east siding pair, off sw49's diverging leg
     kind: turnout
@@ -292,7 +292,7 @@ symbols:
   station_c_5_B_stop: {kind: terminal, at: [6, 9], rot: 180}
   station_c_6_B_stop: {kind: terminal, at: [1, 14], rot: 180}
   station_c_7_B_stop: {kind: terminal, at: [1, 15], rot: 180}
-  station_a_4_B_stop: {kind: terminal, at: [35, 3]}
+  station_a_4_B_stop: {kind: terminal, at: [43, 3]}
 
   # A free-standing bend, and the only symbol here that is not the railroad:
   # sw49's toe faces east, so blue 2 comes down over the station, turns here,
@@ -300,7 +300,7 @@ symbols:
   # being drawn across the throat. A bend is a joiner, so it declares no
   # transit and composes no conflict — every way through it already shares
   # sw49, which the derived layout confirms.
-  blue_2_bend: {kind: pin, at: [17, 11]}
+  blue_2_bend: {kind: pin, at: [16, 11]}
 
 wires:
   - [line_blue_2.B, sw17.toe]
