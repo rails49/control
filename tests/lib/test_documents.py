@@ -295,6 +295,40 @@ def test_an_arrival_allowance_the_store_cannot_read_is_raised(
         client(url).installation()
 
 
+def test_a_settings_document_with_short_blocks_reads_it(url: str, root: Path) -> None:
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text(
+        "point_gap: 1\nshort_blocks: true\n"
+    )
+    assert client(url).settings(RAILROAD) == KeptSettings(1.0, short_blocks=True)
+
+
+def test_a_settings_document_without_short_blocks_reads_false(
+    url: str, root: Path
+) -> None:
+    """A document kept before there was the setting: the length check on
+    (#1286)."""
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text("point_gap: 1\n")
+    kept = client(url).settings(RAILROAD)
+    assert kept is not None
+    assert kept.short_blocks is False
+
+
+def test_short_blocks_the_store_cannot_read_is_raised(url: str, root: Path) -> None:
+    """`1` is a number, not `true` (#1286)."""
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text(
+        "point_gap: 1\nshort_blocks: 1\n"
+    )
+    with pytest.raises(ValueError, match="short_blocks"):
+        client(url).settings(RAILROAD)
+
+
+def test_the_short_blocks_a_railroad_keeps_is_what_was_put(url: str) -> None:
+    documents = client(url)
+    kept = KeptSettings(1.0, short_blocks=True)
+    documents.put_settings(RAILROAD, kept)
+    assert documents.settings(RAILROAD) == kept
+
+
 def test_installation_settings_the_store_cannot_read_are_raised(
     url: str, root: Path
 ) -> None:

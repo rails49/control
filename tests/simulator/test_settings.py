@@ -42,6 +42,7 @@ def test_a_railroad_that_keeps_no_settings_says_the_defaults() -> None:
     assert said_on_build(None) == {
         "point_gap": 0.5,
         "speeds": {"clear": 0.6, "caution": 0.3},
+        "short_blocks": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
@@ -54,6 +55,7 @@ def test_a_railroad_that_keeps_its_speeds_says_them() -> None:
     assert said_on_build(kept) == {
         "point_gap": 1.0,
         "speeds": {"clear": 0.5, "caution": 0.25},
+        "short_blocks": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
@@ -107,11 +109,39 @@ def test_a_speed_a_person_sets_is_said_at_once_and_kept_with_the_railroad() -> N
     assert built.said == {
         "point_gap": 0.5,
         "speeds": {"clear": 0.5, "caution": 0.3},
+        "short_blocks": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
     }
     assert built.kept == [KeptSettings(0.5, {"clear": 0.5, "caution": 0.3})]
+
+
+def test_short_blocks_a_person_sets_is_said_at_once_and_kept_with_the_railroad() -> (
+    None
+):
+    """Said with the gap and the speeds as they were, and the railroad's
+    settings handed to keep, as `layout` takes it: this binding routes
+    nothing, so it keeps and says it and runs on nothing (#1286)."""
+    built = Built()
+    built.wanted({"speeds": {"clear": 0.5}})
+    built.wanted({"short_blocks": True})
+    assert built.said == {
+        "point_gap": 0.5,
+        "speeds": {"clear": 0.5, "caution": 0.3},
+        "short_blocks": True,
+        "throttle_silence": THROTTLE_SILENCE_S,
+        "sensor_silence": SENSOR_SILENCE_S,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
+    }
+    assert built.kept[-1] == KeptSettings(0.5, {"clear": 0.5, "caution": 0.3}, True)
+    built.wanted({"short_blocks": 1})
+    assert built.said["short_blocks"] is True
+    assert len(built.kept) == 2
+
+
+def test_a_railroad_that_keeps_short_blocks_says_it() -> None:
+    assert said_on_build(KeptSettings(short_blocks=True))["short_blocks"] is True
 
 
 def test_a_throttle_silence_a_person_sets_is_said_and_kept_with_the_installation() -> (

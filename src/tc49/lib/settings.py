@@ -1,6 +1,7 @@
 """The settings a person sets from the Settings dialog: the railroad's, its
-**point gap** and the driver's **speeds** (#1125, #1126, #1132), and the
-installation's, its **throttle silence** (#1132), **sensor silence**
+**point gap**, the driver's **speeds** (#1125, #1126, #1132) and
+`short_blocks`, whether a route may use a block shorter than the train
+(#1286), and the installation's, its **throttle silence** (#1132), **sensor silence**
 (#1149) and **arrival allowance** (#1188) — and the shape of
 `tc49/layout/state/settings`, which says them all (#1130).
 
@@ -140,30 +141,52 @@ def point_gap(value: object) -> float | None:
     return float(value)
 
 
+def short_blocks(value: object) -> bool | None:
+    """`value` as a `short_blocks`, or None where it is not one: `True` or
+    `False`. A number is no bool, `0` and `1` included."""
+    if not isinstance(value, bool):
+        return None
+    return value
+
+
 @dataclass(frozen=True)
 class KeptSettings:
-    """What a railroad keeps of its settings: the point gap, in seconds, and
-    the driver's speeds, `clear` and `caution` (#1132)."""
+    """What a railroad keeps of its settings: the point gap, in seconds, the
+    driver's speeds, `clear` and `caution` (#1132), and `short_blocks`,
+    whether a route may end in or pass through a block shorter than the
+    train (#1286)."""
 
     point_gap: float = POINT_GAP_S
     speeds: Mapping[str, float] = field(default_factory=lambda: dict(SPEEDS))
+    short_blocks: bool = False
 
     def document(self) -> dict[str, object]:
         """The store's document."""
-        return {"point_gap": self.point_gap, "speeds": dict(self.speeds)}
+        return {
+            "point_gap": self.point_gap,
+            "speeds": dict(self.speeds),
+            "short_blocks": self.short_blocks,
+        }
+
+
+_RAILROAD_FIELDS = frozenset({"point_gap", "speeds", "short_blocks"})
 
 
 def kept_settings(doc: object) -> KeptSettings:
     """The `KeptSettings` a store document says, or `ValueError` or
-    `TypeError` naming what is wrong with it: `point_gap` in range, and
-    `speeds`, where given, `clear` and `caution` each in range, and nothing
-    else. A document without `speeds` keeps `SPEEDS` (#1132)."""
+    `TypeError` naming what is wrong with it: `point_gap` in range,
+    `speeds`, where given, `clear` and `caution` each in range,
+    `short_blocks`, where given, a bool, and nothing else. A document without
+    `speeds` keeps `SPEEDS` (#1132), and one without `short_blocks` keeps
+    `False` (#1286)."""
     if not isinstance(doc, dict):
-        raise TypeError("settings are a document of 'point_gap' and 'speeds'")
+        raise TypeError(
+            "settings are a document of 'point_gap', 'speeds' and 'short_blocks'"
+        )
     fields = cast(dict[str, Any], doc)
-    if "point_gap" not in fields or not set(fields) <= {"point_gap", "speeds"}:
+    if "point_gap" not in fields or not set(fields) <= _RAILROAD_FIELDS:
         raise ValueError(
-            "settings have 'point_gap' and may have 'speeds',"
+            "settings have 'point_gap' and may have 'speeds' and 'short_blocks',"
             f" not {sorted(map(str, fields))}"
         )
     gap = point_gap(fields["point_gap"])
@@ -172,9 +195,14 @@ def kept_settings(doc: object) -> KeptSettings:
             f"settings 'point_gap' is {fields['point_gap']!r},"
             f" not a number of seconds from 0 to {POINT_GAP_MAX_S:g}"
         )
-    if "speeds" not in fields:
-        return KeptSettings(gap)
-    return KeptSettings(gap, _kept_speeds(fields["speeds"]))
+    speeds = _kept_speeds(fields["speeds"]) if "speeds" in fields else dict(SPEEDS)
+    short = short_blocks(fields.get("short_blocks", False))
+    if short is None:
+        raise TypeError(
+            f"settings 'short_blocks' is {fields['short_blocks']!r},"
+            " not true or false"
+        )
+    return KeptSettings(gap, speeds, short)
 
 
 def _kept_speeds(stated: object) -> dict[str, float]:
@@ -266,12 +294,14 @@ def kept_installation(doc: object) -> KeptInstallation:
 
 
 def said(kept: KeptSettings, installation: KeptInstallation) -> dict[str, object]:
-    """The payload of `tc49/layout/state/settings`: the railroad's point gap
-    and speeds, and the installation's throttle silence, sensor silence and
-    arrival allowance, every field always present (#1130, #1149, #1188)."""
+    """The payload of `tc49/layout/state/settings`: the railroad's point gap,
+    speeds and `short_blocks`, and the installation's throttle silence, sensor
+    silence and arrival allowance, every field always present (#1130, #1149,
+    #1188, #1286)."""
     return {
         "point_gap": kept.point_gap,
         "speeds": dict(kept.speeds),
+        "short_blocks": kept.short_blocks,
         "throttle_silence": installation.throttle_silence,
         "sensor_silence": installation.sensor_silence,
         "arrival_allowance": installation.arrival_allowance,
@@ -283,16 +313,21 @@ def taken(
 ) -> tuple[KeptSettings, KeptInstallation, list[KeptSettings | KeptInstallation]]:
     """The settings as they stand once a person's `settings_wanted` is
     taken, the rule both bindings of the layout interface take it by
-    (#1126, #1132, #1140, #1149, #1188): the railroad's, the installation's,
-    and the documents to keep — the railroad's where the gesture set the gap
-    or a speed, the installation's where it set either silence or the
+    (#1126, #1132, #1140, #1149, #1188, #1286): the railroad's, the
+    installation's, and the documents to keep — the railroad's where the
+    gesture set the gap, a speed or `short_blocks`, the installation's where it set either silence or the
     arrival allowance. A field left out,
     and a speed left out of `speeds`, keeps its value."""
     changed: list[KeptSettings | KeptInstallation] = []
-    if wanted.point_gap is not None or wanted.speeds is not None:
+    if (
+        wanted.point_gap is not None
+        or wanted.speeds is not None
+        or wanted.short_blocks is not None
+    ):
         kept = KeptSettings(
             kept.point_gap if wanted.point_gap is None else wanted.point_gap,
             {**kept.speeds, **(wanted.speeds or {})},
+            kept.short_blocks if wanted.short_blocks is None else wanted.short_blocks,
         )
         changed.append(kept)
     if (
