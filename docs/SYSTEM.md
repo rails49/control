@@ -1247,7 +1247,8 @@ waits at least one gap, and a reported point still waits for its
 `device/point` as well. Signals are not spaced. Time is the injected clock's, as the settling time's is.
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
-loaded: the point gap and the driver's speeds, the railroad's, and the
+loaded: the point gap, the driver's speeds and `short_blocks`, the
+railroad's, and the
 throttle silence, the sensor silence and the arrival allowance, the
 installation's and the same whatever railroad is loaded
 ([#1130](https://github.com/rails49/control/issues/1130),
@@ -1260,8 +1261,13 @@ power and with no rebuild and said at once. The gap is used for the next
 point written and the throttle silence from the next check of who has gone
 silent, as is the sensor silence for who has gone unheard
 ([#1151](https://github.com/rails49/control/issues/1151)); the speeds are the
-driver's, and `layout` also reads `caution` for its drop, from the next check. The gap and the
-speeds are kept with the
+driver's, and `layout` also reads `caution` for its drop, from the next check.
+`short_blocks` is whether a route may end in or pass through a block shorter
+than the train: `layout` keeps and says it and runs on nothing, a placement
+keeping its length check whatever it says, and the dispatcher routing on it
+is [#1287](https://github.com/rails49/control/issues/1287)
+([#1286](https://github.com/rails49/control/issues/1286)). The gap, the
+speeds and `short_blocks` are kept with the
 railroad in `layouts/<layout>.settings.yaml`, the two silences and the
 arrival allowance with the installation in `installation.yaml`, read once as
 `layout` starts
@@ -1270,8 +1276,8 @@ arrival allowance with the installation in `installation.yaml`, read once as
 [#1188](https://github.com/rails49/control/issues/1188)). The arrival allowance
 holds from the next check of who is overdue
 ([#1190](https://github.com/rails49/control/issues/1190)). A
-railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s
-and the speeds 0.6 and 0.3, an installation that keeps none at 5 s, 3 s and 60 s, and
+railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s,
+the speeds 0.6 and 0.3 and `short_blocks` `false`, an installation that keeps none at 5 s, 3 s and 60 s, and
 nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
