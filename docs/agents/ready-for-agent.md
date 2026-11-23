@@ -35,16 +35,13 @@ four places.
 The agent was not careless — the body is what it was given, and following it is
 the right thing for a cold agent to do.
 
-So a stale body out-argues a fresh ruling unless something else carries the
-ruling. `/implement-loop` does: it hands every issue that runs after a ruling
-the ruling itself, and tells the agent that a stated ruling beats a word in its
-own body (`~/.claude/skills/implement-loop/SKILL.md`). Triage may still rewrite
-a stale body by hand, and should where it can; the handoff exists because that
-will sometimes not have been done.
+So a stale body out-argues a fresh ruling unless the ruling reaches the body.
+When a ruling lands, triage rewrites every open body it makes stale, and the
+spec the tickets point to says the ruling too.
 
 ## An open blocker is not a reason to remove the label
 
-`/implement-loop` reads `blocked_by` and sorts so a blocker runs first, so a
+`/implement-spec` starts a ticket only once its blockers are done, so a
 blocked issue may keep the label. Record the edge as a native GitHub
 dependency (see [issue-tracker.md](issue-tracker.md#wayfinding-operations)).
 
