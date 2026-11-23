@@ -12,7 +12,14 @@ Artwork is not generated. Footprints, anchor offsets and the strokes between
 them are hand-written TypeScript against these names (ui/EDITOR.md).
 """
 
-from tc49.store.drawing import BEND, LIBRARY, PINS, POSITIONS, ROTATIONS
+from tc49.store.drawing import (
+    BEND,
+    LIBRARY,
+    PINS,
+    POSITIONS,
+    ROTATIONS,
+    TURNOUT_ROTATIONS,
+)
 
 GENERATED_PATH = "ui/src/symbols.generated.ts"
 
@@ -117,12 +124,17 @@ export const PLACEABLE = [
 
 def _rotations() -> str:
     numbers = ", ".join(str(rotation) for rotation in ROTATIONS)
+    eighths = ", ".join(str(rotation) for rotation in TURNOUT_ROTATIONS)
     return f"""\
 /** Symbols sit in whole squares with pins at face centres, so they turn in
  *  quarters. */
 export const ROTATIONS = [{numbers}] as const;
 
-export type Rotation = (typeof ROTATIONS)[number];
+/** A turnout turns in 45 degree steps, which puts its straight road on a
+ *  diagonal. */
+export const TURNOUT_ROTATIONS = [{eighths}] as const;
+
+export type Rotation = (typeof TURNOUT_ROTATIONS)[number];
 """
 
 

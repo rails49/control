@@ -110,4 +110,8 @@ export const PLACEABLE = [
  *  quarters. */
 export const ROTATIONS = [0, 90, 180, 270] as const;
 
-export type Rotation = (typeof ROTATIONS)[number];
+/** A turnout turns in 45 degree steps, which puts its straight road on a
+ *  diagonal. */
+export const TURNOUT_ROTATIONS = [0, 45, 90, 135, 180, 225, 270, 315] as const;
+
+export type Rotation = (typeof TURNOUT_ROTATIONS)[number];
