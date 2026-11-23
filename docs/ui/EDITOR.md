@@ -474,8 +474,10 @@ own and neither machine is asked.
 The canvas is a grid of squares, and the grid is not negotiable. A symbol
 occupies one or more whole squares; each square is free or occupied by exactly
 one symbol. Pins sit at the centres of square sides, which is why symbols
-rotate in 90 degree steps and flip. Diagonal running comes from wires at
-angles, not from rotating symbols.
+rotate in 90 degree steps and flip. A turnout also steps by 45 degrees, which
+puts its straight road on the diagonal of its two squares with every pin still
+on a side centre ([Symbol geometry](#symbol-geometry)). Other diagonal running
+comes from wires at angles, not from rotating symbols.
 
 **The squares are not ruled. While a wire is in flight the face centres are
 marked instead.** A grey dot sits on every centre of a square side: that is
@@ -553,10 +555,11 @@ square off, which is as close as the grid allows. Nothing is drawn while the
 pointer is off the canvas, there being nowhere to place it there.
 
 `r` turns the ghost and `f` flips it, the same two keys that turn and flip a
-selection. The orientation is sticky: it carries into the next drag, whatever
-the kind, because a rotated run of turnouts should cost one keypress for the
-run and not one for each of them. The tiles keep showing the symbol at 0
-degrees; the ghost shows the truth the moment it is grabbed. Escape, Delete and
+selection. `r` steps a turnout by 45 degrees and every other kind by 90. The
+orientation is sticky: it carries into the next drag, whatever the kind,
+because a rotated run of turnouts should cost one keypress for the run and not
+one for each of them. A kind other than a turnout takes the quarter turn below
+a turnout's 45 degree step. The tiles keep showing the symbol at 0 degrees; the ghost shows the truth the moment it is grabbed. Escape, Delete and
 the right button abandon the drag.
 
 A portal is placed as a pair. Dropping one puts its mate straight back in
@@ -685,7 +688,7 @@ bulge past a buffer bar or a portal's mouth. Where the end is square the cap is
 butt; where it is oblique the stroke is clipped, so the stub still lights and
 still widens like any other track rather than reading as a solid.
 
-The signal, the tick, the buffer bar and the portal's mouth are proportioned
+The signal, the buffer bar and the portal's mouth are proportioned
 against the grid square rather than against W. They are marks the size of a
 tile, not track that widens with it, so their fractions are of G and stay that
 way.
@@ -777,12 +780,29 @@ at both ends. At the bar the cut keeps it from bulging past it; at the pin the
 pin covers the cut in edit mode and the incoming wire's round cap covers it in
 run mode.
 
-**Turnout**, 1×1. `toe` at `(0, 0.5)`, `straight` at `(1, 0.5)`,
-`diverging` at `(0.5, 0)`. Both roads leave the toe: the straight road runs
-to the east pin, the diverging road is a 45 degree stub to the top pin. This
-is the only 1×1 geometry with a 45 degree leg ending on a face centre, and a
-wire continuing at 45 degrees reaches the next row's track line in half a
-square, which is how turnouts stack between parallel station tracks.
+**Turnout**, 2×1, the footprint a slip has, on three of a slip's four pin
+sites. It has two forms, and `rot` picks between them:
+
+| `rot` | `toe` | `straight` | `diverging` | slip pin sites |
+| --- | --- | --- | --- | --- |
+| 0 | `(0, 0.5)` | `(2, 0.5)` | `(1.5, 0)` | `a1`, `a2`, `b2` |
+| 45 | `(0.5, 0)` | `(1.5, 1)` | `(2, 0.5)` | the mirrored slip's |
+
+`rot` is one of 0, 45, 90, 135, 180, 225, 270 and 315: `rot: 45 + 90k` is the
+45 form turned `k` quarter turns, and `flip` mirrors either form. That is 16
+orientations, and in each the straight road runs along `rot`, clockwise from
+east, with every pin on a face centre. The frog is `(1, 0.5)`, the face centre
+the two squares share, in both forms.
+
+Both roads leave the toe. The straight road is one straight stroke to
+`straight`. The diverging road runs in line with the straight road to √2/2 of
+a square before the frog, then one quadratic curve with the frog as its
+control point to √2/2 of a square past the frog on the diverging side, then in
+line to `diverging`. It meets a 45 degree wire, or a horizontal one, in line,
+and the straight stroke is what shows which road `closed` takes. A wire
+continuing at 45 degrees from the diverging pin of the 0 form reaches the next
+row's track line in half a square, which is how turnouts stack between
+parallel station tracks.
 
 **Crossing and slips**, 2×1. Route `a` is the horizontal, `a1` at
 `(0, 0.5)` to `a2` at `(2, 0.5)`; route `b` is the 45 degree diagonal, `b1`
@@ -790,17 +810,17 @@ at `(0.5, 1)` to `b2` at `(1.5, 0)`. They cross at `(1, 0.5)`, the face
 centre the two squares share, so the crossing is exactly two turnouts toe to
 toe, the second rotated.
 
-All three kinds share this artwork. A slip adds a tick, the road it has and a
-plain crossing has not: two straight strokes, one parallel to each of the two
-legs the road joins, offset 0.22G from each leg's centreline and meeting where
-those two offset lines cross. Arms about 0.14G, hairline weight, square ends,
-no flare. The tick sits in the obtuse sector between the two legs, the only
-pair a slip road can join, so where it is says which road exists: one for the
-single slip (`a1`–`b2`), both for the double.
+All three kinds share this artwork. A slip adds its slip road, drawn between
+its two pins as a turnout's diverging road is: one for the single slip
+(`a1`–`b2`), both for the double (`b1`–`a2` as well). A slip turns in quarter
+turns only: a 45 degree step of one gives a shape the quarter turns and the
+flip already reach.
 
-A lit transit lights exactly the track it traverses: each route is drawn as
-two half-strokes meeting at the crossing, so a through route lights its two
-halves and a slip lights its entry half, its tick, and its exit half.
+Each leg is one stroke from pin to pin, so a lit transit lights exactly the
+track it traverses: a through route its straight stroke, a slip road its
+curve. On a run the roads a point is not set to are faint and drawn under the
+solid ones: a thrown double slip shows both curves solid and both through
+routes faint, and a closed one the reverse.
 
 **90° crossings.** `crossing_90`, 1×1: two straight routes through the four
 face centres, horizontal and vertical. `crossing_90d`, 2×1: the same
@@ -909,8 +929,8 @@ portal-label questions that rare layout editing does not justify.
 
 The right-click dialog edits, per kind: a block's name, its length, the address
 of the signal at each of its ends and the name each end's sensor is known by, a
-portal's label, a turnout's or a slip's address, whether that address is
-reported, and which leg a turnout's closed position takes.
+portal's label, a turnout's or a slip's address, and whether that address is
+reported.
 
 Beside a turnout's or a slip's address, `Reported` says the hardware at it
 reports where the point lies, so the Run view draws it from `device/point` and
@@ -924,10 +944,6 @@ typing another address shows that one's. A symbol given another address does
 not carry the flag to it, and an address no symbol wears any more, after a
 readdress or a delete, leaves the list, which the store would otherwise refuse.
 With no address the box cannot be checked.
-
-Under a turnout's address, `Closed (0) takes` chooses the in-line leg or the
-45° leg. The in-line leg writes nothing; the 45° leg writes
-`closed_leg: diverging` ([DRAWING.md](../store/DRAWING.md#hardware-ids)).
 
 **A name is typed only where a person has to say it out loud**
 ([ADR-0023](../adr/0023-internal-names-are-minted-and-hidden.md)). That is a

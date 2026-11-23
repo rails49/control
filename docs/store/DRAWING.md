@@ -79,7 +79,7 @@ transits.
 | --- | --- | --- | --- | --- | --- |
 | Block | `block` | 2 (`A`, `B`) | the block itself | n/a | length; a signal address per signalled end, a sensor name per end named otherwise |
 | Terminal | `terminal` | 1 (`P`) | none | n/a | marks a deliberate track end |
-| Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | `closed_leg`: the leg its closed position takes |
+| Turnout | `turnout` | 3 (`toe`, `straight`, `diverging`) | `straight`, `diverging` | none | turns in 45 degree steps |
 | Crossing | `crossing` | 4 (`a1`, `a2`, `b1`, `b2`) | `a`, `b` | none | a grade crossing: one train at a time |
 | Single slip | `single_slip` | 4 | `a`, `b`, `slip` | none | |
 | Double slip | `double_slip` | 4 | `a`, `b`, `slip_1`, `slip_2` | none | topologically two turnouts joined toe to toe |
@@ -177,7 +177,7 @@ symbols:
   takes a `length` and optional `signals` and `sensors`, each keyed by its
   ends; a portal a
   `label`; a turnout
-  or a slip an optional `addr`, and a turnout an optional `closed_leg`
+  or a slip an optional `addr`
   ([Hardware ids](#hardware-ids)); a terminal and a
   free-standing pin (`kind: pin`) nothing.
   A symbol of fixed geometry also takes the names below, and every kind takes
@@ -216,14 +216,19 @@ none of them.
 | Key | Applies to | Meaning |
 | --- | --- | --- |
 | `at` | every kind | the grid cell of the symbol's top-left square |
-| `rot` | symbols with more than one pin | 0, 90, 180 or 270 |
+| `rot` | symbols with more than one pin | 0, 90, 180 or 270; a turnout also takes 45, 135, 225 and 315 |
 | `flip` | symbols with more than one pin | mirrored or not |
 
 A placed block reads `west: { kind: block, length: 1000, at: [2, 4] }`.
 
 The canvas is a grid of squares. A symbol occupies whole squares and pins sit
 at the centres of square sides, which is why rotation is a multiple of 90
-degrees. A free-standing pin sits at a face centre like any other pin, and
+degrees. A turnout is the exception: it takes two squares, and at `rot` 45,
+135, 225 or 315 its straight road runs along the diagonal of those squares,
+with every pin still at the centre of a side
+([EDITOR.md](../ui/EDITOR.md#symbol-geometry)). Any other `rot`, or one of
+those four on another kind, refuses the drawing, naming the symbol. A
+free-standing pin sits at a face centre like any other pin, and
 being on a boundary rather than in a square it occupies none. It is placed by
 the same two keys as everything else: `at` names a cell and `rot` turns its one
 pin onto that cell's west, north, east or south face. A face belongs to two
@@ -282,7 +287,7 @@ checks whether a widget overlaps a symbol or another widget.
 ## Hardware ids
 
 The drawing holds the identities of the fixed wiring, as optional symbol
-properties: `addr` on a turnout or a slip, `closed_leg` on a turnout, and
+properties: `addr` on a turnout or a slip, and
 `signals` and `sensors` on a block, keyed by the end each signal stands at and
 the end each sensor watches.
 
@@ -410,19 +415,17 @@ the library declares which leg wants which position:
 | `single_slip` | `a`, `b` | `slip` |
 | `double_slip` | `a`, `b` | `slip_1`, `slip_2` |
 
-On the steel, closed is the straight road and thrown the curved one. Where the
-grid puts a turnout's straight road on its 45° leg, the turnout says so with
-`closed_leg`, and its closed position takes that leg and thrown the other
-([#1060](https://github.com/rails49/control/issues/1060)):
+On the steel, closed is the straight road and thrown the curved one, and the
+drawing is the same for every turnout: `closed` takes `straight` and `thrown`
+takes `diverging`, whatever its `rot` and `flip`. A turnout whose straight
+road runs along a diagonal is turned 45 degrees:
 
 ```yaml
-t111: { kind: turnout, at: [14, 6], addr: '111', closed_leg: diverging }
+t111: { kind: turnout, at: [14, 6], rot: 45, addr: '111' }
 ```
 
-`closed_leg` is `straight` or `diverging`. Absent means `straight`, the table
-above. Derivation reads it, so the positions in a transit's `points` follow it;
-`rot` and `flip` do not change it. A slip carrying the key, or a value naming
-no leg, refuses the drawing, naming the symbol.
+A turnout whose motor is wired the other way round is corrected at the
+decoder or the wiring, not in the drawing.
 
 A fixed crossing has no motor and takes no `addr`. Nothing in the concurrency
 model changes: the library declares nothing concurrent through a crossing or a
