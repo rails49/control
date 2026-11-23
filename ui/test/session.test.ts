@@ -678,6 +678,7 @@ describe("the layout's settings", () => {
     throttle_silence: 5,
     sensor_silence: 3,
     arrival_allowance: 60,
+    short_blocks: false,
   };
   const READ = {
     pointGap: 0.5,
@@ -685,6 +686,7 @@ describe("the layout's settings", () => {
     throttleSilence: 5,
     sensorSilence: 3,
     arrivalAllowance: 60,
+    shortBlocks: false,
   };
 
   it("reads the row off state/settings", () => {
