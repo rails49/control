@@ -326,55 +326,58 @@ export function heldBy(what: string, holders: string[]): string {
 }
 
 /**
- * Why no length may be corrected, or `null` where one may.
+ * Why an edit to a field the apps built from may not be made, or `null` where
+ * it may.
  *
- * A length lives on the model as well as the car, and correcting either moves
- * a train the dispatcher fits into blocks. So it is off while track power is
- * on or draining: the run is moving trains over what the dispatcher built, and
- * a correction could only be built with power off, the layout answering
- * `railroad_wanted` only then. With power off, or no session (`null`) on a
- * page that holds no roster from one, it is on, placed trains or not: the
- * roster's save names the railroad again and the rebuild keeps the trains
- * that still fit
+ * `layout` and the dispatcher read a train's cars and their fields when the
+ * railroad is built, or once for a train they have not got, and keep what
+ * they read until the next build
+ * ([ADR-0092](../../../docs/adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
+ * So such an edit is off while track power is on or draining: the run is
+ * moving trains by what was built, and the edit could only be built with
+ * power off, the layout answering `railroad_wanted` only then. With power
+ * off, or no session (`null`) on a page that holds no roster from one, it is
+ * on, placed trains or not: the roster's save names the railroad again and
+ * the rebuild keeps the trains that still fit
  * ([ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md),
- * ui/STOCK.md#the-length-guard).
+ * ui/STOCK.md#edits-that-wait-for-power-off).
  *
  * It is off as well where the row naming the railroad is not `heard`: a page
  * that has lost the broker still holds the roster, and cannot know whether
  * the track has power — the broker, `layout` and the dispatcher may well be
  * running without it (#804). It keys on the row and not on `power === null`,
  * which a joined page whose drawing is invalid also reads, and whose
- * lengths stay editable. Nothing is latched: the row heard again with power
- * off, a length can be corrected.
+ * fields stay editable. Nothing is latched: the row heard again with power
+ * off, the edit can be made.
  *
  * **A guard in one browser.** The run's power comes down from the app, which
  * is the only thing on this page that has any; a second browser editing stock
  * during a run is not covered, and the store enforces none of it (ADR-0071).
  */
-export function lengthHeld(
+export function powerHeld(
   power: Power | null,
   heard: boolean = true,
 ): string | null {
-  if (trackLive(power))
-    return "track power is on — turn it off to correct a length";
+  if (trackLive(power)) return "track power is on — turn it off to change this";
   return heard
     ? null
-    : "the layout has not said whether the track has power, so a length cannot be corrected";
+    : "the layout has not said whether the track has power, so this cannot be changed";
 }
 
-/** What the roster's save says while a length edit waits for power off. */
-export const LENGTH_WAITS =
-  "a length has changed — turn track power off to save";
+/** What the roster's save says while an edit the apps built from waits for
+ *  power off. */
+export const REBUILD_WAITS =
+  "an edit needs the railroad loaded again — turn track power off to save";
 
-/** What the roster's save says while a length edit waits for the row naming
+/** What the roster's save says while such an edit waits for the row naming
  *  the railroad to be heard again, and with it whether the track has power. */
-export const LENGTH_UNHEARD =
-  "a length has changed — the layout has not said whether the track has power";
+export const REBUILD_UNHEARD =
+  "an edit needs the railroad loaded again — the layout has not said whether the track has power";
 
 // --- the screen's session -------------------------------------------------
 
 /** One car as the list above draws it: what it is, what is its own, and why
- *  its length may not be corrected. */
+ *  its address, length and functions may not be changed. */
 export interface CarRow {
   name: string;
   /** The model's key, and the name a person reads it by. */
@@ -448,6 +451,8 @@ export interface TrainRow {
   locomotive: string | null;
   priority: number | null;
   placed: boolean;
+  /** Why its entries and priority may not be changed (`powerHeld`). */
+  held: string | null;
 }
 
 /** What a model put in a train went in as (`Stock.addModel`): a model
@@ -483,6 +488,19 @@ export type Added =
  * nothing, rather than throwing: a refusal here is an ordinary answer about a
  * document being edited, exactly as `/review`'s is
  * ([ADR-0021](../../../docs/adr/0021-a-bad-request-is-answered-not-raised.md)).
+ *
+ * **An edit to a field the apps built from waits for power off**
+ * (ui/STOCK.md#edits-that-wait-for-power-off): a length, the entries of a
+ * train and which way round each stands, an address, functions and a
+ * decoder, and a priority. While track power is on or draining, or the row
+ * naming the railroad is not heard (`setPower`), each such edit to a car, a
+ * model or a train the store held when this was read or last saved leaves
+ * the documents as they are. One that answers `string | null` answers
+ * `powerHeld`'s words; one that answers what it made answers what it does
+ * when it makes nothing. Made on this page and not yet saved, an item is
+ * none of the apps' yet and is not held. Each such edit that wrote makes
+ * `rebuildEdits` true, so the save waits for power off and names the
+ * railroad again.
  */
 export class Stock {
   private doc: RosterDoc;
@@ -491,15 +509,24 @@ export class Stock {
    *  at, so `kept` can tell which edits the written one held. */
   private edited = 0;
   private countOf = new WeakMap<RosterDoc, number>();
-  /** The count the store holds, and the count at the latest length edit. */
+  /** The count the store holds, and the count at the latest edit the apps
+   *  built from (`rebuildEdits`). */
   private stored = 0;
-  private lengthAt = 0;
+  private rebuildAt = 0;
+  /** The run's track power and whether the row naming the railroad is heard,
+   *  as `setPower` last said. */
+  private power: Power | null = null;
+  private heard = true;
   /** The models changed and not yet written, by key. */
   private changed = new Set<string>();
   /** The models made on this page that the store has not got, by key: under
    *  a `FRESH` key until a save mints theirs, and under it until the write
    *  lands. */
   private fresh = new Set<string>();
+  /** The cars and the trains made on this page that the store has not got,
+   *  by name, until a roster naming them is kept. */
+  private freshCars = new Set<string>();
+  private freshTrains = new Set<string>();
   /** How many models this page has made, which the `FRESH` keys count. */
   private made = 0;
   /** The key a `FRESH` key was minted as, so a screen holding the old one
@@ -547,11 +574,19 @@ export class Stock {
     return Math.max(0, this.edited - this.stored);
   }
 
-  /** Whether those edits change a length, which is what makes the roster's
-   *  save wait for power off and, once it lands, name the railroad again so
-   *  the dispatcher fits trains with the new length (ADR-0071). */
-  get lengthEdits(): boolean {
-    return this.lengthAt > this.stored;
+  /** Whether those edits change a field the apps built from, which is what
+   *  makes the roster's save wait for power off and, once it lands, name the
+   *  railroad again so `layout` and the dispatcher read it (ADR-0071). */
+  get rebuildEdits(): boolean {
+    return this.rebuildAt > this.stored;
+  }
+
+  /** The run's track power, `null` with no session, and whether the row
+   *  naming the railroad is heard: what every edit the apps built from is
+   *  held by (`powerHeld`). */
+  setPower(power: Power | null, heard: boolean = true): void {
+    this.power = power;
+    this.heard = heard;
   }
 
   /** The models changed and not yet written, as the save is to write them: each
@@ -586,18 +621,24 @@ export class Stock {
   }
 
   /** The store took the roster, as `roster` gave it. An edit made since is
-   *  still to write, and so is a model still in `corrections` (#723). */
+   *  still to write, and so is a model still in `corrections` (#723). A car
+   *  or a train made here that it names is the store's from now on. */
   kept(written: RosterDoc): void {
     this.stored = this.countOf.get(written)!;
+    for (const car of Object.keys(written.cars ?? {}))
+      this.freshCars.delete(car);
+    for (const train of Object.keys(written.trains))
+      this.freshTrains.delete(train);
   }
 
-  /** Why the roster's save waits, or `null` where it does not: a length edit
-   *  with track power on or draining, or with the row not `heard` (#804). Every
-   *  edit waits with it, the roster being written whole (#1233). */
+  /** Why the roster's save waits, or `null` where it does not: an edit the
+   *  apps built from with track power on or draining, or with the row not
+   *  `heard` (#804). Every edit waits with it, the roster being written whole
+   *  (#1233). */
   waitsForPower(power: Power | null, heard: boolean = true): string | null {
-    if (!this.lengthEdits) return null;
-    if (trackLive(power)) return LENGTH_WAITS;
-    return heard ? null : LENGTH_UNHEARD;
+    if (!this.rebuildEdits) return null;
+    if (trackLive(power)) return REBUILD_WAITS;
+    return heard ? null : REBUILD_UNHEARD;
   }
 
   /**
@@ -639,7 +680,7 @@ export class Stock {
 
   // --- what the three lists draw -------------------------------------------
 
-  cars(power: Power | null = null, heard: boolean = true): CarRow[] {
+  cars(): CarRow[] {
     return Object.entries(this.doc.cars ?? {})
       .map(([name, car]) => {
         const whole = merged(car, this.models);
@@ -657,7 +698,7 @@ export class Stock {
           kind: whole?.kind ?? null,
           own: car.length !== undefined,
           modelLength: product?.length ?? null,
-          held: lengthHeld(power, heard),
+          held: this.holds(this.carCovered(name)),
           decoder: product !== undefined && hasDecoder(product),
           ownFunctions: "functions" in car,
           notes: car.notes ?? null,
@@ -671,7 +712,7 @@ export class Stock {
       );
   }
 
-  modelRows(power: Power | null = null, heard: boolean = true): ModelRow[] {
+  modelRows(): ModelRow[] {
     return Object.values(this.models)
       .map((model) => ({
         model: model.model,
@@ -681,7 +722,7 @@ export class Stock {
         length: model.length,
         decoder: hasDecoder(model),
         holders: modelHolders(model.model, this.doc),
-        held: this.fresh.has(model.model) ? null : lengthHeld(power, heard),
+        held: this.holds(this.modelCovered(model.model)),
       }))
       .sort(
         (one, other) =>
@@ -701,6 +742,7 @@ export class Stock {
         locomotive: this.locomotive(made),
         priority: made.priority ?? null,
         placed: onLayout.has(train),
+        held: this.holds(this.trainCovered(train)),
       }))
       .sort(
         (one, other) =>
@@ -745,6 +787,7 @@ export class Stock {
     if (this.doc.trains[name] !== undefined)
       return `There is already a train '${name}'.`;
     this.write({ trains: { ...this.doc.trains, [name]: { cars: [] } } });
+    this.freshTrains.add(name);
     return null;
   }
 
@@ -774,12 +817,14 @@ export class Stock {
   }
 
   /** Every train, `was` under the name `now` and as `made`, in the order the
-   *  document has them. */
+   *  document has them. A train made here stays made here under its new
+   *  name. */
   private rekeyed(
     was: string,
     now: string,
     made: RosterTrain,
   ): Record<string, RosterTrain> {
+    if (was !== now && this.freshTrains.delete(was)) this.freshTrains.add(now);
     const trains: Record<string, RosterTrain> = {};
     for (const [key, one] of Object.entries(this.doc.trains)) {
       if (key === was) trains[now] = made;
@@ -805,28 +850,31 @@ export class Stock {
   }
 
   /** A train's priority, 1 the highest; empty takes the key off, which is
-   *  the lowest. Anything but a whole number from 1 is refused. */
+   *  the lowest. Anything but a whole number from 1 is refused. The
+   *  dispatcher reads it at build, so it waits for power off. */
   trainPriority(train: string, typed: string): string | null {
-    const made = this.doc.trains[train];
-    if (made === undefined) return null;
-    const wanted = typed.trim();
-    const { priority: _was, ...rest } = made;
-    if (wanted === "") {
-      if (made.priority !== undefined)
-        this.write({ trains: { ...this.doc.trains, [train]: rest } });
+    return this.guarded(this.trainCovered(train), refuse, () => {
+      const made = this.doc.trains[train];
+      if (made === undefined) return null;
+      const wanted = typed.trim();
+      const { priority: _was, ...rest } = made;
+      if (wanted === "") {
+        if (made.priority !== undefined)
+          this.write({ trains: { ...this.doc.trains, [train]: rest } });
+        return null;
+      }
+      if (!/^\d+$/.test(wanted) || Number(wanted) < 1) {
+        return `'${wanted}' is not a priority. Use a whole number: 1 is highest.`;
+      }
+      if (made.priority === Number(wanted)) return null;
+      this.write({
+        trains: {
+          ...this.doc.trains,
+          [train]: { ...rest, priority: Number(wanted) },
+        },
+      });
       return null;
-    }
-    if (!/^\d+$/.test(wanted) || Number(wanted) < 1) {
-      return `'${wanted}' is not a priority. Use a whole number: 1 is highest.`;
-    }
-    if (made.priority === Number(wanted)) return null;
-    this.write({
-      trains: {
-        ...this.doc.trains,
-        [train]: { ...rest, priority: Number(wanted) },
-      },
     });
-    return null;
   }
 
   /** Unmake a rake. The cars it was made of stay on the roster: composing a
@@ -834,6 +882,7 @@ export class Stock {
   removeTrain(name: string): void {
     const trains = { ...this.doc.trains };
     delete trains[name];
+    this.freshTrains.delete(name);
     this.write({ trains });
   }
 
@@ -850,23 +899,25 @@ export class Stock {
     train: string,
     what: { car: string } | { model: string },
   ): string | null {
-    const made = this.doc.trains[train];
-    if (made === undefined) return null;
-    if (
-      "car" in what &&
-      (made.cars ?? []).some((entry) => entry.car === what.car)
-    ) {
-      return `${what.car} is already in ${train}. One item cannot stand in a train twice.`;
-    }
-    // A car stands in at most one train (#1067).
-    if ("car" in what) {
-      const other = this.elsewhere(what.car, train);
-      if (other !== null) return taken(what.car, other);
-    }
-    const as = this.named(train, [...(made.cars ?? []), what]);
-    if (as !== train) this.retitled.set(train, as);
-    this.inTrain(train, (cars) => [...cars, what], as);
-    return null;
+    return this.guarded(this.trainCovered(train), refuse, () => {
+      const made = this.doc.trains[train];
+      if (made === undefined) return null;
+      if (
+        "car" in what &&
+        (made.cars ?? []).some((entry) => entry.car === what.car)
+      ) {
+        return `${what.car} is already in ${train}. One item cannot stand in a train twice.`;
+      }
+      // A car stands in at most one train (#1067).
+      if ("car" in what) {
+        const other = this.elsewhere(what.car, train);
+        if (other !== null) return taken(what.car, other);
+      }
+      const as = this.named(train, [...(made.cars ?? []), what]);
+      if (as !== train) this.retitled.set(train, as);
+      this.inTrain(train, (cars) => [...cars, what], as);
+      return null;
+    });
   }
 
   /**
@@ -884,6 +935,14 @@ export class Stock {
    * in yet and the cars are the person's to choose from (`carsOf`).
    */
   addModel(train: string, key: string): Added {
+    return this.guarded(
+      this.trainCovered(train),
+      () => ({ as: "nothing" }),
+      () => this.added(train, key),
+    );
+  }
+
+  private added(train: string, key: string): Added {
     const at = this.keyOf(key);
     const model = this.models[at];
     if (model === undefined || this.doc.trains[train] === undefined)
@@ -947,31 +1006,36 @@ export class Stock {
    * where `at` is not a model entry or its model has no decoder.
    */
   carFor(train: string, at: number): string | null {
-    const made = this.doc.trains[train];
-    const entry = made?.cars?.[at];
-    if (made === undefined || entry?.model === undefined) return null;
-    const model = this.models[entry.model];
-    if (model === undefined || !hasDecoder(model)) return null;
-    const car = untaken(modelName(model), Object.keys(this.doc.cars ?? {}));
-    const placed: Coupled =
-      entry.orientation === undefined
-        ? { car }
-        : { car, orientation: entry.orientation };
-    this.write({
-      cars: { ...this.doc.cars, [car]: { model: entry.model } },
-      trains: {
-        ...this.doc.trains,
-        [train]: {
-          ...made,
-          cars: made.cars!.map((one, here) => (here === at ? placed : one)),
+    return this.guarded(this.trainCovered(train), nothingMade, () => {
+      const made = this.doc.trains[train];
+      const entry = made?.cars?.[at];
+      if (made === undefined || entry?.model === undefined) return null;
+      const model = this.models[entry.model];
+      if (model === undefined || !hasDecoder(model)) return null;
+      const car = untaken(modelName(model), Object.keys(this.doc.cars ?? {}));
+      const placed: Coupled =
+        entry.orientation === undefined
+          ? { car }
+          : { car, orientation: entry.orientation };
+      this.write({
+        cars: { ...this.doc.cars, [car]: { model: entry.model } },
+        trains: {
+          ...this.doc.trains,
+          [train]: {
+            ...made,
+            cars: made.cars!.map((one, here) => (here === at ? placed : one)),
+          },
         },
-      },
+      });
+      this.freshCars.add(car);
+      return car;
     });
-    return car;
   }
 
   removeEntry(train: string, index: number): void {
-    this.inTrain(train, (cars) => cars.filter((_, at) => at !== index));
+    this.guarded(this.trainCovered(train), unchanged, () =>
+      this.inTrain(train, (cars) => cars.filter((_, at) => at !== index)),
+    );
   }
 
   /** The entry at `from` taken out and put back at `to`, which is where a
@@ -980,26 +1044,30 @@ export class Stock {
     const cars = this.doc.trains[train]?.cars ?? [];
     if (from === to || cars[from] === undefined || to < 0 || to >= cars.length)
       return;
-    this.inTrain(train, (all) => {
-      const moved = [...all];
-      const [one] = moved.splice(from, 1);
-      moved.splice(to, 0, one!);
-      return moved;
-    });
+    this.guarded(this.trainCovered(train), unchanged, () =>
+      this.inTrain(train, (all) => {
+        const moved = [...all];
+        const [one] = moved.splice(from, 1);
+        moved.splice(to, 0, one!);
+        return moved;
+      }),
+    );
   }
 
   /** Which way round the item at one place is coupled. `forward` is the
    *  unstated value, so turning back to it takes the key off rather than
    *  writing a default into the document. */
   turn(train: string, index: number): void {
-    this.inTrain(train, (cars) =>
-      cars.map((entry, at) => {
-        if (at !== index) return entry;
-        const { orientation: _was, ...rest } = entry;
-        return entry.orientation === REVERSE
-          ? rest
-          : { ...rest, orientation: REVERSE };
-      }),
+    this.guarded(this.trainCovered(train), unchanged, () =>
+      this.inTrain(train, (cars) =>
+        cars.map((entry, at) => {
+          if (at !== index) return entry;
+          const { orientation: _was, ...rest } = entry;
+          return entry.orientation === REVERSE
+            ? rest
+            : { ...rest, orientation: REVERSE };
+        }),
+      ),
     );
   }
 
@@ -1021,6 +1089,7 @@ export class Stock {
       this.carRows.delete(was);
       this.carRows.set(name, rows);
     }
+    if (this.freshCars.delete(was)) this.freshCars.add(name);
     this.write({ cars, trains: this.renamed(was, name) });
     return null;
   }
@@ -1029,25 +1098,27 @@ export class Stock {
    *  leading zeros so `0460` and `460` are one address. Two cars on one
    *  address both answer the same packet, which is what the store refuses; it
    *  is refused here so the words name the other car rather than arriving on
-   *  a save. */
+   *  a save. `layout` reads it at build, so it waits for power off. */
   carAddress(name: string, addr: string): string | null {
-    const car = this.doc.cars?.[name];
-    if (car === undefined) return null;
-    const wanted = addr.trim();
-    if (wanted === "") {
-      const { addr: _was, ...rest } = car;
-      this.write({ cars: { ...this.doc.cars, [name]: rest } });
+    return this.guarded(this.carCovered(name), refuse, () => {
+      const car = this.doc.cars?.[name];
+      if (car === undefined) return null;
+      const wanted = addr.trim();
+      if (wanted === "") {
+        const { addr: _was, ...rest } = car;
+        this.write({ cars: { ...this.doc.cars, [name]: rest } });
+        return null;
+      }
+      const trouble = this.addressTrouble(wanted, name);
+      if (trouble !== null) return trouble;
+      this.write({
+        cars: {
+          ...this.doc.cars,
+          [name]: { ...car, addr: String(Number(wanted)) },
+        },
+      });
       return null;
-    }
-    const trouble = this.addressTrouble(wanted, name);
-    if (trouble !== null) return trouble;
-    this.write({
-      cars: {
-        ...this.doc.cars,
-        [name]: { ...car, addr: String(Number(wanted)) },
-      },
     });
-    return null;
   }
 
   /** Where the camera a car carries answers. Empty takes it off and keeps the
@@ -1074,31 +1145,26 @@ export class Stock {
    * A length corrected on this item and not on the product. `null` takes the
    * override off, and the car reads its model's length again.
    *
-   * Refused while track power is on or draining: the dispatcher is fitting
-   * trains into blocks on the length this answers, and only a build with
-   * power off brings it up to date (ui/STOCK.md#the-length-guard).
+   * Waits for power off: the dispatcher is fitting trains into blocks on the
+   * length this answers, and only a build with power off brings it up to
+   * date (ui/STOCK.md#edits-that-wait-for-power-off).
    */
-  carLength(
-    name: string,
-    mm: number | null,
-    power: Power | null = null,
-    heard: boolean = true,
-  ): string | null {
-    const car = this.doc.cars?.[name];
-    if (car === undefined) return null;
-    const held = lengthHeld(power, heard);
-    if (held !== null) return held;
-    if (mm === null) {
-      const { length: _was, ...rest } = car;
-      this.write({ cars: { ...this.doc.cars, [name]: rest } });
-      this.lengthAt = this.edited;
+  carLength(name: string, mm: number | null): string | null {
+    return this.guarded(this.carCovered(name), refuse, () => {
+      const car = this.doc.cars?.[name];
+      if (car === undefined) return null;
+      if (mm === null) {
+        const { length: _was, ...rest } = car;
+        this.write({ cars: { ...this.doc.cars, [name]: rest } });
+        return null;
+      }
+      const trouble = lengthTrouble(mm);
+      if (trouble !== null) return trouble;
+      this.write({
+        cars: { ...this.doc.cars, [name]: { ...car, length: mm } },
+      });
       return null;
-    }
-    const trouble = lengthTrouble(mm);
-    if (trouble !== null) return trouble;
-    this.write({ cars: { ...this.doc.cars, [name]: { ...car, length: mm } } });
-    this.lengthAt = this.edited;
-    return null;
+    });
   }
 
   /** Take a car off the roster. Refused while a train is made of it, and the
@@ -1109,6 +1175,7 @@ export class Stock {
     const cars = { ...this.doc.cars };
     delete cars[name];
     this.carRows.delete(name);
+    this.freshCars.delete(name);
     this.write({ cars });
     return null;
   }
@@ -1130,22 +1197,26 @@ export class Stock {
   /** *This car's decoder is different*: its model's functions copied onto the
    *  car as rows of its own, edited from then on as a model's are. */
   ownFunctions(name: string): void {
-    const car = this.doc.cars?.[name];
-    if (car === undefined || "functions" in car) return;
-    this.setRows(
-      { car: name },
-      this.functionRows(car.model).map((row) => ({ ...row })),
-    );
+    this.guarded(this.carCovered(name), unchanged, () => {
+      const car = this.doc.cars?.[name];
+      if (car === undefined || "functions" in car) return;
+      this.setRows(
+        { car: name },
+        this.functionRows(car.model).map((row) => ({ ...row })),
+      );
+    });
   }
 
   /** *Use the model's functions again*: the car's own taken off. */
   modelFunctions(name: string): void {
-    const car = this.doc.cars?.[name];
-    if (car === undefined) return;
-    this.carRows.delete(name);
-    if (!("functions" in car)) return;
-    const { functions: _was, ...rest } = car;
-    this.write({ cars: { ...this.doc.cars, [name]: rest } });
+    this.guarded(this.carCovered(name), unchanged, () => {
+      const car = this.doc.cars?.[name];
+      if (car === undefined) return;
+      this.carRows.delete(name);
+      if (!("functions" in car)) return;
+      const { functions: _was, ...rest } = car;
+      this.write({ cars: { ...this.doc.cars, [name]: rest } });
+    });
   }
 
   // --- models ---------------------------------------------------------------
@@ -1251,29 +1322,21 @@ export class Stock {
   }
 
   /** Correcting a product's length changes every item of that product, which
-   *  is the whole reason the length lives here as well as on the car. Refused
-   *  while track power is on or draining. Written on the roster's save.
+   *  is the whole reason the length lives here as well as on the car. Waits
+   *  for power off. Written on the roster's save.
    *
    *  A model made here and not yet written is none of that: no train the
-   *  dispatcher fits is made of it, so its length is neither held nor a
-   *  length edit — only typed. */
-  modelLength(
-    name: string,
-    mm: number,
-    power: Power | null = null,
-    heard: boolean = true,
-  ): string | null {
-    const at = this.keyOf(name);
-    const model = this.models[at];
-    if (model === undefined) return null;
-    const fresh = this.fresh.has(at);
-    const held = fresh ? null : lengthHeld(power, heard);
-    if (held !== null) return held;
-    const trouble = lengthTrouble(mm);
-    if (trouble !== null) return trouble;
-    this.change(at, { length: mm });
-    if (!fresh) this.lengthAt = this.edited;
-    return null;
+   *  dispatcher fits is made of it, so its length is neither held nor an
+   *  edit the apps built from — only typed. */
+  modelLength(name: string, mm: number): string | null {
+    return this.guarded(this.modelCovered(name), refuse, () => {
+      const at = this.keyOf(name);
+      if (this.models[at] === undefined) return null;
+      const trouble = lengthTrouble(mm);
+      if (trouble !== null) return trouble;
+      this.change(at, { length: mm });
+      return null;
+    });
   }
 
   /**
@@ -1282,17 +1345,19 @@ export class Stock {
    * functions, a function being a bit on a decoder (`lib/stock.py`).
    */
   modelDecoder(key: string, on: boolean): void {
-    const at = this.keyOf(key);
-    const model = this.models[at];
-    if (model === undefined) return;
-    const rows = on ? this.functionRows(at) : [];
-    this.putModel({ ...model, decoder: on });
-    this.setRows(
-      at,
-      on && rows.length === 0
-        ? [{ number: "0", name: "Headlights", mode: LATCHING }]
-        : rows,
-    );
+    this.guarded(this.modelCovered(key), unchanged, () => {
+      const at = this.keyOf(key);
+      const model = this.models[at];
+      if (model === undefined) return;
+      const rows = on ? this.functionRows(at) : [];
+      this.putModel({ ...model, decoder: on });
+      this.setRows(
+        at,
+        on && rows.length === 0
+          ? [{ number: "0", name: "Headlights", mode: LATCHING }]
+          : rows,
+      );
+    });
   }
 
   /** The function rows of a model, or of a car with its own, as the editor
@@ -1319,42 +1384,54 @@ export class Stock {
       }));
   }
 
-  /** A function row added, on the lowest number not in use. */
+  /** A function row added, on the lowest number not in use. Every edit to a
+   *  model's or a car's functions waits for power off: `layout` writes a
+   *  pressed function name to the number it read at build. */
   addFunction(key: FnOwner): void {
-    const rows = this.functionRows(key);
-    const used = new Set(rows.map((row) => row.number));
-    let number = 0;
-    while (used.has(String(number))) number++;
-    this.setRows(key, [
-      ...rows,
-      { number: String(number), name: "", mode: LATCHING },
-    ]);
+    this.guarded(this.ownerCovered(key), unchanged, () => {
+      const rows = this.functionRows(key);
+      const used = new Set(rows.map((row) => row.number));
+      let number = 0;
+      while (used.has(String(number))) number++;
+      this.setRows(key, [
+        ...rows,
+        { number: String(number), name: "", mode: LATCHING },
+      ]);
+    });
   }
 
   removeFunction(key: FnOwner, at: number): void {
-    this.setRows(
-      key,
-      this.functionRows(key).filter((_, index) => index !== at),
+    this.guarded(this.ownerCovered(key), unchanged, () =>
+      this.setRows(
+        key,
+        this.functionRows(key).filter((_, index) => index !== at),
+      ),
     );
   }
 
   /** A function's number, F0 to F68. One listed twice stands, said to be
    *  wrong, and stops the save while it does (`functionTrouble`). */
   functionNumber(key: FnOwner, at: number, typed: string): string | null {
-    const number = typed.trim().replace(/^[Ff]/, "");
-    if (!/^\d+$/.test(number) || Number(number) > TOP_FUNCTION) {
-      return `A function number is 0 to ${TOP_FUNCTION}.`;
-    }
-    this.setRow(key, at, { number: String(Number(number)) });
-    return null;
+    return this.guarded(this.ownerCovered(key), refuse, () => {
+      const number = typed.trim().replace(/^[Ff]/, "");
+      if (!/^\d+$/.test(number) || Number(number) > TOP_FUNCTION) {
+        return `A function number is 0 to ${TOP_FUNCTION}.`;
+      }
+      this.setRow(key, at, { number: String(Number(number)) });
+      return null;
+    });
   }
 
   functionName(key: FnOwner, at: number, name: string): void {
-    this.setRow(key, at, { name: name.trim() });
+    this.guarded(this.ownerCovered(key), unchanged, () =>
+      this.setRow(key, at, { name: name.trim() }),
+    );
   }
 
   functionMode(key: FnOwner, at: number, mode: string): void {
-    this.setRow(key, at, { mode });
+    this.guarded(this.ownerCovered(key), unchanged, () =>
+      this.setRow(key, at, { mode }),
+    );
   }
 
   /** What is wrong with a model's function rows, or `null` where nothing is:
@@ -1388,6 +1465,7 @@ export class Stock {
     if (model === undefined) return null;
     const name = untaken(modelName(model), Object.keys(this.doc.cars ?? {}));
     this.write({ cars: { ...this.doc.cars, [name]: { model: at } } });
+    this.freshCars.add(name);
     return name;
   }
 
@@ -1533,6 +1611,50 @@ export class Stock {
     this.countOf.set(this.doc, count);
   }
 
+  // --- what waits for power off ---------------------------------------------
+
+  /** Whether the store held this car, model or train when this was read or
+   *  last saved: what the apps may have built from. */
+  private carCovered(name: string): boolean {
+    return !this.freshCars.has(name);
+  }
+
+  private modelCovered(key: string): boolean {
+    return !this.fresh.has(this.keyOf(key));
+  }
+
+  private trainCovered(name: string): boolean {
+    return !this.freshTrains.has(name);
+  }
+
+  private ownerCovered(of: FnOwner): boolean {
+    return typeof of === "string"
+      ? this.modelCovered(of)
+      : this.carCovered(of.car);
+  }
+
+  /** Why an edit to an item is refused now, `null` where it is not. */
+  private holds(covered: boolean): string | null {
+    return covered ? powerHeld(this.power, this.heard) : null;
+  }
+
+  /** An edit to a field the apps built from: on a covered item, refused while
+   *  power holds it, answering `held(words)`, and otherwise made, and
+   *  recorded as one the save waits for and names the railroad again for
+   *  where it wrote. */
+  private guarded<T>(
+    covered: boolean,
+    held: (words: string) => T,
+    edit: () => T,
+  ): T {
+    const words = this.holds(covered);
+    if (words !== null) return held(words);
+    const before = this.edited;
+    const answer = edit();
+    if (covered && this.edited > before) this.rebuildAt = this.edited;
+    return answer;
+  }
+
   // --- writing --------------------------------------------------------------
 
   /** One edit to the roster: a new document with the edit on it, and the
@@ -1613,6 +1735,12 @@ export class Stock {
  *  scheme, port, path or login, how the camera is spoken to being the
  *  `camera` app's (ADR-0082). */
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
+
+/** What a held edit answers (`Stock.guarded`): the words, nothing made, or
+ *  nothing at all. */
+const refuse = (words: string): string | null => words;
+const nothingMade = (): string | null => null;
+const unchanged = (): void => {};
 
 /** The order the lists take kinds in: a model's, then the two only a train
  *  has. One list serves both, a train never being a locomotive. */

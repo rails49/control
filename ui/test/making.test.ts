@@ -7,8 +7,9 @@
  * A DOM test because it crosses the screen, the two store routes and the run
  * view: what is under test is that a fresh box — no `catalogue/`, no roster —
  * reaches a saved roster with one car entry and three model entries, that the
- * run view sees a train made up here without a reload, and that the length
- * guard is off while the run has the train placed.
+ * run view sees a train made up here without a reload, and that the edits
+ * that wait for power off are open with power off while the run has the train
+ * placed.
  *
  * The rules underneath are `test/composing.test.ts`'s, driven from plain
  * values; nothing is asserted twice.
@@ -1533,10 +1534,11 @@ describe("a car's camera", () => {
 
 const POWER = "tc49/layout/state/power";
 const RAILROAD_WANTED = "tc49/layout/railroad_wanted";
-const HELD = "track power is on — turn it off to correct a length";
-const WAITS = "a length has changed — turn track power off to save";
+const HELD = "track power is on — turn it off to change this";
+const WAITS =
+  "an edit needs the railroad loaded again — turn track power off to save";
 const UNHEARD =
-  "the layout has not said whether the track has power, so a length cannot be corrected";
+  "the layout has not said whether the track has power, so this cannot be changed";
 
 const POWER_WANTED = "tc49/layout/power_wanted";
 const RAILROAD = "tc49/layout/state/railroad";
@@ -1598,7 +1600,7 @@ async function placed(
   await shows(shell, "stock");
 }
 
-describe("the length guard", () => {
+describe("edits that wait for power off", () => {
   /** A UI guard in one browser: `tc-app` holds the run's power and passes it
    *  down (ADR-0071). A second browser editing stock during a run is not
    *  covered. */
@@ -1618,6 +1620,61 @@ describe("the length guard", () => {
       }
     },
   );
+
+  /** Every guarded control is drawn as the length field is: dead, its box
+   *  kept, the words as its title and beside it. */
+  it("kills the address, the function rows and the train's controls while power is on", async () => {
+    const shell = await opened();
+    await placed(shell, "on");
+
+    const addr = await car(shell, "addr");
+    expect(addr.disabled).toBe(true);
+    expect(addr.title).toBe(HELD);
+    expect(addr.parentElement!.querySelector(".why")!.textContent).toBe(HELD);
+
+    await chosen(shell, "arnold-ce68");
+    const row = model(shell, "li.function input.fn-name");
+    expect(row.disabled).toBe(true);
+    expect(row.title).toBe(HELD);
+    expect(model(shell, "button.switch").disabled).toBe(true);
+    expect(model(shell, "button.add-function").disabled).toBe(true);
+    expect(
+      parts(shell, ".model-editor .why").map((one) => one.textContent),
+    ).toContain(HELD);
+
+    await tab(shell, "trains");
+    const flip = part(shell, ".train-editor .tile button.flip") as HTMLButtonElement;
+    expect(flip.disabled).toBe(true);
+    expect(flip.title).toBe(HELD);
+    for (const dead of [
+      ".train-editor .tile button.out",
+      ".train-editor button.add-tile",
+      ".train-editor input.priority",
+    ]) {
+      expect((part(shell, dead) as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(part(shell, ".train-editor .tile").getAttribute("draggable")).toBe(
+      "false",
+    );
+    expect(part(shell, ".train-editor .sec.cars .why").textContent).toBe(HELD);
+  });
+
+  /** A train made up during a run is placed once saved, the apps reading it
+   *  for a train they have not got (ADR-0092). */
+  it("leaves a train made here and not saved open while power is on", async () => {
+    const shell = await opened();
+    await placed(shell, "on");
+    await train(shell, "mail");
+    await add(shell, "models", "hopper");
+
+    const flip = part(shell, ".train-editor .tile button.flip") as HTMLButtonElement;
+    expect(flip.disabled).toBe(false);
+    await pressed(shell, ".train-editor .tile button.flip");
+    expect(parts(shell, ".train-editor .why")).toHaveLength(0);
+    expect(screen(shell).railroad!.stock!.roster.trains.mail!.cars).toEqual([
+      { model: "hopper", orientation: "reverse" },
+    ]);
+  });
 
   /** Placed trains hold nothing with power off: the save names the railroad
    *  again and the rebuild keeps them where they still fit. */
@@ -1751,14 +1808,14 @@ describe("the roster's save with a length corrected", () => {
     ]);
   });
 
-  it("writes any other roster edit while power is on", async () => {
+  it("writes an edit no app built from while power is on", async () => {
     const shell = await opened();
     await placed(shell, "on");
-    await typed(shell, await car(shell, "addr"), "7");
+    await typed(shell, await car(shell, "camera"), "cam-1");
 
     await saved(shell);
 
-    expect(written()!.cars!["arnold-ce68"]!.addr).toBe("7");
+    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("cam-1");
     expect(wants()).toEqual([]);
   });
 
@@ -1919,6 +1976,124 @@ describe("the roster's save with a length corrected", () => {
     await saved(shell);
     expect(store.saved).toEqual([]);
     expect(wants()).toEqual([]);
+  });
+});
+
+/**
+ * Every field `layout` and the dispatcher read at build is saved as a length
+ * is (ui/STOCK.md#edits-that-wait-for-power-off): with power off the save
+ * names the loaded railroad again, so the apps read what was written; with
+ * power on it waits. Nothing else an app drives by names anything.
+ */
+describe("the roster's save with an edit the apps built from", () => {
+  const EDITS: [string, (shell: TcApp) => Promise<void>, (doc: RosterDoc) => unknown, unknown][] = [
+    [
+      "a car's new address",
+      async (shell) => typed(shell, await car(shell, "addr"), "7"),
+      (doc) => doc.cars!["arnold-ce68"]!.addr,
+      "7",
+    ],
+    [
+      "a car turned in a train",
+      async (shell) => {
+        await tab(shell, "trains");
+        await pressed(shell, ".train-editor .tile button.flip");
+      },
+      (doc) => doc.trains.ore!.cars![0],
+      { car: "arnold-ce68", orientation: "reverse" },
+    ],
+    [
+      "a car added to a train",
+      async (shell) => {
+        await chosen(shell, "hopper");
+        await pressed(shell, "button.new-car");
+        await add(shell, "cars", "hopper");
+      },
+      (doc) => doc.trains.ore!.cars!.at(-1),
+      { car: "hopper" },
+    ],
+    [
+      "a train's priority",
+      async (shell) => {
+        await tab(shell, "trains");
+        await typed(shell, part(shell, ".train-editor input.priority"), "1");
+      },
+      (doc) => doc.trains.ore!.priority,
+      1,
+    ],
+  ];
+
+  it.each(EDITS)(
+    "writes %s with power off, then names the railroad once",
+    async (_what, edit, read, wanted) => {
+      const shell = await opened();
+      await placed(shell, "off");
+      store.saved.length = 0;
+      await edit(shell);
+
+      await saved(shell);
+
+      expect(read(written()!)).toEqual(wanted);
+      expect(wants()).toEqual([
+        { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+      ]);
+    },
+  );
+
+  it("writes a function renamed on a model with power off, then names the railroad once", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await chosen(shell, "arnold-ce68");
+    await typed(shell, model(shell, "li.function input.fn-name"), "Lights");
+
+    await saved(shell);
+
+    expect(store.saved.map((one) => one.path)).toEqual([
+      "/catalogue/arnold-ce68",
+      "/rosters/toy",
+    ]);
+    expect(store.saved[0]!.body).toMatchObject({
+      functions: { "0": { name: "Lights" } },
+    });
+    expect(wants()).toEqual([
+      { topic: RAILROAD_WANTED, payload: { railroad: "toy" } },
+    ]);
+  });
+
+  it("names nothing for a name, a kind, notes or a camera", async () => {
+    const shell = await opened();
+    await placed(shell, "on");
+    store.saved.length = 0;
+    await typed(shell, await car(shell, "camera"), "cam-1");
+    await typed(shell, await car(shell, "notes"), "dented");
+    await typed(shell, await car(shell, "name"), "krokodil");
+    await chosen(shell, "hopper");
+    await pressed(shell, '.model-editor .seg.kind button[data-kind="special"]');
+
+    await saved(shell);
+
+    expect(written()!.cars!["krokodil"]).toMatchObject({
+      camera: "cam-1",
+      notes: "dented",
+    });
+    expect(wants()).toEqual([]);
+  });
+
+  /** ON saves first and the fields are dead with power on, so this is
+   *  reached only where power came on from another page. */
+  it("writes nothing with an address unsaved and power on from elsewhere, and says why", async () => {
+    const shell = await opened();
+    await placed(shell, "off");
+    store.saved.length = 0;
+    await typed(shell, await car(shell, "addr"), "7");
+    await said(shell, POWER, { power: "on" });
+
+    await saved(shell);
+
+    expect(store.saved).toEqual([]);
+    expect(bar(shell)).toBe(WAITS);
+    expect(marked(shell)).toBe("unsaved");
   });
 });
 
@@ -2118,11 +2293,11 @@ describe("when the roster is saved", () => {
   it("writes any other edit on ON, sends on at once, and says Saved", async () => {
     const shell = await opened();
     await placed(shell, "off");
-    await typed(shell, await car(shell, "addr"), "7");
+    await typed(shell, await car(shell, "camera"), "cam-1");
 
     await on(shell);
 
-    expect(written()!.cars!["arnold-ce68"]!.addr).toBe("7");
+    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("cam-1");
     expect(wants()).toEqual([]);
     expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
     expect(bar(shell)).toBe("Saved");

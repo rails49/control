@@ -13,7 +13,7 @@ import { emptyDrawing, type Drawing } from "../src/model/drawing.js";
 import { Editor } from "../src/model/editor.js";
 import { Filing, type Store } from "../src/model/filing.js";
 import { Railroad, type StockStore } from "../src/model/railroad.js";
-import { LENGTH_UNHEARD } from "../src/model/stock.js";
+import { REBUILD_UNHEARD } from "../src/model/stock.js";
 import {
   RETRY_MS,
   Unanswered,
@@ -492,7 +492,7 @@ describe("the roster's save", () => {
     const made_ = made();
     made_.railroad.named("toy");
     await flushed();
-    made_.railroad.stock!.modelLength("hopper", 110, "off");
+    made_.railroad.stock!.modelLength("hopper", 110);
     made_.railroad.stock!.carAddress("hopper-1", "7");
     return made_;
   }
@@ -534,11 +534,11 @@ describe("the roster's save", () => {
     expect(railroad.unsaved).toBeNull();
   });
 
-  it("answers landed and names nothing where no length moved", async () => {
+  it("answers landed and names nothing where no field the apps built from changed", async () => {
     const { railroad, store, names } = made();
     railroad.named("toy");
     await flushed();
-    railroad.stock!.carAddress("hopper-1", "7");
+    railroad.stock!.carCamera("hopper-1", "cam-1");
 
     expect(await railroad.save("off")).toBe("landed");
     expect(store.saved).toEqual(["/rosters/toy"]);
@@ -643,7 +643,7 @@ describe("the roster's save", () => {
     expect(await railroad.save(null, false)).toBeNull();
 
     expect(store.saved).toEqual([]);
-    expect(railroad.stock!.waitsForPower(null, false)).toBe(LENGTH_UNHEARD);
+    expect(railroad.stock!.waitsForPower(null, false)).toBe(REBUILD_UNHEARD);
     expect(railroad.stranded(null, false)).toBe(true);
   });
 
@@ -813,9 +813,9 @@ describe("what ON saves first", () => {
     expect(railroad.beforeOn("off", true, false)).toBeNull();
   });
 
-  it("answers landed for a roster edit that moved no length", async () => {
+  it("answers landed for a roster edit that changed no field the apps built from", async () => {
     const { railroad, store, names } = await loaded();
-    railroad.stock!.carAddress("hopper-1", "7");
+    railroad.stock!.carCamera("hopper-1", "cam-1");
 
     expect(await railroad.beforeOn("off", true, false)).toBe("landed");
 
@@ -825,7 +825,7 @@ describe("what ON saves first", () => {
 
   it("answers named for a length with the drawing beside it, and names the railroad once", async () => {
     const { railroad, filing, editor, store, names } = await loaded();
-    railroad.stock!.modelLength("hopper", 110, "off");
+    railroad.stock!.modelLength("hopper", 110);
     await filing.edited(editor);
     store.saved.length = 0;
 
@@ -846,7 +846,7 @@ describe("what ON saves first", () => {
 
   it("leaves a length waiting on power out of it", async () => {
     const { railroad, store } = await loaded();
-    railroad.stock!.modelLength("hopper", 110, "off");
+    railroad.stock!.modelLength("hopper", 110);
 
     expect(railroad.beforeOn("draining", true, false)).toBeNull();
     expect(store.saved).toEqual([]);

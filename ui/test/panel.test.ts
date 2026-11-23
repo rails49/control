@@ -1981,7 +1981,7 @@ describe("the trains overdue", () => {
 /**
  * Which trains are on the layout, and where each of them stands (#169).
  *
- * The roster pane lists them and the stock view's length guard reads them, and
+ * The roster pane lists them and the stock view's train editor reads them, and
  * both read this one answer: **placed** is presence in the run's picture, and a train
  * that is not in it is off the layout
  * ([ADR-0039](../../docs/adr/0039-a-train-may-be-off-the-layout.md)).
@@ -2004,7 +2004,7 @@ describe("the trains the run has placed", () => {
 
   /** A train between two blocks is on the layout as much as a standing one —
    *  it is holding a transit — and stands in none, which is what the pane
-   *  says of it and what the length guard reads. */
+   *  says of it and what the train editor reads. */
   it("keeps a crossing train, standing in no block", () => {
     const model = panel();
     feed(model, {

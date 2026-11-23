@@ -30,9 +30,9 @@
  * run. It is made up here and put on the layout in the run view.
  *
  * The run state comes down from the app because the app is the only thing on
- * the page that has any: the length guard reads its power and whether the
- * row naming the railroad is heard, and the trains read which are placed
- * (ui/STOCK.md#the-length-guard,
+ * the page that has any: the edits that wait for power off read its power and
+ * whether the row naming the railroad is heard, and the trains read which are
+ * placed (ui/STOCK.md#edits-that-wait-for-power-off,
  * [ADR-0071](../../../docs/adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
  */
 
@@ -135,12 +135,12 @@ export class TcStock extends LitElement {
   @property({ attribute: false }) current = false;
 
   /** The run's track power, as the session says (`RunStatus.power`), `null`
-   *  with no session. The length guard reads it (ADR-0071). */
+   *  with no session. The edits that wait for power off read it (ADR-0071). */
   @property({ attribute: false }) power: Power | null = null;
 
   /** The railroad the broker's row names (`RunStatus.railroad`), `null` while
    *  it has not been heard — a page that has lost the broker among them. The
-   *  length guard holds lengths while it lasts (#804). */
+   *  edits that wait for power off are held while it lasts (#804). */
   @property({ attribute: false }) loaded: string | null = null;
 
   /** The documents this view last drew, so what was about them — what is
@@ -258,14 +258,17 @@ export class TcStock extends LitElement {
     return this.railroad?.stock ?? null;
   }
 
-  /** Whether the row naming the railroad is heard, which the length guard
-   *  reads beside power (#804). */
+  /** Whether the row naming the railroad is heard, which the edits that wait
+   *  for power off read beside power (#804). */
   private get heard(): boolean {
     return this.loaded !== null;
   }
 
   override willUpdate(): void {
     this.heldSaved();
+    // Before every render, so each control drawn and each edit it makes reads
+    // the power this render drew with.
+    this.stock?.setPower(this.power, this.heard);
     // The loaded railroad holds other documents — another railroad, or none —
     // so what was chosen and said belongs to the ones that went.
     if (this.stock === this.held) return;
@@ -393,7 +396,7 @@ export class TcStock extends LitElement {
   private cards() {
     const stock = this.stock;
     if (this.tab === "models") {
-      const models = stock?.modelRows(this.power, this.heard) ?? [];
+      const models = stock?.modelRows() ?? [];
       if (models.length === 0)
         return this.none("no models yet — a train is made of them");
       const chosen = this.chosenModel();
@@ -402,7 +405,7 @@ export class TcStock extends LitElement {
       );
     }
     if (this.tab === "cars") {
-      const cars = stock?.cars(this.power, this.heard) ?? [];
+      const cars = stock?.cars() ?? [];
       if (cars.length === 0) {
         return this.none("no cars yet — press New car on a model to make one");
       }
@@ -590,7 +593,7 @@ export class TcStock extends LitElement {
     if (this.tab === "cars") {
       const name = this.chosenCar();
       const car = stock
-        ?.cars(this.power, this.heard)
+        ?.cars()
         .find((one) => one.name === name);
       return car === undefined ? this.nothingHere() : this.carEditor(car);
     }
@@ -653,7 +656,7 @@ export class TcStock extends LitElement {
     const stock = this.stock!;
     const model = stock.model(key)!;
     const row = stock
-      .modelRows(this.power, this.heard)
+      .modelRows()
       .find((one) => one.model === key)!;
     return html`
       ${this.head(
@@ -727,12 +730,7 @@ export class TcStock extends LitElement {
               ?disabled=${row.held !== null}
               @change=${(event: Event) =>
                 this.did(
-                  stock.modelLength(
-                    key,
-                    millimetres(event) ?? 0,
-                    this.power,
-                    this.heard,
-                  ),
+                  stock.modelLength(key, millimetres(event) ?? 0),
                   `model:${key}:length`,
                 )}
             />
@@ -753,7 +751,7 @@ export class TcStock extends LitElement {
               )}
           ></textarea>
         </label>
-        ${this.decoder(key, row.decoder)} ${this.usedBy(key, row)}
+        ${this.decoder(key, row.decoder, row.held)} ${this.usedBy(key, row)}
       </div>
     `;
   }
@@ -872,8 +870,9 @@ export class TcStock extends LitElement {
     }
   };
 
-  /** The decoder switch, and the function rows while it is on. */
-  private decoder(key: string, on: boolean) {
+  /** The decoder switch, and the function rows while it is on. Both are dead
+   *  with `held` on them while power holds the model's edits. */
+  private decoder(key: string, on: boolean, held: string | null) {
     return html`
       <section class="sec decoder">
         <div class="sec-head">
@@ -886,30 +885,37 @@ export class TcStock extends LitElement {
                   : "This product has no decoder."
               }
             </p>
+            ${why(held)}
           </div>
           <button
             class="switch"
             role="switch"
             aria-checked=${on ? "true" : "false"}
             aria-label="Has a decoder"
+            title=${held ?? nothing}
+            ?disabled=${held !== null}
             @click=${() => this.changed((one) => one.modelDecoder(key, !on))}
           >
             <i></i>
           </button>
         </div>
-        ${on ? this.functions(key) : nothing}
+        ${on ? this.functions(key, held) : nothing}
       </section>
     `;
   }
 
   /** One row per function: its number, its name, Toggle or Hold, and a
    *  remove. A number listed twice is said under the rows while it stands.
-   *  A model's, or a car's own, which are edited the same way. */
-  private functions(key: FnOwner) {
+   *  A model's, or a car's own, which are edited the same way. Every control
+   *  is dead with `held` on it while power holds the owner's edits, the words
+   *  said once under the rows. */
+  private functions(key: FnOwner, held: string | null) {
     const stock = this.stock!;
     const id = typeof key === "string" ? key : `car:${key.car}`;
     const rows = stock.functionRows(key);
     const twice = stock.listedTwice(key);
+    const dead = held !== null;
+    const title = held ?? nothing;
     return html`
       <ul class="functions">
         ${rows.map(
@@ -921,6 +927,8 @@ export class TcStock extends LitElement {
                   class="number"
                   inputmode="numeric"
                   aria-label="function number"
+                  title=${title}
+                  ?disabled=${dead}
                   .value=${this.putting(`fn:${id}:${at}:number`, row.number)}
                   @change=${(event: Event) =>
                     this.did(
@@ -933,6 +941,8 @@ export class TcStock extends LitElement {
                 class="fn-name"
                 aria-label="function name"
                 placeholder="Horn, Headlights…"
+                title=${title}
+                ?disabled=${dead}
                 .value=${this.putting(`fn:${id}:${at}:name`, row.name)}
                 @change=${(event: Event) =>
                   this.changed(
@@ -946,6 +956,8 @@ export class TcStock extends LitElement {
                     <button
                       data-mode=${mode}
                       aria-pressed=${row.mode === mode ? "true" : "false"}
+                      title=${title}
+                      ?disabled=${dead}
                       @click=${() => this.changed((one) => one.functionMode(key, at, mode))}
                     >
                       ${mode === LATCHING ? "Toggle" : "Hold"}
@@ -956,6 +968,8 @@ export class TcStock extends LitElement {
               <button
                 class="remove"
                 aria-label=${`Remove F${row.number}`}
+                title=${title}
+                ?disabled=${dead}
                 @click=${() => this.changed((one) => one.removeFunction(key, at))}
               >
                 ×
@@ -964,10 +978,13 @@ export class TcStock extends LitElement {
           `,
         )}
       </ul>
+      ${why(held)}
       ${twice === null ? nothing : html`<p class="trouble twice">${twice}</p>`}
       <div class="row-end">
         <button
           class="add-function"
+          title=${title}
+          ?disabled=${dead}
           @click=${() => this.changed((one) => one.addFunction(key))}
         >
           Add a function
@@ -1109,7 +1126,7 @@ export class TcStock extends LitElement {
   private chooser() {
     const stock = this.stock;
     if (!this.choosing || stock === null) return nothing;
-    const models = stock.modelRows(this.power, this.heard);
+    const models = stock.modelRows();
     return html`
       <look-dialog
         open
@@ -1226,12 +1243,7 @@ export class TcStock extends LitElement {
               ?disabled=${car.held !== null}
               @change=${(event: Event) =>
                 this.did(
-                  this.stock?.carLength(
-                    name,
-                    millimetres(event),
-                    this.power,
-                    this.heard,
-                  ),
+                  this.stock?.carLength(name, millimetres(event)),
                   `car:${name}:length`,
                 )}
             />
@@ -1318,19 +1330,25 @@ export class TcStock extends LitElement {
           inputmode="numeric"
           .value=${this.putting(`car:${name}:addr`, car.addr ?? "")}
           placeholder="the number in its decoder"
+          title=${car.held ?? nothing}
+          ?disabled=${car.held !== null}
           @change=${(event: Event) =>
             this.did(
               this.stock?.carAddress(name, value(event)),
               `car:${name}:addr`,
             )}
         />
-        <span class="hint">
-          ${
-            car.decoder
-              ? "The number programmed into this car's decoder. No two cars share one."
-              : `${car.modelName} has no decoder; this car has one fitted.`
-          }
-        </span>
+        ${
+          car.held === null
+            ? html`<span class="hint">
+                ${
+                  car.decoder
+                    ? "The number programmed into this car's decoder. No two cars share one."
+                    : `${car.modelName} has no decoder; this car has one fitted.`
+                }
+              </span>`
+            : why(car.held)
+        }
       </label>
     `;
   }
@@ -1354,9 +1372,11 @@ export class TcStock extends LitElement {
       return html`
         <div class="field own-functions">
           <span class="label">Functions, this car's own</span>
-          ${this.functions({ car: name })}
+          ${this.functions({ car: name }, car.held)}
           <button
             class="link model-functions"
+            title=${car.held ?? nothing}
+            ?disabled=${car.held !== null}
             @click=${() => this.changed((one) => one.modelFunctions(name))}
           >
             Use the model's functions again
@@ -1386,10 +1406,13 @@ export class TcStock extends LitElement {
         </div>
         <button
           class="link own-functions"
+          title=${car.held ?? nothing}
+          ?disabled=${car.held !== null}
           @click=${() => this.changed((one) => one.ownFunctions(name))}
         >
           This car's decoder is different: give it its own functions
         </button>
+        ${why(car.held)}
       </div>
     `;
   }
@@ -1521,6 +1544,8 @@ export class TcStock extends LitElement {
               class="priority"
               inputmode="numeric"
               placeholder="lowest"
+              title=${train.held ?? nothing}
+              ?disabled=${train.held !== null}
               .value=${this.putting(`train:${name}:priority`, String(train.priority ?? ""))}
               @change=${(event: Event) =>
                 this.did(
@@ -1528,7 +1553,11 @@ export class TcStock extends LitElement {
                   `train:${name}:priority`,
                 )}
             />
-            <span class="hint">1 is highest. Empty is lowest.</span>
+            ${
+              train.held === null
+                ? html`<span class="hint">1 is highest. Empty is lowest.</span>`
+                : why(train.held)
+            }
           </label>
         </div>
         <section class="sec cars">
@@ -1538,9 +1567,13 @@ export class TcStock extends LitElement {
           </div>
           <div class="ends"><span>← Head</span><span>Tail</span></div>
           <div class="strip">
-            ${train.entries.map((entry, at) => this.tile(name, entry, at))}
+            ${train.entries.map((entry, at) =>
+              this.tile(name, entry, at, train.held),
+            )}
             <button
               class="add-tile"
+              title=${train.held ?? nothing}
+              ?disabled=${train.held !== null}
               @click=${() => {
                 this.picking = { train: name, tab: "models", model: null };
               }}
@@ -1548,6 +1581,7 @@ export class TcStock extends LitElement {
               <span aria-hidden="true">+</span>Add
             </button>
           </div>
+          ${why(train.held)}
         </section>
         <section class="sec follows">
           <h3>What follows from the cars</h3>
@@ -1591,9 +1625,18 @@ export class TcStock extends LitElement {
    * *Give it an address* on a model entry of a model with a decoder, which
    * cannot be driven without one (#993). Dragged along the strip with HTML drag and drop, which iPadOS has.
    * Held near the strip's left or right edge, it scrolls the strip that way
-   * (`nearEdge`), so a tile out of view can be dropped on (#1088).
+   * (`nearEdge`), so a tile out of view can be dropped on (#1088). While
+   * power holds the train's edits its buttons are dead with `held` on them,
+   * and it cannot be dragged.
    */
-  private tile(train: string, entry: TrainRow["entries"][number], at: number) {
+  private tile(
+    train: string,
+    entry: TrainRow["entries"][number],
+    at: number,
+    held: string | null,
+  ) {
+    const dead = held !== null;
+    const title = held ?? nothing;
     const facts = [
       ...(entry.addr === null ? [] : [`#${entry.addr}`]),
       ...(entry.camera === null ? [] : ["camera"]),
@@ -1614,7 +1657,7 @@ export class TcStock extends LitElement {
     return html`
       <div
         class=${classes}
-        draggable="true"
+        draggable=${dead ? "false" : "true"}
         data-at=${at}
         @dragstart=${(event: DragEvent) => {
           this.dragged = at;
@@ -1656,6 +1699,8 @@ export class TcStock extends LitElement {
           <button
             class="flip"
             aria-pressed=${entry.reverse ? "true" : "false"}
+            title=${title}
+            ?disabled=${dead}
             @click=${() => this.changed((one) => one.turn(train, at))}
           >
             ${entry.reverse ? "Reversed" : "Forward"}
@@ -1664,6 +1709,8 @@ export class TcStock extends LitElement {
             addressable
               ? html`<button
                   class="address"
+                  title=${title}
+                  ?disabled=${dead}
                   @click=${() => this.addressed(train, at)}
                 >
                   Give it an address
@@ -1673,6 +1720,8 @@ export class TcStock extends LitElement {
           <button
             class="out"
             aria-label=${`Take ${entry.name} out`}
+            title=${title}
+            ?disabled=${dead}
             @click=${() => this.changed((one) => one.removeEntry(train, at))}
           >
             ×
@@ -1748,7 +1797,7 @@ export class TcStock extends LitElement {
         entry.car === undefined ? [] : [entry.car],
       ),
     );
-    const cars = stock.cars(this.power, this.heard);
+    const cars = stock.cars();
     const elsewhere = (one: CarRow) => {
       const other = one.trains.find((named) => named !== train);
       return other === undefined ? null : `${one.name} is in ${other}.`;
@@ -1786,7 +1835,7 @@ export class TcStock extends LitElement {
         </look-dialog>
       `;
     }
-    const models = stock.modelRows(this.power, this.heard);
+    const models = stock.modelRows();
     return html`
       <look-dialog
         open
@@ -2035,6 +2084,11 @@ export class TcStock extends LitElement {
   private putting(field: string, held: string) {
     return this.back === field ? live(held) : held;
   }
+}
+
+/** Why a control is dead, said beside it, or nothing where it is not. */
+function why(held: string | null) {
+  return held === null ? nothing : html`<span class="why">${held}</span>`;
 }
 
 /** What was typed into a control, whichever kind it is. */

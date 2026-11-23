@@ -5,7 +5,7 @@
  * No DOM. What is under test is the third kind of thing the app has — neither
  * the document nor the DOM (ui/README.md): what a model put in a train goes
  * in as, what a train's length and kind derive to, what holds a thing
- * somebody asked to remove, and why a length may not be corrected.
+ * somebody asked to remove, and why an edit the apps built from waits for power off.
  *
  * The derivations are pinned against `tc49.lib.roster.Train`'s, which is the
  * other implementation of the same three rules: the browser derives a train
@@ -15,9 +15,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  LENGTH_UNHEARD,
+  REBUILD_UNHEARD,
   LIGHT_ENGINE,
-  lengthHeld,
+  powerHeld,
   MIXED,
   keyFor,
   merged,
@@ -701,100 +701,257 @@ describe("a refusal names what holds the thing", () => {
 });
 
 /**
- * The length guard reads track power (ADR-0071, decision 5): with power on the
- * run moves trains over what the dispatcher built, and only a build with power
- * off can bring it a new length. Placed trains no longer hold it.
+ * An edit to a field the apps built from waits for power off (ADR-0071,
+ * decision 5; ui/STOCK.md#edits-that-wait-for-power-off): with power on the
+ * run moves trains by what `layout` and the dispatcher read at build, and only
+ * a build with power off can bring them the edit. Placed trains no longer
+ * hold it. An item made on this page and not yet saved is none of theirs.
  */
-describe("the length guard", () => {
-  const WORDS = "track power is on — turn it off to correct a length";
+describe("edits that wait for power off", () => {
+  const WORDS = "track power is on — turn it off to change this";
+  const UNHEARD =
+    "the layout has not said whether the track has power, so this cannot be changed";
 
-  it("is off while power is on or draining, and moves no length", () => {
-    for (const power of ["on", "draining"] as const) {
-      const screen = stock();
-      expect(screen.cars(power)[0]!.held).toBe(WORDS);
-      expect(screen.modelRows(power).every((row) => row.held === WORDS)).toBe(
-        true,
-      );
-      expect(screen.carLength("krokodil-a", 130, power)).toBe(WORDS);
-      expect(screen.modelLength("hopper", 110, power)).toBe(WORDS);
-      expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
-      expect(screen.catalogue["hopper"]!.length).toBe(100);
+  /** The ore train with a van of its own functions, as a saved roster. */
+  const HELD: RosterDoc = {
+    roster: "oval",
+    cars: {
+      "krokodil-a": { model: "arnold-ce68", addr: "3" },
+      "van-1": { model: "van", addr: "5", functions: { "3": { name: "vacuum" } } },
+      "spare-1": { model: "arnold-ce68", addr: "9" },
+    },
+    trains: {
+      ore: {
+        cars: [
+          { car: "krokodil-a" },
+          { model: "hopper" },
+          { car: "van-1" },
+          { model: "arnold-ce68" },
+        ],
+        priority: 2,
+      },
+    },
+  };
+
+  /** Every guarded edit of step 2, each on an item the store holds, and what
+   *  it answers. */
+  const EDITS: [string, (one: Stock) => unknown][] = [
+    ["carLength", (one) => one.carLength("krokodil-a", 130)],
+    ["modelLength", (one) => one.modelLength("hopper", 110)],
+    ["carAddress", (one) => one.carAddress("krokodil-a", "7")],
+    ["turn", (one) => one.turn("ore", 1)],
+    ["append", (one) => one.append("ore", { car: "spare-1" })],
+    ["addModel", (one) => one.addModel("ore", "coach")],
+    ["carFor", (one) => one.carFor("ore", 3)],
+    ["removeEntry", (one) => one.removeEntry("ore", 1)],
+    ["moveEntry", (one) => one.moveEntry("ore", 0, 2)],
+    ["trainPriority", (one) => one.trainPriority("ore", "1")],
+    ["modelDecoder", (one) => one.modelDecoder("hopper", true)],
+    ["ownFunctions", (one) => one.ownFunctions("krokodil-a")],
+    ["modelFunctions", (one) => one.modelFunctions("van-1")],
+    ["addFunction", (one) => one.addFunction("arnold-ce68")],
+    ["removeFunction", (one) => one.removeFunction({ car: "van-1" }, 0)],
+    ["functionNumber", (one) => one.functionNumber("arnold-ce68", 0, "4")],
+    ["functionName", (one) => one.functionName({ car: "van-1" }, 0, "brake")],
+    ["functionMode", (one) => one.functionMode("arnold-ce68", 0, "momentary")],
+  ];
+
+  /** What each answers while held: the words, what it answers when it makes
+   *  nothing, or nothing at all. */
+  const ANSWERS: Record<string, unknown> = {
+    carLength: WORDS,
+    modelLength: WORDS,
+    carAddress: WORDS,
+    append: WORDS,
+    trainPriority: WORDS,
+    functionNumber: WORDS,
+    addModel: { as: "nothing" },
+    carFor: null,
+  };
+
+  function held(power: "on" | "draining" | "off" | null, heard = true): Stock {
+    const screen = stock(HELD);
+    screen.setPower(power, heard);
+    return screen;
+  }
+
+  it.each(EDITS)(
+    "%s leaves the roster and the model as they were while power is on",
+    (name, edit) => {
+      for (const power of ["on", "draining"] as const) {
+        const screen = held(power);
+        const roster = JSON.stringify(screen.roster);
+        const catalogue = JSON.stringify(screen.catalogue);
+        expect(edit(screen)).toEqual(ANSWERS[name]);
+        expect(JSON.stringify(screen.roster)).toBe(roster);
+        expect(JSON.stringify(screen.catalogue)).toBe(catalogue);
+        expect(screen.edits).toBe(false);
+        expect(screen.rebuildEdits).toBe(false);
+      }
+    },
+  );
+
+  it.each(EDITS)(
+    "%s is refused in its own words while the row is not heard",
+    (name, edit) => {
+      const screen = held("off", false);
+      const roster = JSON.stringify(screen.roster);
+      const answer = ANSWERS[name] === WORDS ? UNHEARD : ANSWERS[name];
+      expect(edit(screen)).toEqual(answer);
+      expect(JSON.stringify(screen.roster)).toBe(roster);
       expect(screen.edits).toBe(false);
-      expect(screen.lengthEdits).toBe(false);
-    }
-  });
+    },
+  );
 
   /** A train placed with power off holds nothing: the save names the railroad
    *  again and the rebuild keeps it where it still fits. */
-  it("is on with power off, or with no session", () => {
-    for (const power of ["off", null] as const) {
-      const screen = stock();
-      expect(screen.cars(power)[0]!.held).toBeNull();
-      expect(screen.modelRows(power).every((row) => row.held === null)).toBe(
-        true,
-      );
-      expect(screen.modelLength("hopper", 110, power)).toBeNull();
-      expect(screen.catalogue["hopper"]!.length).toBe(110);
-    }
+  it.each(EDITS)(
+    "%s is made with power off, or with no session, and is a rebuild edit",
+    (_name, edit) => {
+      for (const power of ["off", null] as const) {
+        const screen = held(power);
+        edit(screen);
+        expect(screen.edits).toBe(true);
+        expect(screen.rebuildEdits).toBe(true);
+      }
+    },
+  );
+
+  it("marks every covered row held, in the words for why", () => {
+    const on = held("on");
+    expect(on.cars().every((row) => row.held === WORDS)).toBe(true);
+    expect(on.modelRows().every((row) => row.held === WORDS)).toBe(true);
+    expect(on.trains().every((row) => row.held === WORDS)).toBe(true);
+    const unheard = held(null, false);
+    expect(unheard.cars().every((row) => row.held === UNHEARD)).toBe(true);
+    const off = held("off");
+    expect(off.cars().every((row) => row.held === null)).toBe(true);
+    expect(off.trains().every((row) => row.held === null)).toBe(true);
   });
 
-  /** A page that has lost the broker still holds the roster, and cannot know
-   *  whether the track has power (#804). Power on keeps its own words. */
-  describe("with the row naming the railroad not heard", () => {
-    const UNHEARD =
-      "the layout has not said whether the track has power, so a length cannot be corrected";
+  it("answers why, whatever power last read", () => {
+    expect(powerHeld(null, false)).toBe(UNHEARD);
+    expect(powerHeld("off", false)).toBe(UNHEARD);
+    expect(powerHeld("on", false)).toBe(WORDS);
+    expect(powerHeld("draining", false)).toBe(WORDS);
+    expect(powerHeld(null)).toBeNull();
+  });
 
-    it("answers why, whatever power last read", () => {
-      expect(lengthHeld(null, false)).toBe(UNHEARD);
-      expect(lengthHeld("off", false)).toBe(UNHEARD);
-      expect(lengthHeld("on", false)).toBe(WORDS);
-      expect(lengthHeld("draining", false)).toBe(WORDS);
-      expect(lengthHeld(null)).toBeNull();
+  /** A train made up during a run is placed once saved, the apps reading it
+   *  for a train they have not got (ADR-0092). */
+  it("lets a train made here be composed with power on, of new and existing cars", () => {
+    const screen = held("on");
+    const train = "mail";
+    expect(screen.addTrain(train)).toBeNull();
+    const made = screen.newCar("coach")!;
+    expect(screen.append(train, { car: "spare-1" })).toBeNull();
+    expect(screen.append(train, { car: made })).toBeNull();
+    expect(screen.addModel(train, "hopper")).toEqual({ as: "model" });
+    screen.turn(train, 0);
+    screen.moveEntry(train, 2, 0);
+    screen.removeEntry(train, 1);
+    expect(screen.trainPriority(train, "3")).toBeNull();
+    expect(screen.carAddress(made, "12")).toBeNull();
+    expect(screen.carLength(made, 210)).toBeNull();
+    expect(screen.roster.trains[train]).toEqual({
+      cars: [{ model: "hopper" }, { car: made }],
+      priority: 3,
     });
+    expect(screen.roster.cars![made]).toEqual({
+      model: "coach",
+      addr: "12",
+      length: 210,
+    });
+    expect(screen.trains().find((row) => row.train === train)!.held).toBeNull();
+    expect(screen.cars().find((row) => row.name === made)!.held).toBeNull();
+    expect(screen.rebuildEdits).toBe(false);
+    expect(screen.waitsForPower("on")).toBeNull();
+  });
 
-    it("is off, and moves no length", () => {
-      for (const power of ["off", null] as const) {
-        const screen = stock();
-        expect(screen.cars(power, false)[0]!.held).toBe(UNHEARD);
-        expect(
-          screen.modelRows(power, false).every((row) => row.held === UNHEARD),
-        ).toBe(true);
-        expect(screen.carLength("krokodil-a", 130, power, false)).toBe(UNHEARD);
-        expect(screen.modelLength("hopper", 110, power, false)).toBe(UNHEARD);
-        expect(screen.roster.cars!["krokodil-a"]!.length).toBeUndefined();
-        expect(screen.catalogue["hopper"]!.length).toBe(100);
-        expect(screen.edits).toBe(false);
-      }
-    });
+  it("follows a train and a car made here through a rename", () => {
+    const screen = held("on");
+    const made = screen.newCar("coach")!;
+    screen.renameCar(made, "coach-1");
+    expect(screen.carAddress("coach-1", "12")).toBeNull();
+    screen.addTrain("mail");
+    screen.renameTrain("mail", "post");
+    expect(screen.append("post", { car: "coach-1" })).toBeNull();
+  });
+
+  it("covers what was made here once a roster naming it is kept", () => {
+    const screen = held("off");
+    const train = screen.newTrain();
+    const made = screen.newCar("coach")!;
+    screen.append(train, { car: made });
+    const written = screen.roster;
+    screen.addTrain("later");
+    screen.kept(written);
+    screen.setPower("on");
+    expect(screen.carAddress(made, "12")).toBe(WORDS);
+    expect(screen.append(train, { model: "hopper" })).toBe(WORDS);
+    expect(screen.append("later", { model: "hopper" })).toBeNull();
+  });
+
+  /** A model made here is no product a train the apps built is made of. */
+  it("lets a model made here take its length, decoder and functions with power on", () => {
+    const screen = held("on");
+    const made = screen.newModel();
+    expect(screen.modelLength(made, 230)).toBeNull();
+    screen.modelDecoder(made, true);
+    screen.addFunction(made);
+    expect(screen.functionNumber(made, 1, "5")).toBeNull();
+    expect(screen.model(made)).toMatchObject({ length: 230, decoder: true });
+    expect(screen.functionRows(made).map((row) => row.number)).toEqual([
+      "0",
+      "5",
+    ]);
+    expect(screen.rebuildEdits).toBe(false);
+  });
+
+  /** Nothing an app drives by: names, kinds, notes, photos and cameras. */
+  it("leaves every other edit open with power on, and none is a rebuild edit", () => {
+    const screen = held("on");
+    expect(screen.renameCar("krokodil-a", "krokodil-b")).toBeNull();
+    expect(screen.renameModel("hopper", "Hopper")).toBeNull();
+    screen.modelKind("coach", "special");
+    screen.modelNotes("coach", "green");
+    screen.carNotes("van-1", "dented");
+    expect(screen.carCamera("van-1", "cam-1")).toBeNull();
+    screen.setPhoto("coach", { jpeg: new Uint8Array([1]), shown: "data:," });
+    expect(screen.edits).toBe(true);
+    expect(screen.rebuildEdits).toBe(false);
+    expect(screen.waitsForPower("on")).toBeNull();
   });
 });
 
-/** A length correction waits for power off to be saved, and the roster records
- *  that it holds one until the store takes it (ADR-0071, decision 6). */
-describe("a length edit in the roster", () => {
-  const WAITS = "a length has changed — turn track power off to save";
+/** An edit the apps built from waits for power off to be saved, and the
+ *  roster records that it holds one until the store takes it (ADR-0071,
+ *  decision 6). */
+describe("a rebuild edit in the roster", () => {
+  const WAITS =
+    "an edit needs the railroad loaded again — turn track power off to save";
 
   it("is recorded by a car's length, set or taken off, and cleared by kept", () => {
     const screen = stock();
-    expect(screen.carLength("krokodil-a", 130, "off")).toBeNull();
-    expect(screen.lengthEdits).toBe(true);
+    expect(screen.carLength("krokodil-a", 130)).toBeNull();
+    expect(screen.rebuildEdits).toBe(true);
     screen.kept(screen.roster);
-    expect(screen.lengthEdits).toBe(false);
-    expect(screen.carLength("krokodil-a", null, "off")).toBeNull();
-    expect(screen.lengthEdits).toBe(true);
+    expect(screen.rebuildEdits).toBe(false);
+    expect(screen.carLength("krokodil-a", null)).toBeNull();
+    expect(screen.rebuildEdits).toBe(true);
   });
 
   it("is recorded by a model's length", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
-    expect(screen.lengthEdits).toBe(true);
+    screen.modelLength("hopper", 110);
+    expect(screen.rebuildEdits).toBe(true);
   });
 
   /** A corrected model is written on the roster's Save, so it is an edit the
    *  page holds like any other (#718). */
   it("marks the roster as holding edits for a model's length", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 110);
     expect(screen.edits).toBe(true);
     expect(screen.corrections).toEqual([
       { ...screen.catalogue["hopper"]!, length: 110 },
@@ -803,8 +960,8 @@ describe("a length edit in the roster", () => {
 
   it("holds one correction per model, with the latest length", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
-    screen.modelLength("hopper", 120, "off");
+    screen.modelLength("hopper", 110);
+    screen.modelLength("hopper", 120);
     expect(
       screen.corrections.map((model) => [model.model, model.length]),
     ).toEqual([["hopper", 120]]);
@@ -812,7 +969,7 @@ describe("a length edit in the roster", () => {
 
   it("drops a correction once it is written, and keeps the roster's edits", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 110);
     screen.landed(screen.corrections[0]!);
     expect(screen.corrections).toEqual([]);
     expect(screen.edits).toBe(true);
@@ -821,64 +978,65 @@ describe("a length edit in the roster", () => {
   /** A length typed while the older one is being written is still to write. */
   it("keeps a correction made again while the older one was written", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 110);
     const writing = screen.corrections[0]!;
-    screen.modelLength("hopper", 120, "off");
+    screen.modelLength("hopper", 120);
     screen.landed(writing);
     expect(screen.corrections.map((model) => model.length)).toEqual([120]);
   });
 
   it("is clear once each correction has landed and the roster is kept", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 110);
     screen.landed(screen.corrections[0]!);
     screen.kept(screen.roster);
     expect(screen.corrections).toEqual([]);
     expect(screen.edits).toBe(false);
-    expect(screen.lengthEdits).toBe(false);
+    expect(screen.rebuildEdits).toBe(false);
   });
 
-  it("is not recorded by any other edit, or by a refused length", () => {
+  it("is not recorded by an edit that writes nothing, or by a refused one", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
-    expect(screen.carLength("krokodil-a", 0, "off")).toMatch(
+    screen.carCamera("krokodil-a", "cam-1");
+    expect(screen.carLength("krokodil-a", 0)).toMatch(
       "positive whole number",
     );
+    expect(screen.trainPriority("ore", "")).toBeNull();
     expect(screen.edits).toBe(true);
-    expect(screen.lengthEdits).toBe(false);
+    expect(screen.rebuildEdits).toBe(false);
   });
 
   it("holds the Save while power is on or draining, and only then", () => {
     const screen = stock();
-    screen.carLength("krokodil-a", 130, "off");
+    screen.carAddress("krokodil-a", "7");
     expect(screen.waitsForPower("on")).toBe(WAITS);
     expect(screen.waitsForPower("draining")).toBe(WAITS);
     expect(screen.waitsForPower("off")).toBeNull();
     expect(screen.waitsForPower(null)).toBeNull();
   });
 
-  /** The row not heard, a length edit waits for it: the page cannot know
+  /** The row not heard, a rebuild edit waits for it: the page cannot know
    *  whether the track has power (#804). */
   it("holds the Save while the row is not heard, in its own words", () => {
     const screen = stock();
-    screen.carLength("krokodil-a", 130, "off");
-    expect(LENGTH_UNHEARD).toBe(
-      "a length has changed — the layout has not said whether the track has power",
+    screen.carLength("krokodil-a", 130);
+    expect(REBUILD_UNHEARD).toBe(
+      "an edit needs the railroad loaded again — the layout has not said whether the track has power",
     );
-    expect(screen.waitsForPower(null, false)).toBe(LENGTH_UNHEARD);
-    expect(screen.waitsForPower("off", false)).toBe(LENGTH_UNHEARD);
+    expect(screen.waitsForPower(null, false)).toBe(REBUILD_UNHEARD);
+    expect(screen.waitsForPower("off", false)).toBe(REBUILD_UNHEARD);
     expect(screen.waitsForPower("on", false)).toBe(WAITS);
   });
 
   it("holds nothing for another edit with the row not heard", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     expect(screen.waitsForPower(null, false)).toBeNull();
   });
 
   it("holds nothing for another edit with power on", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     expect(screen.waitsForPower("on")).toBeNull();
   });
 });
@@ -887,80 +1045,81 @@ describe("a length edit in the roster", () => {
  *  editable while it does: what the store took is cleared and nothing else, so
  *  an edit made during the write is written by the next Save (#723). */
 describe("an edit made during a Save", () => {
-  const WAITS = "a length has changed — turn track power off to save";
+  const WAITS =
+    "an edit needs the railroad loaded again — turn track power off to save";
 
   it("leaves the roster holding edits", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     const written = screen.roster;
-    screen.carAddress("krokodil-a", "8");
+    screen.carCamera("krokodil-a", "cam-2");
     screen.kept(written);
     expect(screen.edits).toBe(true);
-    expect(screen.lengthEdits).toBe(false);
+    expect(screen.rebuildEdits).toBe(false);
   });
 
   it("is nothing to clear when there was none", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     screen.kept(screen.roster);
     expect(screen.edits).toBe(false);
   });
 
   it("keeps a car's length waiting for power off", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     const written = screen.roster;
-    expect(screen.carLength("krokodil-a", 130, "off")).toBeNull();
+    expect(screen.carLength("krokodil-a", 130)).toBeNull();
     screen.kept(written);
-    expect(screen.lengthEdits).toBe(true);
+    expect(screen.rebuildEdits).toBe(true);
     expect(screen.waitsForPower("on")).toBe(WAITS);
   });
 
   it("clears a car's length that was written, when the edit since is not one", () => {
     const screen = stock();
-    screen.carLength("krokodil-a", 130, "off");
+    screen.carLength("krokodil-a", 130);
     const written = screen.roster;
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     screen.kept(written);
     expect(screen.edits).toBe(true);
-    expect(screen.lengthEdits).toBe(false);
+    expect(screen.rebuildEdits).toBe(false);
   });
 
   it("keeps a model corrected for the first time to write", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 110);
     const writing = screen.corrections[0]!;
     const written = screen.roster;
-    screen.modelLength("coach", 50, "off");
+    screen.modelLength("coach", 50);
     screen.landed(writing);
     screen.kept(written);
     expect(screen.corrections.map((model) => model.model)).toEqual(["coach"]);
     expect(screen.edits).toBe(true);
-    expect(screen.lengthEdits).toBe(true);
+    expect(screen.rebuildEdits).toBe(true);
   });
 
   it("keeps a model corrected while only the roster is written", () => {
     const screen = stock();
-    screen.carAddress("krokodil-a", "7");
+    screen.carCamera("krokodil-a", "cam-1");
     const written = screen.roster;
-    screen.modelLength("coach", 50, "off");
+    screen.modelLength("coach", 50);
     screen.kept(written);
     expect(screen.corrections.map((model) => model.model)).toEqual(["coach"]);
     expect(screen.edits).toBe(true);
-    expect(screen.lengthEdits).toBe(true);
+    expect(screen.rebuildEdits).toBe(true);
   });
 
   it("keeps a model corrected again with its newer length", () => {
     const screen = stock();
-    screen.modelLength("hopper", 110, "off");
+    screen.modelLength("hopper", 110);
     const writing = screen.corrections[0]!;
     const written = screen.roster;
-    screen.modelLength("hopper", 120, "off");
+    screen.modelLength("hopper", 120);
     screen.landed(writing);
     screen.kept(written);
     expect(screen.corrections.map((model) => model.length)).toEqual([120]);
     expect(screen.edits).toBe(true);
-    expect(screen.lengthEdits).toBe(true);
+    expect(screen.rebuildEdits).toBe(true);
   });
 });
 
@@ -1012,14 +1171,15 @@ describe("making a model", () => {
   });
 
   /** No train the dispatcher fits is made of a model the store has not got,
-   *  so its length is neither held under power nor a length edit. */
-  it("takes a length with power on, and makes no length edit of it", () => {
+   *  so its length is neither held under power nor a rebuild edit. */
+  it("takes a length with power on, and makes no rebuild edit of it", () => {
     const screen = stock();
+    screen.setPower("on");
     const made = screen.newModel();
-    expect(screen.modelLength(made, 230, "on")).toBeNull();
-    expect(screen.lengthEdits).toBe(false);
+    expect(screen.modelLength(made, 230)).toBeNull();
+    expect(screen.rebuildEdits).toBe(false);
     expect(
-      screen.modelRows("on").find((row) => row.model === made)!.held,
+      screen.modelRows().find((row) => row.model === made)!.held,
     ).toBeNull();
   });
 

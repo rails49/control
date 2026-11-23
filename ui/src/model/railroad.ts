@@ -30,7 +30,7 @@
  * **A save that lands names the railroad again**, on `railroad_wanted`
  * through `name`, so every app builds what was written and keeps the trains
  * that fit (ADR-0071): a drawing that reached the store, and a roster save
- * that moved a length. Each save names it once, and one that landed after the
+ * that changed a field the apps built from. Each save names it once, and one that landed after the
  * row named another railroad names nothing — what it wrote is not what is
  * loaded (#798).
  *
@@ -158,7 +158,7 @@ export class Railroad {
   /**
    * Whether the roster holds edits that could not be saved, which the band
    * marks *unsaved* (#1233): the last save did not land, a save would be
-   * refused (`Stock.stopsSaving`), or a length edit waits on power
+   * refused (`Stock.stopsSaving`), or an edit the apps built from waits on power
    * (`Stock.waitsForPower`). Edits a leave would save say nothing, as the
    * drawing's do (`stranded`, model/commands.ts).
    */
@@ -251,10 +251,10 @@ export class Railroad {
    * waiting for the next save. Nothing is written where the roster holds no
    * edits.
    *
-   * It answers how it came out (`Landing`): `named` where a length reached
+   * It answers how it came out (`Landing`): `named` where an edit the apps built from reached
    * the store, the railroad it saved for named again before answering so the
-   * dispatcher fits trains by it (ADR-0071); `landed` where the save landed
-   * and moved no length, or there was nothing to write; `null` where it wrote
+   * apps read it (ADR-0071); `landed` where the save landed
+   * and changed no such field, or there was nothing to write; `null` where it wrote
    * nothing or did not land. A model written and the roster then refused
    * names the railroad all the same, and answers `null`.
    *
@@ -263,7 +263,7 @@ export class Railroad {
    * flight, nothing the new railroad shows is touched and it answers `null`.
    * A save that landed reads the trains again, the lengths they derive having
    * moved. What `Stock.stopsSaving` returns writes nothing and stands as
-   * `stockTrouble`. A length edit waits while power is on or stopped, or while
+   * `stockTrouble`. An edit the apps built from waits while power is on or stopped, or while
    * the row naming the railroad is not `heard` (#804): every edit waits with
    * it, and the stock view says why from `Stock.waitsForPower`. `leaving` is
    * the page being hidden or closed: the models and the roster go with
@@ -293,7 +293,7 @@ export class Railroad {
   private async writeStock(stock: Stock, leaving: boolean): Promise<Landing> {
     const railroad = this.last;
     const turn = this.turn;
-    const lengths = stock.lengthEdits;
+    const rebuild = stock.rebuildEdits;
     stock.mintKeys();
     const written = stock.roster;
     let reached = false;
@@ -303,9 +303,7 @@ export class Railroad {
       for (const model of stock.corrections) {
         await this.store.saveModel(model, leaving);
         stock.landed(model);
-        // A model written moves a train's length only where one was
-        // corrected; a name or a note is nothing the dispatcher fits.
-        if (lengths) reached = true;
+        if (rebuild) reached = true;
       }
       for (const [model, picture] of stock.photos) {
         await this.store.savePhoto(model, picture.jpeg);
@@ -313,7 +311,7 @@ export class Railroad {
       }
       await this.store.saveRoster(written, leaving);
       stock.kept(written);
-      if (lengths) reached = true;
+      if (rebuild) reached = true;
       landed = true;
     } catch (failure) {
       trouble = said(failure);
