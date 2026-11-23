@@ -550,6 +550,22 @@ def test_a_block_the_train_occupies_is_not_held_ahead() -> None:
     assert adr_0029_block_with_its_transit(view(MEET, locked))
 
 
+def test_blocks_its_own_cars_hold_are_not_counted_two_ahead() -> None:
+    """Three blocks of t1's route locked to it past the one it stands in.
+    With two of them on its `occupied` list, a route back through the blocks
+    its tail still covers, one is held ahead and not three (#1230)."""
+    locked = started(AHEAD_TWO | {"east_switch.from_up": "t1", "e_main": "t1"})
+    cars = {
+        ALLOCATION: {
+            **locked[ALLOCATION],
+            "occupied": {"t1": ["west_1", "loop_up", "e_main"]},
+        }
+    }
+
+    assert adr_0026_two_blocks_ahead(view(MEET, cars)) == []
+    assert adr_0026_two_blocks_ahead(view(MEET, locked))
+
+
 def test_depth_counts_a_block_only_with_its_transit_in_the_aspects() -> None:
     """loop_up is locked to t1 and the transit into it is not, so the depth
     from west_1 is one: `caution` there, `stop` over the move into loop_up
