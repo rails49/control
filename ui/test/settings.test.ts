@@ -293,6 +293,7 @@ const ROW = {
   throttle_silence: 5,
   sensor_silence: 3,
   arrival_allowance: 60,
+  short_blocks: false,
 };
 
 /** `ROW` as the dialog reads it. */
@@ -302,6 +303,7 @@ const HEARD: LayoutSettings = {
   throttleSilence: 5,
   sensorSilence: 3,
   arrivalAllowance: 60,
+  shortBlocks: false,
 };
 
 /** Each field of the setting tabs, as a commit in it is answered (#1128,
@@ -470,6 +472,15 @@ describe("what state/settings says", () => {
       missing,
     ]) {
       expect(settingsOf(row)).toEqual({ ...HEARD, arrivalAllowance: null });
+    }
+  });
+
+  it("reads short_blocks as the boolean it is, and anything else as null (#1288)", () => {
+    expect(settingsOf({ ...ROW, short_blocks: true })).toEqual({ ...HEARD, shortBlocks: true });
+    expect(settingsOf({ ...ROW, short_blocks: false })).toEqual(HEARD);
+    const { short_blocks: _, ...missing } = ROW;
+    for (const row of [missing, { ...ROW, short_blocks: 1 }]) {
+      expect(settingsOf(row)).toEqual({ ...HEARD, shortBlocks: null });
     }
   });
 
