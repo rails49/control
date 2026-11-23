@@ -559,8 +559,9 @@ selection. `r` steps a turnout by 45 degrees and every other kind by 90. The
 orientation is sticky: it carries into the next drag, whatever the kind,
 because a rotated run of turnouts should cost one keypress for the run and not
 one for each of them. A kind other than a turnout takes the quarter turn below
-a turnout's 45 degree step. The tiles keep showing the symbol at 0 degrees; the ghost shows the truth the moment it is grabbed. Escape, Delete and
-the right button abandon the drag.
+a turnout's 45 degree step. The tiles keep showing the symbol at 0 degrees;
+the ghost shows the truth the moment it is grabbed. Escape, Delete and the
+right button abandon the drag.
 
 A portal is placed as a pair. Dropping one puts its mate straight back in
 flight, wearing the same label and turned 180 degrees, so the next click lands
@@ -790,8 +791,9 @@ sites. It has two forms, and `rot` picks between them:
 
 `rot` is one of 0, 45, 90, 135, 180, 225, 270 and 315: `rot: 45 + 90k` is the
 45 form turned `k` quarter turns, and `flip` mirrors either form. That is 16
-orientations, and in each the straight road runs along `rot`, clockwise from
-east, with every pin on a face centre. The frog is `(1, 0.5)`, the face centre
+orientations, each with every pin on a face centre. Not flipped, the straight
+road runs along `rot`, clockwise from east, and the diverging road leaves to
+its left; flipped, both are mirrored. The frog is `(1, 0.5)`, the face centre
 the two squares share, in both forms.
 
 Both roads leave the toe. The straight road is one straight stroke to
@@ -813,8 +815,7 @@ toe, the second rotated.
 All three kinds share this artwork. A slip adds its slip road, drawn between
 its two pins as a turnout's diverging road is: one for the single slip
 (`a1`–`b2`), both for the double (`b1`–`a2` as well). A slip turns in quarter
-turns only: a 45 degree step of one gives a shape the quarter turns and the
-flip already reach.
+turns only.
 
 Each leg is one stroke from pin to pin, so a lit transit lights exactly the
 track it traverses: a through route its straight stroke, a slip road its
