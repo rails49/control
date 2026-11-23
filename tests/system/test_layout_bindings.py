@@ -401,7 +401,7 @@ def test_a_press_that_cannot_be_read_changes_nothing(
 def test_the_settings_a_person_sets_are_said_the_same(build: Build) -> None:
     """A gesture taken, a field left out keeping its value, and one the
     contract does not read dropped whole: both bindings say the same row
-    after each (#1140, #1188)."""
+    after each (#1140, #1188, #1286)."""
     binding = build()
     for wanted in [
         {"speeds": {"clear": 0.5}},
@@ -413,12 +413,15 @@ def test_the_settings_a_person_sets_are_said_the_same(build: Build) -> None:
         {"point_gap": 2.0, "colour": "red"},
         {"sensor_silence": 1},
         {"arrival_allowance": 601},
+        {"short_blocks": True},
+        {"short_blocks": 1},
     ]:
         binding.bus.publish(SETTINGS_WANTED, wanted)
         binding.bus.drain()
     assert binding.bus.last_values[SETTINGS] == {
         "point_gap": 1.0,
         "speeds": {"clear": 0.5, "caution": 0.2},
+        "short_blocks": True,
         "throttle_silence": 10.0,
         "sensor_silence": 20.0,
         "arrival_allowance": 120.0,

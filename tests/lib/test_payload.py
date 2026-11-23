@@ -50,6 +50,7 @@ from tc49.lib.payload import (
     power,
     reported_reason,
     reported_sensor,
+    said_short_blocks,
     said_speeds,
     settled_reading,
     shown_aspects,
@@ -414,15 +415,22 @@ def test_a_settings_gesture_reads_as_the_fields_it_sets() -> None:
     assert wanted_settings({"arrival_allowance": 600}) == SettingsWanted(
         arrival_allowance=600.0
     )
+    assert wanted_settings({"short_blocks": True}) == SettingsWanted(short_blocks=True)
+    assert wanted_settings({"short_blocks": False}) == SettingsWanted(
+        short_blocks=False
+    )
+    assert wanted_settings({"point_gap": 1, "short_blocks": True}) == SettingsWanted(
+        point_gap=1.0, short_blocks=True
+    )
 
 
 def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
-    """None of the five fields, an unknown field, or any value out of
+    """None of the six fields, an unknown field, or any value out of
     range, and the whole gesture goes: a good gap beside a bad silence is
     not half taken (#1131)."""
     refused: list[object] = [
         [1],  # not an object at all
-        {},  # none of the five
+        {},  # none of the six
         {"gap": 1},  # an unknown field alone
         {"point_gap": 1, "colour": "red"},  # an unknown field beside a good one
         {"point_gap": -0.5},
@@ -458,6 +466,11 @@ def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
         {"arrival_allowance": True},
         {"arrival_allowance": None},
         {"sensor_silence": 3, "arrival_allowance": 601},  # one bad field fails all
+        {"short_blocks": 0},  # a number is no bool
+        {"short_blocks": 1},
+        {"short_blocks": "true"},
+        {"short_blocks": None},
+        {"point_gap": 1, "short_blocks": 1},  # one bad field fails all
     ]
     for payload in refused:
         assert wanted_settings(payload) is None, payload
@@ -475,6 +488,24 @@ def test_the_settings_row_reads_as_the_speeds_it_says() -> None:
         "clear": 1.0,
         "caution": 0.01,
     }
+
+
+def test_the_settings_row_reads_as_the_short_blocks_it_says() -> None:
+    """`true` or `false`, and None for a row without the field or with one
+    that is no bool (#1286)."""
+    row = {"at": 3.0, "point_gap": 0.5, "speeds": {"clear": 0.6, "caution": 0.3}}
+    assert said_short_blocks({**row, "short_blocks": True}) is True
+    assert said_short_blocks({**row, "short_blocks": False}) is False
+    refused: list[object] = [
+        "not a row",
+        row,  # no short_blocks
+        {**row, "short_blocks": 1},
+        {**row, "short_blocks": 0},
+        {**row, "short_blocks": "true"},
+        {**row, "short_blocks": None},
+    ]
+    for payload in refused:
+        assert said_short_blocks(payload) is None, payload
 
 
 def test_a_settings_row_whose_speeds_do_not_read_says_none() -> None:

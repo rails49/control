@@ -1378,6 +1378,32 @@ def test_settings_keep_the_speeds_beside_the_gap(
     assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
 
 
+def test_settings_keep_short_blocks_beside_the_gap(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """`short_blocks` is optional, `true` or `false` and nothing like them
+    (#1286)."""
+    store = AssetStore(tmp_path)
+    kept = {"point_gap": 1.5, "short_blocks": True}
+    assert handle(store, backup, "PUT", "/settings/shed", kept)[0] == 200
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
+    for stated in ("yes", 1, 0, None):
+        body = {"point_gap": 1, "short_blocks": stated}
+        status, said = handle(store, backup, "PUT", "/settings/shed", body)
+        assert status == 400, body
+        assert "short_blocks" in said["error"]
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
+
+
+def test_short_blocks_that_is_no_bool_writes_nothing(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    body = {"point_gap": 1, "short_blocks": "yes"}
+    assert handle(store, backup, "PUT", "/settings/shed", body)[0] == 400
+    assert not (tmp_path / "layouts").exists()
+
+
 INSTALLATION = {"throttle_silence": 10.0}
 """The installation's kept settings (#1132)."""
 

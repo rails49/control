@@ -160,6 +160,7 @@ from tc49.lib.settings import (
     arrival_allowance,
     point_gap,
     sensor_silence,
+    short_blocks,
     speed,
     throttle_silence,
 )
@@ -496,9 +497,10 @@ def wanted_clock(payload: object) -> ClockSet | None:
 @dataclass(frozen=True)
 class SettingsWanted:
     """What a person sets from the Settings dialog (#1126, #1131): the
-    railroad's point gap, in seconds, some or all of its speeds, and the
+    railroad's point gap, in seconds, some or all of its speeds, the
     installation's throttle silence, sensor silence (#1149) and arrival
-    allowance (#1188), in seconds.
+    allowance (#1188), in seconds, and the railroad's `short_blocks`, whether
+    a route may use a block shorter than the train (#1286).
     None, and a speed left out of `speeds`, leaves that setting as it is."""
 
     point_gap: float | None = None
@@ -506,6 +508,7 @@ class SettingsWanted:
     throttle_silence: float | None = None
     sensor_silence: float | None = None
     arrival_allowance: float | None = None
+    short_blocks: bool | None = None
 
 
 _SETTINGS_FIELDS = frozenset(
@@ -515,6 +518,7 @@ _SETTINGS_FIELDS = frozenset(
         "throttle_silence",
         "sensor_silence",
         "arrival_allowance",
+        "short_blocks",
     }
 )
 
@@ -524,8 +528,9 @@ def wanted_settings(payload: object) -> SettingsWanted | None:
     asks for none.
 
     At least one of `point_gap`, `speeds`, `throttle_silence`,
-    `sensor_silence` and `arrival_allowance`, nothing else, and each given in
-    range (`lib.settings`), or the gesture is dropped whole: a good gap beside a bad silence is not half taken.
+    `sensor_silence`, `arrival_allowance` and `short_blocks`, nothing else,
+    and each given in range (`lib.settings`), `short_blocks` `true` or
+    `false`, or the gesture is dropped whole: a good gap beside a bad silence is not half taken.
     `speeds` names `clear`, `caution` or both and nothing else.
     """
     if not isinstance(payload, dict):
@@ -558,7 +563,12 @@ def wanted_settings(payload: object) -> SettingsWanted | None:
         allowance = arrival_allowance(fields["arrival_allowance"])
         if allowance is None:
             return None
-    return SettingsWanted(gap, speeds, silence, sensor, allowance)
+    short: bool | None = None
+    if "short_blocks" in fields:
+        short = short_blocks(fields["short_blocks"])
+        if short is None:
+            return None
+    return SettingsWanted(gap, speeds, silence, sensor, allowance, short)
 
 
 def _speeds(stated: object) -> dict[str, float] | None:
@@ -576,6 +586,15 @@ def _speeds(stated: object) -> dict[str, float] | None:
             return None
         speeds[aspect] = fraction
     return speeds
+
+
+def said_short_blocks(payload: object) -> bool | None:
+    """The `short_blocks` `tc49/layout/state/settings` says, whether a route
+    may use a block shorter than the train, or None where the row says none:
+    the field missing or not a bool (#1286)."""
+    if not isinstance(payload, dict):
+        return None
+    return short_blocks(cast(dict[str, object], payload).get("short_blocks"))
 
 
 def said_speeds(payload: object) -> dict[str, float] | None:

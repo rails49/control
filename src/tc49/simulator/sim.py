@@ -204,7 +204,8 @@ class Simulator:
         is the defaults, `lib.settings`'. This binding sends no point command
         and holds no throttle, so the point gap and the throttle silence are
         said and nothing here runs on them, nor on the sensor silence or the
-        arrival allowance.
+        arrival allowance. `short_blocks` is said the same, routing on it
+        being the dispatcher's (#1286).
 
         `throttle_silence_s`: the installation's throttle silence, said
         beside the railroad's settings and run on by nothing here.
