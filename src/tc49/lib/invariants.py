@@ -521,14 +521,19 @@ def adr_0022_points_set_for_the_crossing(view: View) -> list[str]:
 def adr_0026_two_blocks_ahead(view: View) -> list[str]:
     """Under `Incremental`, no train holds more than two blocks beyond the
     block it is recorded in
-    ([ADR-0026](../../../docs/adr/0026-two-blocks-ahead-is-full-speed.md))."""
+    ([ADR-0026](../../../docs/adr/0026-two-blocks-ahead-is-full-speed.md)).
+    A block on the train's `occupied` list is held for its own cars, not
+    ahead of it (#1230): a route back through the blocks its tail still
+    covers holds them all and is granted no deeper for it."""
     locks = _locks(view)
+    occupied = _occupied(view)
     lines: list[str] = []
     for journey in _journeys(view):
+        cars = occupied.get(journey.train, ())
         ahead = [
             block
             for block in journey.blocks[journey.standing + 1 :]
-            if locks.get(block) == journey.train
+            if locks.get(block) == journey.train and block not in cars
         ]
         if len(ahead) > 2:
             lines.append(f"{journey.train} holds {ahead} ahead")
