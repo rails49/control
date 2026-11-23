@@ -29,7 +29,7 @@ layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
 layouts/<layout>.script.py                      # the script its translator loads
 layouts/<layout>.clock.yaml                     # the start time and speed-up its fast clock is loaded at
-layouts/<layout>.settings.yaml                  # its settings: the point gap and the driver's speeds
+layouts/<layout>.settings.yaml                  # its settings: the point gap, the driver's speeds and short_blocks
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
@@ -381,22 +381,26 @@ the drawing, roster and script.
 
 ## Settings schema
 
-A railroad's settings, its point gap and the driver's speeds
+A railroad's settings, its point gap, the driver's speeds and `short_blocks`
 ([#1126](https://github.com/rails49/control/issues/1126),
-[#1132](https://github.com/rails49/control/issues/1132)):
+[#1132](https://github.com/rails49/control/issues/1132),
+[#1286](https://github.com/rails49/control/issues/1286)):
 
 ```yaml
 point_gap: 1.5   # seconds, 0 to 5, `layout` waits after a point command
 speeds:          # each a fraction of the locomotive's maximum, above 0, at most 1
   clear: 0.6
   caution: 0.3
+short_blocks: false   # whether a route may use a block shorter than the train
 ```
 
 `point_gap` always, `speeds` with both `clear` and `caution` or not at all,
-and nothing else. `layout` writes it when a person sets either
+`short_blocks` `true` or `false` or not at all, and nothing else. `layout`
+writes it when a person sets any of them
 (`tc49.lib.settings`); the simulator neither reads nor writes it. A railroad
-with no settings document is loaded at a point gap of 0.5 s, and one without
-`speeds` at `clear` 0.6 and `caution` 0.3; nothing is written until somebody
+with no settings document is loaded at a point gap of 0.5 s, one without
+`speeds` at `clear` 0.6 and `caution` 0.3, and one without `short_blocks` at
+`false`; nothing is written until somebody
 sets it. One that does not read is said in `layout`'s
 log and treated as none. Copy and delete carry it with the clock.
 

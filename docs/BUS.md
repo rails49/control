@@ -334,8 +334,8 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/state/taken` | state | layout | which throttle holds each train ([ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)) |
 | `tc49/layout/function_wanted` | event | any (browser) | a throttle switches one of its train's functions ([#849](https://github.com/rails49/control/issues/849)) |
 | `tc49/layout/state/functions` | state | layout | which of each train's functions are on ([#849](https://github.com/rails49/control/issues/849)) |
-| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap and the driver's speeds, and the installation's throttle silence, sensor silence and arrival allowance ([#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188)) |
-| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds, the throttle silence, the sensor silence or the arrival allowance, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188)) |
+| `tc49/layout/state/settings` | state | layout, simulator | the railroad's settings, the point gap, the driver's speeds and `short_blocks`, whether a route may use a block shorter than the train, and the installation's throttle silence, sensor silence and arrival allowance; the driver reads the speeds, and the dispatcher reading `short_blocks` is [#1287](https://github.com/rails49/control/issues/1287) ([#1286](https://github.com/rails49/control/issues/1286), [#1125](https://github.com/rails49/control/issues/1125), [#1130](https://github.com/rails49/control/issues/1130), [#1133](https://github.com/rails49/control/issues/1133), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188)) |
+| `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds, `short_blocks`, the throttle silence, the sensor silence or the arrival allowance, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188), [#1286](https://github.com/rails49/control/issues/1286)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
@@ -911,6 +911,16 @@ what a drop would cost:
     drops a grant until it has heard one; a row whose `speeds` does not read
     leaves the pair it held
     ([#1133](https://github.com/rails49/control/issues/1133)).
+  - `short_blocks`: boolean, the railroad's: whether a route may end in or
+    pass through a block shorter than the train. A train sent so stands with
+    its tail outside the block, over the points behind it, and holds the
+    transit it came in by, and any block its tail still covers, until its
+    tail is seen to clear the entry sensor. A placement is refused on a
+    shorter block whatever this says. Kept in
+    `layouts/<layout>.settings.yaml`, or `false` where it keeps none
+    ([#1286](https://github.com/rails49/control/issues/1286)). `layout` and
+    the simulator keep and say it and run on nothing; the dispatcher routing
+    on it is [#1287](https://github.com/rails49/control/issues/1287).
   - `throttle_silence`: number, seconds, `2` to `60`, how long a throttle
     holding a train may go unheard before `layout` lets go of its trains.
     The installation's, kept in `installation.yaml` at the store root, or 5
@@ -961,18 +971,21 @@ what a drop would cost:
   - `point_gap`: number, seconds, `0` to `5`.
   - `speeds`: object with `clear`, `caution` or both, each greater than `0`
     and at most `1`.
+  - `short_blocks`: boolean, `true` or `false` and nothing like them: `0`,
+    `1`, `"true"` and `null` are not
+    ([#1286](https://github.com/rails49/control/issues/1286)).
   - `throttle_silence`: number, seconds, `2` to `60`.
   - `sensor_silence`: number, seconds, `2` to `60`.
   - `arrival_allowance`: number, seconds, `5` to `600`.
 
   A field left out keeps its value, and so does a speed left out of
-  `speeds`. A payload with none of the five, with an unknown field, or with
+  `speeds`. A payload with none of the six, with an unknown field, or with
   any value out of range is dropped whole, as any malformed gesture is. It
   is also dropped while no railroad is loaded. Taken whatever track power
   and the run are doing, and a change needs no rebuild. `layout` uses the
   gap from the next `align` and the silence from its next check of who has
-  gone silent, publishes `state/settings` at once, and keeps the gap and the
-  speeds with the railroad and the two silences and the arrival allowance
+  gone silent, publishes `state/settings` at once, and keeps the gap, the
+  speeds and `short_blocks` with the railroad and the two silences and the arrival allowance
   with the installation
   ([#1132](https://github.com/rails49/control/issues/1132),
   [#1149](https://github.com/rails49/control/issues/1149),
