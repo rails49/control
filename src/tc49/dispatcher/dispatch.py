@@ -59,6 +59,7 @@ from tc49.lib.payload import (
     placement,
     power,
     readable_id,
+    said_short_blocks,
     settled_reading,
     taken,
     unknown_sensors,
@@ -79,6 +80,7 @@ POWER = "tc49/layout/state/power"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 OVERDUE = "tc49/layout/state/overdue"
 TAKEN = "tc49/layout/state/taken"
+SETTINGS = "tc49/layout/state/settings"
 SETTLED_SENSOR = "tc49/layout/state/settled/sensor"
 WITHDRAW_WANTED = "tc49/layout/withdraw_wanted"
 """Where a deferred cancel asks `layout` to take its move back (#1068)."""
@@ -249,6 +251,13 @@ class State:
     # is not left out for both its sensors being unknown, since `layout`
     # stops such a train only where no throttle holds it.
     held: frozenset[str] = frozenset()
+    # Whether `layout` last said the railroad's settings let a route end in or
+    # pass through a block shorter than the train (`state/settings`, #1287).
+    # Routing and admission read it; placing and restoring do not, since a
+    # placed or restored train holds only its block and a tail over points
+    # would be unprotected. `False` until a row says otherwise, so a railroad
+    # just loaded routes on fit until its own row is heard.
+    short_blocks: bool = False
 
     @property
     def out_of_use(self) -> frozenset[str]:
@@ -971,6 +980,11 @@ class Dispatcher:
         stated = bus.last_values.get(TAKEN)
         if stated is not None and self._ordering.accepts(TAKEN, stated):
             self._state.held = frozenset(taken(stated))
+        # And whether a route may use a block shorter than the train, so the
+        # first request is admitted under the railroad's own setting.
+        stated = bus.last_values.get(SETTINGS)
+        if stated is not None and self._ordering.accepts(SETTINGS, stated):
+            self._on_settings(stated)
         # The last `state/moving` value published, so the topic moves only
         # when what it says moves.
         self._published_moving: bool | None = None
@@ -1077,7 +1091,10 @@ class Dispatcher:
                 # stands in, accepted whichever end it names (DISPATCH.md);
                 # the first launch attempt decides.
                 surviving.append(end)
-            elif self._state.roster[request.train] > self._state.layout.blocks[block]:
+            elif (
+                not self._state.short_blocks
+                and self._state.roster[request.train] > self._state.layout.blocks[block]
+            ):
                 pruned.append({"end": end, "reason": Reason.NO_FIT})
             elif end not in self._state.layout.end_connection:
                 pruned.append({"end": end, "reason": Reason.NO_ENTRY})
@@ -1273,6 +1290,7 @@ class Dispatcher:
                 (end,),
                 self._state.roster[train],
                 1,
+                short_blocks=self._state.short_blocks,
             )
         )
 
@@ -1854,6 +1872,9 @@ class Dispatcher:
         elif leaf == "taken":
             if self._ordering.accepts(topic, payload):
                 self._on_taken(payload)
+        elif leaf == "settings":
+            if self._ordering.accepts(topic, payload):
+                self._on_settings(payload)
         self._check()
 
     def _on_reading(self, sensor: str, occupied: bool) -> None:
@@ -2186,6 +2207,16 @@ class Dispatcher:
             return
         self._state.overdue = listed
         self._publish_moving()
+
+    def _on_settings(self, payload: Payload) -> None:
+        """Whether the railroad's settings let a route end in or pass through
+        a block shorter than the train (#1287). A row whose `short_blocks`
+        does not read leaves the value held. Read for routing and admission
+        alone: it sweeps nothing, and what is already routed keeps its route.
+        """
+        said = said_short_blocks(payload)
+        if said is not None:
+            self._state.short_blocks = said
 
     def _on_taken(self, payload: Payload) -> None:
         """Which trains a throttle holds (#1187). Read for `state/moving`

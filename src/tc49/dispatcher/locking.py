@@ -86,6 +86,9 @@ class ReadOnlyState(Protocol):
     @property
     def out_of_use(self) -> AbstractSet[str]: ...
 
+    @property
+    def short_blocks(self) -> bool: ...
+
     def reads_occupied(self, block: str) -> bool: ...
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
@@ -163,10 +166,15 @@ def _launchable(
     length = state.roster[req.train]
     busy = congested(state, req.train)
     out = state.out_of_use
-    routes = candidates(layout, origin, depart, req.arrivals, length, k, busy, out)
+    short = state.short_blocks
+    routes = candidates(
+        layout, origin, depart, req.arrivals, length, k, busy, out, short_blocks=short
+    )
     if routes and origin not in out:
         return routes
-    every = candidates(layout, origin, depart, req.arrivals, length, k, busy)
+    every = candidates(
+        layout, origin, depart, req.arrivals, length, k, busy, short_blocks=short
+    )
     if not every:
         return None
     block = next(b for b in every[0].blocks if b in out)

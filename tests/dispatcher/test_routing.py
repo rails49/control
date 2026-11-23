@@ -51,6 +51,32 @@ def test_fit_filters_whole_routes(crossover: Layout) -> None:
     assert routes == []
 
 
+@pytest.fixture
+def meet() -> Layout:
+    layout = AssetStore(ASSETS).get("single-track-meet")
+    assert isinstance(layout, Layout)
+    return layout
+
+
+def test_short_blocks_lets_a_route_pass_through_a_shorter_block(meet: Layout) -> None:
+    # w_main to e_main (2400 each) crosses a loop of 1600 either way (#1287).
+    args = (meet, "w_main", "w_main.B", ("e_main.A",), 2000)
+    assert candidates(*args, k=4) == []
+    assert [r.blocks for r in candidates(*args, k=4, short_blocks=True)] == [
+        ("w_main", "loop_dn", "e_main"),
+        ("w_main", "loop_up", "e_main"),
+    ]
+
+
+def test_short_blocks_lets_a_route_end_in_a_shorter_block(crossover: Layout) -> None:
+    # The up and dn blocks (3200) fit; yard_e (1400), the arrival, does not.
+    args = (crossover, "yard_w", "yard_w.B", ("yard_e.A",), 2000)
+    assert candidates(*args, k=1) == []
+    assert [r.blocks for r in candidates(*args, k=1, short_blocks=True)] == [
+        ("yard_w", "dn_w", "dn_e", "yard_e"),
+    ]
+
+
 def test_departure_end_fixes_the_first_transit(crossover: Layout) -> None:
     # Departing yard_w through A (the dead end): no transits, no routes.
     routes = candidates(crossover, "yard_w", "yard_w.A", ("yard_e.A",), 600, k=4)

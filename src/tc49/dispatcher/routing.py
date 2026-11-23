@@ -6,7 +6,9 @@ those whose every block fits the train and none beyond the origin is out of use
 (#33), then by lexicographically smallest block-id sequence, and capped by the
 single `k` budget. Routes are simple paths: no block or transit twice. The caller
 names the congested blocks and the blocks out of use, so the answer is a function
-of `(layout, state)` and stays deterministic.
+of `(layout, state)` and stays deterministic. While the railroad's settings say
+`short_blocks` the caller passes it, and the fit filter is lifted: a route may
+end in or pass through a block shorter than the train (#1287).
 """
 
 from collections.abc import Set as AbstractSet
@@ -45,6 +47,8 @@ def candidates(
     k: int,
     congested: AbstractSet[str] = frozenset(),
     out_of_use: AbstractSet[str] = frozenset(),
+    *,
+    short_blocks: bool = False,
 ) -> list[Route]:
     routes: list[Route] = []
 
@@ -55,7 +59,7 @@ def candidates(
             block_across = block_of(end_across)
             if transit in transits or block_across in blocks:
                 continue  # simple path
-            if layout.blocks[block_across] < train_length:
+            if not short_blocks and layout.blocks[block_across] < train_length:
                 continue  # the train must fit every block of the route
             if block_across in out_of_use:
                 continue  # left out before `k` is spent, so another is found

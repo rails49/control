@@ -1,15 +1,21 @@
 """The walking skeleton: crossover-yard/meet end-to-end under FullRoute."""
 
+import io
 import json
 from collections.abc import Mapping
 
-from tc49.bench.runner import placement
+from tc49.bench.runner import NONCE, placement, powered
 from tc49.dispatcher import Dispatcher, FullRoute
+from tc49.driver import Driver
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout, block_of, departure_end, transit_ends
 from tc49.lib.rejection import Reason
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
+from tc49.lib.settings import KeptSettings
+from tc49.lib.trace import TraceTap
+from tc49.scheduler import Scheduler
+from tc49.simulator import Simulator
 from tests.harness import events, load, run, settled, stock
 
 
@@ -57,6 +63,56 @@ def test_no_fit_pruning_rejects_at_admission() -> None:
     trace = run(layout, stock(leviathan=2000), scenario)
     [rejected] = events(trace, "request_rejected")
     assert rejected["id"] == "leviathan-1" and rejected["reason"] == "no_fit"
+
+
+def test_short_blocks_admits_and_grants_into_a_shorter_block() -> None:
+    """The same request on a railroad whose settings say `short_blocks`
+    (#1287): the row is the simulator's, said from its constructor before the
+    dispatcher comes up, so the dispatcher adopts it from the bus and admits
+    leviathan into yard_e, 1400 long, and grants it in. A `short_blocks:
+    false` heard afterwards makes the next such request `no_fit` again."""
+    layout, _roster, _ = load("crossover-yard/meet")
+    stood = {"leviathan": "up_w"}
+    clock = Clock()
+    bus = InProcessBus(clock)
+    out = io.StringIO()
+    TraceTap(bus, out, clock)
+    settings = KeptSettings(short_blocks=True)
+    simulator = powered(bus, Simulator(bus, layout, clock, stood, settings=settings))
+    Scheduler(
+        bus,
+        layout,
+        {"leviathan": "up_w.A-to-B"},
+        (RequestSpec("leviathan", "up_w.B", ("yard_e",)),),
+        nonce=NONCE,
+    )
+    dispatcher = Dispatcher(
+        bus, layout, stock(leviathan=2000), stood, FullRoute(layout, 2)
+    )
+    Driver(bus)
+    simulator.run()
+    trace = out.getvalue()
+    [admitted] = events(trace, "request_admitted", rid="leviathan-1")
+    assert admitted["dest"] == ["yard_e.A"]
+    granted = events(trace, "move_granted", rid="leviathan-1")
+    assert granted and granted[-1]["into"] == "yard_e"
+    assert events(trace, "request_completed", rid="leviathan-1")
+    assert dispatcher.state.block_of["leviathan"] == "yard_e"
+
+    bus.publish("tc49/layout/settings_wanted", {"short_blocks": False})
+    bus.drain()
+    bus.publish(
+        "tc49/dispatch/request_submitted",
+        {
+            "id": "leviathan-9",
+            "train": "leviathan",
+            "depart": "yard_e.A",
+            "dest": ["yard_w.B"],
+        },
+    )
+    bus.drain()
+    [rejected] = events(out.getvalue(), "request_rejected", rid="leviathan-9")
+    assert rejected["reason"] == Reason.NO_FIT
 
 
 def test_unreachable_rejection_where_the_origin_is_known_at_admission() -> None:
