@@ -53,24 +53,27 @@ function turnoutLegs(
   const roads = [...root.querySelectorAll("path")];
   return new Map(
     Object.keys(TRANSITS.turnout).map((leg) => {
-      const at = anchorIn("turnout", leg);
+      const at = anchorIn("turnout", leg, spec.rot);
       const stroke = roads.find((path) => {
         const [x, y] = ends(path)[1];
-        return Math.abs(x - at.x) < 1e-9 && Math.abs(y - at.y) < 1e-9;
+        return Math.abs(x! - at.x) < 1e-9 && Math.abs(y! - at.y) < 1e-9;
       })!;
       return [leg, stroke];
     }),
   );
 }
 
-/** Where a straight stroke starts and ends. */
+/** The points a stroke's path names, in order: its ends, and for a curve the
+ *  two ends of the curve and its control point between them. */
+function points(path: SVGPathElement): number[][] {
+  const numbers = path.getAttribute("d")!.match(/-?\d+(\.\d+)?/g)!.map(Number);
+  return numbers.flatMap((x, i) => (i % 2 === 0 ? [[x, numbers[i + 1]!]] : []));
+}
+
+/** Where a stroke starts and ends. */
 function ends(path: SVGPathElement): [number[], number[]] {
-  const d = path.getAttribute("d")!;
-  const [from, to] = d.slice(1).split("L");
-  return [from!, to!].map((one) => one.trim().split(/\s+/).map(Number)) as [
-    number[],
-    number[],
-  ];
+  const all = points(path);
+  return [all[0]!, all[all.length - 1]!];
 }
 
 /** Which of a turnout's legs are drawn set against, by name. */
@@ -83,25 +86,43 @@ function legsAgainst(spec: SymbolSpec, position: Position): string[] {
 describe("a point drawn in a position", () => {
   it("marks the road it does not offer, and only that one", () => {
     // A turnout's legs are named for its positions: lying closed it offers
-    // the straight road, and the diverging one is set against.
-    expect(strokes("turnout", "closed")).toEqual(["track", "track against"]);
+    // the straight road, and the diverging one is set against. The faint
+    // road is drawn first, under the solid one.
+    expect(strokes("turnout", "closed")).toEqual(["track against", "track"]);
     expect(strokes("turnout", "thrown")).toEqual(["track against", "track"]);
+    for (const rot of [0, 45, 90, 315] as const) {
+      const spec: SymbolSpec = { kind: "turnout", rot };
+      expect(legsAgainst(spec, "closed")).toEqual(["diverging"]);
+      expect(legsAgainst(spec, "thrown")).toEqual(["straight"]);
+    }
   });
 
-  it("keeps a stroke a leg of either position runs over", () => {
-    // A slip's two roads meet at the frog, so each half-stroke carries a
-    // closed leg and a thrown one and is on the way whichever way the point
-    // lies. The tick is the one stroke that is the slip road alone.
-    const closed = strokes("single_slip", "closed");
-    expect(closed.filter((one) => one === "track")).toHaveLength(4);
-    expect(closed.filter((one) => one === "tick against")).toHaveLength(1);
-    expect(strokes("double_slip", "thrown")).toEqual([
-      "track",
-      "track",
-      "track",
-      "track",
-      "tick",
-      "tick",
+  it("draws a slip's roads solid and its through routes faint when thrown", () => {
+    // Every leg is its own stroke (#1295): thrown, a double slip offers both
+    // slip curves and neither through route, and closed the reverse.
+    const curved = (kind: SymbolSpec["kind"], position: Position) =>
+      drawn(kind, position).map(
+        (path) =>
+          `${path.getAttribute("d")!.includes("Q") ? "curve" : "straight"}${
+            path.classList.contains("against") ? " against" : ""
+          }`,
+      );
+    expect(curved("double_slip", "thrown")).toEqual([
+      "straight against",
+      "straight against",
+      "curve",
+      "curve",
+    ]);
+    expect(curved("double_slip", "closed")).toEqual([
+      "curve against",
+      "curve against",
+      "straight",
+      "straight",
+    ]);
+    expect(curved("single_slip", "closed")).toEqual([
+      "curve against",
+      "straight",
+      "straight",
     ]);
   });
 
@@ -114,28 +135,13 @@ describe("a point drawn in a position", () => {
       "track",
       "track",
       "track",
-      "tick",
-      "tick",
     ]);
-  });
-
-  it("reads the position through the leg the turnout closes on", () => {
-    // Where the grid puts the straight road on the 45° leg (#1060), closed
-    // offers the diverging leg and the straight one is set against.
-    const spec: SymbolSpec = { kind: "turnout", closed_leg: "diverging" };
-    expect(legsAgainst(spec, "closed")).toEqual(["straight"]);
-    expect(legsAgainst(spec, "thrown")).toEqual(["diverging"]);
   });
 
   it("leaves a symbol with no motor alone", () => {
     // A fixed crossing has nothing to command, so no address ever names it
     // and no position can reach it.
-    expect(strokes("crossing", "thrown")).toEqual([
-      "track",
-      "track",
-      "track",
-      "track",
-    ]);
+    expect(strokes("crossing", "thrown")).toEqual(["track", "track"]);
   });
 });
 
@@ -149,15 +155,42 @@ describe("a turnout's legs", () => {
     ["a run, thrown", undefined, "thrown"],
   ];
 
-  for (const closed of ["straight", "diverging"] as const) {
-    it(`both start at the toe when closed takes ${closed}`, () => {
-      const toe = anchorIn("turnout", "toe");
-      const spec: SymbolSpec = { kind: "turnout", closed_leg: closed };
+  for (const rot of [0, 45] as const) {
+    it(`both start at the toe at rot ${rot}`, () => {
+      const toe = anchorIn("turnout", "toe", rot);
+      const spec: SymbolSpec = { kind: "turnout", rot };
       for (const [mode, lit, position] of modes) {
         for (const [leg, path] of turnoutLegs(spec, lit, position)) {
           expect(ends(path)[0], `${mode}, ${leg}`).toEqual([toe.x, toe.y]);
         }
       }
+    });
+
+    it(`the diverging road leaves in line and arrives at 45° at rot ${rot}`, () => {
+      // The straight road is one straight stroke. The diverging road starts
+      // along it and ends along the diverging pin's own direction, which is
+      // 45° from the straight road's (#1295).
+      const spec: SymbolSpec = { kind: "turnout", rot };
+      const p = (pin: string) => anchorIn("turnout", pin, rot);
+      const legs = turnoutLegs(spec);
+      expect(points(legs.get("straight")!)).toEqual([
+        [p("toe").x, p("toe").y],
+        [p("straight").x, p("straight").y],
+      ]);
+
+      const [from, begin, frog, end, to] = points(legs.get("diverging")!);
+      expect(from).toEqual([p("toe").x, p("toe").y]);
+      expect(to).toEqual([p("diverging").x, p("diverging").y]);
+      expect(frog).toEqual([1, 0.5]);
+      // A quadratic curve leaves along the line to its control point and
+      // arrives along the line from it.
+      const heading = (a: number[], b: number[]) =>
+        (Math.round((Math.atan2(b[1]! - a[1]!, b[0]! - a[0]!) * 180) / Math.PI) + 360) % 360;
+      const straight = heading([p("toe").x, p("toe").y], [p("straight").x, p("straight").y]);
+      expect(straight).toBe(rot);
+      expect(heading(begin!, frog!)).toBe(straight);
+      expect(heading(frog!, end!)).toBe((straight + 315) % 360);
+      expect(heading(frog!, to!)).toBe((straight + 315) % 360);
     });
   }
 });

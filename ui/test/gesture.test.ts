@@ -33,7 +33,7 @@ function turnouts(): Editor {
     drawing: "gesture",
     symbols: {
       sw1: { kind: "turnout", at: [0, 0] },
-      sw2: { kind: "turnout", at: [3, 0] },
+      sw2: { kind: "turnout", at: [4, 0] },
     },
     wires: [],
   };
@@ -193,19 +193,19 @@ describe("a drag over an obstacle", () => {
     );
     expect(gesture.shift(editor, "sw1")).toEqual({ x: 2, y: 0 });
 
-    // Offset 3 would put sw1 on sw2's square: the drag keeps offset 2.
+    // Offset 3 would put sw1 on one of sw2's squares: the drag keeps offset 2.
     expect(gesture.moved(editor, { x: 3.5, y: 0.5 }, { x: 0, y: 0 })).toBe(
       "quiet",
     );
     expect(gesture.shift(editor, "sw1")).toEqual({ x: 2, y: 0 });
 
-    expect(gesture.moved(editor, { x: 4.5, y: 0.5 }, { x: 0, y: 0 })).toBe(
+    expect(gesture.moved(editor, { x: 6.5, y: 0.5 }, { x: 0, y: 0 })).toBe(
       "render",
     );
-    expect(gesture.shift(editor, "sw1")).toEqual({ x: 4, y: 0 });
+    expect(gesture.shift(editor, "sw1")).toEqual({ x: 6, y: 0 });
 
-    expect(gesture.up(editor, { x: 4.5, y: 0.5 })).toBe("changed");
-    expect(editor.drawing.symbols.sw1!.at).toEqual([4, 0]);
+    expect(gesture.up(editor, { x: 6.5, y: 0.5 })).toBe("changed");
+    expect(editor.drawing.symbols.sw1!.at).toEqual([6, 0]);
   });
 
   it("says nothing when a drag ends where it began", () => {
@@ -246,8 +246,8 @@ describe("shift-click on the selection", () => {
     down(gesture, editor, 0.5, 0.5);
     gesture.up(editor, { x: 0.5, y: 0.5 });
 
-    down(gesture, editor, 3.5, 0.5, { shift: true });
-    gesture.up(editor, { x: 3.5, y: 0.5 });
+    down(gesture, editor, 4.5, 0.5, { shift: true });
+    gesture.up(editor, { x: 4.5, y: 0.5 });
     expect([...editor.selection].sort()).toEqual(["sw1", "sw2"]);
 
     expect(down(gesture, editor, 0.5, 0.5, { shift: true })).toBe("picked");

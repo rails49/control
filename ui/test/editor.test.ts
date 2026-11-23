@@ -770,8 +770,9 @@ describe("reading the document", () => {
 describe("dragging a symbol out of the palette", () => {
   it("centres the footprint on the pointer", () => {
     editor.beginPlace("turnout");
-    // 1×1, so the pointer sits in the cell it lands on.
-    expect(editor.placementAt(4.4, 2.6)!.at).toEqual([4, 2]);
+    // 2×1: the pointer is in the left half of cell 4, so cells 3 and 4,
+    // whose centre is 4, are as close as a whole `at` allows.
+    expect(editor.placementAt(4.4, 2.6)!.at).toEqual([3, 2]);
   });
 
   it("centres a long footprint too, half a square off where it must be", () => {
@@ -808,15 +809,29 @@ describe("dragging a symbol out of the palette", () => {
     editor.turnPending();
     editor.flipPending();
     const name = editor.dropPending(4.5, 2.5)!;
-    expect(editor.drawing.symbols[name]).toMatchObject({ rot: 90, flip: true });
+    expect(editor.drawing.symbols[name]).toMatchObject({ rot: 45, flip: true });
   });
 
   it("keeps that orientation for the next drag, whatever the kind", () => {
     editor.beginPlace("turnout");
     editor.turnPending();
+    editor.turnPending();
     editor.dropPending(4.5, 2.5);
     editor.beginPlace("terminal");
     expect(editor.pending).toMatchObject({ kind: "terminal", rot: 90 });
+  });
+
+  it("starts another kind at the quarter turn below a turnout's 45° step", () => {
+    // Only a turnout takes the 45° steps (#1295); the store refuses one on
+    // any other kind.
+    editor.beginPlace("turnout");
+    for (let step = 0; step < 3; step++) editor.turnPending();
+    editor.dropPending(4.5, 2.5);
+    editor.beginPlace("terminal");
+    expect(editor.pending).toMatchObject({ kind: "terminal", rot: 90 });
+    editor.cancelPending();
+    editor.beginPlace("turnout");
+    expect(editor.pending).toMatchObject({ kind: "turnout", rot: 135 });
   });
 
   it("leaves a plain drop plain, writing no rot or flip at all", () => {

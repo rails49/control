@@ -246,12 +246,11 @@ describe("the two colours a route's state is read in", () => {
     }
   });
 
-  it("paint the block body, the track, the tick, the bend and the wire", () => {
+  it("paint the block body, the track, the bend and the wire", () => {
     for (const state of ["locked", "committed"]) {
       for (const selector of [
         `.symbol.${state} .block-body`,
         `.symbol.${state} .track.lit`,
-        `.symbol.${state} .tick.lit`,
         `.symbol.${state} .bend.lit`,
         `.wire.lit.${state}`,
       ]) {
@@ -333,7 +332,7 @@ describe("the two weights a fault is marked in", () => {
    *  stroke a way lights has to change, or a red run reads as a chosen one
    *  wherever it crosses a frog. */
   it("lights the way a refusal is about red, leg by leg", () => {
-    for (const stroke of [".track.lit", ".tick.lit", ".bend.lit"]) {
+    for (const stroke of [".track.lit", ".bend.lit"]) {
       expect(
         rule(canvasStyles.cssText, `.symbol.offending ${stroke}`),
       ).toContain("var(--wrong)");

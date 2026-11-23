@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { NOTE, RING, SLIP, W } from "../render/units.js";
+import { NOTE, RING, W } from "../render/units.js";
 import { palette, symbols } from "./shared.styles.js";
 
 /**
@@ -59,14 +59,6 @@ const sheet = css`
 
   .symbol .bend.lit {
     fill: var(--lit);
-  }
-
-  /* A slip's tick is the only thing telling its road from the through route, so
-     it lights with the transit. It stays a mark: half again its own weight is
-     enough to read beside track three times as thick. */
-  .symbol .tick.lit {
-    stroke: var(--lit);
-    stroke-width: ${SLIP.lit};
   }
 
   /* A block's body covers all but the stubs of its track, so the end of a lit
@@ -166,10 +158,6 @@ const editing = css`
      symbol both selected and on the way shows the way, which is the answer to
      the question selecting it asked. */
   .symbol.offending .track.lit {
-    stroke: var(--wrong);
-  }
-
-  .symbol.offending .tick.lit {
     stroke: var(--wrong);
   }
 
@@ -295,7 +283,6 @@ const running = css`
      alone — and the part where which way is locked matters most. Recorded
      rather than hidden (ui/PANEL.md). */
   .symbol.occupied .track.lit,
-  .symbol.occupied .tick.lit,
   .wire.lit.occupied {
     stroke: var(--wrong);
   }
@@ -305,7 +292,6 @@ const running = css`
   }
 
   .symbol.locked .track.lit,
-  .symbol.locked .tick.lit,
   .wire.lit.locked {
     stroke: var(--locked);
   }
@@ -315,7 +301,6 @@ const running = css`
   }
 
   .symbol.committed .track.lit,
-  .symbol.committed .tick.lit,
   .wire.lit.committed {
     stroke: var(--committed);
   }
@@ -330,8 +315,7 @@ const running = css`
      than recolouring, because this is not a fault and not a way lit: the road
      is simply not on offer. A point on a lit road is drawn with no fade at
      all: the lit road is the position it is being set to (ADR-0068). */
-  .symbol .track.against,
-  .symbol .tick.against {
+  .symbol .track.against {
     opacity: 0.25;
   }
 
@@ -483,9 +467,7 @@ const running = css`
      Amber, as a dispute is, and over the lit road too, since the lit road is
      what the point is failing to give. */
   .symbol.stuck .track,
-  .symbol.stuck .track.lit,
-  .symbol.stuck .tick,
-  .symbol.stuck .tick.lit {
+  .symbol.stuck .track.lit {
     stroke: var(--amber);
   }
 

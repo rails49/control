@@ -11,7 +11,7 @@
  * junctions, transits and what excludes what come from the store's `/review`.
  */
 
-import type { Kind } from "../symbols.generated.js";
+import type { Kind, Rotation } from "../symbols.generated.js";
 import {
   clone,
   isReported,
@@ -204,12 +204,23 @@ export class Editor {
 
   /** Take a symbol off the palette. It starts turned the way the last one was
    *  left: a rotated run of turnouts costs one keypress for the run rather
-   *  than one for each of them (EDITOR.md#palette). */
+   *  than one for each of them (EDITOR.md#palette). Only a turnout takes a
+   *  45 degree step, so another kind starts at the quarter turn below it. */
   beginPlace(kind: Kind | WidgetKind): void {
-    this.placing = isWidgetKind(kind) ? { kind } : { kind, ...this.facing };
+    if (isWidgetKind(kind)) {
+      this.placing = { kind };
+      return;
+    }
+    const { rot } = this.facing;
+    const odd = kind !== "turnout" && rot !== undefined && rot % 90 !== 0;
+    this.placing = {
+      kind,
+      ...this.facing,
+      ...(odd ? { rot: (rot - 45) as Rotation } : {}),
+    };
   }
 
-  /** A quarter turn of the symbol being dragged, by the same rule that turns a
+  /** One step of the symbol being dragged, by the same rule that turns a
    *  selected one, and remembered for the next drag. */
   turnPending(): void {
     this.reorient(turned);
@@ -450,7 +461,8 @@ export class Editor {
       .map(([name]) => name);
   }
 
-  /** A quarter turn clockwise, each selected symbol about its own cell. */
+  /** One step clockwise, each selected symbol about its own cell: 45
+   *  degrees for a turnout, a quarter turn for every other kind. */
   rotate(): void {
     this.transform(turned);
   }

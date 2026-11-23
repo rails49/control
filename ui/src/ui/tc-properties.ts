@@ -16,8 +16,7 @@
  * is whether the hardware at that address reports its position (ADR-0097):
  * the drawing's `reported`, which is the address's and not the symbol's, so
  * every symbol wearing the address shows the same state, and typing another
- * address shows that one's. A turnout is asked one thing more, which leg its
- * closed position takes (#1060). A fixed crossing has no motor and so still
+ * address shows that one's. A fixed crossing has no motor and so still
  * holds nothing.
  *
  * A block's key is the name it is known by everywhere: on the canvas, in the
@@ -51,7 +50,6 @@ import {
   named,
   symbolTrouble,
   type SymbolSpec,
-  type TurnoutLeg,
 } from "../model/drawing.js";
 import { lengthTrouble } from "../model/rules.js";
 import { PINS, type Kind } from "../symbols.generated.js";
@@ -191,33 +189,10 @@ export class TcProperties extends LitElement {
           }}
           >Reported</sl-checkbox
         >
-        ${this.draft.kind === "turnout" ? this.closedLeg() : nothing}
       `;
     }
     // Every other kind is drawn one way, so there is nothing per-kind to set.
     return nothing;
-  }
-
-  /** Which leg a turnout's closed position takes, thrown taking the other
-   *  (#1060). The in-line leg unless the grid put the straight road on the
-   *  45° one. */
-  private closedLeg() {
-    return html`
-      <sl-select
-        label="Closed (0) takes"
-        value=${this.draft.closed_leg ?? "straight"}
-        @sl-change=${(event: Event) => {
-          this.draft = {
-            ...this.draft,
-            closed_leg: (event.target as HTMLSelectElement)
-              .value as TurnoutLeg,
-          };
-        }}
-      >
-        <sl-option value="straight">in-line leg</sl-option>
-        <sl-option value="diverging">45° leg</sl-option>
-      </sl-select>
-    `;
   }
 
   private block() {
@@ -339,16 +314,14 @@ export function editable(kind: Kind): boolean {
 }
 
 /** Drop what the drawing schema would refuse: an empty label is not a name,
- *  and an empty mapping is a key the file does not need, as is a turnout
- *  closing on its in-line leg. A cleared address is no address rather than
- *  an empty one — a drawing with none is valid, an
+ *  and an empty mapping is a key the file does not need. A cleared address
+ *  is no address rather than an empty one — a drawing with none is valid, an
  *  end whose signal field was left empty carries no signal, and an end whose
  *  sensor field was left empty is watched under the default. */
 function tidy(spec: SymbolSpec): SymbolSpec {
   const tidied: SymbolSpec = { ...spec };
   if (!tidied.label) delete tidied.label;
   if (!tidied.addr) delete tidied.addr;
-  if (tidied.closed_leg === "straight") delete tidied.closed_leg;
   if (tidied.names && Object.keys(tidied.names).length === 0) {
     delete tidied.names;
   }

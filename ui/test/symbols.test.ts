@@ -102,17 +102,16 @@ describe("the artwork of a symbol whose legs the library fixes", () => {
     }
   });
 
-  it("lights a route as the two halves that meet at the frog", () => {
-    // A route is two half-strokes so that a slip can light its entry half, its
-    // tick and its exit half — the track a movement actually takes, and not
-    // the whole of both roads.
+  it("lights a leg as its one stroke", () => {
+    // Every leg is one stroke from pin to pin (#1295), so a lit slip road is
+    // its curve alone and not the through routes it leaves and joins.
     const crossing = { kind: "crossing" } as SymbolSpec;
-    expect(litStrokes(artwork(crossing, new Set(["a"])))).toHaveLength(2);
-    expect(litStrokes(artwork(crossing, new Set([WHOLE])))).toHaveLength(4);
+    expect(litStrokes(artwork(crossing, new Set(["a"])))).toHaveLength(1);
+    expect(litStrokes(artwork(crossing, new Set([WHOLE])))).toHaveLength(2);
 
     const slip = { kind: "single_slip" } as SymbolSpec;
-    expect(litStrokes(artwork(slip, new Set(["slip"])))).toHaveLength(3);
-    expect(litStrokes(artwork(slip, new Set([WHOLE])))).toHaveLength(5);
+    expect(litStrokes(artwork(slip, new Set(["slip"])))).toHaveLength(1);
+    expect(litStrokes(artwork(slip, new Set([WHOLE])))).toHaveLength(3);
   });
 });
 
@@ -148,9 +147,12 @@ describe("the artwork the samples fix", () => {
     expect(times(portal, `class="portal-mouth"`)).toBe(2);
   });
 
-  it("draws a slip's tick as a mark rather than as track", () => {
+  it("draws a slip road as track, a curve and no tick", () => {
     const slip = written({ kind: "single_slip" } as SymbolSpec);
-    expect(times(slip, "tick")).toBe(1);
+    expect(times(slip, "tick")).toBe(0);
+    expect(times(slip, "Q")).toBe(1);
+    expect(times(written({ kind: "double_slip" } as SymbolSpec), "Q")).toBe(2);
+    expect(times(written({ kind: "crossing" } as SymbolSpec), "Q")).toBe(0);
   });
 });
 
