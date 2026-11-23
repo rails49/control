@@ -23,7 +23,7 @@ throttle's visual style ([#978](https://github.com/rails49/control/issues/978)).
 **A bar across the top**: *Stock*, the loaded railroad's name, and what is
 unsaved. It says *Everything is saved*, *<n> unsaved changes*, *Saved* for a
 moment after a save lands while the view is on screen, or the refusal
-standing: a field's, the save's own (the length guard, a train with nothing in
+standing: a field's, the save's own (an edit that waits for power off, a train with nothing in
 it, nothing loaded), or the store's. There is no Save button: the view saves
 when it is left ([When it saves](#when-it-saves)).
 
@@ -114,7 +114,7 @@ not a camera address — write the camera's host name or IP address*, and a
 camera another car carries with *car 'van-1' already carries camera 'cam-1'*:
 one camera in two cars would put one picture on two trains, which the store
 refuses as well (`lib/stock.py`). It reaches the store with the next save, in the whole
-`PUT /rosters/<railroad>`, and the length guard does not hold it: it moves
+`PUT /rosters/<railroad>`, and it does not wait for power off: it moves
 nothing the dispatcher fits.
 
 **Composing a train and placing it are two actions**
@@ -237,7 +237,7 @@ field is put back. The store refuses a second model of one name too
 
 **Kind**: Locomotive · Passenger · Freight · Special. **Scale**: a select of Z,
 N, TT, H0, S, 0, 1, G (`lib.roster.SCALES`). **Length over buffers**, under
-the length guard below. **Notes**: a textarea; emptied, the key goes from the
+[Edits that wait for power off](#edits-that-wait-for-power-off). **Notes**: a textarea; emptied, the key goes from the
 document.
 
 **Decoder**: a switch. Turning it on with no functions adds F0 *Headlights*;
@@ -294,8 +294,8 @@ field. Emptying the field takes the address off and keeps the car.
 the car carries no camera.
 
 **Different from the model.** *Length over buffers*, empty meaning the
-model's, with the model's length as its placeholder and under the length
-guard. **Functions**, where the model has a decoder or the car an address: the
+model's, with the model's length as its placeholder and waiting for power off
+like the address and the functions. **Functions**, where the model has a decoder or the car an address: the
 model's shown as chips — number, name, *hold* on a momentary one — and *This
 car's decoder is different: give it its own functions*, which copies them onto
 the car as function rows edited as the model editor's are, the save refused the
@@ -463,64 +463,92 @@ on the page for the next save.
 would be a second kind of picture to keep, and what a person is telling apart
 on this screen is products ([#628](https://github.com/rails49/control/issues/628)).
 
-## The length guard
+## Edits that wait for power off
+
+`layout` and the dispatcher read a train's cars and their fields when the
+railroad is built, or once for a train they have not got, and keep what they
+read until the next build
+([ADR-0092](../adr/0092-an-app-reads-the-roster-again-for-a-train-it-has-not-got.md)).
+These are the fields:
+
+| Field | Read by | Kept from the build |
+|---|---|---|
+| a car's or a model's length | dispatcher | the train's length it fits into blocks |
+| a train's cars: added, removed, moved, or a model entry given a car | dispatcher, `layout` | the train's length; the cars driven |
+| a car's Forward / Reversed in a train | `layout` | the direction each car is told |
+| a car's address | `layout` | the address each car is told |
+| a model's or a car's functions: rows added, removed, renamed, renumbered, mode changed; the model's decoder turned on or off; *This car's decoder is different* / *Use the model's functions again* | `layout` | the number a pressed function name is written to |
+| a train's priority | dispatcher | its priority |
 
 A length lives on the **model** as well as on the **car** — `stock._car` takes
 `model.length` unless the car overrides it — so correcting a product's length
 changes every item of that product, including the one under a train the
-dispatcher is fitting into blocks right now.
+dispatcher is fitting into blocks right now. No app drives by any other field:
+names, kind, manufacturer, scale, description, notes and photos. The camera
+app reads the store on every request, so a car's camera address is read
+fresh.
 
-So **length editing is disabled while track power is on or draining**, with the
-reason said on the control: the field keeps its box, takes the hint colour, and
-carries `track power is on — turn it off to correct a length` both as its title
-and beside it. A field that vanished would leave a person looking for it. With
-power off, a length can be corrected whether or not a train is placed
+So **every edit to one of these fields is disabled while track power is on or
+draining**, with the reason said on the control: the field or button keeps its
+box, takes the hint colour, and carries `track power is on — turn it off to
+change this` both as its title and beside it. A control that vanished would
+leave a person looking for it. That covers the length fields, the address
+field, the priority field, the decoder switch, the function rows with their
+add and remove buttons, *This car's decoder is different* and *Use the
+model's functions again*, and on a train the Add tile, each tile's Forward /
+Reversed, ×, and *Give it an address*, and dragging a tile. With power off,
+each edit can be made whether or not a train is placed
 ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 
-It is **disabled as well while the page has not heard which railroad is
+They are **disabled as well while the page has not heard which railroad is
 loaded** and still holds a roster, titled `the layout has not said whether the
-track has power, so a length cannot be corrected`. A page that has lost the
+track has power, so this cannot be changed`. A page that has lost the
 broker keeps the roster it was editing, but cannot know whether the track has
 power: its link can drop while the broker, `layout` and the dispatcher go on
-running trains by the lengths they hold. The guard keys on the row naming the
+running trains by what they hold. The guard keys on the row naming the
 railroad and not on power reading nothing, which a joined page whose drawing
-is invalid also reads, and whose lengths stay editable. Nothing is
-latched: once the row is heard again with power off, lengths are editable
+is invalid also reads, and whose fields stay editable. Nothing is
+latched: once the row is heard again with power off, the fields are editable
 (#804).
 
-A correction is an edit to the page, and reaches the store with the roster's
+**An item made on this page and not yet saved is outside the guard**: a car, a
+model or a train the store did not hold when the roster was read or last
+saved. No app has built from it. So a person can make up a new train during a
+run, from new or existing cars — add, move, remove and turn them, set its
+priority, give a new car its address and length — leave the view, and place
+it (ADR-0092). Its edits are not edits the apps built from, so they do not hold
+the save. Once a save writes it, it is covered like any other item.
+
+An edit is an edit to the page, and reaches the store with the roster's
 next save. While power is on or draining, **nothing is written if the unsaved
-edits change a length** — all of them wait, not only the length — and the bar
-says `a length has changed — turn track power off to save`: the layout builds
-only with power off, so a length saved then could not be built. While the row
-naming the railroad is not heard the same edits wait, the bar saying `a length
-has changed — the layout has not said whether the track has power`. Either
-way the band marks the roster *unsaved*, and the edits are written the next
-time the view is left with power off (#1233). Roster edits that change no
-length save with power on. **A save that changed a length names
-the loaded railroad again** on `tc49/layout/railroad_wanted`, so the dispatcher
-fits trains with the new length; a train now longer than its block comes off
-the layout and is listed as **unfit**. A save made while the broker was up
-that lands after it has gone owes the request: it is sent once the broker is back, the row names the
+edits include one of these** — all of them wait — and the bar says `an edit
+needs the railroad loaded again — turn track power off to save`: the layout
+builds only with power off, so the edit saved then could not be built. While
+the row naming the railroad is not heard the same edits wait, the bar saying
+`an edit needs the railroad loaded again — the layout has not said whether
+the track has power`. Either way the band marks the roster *unsaved*, and the
+edits are written the next time the view is left with power off (#1233).
+Since ON saves first and the fields are disabled with power on, this hold is
+only reached when power came on from another page. Other roster edits save
+with power on. **A save that changed one of these fields names the loaded
+railroad again** on `tc49/layout/railroad_wanted`, so the apps read what was
+written; a train now longer than its block comes off the layout and is listed
+as **unfit**. A save made while the broker was up that lands after it has
+gone owes the request: it is sent once the broker is back, the row names the
 same railroad and power reads off, and dropped if the row names another
 railroad or none (#803).
 
-A **model** corrected in its editor is written by that save too, with
+A **model** changed in its editor is written by that save too, with
 `PUT /catalogue/<model>`, before the roster: each changed model once, as it
 then stands, then the roster
 ([#718](https://github.com/rails49/control/issues/718)). A refusal stops the
 save where it happened and is said in the bar. A model already written stays
 written; what was not written is still an edit, and the next save writes it. If
-a model was written before the refusal, the railroad is named again all the
-same: power is off, and the dispatcher must not go on fitting trains by a length
-the store no longer holds. A model correction names the railroad again whether
-or not the loaded roster uses that model; a model written for its name, notes
-or functions alone names nothing, moving no length.
-
-**A model made here and not yet saved is outside the guard.** No train the
-dispatcher fits is made of a model the store has not got, so its length is
-editable with power on and is no length edit: making a product during a run
-does not hold the save.
+a model was written before the refusal and the save holds one of these edits,
+the railroad is named again all the same: power is off, and the apps must not
+go on by a value the store no longer holds. A model's length or functions
+name the railroad again whether or not the loaded roster uses that model; a
+model written for its name, kind, scale or notes alone names nothing.
 
 This is a **UI guard in one browser**. `tc-app.ts` holds the run state — track
 power, and which trains the session says are placed — and passes it down, the
@@ -651,7 +679,7 @@ Split the way the app's suites are split. `ui/test/composing.test.ts` drives
 the model with no DOM — what a model put in a train goes in as, New train's
 names, a car refused a second place in a train, an entry moved, a priority,
 the derived length, kind and functions, what holds a car or a
-model, the length guard, and the model editor's rules: New model's names, the
+model, the edits that wait for power off, and the model editor's rules: New model's names, the
 key minted from a name and kept, a name refused, the decoder and its function
 rows with their mode, a number listed twice stopping the save, a photo held
 for the save; and the car editor's: an address out of 1 to 10239 or another
