@@ -23,8 +23,8 @@ throttle's visual style ([#978](https://github.com/rails49/control/issues/978)).
 **A bar across the top**: *Stock*, the loaded railroad's name, and what is
 unsaved. It says *Everything is saved*, *<n> unsaved changes*, *Saved* for a
 moment after a save lands while the view is on screen, or the refusal
-standing: a field's, the save's own (an edit that waits for power off, a train with nothing in
-it, nothing loaded), or the store's. There is no Save button: the view saves
+standing: a field's, the save's own (an edit that waits for power off, a
+train with nothing in it, nothing loaded), or the store's. There is no Save button: the view saves
 when it is left ([When it saves](#when-it-saves)).
 
 **Two columns below it**: the list, `minmax(300px, 380px)`, and the editor of
@@ -144,8 +144,10 @@ next leave tries again. A save the store refuses or does not answer is marked
 the same way. Closing the page loses edits that could not be saved. The band
 says nothing about edits a leave would save.
 
-**ON with unsaved roster edits saves them first.** Where a length changed,
-power comes on once the apps have built what was saved, as ON does for the
+**ON with unsaved roster edits saves them first.** Where one changes a field
+the apps built from
+([Edits that wait for power off](#edits-that-wait-for-power-off)), power
+comes on once the apps have built what was saved, as ON does for the
 drawing; otherwise it comes on once the save lands. A save that does not land
 turns nothing on. **A pick, New or Copy loaded as… in the settings dialog saves
 the roster first** as it saves the drawing; a save that does not land loads
@@ -237,8 +239,9 @@ field is put back. The store refuses a second model of one name too
 
 **Kind**: Locomotive · Passenger · Freight · Special. **Scale**: a select of Z,
 N, TT, H0, S, 0, 1, G (`lib.roster.SCALES`). **Length over buffers**, under
-[Edits that wait for power off](#edits-that-wait-for-power-off). **Notes**: a textarea; emptied, the key goes from the
-document.
+[Edits that wait for power off](#edits-that-wait-for-power-off), as are
+the decoder and its functions. **Notes**: a textarea; emptied, the key goes
+from the document.
 
 **Decoder**: a switch. Turning it on with no functions adds F0 *Headlights*;
 turning it off drops the functions, a function being a bit on a decoder and
@@ -295,8 +298,8 @@ the car carries no camera.
 
 **Different from the model.** *Length over buffers*, empty meaning the
 model's, with the model's length as its placeholder and waiting for power off
-like the address and the functions. **Functions**, where the model has a decoder or the car an address: the
-model's shown as chips — number, name, *hold* on a momentary one — and *This
+like the address and the functions. **Functions**, where the model has a
+decoder or the car an address: the model's shown as chips — number, name, *hold* on a momentary one — and *This
 car's decoder is different: give it its own functions*, which copies them onto
 the car as function rows edited as the model editor's are, the save refused the
 same way while a number is listed twice or a function has no name. *Use the
@@ -517,7 +520,7 @@ saved. No app has built from it. So a person can make up a new train during a
 run, from new or existing cars — add, move, remove and turn them, set its
 priority, give a new car its address and length — leave the view, and place
 it (ADR-0092). Its edits are not edits the apps built from, so they do not hold
-the save. Once a save writes it, it is covered like any other item.
+the save. Once a save writes it, it waits for power off like any other item.
 
 An edit is an edit to the page, and reaches the store with the roster's
 next save. While power is on or draining, **nothing is written if the unsaved
@@ -688,7 +691,7 @@ stopping the save while one has no name, and taken off again.
 `ui/test/railroad.test.ts` has a save write a model made here, its photo and
 the roster, in that order and under the key minted; a save asked for during
 one being that one; the writes going with `keepalive` where the page is
-leaving; every edit waiting with a length while power is on; and what ON
+leaving; every edit waiting with one the apps built from while power is on; and what ON
 saves first, naming the railroad once.
 
 `ui/test/making.test.ts` mounts the app in this view against a store with no
@@ -715,12 +718,12 @@ while a dragged tile is held near its edge, flip writing
 `Re 4/4 II` and a train named `S 1/S 2` saved; a train made up of a locomotive
 and three hoppers, the document that reaches `PUT /rosters/<railroad>` with one
 car entry and three model entries, the guard killing a field while track power
-is on, the save waiting for power off when a length changed — every edit with
+is on, the save waiting for power off when an edit the apps built from changed — every edit with
 it, the band marking the roster unsaved — and then naming the railroad again, a
 corrected model written before the roster and kept for the next save where it
 is refused, a refused save marked unsaved on the band, the roster saved on a
 switch of view, on the page hidden with `keepalive`, and on ON — power coming
-on after the build where a length changed and at once otherwise, and not at
+on after the build where such an edit changed and at once otherwise, and not at
 all where the save is refused —, the run view showing a train made up here
 without a reload, the chosen train moving when the one it named is unmade and
 carried when that one is renamed, the field a refusal puts back, the edit

@@ -545,6 +545,20 @@ describe("the roster's save", () => {
     expect(names).toEqual([]);
   });
 
+  it("answers landed and names nothing for a stored model's new photo", async () => {
+    const { railroad, store, names } = made();
+    railroad.named("toy");
+    await flushed();
+    railroad.stock!.setPhoto("hopper", {
+      jpeg: new Uint8Array([1]),
+      shown: "data:,",
+    });
+
+    expect(await railroad.save("off")).toBe("landed");
+    expect(store.saved).toEqual(["/catalogue/hopper/photo", "/rosters/toy"]);
+    expect(names).toEqual([]);
+  });
+
   /** A Save that did not land changed nothing any app could build. */
   it("names nothing where the store refused the length", async () => {
     const { railroad, store, names } = await edited();
