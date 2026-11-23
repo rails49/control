@@ -23,7 +23,13 @@ from typing import Any
 
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute
-from tc49.dispatcher.dispatch import ALLOCATION, ASPECTS, Adopted, restored
+from tc49.dispatcher.dispatch import (
+    ALLOCATION,
+    ASPECTS,
+    SETTINGS,
+    Adopted,
+    restored,
+)
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.scenario import TrainSpec
 from tests.harness import (
@@ -477,6 +483,23 @@ def test_a_pictured_train_longer_than_its_block_comes_up_off_the_layout() -> Non
     adopted = rebuilt({"up_w": 3200, "dn_e": 1000})
 
     assert adopted.standing == {"express_2": "up_w"}
+
+
+def test_short_blocks_does_not_keep_a_pictured_train_its_block_no_longer_holds() -> (
+    None
+):
+    """With the railroad's settings saying `short_blocks` before the
+    dispatcher comes up, a restore still takes `freight_1` off as `short`
+    (#1287): the restored lock table is one block per train, and its tail
+    over the points would be held by nothing."""
+    layout, roster, _ = load("crossover-yard/meet")
+    bus = retaining({ALLOCATION: MOVED, SETTINGS: {"short_blocks": True}})
+    shortened = replace(layout, blocks={"up_w": 3200, "dn_e": 1000})
+
+    dispatcher = Dispatcher(bus, shortened, roster, {}, FullRoute(shortened, DEFAULT_K))
+
+    assert dispatcher.state.short_blocks
+    assert dispatcher.state.block_of == {"express_2": "up_w"}
 
 
 def test_a_train_left_off_carries_no_crossing_hint() -> None:

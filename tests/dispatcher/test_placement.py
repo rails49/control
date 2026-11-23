@@ -222,6 +222,23 @@ def test_a_placement_into_a_block_the_train_does_not_fit_in_is_refused(
     assert last(off, "allocation")["trains"]["leviathan"] == "dn_e"
 
 
+def test_short_blocks_still_refuses_a_placement_the_train_does_not_fit(
+    off: Assembly,
+) -> None:
+    """The railroad's settings saying `short_blocks` lift the fit check from
+    routes and not from placements (#1287): a placed train holds only its
+    block, so a tail over the points beyond it would be held by nothing."""
+    press(off, "tc49/layout/settings_wanted", {"short_blocks": True})
+    assert off.dispatcher.state.short_blocks
+    before = locks(off)
+
+    place(off, "leviathan", "yard_e")
+
+    assert placements(off) == []
+    assert refusals(off) == [("leviathan", "yard_e", PlacementRefusal.NO_FIT)]
+    assert locks(off) == before
+
+
 def test_a_placement_cancels_the_request_in_flight_and_then_places(
     off: Assembly,
 ) -> None:
