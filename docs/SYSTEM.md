@@ -787,7 +787,8 @@ restored facing, rather than refusing to start.
 ### Dispatcher
 
 *Reads* the layout and the railroad's **roster**: train lengths for the
-admission fit check, and the whole of what makes a train **known**
+admission fit check, made only while `tc49/layout/state/settings` says
+`short_blocks` is `false`, and the whole of what makes a train **known**
 ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 
 A run is built from a railroad, and nothing in a railroad places its trains
@@ -828,8 +829,14 @@ block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 gestures it responds to sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
 unread. The layout filter carries `tc49/layout/state/unknown_sensors`,
-`tc49/layout/state/overdue` and `tc49/layout/state/taken`, each read as the
-power is: on starting, from the value the bus holds, and by its stamp.
+`tc49/layout/state/overdue`, `tc49/layout/state/taken` and
+`tc49/layout/state/settings`, each read as the
+power is: on starting, from the value the bus holds, and by its stamp. Of the
+settings it reads `short_blocks` alone: while it is `true` a route may end in
+or pass through a block shorter than the train and admission prunes nothing as
+`no_fit`, and a placement and a restore keep their length check
+([#1287](https://github.com/rails49/control/issues/1287)). Until a row is heard
+it is `false`, and a railroad load starts it so again.
 *Publishes* the eleven `tc49/dispatch/*` events, plus `state/moving`,
 `state/aspects`, `state/disputed`, `state/unfit`, `state/broken` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,
@@ -1264,9 +1271,9 @@ silent, as is the sensor silence for who has gone unheard
 driver's, and `layout` also reads `caution` for its drop, from the next check.
 `short_blocks` is whether a route may end in or pass through a block shorter
 than the train: `layout` keeps and says it and runs on nothing, a placement
-keeping its length check whatever it says, and the dispatcher routing on it
-is [#1287](https://github.com/rails49/control/issues/1287)
-([#1286](https://github.com/rails49/control/issues/1286)). The gap, the
+keeping its length check whatever it says, and the dispatcher routes on it
+([#1286](https://github.com/rails49/control/issues/1286),
+[#1287](https://github.com/rails49/control/issues/1287)). The gap, the
 speeds and `short_blocks` are kept with the
 railroad in `layouts/<layout>.settings.yaml`, the two silences and the
 arrival allowance with the installation in `installation.yaml`, read once as

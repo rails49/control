@@ -142,8 +142,9 @@ need different information:
   arrives at and the end it leaves the train facing are both settled and a
   drag on a moving train is answered as it is asked. That is
   sound because reachability is a pure function of layout, origin, departure
-  end, arrival ends and train length: route selection prunes only on fit and
-  on the simple-path rule, congestion enters solely as a sort key and `k`
+  end, arrival ends, train length and the railroad's `short_blocks`: route
+  selection prunes only on fit, which that setting lifts, and on the
+  simple-path rule, congestion enters solely as a sort key and `k`
   only caps the list, so nothing between admission and the launch can change
   the answer. **Reachability waits for the launch attempt only when a
   predecessor is still pending** — so `request_rejected` can also be
@@ -235,7 +236,12 @@ topology ordering; #33 made it congestion-aware. The chooser:
 1. Consider routes to **every** surviving arrival end, merged into one list.
    The arrival ends are unordered and equally acceptable, so the ordering below
    decides between them; the request states no preference among them.
-2. Consider only routes whose every block fits the train.
+2. Consider only routes whose every block fits the train, unless the
+   railroad's settings say `short_blocks`, when a route may end in or pass
+   through a shorter block
+   ([#1287](https://github.com/rails49/control/issues/1287)). The tail of a
+   train sent so keeps the transit it came in by until the entry sensor reads
+   clear (the reading table).
 3. Leave out any route with a block **out of use** beyond its origin, before
    the budget `k` is spent, so another route is found. Where that leaves none
    and step 2 found one, the launch is refused `held`, naming the first such
