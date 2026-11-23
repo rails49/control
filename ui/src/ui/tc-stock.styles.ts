@@ -20,9 +20,9 @@ import { css } from "lit";
  * 10:3 wide: train cars are wide and low, and a crop would cut off the end
  * that tells two of them apart.
  *
- * A control the length guard has killed keeps its box and takes the hint
+ * A control held until power is off keeps its box and takes the hint
  * colour, with the reason beside it — a field that vanished while track power
- * was on would leave a person looking for it (ui/STOCK.md#the-length-guard).
+ * was on would leave a person looking for it (ui/STOCK.md#edits-that-wait-for-power-off).
  */
 export const stockStyles = css`
   :host {
