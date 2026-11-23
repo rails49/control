@@ -43,11 +43,11 @@ units: mm
 
 symbols:
   yard_w: {kind: block, length: 1400, at: [1, 0]}
-  up_w: {kind: block, length: 3200, at: [8, 0]}
-  up_e: {kind: block, length: 3200, at: [16, 0]}
-  dn_w: {kind: block, length: 3200, at: [8, 2]}
-  dn_e: {kind: block, length: 3200, at: [16, 2]}
-  yard_e: {kind: block, length: 1400, at: [23, 0]}
+  up_w: {kind: block, length: 3200, at: [9, 0]}
+  up_e: {kind: block, length: 3200, at: [19, 0]}
+  dn_w: {kind: block, length: 3200, at: [9, 2]}
+  dn_e: {kind: block, length: 3200, at: [19, 2]}
+  yard_e: {kind: block, length: 1400, at: [27, 0]}
 
   west_ladder: # yard throat, west end
     kind: turnout
@@ -59,7 +59,7 @@ symbols:
   east_ladder: # yard throat, east end
     kind: turnout
     names: {straight: from_up, diverging: from_dn}
-    at: [22, 0]
+    at: [25, 0]
     rot: 180
 
   # The scissors crossover: a turnout on each main line at each end, and the
@@ -70,20 +70,20 @@ symbols:
     kind: turnout
     connection: crossover
     names: {straight: up_straight, diverging: up_to_dn}
-    at: [14, 0]
+    at: [15, 0]
     flip: true
     rot: 180
   dn_w_points:
     kind: turnout
     connection: crossover
     names: {straight: dn_straight, diverging: dn_to_up}
-    at: [14, 2]
-  up_e_points: {kind: turnout, connection: crossover, at: [15, 0], rot: 180}
-  dn_e_points: {kind: turnout, connection: crossover, at: [15, 2], flip: true}
-  diamond: {kind: crossing_90d, connection: crossover, at: [14, 1]}
+    at: [15, 2]
+  up_e_points: {kind: turnout, connection: crossover, at: [17, 0], rot: 180}
+  dn_e_points: {kind: turnout, connection: crossover, at: [17, 2], flip: true}
+  diamond: {kind: crossing_90d, connection: crossover, at: [16, 1]}
 
   yard_w_A_stop: {kind: terminal, at: [0, 0], rot: 180}
-  yard_e_B_stop: {kind: terminal, at: [29, 0]}
+  yard_e_B_stop: {kind: terminal, at: [33, 0]}
 
 wires:
   - [yard_w.B, west_ladder.toe]
