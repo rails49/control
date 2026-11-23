@@ -14,10 +14,6 @@ rails49 repository, read through GitHub's REST API (org ADR-0017). Every other
 `#fragment`, which names a heading on the page it sits in and is the one case
 a reader cannot follow wrong. `docs/research/` is not read for rails49 links:
 a research note is never edited, so a link in one that broke stays broken.
-
-`.implement-loop/` is excluded with the rest of the tree by reading only
-`docs/` and the four pages at the root: those records quote the paths a batch
-saw at the time, and correcting them would be rewriting what happened.
 """
 
 import os

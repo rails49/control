@@ -54,9 +54,8 @@ run pyright uv run pyright
 [ "$FAST" = 1 ] || run pytest uv run pytest -q -n auto
 # pnpm verifies node_modules against the lockfile before running a script and,
 # without a TTY, aborts rather than replace it. That happens whenever this tree
-# is mounted into a container while node_modules holds the host's binaries, and
-# it kept the gate from going green inside implement-loop's sandbox. Both
-# scripts are one binary each, so call them and leave node_modules to the
+# is mounted into a container while node_modules holds the host's binaries.
+# Both scripts are one binary each, so call them and leave node_modules to the
 # install above.
 run tsc ui/node_modules/.bin/tsc -p ui/tsconfig.json --noEmit
 run vitest ui/node_modules/.bin/vitest run --root ui

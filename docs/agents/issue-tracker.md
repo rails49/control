@@ -38,6 +38,10 @@ implementation detail of the translator apps and appear only in those apps'
 implementation issues. No third kind and no new labels — the five triage
 labels stay canonical, and a title prefix is greppable.
 
+`/to-tickets` keeps this rule. Each ticket is one implementation or one
+communication issue, and the spec is the issue that spans the components.
+The skill's own default, one ticket through every layer, does not apply here.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
