@@ -73,7 +73,7 @@ from tc49.lib.invariants import (
     adr_0062_moving_while_crossing,
     adr_0063_power_follows_the_hardware,
     adr_0069_removed_is_stopped,
-    adr_0071_placed_where_it_fits,
+    adr_0071_placed_in_the_drawing,
     adr_0071_unfit_is_not_placed,
     adr_0074_comes_up_off,
     adr_0076_crossing_is_placed,
@@ -310,11 +310,12 @@ CASES: list[tuple[Callable[[View], list[str]], str, Rows, Rows]] = [
         },
     ),
     (
-        adr_0071_placed_where_it_fits,
-        MEET,
-        # t1 is 1200 long, `blocker` 1000; east_2 is 1200.
-        {ALLOCATION: allocation({"t1": "east_2", "blocker": "west_2"})},
-        {ALLOCATION: allocation({"t1": "east_2", "blocker": "nowhere"})},
+        adr_0071_placed_in_the_drawing,
+        BENCH,
+        # `lit` is 1800 long and up_w 1000: a train longer than its block, as
+        # one routed in while the settings say `short_blocks`, holds (#1287).
+        {ALLOCATION: allocation({"lit": "up_w", "single": "up_e"})},
+        {ALLOCATION: allocation({"lit": "up_w", "single": "nowhere"})},
     ),
     (
         adr_0071_unfit_is_not_placed,
