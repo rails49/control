@@ -463,7 +463,7 @@ export class TcApp extends LitElement {
    * whether its drawing or its roster holds edits that could not be saved
    * (`stranded`, `Railroad.stranded`); then only
    * what a person would act on (#517) — what the app could not do, an
-   * invalid drawing (its title the store's refusal), what the hardware says is wrong with the supply,
+   * invalid drawing (its label the store's refusal), what the hardware says is wrong with the supply,
    * each lock-table rule the dispatcher found broken (#1118), each thing the
    * detectors dispute (#1154), the sensors not reporting (#1153),
    * backup that is not running, and an installation update the box offers
@@ -471,8 +471,10 @@ export class TcApp extends LitElement {
    * then the driving control, the last of the band's items, and track power;
    * then the gear, and look's Help after it (org ADR-0020, #873).
    *
-   * A fault is a chip with the whole sentence as its title, so a long one is
-   * read by hovering. A frozen drawing says nothing here: with track power on
+   * A fault is a chip, and a long one is cut short. The whole sentence is
+   * read by pressing the chip: it opens in a tooltip under the chip, as it
+   * does on keyboard focus (#1303). The invalid drawing chip shows the
+   * store's refusal there. A frozen drawing says nothing here: with track power on
    * the Edit view does not open (ADR-0085, decision 3), and its button on the
    * rail says why.
    */
@@ -1055,10 +1057,11 @@ export class TcApp extends LitElement {
   };
 }
 
-/** A fault on the band, its whole sentence the title of the chip that may
- *  cut it short, or `why` where the chip says less than the sentence. */
-function chip(said: string, why: string = said) {
-  return html`<look-chip title=${why}>${said}</look-chip>`;
+/** A fault on the band. The chip may cut it short and shows the whole
+ *  sentence when pressed, or `why` where the chip says less than the
+ *  sentence. */
+function chip(said: string, why = "") {
+  return html`<look-chip label=${why || nothing}>${said}</look-chip>`;
 }
 
 declare global {
