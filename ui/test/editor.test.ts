@@ -316,23 +316,47 @@ describe("abutting", () => {
     expect(wires()).toEqual(["b1.B e1.P"]);
   });
 
-  it("does not join two bends twice over", () => {
-    // Both pins want two wires, so a second wire between the same pair fills
-    // both and reads as a finished join while being an edge nobody drew.
+});
+
+/**
+ * A bend joined to another pin on its own point by a wire of no length marks
+ * no corner, so that pin absorbs it (#1304): the bend's other wire is
+ * re-pointed to the pin, and the bend and the wire of no length go.
+ */
+describe("absorbing a bend", () => {
+  const B1 = { kind: "block", at: [0, 0], length: 1000 };
+
+  /** b1 with a bend n1 on (8, 0.5), two squares east of b1.B, holding the one
+   *  wire from it. */
+  function run(): void {
     place("block", [0, 0]);
     editor.startWire("b1.B");
     editor.bend(8, 0.5);
     editor.cancelWire();
-    place("block", [0, 4]);
-    editor.startWire("b2.B");
-    editor.bend(8, 0.5);
-    editor.cancelWire();
-    editor.select(["n1", "n2"]);
-    editor.move(1, 0);
-    expect(wires().filter((wire) => wire === "n1.P n2.P")).toHaveLength(1);
+  }
+
+  it("ends the bend's wire on the pin of a symbol placed on it", () => {
+    run();
+    place("terminal", [8, 0]); // e1.P is at (8, 0.5)
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      e1: { kind: "terminal", at: [8, 0] },
+    });
+    expect(editor.drawing.wires).toEqual([["b1.B", "e1.P"]]);
   });
 
-  it("joins on a rotation that brings two pins together", () => {
+  it("does the same for a symbol moved onto the bend", () => {
+    run();
+    place("terminal", [10, 0]);
+    editor.move(-2, 0);
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      e1: { kind: "terminal", at: [8, 0] },
+    });
+    expect(editor.drawing.wires).toEqual([["b1.B", "e1.P"]]);
+  });
+
+  it("does the same for a symbol turned onto the bend", () => {
     // The pin the rotation arrives at is a bend, which covers no square: two
     // symbols that both cover one could not be here to meet.
     place("terminal", [0, 0]);
@@ -341,9 +365,221 @@ describe("abutting", () => {
     editor.cancelWire();
     place("terminal", [2, 0]); // e2.P at (2, 0.5): nothing to join
     expect(wires()).toEqual(["e1.P n1.P"]);
-    editor.select(["e2"]);
     editor.rotate(); // e2.P swings to (2.5, 0), onto the bend
-    expect(wires()).toEqual(["e1.P n1.P", "e2.P n1.P"]);
+    expect(editor.drawing.symbols).toEqual({
+      e1: { kind: "terminal", at: [0, 0] },
+      e2: { kind: "terminal", at: [2, 0], rot: 90 },
+    });
+    expect(editor.drawing.wires).toEqual([["e1.P", "e2.P"]]);
+  });
+
+  it("does the same for the bend dragged onto a symbol's pin", () => {
+    place("block", [0, 0]);
+    place("terminal", [8, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 2.5);
+    editor.cancelWire();
+    expect(editor.reface("n1", 8, 0.5)).toBe(true);
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      e1: { kind: "terminal", at: [8, 0] },
+    });
+    expect(editor.drawing.wires).toEqual([["b1.B", "e1.P"]]);
+  });
+
+  it("makes one bend of two, the earlier, holding both of their wires", () => {
+    run();
+    place("block", [0, 4]);
+    editor.startWire("b2.B");
+    editor.bend(8, 4.5);
+    editor.cancelWire();
+    // The earlier one is the one dragged, and it is still the one that stays.
+    editor.reface("n1", 8, 4.5);
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      b2: { kind: "block", at: [0, 4], length: 1000 },
+      n1: { kind: "pin", at: [8, 4], rot: 0 },
+    });
+    expect(editor.drawing.wires).toEqual([
+      ["b1.B", "n1.P"],
+      ["b2.B", "n1.P"],
+    ]);
+  });
+
+  it("takes a bend holding two wires out of its run", () => {
+    place("block", [0, 0]);
+    place("block", [10, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 2.5);
+    editor.endWire("b2.A");
+    editor.reface("n1", 6, 0.5); // onto b1.B, the far end of its first wire
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      b2: { kind: "block", at: [10, 0], length: 1000 },
+    });
+    expect(editor.drawing.wires).toEqual([["b1.B", "b2.A"]]);
+  });
+
+  it("takes a bend holding one wire, dragged onto the pin it comes from", () => {
+    run();
+    editor.reface("n1", 6, 0.5);
+    expect(editor.drawing.symbols).toEqual({ b1: B1 });
+    expect(editor.drawing.wires).toEqual([]);
+  });
+
+  it("drops the bend from the selection and cancels a wire drawn from it", () => {
+    run();
+    editor.select(["n1"]);
+    editor.startWire("n1.P");
+    editor.reface("n1", 6, 0.5);
+    expect([...editor.selection]).toEqual([]);
+    expect(editor.pendingFrom).toBeNull();
+  });
+
+  it("sweeps a bend it leaves holding nothing", () => {
+    // Two bends holding only the wire between them: the later goes into the
+    // earlier, the wire goes, and the earlier is left with none.
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5);
+    editor.bend(8, 4.5);
+    editor.cancelWire();
+    editor.unwire(["b1.B", "n1.P"]);
+    editor.reface("n2", 8, 0.5);
+    expect(editor.drawing.symbols).toEqual({ b1: B1 });
+    expect(editor.drawing.wires).toEqual([]);
+  });
+
+  it("takes a bend a wire was drawn to from a pin on its point", () => {
+    // n1 dragged onto the full b1.B and e1.P is joined to neither. The cut
+    // leaves both free with the bend still there.
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    place("block", [0, 4]);
+    editor.startWire("b2.B");
+    editor.bend(8, 4.5);
+    editor.cancelWire();
+    editor.reface("n1", 6, 0.5);
+    editor.unwire(["b1.B", "e1.P"]);
+    editor.startWire("b1.B");
+    expect(editor.endWire("n1.P")).toBe(true);
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      e1: { kind: "terminal", at: [6, 0] },
+      b2: { kind: "block", at: [0, 4], length: 1000 },
+    });
+    expect(editor.drawing.wires).toEqual([["b2.B", "b1.B"]]);
+    editor.undo();
+    expect(editor.drawing.symbols.n1).toEqual({ kind: "pin", at: [6, 0], rot: 0 });
+    expect(editor.drawing.wires).toEqual([["b2.B", "n1.P"]]);
+  });
+
+  it("leaves a bend whose wire would be a second one between two pins", () => {
+    // n1, n3 and n2 in a triangle once n2 lands on n1: re-pointing n2's wire
+    // to n3 onto n1 would double the wire n1 already has to n3.
+    place("terminal", [0, 0]);
+    editor.startWire("e1.P");
+    editor.bend(8, 0.5); // n1
+    editor.bend(10, 2.5); // n2
+    editor.bend(8, 4.5); // n3
+    editor.cancelWire();
+    editor.unwire(["e1.P", "n1.P"]); // n1 has room for the join
+    editor.reface("n3", 8, 0.5);
+    expect(editor.drawing.symbols).toEqual({
+      e1: { kind: "terminal", at: [0, 0] },
+      n1: { kind: "pin", at: [8, 0], rot: 0 },
+      n2: { kind: "pin", at: [10, 2], rot: 0 },
+      n3: { kind: "pin", at: [8, 0], rot: 0 },
+    });
+    expect(editor.drawing.wires).toEqual([
+      ["n1.P", "n2.P"],
+      ["n2.P", "n3.P"],
+      ["n3.P", "n1.P"],
+    ]);
+  });
+
+  it("still writes the wire of no length between two symbols' pins", () => {
+    place("block", [0, 0]);
+    place("terminal", [6, 0]);
+    expect(editor.drawing.symbols).toEqual({
+      b1: B1,
+      e1: { kind: "terminal", at: [6, 0] },
+    });
+    expect(editor.drawing.wires).toEqual([["e1.P", "b1.B"]]);
+  });
+
+  describe("in a drawing opened with one", () => {
+    /** b1 and e1 two squares apart, and the bend n1 on e1.P joined to it. */
+    const opened = (): Drawing => ({
+      drawing: "test",
+      symbols: {
+        b1: { kind: "block", at: [0, 0], length: 1000 },
+        e1: { kind: "terminal", at: [8, 0] },
+        n1: { kind: "pin", at: [8, 0], rot: 0 },
+      },
+      wires: [
+        ["b1.B", "n1.P"],
+        ["n1.P", "e1.P"],
+      ],
+    });
+
+    it("waits for an edit elsewhere, and one undo puts the bend back", () => {
+      editor.reset(opened());
+      expect(editor.drawing).toEqual(opened());
+      place("terminal", [0, 4]);
+      expect(editor.drawing.symbols).toEqual({
+        b1: B1,
+        e1: { kind: "terminal", at: [8, 0] },
+        e2: { kind: "terminal", at: [0, 4] },
+      });
+      expect(editor.drawing.wires).toEqual([["b1.B", "e1.P"]]);
+      editor.undo();
+      expect(editor.drawing).toEqual(opened());
+    });
+
+    it("takes a bend on a bend on a symbol's pin, both of them", () => {
+      const drawing = opened();
+      drawing.symbols.n2 = { kind: "pin", at: [8, 0], rot: 0 };
+      drawing.wires = [
+        ["e1.P", "n1.P"],
+        ["n1.P", "n2.P"],
+        ["n2.P", "b1.B"],
+      ];
+      editor.reset(drawing);
+      place("terminal", [0, 4]);
+      expect(editor.drawing.symbols).toEqual({
+        b1: B1,
+        e1: { kind: "terminal", at: [8, 0] },
+        e2: { kind: "terminal", at: [0, 4] },
+      });
+      expect(editor.drawing.wires).toEqual([["e1.P", "b1.B"]]);
+    });
+
+    it("keeps the connection a re-pointed wire names", () => {
+      const drawing = opened();
+      drawing.wires = [
+        { pins: ["b1.B", "n1.P"], connection: "west" },
+        { pins: ["n1.P", "e1.P"], connection: "east" },
+      ];
+      editor.reset(drawing);
+      place("terminal", [0, 4]);
+      expect(editor.drawing.wires).toEqual([
+        { pins: ["b1.B", "e1.P"], connection: "west" },
+      ]);
+    });
+
+    it("gives a re-pointed wire with no name the deleted wire's", () => {
+      const drawing = opened();
+      drawing.wires = [
+        ["b1.B", "n1.P"],
+        { pins: ["n1.P", "e1.P"], connection: "east" },
+      ];
+      editor.reset(drawing);
+      place("terminal", [0, 4]);
+      expect(editor.drawing.wires).toEqual([
+        { pins: ["b1.B", "e1.P"], connection: "east" },
+      ]);
+    });
   });
 });
 
@@ -396,7 +632,7 @@ describe("drawing wires", () => {
     place("block", [8, 0]);
     place("block", [8, 4]);
     editor.startWire("b1.B");
-    editor.bend(8, 0.5);
+    editor.bend(7, 0.5);
     editor.endWire("b2.A");
     expect(editor.free("n1.P")).toBe(false);
   });
@@ -408,7 +644,7 @@ describe("drawing wires", () => {
     editor.cancelWire();
     place("block", [0, 4]);
     editor.startWire("b2.B");
-    editor.bend(8, 0.5);
+    editor.bend(8, 4.5);
     editor.endWire("n1.P");
     editor.startWire("n1.P");
     expect(editor.endWire("n2.P")).toBe(false);

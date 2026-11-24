@@ -234,9 +234,9 @@ function pinNear(drawing: Drawing, at: Point, shift: Shift): PinRef | null {
 /**
  * The pins a wire ended at a point lands on: those sharing the place of the
  * pin under the pointer or, off any pin, those on the face centre a bend
- * would take. Several where a symbol was dropped on a bend, the two joined by
- * a wire of no length. None where the face centre is bare, which is where a
- * bend goes.
+ * would take. Several where a bend was dragged onto a pin that already holds
+ * its wire, no wire joining the two. None where the face centre is bare, which
+ * is where a bend goes.
  */
 export function landing(drawing: Drawing, at: Point, shift: Shift = HERE): PinRef[] {
   const near = pinNear(drawing, at, shift);
