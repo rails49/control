@@ -11,7 +11,7 @@
  * junctions and joints are read off `/review`.
  */
 
-import { anchorOf, cellsOf, centreOf } from "./geometry.js";
+import { anchorOf, cellsOf, centreOf, facePoint } from "./geometry.js";
 import type { Point } from "./geometry.js";
 import {
   pinsOf,
@@ -229,6 +229,25 @@ function pinNear(drawing: Drawing, at: Point, shift: Shift): PinRef | null {
     if (away <= HIT && (best === null || away < best.away)) best = { pin, away };
   }
   return best?.pin ?? null;
+}
+
+/**
+ * The pins a wire ended at a point lands on: those sharing the place of the
+ * pin under the pointer or, off any pin, those on the face centre a bend
+ * would take. Several where a symbol was dropped on a bend, the two joined by
+ * a wire of no length. None where the face centre is bare, which is where a
+ * bend goes.
+ */
+export function landing(drawing: Drawing, at: Point, shift: Shift = HERE): PinRef[] {
+  const near = pinNear(drawing, at, shift);
+  const place = near === null ? facePoint(at.x, at.y) : pointOf(drawing, near, shift);
+  if (place === null) return [];
+  return allPins(drawing)
+    .filter(({ pin, x, y }) => {
+      const moved = shift(symbolOf(pin));
+      return x + moved.x === place.x && y + moved.y === place.y;
+    })
+    .map(({ pin }) => pin);
 }
 
 /** Every pin on the drawing, with where it sits. */
