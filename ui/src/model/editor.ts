@@ -755,9 +755,9 @@ export class Editor {
    * A wire in the mapping form keeps its `connection`, and one with no name
    * takes the deleted wire's. A bend whose re-pointed wire would join two pins
    * a wire already joins is left as it is. A wire of no length between two
-   * symbols' pins stays: it is the only record that they are joined.
+   * symbols' pins stays.
    *
-   * One pass over the whole drawing, as `sweep` is, repeated until nothing
+   * It covers the whole drawing, as `sweep` does, and repeats until nothing
    * changes: a bend on a bend on a pin leaves the pin alone. `sweep` follows
    * it, for a bend left holding nothing, the selection and a wire in flight
    * from a bend that is gone.
@@ -771,26 +771,27 @@ export class Editor {
 
   private absorbOne(): boolean {
     const names = Object.keys(this.current.symbols);
-    const at = new Map(this.allPins().map(({ pin, x, y }) => [pin, `${x} ${y}`]));
-    const bend = (pin: PinRef) => this.current.symbols[symbolOf(pin)]?.kind === "pin";
+    const order = (pin: PinRef) => names.indexOf(symbolOf(pin));
+    const point = new Map(this.allPins().map(({ pin, x, y }) => [pin, `${x} ${y}`]));
+    const isBend = (pin: PinRef) => this.current.symbols[symbolOf(pin)]?.kind === "pin";
     for (const wire of this.current.wires) {
       const [a, b] = wirePins(wire);
-      if (a === b || at.get(a) !== at.get(b)) continue;
-      const later = names.indexOf(symbolOf(a)) > names.indexOf(symbolOf(b));
-      const gone = bend(a) && (later || !bend(b)) ? a : bend(b) ? b : null;
-      if (gone === null) continue;
+      if (a === b || point.get(a) !== point.get(b)) continue;
+      // Of two bends, the later in `symbols` goes.
+      const gone = [a, b].filter(isBend).sort((p, q) => order(q) - order(p))[0];
+      if (gone === undefined) continue;
       const kept = gone === a ? b : a;
-      const moved = (one: Wire) =>
+      const repointed = (one: Wire) =>
         wirePins(one).map((pin) => (pin === gone ? kept : pin)) as [PinRef, PinRef];
-      const rest = this.current.wires.filter(
+      const others = this.current.wires.filter(
         (one) => one !== wire && wirePins(one).includes(gone),
       );
-      if (rest.some((one) => this.joined(...moved(one)))) continue;
+      if (others.some((one) => this.joined(...repointed(one)))) continue;
       const connection = wireConnection(wire);
       this.current.wires = this.current.wires.flatMap((one): Wire[] => {
         if (one === wire) return [];
-        if (!rest.includes(one)) return [one];
-        const pins = moved(one);
+        if (!others.includes(one)) return [one];
+        const pins = repointed(one);
         if (!Array.isArray(one)) return [{ ...one, pins }];
         return [connection === undefined ? pins : { pins, connection }];
       });
