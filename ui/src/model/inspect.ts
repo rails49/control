@@ -100,12 +100,15 @@ export function litWires(
  * colours. The wires are all this needs: where the two ends of a line are is
  * the caller's own lookup, and the ordering does not depend on it. The given
  * array is left alone.
+ *
+ * The canvas hands it the strokes it draws for the wires rather than the
+ * wires (`render/wires.ts`), a curve being one more stroke to order.
  */
-export function litLast(
-  wires: readonly Wire[],
-  alight: (wire: Wire) => boolean,
-): Wire[] {
-  return [...wires].sort(
+export function litLast<T>(
+  drawn: readonly T[],
+  alight: (one: T) => boolean,
+): T[] {
+  return [...drawn].sort(
     (one, two) => Number(alight(one)) - Number(alight(two)),
   );
 }

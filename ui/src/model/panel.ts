@@ -62,7 +62,7 @@ export type Claim = "occupied" | "locked" | "committed";
 
 /** Strongest first: where two claims land on one symbol or wire, the one
  *  earlier here is drawn. */
-const CLAIMS: readonly Claim[] = ["occupied", "locked", "committed"];
+export const CLAIMS: readonly Claim[] = ["occupied", "locked", "committed"];
 
 /** One block a train has ahead of it on the route it is committed to, and
  *  how strong a claim the dispatcher has on it. The two words a route is lit

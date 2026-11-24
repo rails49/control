@@ -546,6 +546,66 @@ describe("the wires a lit way runs over", () => {
 });
 
 /**
+ * A run that changes direction is drawn with a curve there (#1297).
+ *
+ * Where the curves go is `wiring`'s and has its own tests. A DOM test because
+ * what those cannot see is whether the canvas draws what it was told: the
+ * wires' curves as paths, the wires stopped short for them, and a symbol's
+ * own track carried round its half of a curve that begins on it.
+ */
+describe("a run that changes direction", () => {
+  /** Level from `west` to a bend at (8, 0.5), then down at 45 degrees to
+   *  `east`'s A end at (9, 1.5), which the wire meets out of line. */
+  const DOGLEG: Drawing = {
+    drawing: "dogleg",
+    symbols: {
+      west: { kind: "block", at: [0, 0], length: 1000 },
+      bend: { kind: "pin", at: [8, 0] },
+      east: { kind: "block", at: [9, 1], length: 1000 },
+    },
+    wires: [
+      ["west.B", "bend.P"],
+      ["bend.P", "east.A"],
+    ],
+  };
+
+  it("draws the curve at the bend, and the wire's half of the one at the pin", async () => {
+    const canvas = await canvasOn(DOGLEG, reviewed([]));
+    const curves = [...canvas.renderRoot.querySelectorAll("path.wire")];
+    expect(curves.map((curve) => curve.getAttribute("d"))).toEqual([
+      "M7.293 0.5 Q8 0.5 8.5 1",
+      "M9.052 1.375 Q8.75 1.25 8.5 1",
+    ]);
+    canvas.remove();
+  });
+
+  it("stops each wire where its curve begins, and draws no line for one with nothing left", async () => {
+    const canvas = await canvasOn(DOGLEG, reviewed([]));
+    const ends = [...canvas.renderRoot.querySelectorAll("line.wire")].map((line) =>
+      ["x1", "y1", "x2", "y2"].map((at) => Number(line.getAttribute(at))),
+    );
+    expect(ends).toEqual([[6, 0.5, 7.293, 0.5]]);
+    canvas.remove();
+  });
+
+  it("carries the block's stub round its half of the curve, and no other", async () => {
+    const canvas = await canvasOn(DOGLEG, reviewed([]));
+    const stubs = (name: string) =>
+      [
+        ...canvas.renderRoot.querySelectorAll(`[data-symbol="${name}"] path.track`),
+      ].map((stub) => stub.getAttribute("d"));
+    // The stub's half ends where the wire's begins: (9.052, 1.375) on the
+    // sheet, which is (0.052, 0.375) of a block at (9, 1).
+    expect(stubs("east")).toEqual([
+      "M0.052 0.375 Q0.354 0.5 0.707 0.5 L1 0.5",
+      "M5 0.5 L6 0.5",
+    ]);
+    expect(stubs("west")).toEqual(["M0 0.5 L1 0.5", "M5 0.5 L6 0.5"]);
+    canvas.remove();
+  });
+});
+
+/**
  * The quiet mark a motorised symbol with no address wears (#96, ADR-0024).
  *
  * A DOM test because the mark is a shape on the canvas rather than an answer

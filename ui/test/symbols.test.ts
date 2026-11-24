@@ -156,6 +156,76 @@ describe("the artwork the samples fix", () => {
   });
 });
 
+/**
+ * A track that meets another out of line at a pin is joined to it by a curve
+ * that begins on the track (#1297). The symbol's strokes stop where the curve
+ * begins and carry on round the symbol's half of it, to the middle. Where
+ * that is, is `wiring`'s to say; here it is only drawn.
+ */
+describe("the artwork of a symbol a wire's corner cuts into", () => {
+  const cut = (
+    spec: SymbolSpec,
+    pin: string,
+    by: number,
+    mid: { x: number; y: number } | undefined,
+    lit?: string,
+  ) =>
+    flatten(
+      artwork(
+        spec,
+        lit === undefined ? undefined : new Set([lit]),
+        undefined,
+        undefined,
+        undefined,
+        new Map([[pin, { by, mid }]]),
+      ),
+    );
+
+  it("stops a block's stub short of the pin and carries it on round to the middle", () => {
+    const whole = written({ kind: "block" } as SymbolSpec);
+    const short = cut({ kind: "block" }, "B", 0.25, { x: 5.9, y: 0.6 });
+    expect(whole).toContain("M5 0.5 L6 0.5");
+    // The control point is half way between where the stub stops and the pin.
+    expect(short).toContain("M5 0.5 L5.75 0.5 Q5.875 0.5 5.9 0.6");
+    expect(short).toContain("M0 0.5 L1 0.5");
+    expect(times(short, `class="plaque"`)).toBe(2);
+    expect(short.replace("L5.75 0.5 Q5.875 0.5 5.9 0.6", "L6 0.5")).toBe(whole);
+  });
+
+  it("brings both of a turnout's roads round from the middle to its toe", () => {
+    const short = cut({ kind: "turnout" }, "toe", 0.25, { x: -0.05, y: 0.6 });
+    expect(short).toContain("M-0.05 0.6 Q0.125 0.5 0.25 0.5 L2 0.5");
+    expect(short).toMatch(
+      /M-0\.05 0\.6 Q0\.125 0\.5 0\.25 0\.5 L0\.293 0\.5\s+Q1 0\.5 1\.5 0/,
+    );
+  });
+
+  it("lights the half with the road it ends, and no other", () => {
+    const strokes = litStrokes(
+      artwork(
+        { kind: "turnout" },
+        new Set(["diverging"]),
+        undefined,
+        undefined,
+        undefined,
+        new Map([["toe", { by: 0.25, mid: { x: -0.05, y: 0.6 } }]]),
+      ),
+    );
+    expect(strokes).toEqual(["track lit"]);
+  });
+
+  it("cuts a diagonal leg along the diagonal", () => {
+    // b2 is at (1.5, 0), up and right of the frog at (1, 0.5).
+    const short = cut({ kind: "crossing" }, "b2", 0.2, { x: 1.6, y: -0.05 });
+    expect(short).toContain("M0.5 1 L1.359 0.141 Q1.429 0.071 1.6 -0.05");
+  });
+
+  it("draws no dot at a bend the corner passes beside, lit or not", () => {
+    expect(flatten(artwork({ kind: "pin" }, new Set([WHOLE])))).toContain("bend lit");
+    expect(cut({ kind: "pin" }, "P", 0.5, undefined, WHOLE)).not.toContain("bend");
+  });
+});
+
 /** Everything a symbol's template writes, interpolated values and the template
  *  around them alike: enough to say what is drawn, with no DOM to render into
  *  (EDITOR.md's tests). */

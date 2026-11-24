@@ -142,6 +142,13 @@ describe("the drawing's own rules", () => {
    *  the lit way are its own rules rather than something shared. The run view
    *  is that surface in run mode and declares none of it; the tiles show one
    *  symbol each and have no wire or lit way on them. */
+  /** A wire's corner is a path (#1297), and an SVG path is filled black
+   *  unless told otherwise. */
+  it("leave a wire's corner unfilled", () => {
+    expect(rule(canvasStyles.cssText, ".wire")).toContain("fill: none");
+    expect(rule(exportStyles.cssText, ".wire")).toContain("fill: none");
+  });
+
   it("keep the wires and the lit way on the one surface that paints them", () => {
     for (const selector of [".wire", ".symbol .track.lit", ".wire.lit"]) {
       expect(canvasStyles.cssText).toContain(selector);
