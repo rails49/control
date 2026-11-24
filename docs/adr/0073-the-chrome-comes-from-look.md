@@ -10,6 +10,10 @@ Nothing below is rewritten.
 note opens Settings on its Backup tab (decision 3), and Backup is no longer a
 dialog, leaving four (decision 8). Nothing below is rewritten.
 
+**Noted for [#1303](https://github.com/rails49/control/issues/1303), 2026-11-24:** a fault chip
+carries no `title` (decision 3). `look-chip` shows the whole sentence when
+pressed. Nothing below is rewritten.
+
 The decision is [rails49/look#12](https://github.com/rails49/look/issues/12#issuecomment-6156396667),
 and the work is [#749](https://github.com/rails49/control/issues/749).
 Supersedes [ADR-0064](0064-the-chrome-is-a-band-and-a-rail.md). Amends
