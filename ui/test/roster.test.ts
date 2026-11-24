@@ -22,6 +22,7 @@ import type { RosterRow } from "../src/model/panel.js";
 import { photoUrl } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
+import { rosterStyles } from "../src/ui/tc-roster.styles.js";
 import { running, settled, surface } from "./support/shell.js";
 import {
   brokering,
@@ -73,6 +74,21 @@ describe("what the pane lists", () => {
       ["goods", "400", "a"],
       ["express", "1100", "b"],
     ]);
+  });
+
+  /** A name cut short could be read whole only from a tooltip, which a
+   *  tablet does not show (#1305). */
+  it("draws a long name whole, wrapped and not cut short", async () => {
+    const long = "Trans Europ Express Rheingold, second section";
+    const roster = await pane([
+      { train: long, block: "a", length: 400, placed: true, locomotive: null },
+    ]);
+    expect(rows(roster)[0]![0]).toBe(long);
+
+    const name = /^\s*\.name \{([^}]*)\}/m.exec(rosterStyles.cssText)![1]!;
+    expect(name).toContain("overflow-wrap: anywhere");
+    expect(name).not.toContain("nowrap");
+    expect(rosterStyles.cssText).not.toContain("text-overflow");
   });
 
   /** The order is the model's (`panel.roster`), so the pane draws what it is

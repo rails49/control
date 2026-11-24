@@ -98,7 +98,7 @@ export class TcRoster extends LitElement {
         @pointercancel=${() => (this.held = null)}
       >
         ${this.photo(locomotive)}
-        <span class="name" title=${train}>${train}</span>
+        <span class="name">${train}</span>
         <span class="length">${length === null ? nothing : length}</span>
         ${refused === undefined
           ? html`<span class="where">
@@ -111,7 +111,7 @@ export class TcRoster extends LitElement {
 
   /** The photo of the train's first locomotive, as the throttle's picker
    *  draws it, or an empty slot of the same size where the train has none or
-   *  the photo does not load, so every row is one height. The browser's own
+   *  the photo does not load, so the names line up. The browser's own
    *  image drag is off: a press on the photo picks the train up, as a press
    *  anywhere on the row does. */
   private photo(model: string | null) {
