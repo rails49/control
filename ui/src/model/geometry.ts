@@ -156,23 +156,32 @@ export function placed(spec: SymbolSpec): {
 function placement(
   spec: SymbolSpec,
   base: Footprint,
-): { footprint: Footprint; move: (point: Point) => Point; transform: string } {
+): {
+  footprint: Footprint;
+  move: (point: Point) => Point;
+  back: (point: Point) => Point;
+  transform: string;
+} {
   let { w, h } = base;
   const moves: ((point: Point) => Point)[] = [];
+  const backs: ((point: Point) => Point)[] = [];
   const turns: string[] = [];
   if (spec.flip) {
     const across = w;
     moves.push(({ x, y }) => ({ x: across - x, y }));
+    backs.unshift(({ x, y }) => ({ x: across - x, y }));
   }
   for (let turn = quarters(spec); turn > 0; turn--) {
     const down = h;
     moves.push(({ x, y }) => ({ x: down - y, y: x }));
+    backs.unshift(({ x, y }) => ({ x: y, y: down - x }));
     turns.unshift(`translate(${down} 0) rotate(90)`);
     [w, h] = [h, w];
   }
   return {
     footprint: { w, h },
     move: (point) => moves.reduce((moved, step) => step(moved), point),
+    back: (point) => backs.reduce((moved, step) => step(moved), point),
     transform:
       turns.join(" ") +
       (spec.flip ? ` translate(${base.w} 0) scale(-1 1)` : ""),
@@ -188,6 +197,13 @@ export function gridPointOf(spec: SymbolSpec, local: Point): Point {
   return { x: c + x, y: r + y };
 }
 
+/** Where a point of the grid is in a symbol's own coordinates: `gridPointOf`
+ *  undone. */
+export function localOf(spec: SymbolSpec, grid: Point): Point {
+  const [c, r] = spec.at ?? [0, 0];
+  return placement(spec, footprintOf(spec)).back({ x: grid.x - c, y: grid.y - r });
+}
+
 /** Where a pin of a placed symbol sits on the grid. */
 export function anchorOf(spec: SymbolSpec, pin: string): Point {
   const [c, r] = spec.at ?? [0, 0];
@@ -196,6 +212,23 @@ export function anchorOf(spec: SymbolSpec, pin: string): Point {
     throw new Error(`'${spec.kind}' has no pin '${pin}'`);
   }
   return { x: c + local.x, y: r + local.y };
+}
+
+/**
+ * The direction a placed symbol's track leaves a pin in, as a unit vector on
+ * the grid: away from the middle of the footprint, which every kind's legs
+ * are in line with where they end, a turnout's in both forms. A wire leaving
+ * the same way joins the track in line. A bend has no track and so no leg.
+ */
+export function legOf(spec: SymbolSpec, pin: string): Point | null {
+  if (spec.kind === "pin") return null;
+  return unit(centreOf(spec), anchorOf(spec, pin));
+}
+
+/** A unit vector from one point toward another. */
+export function unit(from: Point, to: Point): Point {
+  const span = Math.hypot(to.x - from.x, to.y - from.y);
+  return { x: (to.x - from.x) / span, y: (to.y - from.y) / span };
 }
 
 /**
