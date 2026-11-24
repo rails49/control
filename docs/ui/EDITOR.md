@@ -258,7 +258,8 @@ it is left say nothing; there is no Save button to read them off
 ([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md)).
 
 **What the app could not do reads here**, in a health area at the right, each
-fault a red chip with its whole sentence as its title. That
+fault a red chip. A long one is cut short, and pressing the chip shows the
+whole sentence in a tooltip under it, which closes on a press elsewhere. That
 is what is wrong that is not the author's doing — the store not answering, or a
 broker that is not ([PANEL.md](PANEL.md)) — and what the author has to fix is
 marked on the drawing ([Validation](#validation)). A save that did not land
@@ -321,8 +322,10 @@ else, and a supply switched off is neither
 The stop sign beside the toggle is red whatever the supply is doing.
 
 Beside them, one coarse indicator: a chip reading *invalid drawing* when the
-drawing is not valid, and nothing when it is. Its title is the store's refusal
-from `review`, read by hovering. It counts nothing, the canvas being where you
+drawing is not valid, and nothing when it is. Pressing it shows the store's
+refusal from `review` in a tooltip under the chip, and does not switch to the
+Edit view ([#1303](https://github.com/rails49/control/issues/1303)). It counts
+nothing, the canvas being where you
 find out where. A drawing with an overlap or a turnout still lacking an address
 leaves it clean, both being valid drawings
 ([ADR-0024](../adr/0024-the-drawing-shows-its-own-faults.md)).
