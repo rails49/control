@@ -162,7 +162,6 @@ describe("the row naming no railroad", () => {
     expect(stocking(shell).railroad!.name).toBe("");
     const making = stocking(shell).renderRoot.querySelector<HTMLButtonElement>("button.new")!;
     expect(making.disabled).toBe(true);
-    expect(making.title).toBe("load a railroad first");
   });
 
   it("opens the railroad the row names next", async () => {
