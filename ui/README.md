@@ -126,6 +126,8 @@ src/
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
+    wires.ts     what is drawn for the wires: a line for each wire, and a
+                 curve where a run changes direction
     units.ts     units and colours: every dimension a fraction of the grid
                  square G, and the palette
   ui/

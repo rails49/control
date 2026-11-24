@@ -25,12 +25,9 @@ import { strayed } from "../model/drag.js";
 import {
   emptyDrawing,
   symbolOf,
-  wireKey,
-  wirePins,
   type Drawing,
   type PinRef,
   type SymbolSpec,
-  type Wire,
 } from "../model/drawing.js";
 import type { Editor } from "../model/editor.js";
 import { GESTURING, TRANSIENT, svgFile } from "../model/export.js";
@@ -64,9 +61,11 @@ import {
   artwork,
   detectors,
   DEFS,
+  n,
   widgetFace,
   widgetSample,
 } from "../render/artwork.js";
+import { wiring, type Stroke, type Wiring } from "../render/wires.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
@@ -211,6 +210,9 @@ export class TcCanvas extends LitElement {
   override render() {
     const { x, y, w, h } = this.view;
     const lighting = this.lighting();
+    const { strokes, cuts } = wiring(this.document, lighting.wires, (name) =>
+      this.shift(name),
+    );
     return html`
       <svg
         viewBox=${`${x} ${y} ${w} ${h}`}
@@ -238,7 +240,7 @@ export class TcCanvas extends LitElement {
           ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.faces()} ${this.wires(lighting)} ${this.symbols(lighting)}
+        ${this.faces()} ${this.wires(strokes)} ${this.symbols(lighting, cuts)}
         ${this.widgets()} ${this.pins()} ${this.stacked()} ${this.arrows()}
         ${this.disputes()} ${this.overdue()} ${this.stuck()} ${this.markers()} ${this.wireline()} ${this.reach()}
         ${this.rubberBand()} ${this.ghost()}
@@ -387,22 +389,21 @@ export class TcCanvas extends LitElement {
     };
   }
 
-  /** Every wire, in the order `inspect.litLast` puts them in, so a crossing
-   *  unlit one cannot half hide a lit one. */
-  private wires(lighting: LitWay): unknown {
-    const alight = (wire: Wire) => lighting.wires.has(wireKey(wire));
-    return litLast(this.document.wires, alight).map((wire) => {
-      const [a, b] = wirePins(wire);
-      const from = this.point(a);
-      const to = this.point(b);
-      if (from === null || to === null) return nothing;
-      const worn = lighting.wires.get(wireKey(wire));
-      return svg`<line class=${worn === undefined ? "wire" : `wire ${worn}`}
-                       x1=${from.x} y1=${from.y} x2=${to.x} y2=${to.y} />`;
+  /** Every stroke of the wires — a line for each wire's straight part, a
+   *  curve for each corner (`wiring`) — in the order `inspect.litLast` puts
+   *  them in, so a crossing unlit one cannot half hide a lit one. */
+  private wires(strokes: readonly Stroke[]): unknown {
+    const alight = (stroke: Stroke) => stroke.worn !== undefined;
+    return litLast(strokes, alight).map(({ from, to, round, worn }) => {
+      const wears = worn === undefined ? "wire" : `wire ${worn}`;
+      return round === undefined
+        ? svg`<line class=${wears} x1=${n(from.x)} y1=${n(from.y)}
+                    x2=${n(to.x)} y2=${n(to.y)} />`
+        : svg`<path class=${wears} d=${`M${n(from.x)} ${n(from.y)} Q${n(round.x)} ${n(round.y)} ${n(to.x)} ${n(to.y)}`} />`;
     });
   }
 
-  private symbols(lighting: LitWay): unknown {
+  private symbols(lighting: LitWay, cuts: Wiring["cuts"]): unknown {
     const review = this.review ?? UNREVIEWED;
     const blind = dark(review);
     const lone = unpaired(review);
@@ -426,6 +427,7 @@ export class TcCanvas extends LitElement {
               blind.get(name),
               this.showing(name),
               this.lying(name, lighting),
+              cuts.get(name),
             )}
             ${spec.kind === "block" ? this.detecting(name) : nothing}
             ${target?.block === name ? arriving(target.ends) : nothing}

@@ -8,9 +8,10 @@
  * the wires meet by construction, and every dimension that is not an anchor is
  * a named constant in `units.ts`. A turnout has two forms, one for each
  * direction its straight road can take, and every other kind exactly one
- * appearance (EDITOR.md#symbol-geometry): diagonal legs are always 45 degrees,
- * and a wire meeting one at another angle reads as a rounded bend rather than
- * a kink, because every stroke ends in a round cap.
+ * appearance (EDITOR.md#symbol-geometry): diagonal legs are always 45 degrees.
+ * Where a wire leaves a pin out of line with the leg, the leg stops short of
+ * the pin and carries on round its half of the curve that joins the two
+ * (`wires.ts`), unless the leg is itself a curve all the way to the pin.
  */
 
 import { svg, type SVGTemplateResult } from "lit";
@@ -29,7 +30,9 @@ import {
   type WidgetSpec,
 } from "../model/drawing.js";
 import {
+  FOOTPRINTS,
   anchorIn,
+  unit,
   uprightAt,
   type Point,
 } from "../model/geometry.js";
@@ -48,6 +51,17 @@ const NONE: ReadonlySet<string> = new Set();
 export type Aspect = "stop" | "caution" | "clear";
 
 const RESTING: ReadonlyMap<string, Aspect> = new Map();
+const UNCUT: ReadonlyMap<string, Cut> = new Map();
+
+/** What a wire's corner takes from a symbol at one pin (`wiring`). */
+export interface Cut {
+  /** How far short of the pin the symbol's track stops. */
+  by: number;
+  /** Where the symbol's half of the corner ends, in the symbol's own
+   *  coordinates: the middle of the curve. Undefined at a bend, which has no
+   *  track to draw a half with. */
+  mid: Point | undefined;
+}
 
 /** What a detector reads at the block end it watches (GLOSSARY.md,
  *  **Detector**). */
@@ -75,6 +89,12 @@ export type Reading = "occupied" | "clear" | "unknown";
  * against. The run view hands none for a point on a lit road, the road being
  * the position. It defaults to none, which is edit mode and a symbol nothing has
  * commanded yet — a drawing says what a point is, never where it lies.
+ *
+ * `cut` names the pins where the track meets another out of line (`wiring`).
+ * Every stroke ending at such a pin stops short of it and carries on round
+ * its half of the corner, so the half is lit, faint or selected as the track
+ * is. It defaults to none, which is a symbol with no wires: a palette tile, a
+ * ghost. A bend named in it draws no dot, the corner passing beside its pin.
  */
 export function artwork(
   spec: SymbolSpec,
@@ -82,27 +102,90 @@ export function artwork(
   dark: ReadonlySet<string> = NONE,
   aspects: ReadonlyMap<string, Aspect> = RESTING,
   position?: Position,
+  cut: ReadonlyMap<string, Cut> = UNCUT,
 ): SVGTemplateResult {
   const on: Lit = (...legs) =>
     lit.has(WHOLE) || legs.some((leg) => lit.has(leg)) ? " lit" : "";
   const set = against(spec, position);
+  const end: End = (pin) => {
+    const at = anchorIn(spec.kind, pin, spec.rot);
+    const taken = cut.get(pin);
+    if (taken?.mid === undefined) return { at, corner: undefined };
+    const back = unit(at, middleOf(spec.kind));
+    const short = { x: at.x + back.x * taken.by, y: at.y + back.y * taken.by };
+    return { at: short, corner: [middle(at, short), taken.mid] };
+  };
   switch (spec.kind) {
     case "block":
-      return block(spec, on, dark, aspects);
+      return block(spec, on, dark, aspects, end);
     case "terminal":
-      return terminal(on);
+      return terminal(on, end);
     case "portal":
-      return portal(on);
+      return portal(on, end);
     case "pin":
-      return bend(on);
+      return cut.has("P") ? svg`` : bend(on);
     case "turnout":
-      return turnout(spec, on, set);
+      return turnout(spec, on, set, end);
     case "crossing":
     case "crossing_90":
     case "crossing_90d":
     case "single_slip":
     case "double_slip":
-      return crossed(spec.kind, on, set);
+      return crossed(spec.kind, on, set, end);
+  }
+}
+
+/** Where a symbol's track ends toward a pin: at the pin, or short of it with
+ *  the symbol's half of a corner carrying on from there. */
+interface Ending {
+  at: Point;
+  /** The half corner beyond `at`: a quadratic's control point and its end. */
+  corner: [Point, Point] | undefined;
+}
+
+type End = (pin: string) => Ending;
+
+/** The middle of a kind's unturned footprint, which every kind's track leaves
+ *  its pins in line with. It is the frog of a kind that has one. */
+function middleOf(kind: Kind): Point {
+  const { w, h } = FOOTPRINTS[kind];
+  return { x: w / 2, y: h / 2 };
+}
+
+/** The legs drawn straight through the frog. Every other leg the library
+ *  declares is a curve round it. */
+const THROUGH: ReadonlySet<string> = new Set(["straight", "a", "b"]);
+
+/**
+ * How far back from a pin a symbol's track runs straight, which is as far as
+ * a wire's corner may cut into it (`wiring`).
+ *
+ * A stub is straight to the block's rectangle or the buffer, and a through
+ * road to the frog. A portal's stub keeps a track width before its mouth, so
+ * the round cap a corner begins with stays inside the cut. A road that curves
+ * round the frog is straight to `CURVE` short of it, which at a pin on a 45
+ * degree leg is no distance at all: the curve ends on the pin.
+ */
+export function straightAt(spec: SymbolSpec, pin: string): number {
+  switch (spec.kind) {
+    case "block":
+      return BLOCK.body.x;
+    case "terminal":
+      return TERMINAL.stub;
+    case "portal":
+      return PORTAL.stub - W;
+    case "pin":
+      return 0;
+    default: {
+      const at = anchorIn(spec.kind, pin, spec.rot);
+      const frog = middleOf(spec.kind);
+      const legs: Record<string, readonly string[]> = TRANSITS[spec.kind];
+      const curved = Object.entries(legs).some(
+        ([leg, ends]) => !THROUGH.has(leg) && ends.includes(pin),
+      );
+      const toFrog = Math.hypot(at.x - frog.x, at.y - frog.y);
+      return Math.max(0, toFrog - (curved ? CURVE : 0));
+    }
   }
 }
 
@@ -149,13 +232,14 @@ function block(
   on: Lit,
   dark: ReadonlySet<string>,
   aspects: ReadonlyMap<string, Aspect>,
+  end: End,
 ): SVGTemplateResult {
   const [a, b] = [anchorIn("block", "A"), anchorIn("block", "B")];
   const { x, y, w, h } = BLOCK.body;
   const { at } = BLOCK.signal;
   return svg`
-    <path class=${`track${on()}`} d=${path(a, { x, y: a.y })} />
-    <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, b)} />
+    <path class=${`track${on()}`} d=${path(end("A"), { x, y: a.y })} />
+    <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, end("B"))} />
     <rect class=${`block-body${on()}`}
           x=${x} y=${y} width=${w} height=${h} />
     ${dark.has("A")
@@ -237,11 +321,11 @@ function signal(x: number, y: number, away: -1 | 1): SVGTemplateResult {
  * instead of bulging past it. The cut at the pin end shows nothing: the pin
  * covers it in edit mode, and in run mode the incoming wire's round cap does.
  */
-function terminal(on: Lit): SVGTemplateResult {
+function terminal(on: Lit, end: End): SVGTemplateResult {
   const p = anchorIn("terminal", "P");
   const bar = { x: TERMINAL.stub, y: p.y };
   return svg`
-    <path class=${`track cut${on()}`} d=${path(p, bar)} />
+    <path class=${`track cut${on()}`} d=${path(end("P"), bar)} />
     <path class="buffer" d=${`M${n(bar.x)} ${n(bar.y - TERMINAL.bar.h / 2)}
       V${n(bar.y + TERMINAL.bar.h / 2)}`} />
   `;
@@ -257,12 +341,12 @@ function terminal(on: Lit): SVGTemplateResult {
  * track width past the cut, which is what the clip needs to have something to
  * cut at every height across the track.
  */
-function portal(on: Lit): SVGTemplateResult {
+function portal(on: Lit, end: End): SVGTemplateResult {
   const p = anchorIn("portal", "P");
   const { first, apart } = PORTAL.mouth;
   return svg`
     <path class=${`track${on()}`} clip-path=${`url(#${MOUTH})`}
-          d=${path(p, { x: PORTAL.stub + W, y: p.y })} />
+          d=${path(end("P"), { x: PORTAL.stub + W, y: p.y })} />
     ${[first, first + apart].map(
       (across) => svg`<path class="portal-mouth" d=${leaning(across, p.y)} />`,
     )}
@@ -317,15 +401,16 @@ function bend(on: Lit): SVGTemplateResult {
 function turnout(
   spec: SymbolSpec,
   on: Lit,
-  set: Against = NEITHER,
+  set: Against,
+  end: End,
 ): SVGTemplateResult {
   const p = (pin: string) => anchorIn("turnout", pin, spec.rot);
   const frog = middle(p("toe"), p("straight"));
   return svg`${roads(
     on,
     [
-      { legs: ["straight"], d: path(p("toe"), p("straight")) },
-      { legs: ["diverging"], d: curve(frog, p("toe"), p("diverging")) },
+      { legs: ["straight"], d: path(end("toe"), end("straight")) },
+      { legs: ["diverging"], d: curve(frog, end("toe"), end("diverging")) },
     ],
     set,
   )}`;
@@ -342,7 +427,8 @@ function turnout(
 function crossed(
   kind: LibraryKind,
   on: Lit,
-  set: Against = NEITHER,
+  set: Against,
+  end: End,
 ): SVGTemplateResult {
   const p = (pin: string) => anchorIn(kind, pin);
   const frog = middle(p("a1"), p("a2"));
@@ -352,9 +438,9 @@ function crossed(
     Object.entries(legs).map(([leg, [from, to]]) => ({
       legs: [leg],
       d:
-        leg === "a" || leg === "b"
-          ? path(p(from), p(to))
-          : curve(frog, p(from), p(to)),
+        THROUGH.has(leg)
+          ? path(end(from), end(to))
+          : curve(frog, end(from), end(to)),
     })),
     set,
   )}`;
@@ -366,20 +452,14 @@ function crossed(
  * to `CURVE` past it, then in line with the other leg. It leaves and meets
  * both pins in line, so a wire carrying on from either does not kink.
  */
-function curve(frog: Point, from: Point, to: Point): string {
+function curve(frog: Point, from: Ending, to: Ending): string {
   const near = (pin: Point): Point => {
     const along = unit(frog, pin);
     return { x: frog.x + along.x * CURVE, y: frog.y + along.y * CURVE };
   };
-  const [a, b] = [near(from), near(to)];
-  return `M${n(from.x)} ${n(from.y)} L${n(a.x)} ${n(a.y)}
-    Q${n(frog.x)} ${n(frog.y)} ${n(b.x)} ${n(b.y)} L${n(to.x)} ${n(to.y)}`;
-}
-
-/** A unit vector from one point toward another. */
-function unit(from: Point, to: Point): Point {
-  const span = Math.hypot(to.x - from.x, to.y - from.y);
-  return { x: (to.x - from.x) / span, y: (to.y - from.y) / span };
+  const [a, b] = [near(from.at), near(to.at)];
+  return `${leave(from)} L${n(a.x)} ${n(a.y)}
+    Q${n(frog.x)} ${n(frog.y)} ${n(b.x)} ${n(b.y)} ${arrive(to)}`;
 }
 
 /**
@@ -405,9 +485,29 @@ function roads(
     );
 }
 
-/** A stroke from one point to another, in the symbol's own coordinates. */
-function path(from: Point, to: Point): string {
-  return `M${n(from.x)} ${n(from.y)} L${n(to.x)} ${n(to.y)}`;
+/** A stroke from one point to another, in the symbol's own coordinates.
+ *  Either may be an ending, whose half corner the stroke carries on round. */
+function path(from: Point | Ending, to: Point | Ending): string {
+  return `${leave(from)} ${arrive(to)}`;
+}
+
+/** Where a stroke begins: at a point, or at the far end of an ending's half
+ *  corner, coming round it. */
+function leave(from: Point | Ending): string {
+  if (!("at" in from)) return `M${n(from.x)} ${n(from.y)}`;
+  const { at, corner } = from;
+  if (corner === undefined) return `M${n(at.x)} ${n(at.y)}`;
+  const [control, mid] = corner;
+  return `M${n(mid.x)} ${n(mid.y)} Q${n(control.x)} ${n(control.y)} ${n(at.x)} ${n(at.y)}`;
+}
+
+/** Where a stroke ends: at a point, or round an ending's half corner. */
+function arrive(to: Point | Ending): string {
+  if (!("at" in to)) return `L${n(to.x)} ${n(to.y)}`;
+  const { at, corner } = to;
+  if (corner === undefined) return `L${n(at.x)} ${n(at.y)}`;
+  const [control, mid] = corner;
+  return `L${n(at.x)} ${n(at.y)} Q${n(control.x)} ${n(control.y)} ${n(mid.x)} ${n(mid.y)}`;
 }
 
 function middle(a: Point, b: Point): Point {
@@ -416,7 +516,7 @@ function middle(a: Point, b: Point): Point {
 
 /** Path data reads better without a float's tail, and nothing here is drawn
  *  to more than a thousandth of a square. */
-function n(value: number): number {
+export function n(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 

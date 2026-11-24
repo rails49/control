@@ -32,9 +32,11 @@ const sheet = css`
 
   ${symbols}
 
-  /* A wire is track: same width, same round cap, so it joins a symbol's leg
-     seamlessly at whatever angle its two pins give it. */
+  /* A wire is track: same width, same round cap, so its straight part, the
+     curve at a corner and a symbol's leg join seamlessly. A corner is a path,
+     which is filled unless told not to be. */
   .wire {
+    fill: none;
     stroke: var(--track);
     stroke-width: ${W};
     stroke-linecap: round;
