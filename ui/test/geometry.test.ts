@@ -9,6 +9,8 @@ import {
   gridPointOf,
   labelAnchor,
   labelTurn,
+  legOf,
+  localOf,
   placed,
   turned,
 } from "../src/model/geometry.js";
@@ -355,6 +357,96 @@ describe("where a bend dropped at a point would sit", () => {
       for (let y = -1; y <= 3; y += 0.17) {
         const { x: fx, y: fy } = facePoint(x, y);
         expect(Math.hypot(fx - x, fy - y)).toBeLessThanOrEqual(0.5 + 1e-9);
+      }
+    }
+  });
+});
+
+/** The direction a symbol's track leaves each pin in (#1297): a wire that
+ *  carries on the same way joins it in line, and any other wire turns there. */
+describe("the direction a pin's leg leaves in", () => {
+  const D = Math.SQRT1_2;
+  const leaves = (spec: SymbolSpec, pin: string, x: number, y: number) => {
+    const leg = legOf(spec, pin)!;
+    expect(leg.x).toBeCloseTo(x);
+    expect(leg.y).toBeCloseTo(y);
+  };
+
+  it("is along the track at a block, a terminal and a portal", () => {
+    leaves({ kind: "block", at: [3, 4] }, "A", -1, 0);
+    leaves({ kind: "block", at: [3, 4] }, "B", 1, 0);
+    leaves({ kind: "terminal" }, "P", -1, 0);
+    leaves({ kind: "portal" }, "P", -1, 0);
+  });
+
+  it("is level at an unturned turnout's toe and straight pin, and 45 degrees at its diverging pin", () => {
+    leaves({ kind: "turnout" }, "toe", -1, 0);
+    leaves({ kind: "turnout" }, "straight", 1, 0);
+    leaves({ kind: "turnout" }, "diverging", D, -D);
+  });
+
+  it("is on the diagonal at a 45 degree turnout's toe and straight pin, and level at its diverging pin", () => {
+    leaves({ kind: "turnout", rot: 45 }, "toe", -D, -D);
+    leaves({ kind: "turnout", rot: 45 }, "straight", D, D);
+    leaves({ kind: "turnout", rot: 45 }, "diverging", 1, 0);
+  });
+
+  it("follows each route of a crossing and a slip out of its pins", () => {
+    for (const kind of ["crossing", "single_slip", "double_slip"] as const) {
+      leaves({ kind }, "a1", -1, 0);
+      leaves({ kind }, "a2", 1, 0);
+      leaves({ kind }, "b1", -D, D);
+      leaves({ kind }, "b2", D, -D);
+    }
+    leaves({ kind: "crossing_90" }, "b1", 0, 1);
+    leaves({ kind: "crossing_90" }, "b2", 0, -1);
+    leaves({ kind: "crossing_90d" }, "a1", -D, D);
+    leaves({ kind: "crossing_90d" }, "b2", D, D);
+  });
+
+  it("turns and flips with the symbol", () => {
+    leaves({ kind: "block", rot: 90 }, "A", 0, -1);
+    leaves({ kind: "block", flip: true }, "A", 1, 0);
+    leaves({ kind: "turnout", flip: true }, "diverging", -D, -D);
+    leaves({ kind: "turnout", rot: 135 }, "diverging", 0, 1);
+  });
+
+  it("is nothing at a bend, which has no track of its own", () => {
+    expect(legOf({ kind: "pin", at: [2, 2] }, "P")).toBeNull();
+  });
+});
+
+/** A point of the grid read back into a symbol's own coordinates, which is
+ *  how a wire's corner reaches the artwork that draws half of it (#1297). */
+describe("a point of the grid in a symbol's own coordinates", () => {
+  it("is the point less where the symbol sits, for one neither turned nor flipped", () => {
+    expect(localOf({ kind: "block", at: [3, 4] }, { x: 8.5, y: 4.25 })).toEqual({
+      x: 5.5,
+      y: 0.25,
+    });
+  });
+
+  it("undoes a quarter turn and a flip", () => {
+    // A block on end has A at the top: one square in from A is one square down.
+    expect(localOf({ kind: "block", at: [3, 4], rot: 90 }, { x: 3.5, y: 5 })).toEqual({
+      x: 1,
+      y: 0.5,
+    });
+    // Flipped, A is at the right: one square in from A is one square left.
+    expect(localOf({ kind: "block", at: [3, 4], flip: true }, { x: 8, y: 4.5 })).toEqual({
+      x: 1,
+      y: 0.5,
+    });
+  });
+
+  it("is where `gridPointOf` came from, whatever the placement", () => {
+    const local = { x: 1.25, y: 0.75 };
+    for (const rot of TURNOUT_ROTATIONS) {
+      for (const flip of [false, true]) {
+        const spec: SymbolSpec = { kind: "turnout", at: [5, -2], rot, flip };
+        const back = localOf(spec, gridPointOf(spec, local));
+        expect(back.x).toBeCloseTo(local.x);
+        expect(back.y).toBeCloseTo(local.y);
       }
     }
   });
