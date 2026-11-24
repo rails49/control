@@ -210,12 +210,12 @@ A refusal on one field leaves an edit standing in another alone for the same
 reason: what was not typed there was not refused.
 
 **Refusals name what holds a thing.** A car a train is made of cannot be
-removed: its Remove is dead, its title naming the train. A car already in a
-train is greyed in every train's picker: one item cannot stand in a train
-twice, nor in two trains, which the store refuses as well (`lib/stock.py`,
+removed: its Remove is disabled, the reason beside it naming the train. A car
+already in a train is greyed in every train's picker: one item cannot stand
+in a train twice, nor in two trains, which the store refuses as well (`lib/stock.py`,
 [#1067](https://github.com/rails49/control/issues/1067)). A model's editor says what uses
 it — the cars that are one, then the trains whose entries do — read there
-rather than run into, and its Delete is dead while anything does.
+rather than run into, and its Delete is disabled while anything does.
 
 **No session.** Like the editor, this is a document view, and the bus carries
 nothing about what a railroad owns
@@ -238,7 +238,8 @@ field is put back. The store refuses a second model of one name too
 (`AssetStore.put_model`). A document that states no name reads as its key.
 
 **Kind**: Locomotive · Passenger · Freight · Special. **Scale**: a select of Z,
-N, TT, H0, S, 0, 1, G (`lib.roster.SCALES`). **Length over buffers**, under
+N, TT, H0, S, 0, 1, G (`lib.roster.SCALES`). **Length over buffers**, with
+the hint *On every item of this product.*, under
 [Edits that wait for power off](#edits-that-wait-for-power-off), as are
 the decoder and its functions. **Notes**: a textarea; emptied, the key goes
 from the document.
@@ -255,7 +256,7 @@ a name.* A latching function's document says nothing about its mode, absent
 reading as latching.
 
 **Used by**: the loaded railroad's cars of this model, then its trains with
-entries naming it. **Delete model** is dead while the list is not empty.
+entries naming it. **Delete model** is disabled while the list is not empty.
 Pressed, it asks *Delete <name>? Its photo goes with it. A backup can bring it
 back.* and sends `DELETE /catalogue/<model>` at once
 ([#976](https://github.com/rails49/control/issues/976)). The store reads every
@@ -311,9 +312,9 @@ the key goes.
 **In trains**: each train whose entries name the car, as a link that opens it
 in the Trains list.
 
-**Remove**, at the top right, takes the car off the roster. It is dead while a
-train holds the car, its title naming the train: *In train IC. Take it out of
-the train first.*
+**Remove**, at the top right, takes the car off the roster. It is disabled
+while a train holds the car, the reason beside it naming the train: *In train
+IC. Take it out of the train first.*
 
 **A new car of a model with a decoder is asked for its address at once**:
 *Address for <car>* — *<model> has a decoder. Type the address programmed into
@@ -358,7 +359,8 @@ picker.
 **What follows from the cars**: length, kind and functions, derived as above;
 a momentary function's chip says *hold*.
 
-**Unmake**, at the top right: the train goes and its cars stay on the roster.
+**Unmake**, at the top right, with the hint *The cars stay on the roster.*
+beside it: the train goes and its cars stay on the roster.
 
 **New train** makes *New train* (*New train (2)* where that is taken), chooses
 it, and opens the picker. When the first locomotive goes in, a train still
@@ -374,7 +376,7 @@ from Add and from New train alike
 ([#1036](https://github.com/rails49/control/issues/1036)).
 
 - **A car** goes in as itself, at the tail. A car already in a train is
-  greyed, its title saying which.
+  greyed, its facts line reading *in <train>* in place of its other facts.
 - **A model without a decoder** goes in as a model entry.
 - **A model with a decoder goes in as a car**:
   - where every car of it is in another train, nothing goes in and the view
@@ -450,7 +452,7 @@ on a box its own stack claims `/camera`, while in development vite proxies the
 prefix to the port a photo camera listens on ([SYSTEM.md](../SYSTEM.md),
 [DEPLOY.md](../DEPLOY.md), [#629](https://github.com/rails49/control/issues/629)).
 While the camera is waited on the frame reads *Taking a picture…* and the press
-is dead. **Any status but `200` means no picture** — there is nothing else for
+is disabled. **Any status but `200` means no picture** — there is nothing else for
 a caller to read out of it — and is said under the frame as *no picture:*
 followed by the status and its text, or by what the fetch said, with the press
 live again: a camera plugged in a minute later is a picture a minute later.
@@ -492,20 +494,20 @@ app reads the store on every request, so a car's camera address is read
 fresh.
 
 So **every edit to one of these fields is disabled while track power is on or
-draining**, with the reason said on the control: the field or button keeps its
-box, takes the hint colour, and carries `track power is on — turn it off to
-change this` both as its title and beside it. A control that vanished would
-leave a person looking for it. That covers the length fields, the address
-field, the priority field, the decoder switch, the function rows with their
-add and remove buttons, *This car's decoder is different* and *Use the
+draining**, with the reason drawn beside the control: the field or button
+keeps its box and takes the hint colour, and `track power is on — turn it off
+to change this` is drawn beside it, once for the function rows and once for
+a train's tiles. A control that vanished would leave a person looking for it.
+That covers the length fields, the address field, the priority field, the
+decoder switch, the function rows with their add and remove buttons, *This car's decoder is different* and *Use the
 model's functions again*, and on a train the Add tile, each tile's Forward /
 Reversed, ×, and *Give it an address*, and dragging a tile. With power off,
 each edit can be made whether or not a train is placed
 ([ADR-0071](../adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 
 They are **disabled as well while the page has not heard which railroad is
-loaded** and still holds a roster, titled `the layout has not said whether the
-track has power, so this cannot be changed`. A page that has lost the
+loaded** and still holds a roster, the reason `the layout has not said
+whether the track has power, so this cannot be changed`. A page that has lost the
 broker keeps the roster it was editing, but cannot know whether the track has
 power: its link can drop while the broker, `layout` and the dispatcher go on
 running trains by what they hold. The guard keys on the row naming the
@@ -564,10 +566,10 @@ This view is one of the app's views of the loaded railroad (ADR-0038), and
 nothing is loaded until the broker names a railroad
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 Until then there is no roster and no catalogue, and **the presses that write
-are dead with the reason on them** — the New buttons: *load a
+are disabled, the bar saying the reason** — the New buttons: *load a
 railroad first* where none has been named, and *the roster and the catalogue
-are not read yet* where one has and its read has not landed. The bar says the
-same, or which of the three ways that read failed, below.
+are not read yet* where one has and its read has not landed, or which of the
+three ways that read failed, below.
 
 New model was once the press left open: on a box with an empty store its
 dialog opened, every field took input, and Create did nothing at all — no
@@ -699,13 +701,13 @@ saves first, naming the railroad once.
 Save in it, a model written when the view is left and not before, a model named `Ae 6/6` saved under
 `ae-6-6`, a duplicate name refused and put back, the decoder switch and the
 function rows reaching the document with `mode`, a duplicate function number
-refusing the save, Delete dead while the model is used, asking and sending
+refusing the save, Delete disabled while the model is used, asking and sending
 `DELETE` where it is not, and the store's refusal under it; the car editor —
 a second car of a decoder model asked for its address and refusing the first
 car's, an address refused and put back, a camera address set, refused and
 emptied, a length override written and removed by emptying it, the car's own
 functions written and removed, its notes reaching the roster document, Remove
-dead while a train holds the car, and its links to its model and its trains;
+disabled while a train holds the car, and its links to its model and its trains;
 the train editor — New train and New train (2) with the picker open, a name
 refused, a priority written, the tiles' words, a decoder model's entry given an
 address from its tile and saved as a car in its place, a decoder model added to a
@@ -728,7 +730,7 @@ all where the save is refused —, the run view showing a train made up here
 without a reload, the chosen train moving when the one it named is unmade and
 carried when that one is renamed, the field a refusal puts back, the edit
 standing in a field that a frame about the railroad leaves alone, the presses
-that write being dead with nothing loaded (#565), and the three ways a call to
+that write being disabled with nothing loaded (#565), and the three ways a call to
 the store fails as this screen shows them. The words themselves are
 `ui/test/asking.test.ts`'s, at the helper that decides them.
 
@@ -737,7 +739,7 @@ the store fails as this screen shows them. The words themselves are
 *No photo* where it did not load, a dropped and a chosen file reaching
 `PUT /catalogue/<model>/photo` as the conversion's output under `image/jpeg`
 once the view is left, a file that is no picture and one the browser cannot read refused in
-words, the frame while the camera is waited on and the dead press with it, the
+words, the frame while the camera is waited on and the disabled press with it, the
 camera's own bytes once the view is left, what a `502` reads as, a model made with a photo
 written as the document, the photo and the roster under the key minted, and a
 photo the store refused kept for the next save. What the camera answers is the

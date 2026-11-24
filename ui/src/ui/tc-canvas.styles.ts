@@ -387,8 +387,7 @@ const running = css`
   }
 
   /* The photo a block shows in place of its train's name (#1018). A press
-     and a resting pointer go through it to the block, as they go through the
-     name. */
+     goes through it to the block, as it goes through the name. */
   .photo {
     pointer-events: none;
   }

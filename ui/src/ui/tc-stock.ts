@@ -20,8 +20,8 @@
  * rule lives where it can be driven from plain values (ui/README.md).
  *
  * **No press is answered with silence.** A press either does what it says or
- * says why it cannot. The presses that write are dead with `unwritable()` on
- * them until the documents are read
+ * says why it cannot. The presses that write are dead until the documents
+ * are read, the bar saying `unwritable()`
  * ([#565](https://github.com/rails49/control/issues/565)).
  *
  * **Composing a train and placing it are two actions**
@@ -104,13 +104,13 @@ const EDGE_PX = 40;
 const STEP_PX = 12;
 const STEP_MS = 16;
 
-/** What a press that writes is dead with where no railroad is loaded: this
- *  view is one of the app's views of the loaded railroad (ADR-0038), so
- *  without one there is no roster and no catalogue to write into
- *  ([#565](https://github.com/rails49/control/issues/565)). */
+/** What the bar says where no railroad is loaded and the presses that write
+ *  are dead: this view is one of the app's views of the loaded railroad
+ *  (ADR-0038), so without one there is no roster and no catalogue to write
+ *  into ([#565](https://github.com/rails49/control/issues/565)). */
 const UNLOADED = "load a railroad first";
 
-/** What it is dead with where a railroad is loaded and its documents have not
+/** What it says where a railroad is loaded and its documents have not
  *  arrived: which of the three ways the read failed is the bar's to say
  *  (#411), and a read still in flight is a moment. */
 const UNREAD = "the roster and the catalogue are not read yet";
@@ -1951,7 +1951,7 @@ export class TcStock extends LitElement {
   /**
    * Why there is nothing here to write into, or `null` where there is. The
    * two documents are what a press that writes writes into, and until they
-   * are read there are none: the New buttons are dead with this on them
+   * are read there are none: the New buttons are dead and the bar says this
    * (#565).
    */
   private unwritable(): string | null {
