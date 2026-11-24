@@ -538,9 +538,11 @@ export class Session {
     const early = this.panel === null ? this.held : null;
     // Another railroad named under a joined one starts with nothing said
     // about power or the allocation, as its panel does; on a fresh
-    // connection either row may have landed first, and is kept.
+    // connection either row may have landed first, and is kept. A railroad
+    // named and not built is no new build: `layout` keeps the one it runs
+    // and says nothing more, so the power it last said stands.
     if (this.session !== null) {
-      this.supplied = null;
+      if (!this.unbuilt) this.supplied = null;
       this.ticked = null;
       this.settings = null;
       this.allocated = false;

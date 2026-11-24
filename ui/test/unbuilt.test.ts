@@ -21,8 +21,11 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
 import type { Drawing } from "../src/model/drawing.js";
 import { centreOf } from "../src/model/geometry.js";
+import type { Review } from "../src/model/store.js";
 import {
+  band,
   CLEAN,
+  edited,
   mounted,
   power,
   rail,
@@ -281,5 +284,52 @@ describe("a run on a railroad not built", () => {
       topic: "tc49/dispatch/point_wanted",
       payload: { addr: "7", position: "thrown" },
     });
+  });
+});
+
+describe("a railroad not built whose drawing is fixed", () => {
+  it("is saved on leaving the Edit view, and says nothing of unsaved", async () => {
+    let review: Review = { ...CLEAN, refused: "pin 'b1.a' is not wired" };
+    const store = serving({
+      drawings: ["toy"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(review),
+    });
+    const shell = await restarted({ name: "toy", at: 5, built: false });
+    expect(current(shell)).toBe("edit");
+
+    review = DERIVES;
+    edited(shell);
+    await settled(shell);
+    await shows(shell, "run");
+
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/toy"]);
+    expect(band(shell).querySelector("look-about")!.getAttribute("detail")).toBe("");
+  });
+
+  /** A pick of a railroad that does not build names it and says nothing
+   *  else: `layout` keeps the build it runs and its power row stands. */
+  it("is saved where it was picked under a built railroad", async () => {
+    let review: Review = DERIVES;
+    const store = serving({
+      drawings: ["toy", "other"],
+      rosterOf: () => STOCK,
+      read: stored,
+      review: () => Promise.resolve(review),
+    });
+    const shell = await restarted({ name: "toy", at: 5, built: true });
+    review = { ...CLEAN, refused: "pin 'b1.a' is not wired" };
+    await said(shell, RAILROAD, { name: "other", at: 6, built: false });
+    expect(current(shell)).toBe("edit");
+    expect(opened(shell)).toBe("other");
+
+    review = DERIVES;
+    edited(shell);
+    await settled(shell);
+    await shows(shell, "run");
+
+    expect(store.saved.map(({ path }) => path)).toEqual(["/drawings/other"]);
+    expect(band(shell).querySelector("look-about")!.getAttribute("detail")).toBe("");
   });
 });
