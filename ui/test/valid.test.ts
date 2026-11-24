@@ -70,8 +70,7 @@ function edit(shell: TcApp): void {
 }
 
 describe("what the band says about the drawing", () => {
-  /** Pressed, the chip shows its `label` (look#56), so the refusal can be
-   *  read on a touch screen (#1303). */
+  /** Pressed, the chip shows its `label` (look#56, #1303). */
   it("marks a drawing the store refused as invalid, its label the refusal", async () => {
     const shell = await holding(APART);
 
