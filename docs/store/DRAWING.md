@@ -124,7 +124,9 @@ concurrent crossing would also emit the colliding crossover pair.
 
 Each kind has exactly one drawn appearance, specified in
 [ui/EDITOR.md](../ui/EDITOR.md#symbol-geometry); diagonal legs are always 45
-degrees, and a wire meeting a pin at another angle bends there. The two 90
+degrees, and where a wire leaves a pin out of line with the symbol's track the
+editor draws the corner as a curve
+([EDITOR.md](../ui/EDITOR.md#drawing-wires)). The two 90
 degree crossings are separate kinds rather than appearances of one because
 their footprints and pin positions differ. An earlier draft had an `angle`
 placement property picking between several appearances of a crossing; no
@@ -235,8 +237,9 @@ pin onto that cell's west, north, east or south face. A face belongs to two
 cells, so the editor always writes the cell east or south of it and one face
 has one spelling.
 
-Wires carry no geometry. A wire is drawn straight between its two pins, and a
-bend is a free-standing pin, which is a symbol with a placement of its own.
+Wires carry no geometry. A wire is drawn between its two pins, straight but
+for a curve where the run changes direction, and a bend is a free-standing
+pin, which is a symbol with a placement of its own.
 
 A drawing without placement still loads and still derives. It has no picture,
 so the editor cannot show it until someone places it, there being no
