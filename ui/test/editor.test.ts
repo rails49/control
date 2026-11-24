@@ -316,12 +316,33 @@ describe("abutting", () => {
     expect(wires()).toEqual(["b1.B e1.P"]);
   });
 
+  it("makes one bend of two on one point that are moved together", () => {
+    place("block", [0, 0]);
+    editor.startWire("b1.B");
+    editor.bend(8, 0.5);
+    editor.cancelWire();
+    place("block", [0, 4]);
+    editor.startWire("b2.B");
+    editor.bend(8, 0.5);
+    editor.cancelWire();
+    editor.select(["n1", "n2"]);
+    editor.move(1, 0);
+    expect(editor.drawing.symbols).toEqual({
+      b1: { kind: "block", at: [0, 0], length: 1000 },
+      b2: { kind: "block", at: [0, 4], length: 1000 },
+      n1: { kind: "pin", at: [9, 0], rot: 0 },
+    });
+    expect(editor.drawing.wires).toEqual([
+      ["b1.B", "n1.P"],
+      ["b2.B", "n1.P"],
+    ]);
+  });
 });
 
 /**
- * A bend joined to another pin on its own point by a wire of no length marks
- * no corner, so that pin absorbs it (#1304): the bend's other wire is
- * re-pointed to the pin, and the bend and the wire of no length go.
+ * A bend joined to another pin on its own point by a wire of no length is
+ * absorbed by that pin (#1304): the bend's other wire is re-pointed to the
+ * pin, and the bend and the wire of no length go.
  */
 describe("absorbing a bend", () => {
   const B1 = { kind: "block", at: [0, 0], length: 1000 };
@@ -365,6 +386,7 @@ describe("absorbing a bend", () => {
     editor.cancelWire();
     place("terminal", [2, 0]); // e2.P at (2, 0.5): nothing to join
     expect(wires()).toEqual(["e1.P n1.P"]);
+    editor.select(["e2"]);
     editor.rotate(); // e2.P swings to (2.5, 0), onto the bend
     expect(editor.drawing.symbols).toEqual({
       e1: { kind: "terminal", at: [0, 0] },
@@ -523,15 +545,18 @@ describe("absorbing a bend", () => {
       ],
     });
 
+    /** Its symbols once e2 is placed at (0, 4), the edit that runs the pass. */
+    const absorbed = {
+      b1: B1,
+      e1: { kind: "terminal", at: [8, 0] },
+      e2: { kind: "terminal", at: [0, 4] },
+    };
+
     it("waits for an edit elsewhere, and one undo puts the bend back", () => {
       editor.reset(opened());
       expect(editor.drawing).toEqual(opened());
       place("terminal", [0, 4]);
-      expect(editor.drawing.symbols).toEqual({
-        b1: B1,
-        e1: { kind: "terminal", at: [8, 0] },
-        e2: { kind: "terminal", at: [0, 4] },
-      });
+      expect(editor.drawing.symbols).toEqual(absorbed);
       expect(editor.drawing.wires).toEqual([["b1.B", "e1.P"]]);
       editor.undo();
       expect(editor.drawing).toEqual(opened());
@@ -547,11 +572,7 @@ describe("absorbing a bend", () => {
       ];
       editor.reset(drawing);
       place("terminal", [0, 4]);
-      expect(editor.drawing.symbols).toEqual({
-        b1: B1,
-        e1: { kind: "terminal", at: [8, 0] },
-        e2: { kind: "terminal", at: [0, 4] },
-      });
+      expect(editor.drawing.symbols).toEqual(absorbed);
       expect(editor.drawing.wires).toEqual([["e1.P", "b1.B"]]);
     });
 
@@ -563,6 +584,7 @@ describe("absorbing a bend", () => {
       ];
       editor.reset(drawing);
       place("terminal", [0, 4]);
+      expect(editor.drawing.symbols).toEqual(absorbed);
       expect(editor.drawing.wires).toEqual([
         { pins: ["b1.B", "e1.P"], connection: "west" },
       ]);
@@ -576,8 +598,29 @@ describe("absorbing a bend", () => {
       ];
       editor.reset(drawing);
       place("terminal", [0, 4]);
+      expect(editor.drawing.symbols).toEqual(absorbed);
       expect(editor.drawing.wires).toEqual([
         { pins: ["b1.B", "e1.P"], connection: "east" },
+      ]);
+    });
+
+    it("keeps the re-pointed wire's place, the pin in the bend's place", () => {
+      const drawing = opened();
+      drawing.symbols.b2 = { kind: "block", at: [0, 8], length: 1000 };
+      drawing.wires = [
+        ["n1.P", "e1.P"],
+        ["n1.P", "b1.B"],
+        ["b1.A", "b2.A"],
+      ];
+      editor.reset(drawing);
+      place("terminal", [0, 4]);
+      expect(editor.drawing.symbols).toEqual({
+        ...absorbed,
+        b2: { kind: "block", at: [0, 8], length: 1000 },
+      });
+      expect(editor.drawing.wires).toEqual([
+        ["e1.P", "b1.B"],
+        ["b1.A", "b2.A"],
       ]);
     });
   });
