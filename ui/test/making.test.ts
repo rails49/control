@@ -284,7 +284,6 @@ describe("with no railroad loaded", () => {
 
     expect(button.textContent!.trim()).toBe("New model");
     expect(button.disabled).toBe(true);
-    expect(button.title).toBe("load a railroad first");
     expect(trouble(shell)).toBe("load a railroad first");
 
     await pressed(shell, "button.new");
@@ -299,7 +298,6 @@ describe("with no railroad loaded", () => {
     const asked = vi.spyOn(window, "prompt").mockReturnValue("ore");
 
     expect(button.disabled).toBe(true);
-    expect(button.title).toBe("load a railroad first");
 
     await pressed(shell, "button.new");
 
@@ -307,13 +305,11 @@ describe("with no railroad loaded", () => {
     expect(cards(shell)).toEqual([]);
   });
 
-  it("says the documents are not read yet where a railroad is loaded and its read failed", async () => {
+  it("says which read failed where a railroad is loaded and its read failed", async () => {
     between((path) => path === "/catalogue");
     const shell = await opened();
 
-    expect((part(shell, "button.new") as HTMLButtonElement).title).toBe(
-      "the roster and the catalogue are not read yet",
-    );
+    expect((part(shell, "button.new") as HTMLButtonElement).disabled).toBe(true);
     expect(trouble(shell)).toBe("GET /catalogue answered 404");
   });
 });
@@ -472,6 +468,16 @@ describe("the model editor", () => {
       length: 280,
       notes: "Second class, green.",
     });
+  });
+
+  it("says beside the length that it is every item's", async () => {
+    const shell = await opened();
+    await product(shell, "hopper", "freight", "100");
+
+    expect(
+      model(shell, "input.length").parentElement!.querySelector(".hint")!
+        .textContent,
+    ).toBe("On every item of this product.");
   });
 
   it("refuses a length that is not one, and puts the field back", async () => {
@@ -848,7 +854,7 @@ describe("the car editor", () => {
     expect(written()!.cars!["Re 460 001"]!.notes).toBe("Weathered.");
   });
 
-  it("leaves Remove dead while a train holds the car, its title naming the train", async () => {
+  it("leaves Remove disabled while a train holds the car, the reason beside it naming the train", async () => {
     owned();
     const shell = await opened();
     await tab(shell, "cars");
@@ -858,7 +864,9 @@ describe("the car editor", () => {
     ) as HTMLButtonElement;
 
     expect(remove.disabled).toBe(true);
-    expect(remove.title).toBe("In train IC. Take it out of the train first.");
+    expect(part(shell, ".ed-head .why").textContent).toBe(
+      "In train IC. Take it out of the train first.",
+    );
     expect(
       parts(shell, ".car-editor .in-trains button").map((one) =>
         one.textContent!.trim(),
@@ -1162,7 +1170,7 @@ describe("making up a train", () => {
     ) as HTMLButtonElement[];
     const theirs = among[offered(shell).indexOf("arnold-ce68")]!;
     expect(theirs.disabled).toBe(true);
-    expect(theirs.title).toBe("arnold-ce68 is in ore.");
+    expect(theirs.querySelector(".facts")!.textContent!.trim()).toBe("in ore");
     await away(shell);
 
     await add(shell, "models", "arnold-ce68");
@@ -1174,7 +1182,9 @@ describe("making up a train", () => {
       "look-dialog.picker button.card",
     ) as HTMLButtonElement[];
     expect(choices.map((one) => one.disabled)).toEqual([true, false, false]);
-    expect(choices[0]!.title).toBe("arnold-ce68 is in ore.");
+    expect(choices[0]!.querySelector(".facts")!.textContent!.trim()).toBe(
+      "in ore",
+    );
   });
 
   /** Two cars of the model, one already in the train, leave one to put in:
@@ -1308,7 +1318,7 @@ describe("making up a train", () => {
       "look-dialog.picker button.card.car",
     ) as HTMLButtonElement;
     expect(car.disabled).toBe(true);
-    expect(car.title).toBe("arnold-ce68 is already in ore.");
+    expect(car.querySelector(".facts")!.textContent!.trim()).toBe("in ore");
     car.click();
     await settled(shell);
     expect(await tiles(shell)).toEqual([
@@ -1463,6 +1473,9 @@ describe("making up a train", () => {
     const shell = await opened();
     await ore(shell);
     await tab(shell, "trains");
+    expect(part(shell, ".ed-head .hint").textContent).toBe(
+      "The cars stay on the roster.",
+    );
 
     await pressed(shell, ".ed-head button.unmake");
     await saved(shell);
@@ -1569,15 +1582,20 @@ async function length(shell: TcApp, name: string): Promise<HTMLInputElement> {
   return model(shell, "input.length");
 }
 
-/** Whether each model's length field is dead and what it says, each model
- *  chosen in turn. */
+/** The reason drawn beside a field, `null` where none is. */
+function reason(field: HTMLElement): string | null {
+  return field.parentElement!.querySelector(".why")?.textContent ?? null;
+}
+
+/** Whether each model's length field is disabled and the reason beside it,
+ *  each model chosen in turn. */
 async function lengths(
   shell: TcApp,
-): Promise<{ disabled: boolean; title: string }[]> {
+): Promise<{ disabled: boolean; reason: string | null }[]> {
   const said = [];
   for (const name of ["arnold-ce68", "hopper"]) {
     const field = await length(shell, name);
-    said.push({ disabled: field.disabled, title: field.title });
+    said.push({ disabled: field.disabled, reason: reason(field) });
   }
   return said;
 }
@@ -1612,30 +1630,27 @@ describe("edits that wait for power off", () => {
 
       const field = await car(shell, "length");
       expect(field.disabled).toBe(true);
-      expect(field.title).toBe(HELD);
-      expect(part(shell, ".why").textContent).toBe(HELD);
+      expect(reason(field)).toBe(HELD);
       for (const model of await lengths(shell)) {
         expect(model.disabled).toBe(true);
-        expect(model.title).toBe(HELD);
+        expect(model.reason).toBe(HELD);
       }
     },
   );
 
-  /** Every guarded control is drawn as the length field is: dead, its box
-   *  kept, the words as its title and beside it. */
+  /** Every guarded control is drawn as the length field is: disabled, its
+   *  box kept, the reason beside it. */
   it("kills the address, the function rows and the train's controls while power is on", async () => {
     const shell = await opened();
     await placed(shell, "on");
 
     const addr = await car(shell, "addr");
     expect(addr.disabled).toBe(true);
-    expect(addr.title).toBe(HELD);
-    expect(addr.parentElement!.querySelector(".why")!.textContent).toBe(HELD);
+    expect(reason(addr)).toBe(HELD);
 
     await chosen(shell, "arnold-ce68");
     const row = model(shell, "li.function input.fn-name");
     expect(row.disabled).toBe(true);
-    expect(row.title).toBe(HELD);
     expect(model(shell, "button.switch").disabled).toBe(true);
     expect(model(shell, "button.add-function").disabled).toBe(true);
     expect(
@@ -1645,7 +1660,6 @@ describe("edits that wait for power off", () => {
     await tab(shell, "trains");
     const flip = part(shell, ".train-editor .tile button.flip") as HTMLButtonElement;
     expect(flip.disabled).toBe(true);
-    expect(flip.title).toBe(HELD);
     for (const dead of [
       ".train-editor .tile button.out",
       ".train-editor button.add-tile",
@@ -1682,7 +1696,7 @@ describe("edits that wait for power off", () => {
     const shell = await opened();
     await placed(shell, "off");
     expect((await car(shell, "length")).disabled).toBe(false);
-    expect(parts(shell, ".why")).toHaveLength(0);
+    expect(parts(shell, ".car-editor .why")).toHaveLength(0);
     for (const model of await lengths(shell)) {
       expect(model.disabled).toBe(false);
     }
@@ -1704,7 +1718,7 @@ describe("edits that wait for power off", () => {
     const shell = await opened();
     await ore(shell);
     expect((await car(shell, "length")).disabled).toBe(false);
-    expect(parts(shell, ".why")).toHaveLength(0);
+    expect(parts(shell, ".car-editor .why")).toHaveLength(0);
   });
 
   /** A page that has lost the broker still holds the roster, and cannot know
@@ -1714,10 +1728,10 @@ describe("edits that wait for power off", () => {
   describe("with the broker gone", () => {
     async function every(
       shell: TcApp,
-    ): Promise<{ disabled: boolean; title: string }[]> {
+    ): Promise<{ disabled: boolean; reason: string | null }[]> {
       const field = await car(shell, "length");
       return [
-        { disabled: field.disabled, title: field.title },
+        { disabled: field.disabled, reason: reason(field) },
         ...(await lengths(shell)),
       ];
     }
@@ -1732,7 +1746,7 @@ describe("edits that wait for power off", () => {
 
       for (const field of await every(shell)) {
         expect(field.disabled).toBe(true);
-        expect(field.title).toBe(UNHEARD);
+        expect(field.reason).toBe(UNHEARD);
       }
       await typed(shell, await length(shell, "hopper"), "110");
       expect(trouble(shell)).toBe(UNHEARD);
@@ -1770,7 +1784,7 @@ describe("edits that wait for power off", () => {
 
       for (const field of await every(shell)) {
         expect(field.disabled).toBe(true);
-        expect(field.title).toBe(HELD);
+        expect(field.reason).toBe(HELD);
       }
     });
   });

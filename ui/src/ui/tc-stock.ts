@@ -382,7 +382,6 @@ export class TcStock extends LitElement {
         <p>${LEAD[this.tab]}</p>
         <button
           class="new"
-          title=${this.unwritable() ?? nothing}
           ?disabled=${stock === null}
           @click=${this.made}
         >
@@ -427,8 +426,8 @@ export class TcStock extends LitElement {
   }
 
   /** One card: a photo frame 10:3 wide, the name, and a line of facts. A
-   *  card that is `dead` is greyed and does nothing, its title saying why:
-   *  what the picker draws a car already in the train as. */
+   *  card that is `dead` is greyed and does nothing: what the picker draws a
+   *  car already in a train as, its facts saying which. */
   private card(
     which: string,
     photo: string | null,
@@ -436,14 +435,13 @@ export class TcStock extends LitElement {
     facts: unknown,
     chosen: boolean,
     press: () => void,
-    dead: string | null = null,
+    dead = false,
   ) {
     return html`
       <button
         class=${`card ${which}`}
         aria-current=${chosen ? "true" : "false"}
-        title=${dead ?? nothing}
-        ?disabled=${dead !== null}
+        ?disabled=${dead}
         @click=${press}
       >
         <span class="frame">${this.photo(photo)}</span>
@@ -726,7 +724,6 @@ export class TcStock extends LitElement {
               class="length"
               inputmode="numeric"
               .value=${this.putting(`model:${key}:length`, String(row.length))}
-              title=${row.held ?? "millimetres over buffers, on every item of this product"}
               ?disabled=${row.held !== null}
               @change=${(event: Event) =>
                 this.did(
@@ -734,7 +731,11 @@ export class TcStock extends LitElement {
                   `model:${key}:length`,
                 )}
             />
-            ${row.held === null ? nothing : html`<span class="why">${row.held}</span>`}
+            ${
+              row.held === null
+                ? html`<span class="hint">On every item of this product.</span>`
+                : why(row.held)
+            }
           </label>
         </div>
         <label class="field">
@@ -892,7 +893,6 @@ export class TcStock extends LitElement {
             role="switch"
             aria-checked=${on ? "true" : "false"}
             aria-label="Has a decoder"
-            title=${held ?? nothing}
             ?disabled=${held !== null}
             @click=${() => this.changed((one) => one.modelDecoder(key, !on))}
           >
@@ -915,7 +915,6 @@ export class TcStock extends LitElement {
     const rows = stock.functionRows(key);
     const twice = stock.listedTwice(key);
     const dead = held !== null;
-    const title = held ?? nothing;
     return html`
       <ul class="functions">
         ${rows.map(
@@ -927,7 +926,6 @@ export class TcStock extends LitElement {
                   class="number"
                   inputmode="numeric"
                   aria-label="function number"
-                  title=${title}
                   ?disabled=${dead}
                   .value=${this.putting(`fn:${id}:${at}:number`, row.number)}
                   @change=${(event: Event) =>
@@ -941,7 +939,6 @@ export class TcStock extends LitElement {
                 class="fn-name"
                 aria-label="function name"
                 placeholder="Horn, Headlights…"
-                title=${title}
                 ?disabled=${dead}
                 .value=${this.putting(`fn:${id}:${at}:name`, row.name)}
                 @change=${(event: Event) =>
@@ -956,7 +953,6 @@ export class TcStock extends LitElement {
                     <button
                       data-mode=${mode}
                       aria-pressed=${row.mode === mode ? "true" : "false"}
-                      title=${title}
                       ?disabled=${dead}
                       @click=${() => this.changed((one) => one.functionMode(key, at, mode))}
                     >
@@ -968,7 +964,6 @@ export class TcStock extends LitElement {
               <button
                 class="remove"
                 aria-label=${`Remove F${row.number}`}
-                title=${title}
                 ?disabled=${dead}
                 @click=${() => this.changed((one) => one.removeFunction(key, at))}
               >
@@ -983,7 +978,6 @@ export class TcStock extends LitElement {
       <div class="row-end">
         <button
           class="add-function"
-          title=${title}
           ?disabled=${dead}
           @click=${() => this.changed((one) => one.addFunction(key))}
         >
@@ -1171,18 +1165,18 @@ export class TcStock extends LitElement {
     return html`
       ${this.head(
         "Car",
-        html`<button
-          class="remove-car"
-          title=${
+        html`${why(
             inTrain === undefined
-              ? "Take this car off the roster"
-              : `In train ${inTrain}. Take it out of the train first.`
-          }
-          ?disabled=${inTrain !== undefined}
-          @click=${() => this.did(this.stock?.removeCar(name))}
-        >
-          Remove
-        </button>`,
+              ? null
+              : `In train ${inTrain}. Take it out of the train first.`,
+          )}
+          <button
+            class="remove-car"
+            ?disabled=${inTrain !== undefined}
+            @click=${() => this.did(this.stock?.removeCar(name))}
+          >
+            Remove
+          </button>`,
       )}
       <div class="body car-editor">
         <div class="photo-frame">
@@ -1239,7 +1233,6 @@ export class TcStock extends LitElement {
               inputmode="numeric"
               .value=${this.putting(`car:${name}:length`, car.own ? String(car.length) : "")}
               placeholder=${car.modelLength === null ? "" : String(car.modelLength)}
-              title=${car.held ?? "millimetres over buffers, where this car is not its model's length"}
               ?disabled=${car.held !== null}
               @change=${(event: Event) =>
                 this.did(
@@ -1330,7 +1323,6 @@ export class TcStock extends LitElement {
           inputmode="numeric"
           .value=${this.putting(`car:${name}:addr`, car.addr ?? "")}
           placeholder="the number in its decoder"
-          title=${car.held ?? nothing}
           ?disabled=${car.held !== null}
           @change=${(event: Event) =>
             this.did(
@@ -1375,7 +1367,6 @@ export class TcStock extends LitElement {
           ${this.functions({ car: name }, car.held)}
           <button
             class="link model-functions"
-            title=${car.held ?? nothing}
             ?disabled=${car.held !== null}
             @click=${() => this.changed((one) => one.modelFunctions(name))}
           >
@@ -1406,7 +1397,6 @@ export class TcStock extends LitElement {
         </div>
         <button
           class="link own-functions"
-          title=${car.held ?? nothing}
           ?disabled=${car.held !== null}
           @click=${() => this.changed((one) => one.ownFunctions(name))}
         >
@@ -1517,9 +1507,9 @@ export class TcStock extends LitElement {
       ${this.head(
         "Train",
         html`${train.placed ? html`<span class="pill placed">on the layout</span>` : nothing}
+          <span class="hint">The cars stay on the roster.</span>
           <button
             class="unmake"
-            title="The cars stay on the roster."
             @click=${() => this.changed((one) => one.removeTrain(name))}
           >
             Unmake
@@ -1544,7 +1534,6 @@ export class TcStock extends LitElement {
               class="priority"
               inputmode="numeric"
               placeholder="lowest"
-              title=${train.held ?? nothing}
               ?disabled=${train.held !== null}
               .value=${this.putting(`train:${name}:priority`, String(train.priority ?? ""))}
               @change=${(event: Event) =>
@@ -1572,7 +1561,6 @@ export class TcStock extends LitElement {
             )}
             <button
               class="add-tile"
-              title=${train.held ?? nothing}
               ?disabled=${train.held !== null}
               @click=${() => {
                 this.picking = { train: name, tab: "models", model: null };
@@ -1636,7 +1624,6 @@ export class TcStock extends LitElement {
     held: string | null,
   ) {
     const dead = held !== null;
-    const title = held ?? nothing;
     const facts = [
       ...(entry.addr === null ? [] : [`#${entry.addr}`]),
       ...(entry.camera === null ? [] : ["camera"]),
@@ -1699,7 +1686,6 @@ export class TcStock extends LitElement {
           <button
             class="flip"
             aria-pressed=${entry.reverse ? "true" : "false"}
-            title=${title}
             ?disabled=${dead}
             @click=${() => this.changed((one) => one.turn(train, at))}
           >
@@ -1709,7 +1695,6 @@ export class TcStock extends LitElement {
             addressable
               ? html`<button
                   class="address"
-                  title=${title}
                   ?disabled=${dead}
                   @click=${() => this.addressed(train, at)}
                 >
@@ -1720,7 +1705,6 @@ export class TcStock extends LitElement {
           <button
             class="out"
             aria-label=${`Take ${entry.name} out`}
-            title=${title}
             ?disabled=${dead}
             @click=${() => this.changed((one) => one.removeEntry(train, at))}
           >
@@ -1778,8 +1762,8 @@ export class TcStock extends LitElement {
   /**
    * *Add to <train>*, with a Cars tab and a Models tab, or *Which <model>?*
    * where a model with a decoder has several cars. A car already in a
-   * train is greyed: one item cannot stand in a train twice, nor in two
-   * trains (#1067).
+   * train is greyed, its facts line reading `in <train>`: one item cannot
+   * stand in a train twice, nor in two trains (#1067).
    */
   private picker() {
     const stock = this.stock;
@@ -1798,22 +1782,22 @@ export class TcStock extends LitElement {
       ),
     );
     const cars = stock.cars();
-    const elsewhere = (one: CarRow) => {
-      const other = one.trains.find((named) => named !== train);
-      return other === undefined ? null : `${one.name} is in ${other}.`;
-    };
-    const car = (one: CarRow) =>
-      this.card(
+    const car = (one: CarRow) => {
+      const holder = held.has(one.name)
+        ? train
+        : one.trains.find((named) => named !== train);
+      return this.card(
         "car",
         one.kind === null ? null : one.model,
         one.name,
-        this.carFacts(one),
+        holder === undefined
+          ? this.carFacts(one)
+          : html`<span>in ${holder}</span>`,
         false,
         () => this.pickedCar(one.name),
-        held.has(one.name)
-          ? `${one.name} is already in ${train}.`
-          : elsewhere(one),
+        holder !== undefined,
       );
+    };
     const which = picking.model === null ? null : stock.model(picking.model);
     if (which !== null && picking.model !== null) {
       const named = new Set(
