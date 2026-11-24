@@ -681,8 +681,8 @@ a rail button and the height the rail turns into a strip at are
 
 Track is drawn solid, never patterned: wires run at any angle, so a pattern's
 spacing would vary with direction. A track stroke ends in a round cap and pins
-are round, so track joins seamlessly at any wire angle; a wire meeting a fixed
-45 degree leg at another angle reads as a rounded bend, not a kink.
+are round, so track joins seamlessly at any wire angle. Where a run changes
+direction the corner is drawn as a curve ([Drawing wires](#drawing-wires)).
 
 Track that ends inside another shape is cut instead, because a round cap would
 bulge past a buffer bar or a portal's mouth. Where the end is square the cap is
@@ -860,7 +860,10 @@ when the label pairs.
 Each kind has exactly one appearance; diagonal legs are always 45 degrees.
 The former `angle` property that picked between appearances is removed
 (no committed drawing used it), and with it the appearance row in the
-properties dialog.
+properties dialog. The one thing a wire changes is how a symbol's track ends:
+where a wire leaves a pin out of line with the track, the track stops short of
+that pin and carries on round half of the curve that joins the two
+([Drawing wires](#drawing-wires)).
 
 ## Drawing wires
 
@@ -873,6 +876,54 @@ the raw pointer, so the angle drawn could be half a square out from the one
 the wire got; a wire takes whatever angle its two pins give it. Clicking empty
 canvas places a free-standing pin, a bend, and continues; clicking a pin that
 can accept the wire ends it.
+
+A wire is drawn straight between its two pins, and where a run changes
+direction the corner is drawn as a curve
+([#1297](https://github.com/rails49/control/issues/1297)). Where exactly two
+tracks meet at a pin out of line, each stops short of the pin and one
+quadratic curve with the pin as its control point joins them, as a turnout's
+diverging road is drawn round its frog. A track is a wire or a symbol's own,
+so that is:
+
+- at a bend, its two wires;
+- at a symbol's pin, the symbol's track and the wire leaving it;
+- where a pin was dropped on a pin, the tracks of the two symbols. Wired pins
+  at one place count as one, so a bend sitting on a symbol's pin joins the
+  symbol's track to the bend's other wire.
+
+A wire stops √2/2 of a square short of the pin, or half its length where it is
+shorter, so the corners at its two ends do not overlap. At 45 degrees, with
+room on both sides, the corner is a turnout's own curve. A symbol's track
+stops as far short as the track it meets, or as far as it is straight where
+that is less:
+
+| Track | Straight for |
+| --- | --- |
+| a block's stub | its whole length, 1 |
+| a terminal's stub | its whole length, 0.6 |
+| a portal's stub | all but a track width before the mouth, 0.54 |
+| a through road | as far as the frog |
+| a diverging road or a slip road, at its level end | 0.29, where its own curve begins |
+| a diverging road or a slip road, at its 45 degree end | nothing: it is a curve to the pin |
+
+Where the track is a curve all the way to the pin — the diverging pin of an
+unturned turnout, the toe of a 45 degree one, the diagonal end of a slip
+road — nothing is cut and the corner stays sharp. So does a pin where one
+track ends or more than two meet, and one where the two double back.
+
+A curve between two wires is the wires': it wears the lit class of the more
+strongly claimed of the two. A curve that begins on a symbol's track is drawn
+in two halves that meet at its middle. The symbol draws its own half as the
+end of each road that ends at the pin, so that half is lit, faint, selected
+or marked as the road is, and the wire's half wears what the wire wears. A
+bend the curve passes beside draws no lit dot, and a wire with no length, or
+with none left between the curves at its two ends, draws nothing.
+
+The curves are drawing only: nothing is stored and nothing derives from them.
+A pin stays where it is, and in edit mode its dot stays on it, beside the
+curve. A wire is still picked against the straight line between its pins, and
+the wireline of a wire being drawn stays straight. A wire may still run at any
+angle.
 
 Dropping a symbol so that one of its pins lands on another's is the fast way
 to join them, and it writes a real wire of zero length. Turnouts are usually
@@ -890,9 +941,9 @@ collision detection fighting every drag.
 
 Left click selects; drag moves; mouse rubber-band or shift-click selects
 groups. Moves rubber-band the wires: a wire carries no geometry and is drawn
-straight between its two pins, so an endpoint attached to a moved pin stays
-attached and stretches, a wire whose both owners move translates rigidly, and a
-move cannot change the derived layout. Rotate, flip, and delete apply to the
+from where its two pins are, corners included, so an endpoint attached to a
+moved pin stays attached and stretches, a wire whose both owners move
+translates rigidly, and a move cannot change the derived layout. Rotate, flip, and delete apply to the
 selection, from a right-click menu with key bindings; each selected symbol
 turns about its own cell rather than the selection turning as a block.
 
