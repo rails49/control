@@ -888,9 +888,9 @@ the wire got; a wire takes whatever angle its two pins give it. Clicking empty
 canvas places a free-standing pin, a bend, and continues; clicking a pin that
 can accept the wire ends it.
 
-Several pins can share one point: a bend dragged onto a pin that already
-holds its wire stays there, joined to nothing under it. A click lands on all
-of them, and the wire ends on the first that accepts it. A click off every pin
+Several pins can share one point: a bend dragged onto a full pin stays
+there, and no wire joins the two. A click lands on all of them, and the wire
+ends on the first that accepts it. A click off every pin
 lands on the pins of the face centre a bend would take, so a bend is placed
 only on a face centre that holds no pin. Where pins are there and none accepts
 the wire, the click does nothing
@@ -951,8 +951,8 @@ built this way. What it does not do is make position meaningful: the wire is
 in the file, so dragging the symbol away later stretches the wire instead of
 breaking the connection.
 
-A bend joined to another pin on its own point by a wire of no length marks no
-corner, and that pin absorbs it
+A bend joined to another pin on its own point by a wire of no length is
+absorbed by that pin
 ([#1304](https://github.com/rails49/control/issues/1304)): the bend's other
 wire, where it has one, is re-pointed to the pin, and the bend and the wire of
 no length are deleted. `[x, n1.P]` and `[n1.P, sw1.toe]`, with `n1` on
@@ -967,11 +967,12 @@ bend on its point.
   with no name takes the deleted wire's.
 - A bend whose re-pointed wire would be a second wire between two pins is
   left as it is.
-- A wire of no length between two symbols' pins stays: it is the only record
-  that they are joined. So does a bend on a pin that no wire joins it to.
-- Every such bend in the drawing goes on the first place, move, rotate, flip,
-  bend drag or wire end, inside that edit's undo step. A drawing opened with
-  one is not changed by opening it.
+- A wire of no length between two symbols' pins stays. So does a bend on a
+  pin that no wire joins it to.
+- Placing, moving, rotating or flipping a symbol, dragging a bend and ending
+  a wire each take every such bend in the drawing, inside that edit's undo
+  step. Opening a drawing that holds one does not change it.
+- A bend the pass leaves holding no wire is deleted with it.
 
 Wire geometry is decorative. Wires must not cross symbols or other wires, but
 the rule is enforced by warning, never by rejecting the edit: an overlap is a
