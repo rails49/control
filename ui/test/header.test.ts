@@ -109,13 +109,16 @@ describe("what the band says", () => {
     expect(readings(shell)).toEqual([]);
   });
 
-  /** A fault reads as a chip, cut short where it is long, so the whole
-   *  sentence is its title. */
-  it("shows what the hardware says is wrong as a chip with the sentence as its title", async () => {
+  /** A fault reads as a chip, cut short where it is long. Pressed, the chip
+   *  shows its own text (look#56), so it is given no `label` and no `title`
+   *  (#1303). */
+  it("shows what the hardware says is wrong as a chip with no label and no title", async () => {
     const shell = await joined();
     await said(shell, DEVICE_TRACK, { power: "on", reason: "district B tripped" });
     expect(chips(shell)).toEqual(["district B tripped"]);
-    expect(band(shell).querySelector("look-chip")!.title).toBe("district B tripped");
+    const chip = band(shell).querySelector("look-chip")!;
+    expect(chip.hasAttribute("label")).toBe(false);
+    expect(chip.hasAttribute("title")).toBe(false);
   });
 
   /** A lock-table rule the dispatcher found broken is why the railroad
@@ -178,7 +181,6 @@ describe("what the band says", () => {
       trains: [{ train: "t1", into: "b", reason: "no arrival for 60 s" }],
     });
     expect(chips(shell)).toEqual(["t1: no arrival for 60 s"]);
-    expect(band(shell).querySelector("look-chip")!.title).toBe("t1: no arrival for 60 s");
     await said(shell, STATE_OVERDUE, { trains: [] });
     expect(chips(shell)).toEqual([]);
   });

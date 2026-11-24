@@ -13,6 +13,8 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { LookChip } from "@rails49/look";
+
 import "../src/ui/tc-app.js";
 import type { Drawing } from "../src/model/drawing.js";
 import type { Review } from "../src/model/store.js";
@@ -57,7 +59,7 @@ const APART: Drawing["symbols"] = {
 };
 
 /** The band's indicator, or `null` while it is clean. */
-function indicator(shell: TcApp): Element | null {
+function indicator(shell: TcApp): LookChip | null {
   const all = [...band(shell).querySelectorAll("look-chip")];
   return all.find((one) => one.textContent!.trim() === "invalid drawing") ?? null;
 }
@@ -68,7 +70,9 @@ function edit(shell: TcApp): void {
 }
 
 describe("what the band says about the drawing", () => {
-  it("marks a drawing the store refused as invalid, its title the refusal", async () => {
+  /** Pressed, the chip shows its `label` (look#56), so the refusal can be
+   *  read on a touch screen (#1303). */
+  it("marks a drawing the store refused as invalid, its label the refusal", async () => {
     const shell = await holding(APART);
 
     store.review = () => Promise.resolve(REFUSED);
@@ -76,6 +80,7 @@ describe("what the band says about the drawing", () => {
     await settled(shell);
 
     expect(chips(shell)).toContain("invalid drawing");
-    expect(indicator(shell)?.getAttribute("title")).toBe(REFUSED.refused);
+    expect(indicator(shell)?.label).toBe(REFUSED.refused);
+    expect(indicator(shell)?.hasAttribute("title")).toBe(false);
   });
 });
