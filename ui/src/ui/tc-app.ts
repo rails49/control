@@ -472,9 +472,8 @@ export class TcApp extends LitElement {
    * then the gear, and look's Help after it (org ADR-0020, #873).
    *
    * A fault is a chip, and a long one is cut short. The whole sentence is
-   * read by pressing the chip: it opens in a tooltip under the chip, as it
-   * does on keyboard focus (#1303). The invalid drawing chip shows the
-   * store's refusal there. A frozen drawing says nothing here: with track power on
+   * read by pressing the chip (#1303); the invalid drawing chip shows the
+   * store's refusal. A frozen drawing says nothing here: with track power on
    * the Edit view does not open (ADR-0085, decision 3), and its button on the
    * rail says why.
    */

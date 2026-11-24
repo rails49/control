@@ -259,7 +259,7 @@ it is left say nothing; there is no Save button to read them off
 
 **What the app could not do reads here**, in a health area at the right, each
 fault a red chip. A long one is cut short, and pressing the chip shows the
-whole sentence in a tooltip under it, which closes on a press elsewhere. That
+whole sentence in a tooltip under it. That
 is what is wrong that is not the author's doing — the store not answering, or a
 broker that is not ([PANEL.md](PANEL.md)) — and what the author has to fix is
 marked on the drawing ([Validation](#validation)). A save that did not land
@@ -323,7 +323,7 @@ The stop sign beside the toggle is red whatever the supply is doing.
 
 Beside them, one coarse indicator: a chip reading *invalid drawing* when the
 drawing is not valid, and nothing when it is. Pressing it shows the store's
-refusal from `review` in a tooltip under the chip, and does not switch to the
+refusal from `review`, and does not switch to the
 Edit view ([#1303](https://github.com/rails49/control/issues/1303)). It counts
 nothing, the canvas being where you
 find out where. A drawing with an overlap or a turnout still lacking an address
