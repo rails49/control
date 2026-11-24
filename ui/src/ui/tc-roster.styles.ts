@@ -9,9 +9,10 @@ import { css } from "lit";
  *
  * A row is the photo of the train's first locomotive, its name, where it is,
  * and how long it is. The photo sits in a slot of its own down the left, the
- * same size whether or not there is a picture in it, so every row is one
- * height (#1012). The blocks read down the pane rather than sitting wherever
- * the name before them ended. The length is right-aligned and tabular, being
+ * same size whether or not there is a picture in it, so the names line up
+ * (#1012). A long name wraps onto a second line and is not cut short. The
+ * blocks read down the pane rather than sitting wherever the name before them
+ * ended. The length is right-aligned and tabular, being
  * the one number.
  *
  * A row is also something to pick up — a drag onto a block places the train
@@ -81,9 +82,7 @@ export const rosterStyles = css`
   }
 
   .name {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 
   .length {

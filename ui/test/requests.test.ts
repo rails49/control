@@ -20,6 +20,7 @@ import "../src/ui/tc-requests.js";
 import { reordering, requestRows, type Listed, type RequestRow } from "../src/model/requests.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { RequestReorder, TcRequests } from "../src/ui/tc-requests.js";
+import { requestsStyles } from "../src/ui/tc-requests.styles.js";
 import { running, settled } from "./support/shell.js";
 import { brokering, joined, said, unbrokered, written } from "./support/session.js";
 
@@ -128,6 +129,21 @@ describe("tc-requests", () => {
       ["goods", "b.A → c.B", "waiting"],
       ["local", "d.A → b.B, c.B", "waiting"],
     ]);
+  });
+
+  /** A name cut short could be read whole only from a tooltip, which a
+   *  tablet does not show (#1305). */
+  it("draws a long train name whole, wrapped and not cut short", async () => {
+    const long = "Trans Europ Express Rheingold, second section";
+    const element = await list(
+      requestRows([{ id: "t1", train: long, depart: "a.B", dest: ["b.A"] }]),
+    );
+    expect(drawn(element)[0]![0]).toBe(long);
+
+    const train = /^\s*\.train \{([^}]*)\}/m.exec(requestsStyles.cssText)![1]!;
+    expect(train).toContain("overflow-wrap: anywhere");
+    expect(train).not.toContain("nowrap");
+    expect(requestsStyles.cssText).not.toContain("text-overflow");
   });
 
   it("raises the cancel with the row's id", async () => {
@@ -403,22 +419,22 @@ describe("a held cancel", () => {
     );
   }
 
-  function cancels(element: TcRequests): { disabled: boolean; title: string }[] {
+  function cancels(element: TcRequests): { disabled: boolean; label: string | null }[] {
     return [...element.renderRoot.querySelectorAll<HTMLButtonElement>("li .cancel")].map(
-      (button) => ({ disabled: button.disabled, title: button.title }),
+      (button) => ({ disabled: button.disabled, label: button.getAttribute("aria-label") }),
     );
   }
 
   it("says where the train stops in place of underway, and its × is disabled", async () => {
     const { element } = await serving([CANCELLING]);
     expect(states(element)).toEqual(["cancelling — stops in B7"]);
-    expect(cancels(element)).toEqual([{ disabled: true, title: "already cancelling" }]);
+    expect(cancels(element)).toEqual([{ disabled: true, label: "already cancelling" }]);
   });
 
   it("leaves an underway row with no held cancel as it was", async () => {
     const { element } = await serving([EXPRESS]);
     expect(states(element)).toEqual(["underway"]);
-    expect(cancels(element)).toEqual([{ disabled: false, title: "Cancel request" }]);
+    expect(cancels(element)).toEqual([{ disabled: false, label: "Cancel request" }]);
   });
 
   /** Whether by `move_withdrawn` or by the move ending at its sensor, the

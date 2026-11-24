@@ -77,14 +77,14 @@ export class TcRequests extends LitElement {
         @pointerup=${(event: PointerEvent) => this.drop(event, id)}
         @pointercancel=${() => (this.held = null)}
       >
-        <span class="train" title=${train}>${train}</span>
+        <span class="train">${train}</span>
         <span class="state">${said}</span>
         <span class="way">${ends(from)} → ${ends(to)}</span>
         ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
         ${this.live
           ? html`<button
               class="cancel"
-              title=${cancelling === undefined ? "Cancel request" : "already cancelling"}
+              aria-label=${cancelling === undefined ? "Cancel request" : "already cancelling"}
               ?disabled=${cancelling !== undefined}
               @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
               @click=${() => this.cancel(id)}
