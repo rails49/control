@@ -350,7 +350,7 @@ export class TcSettings extends LitElement {
                     ? nothing
                     : html`<button
                         class="delete"
-                        title="Delete ${one}"
+                        aria-label="Delete ${one}"
                         ?disabled=${this.railroad === null || busy || this.writing}
                         @click=${() => {
                           this.deleting = one;
@@ -568,7 +568,6 @@ export class TcSettings extends LitElement {
         class="stop"
         size="small"
         variant="danger"
-        title="Stop every train"
         @click=${() => this.powerWanted("off")}
       >
         <sl-icon slot="prefix" name="sign-stop-fill"></sl-icon>

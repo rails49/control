@@ -998,6 +998,9 @@ describe("the blocks", () => {
     );
     expect(row("next").classList).toContain("locked");
     expect(row("to").classList).toContain("committed");
+    // The colour's word, for a reader that cannot see the colour.
+    expect(row("next").getAttribute("aria-label")).toBe("CE2, locked");
+    expect(row("to").getAttribute("aria-label")).toBe("A2, committed");
     controls.remove();
   });
 

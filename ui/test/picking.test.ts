@@ -864,6 +864,17 @@ describe("Delete railroad", () => {
     expect(deletable(dialog)).toEqual(["otira", "reversing-loops"]);
   });
 
+  /** The press is a trash can with no word on it. */
+  it("is labelled with the railroad it deletes", async () => {
+    const shell = await dark();
+
+    const dialog = await settingsOpened(shell);
+
+    expect(deleting(dialog, "otira")!.getAttribute("aria-label")).toBe(
+      "Delete otira",
+    );
+  });
+
   /** The page holds the drawing the row names once it has been read, so the
    *  two differ only between the row moving and the read landing; the dialog
    *  is handed another `opened` here to stand for that moment. */

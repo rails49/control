@@ -418,8 +418,9 @@ export class TcDriving extends LitElement {
    * Where the train is and where it is going: *at* the block it stands in,
    * *next* the first block of the road ahead and *to* the last, the two
    * coloured as the run view lights a route — green where the lock is held,
-   * cyan where the route is chosen. A train crossing a transit stands in no
-   * block, and says so; with no road ahead, *next* and *to* read *—*.
+   * cyan where the route is chosen, the colour's word in the block's
+   * `aria-label`. A train crossing a transit stands in no block, and says so;
+   * with no road ahead, *next* and *to* read *—*.
    */
   private blocks(cab: Cab) {
     const next = cab.ahead[0];
@@ -428,7 +429,9 @@ export class TcDriving extends LitElement {
       <span class="label">${label}</span>
       ${block === undefined
         ? html`<span class=${`block ${label} none`}>—</span>`
-        : html`<span class=${`block ${label} ${block.claim}`} title=${block.claim}
+        : html`<span
+            class=${`block ${label} ${block.claim}`}
+            aria-label=${`${block.block}, ${block.claim}`}
             >${block.block}</span
           >`}
     `;

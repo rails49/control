@@ -255,11 +255,14 @@ describe("a run on a railroad not built", () => {
     expect(written()).not.toContainEqual(expect.objectContaining({ topic: POWER_WANTED }));
   });
 
+  /** A train in a block: its name, or its first locomotive's photo. */
+  const TRAIN = "g[data-symbol] text.name.train, g[data-symbol] image.photo";
+
   it("draws the drawing grey, with no trains", async () => {
     const shell = await standing(false);
 
     expect(sheet(shell).classList.contains("unbuilt")).toBe(true);
-    expect(sheet(shell).renderRoot.querySelector("g[data-symbol] > title")).toBeNull();
+    expect(sheet(shell).renderRoot.querySelector(TRAIN)).toBeNull();
   });
 
   it("throws nothing on a press, and asks for no request on a drag", async () => {
@@ -277,7 +280,7 @@ describe("a run on a railroad not built", () => {
     const shell = await standing(true);
 
     expect(sheet(shell).classList.contains("unbuilt")).toBe(false);
-    expect(sheet(shell).renderRoot.querySelector("g[data-symbol] > title")).not.toBeNull();
+    expect(sheet(shell).renderRoot.querySelector(TRAIN)).not.toBeNull();
     await dragged(shell, SWITCH);
 
     expect(written()).toContainEqual({

@@ -419,7 +419,6 @@ export class TcCanvas extends LitElement {
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
-          ${this.hover(name)}
           <g transform=${transformOf(spec)}>
             ${artwork(
               spec,
@@ -598,13 +597,6 @@ export class TcCanvas extends LitElement {
       preserveAspectRatio="xMidYMid meet"
       transform=${`rotate(${labelTurn(spec)} ${x} ${y})`}
       @error=${() => (this.unseen = new Set([...this.unseen, model]))} />`;
-  }
-
-  /** The train's name for a pointer resting on its block, on a run, where
-   *  the block may show its photo rather than the name (#1018). */
-  private hover(name: string): unknown {
-    const train = this.running?.blocks.get(name)?.named;
-    return train === undefined ? nothing : svg`<title>${train}</title>`;
   }
 
   /**

@@ -239,10 +239,10 @@ describe("the fast clock", () => {
     return clock.renderRoot.querySelector<HTMLButtonElement>("sl-button.save")!;
   }
 
-  it("draws a face with hour and minute hands and the time as its tooltip", async () => {
+  it("draws a face with hour and minute hands, labelled with the time", async () => {
     const shell = await ticking();
     const drawn = face(shell)!;
-    expect(drawn.title).toBe("10:08");
+    expect(drawn.getAttribute("aria-label")).toBe("fast clock 10:08");
     const hands = drawn.querySelector("tc-clock")!;
     expect(hands.time).toBe(TEN_PAST);
   });
@@ -258,7 +258,7 @@ describe("the fast clock", () => {
     const shell = await ticking();
     await said(shell, STATE_CLOCK, { at: 2, time: TEN_PAST + 60, speed_up: 1 });
     await bandClock(shell).updateComplete;
-    expect(face(shell)!.title).toBe("10:09");
+    expect(face(shell)!.getAttribute("aria-label")).toBe("fast clock 10:09");
   });
 
   it("shows no clock before state/clock, with none loaded, or with the broker gone", async () => {

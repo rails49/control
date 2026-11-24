@@ -1106,12 +1106,6 @@ describe("a train's photo in its block", () => {
     expect(shown("east").photo).toBe(photoUrl("BR 218"));
   });
 
-  it("names the train when the pointer rests on its block", async () => {
-    await running();
-    const group = canvas.renderRoot.querySelector('g[data-symbol="west"]')!;
-    expect(group.querySelector(":scope > title")?.textContent).toBe("goods");
-  });
-
   it("shows the name for three seconds after a tap, with a mouse or a finger", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     await running();
