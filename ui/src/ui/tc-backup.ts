@@ -448,7 +448,6 @@ export class TcBackup extends LitElement {
         class="stop"
         size="small"
         variant="danger"
-        title="Stop every train"
         @click=${() => this.powerWanted("off")}
       >
         <sl-icon slot="prefix" name="sign-stop-fill"></sl-icon>

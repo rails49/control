@@ -1,8 +1,8 @@
 /**
  * The railroad's fast clock on the band
  * ([ADR-0090](../../../docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md),
- * decision 6): a small round face with hour and minute hands, `×8` beside
- * it where the speed-up is not 1, and the time, `HH:MM`, as its tooltip. It
+ * decision 6): a small round face with hour and minute hands, and `×8`
+ * beside it where the speed-up is not 1. It
  * draws what `tc49/layout/state/clock` last said and reads no wall clock;
  * with no railroad loaded or the broker not answering there is no clock and
  * nothing is drawn.
@@ -53,7 +53,7 @@ export class TcBandClock extends LitElement {
     const time = hhmm(clock.time);
     const beside = faster(clock.speedUp);
     return html`
-      <button class="face" title=${time} aria-label=${`fast clock ${time}`} @click=${this.open}>
+      <button class="face" aria-label=${`fast clock ${time}`} @click=${this.open}>
         <tc-clock .time=${clock.time}></tc-clock>
         ${beside === "" ? nothing : html`<span class="faster">${beside}</span>`}
       </button>

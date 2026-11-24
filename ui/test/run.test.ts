@@ -135,12 +135,13 @@ describe("joining the railroad the broker runs", () => {
     await settled(shell);
 
     expect(steering(shell).icon).toBe("robot");
+    // The train in its block, drawn as its first locomotive (#1018).
     expect(
       running(shell)
         .renderRoot.querySelector("tc-canvas")!
-        .renderRoot.querySelector('g[data-symbol="a"] > title')!
-        .textContent!.trim(),
-    ).toBe("goods");
+        .renderRoot.querySelector('g[data-symbol="a"] image.photo')!
+        .getAttribute("href"),
+    ).toBe(photoUrl("BR 218"));
   });
 
   /** The broker going is a container restarting or a network that dropped.
@@ -346,9 +347,6 @@ describe("the picture on the shared canvas", () => {
     const drawn = sheet(shell);
     expect([...drawn.querySelector('g[data-symbol="a"]')!.classList]).toContain(
       "occupied",
-    );
-    expect(drawn.querySelector('g[data-symbol="a"] > title')!.textContent!.trim()).toBe(
-      "goods",
     );
     // Drawn as its first locomotive, the roster naming one (#1018).
     expect(drawn.querySelector("image.photo")!.getAttribute("href")).toBe(
