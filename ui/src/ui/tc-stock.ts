@@ -1251,7 +1251,7 @@ export class TcStock extends LitElement {
                           : `The model's ${car.modelLength} mm.`
                     }
                   </span>`
-                : html`<span class="why">${car.held}</span>`
+                : why(car.held)
             }
           </label>
           ${car.decoder || car.addr !== null ? this.carFunctions(car) : nothing}

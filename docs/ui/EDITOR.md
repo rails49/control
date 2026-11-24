@@ -341,7 +341,7 @@ leaves it clean, both being valid drawings
 ([#891](https://github.com/rails49/control/issues/891)). It carried a
 *drawing frozen* mark in the editing view, explaining its dead verbs; with
 track power on the Edit view no longer opens at all, and the rail's Edit
-button says why in its title ([Track power freezes the
+button says why in its tooltip ([Track power freezes the
 drawing](#track-power-freezes-the-drawing)).
 
 **The view selector is on the rail**, not here
@@ -447,7 +447,7 @@ empty sheet still zooms. Those rules
 are `model/commands.ts` with a test and no DOM, which is the rule
 [below](#tests): the model owns the document, a component owns the DOM, and a
 rule that is neither is a module in `model/`. The keyboard asks the same module
-the rail does, so a button and the key its title names cannot come to mean
+the rail does, so a button and the key its tooltip names cannot come to mean
 different things. One switch turns the command into the verb it runs, and its
 default arm assigns the id to a `never`, so a command added to the union without
 an arm fails to compile rather than drawing a live button that does nothing

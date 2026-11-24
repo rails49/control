@@ -359,8 +359,8 @@ picker.
 **What follows from the cars**: length, kind and functions, derived as above;
 a momentary function's chip says *hold*.
 
-**Unmake**, at the top right, with the hint *The cars stay on the roster.*
-beside it: the train goes and its cars stay on the roster.
+**Unmake**, at the top right: the train goes and its cars stay on the roster,
+as the hint beside it says.
 
 **New train** makes *New train* (*New train (2)* where that is taken), chooses
 it, and opens the picker. When the first locomotive goes in, a train still
@@ -566,10 +566,10 @@ This view is one of the app's views of the loaded railroad (ADR-0038), and
 nothing is loaded until the broker names a railroad
 ([ADR-0060](../adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
 Until then there is no roster and no catalogue, and **the presses that write
-are disabled, the bar saying the reason** — the New buttons: *load a
-railroad first* where none has been named, and *the roster and the catalogue
-are not read yet* where one has and its read has not landed, or which of the
-three ways that read failed, below.
+are disabled** — the New buttons. The bar says the reason: *load a railroad
+first* where none has been named, *the roster and the catalogue are not read
+yet* where one has and its read has not landed, or which of the three ways
+that read failed, below.
 
 New model was once the press left open: on a box with an empty store its
 dialog opened, every field took input, and Create did nothing at all — no

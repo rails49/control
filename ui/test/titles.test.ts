@@ -1,7 +1,6 @@
 /**
- * The work pane has no tooltip (EDITOR.md, #1305). A `title` attribute and an
- * SVG `<title>` show under a resting mouse pointer and nowhere else, so a
- * tablet cannot read them: what a component has to say is drawn on the screen.
+ * The work pane has no tooltip (EDITOR.md, #1305): no component under
+ * `src/ui/` sets a `title` attribute or draws an SVG `<title>`.
  */
 
 import { readFileSync, readdirSync } from "node:fs";

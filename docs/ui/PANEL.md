@@ -985,7 +985,7 @@ and fit as icon buttons, and nothing after them.
 with five of them saying the ordinary thing, and a status line that is always
 full is one nobody reads. Track power is the colour of the power toggle
 rather than a word repeating it; a frozen drawing has no word either, the
-Edit view not opening with power on and its button's title saying why
+Edit view not opening with power on and its button's tooltip saying why
 ([#891](https://github.com/rails49/control/issues/891)); and the link has no
 word at all.
 
