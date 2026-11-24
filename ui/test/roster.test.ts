@@ -76,8 +76,7 @@ describe("what the pane lists", () => {
     ]);
   });
 
-  /** A name cut short could be read whole only from a tooltip, which a
-   *  tablet does not show (#1305). */
+  /** The name's rule wraps it at any character and sets no ellipsis (#1305). */
   it("draws a long name whole, wrapped and not cut short", async () => {
     const long = "Trans Europ Express Rheingold, second section";
     const roster = await pane([
