@@ -877,6 +877,14 @@ the wire got; a wire takes whatever angle its two pins give it. Clicking empty
 canvas places a free-standing pin, a bend, and continues; clicking a pin that
 can accept the wire ends it.
 
+Several pins can share one point: a symbol dropped on a bend leaves its pin
+and the bend there, joined by a wire of no length. A click lands on all of
+them, and the wire ends on the first that accepts it. A click off every pin
+lands on the pins of the face centre a bend would take, so a bend is placed
+only on a face centre that holds no pin. Where pins are there and none accepts
+the wire, the click does nothing
+([#1301](https://github.com/rails49/control/issues/1301)).
+
 A wire is drawn straight between its two pins, and where a run changes
 direction the corner is drawn as a curve
 ([#1297](https://github.com/rails49/control/issues/1297)). Where exactly two
