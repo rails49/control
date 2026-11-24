@@ -178,13 +178,13 @@ describe("a wire in progress", () => {
     expect(editor.drawing.wires).toHaveLength(2);
   });
 
-  /** b1's east pin and the bend n1 on one point, (6, 0.5), joined by a wire of
-   *  no length: b1.B holds its one wire and n1.P one of its two. A wire is in
-   *  progress from b2.A at (8, 0.5). */
+  /** b1's east pin and the bend n1 on one point, (6, 0.5), with no wire
+   *  between them: b1.B holds its one wire, to b2.B, and n1.P one of its two,
+   *  from b1.A. A wire is in progress from b2.A at (8, 0.5). */
   function stacked(): { editor: Editor; gesture: Gesture } {
     const editor = blocks();
     editor.drawing.symbols.n1 = { kind: "pin", at: [6, 0], rot: 0 };
-    editor.drawing.wires.push(["b1.B", "n1.P"]);
+    editor.drawing.wires.push(["b1.B", "b2.B"], ["b1.A", "n1.P"]);
     const gesture = new Gesture();
     down(gesture, editor, 8, 0.5);
     gesture.up(editor, { x: 8, y: 0.5 });
@@ -212,7 +212,10 @@ describe("a wire in progress", () => {
     expect(down(gesture, editor, 8.3, 0.5)).toBe("quiet");
     expect(editor.pendingFrom).toBe("b2.A");
     expect(Object.keys(editor.drawing.symbols)).toEqual(["b1", "b2", "n1"]);
-    expect(editor.drawing.wires).toEqual([["b1.B", "n1.P"]]);
+    expect(editor.drawing.wires).toEqual([
+      ["b1.B", "b2.B"],
+      ["b1.A", "n1.P"],
+    ]);
   });
 });
 

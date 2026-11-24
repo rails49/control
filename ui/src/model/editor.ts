@@ -20,6 +20,7 @@ import {
   pruneReported,
   setReported,
   symbolOf,
+  wireConnection,
   wireKey,
   wirePins,
   type Drawing,
@@ -686,13 +687,15 @@ export class Editor {
   }
 
   /** End the wire at a pin. Refused where the pin has no room, so a click
-   *  that cannot land is a click that does nothing. */
+   *  that cannot land is a click that does nothing. A wire that ends on a bend
+   *  sharing its other pin's point has no length, and `absorb` takes the bend. */
   endWire(pin: PinRef): boolean {
     if (this.drawingFrom === null || pin === this.drawingFrom) return false;
     if (!this.free(pin) || this.joined(this.drawingFrom, pin)) return false;
     this.push();
     this.current.wires.push([this.drawingFrom, pin]);
     this.drawingFrom = null;
+    this.absorb();
     return true;
   }
 
@@ -716,7 +719,8 @@ export class Editor {
    * Join every free pin of these symbols to a free pin sitting on the same
    * point. Dropping a symbol onto another is the fast way to wire them, and
    * what it writes is a real wire of zero length: dragging apart later
-   * stretches it rather than breaking the join.
+   * stretches it rather than breaking the join. Where one of the two pins is
+   * a bend, `absorb` then takes the bend and the wire with it.
    */
   abut(names: string[]): void {
     const moved = new Set(names);
@@ -736,6 +740,64 @@ export class Editor {
         }
       }
     }
+    this.absorb();
+  }
+
+  /**
+   * Take out every bend joined to another pin on its own point by a wire of
+   * no length, and say whether there was one.
+   *
+   * The pin absorbs the bend: the bend's other wire is re-pointed to the pin,
+   * keeping its place in `wires` and the pin taking the bend's place in it,
+   * and the bend and the wire of no length go. Of two bends the one earlier in
+   * `symbols` stays.
+   *
+   * A wire in the mapping form keeps its `connection`, and one with no name
+   * takes the deleted wire's. A bend whose re-pointed wire would join two pins
+   * a wire already joins is left as it is. A wire of no length between two
+   * symbols' pins stays: it is the only record that they are joined.
+   *
+   * One pass over the whole drawing, as `sweep` is, repeated until nothing
+   * changes: a bend on a bend on a pin leaves the pin alone. `sweep` follows
+   * it, for a bend left holding nothing, the selection and a wire in flight
+   * from a bend that is gone.
+   */
+  absorb(): boolean {
+    let changed = false;
+    while (this.absorbOne()) changed = true;
+    if (changed) this.sweep();
+    return changed;
+  }
+
+  private absorbOne(): boolean {
+    const names = Object.keys(this.current.symbols);
+    const at = new Map(this.allPins().map(({ pin, x, y }) => [pin, `${x} ${y}`]));
+    const bend = (pin: PinRef) => this.current.symbols[symbolOf(pin)]?.kind === "pin";
+    for (const wire of this.current.wires) {
+      const [a, b] = wirePins(wire);
+      if (a === b || at.get(a) !== at.get(b)) continue;
+      const later = names.indexOf(symbolOf(a)) > names.indexOf(symbolOf(b));
+      const gone = bend(a) && (later || !bend(b)) ? a : bend(b) ? b : null;
+      if (gone === null) continue;
+      const kept = gone === a ? b : a;
+      const moved = (one: Wire) =>
+        wirePins(one).map((pin) => (pin === gone ? kept : pin)) as [PinRef, PinRef];
+      const rest = this.current.wires.filter(
+        (one) => one !== wire && wirePins(one).includes(gone),
+      );
+      if (rest.some((one) => this.joined(...moved(one)))) continue;
+      const connection = wireConnection(wire);
+      this.current.wires = this.current.wires.flatMap((one): Wire[] => {
+        if (one === wire) return [];
+        if (!rest.includes(one)) return [one];
+        const pins = moved(one);
+        if (!Array.isArray(one)) return [{ ...one, pins }];
+        return [connection === undefined ? pins : { pins, connection }];
+      });
+      delete this.current.symbols[symbolOf(gone)];
+      return true;
+    }
+    return false;
   }
 
   // --- undo ---------------------------------------------------------------
