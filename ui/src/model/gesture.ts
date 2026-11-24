@@ -19,7 +19,7 @@ import type { Editor } from "./editor.js";
 import { anchorOf, facePoint, type Point } from "./geometry.js";
 import type { Input, Machine, Outcome, Span } from "./machine.js";
 import type { Review } from "./store.js";
-import { under, within, type Under } from "./under.js";
+import { landing, under, within, type Under } from "./under.js";
 import { selectionKey } from "./widgets.js";
 
 /** How far the pointer has to travel, in screen pixels, before a press on a pin
@@ -71,13 +71,16 @@ export class Gesture {
     // is dropped by a click, which is a press the canvas does see (ADR-0020).
     if (editor.pending !== null) return "quiet";
 
+    // The wire ends on the first pin at the landing point that accepts it. A
+    // bend goes only where no pin is, so none is stacked on a pin that
+    // refused the wire.
     if (editor.pendingFrom !== null) {
-      const pin = this.at(editor, review, point).pin;
-      if (pin === null) {
+      const pins = landing(editor.drawing, point, (name) => this.shift(editor, name));
+      if (pins.length === 0) {
         editor.bend(point.x, point.y);
         return "changed";
       }
-      return editor.endWire(pin) ? "changed" : "quiet";
+      return pins.some((pin) => editor.endWire(pin)) ? "changed" : "quiet";
     }
 
     // A press on a pin has not said yet which of the two things it means: a
