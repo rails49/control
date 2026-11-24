@@ -10,8 +10,9 @@
  * Signals and sensors are not here. Every block has both at both ends, so there
  * is nothing to place. Nor is the free-standing bend: it is placed by clicking
  * empty canvas while drawing a wire. Each kind is drawn one way, so a tile shows
- * exactly what a drop will place — which is why the tiles carry no names, only
- * the word in their title for anyone who wants it.
+ * exactly what a drop will place — which is why the tiles carry no names. The
+ * hint line under them reads a tile's name while a pointer rests on the tile
+ * or a finger holds it.
  *
  * The fifth group is the widgets: a button, a toggle and a text (ADR-0087).
  * They are dragged out the same way, and the editor names them as it places
@@ -21,7 +22,7 @@
  */
 
 import { LitElement, html } from "lit";
-import { customElement } from "lit/decorators.js";
+import { customElement, state } from "lit/decorators.js";
 
 import type { Kind } from "../symbols.generated.js";
 import type { WidgetKind } from "../model/drawing.js";
@@ -53,6 +54,10 @@ const WIDGET_TITLES: Record<WidgetKind, string> = {
 export class TcPalette extends LitElement {
   static override styles = paletteStyles;
 
+  /** The name of the tile a pointer is on, `null` while it is on none. A
+   *  finger is on a tile from its press to its release. */
+  @state() private named: string | null = null;
+
   override render() {
     return html`
       <h2>Symbols</h2>
@@ -63,7 +68,7 @@ export class TcPalette extends LitElement {
       <div class="group widgets">
         ${WIDGET_KINDS.map((kind) => this.widgetTile(kind))}
       </div>
-      <p class="hint">drag a symbol onto the sheet</p>
+      <p class="hint">${this.named ?? "drag a symbol onto the sheet"}</p>
       <p class="hint keys">
         <span><kbd>r</kbd> rotate</span>
         <span><kbd>f</kbd> flip</span>
@@ -104,7 +109,8 @@ export class TcPalette extends LitElement {
       <button
         class=${first ? "first" : ""}
         @pointerdown=${(event: PointerEvent) => this.take(kind, event)}
-        title=${TITLES[kind]}
+        @pointerenter=${() => (this.named = TITLES[kind])}
+        @pointerleave=${() => (this.named = null)}
         aria-label=${TITLES[kind]}
       >
         <svg viewBox=${`-0.2 -0.2 ${w + 0.4} ${h + 0.4}`}>
@@ -120,7 +126,8 @@ export class TcPalette extends LitElement {
     return html`
       <button
         @pointerdown=${(event: PointerEvent) => this.take(kind, event)}
-        title=${WIDGET_TITLES[kind]}
+        @pointerenter=${() => (this.named = WIDGET_TITLES[kind])}
+        @pointerleave=${() => (this.named = null)}
         aria-label=${WIDGET_TITLES[kind]}
       >
         <svg viewBox=${`-0.2 -0.2 ${w + 0.4} ${h + 0.4}`}>
