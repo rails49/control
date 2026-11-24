@@ -888,9 +888,9 @@ the wire got; a wire takes whatever angle its two pins give it. Clicking empty
 canvas places a free-standing pin, a bend, and continues; clicking a pin that
 can accept the wire ends it.
 
-Several pins can share one point: a symbol dropped on a bend leaves its pin
-and the bend there, joined by a wire of no length. A click lands on all of
-them, and the wire ends on the first that accepts it. A click off every pin
+Several pins can share one point: a bend dragged onto a pin that already
+holds its wire stays there, joined to nothing under it. A click lands on all
+of them, and the wire ends on the first that accepts it. A click off every pin
 lands on the pins of the face centre a bend would take, so a bend is placed
 only on a face centre that holds no pin. Where pins are there and none accepts
 the wire, the click does nothing
@@ -907,8 +907,9 @@ so that is:
 - at a bend, its two wires;
 - at a symbol's pin, the symbol's track and the wire leaving it;
 - where a pin was dropped on a pin, the tracks of the two symbols. Wired pins
-  at one place count as one, so a bend sitting on a symbol's pin joins the
-  symbol's track to the bend's other wire.
+  at one place count as one, so in a drawing opened with a bend joined to the
+  symbol's pin under it, the symbol's track and the bend's other wire are the
+  two.
 
 A wire stops √2/2 of a square short of the pin, or half its length where it is
 shorter, so the corners at its two ends do not overlap. At 45 degrees, with
@@ -950,6 +951,28 @@ built this way. What it does not do is make position meaningful: the wire is
 in the file, so dragging the symbol away later stretches the wire instead of
 breaking the connection.
 
+A bend joined to another pin on its own point by a wire of no length marks no
+corner, and that pin absorbs it
+([#1304](https://github.com/rails49/control/issues/1304)): the bend's other
+wire, where it has one, is re-pointed to the pin, and the bend and the wire of
+no length are deleted. `[x, n1.P]` and `[n1.P, sw1.toe]`, with `n1` on
+`sw1.toe`, become `[x, sw1.toe]`. The other pin may be a bend, and then the
+one earlier in `symbols` stays, holding the other wires of both. It does not
+matter how the wire came to have no length: a symbol placed, moved or turned
+onto a bend, a bend dragged onto a pin, or a wire drawn between a pin and a
+bend on its point.
+
+- The re-pointed wire keeps its place in `wires`, and the pin takes the
+  bend's place in it. A wire in the mapping form keeps its `connection`; one
+  with no name takes the deleted wire's.
+- A bend whose re-pointed wire would be a second wire between two pins is
+  left as it is.
+- A wire of no length between two symbols' pins stays: it is the only record
+  that they are joined. So does a bend on a pin that no wire joins it to.
+- Every such bend in the drawing goes on the first place, move, rotate, flip,
+  bend drag or wire end, inside that edit's undo step. A drawing opened with
+  one is not changed by opening it.
+
 Wire geometry is decorative. Wires must not cross symbols or other wires, but
 the rule is enforced by warning, never by rejecting the edit: an overlap is a
 misleading picture, not a wrong layout, so the offending segments are
@@ -983,6 +1006,10 @@ pixels takes hold of the bend instead. Drawing a wire is click-then-click
 rather than a drag, so the threshold cannot steal one.
 
 Deleting a symbol deletes its wires, and the pins at their far ends go red.
+
+A bend is taken out of a run by dragging it onto the pin or bend next to it:
+its two wires become one ([Drawing wires](#drawing-wires)). A bend holding
+one wire, dragged onto the pin that wire comes from, goes with the wire.
 
 A wire is cut from its own right-click menu, which is the only way to delete
 one: a wire has no symbol to select, so no keystroke can take it, and the
