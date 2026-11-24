@@ -44,6 +44,13 @@ while drawing: enough railroads have been drawn that derivation is trusted
 is for day to day is the drawing itself, and everything wrong with a drawing is
 marked on the drawing.
 
+**The work pane draws what it has to say on the screen**, in this view and in
+every other. It has no tooltip, and no `title` attribute or SVG `<title>`: a
+tablet shows neither. Why a control is disabled is its reason, drawn beside
+it. A button with no word on it has an `aria-label`. `ui/test/titles.test.ts`
+reads every component for a title
+([#1305](https://github.com/rails49/control/issues/1305)).
+
 ## The band
 
 A band across the top of the page carrying **what is true of the whole
@@ -65,8 +72,8 @@ the gear, and **Help** last of all
 
 **The fast clock is the railroad's time of day**, drawn off
 `tc49/layout/state/clock` and nothing else: a round face about 40 px across
-with hour and minute hands and no second hand, `×8` beside it where the
-speed-up is not 1, and the time, `HH:MM`, as its tooltip. No page reads a
+with hour and minute hands and no second hand, and `×8` beside it where the
+speed-up is not 1. No page reads a
 wall clock for it, so two tablets whose clocks disagree show one time. With
 no railroad loaded or no broker answering the band shows no clock. Pressing
 it opens a dialog with the time (`HH:MM`) and the speed-up (a number greater
@@ -576,8 +583,9 @@ halves back and undo mid-flight takes the first half and the ghost together.
 Abandoning the mate leaves one portal, which is a fault marked on the drawing
 rather than an error ([ADR-0020](../adr/0020-a-portal-is-placed-as-a-pair.md)).
 
-Tiles carry no names. Each kind is drawn one way, so the drawing is the name,
-and the title attribute has the word for anyone who wants it.
+Tiles carry no names. Each kind is drawn one way, so the drawing is the name.
+The hint line under the tiles reads a tile's name while a pointer rests on the
+tile or a finger holds it, and *drag a symbol onto the sheet* otherwise.
 
 The tiles are laid out in five groups, the first four in the order of the
 table below, two tiles to a row:

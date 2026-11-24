@@ -54,8 +54,9 @@ none (on the layout all the same), or *off the layout*. The photo is the one
 the throttle's train picker shows
 ([#1012](https://github.com/rails49/control/issues/1012)); a train with no
 locomotive, or one whose photo does not load, has an empty slot of the same
-size, so every row is one height, and a press on the photo picks the train up
-as a press on its name does. Ordered by name, so the list does
+size, so the names line up, and a press on the photo picks the train up
+as a press on its name does. A long name wraps onto a second line and is not
+cut short, here and in the request list. Ordered by name, so the list does
 not reshuffle as the railroad moves.
 
 A railroad's **roster** is every train it owns, whether on the layout or off
@@ -126,8 +127,8 @@ On a row underway the dispatcher may hold the cancel: the train runs on into
 the block its move enters and stops there, and only then does the request go
 (BUS.md, `withdraw_wanted`). While the picture carries `cancelling` on the
 request, the row reads "cancelling — stops in B7" in place of *underway*, the
-block being that value, and its cancel is disabled, titled "already
-cancelling", so a second press is not sent and dropped
+block being that value, and its cancel is disabled, so a second press is not
+sent and dropped
 ([#1115](https://github.com/rails49/control/issues/1115)). The mark goes with
 the row, and a page opened after the press shows it, the picture being
 retained. A
@@ -162,9 +163,9 @@ shows, read from the same `GET /rosters/<railroad>/trains`
 ([#1018](https://github.com/rails49/control/issues/1018)). It is centred and
 fitted whole inside the rectangle and turns with the block as the name does.
 A train with no locomotive, or one whose photo does not load, shows the name
-as before. Resting the pointer on the block shows the name, and so does a
-tap, for 3 s: a press released before it moves further than a click or a tap
-on a point may, which picks nothing up. A press that moves further picks the
+as before. A tap on the block shows the name for 3 s: a press released
+before it moves further than a click or a tap on a point may, which picks
+nothing up. A press that moves further picks the
 train up, as a press on the name does.
 
 **What the detectors dispute is marked on the block it is about.** At every
