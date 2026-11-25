@@ -112,7 +112,7 @@ class Following(Seen):
     `f`: `exit` is `X.e`, `entry` is `Y.f` and `far` is the end of Y opposite
     `f`. What has been read of it is `Seen`'s (`tc49.lib.following`);
     `exit_read` holds from the grant where `exit` read occupied then, unless
-    the train came into X by `e` (#1336)."""
+    a move the train was still followed on entered X by `e` (#1336)."""
 
     move: Move
     exit: str
@@ -874,9 +874,8 @@ def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]
     further along its route. The transit goes to the head of what the train
     occupies, moved there on a move back over the transit it came by. The
     move's readings are expected from now on (`Following`), its exit already
-    read where that sensor reads occupied. It is not where a move the train
-    is still followed on entered by that end: the tail on the sensor may roll
-    off it before the train stops and turns (#1336). An older move that has
+    read where that sensor reads occupied, unless a move the train is still
+    followed on entered by that end (#1336). An older move that has
     reached its far sensor expects nothing more: what that one left on the
     list stays until this move's tail is in (#1171). The table given is left
     unchanged."""

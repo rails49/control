@@ -64,11 +64,10 @@ both. It holds:
 A grant adds a `Following` record for its move. For a move out of `X` through
 `e`, over `T`, into `Y` through `f`, it names `X.e`, `Y.f` and the end of `Y`
 opposite `f`, and notes whether `X.e` has read occupied, at the grant or
-since (since only, where the train's list holds a move that entered `X` by
-`e`: the train is going back out the way it came), whether the head is in,
-and whether the head has reached the far sensor. A changed reading is taken
-against every record that expects that sensor, oldest first, as the reading
-table in
+since, whether the head is in, and whether the head has reached the far
+sensor. Where the train's list holds a move that entered `X` by `e`, only a
+reading after the grant counts. A changed reading is taken against every
+record that expects that sensor, oldest first, as the reading table in
 [GOALS.md](../GOALS.md#dispatching) says: `tc49.lib.following.follow` gives
 what the reading makes true, and `table.py` acts on each fact. A record is
 dropped once the whole train is in `Y`, or once a later move is granted after
