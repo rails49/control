@@ -634,7 +634,10 @@ publishing into a client that is reconnecting.
 
 The panel is mouse-and-keyboard first. A finger or a pen opens the menu by
 resting for half a second within 12 screen pixels of where it pressed: whatever
-the press began is abandoned, and its release does nothing (#1275). A press on
+the press began is abandoned, and its release does nothing (#1275). A long
+press while a menu is open is a second right-click: the overlay puts the menu
+down and hands the press on once it has rested the half second. The drawing's
+text cannot be selected, so Safari puts no menu of its own up (#1310). A press on
 a train takes hold of it with a finger as with a mouse. A tap on a point is
 looser than a click, because a fingertip covers about a square and rolls as it
 lifts: it need not land on the point, but throws the offered point whose centre
