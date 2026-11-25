@@ -91,6 +91,8 @@ export class Live {
  *  ([ADR-0036](../../../docs/adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). */
 export const REQUEST_WANTED = "tc49/schedule/request_wanted";
 export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
+export const TIMETABLE_WANTED = "tc49/schedule/timetable_wanted";
+export const TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted";
 export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
@@ -390,6 +392,7 @@ export const STATE_NAMES: ReadonlySet<string> = new Set([
   "overdue",
   "exhausted",
   "facing",
+  "timetable",
   "moving",
   "aspects",
   "disputed",

@@ -25,6 +25,7 @@ from tc49.lib.payload import (
     Switch,
     Take,
     Throttle,
+    TimetableWanted,
     alignment,
     alive_throttle,
     chosen,
@@ -42,6 +43,8 @@ from tc49.lib.payload import (
     kept_allocation,
     kept_facing,
     link_up,
+    listed_requests,
+    loaded_timetable,
     moving,
     named_train,
     observed_position,
@@ -50,6 +53,7 @@ from tc49.lib.payload import (
     power,
     reported_reason,
     reported_sensor,
+    said_clock,
     said_short_blocks,
     said_speeds,
     said_without_sensors,
@@ -63,10 +67,12 @@ from tc49.lib.payload import (
     wanted_driving,
     wanted_function,
     wanted_power,
+    wanted_record,
     wanted_reorder,
     wanted_settings,
     wanted_take,
     wanted_throttle,
+    wanted_timetable,
 )
 
 
@@ -1501,3 +1507,108 @@ def test_an_allocation_reads_what_each_train_occupies_an_entry_at_a_time() -> No
 def test_an_allocation_with_no_occupied_map_states_no_allocation() -> None:
     for stated in ({}, {"occupied": "x"}):
         assert kept_allocation({"trains": {}, "crossing": {}, **stated}) is None
+
+
+def test_a_timetable_gesture_names_one_to_load_or_a_new_one() -> None:
+    """`new` is left out or `true` (#1345)."""
+    assert wanted_timetable({"timetable": "evening"}) == TimetableWanted(
+        "evening", new=False
+    )
+    assert wanted_timetable({"timetable": "evening", "new": True}) == TimetableWanted(
+        "evening", new=True
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "evening",
+        {},
+        {"new": True},
+        {"timetable": ""},
+        {"timetable": 7, "new": True},
+        {"timetable": None},
+        {"timetable": "evening", "new": False},
+        {"timetable": "evening", "new": "yes"},
+        {"timetable": "evening", "new": 1},
+    ],
+)
+def test_a_timetable_gesture_that_cannot_be_read_is_dropped(payload: object) -> None:
+    assert wanted_timetable(payload) is None
+
+
+@pytest.mark.parametrize(
+    ("payload", "record"),
+    [
+        ({"record": True}, True),
+        ({"record": False}, False),
+        ({"record": 1}, None),
+        ({"record": "on"}, None),
+        ({}, None),
+        ("on", None),
+    ],
+)
+def test_a_record_gesture_is_a_boolean_or_dropped(
+    payload: object, record: bool | None
+) -> None:
+    assert wanted_record(payload) is record
+
+
+@pytest.mark.parametrize(
+    ("payload", "name"),
+    [
+        ({"at": 3.0, "timetable": "evening", "phase": "running"}, "evening"),
+        ({"at": 3.0, "timetable": None}, None),
+        ({"timetable": ""}, None),
+        ({"timetable": 7}, None),
+        ({}, None),
+        ("evening", None),
+    ],
+)
+def test_a_timetable_row_names_the_one_loaded_or_none(
+    payload: object, name: str | None
+) -> None:
+    assert loaded_timetable(payload) == name
+
+
+def test_a_clock_row_says_the_time_and_the_speed_up() -> None:
+    assert said_clock({"at": 12.5, "time": 21630, "speed_up": 8}) == (21630, 8.0)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "06:00",
+        {},
+        {"time": 21630},
+        {"speed_up": 8.0},
+        {"time": 86400, "speed_up": 8.0},
+        {"time": 21630, "speed_up": 0},
+        {"time": True, "speed_up": 8.0},
+    ],
+)
+def test_a_clock_row_that_cannot_be_read_says_nothing(payload: object) -> None:
+    assert said_clock(payload) is None
+
+
+def test_an_allocation_lists_each_request_with_its_train() -> None:
+    """One entry at a time: an entry with no id or no train loses itself."""
+    assert listed_requests(
+        {
+            "trains": {},
+            "requests": [
+                {"id": "freight_1-ab-1", "train": "freight_1", "dest": ["dn_e.A"]},
+                {"id": "express_2-ab-1", "train": "express_2", "depart": None},
+                {"id": "", "train": "local"},
+                {"id": "local-1"},
+                {"train": "local"},
+                "local-2",
+            ],
+        }
+    ) == {"freight_1-ab-1": "freight_1", "express_2-ab-1": "express_2"}
+    assert listed_requests({"requests": []}) == {}
+
+
+@pytest.mark.parametrize("payload", ["nonsense", {}, {"requests": {}}, None])
+def test_an_allocation_with_no_request_list_lists_none(payload: object) -> None:
+    assert listed_requests(payload) is None
