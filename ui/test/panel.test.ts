@@ -1840,6 +1840,42 @@ describe("the sensors not reporting", () => {
     feed(model, { ...row(), at: 2 }, { ...row(stopped("a.A")), at: 1 });
     expect(model.unknownSensorFaults()).toEqual([]);
   });
+
+  /** Running without sensors (#1322), the sensors not reporting are faults
+   *  the owner already knows about: the band says the one thing that is
+   *  true instead, and no block is marked. */
+  describe("while the railroad runs without sensors", () => {
+    const unreported = () => {
+      const model = panel();
+      feed(
+        model,
+        { event: "driving", driving: "automatic" },
+        row(stopped("a.A"), unheard("b.A")),
+      );
+      return model;
+    };
+
+    it("says them with the setting off", () => {
+      const model = unreported();
+      expect(model.faults()).toEqual([
+        "a.A: no report for 3 s",
+        "automatic: 1 of 3 blocks have no sensor report",
+      ]);
+    });
+
+    it("says none of them, and says trains are driven by throttle", () => {
+      const model = unreported();
+      model.withoutSensors = true;
+      expect(model.unknownSensorFaults()).toEqual([]);
+      expect(model.faults()).toEqual(["without sensors: trains are driven by throttle"]);
+    });
+
+    it("marks no block", () => {
+      const model = unreported();
+      model.withoutSensors = true;
+      for (const view of model.blocks().values()) expect(view.unknownSensor).toBeUndefined();
+    });
+  });
 });
 
 /**
@@ -2549,6 +2585,30 @@ describe("the band's faults", () => {
       "dispatcher: a locked twice",
       "b: a sensor reads occupied and no train is there",
       "a.A: no report for 3 s",
+      "t1: no arrival for 60 s",
+    ]);
+  });
+
+  it("says the railroad runs without sensors where the sensor chips go (#1322)", () => {
+    const model = panel();
+    model.withoutSensors = true;
+    feed(
+      model,
+      {
+        event: "unknown_sensors",
+        sensors: [
+          { sensor: "a.A", reason: "no report for 3 s", reported: true },
+        ],
+      },
+      { event: "disputed", blocks: ["b"] },
+      {
+        event: "overdue",
+        trains: [{ train: "t1", into: "b", reason: "no arrival for 60 s" }],
+      },
+    );
+    expect(model.faults()).toEqual([
+      "b: a sensor reads occupied and no train is there",
+      "without sensors: trains are driven by throttle",
       "t1: no arrival for 60 s",
     ]);
   });

@@ -679,6 +679,7 @@ describe("the layout's settings", () => {
     sensor_silence: 3,
     arrival_allowance: 60,
     short_blocks: false,
+    without_sensors: false,
   };
   const READ = {
     pointGap: 0.5,
@@ -687,6 +688,7 @@ describe("the layout's settings", () => {
     sensorSilence: 3,
     arrivalAllowance: 60,
     shortBlocks: false,
+    withoutSensors: false,
   };
 
   it("reads the row off state/settings", () => {
@@ -732,6 +734,46 @@ describe("the layout's settings", () => {
     stood.broker.says(RAILROAD, { name: "other", built: true });
 
     expect(stood.session.status.settings).toBeNull();
+  });
+
+  /** The panel model is told whether the railroad runs without sensors
+   *  (#1322), and reads it as off wherever the row is not held. */
+  describe("without_sensors", () => {
+    const WITHOUT = { ...ROW, without_sensors: true };
+
+    it("reads as off before the row is heard", () => {
+      const stood = joined();
+      expect(stood.session.panel!.withoutSensors).toBe(false);
+    });
+
+    it("is handed to the panel model as the row says it", () => {
+      const stood = joined();
+      stood.broker.says(STATE_SETTINGS, WITHOUT);
+      expect(stood.session.panel!.withoutSensors).toBe(true);
+      stood.broker.says(STATE_SETTINGS, { ...ROW, without_sensors: false });
+      expect(stood.session.panel!.withoutSensors).toBe(false);
+    });
+
+    it("reaches a panel model built after the row", () => {
+      const stood = joined();
+      stood.broker.says(STATE_SETTINGS, WITHOUT);
+      stood.session.documents(stored("other"), DERIVES, STOCK);
+      expect(stood.session.panel!.withoutSensors).toBe(true);
+    });
+
+    it("reads as off once the session is left", () => {
+      const stood = joined();
+      stood.broker.says(STATE_SETTINGS, WITHOUT);
+      stood.broker.closes();
+      expect(stood.session.panel!.withoutSensors).toBe(false);
+    });
+
+    it("reads as off once another railroad is named", () => {
+      const stood = joined();
+      stood.broker.says(STATE_SETTINGS, WITHOUT);
+      stood.broker.says(RAILROAD, { name: "other", built: true });
+      expect(stood.session.panel!.withoutSensors).toBe(false);
+    });
   });
 });
 

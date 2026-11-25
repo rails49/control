@@ -688,6 +688,30 @@ describe("a block with a sensor not reporting", () => {
     await said(shell, UNKNOWN_SENSORS, { sensors: [] });
     expect(marked(shell)).toEqual([]);
   });
+
+  /** Running without sensors the mark is a fault the owner already knows
+   *  about, and the sensor squares stay so sensors can be checked as they
+   *  are installed (#1322). */
+  it("is not marked while the railroad runs without sensors, its squares drawn", async () => {
+    const STATE_SETTINGS = "tc49/layout/state/settings";
+    const squares = (): string[] =>
+      [...running(shell).renderRoot.querySelectorAll("tc-canvas")]
+        .flatMap((canvas) => [
+          ...canvas.renderRoot.querySelectorAll('g.symbol[data-symbol="a"] rect.detector'),
+        ])
+        .map((square) => square.getAttribute("class")!);
+    const shell = await joined();
+    await said(shell, UNKNOWN_SENSORS, {
+      sensors: [{ sensor: "a.A", reason: "no report", reported: true }],
+    });
+    await said(shell, STATE_SETTINGS, { at: 1, without_sensors: true });
+    expect(marked(shell)).toEqual([]);
+    const drawn = squares();
+    expect(drawn).toHaveLength(2);
+    await said(shell, STATE_SETTINGS, { at: 2, without_sensors: false });
+    expect(marked(shell)).toEqual(["a"]);
+    expect(squares()).toEqual(drawn);
+  });
 });
 
 /**

@@ -564,6 +564,12 @@ export class Panel {
    *  is a consumer of state topics like any other, and the frames it is
    *  handed came off the same wire. */
   private readonly ordering = new Ordering();
+  /** Whether the railroad runs without sensors, as the last
+   *  `tc49/layout/state/settings` row said (#1322). The session sets it from
+   *  that row, and to `false` before any row and whenever it drops its
+   *  settings; `reset()` leaves it. While it is `true` the sensors not
+   *  reporting mark nothing: they are faults the owner already knows about. */
+  withoutSensors = false;
 
   /** transit resource → the legs its way takes and the wires it is drawn
    *  over. Worked out once, at construction: neither answer can change while
@@ -1083,8 +1089,10 @@ export class Panel {
   /** The sensors not reporting in words, for the band (#1153). Those that
    *  stopped are a fault in any driving mode, one line per reason. Those never
    *  heard are what a railroad with no sensors wired yet looks like, so they
-   *  are one line and only while `automatic` depends on them. */
+   *  are one line and only while `automatic` depends on them. None while the
+   *  railroad runs without sensors. */
   unknownSensorFaults(): string[] {
+    if (this.withoutSensors) return [];
     const stopped = new Map<string, string[]>();
     for (const { sensor, reason, reported } of this.unknownRows) {
       if (reported) stopped.set(reason, [...(stopped.get(reason) ?? []), sensor]);
@@ -1116,13 +1124,17 @@ export class Panel {
 
   /** The band's faults in band order and its words (#1186): the supply's,
    *  each broken rule as the dispatcher's, each dispute, the sensors not
-   *  reporting, then the trains overdue. The band draws each as a chip. */
+   *  reporting — or, while the railroad runs without sensors, the one line
+   *  that says so (#1322) — then the trains overdue. The band draws each as a
+   *  chip. */
   faults(): string[] {
     return [
       ...(this.fault === null ? [] : [this.fault]),
       ...this.broken().map((rule) => `dispatcher: ${rule}`),
       ...this.disputeFaults(),
-      ...this.unknownSensorFaults(),
+      ...(this.withoutSensors
+        ? ["without sensors: trains are driven by throttle"]
+        : this.unknownSensorFaults()),
       ...this.overdueFaults(),
     ];
   }
@@ -1165,7 +1177,7 @@ export class Panel {
       for (const entry of listed) occupying.set(entry, train);
     }
     const names = this.names();
-    const unknown = new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor)));
+    const unknown = this.unknownBlocks();
     const overdue = new Set(this.overdueRows.map(({ train }) => train));
     const views = new Map<string, BlockView>();
     for (const block of Object.keys(this.layout.blocks)) {
@@ -1607,8 +1619,15 @@ export class Panel {
       // leave the block it last stood in.
       (holder, resource) =>
         resource in this.layout.blocks ? resource : (this.stood.get(holder) ?? resource),
-      new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor))),
+      this.unknownBlocks(),
     );
+  }
+
+  /** The blocks with a sensor not reporting, none while the railroad runs
+   *  without sensors (#1322). */
+  private unknownBlocks(): Set<string> {
+    if (this.withoutSensors) return new Set();
+    return new Set(this.unknownRows.map(({ sensor }) => blockOf(sensor)));
   }
 
   /** The endpoints worth marking: pending requests as endpoints only — never
