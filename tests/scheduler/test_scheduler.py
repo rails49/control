@@ -57,7 +57,7 @@ def collect(bus: InProcessBus, topic_filter: str) -> list[tuple[str, Payload]]:
 def test_submits_the_whole_timetable_in_order_with_deterministic_ids() -> None:
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), requests=TIMETABLE)
 
     bus.drain()
     assert [p for _, p in seen] == [
