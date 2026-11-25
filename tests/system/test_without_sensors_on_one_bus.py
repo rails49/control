@@ -189,9 +189,9 @@ def test_two_runs_without_sensors_and_one_by_them() -> None:
 def test_a_propelled_run_without_sensors_faces_the_end_entered() -> None:
     """`freight` stands in `b` with its nose at `b.A` and is sent out of
     `b.B`, its tail end. A drag departs by the nose, so the request is
-    submitted as a timetable or a page may submit one (ADR-0019). Propelled
-    into `c` through `c.A`, its nose points at that end, and the next drag
-    leaves by it."""
+    submitted as the scenario's requests are, or as a page may submit one
+    (ADR-0019). Propelled into `c` through `c.A`, its nose points at that end,
+    and the next drag leaves by it."""
     railroad = Unsensed("b", "b.B-to-A")
 
     railroad.bus.publish(

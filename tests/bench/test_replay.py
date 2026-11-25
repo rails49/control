@@ -60,15 +60,16 @@ def stable_ids(assembly: Assembly) -> dict[Any, str]:
     """Every id the run minted, keyed to that id with the nonce taken out.
 
     A replay feeds the file as drags, and a drag's id carries the minting
-    process's nonce where a timetable's does not (ADR-0033) — so a replayed
-    run and the document run it is compared against here differ in every id by
-    construction, the way they differ in the departure end. The train and the
-    ordinal either side of the nonce are what the two have to agree on.
+    process's nonce where the id of one of the scenario's requests does not
+    (ADR-0033) — so a replayed run and the document run it is compared against
+    here differ in every id by construction, the way they differ in the
+    departure end. The train and the ordinal either side of the nonce are what
+    the two have to agree on.
 
     This is not what makes a benchmark reproducible: the harness states its
     nonce (`bench/runner.py`), so two runs of one document already agree id
     for id. It is what lets a run fed as drags be compared with the same run
-    fed as a timetable.
+    fed as the scenario's requests.
     """
     return {
         line["id"]: f"{line['train']}-{str(line['id']).rsplit('-', 1)[-1]}"

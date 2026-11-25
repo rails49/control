@@ -232,8 +232,8 @@ POWER_WANTED = "tc49/layout/power_wanted"
 
 @pytest.fixture
 def with_requests() -> Assembly:
-    """`crossover-yard/meet` with its timetable on: three requests minted
-    into the run in the file's order, freight_1's return working last."""
+    """`crossover-yard/meet` with the scenario's requests submitted: three,
+    minted into the run in the file's order, freight_1's return working last."""
     return build(*load("crossover-yard/meet"))
 
 
@@ -256,8 +256,8 @@ def minted(assembly: Assembly, train: str, nth: int = 1) -> str:
 
     A gesture's id carries the scheduler process's nonce (ADR-0033), so a
     test that pressed a drag reads the id back off the trace instead of
-    spelling it out. A timetable's stays `<train>-N` and can still be
-    written.
+    spelling it out. The id of one of the scenario's requests stays
+    `<train>-N` and can still be written.
     """
     ids = [
         str(line["id"])

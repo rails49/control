@@ -31,8 +31,9 @@ STOCK = stock(freight_1=1100, express_2=600)
 
 
 def two_trains() -> dict[str, TrainSpec]:
-    """`crossover-yard` with the meet's placement and no timetable: the two
-    trains nose to nose, each needing the other's end of the railroad."""
+    """`crossover-yard` with the meet's placement and none of the scenario's
+    requests: the two trains nose to nose, each needing the other's end of the
+    railroad."""
     return {
         "freight_1": TrainSpec("yard_w", "A-to-B"),
         "express_2": TrainSpec("up_e", "B-to-A"),

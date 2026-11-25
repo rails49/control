@@ -42,8 +42,8 @@ neither yard block (1400mm), so the fit rule has something to refuse."""
 
 
 def two_trains() -> dict[str, TrainSpec]:
-    """`crossover-yard` with no timetable at all: a railroad standing still,
-    which is what a person correcting a placement is looking at.
+    """`crossover-yard` with no scenario's requests at all: a railroad standing
+    still, which is what a person correcting a placement is looking at.
 
     `leviathan` stands in `dn_e`, so the occupancy rule has something to
     refuse too.
@@ -780,8 +780,8 @@ def test_a_request_for_a_train_just_taken_off_the_layout_is_answered(
     Submitted at the dispatcher's own topic, because a *gesture* for such a
     train never becomes a request: the scheduler composes the departure end
     out of facing, and a train off the layout has none, so it drops the drag
-    in silence (ADR-0036). What gets this far is a timetable, or a page whose
-    frame reached the bus by another road.
+    in silence (ADR-0036). What gets this far is one of the scenario's
+    requests, or a page whose frame reached the bus by another road.
     """
     remove(off, "freight_1")
     press(off, REQUEST_WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
