@@ -23,7 +23,11 @@ const sheet = css`
     width: 100%;
     height: 100%;
     touch-action: none;
+    /* Safari selects text under the unprefixed rule alone, and a long press
+       there puts up its own Copy / Look Up menu (#1310). */
+    -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .sheet {

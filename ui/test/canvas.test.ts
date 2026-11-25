@@ -1345,6 +1345,18 @@ describe("a long press", () => {
     expect(menus).toHaveLength(1);
   });
 
+  it("leaves Safari no text to select under the finger (#1310)", () => {
+    // Safari stops selecting only for the prefixed rule, and a selection
+    // under a long press brings its own Copy / Look Up menu up. happy-dom
+    // selects nothing either way, so this reads the rule and a browser reads
+    // what it does.
+    const sheet = canvasStyles.cssText
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .match(/\bsvg\s*\{[^{}]*\}/)?.[0];
+    expect(sheet).toMatch(/-webkit-user-select:\s*none/);
+    expect(sheet).toMatch(/-webkit-touch-callout:\s*none/);
+  });
+
   it("opens the editor's menu over a symbol, and the release moves nothing", async () => {
     const editor = await editing();
     pointer("pointerdown", 3, 0.5);
