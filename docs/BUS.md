@@ -1142,11 +1142,10 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/request_rejected` — `id`; `reason`: enum `malformed`,
   `unknown_train`, `unknown_block`, `no_origin`, `crossing`, `wrong_origin`,
   `no_fit`, `no_entry`, `unreachable` — the set is `tc49.lib.rejection`, and
-  the UI's copy of it is generated. `crossing` is sent while the railroad runs
-  by its sensors, for a train listed in `crossing` on `state/allocation` with
-  no request of its own, as a restart or a change of `without_sensors` leaves
-  it: it may stand anywhere on that transit, so no move is granted from its
-  recorded block until a placement or a removal ends the entry
+  the UI's copy of it is generated. `crossing` names a train listed in
+  `crossing` on `state/allocation` with no request of its own, as a restart or
+  a change of `without_sensors` leaves it. It is sent only while the railroad
+  runs by its sensors, until a placement or a removal ends the entry
   ([#1326](https://github.com/rails49/control/issues/1326)).
 - `tc49/dispatch/request_completed` — `id`. Published when the train
   arrives, and also after an `arrival_wanted` the dispatcher accepts.

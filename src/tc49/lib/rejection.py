@@ -33,7 +33,8 @@ class Reason(StrEnum):
     arrival end survives pruning — none fits, asked only while the railroad's
     settings do not say `short_blocks` (#1287), none can be entered, or no
     route to one exists from the origin, which for a request queued behind a
-    pending one is settled at the first launch attempt instead. A grant refused mid-run is a different event with its own reasons
+    pending one is settled at the first launch attempt instead. A grant
+    refused mid-run is a different event with its own reasons
     (`grant_refused`)."""
 
     MALFORMED = "malformed"
