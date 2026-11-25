@@ -526,3 +526,226 @@ def test_a_request_chained_after_the_cancel_departs_by_the_end_the_route_left_by
 
     [chosen] = events(assembly.trace, "route_chosen", rid="m-late")
     assert chosen["route"] == ROUTE[:3]
+
+
+# -- changing the setting (#1321) ----------------------------------------------
+
+WANTED_POINT = "tc49/layout/state/wanted/point"
+
+
+def followed() -> Assembly:
+    """Run by its sensors under `Incremental`: `mover` granted its move over
+    j2 into CE2 with its head not yet in, holding CE2, j1's transit and A2
+    ahead; `crosser`'s request to CW waiting on j1; and a second request of
+    `mover`'s, to CE2, chained after its first. The simulator writes no
+    `wanted/point`, so the points of `mover`'s route are put where it needs
+    them first, as `layout` would."""
+    assembly = railroad(Incremental, "crosser", without_sensors=False)
+    for point in POINTS:
+        press(
+            assembly,
+            f"{WANTED_POINT}/{point['addr']}",
+            {"addr": point["addr"], "position": point["position"]},
+        )
+    wants(assembly, "mover", "A2.A")
+    wants(assembly, "crosser", "CW.A")
+    wants(assembly, "mover", "CE2.A")
+    return assembly
+
+
+def cancelled(assembly: Assembly) -> list[tuple[object, object]]:
+    return [
+        (line["id"], line["reason"]) for line in leaves(assembly, "request_cancelled")
+    ]
+
+
+def never_broken(assembly: Assembly) -> None:
+    """`state/broken` read `[]` throughout."""
+    assert all(line["rules"] == [] for line in leaves(assembly, "broken"))
+
+
+def test_turning_it_on_ends_every_request_and_keeps_what_each_train_occupies() -> None:
+    """In list order: `mover`'s started request, `crosser`'s waiting one,
+    then `mover`'s chained one. `mover` keeps C4 and the transit it is
+    crossing, and gives up what it held ahead; nothing is asked of
+    `layout`."""
+    assembly = followed()
+    ids = [
+        minted(assembly, "mover"),
+        minted(assembly, "crosser"),
+        minted(assembly, "mover", 2),
+    ]
+    moves = len(leaves(assembly, "move_granted"))
+    crossed = "j2.C4_A__CE2_A"
+    assert last(assembly, ALLOCATION)["occupied"]["mover"] == ["C4", crossed]
+
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+
+    assert cancelled(assembly) == [(rid, "revoked") for rid in ids]
+    assert leaves(assembly, "withdraw_wanted") == []
+    assert len(leaves(assembly, "move_granted")) == moves
+    assert released(assembly, "mover") == [["A2", "CE2", "j1.A2_A__CE2_B"]]
+    picture = last(assembly, ALLOCATION)
+    assert picture["requests"] == []
+    assert picture["crossing"] == {"mover": crossed}
+    assert picture["occupied"]["mover"] == ["C4", crossed]
+    assert picture["locks"] == {"A1": "crosser", "C4": "mover", crossed: "mover"}
+    assert last(assembly, MOVING)["moving"] is False
+    never_broken(assembly)
+
+
+def picture_of(assembly: Assembly) -> Payload:
+    """`state/allocation` without its stamp."""
+    return {
+        key: value for key, value in last(assembly, ALLOCATION).items() if key != "at"
+    }
+
+
+def test_after_that_the_readings_of_the_move_change_nothing() -> None:
+    """The head into CE2, its far sensor, then the whole train in: no move is
+    followed any more."""
+    assembly = followed()
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+    before = picture_of(assembly)
+
+    press(assembly, *settled("CE2.A"))
+    press(assembly, *settled("CE2.B"))
+    press(assembly, *settled("CE2.A", False))
+
+    assert picture_of(assembly) == before
+    never_broken(assembly)
+
+
+def turned_off(strategy: Strategy, *trains: str) -> Assembly:
+    """`underway`, then a row saying the railroad runs by its sensors."""
+    assembly = underway(strategy, *trains)
+    press(assembly, SETTINGS_WANTED, {"without_sensors": False})
+    return assembly
+
+
+@each_strategy
+def test_turning_it_off_ends_the_run_and_keeps_the_whole_route(
+    strategy: Strategy,
+) -> None:
+    """The train may be anywhere on its route, so nothing is released."""
+    assembly = turned_off(strategy)
+
+    assert cancelled(assembly) == [(minted(assembly, "mover"), "revoked")]
+    assert released(assembly, "mover") == []
+    picture = last(assembly, ALLOCATION)
+    assert picture["requests"] == []
+    assert picture["occupied"] == {"mover": ROUTE}
+    assert picture["locks"] == dict.fromkeys(sorted(ROUTE), "mover")
+    never_broken(assembly)
+
+
+@each_strategy
+def test_after_that_the_readings_and_sensors_not_reporting_are_back_in_use(
+    strategy: Strategy,
+) -> None:
+    """C1 read occupied, and every sensor was listed not reporting, while the
+    setting was on. Once it is off C1 is disputed, and `loner`'s request is
+    held in C7, which is out of use."""
+    assembly = underway(strategy, "loner")
+    press(assembly, *settled("C1.A"))
+    assert last(assembly, DISPUTED)["blocks"] == []
+
+    press(assembly, SETTINGS_WANTED, {"without_sensors": False})
+    wants(assembly, "loner", "C3b.B")
+
+    assert last(assembly, DISPUTED)["blocks"] == ["C1"]
+    assert refusals(assembly, "loner") == [("held", [""])]
+    assert launched(assembly) == ["mover"]
+    never_broken(assembly)
+
+
+@each_strategy
+def test_after_that_a_placement_releases_all_but_the_block_named(
+    strategy: Strategy,
+) -> None:
+    assembly = turned_off(strategy)
+
+    place(assembly, "mover", "CE2")
+
+    picture = last(assembly, ALLOCATION)
+    assert picture["trains"] == {"mover": "CE2"}
+    assert picture["occupied"] == {"mover": ["CE2"]}
+    assert picture["locks"] == {"CE2": "mover"}
+    never_broken(assembly)
+
+
+@each_strategy
+def test_after_off_and_on_again_a_new_runs_cancel_keeps_only_its_origin(
+    strategy: Strategy,
+) -> None:
+    """`mover` still holds its route to A2 from the run the change ended, and
+    is sent to CE2 over part of it."""
+    assembly = turned_off(strategy)
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+    wants(assembly, "mover", "CE2.A")
+    rid = minted(assembly, "mover", 2)
+    assert under_way_still(assembly)
+
+    press(assembly, CANCEL_WANTED, {"id": rid})
+
+    assert released(assembly, "mover")[-1] == sorted(ROUTE[1:])
+    picture = last(assembly, ALLOCATION)
+    assert picture["occupied"] == {"mover": ["C4"]}
+    assert picture["locks"] == {"C4": "mover"}
+    never_broken(assembly)
+
+
+def test_a_train_left_crossing_is_moving_once_it_is_off_until_it_is_placed() -> None:
+    """`mover` was crossing j2 when the setting went on. Once it is off the
+    crossing has no move behind it, as after a restart."""
+    assembly = followed()
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+    assert movings(assembly) == [False, True, False]
+
+    press(assembly, SETTINGS_WANTED, {"without_sensors": False})
+    assert movings(assembly) == [False, True, False, True]
+
+    place(assembly, "mover", "CE2")
+    assert movings(assembly) == [False, True, False, True, False]
+    never_broken(assembly)
+
+
+def test_a_request_after_one_the_change_ended_is_cancelled_revoked() -> None:
+    assembly = followed()
+    first = minted(assembly, "crosser")
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+
+    press(
+        assembly,
+        REQUEST_SUBMITTED,
+        {"id": "c-late", "train": "crosser", "dest": ["A2.A"], "after": first},
+    )
+
+    assert cancelled(assembly)[-1] == ("c-late", "revoked")
+    assert launched(assembly) == ["mover"]
+    never_broken(assembly)
+
+
+def test_a_row_with_the_value_already_held_ends_nothing() -> None:
+    assembly = underway(Incremental)
+
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True, "short_blocks": True})
+
+    assert cancelled(assembly) == []
+    assert under_way_still(assembly)
+    never_broken(assembly)
+
+
+def test_a_row_whose_field_does_not_read_ends_nothing() -> None:
+    bus = InProcessBus(Clock())
+    bare(bus)
+    ended = heard(bus, "request_cancelled")
+    bus.publish(SETTINGS, {"without_sensors": True})
+    bus.drain()
+    submit(bus)
+
+    bus.publish(SETTINGS, {"without_sensors": "yes"})
+    bus.drain()
+
+    assert ended == []
+    assert bus.last_values[ALLOCATION]["requests"][0]["id"] == "m-1"
