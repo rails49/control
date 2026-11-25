@@ -250,7 +250,7 @@ def under_way(
         {train: route.blocks[0] for train, route in routes_of.items()},
         {
             train: Active(
-                Request(f"{train}-1", train, "", (f"{route.arrival_block}.A",), 0),
+                f"{train}-1",
                 route,
                 0,
                 None,
@@ -411,7 +411,7 @@ def test_a_person_can_cancel_the_request_of_a_train_waiting_for_the_block(
 
 def shown_along(route: Route, state: State) -> list[str]:
     """The aspect at the exit of each block of `route` but its last."""
-    shown = aspects(state)
+    shown = aspects(state, frozenset())
     ends = [
         transit_ends(state.layout, block, transit)
         for block, transit in zip(route.blocks, route.transits)

@@ -44,6 +44,7 @@ no move. A person drives the train, and the run ends by "arrived"
 
 import sys
 from collections.abc import Callable, Collection, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 
 from tc49.dispatcher.locking import (
@@ -169,7 +170,7 @@ def departs_elsewhere(depart: str | None, expected: str | None) -> bool:
 
 @dataclass
 class Active:
-    request: Request
+    request_id: str  # the request it runs, which the dispatcher keeps
     route: Route
     cur_index: int  # index into route.blocks of cur(t)
     outstanding: Move | None  # granted move whose head is not yet in its block
@@ -472,7 +473,7 @@ def aspect_of(depth: int) -> str:
     return Aspect.CAUTION if depth else Aspect.STOP
 
 
-def aspects(state: State) -> dict[str, str]:
+def aspects(state: State, refused: AbstractSet[str]) -> dict[str, str]:
     """Every signalled block end's aspect. An end nothing ever leaves carries
     no signal and does not appear; an end no train is authorised to leave by
     shows `stop`, which falls out of there being nothing locked beyond it
@@ -504,7 +505,8 @@ def aspects(state: State) -> dict[str, str]:
 
     **A reading that refuses the next move shows the same** (#1160). A train
     refused its next move has just been told so, so every end along its route
-    shows `stop`, and it keeps its locks. Its signals return in the sweep that
+    shows `stop`, and it keeps its locks. `refused` names the trains whose
+    request was last refused. Its signals return in the sweep that
     grants it. A disputed block is not entered (ADR-0077), so depth counts only
     up to it (#1164).
     """
@@ -514,7 +516,7 @@ def aspects(state: State) -> dict[str, str]:
     if state.power != ON:
         return shown
     for train, active in state.active.items():
-        if active.request.refused is not None:
+        if train in refused:
             continue
         route = active.route
         # `cur_index` advances at the grant, so with a move outstanding the
@@ -552,7 +554,7 @@ def allocation(state: State, requests: Sequence[Request]) -> Payload:
     sorted, so the picture is a function of the state and not of a dict's
     insertion history.
     """
-    routes = {active.request.id: active.route for active in state.active.values()}
+    routes = {active.request_id: active.route for active in state.active.values()}
     return {
         "trains": dict(sorted(state.block_of.items())),
         "crossing": dict(sorted(state.crossing.items())),
@@ -1074,10 +1076,25 @@ class Dispatcher:
 
     def _started(self, req: Request) -> bool:
         active = self._state.active.get(req.train)
-        return active is not None and active.request is req
+        return active is not None and active.request_id == req.id
 
     def _listed(self, rid: str) -> Request | None:
         return next((req for req in self._requests if req.id == rid), None)
+
+    def _request(self, active: Active) -> Request:
+        """The request an active train runs, which stays listed until it
+        ends."""
+        req = self._listed(active.request_id)
+        assert req is not None
+        return req
+
+    def _refused(self) -> frozenset[str]:
+        """The active trains whose request was last refused."""
+        return frozenset(
+            train
+            for train, active in self._state.active.items()
+            if self._request(active).refused is not None
+        )
 
     # -- admission ---------------------------------------------------------
 
@@ -1689,7 +1706,7 @@ class Dispatcher:
         if req is None:
             return
         active = self._state.active.get(req.train)
-        if active is not None and active.request is req:
+        if active is not None and active.request_id == req.id:
             if req.cancelled:
                 return
             req.revoking = frozenset(each.id for each in self._followers(req))
@@ -1752,7 +1769,7 @@ class Dispatcher:
         if not state.without_sensors or req is None:
             return
         active = state.active.get(req.train)
-        if active is None or active.request is not req:
+        if active is None or active.request_id != req.id:
             return
         train = req.train
         block = active.route.arrival_block
@@ -1783,7 +1800,7 @@ class Dispatcher:
         if withdrawn is None:
             return
         active = self._state.active.get(withdrawn.train)
-        if active is None or not active.request.cancelled:
+        if active is None or not self._request(active).cancelled:
             return
         move = active.outstanding
         if (
@@ -1900,6 +1917,7 @@ class Dispatcher:
         of it is the duplicate it looks like.
         """
         state = self._state
+        req = self._request(active)
         if keep is None:
             standing = state.block_of.get(train)
             on = state.occupied.get(train, [])
@@ -1908,12 +1926,12 @@ class Dispatcher:
         del state.active[train]
         state.crossing.pop(train, None)
         state.departure.pop(train, None)
-        self._requests.remove(active.request)
-        self._publish("request_cancelled", {"id": active.request.id, "reason": reason})
+        self._requests.remove(req)
+        self._publish("request_cancelled", {"id": req.id, "reason": reason})
         if reason is Cancellation.REVOKED:
-            self._ending(active.request, self._stopped(active), active.request.revoking)
+            self._ending(req, self._stopped(active), req.revoking)
         else:
-            self._ending(active.request, None)
+            self._ending(req, None)
 
     # -- the sensors, and the sweep they trigger ----------------------------
 
@@ -2134,13 +2152,14 @@ class Dispatcher:
         active = state.active.get(train)
         if active is None or active.outstanding is not None:
             return
-        if active.request.cancelled:
+        req = self._request(active)
+        if req.cancelled:
             self._retire(train, active, Cancellation.REVOKED)
         elif active.cur_index == len(active.route.blocks) - 1:
             del state.active[train]
-            self._requests.remove(active.request)
-            self._publish("request_completed", {"id": active.request.id})
-            self._ending(active.request, opposite_end(self._entered(active.route)))
+            self._requests.remove(req)
+            self._publish("request_completed", {"id": req.id})
+            self._ending(req, opposite_end(self._entered(active.route)))
 
     def _check(self) -> bool:
         """The lock table's rules, checked (`broken`): a rule broken now and
@@ -2403,12 +2422,13 @@ class Dispatcher:
         # person drives it (#1314).
         if not state.without_sensors:
             for train in sorted(
-                state.active, key=lambda t: (state.active[t].request.phase, t)
+                state.active,
+                key=lambda t: (self._request(state.active[t]).phase, t),
             ):
                 active = state.active[train]
                 if (
                     active.outstanding is not None
-                    or active.request.cancelled
+                    or self._request(active).cancelled
                     or active.cur_index == len(active.route.blocks) - 1
                 ):
                     # A cancelled request is waiting for the move it was
@@ -2508,7 +2528,7 @@ class Dispatcher:
         self._publish(
             "lock_granted", {"train": req.train, "resources": launched.locked}
         )
-        self._state.active[req.train] = Active(req, launched.route, 0, None)
+        self._state.active[req.train] = Active(req.id, launched.route, 0, None)
         # A route is fixed once chosen (ADR-0002), so the end it leaves the
         # train facing is settled here rather than on arrival — which is what
         # lets a request dragged in mid-route be answered while it is asked.
@@ -2556,34 +2576,35 @@ class Dispatcher:
         return ends[0]
 
     def _apply_move(self, active: Active, result: Move | Refused) -> None:
+        req = self._request(active)
         if isinstance(result, Refused):
-            active.request.refused = result
+            req.refused = result
             self._publish(
                 "grant_refused",
                 {
-                    "id": active.request.id,
+                    "id": req.id,
                     "reason": result.reason,
                     "obstacles": result.obstacles,
                 },
             )
             return
-        active.request.refused = None
+        req.refused = None
         for resource in (*result.locked, *result.ahead):
-            self._state.locks[resource] = active.request.train
+            self._state.locks[resource] = req.train
         for resources in (result.locked, result.ahead):
             # Two grants, not one of four: a grant is a transit with its far
             # block, and the second increment is a separate one (ADR-0029).
             if resources:
                 self._publish(
                     "lock_granted",
-                    {"train": active.request.train, "resources": resources},
+                    {"train": req.train, "resources": resources},
                 )
         self._align(result.transit)
         self._publish(
             "move_granted",
             {
-                "id": active.request.id,
-                "train": active.request.train,
+                "id": req.id,
+                "train": req.train,
                 "transit": result.transit,
                 "into": result.into,
                 # Read off the locks the move has just taken, from where
@@ -2591,7 +2612,7 @@ class Dispatcher:
                 "aspect": aspect_of(
                     locked_ahead(
                         self._state,
-                        active.request.train,
+                        req.train,
                         active.route,
                         active.cur_index,
                     )
@@ -2599,9 +2620,9 @@ class Dispatcher:
             },
         )
         active.outstanding = result
-        self._state.crossing[active.request.train] = result.transit
+        self._state.crossing[req.train] = result.transit
         active.cur_index += 1
-        self._follow_move(active.request.train, result)
+        self._follow_move(req.train, result)
 
     def _follow_move(self, train: str, move: Move) -> None:
         """The readings a move granted now expects: its transit goes to the head
@@ -2797,7 +2818,7 @@ class Dispatcher:
         changed. Every end each time rather than the ones that moved: a late
         subscriber wants the whole picture on connect, not the first change
         after it arrives (BUS.md)."""
-        shown = aspects(self._state)
+        shown = aspects(self._state, self._refused())
         if shown != self._aspects:
             self._aspects = shown
             self._bus.publish(ASPECTS, {"aspects": shown})

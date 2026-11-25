@@ -53,7 +53,7 @@ def a_state() -> State:
             "up_e": "idle",
         },
         {"t": "yard_w", "idle": "up_e"},
-        {"t": Active(request, route, 1, move)},
+        {"t": Active(request.id, route, 1, move)},
         crossing={"t": route.transits[0]},
     )
 
@@ -164,7 +164,7 @@ def test_no_two_trains_lock_conflicting_transits() -> None:
     # Both active, so neither is an idle train holding a transit.
     for train in ("idle", "idle2"):
         request = Request(f"{train}-1", train, "yard_w.B", (), 0)
-        state.active[train] = Active(request, a_route(state.layout), 0, None)
+        state.active[train] = Active(request.id, a_route(state.layout), 0, None)
     assert state.layout.conflicts("crossover.up_to_dn", "crossover.dn_straight")
     line = "crossover.dn_straight locked to idle2 conflicts with crossover.up_to_dn"
     assert broken(state) == [f"{line} of idle"]
@@ -193,7 +193,7 @@ def test_a_strategy_writes_nothing(strategy: type[Incremental | FullRoute]) -> N
     assert launched is not None and not isinstance(launched, Refused)
     assert state.locks == before
 
-    state.active["t"] = Active(request, route, 0, None)
+    state.active["t"] = Active(request.id, route, 0, None)
     strategy(layout, 2).grant("t", state)
     assert state.locks == before
 

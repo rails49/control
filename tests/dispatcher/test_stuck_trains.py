@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping
 from itertools import pairwise
 
 from tc49.dispatcher import Incremental
-from tc49.dispatcher.dispatch import Active, Request, State
+from tc49.dispatcher.dispatch import Active, State
 from tc49.dispatcher.locking import Move, Refused, safety_view
 from tc49.dispatcher.routing import Route
 from tc49.dispatcher.safety import safe
@@ -43,7 +43,7 @@ def railroad(
         {train: blocks[0] for train, blocks in routes.items()},
         {
             train: Active(
-                Request(f"{train}-1", train, f"{blocks[0]}.B", (f"{blocks[-1]}.A",), 0),
+                f"{train}-1",
                 Route(blocks, tuple(f"c.{a}_{b}" for a, b in pairwise(blocks))),
                 0,
                 None,
