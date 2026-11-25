@@ -47,10 +47,9 @@ train, so nothing was released under it and no two trains cover one piece;
 but what the reading table gives the move that expected it (`unexpected`).
 
 **The faults.** The search keeps every fault it finds and goes on from a
-state with one, so one fault does not hide another. Each case has two tests.
-One passes while every fault found has the shape of #1336 (`rolled_off`),
-and pins the count of states visited. The other asserts there is no fault,
-and is `xfail` for #1336 where the case has a long train.
+state with one, so one fault does not hide another. Each case asserts there
+is no fault and pins the count of states visited. One more test runs a
+`reading` that releases too much and asserts the checks find it.
 
 **Left out:** the cases GOALS.md lists as not guarded, `unknown` sensors, the
 deadlock check (#1331), and readings reaching the dispatcher later than the
@@ -544,34 +543,6 @@ def search(name: str) -> Searched:
     return Searched(len(parent), found, parent)
 
 
-def rolled_off(case: Case, found: Found) -> bool:
-    """Whether a fault has the shape of #1336: a train covers a piece of a
-    block with no lock on it, because its tail rolled off a sensor of that
-    block while the whole train was still in the block, inside that sensor,
-    and the table released the block. Either the step was that roll and the
-    train held the block until it, or the train was already on a piece
-    needing the same lock without it before the step."""
-    fault = found.fault
-    if fault.check != "lock" or fault.piece in TRANSITS:
-        return False
-    i = sorted(case.placed).index(fault.train)
-    table, steel = found.before
-    was, now = steel[i].stretch, found.after[1][i].stretch
-    if any(
-        resources(piece) == resources(fault.piece)
-        and not _locked(table, fault.train, piece)
-        for piece in was
-    ):
-        return True
-    sensor, block = was[0], block_of(fault.piece)
-    return (
-        sensor in (f"{block}.A", f"{block}.B")
-        and now == was[1:]
-        and table.locks.get(block) == fault.train
-        and set(now) <= set(pieces(block, opposite_end(sensor))[2:])
-    )
-
-
 def _steel(*cuts: str, facing: str) -> Steel:
     return Steel(tuple(cuts), (), facing)
 
@@ -608,34 +579,25 @@ CASES = {
 }
 
 
-REVERSING = pytest.mark.xfail(
-    reason="#1336: a reversing move takes the tail rolling off the entry"
-    " sensor as the train leaving its block",
-    raises=AssertionError,
-    strict=True,
-)
-
-
 @pytest.mark.parametrize(
     ("name", "visited"),
     [
-        ("a short and a long train", 38873),
+        ("a short and a long train", 59097),
         ("two short trains", 35969),
-        ("two long trains", 33419),
-        ("a train placed beyond the sensor it leaves by", 39493),
+        ("two long trains", 60866),
+        ("a train placed beyond the sensor it leaves by", 59717),
     ],
 )
-def test_every_fault_the_search_finds_is_1336(name: str, visited: int) -> None:
-    """No fault of another shape than #1336's, and the count of states
-    visited, so a change that shrinks the search shows."""
+def test_no_reading_order_releases_track_under_a_train(name: str, visited: int) -> None:
+    """No fault, and the count of states visited, so a change that shrinks
+    the search shows."""
     found = search(name)
 
-    other = [each for each in found.faults if not rolled_off(CASES[name], each)]
-    assert not other, found.told(other[0])
+    assert not found.faults, found.told(found.faults[0])
     assert found.visited == visited
 
 
-def test_a_fault_of_another_shape_is_not_taken_for_1336(
+def test_the_search_finds_a_reading_that_releases_too_much(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A short train run out of its block against a `reading` that releases
@@ -678,19 +640,3 @@ def test_a_fault_of_another_shape_is_not_taken_for_1336(
 
     assert {each.step for each in found} == {"s tail off stub.B"}
     assert {each.fault.check for each in found} == {"clear", "lock", "broken"}
-    assert not any(rolled_off(case, each) for each in found)
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param("a short and a long train", marks=REVERSING),
-        "two short trains",
-        pytest.param("two long trains", marks=REVERSING),
-        pytest.param("a train placed beyond the sensor it leaves by", marks=REVERSING),
-    ],
-)
-def test_no_reading_order_releases_track_under_a_train(name: str) -> None:
-    found = search(name)
-
-    assert not found.faults, found.told(found.faults[0])
