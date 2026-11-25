@@ -23,7 +23,7 @@ from tc49.lib.loading import NO_RAILROAD
 from tc49.lib.mqtt import MqttBus
 from tc49.lib.startup import RETAINED_S
 from tc49.scheduler.__main__ import ALIVE_CONFIRMED, serve
-from tc49.scheduler.scheduler import FACING
+from tc49.scheduler.scheduler import ALLOCATION, CLOCK, FACING, POWER, TIMETABLE
 from tc49.store.server import make_server
 from tests.brokers import at_least_once_in_any_two_seconds, beats, drained, settle
 from tests.harness import ASSETS, catalogued
@@ -193,6 +193,7 @@ def test_a_cold_start_publishes_the_apps_own_rows(
     ), "it published nothing"
     assert rows(heard, FACING)[-1]["facing"] == {}
     assert rows(heard, EXHAUSTED)[-1]["exhausted"] is True
+    assert rows(heard, TIMETABLE)[-1]["timetable"] is None
     assert app.running, "the app stopped on its own"
     witness.close()
 
@@ -334,6 +335,157 @@ def test_a_railroad_the_store_does_not_have_is_said_and_not_taken(
     said = len(app.said)
     settle(witness, 2.0)
     assert app.said[said:] == [], f"it went on trying: {app.said[said:]}"
+    hand.close()
+    witness.close()
+
+
+def named(heard: list[tuple[str, Payload]]) -> object:
+    """The timetable the last timetable row heard says is loaded."""
+    said = rows(heard, TIMETABLE)
+    return said[-1]["timetable"] if said else "no row"
+
+
+def recorded(
+    broker: Broker, witness: MqttBus, heard: list[tuple[str, Payload]]
+) -> None:
+    """One drag recorded in `untitled` by the app that is up, and power off
+    again: what a layout binding, a dispatcher and a person publish for it.
+    A new `untitled` would have no entry."""
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(PLACED, {"train": "freight_1", "block": "yard_w"})
+    hand.publish(
+        ALLOCATION,
+        {
+            "trains": {"freight_1": "yard_w"},
+            "crossing": {},
+            "occupied": {},
+            "locks": {},
+            "requests": [],
+        },
+    )
+    hand.publish(CLOCK, {"time": 6 * 3600 + 30, "speed_up": 1.0})
+    hand.publish(POWER, {"power": "on"})
+    assert drained(witness, lambda: named(heard) == "untitled"), "no `untitled`"
+    hand.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})
+    assert drained(
+        witness, lambda: len(rows(heard, TIMETABLE)[-1]["entries"]) == 1
+    ), "the drag was not recorded"
+    hand.publish(POWER, {"power": "off"})
+    settle(witness)
+    hand.close()
+
+
+def test_it_records_a_drag_and_writes_the_timetable_to_the_store(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """`serve` hands the scheduler the store client, and the write is done
+    off the loop's thread (#1352)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+
+    recorded(broker, witness, heard)
+
+    documents = Documents(store.url, log=quiet)
+
+    def written() -> bool:
+        kept = documents.timetable(RAILROAD, "untitled")
+        return kept is not None and len(kept.entries) == 1
+
+    assert until(written), "the store has no `untitled` with the drag in it"
+    kept = documents.timetable(RAILROAD, "untitled")
+    assert kept is not None
+    assert kept.document() == {
+        "timetable": "untitled",
+        "layout": RAILROAD,
+        "start": "06:00",
+        # `yard_w` is a terminal block, so a placed train faces its B end.
+        "trains": {"freight_1": {"at": "yard_w", "facing": "A-to-B"}},
+        "entries": [{"at": "06:00", "train": "freight_1", "to": ["yard_e.A"]}],
+    }
+    witness.close()
+
+
+def test_a_restart_adopts_the_timetable_the_broker_and_the_store_kept(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """The row is waited for as `facing` is, and the document read from the
+    store (#1352)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+    recorded(broker, witness, heard)
+    app.stop()
+    heard.clear()
+
+    again = App(broker, store)
+    try:
+        again.start()
+        assert drained(
+            witness, lambda: rows(heard, EXHAUSTED) != []
+        ), "it never came up"
+        assert drained(witness, lambda: named(heard) == "untitled"), named(heard)
+        assert len(rows(heard, TIMETABLE)[-1]["entries"]) == 1
+    finally:
+        again.stop()
+    witness.close()
+
+
+def test_a_reload_under_the_same_name_keeps_the_timetable(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """A rebuild under the same railroad name keeps the loaded timetable, as
+    it keeps facing (ADR-0071, #1352)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+    recorded(broker, witness, heard)
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    # The first row naming the railroad is the build the app runs. The second
+    # has a later stamp, which is that railroad built again.
+    hand.publish(RAILROAD_ROW, {"name": RAILROAD, "built": True})
+    settle(witness)
+    heard.clear()
+    hand.publish(RAILROAD_ROW, {"name": RAILROAD, "built": True})
+
+    assert until(
+        lambda: sum(line.startswith("up on") for line in app.said) == 2, 15.0
+    ), f"it did not rebuild: {app.said}"
+    assert drained(witness, lambda: named(heard) == "untitled"), named(heard)
+    assert len(rows(heard, TIMETABLE)[-1]["entries"]) == 1
+    hand.close()
+    witness.close()
+
+
+def test_a_reload_under_another_name_leaves_no_timetable_loaded(
+    broker: Broker, store: Store, app: App
+) -> None:
+    """The timetable is the railroad's that left (#1352)."""
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, EXHAUSTED) != []), "it never came up"
+    recorded(broker, witness, heard)
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(RAILROAD_ROW, {"name": OTHER, "built": True})
+
+    assert until(
+        lambda: app.said[-1].startswith(f"up on '{OTHER}'"), 15.0
+    ), f"it did not rebuild: {app.said}"
+    assert drained(witness, lambda: named(heard) is None), named(heard)
+    settle(witness)
+    assert rows(heard, TIMETABLE)[-1] == {
+        "at": rows(heard, TIMETABLE)[-1]["at"],
+        "timetable": None,
+    }
     hand.close()
     witness.close()
 
