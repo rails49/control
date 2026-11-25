@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ARRIVAL_WANTED,
+  arrival,
   CANCEL_WANTED,
   cancellation,
   DRIVING_WANTED,
@@ -420,6 +422,18 @@ describe("cancellation", () => {
       payload: { id: "r1" },
     });
     expect(CANCEL_WANTED).toBe("tc49/dispatch/cancel_wanted");
+  });
+});
+
+/** "Arrived" on a railroad run without sensors names the request whose train
+ *  is in its destination block (#1323). */
+describe("arrival", () => {
+  it("names the request and nothing else", () => {
+    expect(arrival("g2")).toEqual({
+      topic: "tc49/dispatch/arrival_wanted",
+      payload: { id: "g2" },
+    });
+    expect(ARRIVAL_WANTED).toBe("tc49/dispatch/arrival_wanted");
   });
 });
 
