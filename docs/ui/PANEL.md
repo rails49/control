@@ -481,8 +481,11 @@ The drag is **filter-free**: the panel never grays out targets or pre-judges
 fit or reachability. Every drop submits, the dispatcher stays the sole
 feasibility authority, and a rejection renders at the request's endpoints
 with its reason spelled out (`no_fit`, `no_entry`, `unreachable`,
-`no_origin`, `wrong_origin`, `unknown_train`, `unknown_block`,
-`malformed`). `no_origin` is a train that is known but off the layout
+`no_origin`, `crossing`, `wrong_origin`, `unknown_train`, `unknown_block`,
+`malformed`). `crossing` is a train the dispatcher lists between two blocks
+with no move behind it, as a restart or a change of `without_sensors` leaves
+it, while the railroad runs by its sensors; it reads "the train is between two
+blocks: place it first". `no_origin` is a train that is known but off the layout
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)); a drag of the
 canvas cannot ask for one — a train off the layout has no marker to pick up,
 and the scheduler drops a gesture it cannot compose a departure end for — so
