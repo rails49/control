@@ -593,7 +593,8 @@ export class Session {
       return;
     }
     if (event.event === "settings") {
-      // The Settings dialog's alone, as the clock is the band's.
+      // The Settings dialog's, and the panel model's `withoutSensors`, which
+      // `settle` hands over.
       this.settings = settingsOf(event);
       this.changed();
       return;
@@ -965,12 +966,15 @@ export class Session {
     const model = joined ? this.panel : null;
     const power = joined ? (model?.power ?? this.supplied) : null;
     this.repay(power);
+    const settings = joined && this.connected ? this.settings : null;
+    // Off wherever no row is held (#1322).
+    if (this.panel !== null) this.panel.withoutSensors = settings?.withoutSensors === true;
     const now: RunStatus = {
       joined,
       railroad: this.nameless ? "" : this.session,
       linked: this.connected,
       power,
-      settings: joined && this.connected ? this.settings : null,
+      settings,
       driving: model?.driving ?? null,
       built: !this.unbuilt,
       allocated: joined && this.allocated,
@@ -1086,7 +1090,8 @@ function sameSettings(was: LayoutSettings | null, now: LayoutSettings | null): b
     was.throttleSilence === now.throttleSilence &&
     was.sensorSilence === now.sensorSilence &&
     was.arrivalAllowance === now.arrivalAllowance &&
-    was.shortBlocks === now.shortBlocks
+    was.shortBlocks === now.shortBlocks &&
+    was.withoutSensors === now.withoutSensors
   );
 }
 

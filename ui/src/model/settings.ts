@@ -258,6 +258,7 @@ export interface SettingsChange {
   sensor_silence?: number;
   arrival_allowance?: number;
   short_blocks?: boolean;
+  without_sensors?: boolean;
 }
 
 /** The driver's speeds, each a fraction of the locomotive's top speed above
@@ -271,7 +272,8 @@ export interface Speeds {
  * `tc49/layout/state/settings` as the Settings dialog reads it (#1185): the
  * point gap, the two silences and the arrival allowance in seconds, the
  * speeds as fractions, and whether the dispatcher may send a train into a
- * block shorter than itself (`short_blocks`, #1288). BUS.md
+ * block shorter than itself (`short_blocks`, #1288), and whether the railroad
+ * runs without sensors (`without_sensors`, #1322). BUS.md
  * says every field is present; one that does not read as `layout` could have
  * meant it is `null` on its own, and disables only its own input.
  */
@@ -282,6 +284,7 @@ export interface LayoutSettings {
   sensorSilence: number | null;
   arrivalAllowance: number | null;
   shortBlocks: boolean | null;
+  withoutSensors: boolean | null;
 }
 
 /**
@@ -289,7 +292,7 @@ export interface LayoutSettings {
  * gap a number from `0` to `POINT_GAP_MAX_S`, each silence and the arrival
  * allowance a number within its bounds, the speeds `clear` and `caution` both, each above `0` and at
  * most `1` — a `speeds` that does not read so leaves both `null` — and
- * `short_blocks` a boolean.
+ * `short_blocks` and `without_sensors` each a boolean.
  */
 export function settingsOf(payload: Record<string, unknown>): LayoutSettings {
   const speeds = speedsOf(payload["speeds"]);
@@ -308,6 +311,8 @@ export function settingsOf(payload: Record<string, unknown>): LayoutSettings {
       ARRIVAL_ALLOWANCE_MAX_S,
     ),
     shortBlocks: typeof payload["short_blocks"] === "boolean" ? payload["short_blocks"] : null,
+    withoutSensors:
+      typeof payload["without_sensors"] === "boolean" ? payload["without_sensors"] : null,
   };
 }
 

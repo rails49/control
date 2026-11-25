@@ -49,6 +49,7 @@ const STATE_DISPUTED = "tc49/dispatch/state/disputed";
 const STATE_DRIVING = "tc49/layout/state/driving";
 const STATE_UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors";
 const STATE_OVERDUE = "tc49/layout/state/overdue";
+const STATE_SETTINGS = "tc49/layout/state/settings";
 const CLOCK_WANTED = "tc49/layout/clock_wanted";
 
 /** What the band reads, as text, in the order it reads it: its readings and
@@ -172,6 +173,19 @@ describe("what the band says", () => {
     expect(chips(shell)).toEqual([]);
     await said(shell, STATE_DRIVING, { driving: "automatic" });
     expect(chips(shell)).toEqual(["automatic: 1 of 2 blocks have no sensor report"]);
+  });
+
+  /** The sensors not reporting are faults the owner already knows about
+   *  while the railroad runs without sensors (#1322): the band says that
+   *  instead, for as long as `state/settings` does. */
+  it("shows that the railroad runs without sensors in place of the sensor chips", async () => {
+    const shell = await joined();
+    const sensors = [{ sensor: "a.A", reason: "no report for 3 s", reported: true }];
+    await said(shell, STATE_UNKNOWN_SENSORS, { sensors });
+    await said(shell, STATE_SETTINGS, { at: 1, without_sensors: true });
+    expect(chips(shell)).toEqual(["without sensors: trains are driven by throttle"]);
+    await said(shell, STATE_SETTINGS, { at: 2, without_sensors: false });
+    expect(chips(shell)).toEqual(["a.A: no report for 3 s"]);
   });
 
   /** A train `layout` stopped for not arriving, one chip each (#1192). */
