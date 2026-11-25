@@ -41,6 +41,7 @@ from tests.generate import ENDS, LAYOUTS, ROSTERS, fixture_yaml, scenarios
 from tests.harness import (
     Assembly,
     assemble_live,
+    events,
     press,
     settled,
     ticks,
@@ -137,23 +138,14 @@ def test_on_a_drag_by_sensors_for_a_train_left_crossing() -> None:
     assembly, minted = assembled(
         LAYOUTS[layout_id], ROSTERS[layout_id], {"t1": TrainSpec("west", "A-to-B")}
     )
-    granted: list[Payload] = []
-    rejected: list[Payload] = []
-    assembly.bus.subscribe(
-        "tc49/dispatch/move_granted", lambda _topic, payload: granted.append(payload)
-    )
-    assembly.bus.subscribe(
-        "tc49/dispatch/request_rejected",
-        lambda _topic, payload: rejected.append(payload),
-    )
     press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
     press(assembly, "tc49/layout/settings_wanted", {"without_sensors": True})
     press(assembly, "tc49/layout/settings_wanted", {"without_sensors": False})
-    granted.clear()
     press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
 
-    assert rejected == [{"id": minted[-1], "reason": "crossing"}]
-    assert granted == []
+    [rejected] = events(assembly.trace, "request_rejected")
+    assert (rejected["id"], rejected["reason"]) == (minted[-1], "crossing")
+    assert events(assembly.trace, "move_granted", rid=minted[-1]) == []
 
 
 @settings(deadline=None, stateful_step_count=40, max_examples=1000)
