@@ -39,7 +39,14 @@ from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
 from tc49.lib.scenario import TrainSpec
 from tests.generate import ENDS, LAYOUTS, ROSTERS, fixture_yaml, scenarios
-from tests.harness import Assembly, assemble_live, press, settled, ticks
+from tests.harness import (
+    Assembly,
+    assemble_live,
+    left_crossing,
+    press,
+    settled,
+    ticks,
+)
 from tests.invariants import check as check_invariants
 
 ALLOCATION = "tc49/dispatch/state/allocation"
@@ -123,8 +130,7 @@ def test_on_a_run_without_sensors_launched_for_a_train_left_crossing() -> None:
 
 @pytest.mark.xfail(
     reason="a train a restart or a change of without_sensors leaves crossing is"
-    " launched by sensors and granted a move while crossing (ADR-0047); not"
-    " fixed under #1324",
+    " launched by sensors and granted a move while crossing (ADR-0047): #1326",
     strict=True,
 )
 def test_on_a_drag_by_sensors_for_a_train_left_crossing() -> None:
@@ -143,22 +149,6 @@ def test_on_a_drag_by_sensors_for_a_train_left_crossing() -> None:
     press(assembly, "tc49/layout/settings_wanted", {"without_sensors": True})
     press(assembly, "tc49/layout/settings_wanted", {"without_sensors": False})
     press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
-
-
-def left_crossing(rows: dict[str, Payload], train: str) -> bool:
-    """Whether the dispatcher lists `train` crossing with no request under way,
-    as a change of `without_sensors` leaves it, while the railroad runs by its
-    sensors. A drag for it then is
-    `test_on_a_drag_by_sensors_for_a_train_left_crossing`, which fails today,
-    so the state machines draw none."""
-    picture = rows.get(ALLOCATION, {})
-    underway = {req["train"] for req in picture.get("requests", []) if "route" in req}
-    without = rows.get("tc49/layout/state/settings", {}).get("without_sensors")
-    return (
-        without is not True
-        and train in picture.get("crossing", {})
-        and train not in underway
-    )
 
 
 @settings(deadline=None, stateful_step_count=40, max_examples=1000)

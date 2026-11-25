@@ -33,6 +33,7 @@ from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC, MANUAL
 from tc49.lib.layout import Layout
 from tc49.scheduler import Scheduler
+from tests.harness import left_crossing
 from tests.invariants import checked
 from tests.layout.railroad import (
     ALLOCATION,
@@ -53,7 +54,6 @@ from tests.layout.railroad import (
     settle,
     stock,
 )
-from tests.system.test_gestures_and_readings import left_crossing
 
 DEVICE_POINT = "tc49/layout/state/device/point"
 ARRIVAL_WANTED = "tc49/dispatch/arrival_wanted"
