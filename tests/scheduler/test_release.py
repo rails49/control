@@ -10,6 +10,7 @@ import ast
 import json
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -37,6 +38,7 @@ from tc49.scheduler.release import (
     placed,
     powered,
     released,
+    restarted,
     row,
     started,
     starts,
@@ -560,3 +562,125 @@ def test_a_state_takes_one_progress_for_each_entry() -> None:
 
     with pytest.raises(ValueError, match="2 for 1 entries"):
         State(timetable, RUNNING, progress=(Progress(), Progress()))
+
+
+def test_a_restart_releases_nothing_the_row_says_has_gone_out() -> None:
+    """The state is built from the row and the document, and takes how far
+    the timetable has run from the first clock row."""
+    before = every_state()
+    assert before.timetable is not None
+
+    state = restarted(json.loads(json.dumps(row(before))), before.timetable)
+
+    assert state is not None
+    assert state.timetable == before.timetable
+    assert (state.phase, state.record, state.time) == (RUNNING, True, None)
+    assert state.positioning == ("local-ab-1",)
+    assert state.progress[:6] == before.progress[:6]
+    assert states(state)[6:] == [LATER, LATER]
+
+    state = placed(state, frozenset({"freight", "express"}))
+    state = clocked(state, at("06:29"), 1)
+
+    assert state.time == 29 * 60
+    assert states(state) == states(before)
+    assert due(state) == ()
+    assert due(clocked(state, at("06:30"), 1)) == (
+        Release(7, before.timetable.entries[7]),
+    )
+
+
+def test_a_restart_takes_the_time_from_the_clock_within_the_day() -> None:
+    before = running(Entry(at("05:58"), "freight", ("dn_e",)))
+    assert before.timetable is not None
+    state = restarted(row(before), before.timetable)
+    assert state is not None
+
+    state = clocked(state, at("05:59") + 30, 1)
+
+    assert state.time == 24 * 3600 - 30
+
+
+def test_a_restart_keeps_the_rows_entries_where_the_documents_differ() -> None:
+    """And the document's railroad, which the row does not say."""
+    before = every_state()
+    assert before.timetable is not None
+    document = Timetable("evening", "crossover-yard", at("07:00"), {}, ())
+
+    state = restarted(row(before), document)
+
+    assert state is not None
+    assert state.timetable == before.timetable
+
+
+def test_a_restart_puts_a_rows_entries_in_order_with_their_progress() -> None:
+    before = every_state()
+    assert before.timetable is not None
+    said = row(before)
+    said["entries"].reverse()
+
+    state = restarted(said, before.timetable)
+
+    assert state is not None
+    assert state.timetable == before.timetable
+    assert state.progress[:6] == before.progress[:6]
+
+
+def test_a_restart_from_a_row_that_is_over_stays_over() -> None:
+    before = replace(every_state(), phase=OVER)
+    assert before.timetable is not None
+
+    state = restarted(row(before), before.timetable)
+
+    assert state is not None
+    state = clocked(placed(state, frozenset({"express"})), at("06:30"), 1)
+    assert state.phase == OVER
+    assert due(state) == ()
+
+
+def _with(**fields: object) -> dict[str, Any]:
+    return row(every_state()) | fields
+
+
+def _without(field: str) -> dict[str, Any]:
+    said = row(every_state())
+    del said[field]
+    return said
+
+
+def _with_entry(**fields: object) -> dict[str, Any]:
+    said = row(every_state())
+    said["entries"][0] |= fields
+    return said
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        None,
+        "evening",
+        {"timetable": None},
+        _with(timetable="morning"),
+        _with(phase="paused"),
+        _with(record="yes"),
+        _with(start=360),
+        _with(trains=[]),
+        _with(positioning="local-ab-1"),
+        _with(positioning=[7]),
+        _with(entries={}),
+        _with(entries=["06:01"]),
+        _without("phase"),
+        _without("entries"),
+        _with_entry(state="late"),
+        _with_entry(request=7),
+        _with_entry(ended="06:05"),
+        _with_entry(ended=True),
+        _with_entry(at="6:01"),
+        _with_entry(turn=True),
+    ],
+)
+def test_a_row_that_cannot_be_read_restarts_no_timetable(said: object) -> None:
+    document = every_state().timetable
+    assert document is not None
+
+    assert restarted(said, document) is None
