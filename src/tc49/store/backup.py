@@ -231,6 +231,9 @@ def document(path: str) -> str:
             return f"{name.removesuffix('.jpg')} photo"
     if path.startswith("scenarios/") and path.endswith(".scenario.yaml"):
         return path.removeprefix("scenarios/").removesuffix(".scenario.yaml")
+    if path.startswith("timetables/") and path.endswith(".timetable.yaml"):
+        name = path.removeprefix("timetables/").removesuffix(".timetable.yaml")
+        return f"{name} timetable"
     if path == LOADED:
         return LOADED_RAILROAD
     return path
