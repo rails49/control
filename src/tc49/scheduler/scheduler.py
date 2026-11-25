@@ -55,6 +55,31 @@ start rather than a refusal to start: a value the scheduler cannot read tells
 it nothing, and an app that will not come up tells a person even less (#277).
 Deliberate reversal at rest is the one change routes do not account for, and
 it arrives as its own gesture on `tc49/schedule/reversal_wanted` (#124).
+
+It **records** a person's drags as a timetable (#1345, #1352), where it was
+given a store client. The rule and its state are `tc49.scheduler.release`'s:
+this module tells the rule what the bus said and does what it answers, in
+`_settle`, after every message it takes.
+
+- With power `on`, no timetable loaded, and a clock row and an allocation
+  row read, it makes one named `untitled`, in place of a stored `untitled`.
+  A person makes one by name on `tc49/schedule/timetable_wanted` with `new`,
+  taken while power reads `off`.
+- A new timetable starts at the clock's minute. Its `trains` are each train
+  the allocation names in a block and the scheduler holds a facing for.
+- While the timetable is `running` and Record is on, a drag composed from a
+  gesture is added as an entry that is `out`, and a turn-round applied as one
+  that has `ended`. The entry follows its request to `ended`, `rejected` or
+  `cancelled`. `tc49/schedule/timetable_record_wanted` switches Record.
+- The document is written through the store client at each change to it. A
+  change of an entry's state alone is no change to it.
+- The loaded timetable is on `tc49/schedule/state/timetable`, published when
+  it changes.
+- A restart adopts that row as it adopts facing, and reads the document from
+  the store. The row's entries are kept where the document's differ. A row
+  that cannot be read, or a name the store has no document for, leaves no
+  timetable loaded. An entry that is `out` whose request the first
+  allocation row read does not list has `ended`.
 """
 
 import secrets
@@ -80,14 +105,26 @@ from tc49.lib.payload import (
     grant,
     kept_allocation,
     kept_facing,
+    listed_requests,
+    loaded_timetable,
     named_train,
     placement,
+    power,
     readable_id,
+    said_clock,
+    wanted_record,
+    wanted_timetable,
 )
 from tc49.lib.scenario import RequestSpec
+from tc49.lib.timetable import Timetable, TrainStart
+from tc49.scheduler import release
+from tc49.scheduler.keeping import Timetables
 
 FACING = "tc49/schedule/state/facing"
+TIMETABLE = "tc49/schedule/state/timetable"
 ALLOCATION = "tc49/dispatch/state/allocation"
+CLOCK = "tc49/layout/state/clock"
+POWER = "tc49/layout/state/power"
 
 
 class Scheduler:
@@ -98,6 +135,7 @@ class Scheduler:
         facing: dict[str, str] | None = None,
         requests: Sequence[RequestSpec] = (),
         nonce: str | None = None,
+        store: Timetables | None = None,
     ) -> None:
         """`facing` is where a run built from a document says its trains point,
         train to the run it would make across its block, and `requests` is
@@ -105,6 +143,10 @@ class Scheduler:
         operator drives is given neither, and its facing arrives with the
         placements a person makes (ADR-0036 — which sources a run has is
         configuration, not a rule).
+
+        `store` is where timetables are kept. Given none, as by the harness
+        and the bench, the scheduler makes and loads no timetable, publishes
+        no timetable row and does not subscribe the clock or the power.
         """
         self._bus = bus
         self._layout = layout
@@ -146,6 +188,16 @@ class Scheduler:
         # scheduler processes, and a bench run is one from start to finish.
         self._nonce = secrets.token_hex(4) if nonce is None else nonce
         self._published: Payload = {}  # the facing last sent, so only changes go
+        self._store = store
+        # Train -> the block it stands in, as the last allocation row read
+        # names it. None until one was read.
+        self._standing: dict[str, str] | None = None
+        # Whether an allocation row's request list was read: the first one
+        # says which requests ended while this process was not up.
+        self._listed = False
+        self._written: Timetable | None = None  # the document the store has
+        self._said: Payload | None = None  # the timetable row last sent
+        self._state = self._restarted(bus.last_values.get(TIMETABLE))
         # Before the opening rows and not after. Over a broker a publish is
         # asynchronous where a subscribe waits for the broker to acknowledge,
         # so anything published first opens a window a round trip wide in which
@@ -156,7 +208,11 @@ class Scheduler:
         # coming back (`_on_gesture`), which is what makes this side safe.
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
         bus.subscribe("tc49/schedule/#", self._on_gesture)
+        if store is not None:
+            bus.subscribe(CLOCK, self._on_clock)
+            bus.subscribe(POWER, self._on_power)
         self._publish_facing()
+        self._settle()
         for request in requests:
             self._counters[request.train] += 1
             self._submit(
@@ -171,15 +227,16 @@ class Scheduler:
 
     def _submit(self, event: Payload) -> None:
         self._train_of[event["id"]] = event["train"]
+        self._state = release.announced(self._state, event["id"], event["train"])
         self._bus.publish("tc49/dispatch/request_submitted", event)
 
     # -- gestures ----------------------------------------------------------
 
     def _on_gesture(self, topic: str, payload: Payload) -> None:
-        """A person's action on a page: which of the two leaves it came on.
+        """A person's action on a page: which of the four leaves it came on.
 
         The filter is the whole of `tc49/schedule`, as rule 3 asks, so the
-        scheduler's own two state topics come back through here and are
+        scheduler's own state topics come back through here and are
         ignored on the way past. Nothing in the topic or the payload says who
         sent a gesture, and nothing here asks: a page sends these today, and
         anything else that composes one is served the same (BUS.md,
@@ -197,14 +254,27 @@ class Scheduler:
             self._compose(payload)
         elif leaf == "reversal_wanted":
             self._reverse(payload)
-        # a throttle is a third leaf under this role, later
+        elif leaf == "timetable_wanted":
+            self._wanted(payload)
+        elif leaf == "timetable_record_wanted":
+            record = wanted_record(payload)
+            if record is not None:
+                self._state = release.recording(self._state, record)
+        # a throttle is one more leaf under this role, later
+        self._settle()
 
     def _compose(self, payload: Payload) -> None:
         """A `request_wanted` gesture: the drag it names, composed and
-        submitted (`_drag`)."""
+        submitted (`_drag`), and told to the release rule, which adds it to
+        the loaded timetable as an entry where that records (#1352)."""
         wanted = gesture(payload)
-        if wanted is not None:
-            self._drag(wanted.train, wanted.arrivals)
+        if wanted is None:
+            return
+        request = self._drag(wanted.train, wanted.arrivals)
+        if request is not None:
+            self._state = release.dragged(
+                self._state, wanted.train, wanted.arrivals, request
+            )
 
     def _drag(self, train: str, arrivals: tuple[str, ...]) -> str | None:
         """A drag of `train` to `arrivals`, composed into the request it asks
@@ -268,10 +338,30 @@ class Scheduler:
 
     def _reverse(self, payload: Payload) -> None:
         """A `reversal_wanted` gesture: the train it names, turned around
-        (`_turn`)."""
+        (`_turn`). One that was applied is told to the release rule, which
+        adds it to the loaded timetable as an entry where that records
+        (#1352)."""
         train = named_train(payload)
-        if train is not None:
-            self._turn(train)
+        if train is not None and self._turn(train):
+            self._state = release.turned_round(self._state, train)
+
+    def _wanted(self, payload: Payload) -> None:
+        """A `timetable_wanted` gesture. With `new` it makes a timetable of
+        that name in place of the one loaded, where the release rule takes
+        it: power reads `off`, and a clock row and an allocation row were
+        read. A name no timetable document takes is dropped. Without `new`
+        the gesture is dropped."""
+        wanted = wanted_timetable(payload)
+        if wanted is None or self._store is None or not wanted.new:
+            return
+        if not release.new(self._state):
+            return
+        try:
+            self._state = release.made(
+                self._state, wanted.name, self._layout.name, self._stands()
+            )
+        except ValueError:  # no name a timetable document takes
+            return
 
     def _turn(self, train: str) -> bool:
         """Turning a train around at rest: the little arrow in the block it
@@ -387,6 +477,7 @@ class Scheduler:
             self._granted(payload)
         elif leaf == "allocation":
             self._recorded(payload)
+            self._stood(payload)
         elif leaf == "train_placed":
             placed = placement(payload)
             # A null block is `train_removed`'s statement and not this
@@ -412,6 +503,7 @@ class Scheduler:
             submitted, mover = readable_id(payload), named_train(payload)
             if submitted is not None and mover is not None:
                 self._train_of[submitted] = mover
+                self._state = release.announced(self._state, submitted, mover)
         elif leaf == "route_chosen":
             picked = chosen(payload)
             if picked is not None:
@@ -423,7 +515,11 @@ class Scheduler:
                 train = self._train_of.pop(answered, None)
                 if leaf == "request_completed" and route and train is not None:
                     self._ran(train, route)
+                self._state = release.ended(
+                    self._state, answered, leaf.removeprefix("request_")
+                )
         self._publish_facing()
+        self._settle()
 
     def _ran(self, train: str, route: tuple[str, ...]) -> None:
         """Facing after a request completed whose moves no grant described:
@@ -591,6 +687,101 @@ class Scheduler:
         if facing != self._published:
             self._published = facing
             self._bus.publish(FACING, facing)
+
+    # -- the timetable -----------------------------------------------------
+
+    def _restarted(self, retained: object) -> release.State:
+        """The release rule's state as this process begins: the timetable a
+        retained `tc49/schedule/state/timetable` value names, where the store
+        has its document, and no timetable loaded otherwise (#1352).
+
+        The row is adopted as facing is, and read as any payload is. A row
+        that cannot be read, a name the store has no document for, and a
+        document the store cannot read each leave no timetable loaded. Where
+        the row's entries are not the document's, the row's are kept and
+        `_settle` writes them.
+        """
+        name = loaded_timetable(retained)
+        if self._store is None or name is None:
+            return release.State()
+        try:
+            document = self._store.timetable(self._layout.name, name)
+        except (ValueError, TypeError):
+            return release.State()
+        if document is None:
+            return release.State()
+        self._written = document
+        return release.restarted(retained, document) or release.State()
+
+    def _on_clock(self, topic: str, payload: Payload) -> None:
+        """A `tc49/layout/state/clock` row: the loaded timetable's time
+        moves by it. One that cannot be read is dropped."""
+        said = said_clock(payload)
+        if said is None:
+            return
+        self._state = release.clocked(self._state, *said)
+        self._settle()
+
+    def _on_power(self, topic: str, payload: Payload) -> None:
+        """`tc49/layout/state/power`. A row that cannot be read reads `off`,
+        as `lib.payload.power` reads it for every reader."""
+        self._state = release.powered(self._state, power(payload))
+        self._settle()
+
+    def _stood(self, payload: Payload) -> None:
+        """An allocation row: where each train stands, which a new
+        timetable's `trains` are read off. The first one whose request list
+        can be read also says which requests are in flight, and an entry
+        that is `out` whose request it does not list has ended
+        (`release.listed`)."""
+        stated = kept_allocation(payload)
+        if stated is None:
+            return
+        self._standing = stated.trains
+        requests = listed_requests(payload)
+        if requests is not None and not self._listed:
+            self._listed = True
+            self._state = release.listed(self._state, requests)
+
+    def _stands(self) -> dict[str, TrainStart]:
+        """Where each train on the layout stands: its block, as the last
+        allocation row read names it, and the facing held for it. A train
+        with no block there or no facing here is off the layout."""
+        standing = self._standing or {}
+        return {
+            train: TrainStart(standing[train], end_letter(facing))
+            for train, facing in sorted(self._facing.items())
+            if train in standing
+        }
+
+    def _settle(self) -> None:
+        """What follows every message the scheduler takes, where it was
+        given a store: the release rule is told the trains on the layout and
+        asked what to do, the timetable's document is written where it
+        changed, and the state row is published where it changed (#1352).
+
+        The rule is told no trains until an allocation row was read, and
+        makes no timetable until then. A change of an entry's state alone is
+        no change to the document.
+        """
+        if self._store is None:
+            return
+        if self._standing is not None:
+            on_layout = frozenset(self._stands())
+            if on_layout != self._state.placed:
+                self._state = release.placed(self._state, on_layout)
+        if release.untitled(self._state):
+            self._state = release.made(
+                self._state, release.UNTITLED, self._layout.name, self._stands()
+            )
+        timetable = self._state.timetable
+        if timetable is not None and timetable != self._written:
+            self._written = timetable
+            self._store.put_timetable(timetable)
+        said = release.row(self._state)
+        if said != self._said:
+            self._said = said
+            self._bus.publish(TIMETABLE, said)
 
 
 def _kept(retained: object) -> dict[str, str]:
