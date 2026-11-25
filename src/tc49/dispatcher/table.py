@@ -19,6 +19,7 @@ from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field, replace
 from typing import Any, NoReturn
 
+from tc49.lib.following import Seen, follow
 from tc49.lib.inventory import Refusal
 from tc49.lib.layout import (
     Layout,
@@ -104,20 +105,18 @@ class Active:
 
 
 @dataclass(frozen=True)
-class Following:
+class Following(Seen):
     """A move whose readings are still expected (#1171). It outlives the
     request, since a reading can arrive after the request has ended. For a move
     out of block X through end `e`, over transit T, into block Y through end
     `f`: `exit` is `X.e`, `entry` is `Y.f` and `far` is the end of Y opposite
-    `f`."""
+    `f`. What has been read of it is `Seen`'s (`tc49.lib.following`);
+    `exit_read` holds from the grant where `exit` read occupied then."""
 
     move: Move
     exit: str
     entry: str
     far: str
-    exit_read: bool = False  # `exit` has read occupied, at the grant or since
-    head_in: bool = False  # `entry` or `far` has read occupied
-    at_far: bool = False  # `far` has read occupied
 
 
 def transit_blocks(layout: Layout, transit: str) -> set[str]:
@@ -1101,15 +1100,9 @@ def _open(table: _Draft, train: str, resources: list[str]) -> list[Effect]:
 def _followed(
     table: _Draft, train: str, each: Following, sensor: str, occupied: bool
 ) -> list[Effect]:
-    """A changed reading, taken against one move that may expect it (#1171).
-
-    For a move out of X through `exit`, over T, into Y through `entry`:
-    `exit` occupied then clear is the tail out of X, or occupied at the grant
-    and then clear; `entry` occupied is the head in Y, and so is `far` where
-    `entry` was `unknown` as the train passed; `entry` then clear is the whole
-    train in Y; `far` occupied is where it stops. Anything else changes
-    nothing, and a clear reading is never taken for a train gone: a short
-    train stands between its block's sensors and both read clear.
+    """A changed reading, taken against one move that may expect it (#1171):
+    the facts it gives (`tc49.lib.following.follow`) and what each does to
+    the table. Any other reading changes nothing.
 
     A request ends when the whole train is in its last block, or when the far
     sensor reads `occupied` if the entry sensor was not seen to clear
@@ -1120,21 +1113,23 @@ def _followed(
     following = table.following[train]
     at = next(i for i, listed in enumerate(following) if listed is each)
     newest = at == len(following) - 1
+    seen, facts = follow(
+        each,
+        exit=each.exit,
+        entry=each.entry,
+        far=each.far,
+        sensor=sensor,
+        occupied=occupied,
+    )
+    following[at] = seen
     effects: list[Effect] = []
-    if occupied:
-        if sensor == each.exit:
-            following[at] = replace(each, exit_read=True)
-        elif sensor in (each.entry, each.far):
-            if not each.head_in:
-                effects += _head_in(table, train, at)
-            if sensor == each.far:
-                following[at] = replace(following[at], at_far=True)
-                if newest:
-                    effects.append(MoveEnded(train))
-    elif sensor == each.exit:
-        if each.exit_read:
-            effects += _tail_out(table, train, at)
-    elif sensor == each.entry and each.head_in:
+    if facts.head_in:
+        effects += _head_in(table, train, at)
+    if facts.at_far and newest:
+        effects.append(MoveEnded(train))
+    if facts.tail_out:
+        effects += _tail_out(table, train, at)
+    if facts.whole_in:
         effects += _tail_in(table, train, at)
         if newest:
             effects.append(MoveEnded(train))
@@ -1142,16 +1137,14 @@ def _followed(
 
 
 def _head_in(table: _Draft, train: str, at: int) -> list[Effect]:
-    """Y's sensor at the end the train enters by reads `occupied`: the head is
-    in Y, and the train may be granted its next move (GOALS.md).
+    """The head is in Y (`Facts.head_in`), and the train may be granted its
+    next move (GOALS.md).
 
     The move is no longer outstanding, and the train is no longer crossing. Y
     goes to the head of what the train occupies, from wherever a move back
     over a transit left it, and the train is recorded in Y, past the signal
     it left by, which now shows `stop` (ADR-0093)."""
-    following = table.following[train]
-    following[at] = replace(following[at], head_in=True)
-    into = following[at].move.into
+    into = table.following[train][at].move.into
     active = table.active.get(train)
     if active is not None:
         table.active[train] = replace(active, outstanding=None)
@@ -1165,8 +1158,7 @@ def _head_in(table: _Draft, train: str, at: int) -> list[Effect]:
 
 
 def _tail_out(table: _Draft, train: str, at: int) -> list[Effect]:
-    """X's sensor at the end the train leaves by reads `occupied`, then
-    `clear`: the tail has left X, and X is released (GOALS.md).
+    """The tail has left X (`Facts.tail_out`), and X is released (GOALS.md).
 
     The train is recorded in the block it is crossing into if it was still
     recorded in X. A move older than this one into X is dropped, so another
@@ -1185,9 +1177,9 @@ def _tail_out(table: _Draft, train: str, at: int) -> list[Effect]:
 
 
 def _tail_in(table: _Draft, train: str, at: int) -> list[Effect]:
-    """Y's sensor at the end the train entered by reads `clear` after the head
-    is in: the whole train is in Y, and T is released, with anything of that
-    train's still held behind it (GOALS.md), in one `Released`.
+    """The whole train is in Y (`Facts.whole_in`), and T is released, with
+    anything of that train's still held behind it (GOALS.md), in one
+    `Released`.
 
     A transit a later move has taken again is not this one's to give up, nor
     is a block on the train's route ahead whose transit in is locked to it
