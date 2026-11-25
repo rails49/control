@@ -53,6 +53,7 @@ from tests.layout.railroad import (
     settle,
     stock,
 )
+from tests.system.test_gestures_and_readings import left_crossing
 
 DEVICE_POINT = "tc49/layout/state/device/point"
 ARRIVAL_WANTED = "tc49/dispatch/arrival_wanted"
@@ -304,10 +305,11 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
     @rule(data=st.data())
     def drag(self, data: st.DataObject) -> None:
         dest = data.draw(st.lists(self.ends(), min_size=1, max_size=2, unique=True))
-        self.press(
-            "tc49/schedule/request_wanted",
-            {"train": data.draw(self.trains()), "dest": dest},
-        )
+        train = data.draw(self.trains())
+        if left_crossing(self.bus.last_values, train):
+            note(f"no drag for {train}, left crossing")
+            return
+        self.press("tc49/schedule/request_wanted", {"train": train, "dest": dest})
 
     @rule(data=st.data())
     def cancel(self, data: st.DataObject) -> None:

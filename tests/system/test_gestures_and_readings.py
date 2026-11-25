@@ -21,6 +21,7 @@ publishes the same two events.
 import unittest
 from typing import Any, cast
 
+import pytest
 from hypothesis import note, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import (
@@ -36,9 +37,12 @@ from tc49.dispatcher.locking import state_view
 from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
-from tests.generate import ENDS, fixture_yaml, scenarios
+from tc49.lib.scenario import TrainSpec
+from tests.generate import ENDS, LAYOUTS, ROSTERS, fixture_yaml, scenarios
 from tests.harness import Assembly, assemble_live, press, settled, ticks
 from tests.invariants import check as check_invariants
+
+ALLOCATION = "tc49/dispatch/state/allocation"
 
 UNMINTED = "nobody-minted-this"
 """A request id no scheduler minted: a stale or forged gesture's."""
@@ -47,6 +51,114 @@ UNKNOWN_ADDR = "unknown-point"
 """A point address no railroad of the library wears. The library railroads
 have no points at all, so without it the point rule would draw from nothing;
 a press naming an address nobody wears is still a gesture a page can send."""
+
+
+def assembled(
+    layout: Layout, roster: Roster, trains: dict[str, TrainSpec]
+) -> tuple[Assembly, list[str]]:
+    """The live assembly with `trains` standing, the lock table's rules and the
+    grant's held after every message and the invariants checked, and the ids
+    of the requests submitted on it, a list that grows."""
+    assembly = assemble_live(layout, roster, trains, Incremental)
+    check_invariants(assembly, Incremental)
+    minted: list[str] = []
+
+    def collect(topic: str, payload: Payload) -> None:
+        minted.append(str(payload["id"]))
+
+    def lock_table(topic: str, payload: Payload) -> None:
+        assert broken(assembly.dispatcher.state) == [], f"after {topic} {payload}"
+
+    def grant(topic: str, payload: Payload) -> None:
+        state = assembly.dispatcher.state
+        train = str(payload["train"])
+        if train in state.active:
+            _cur, rem, idle, _held = state_view(state)
+            assert not set(rem[train]) & set(idle), f"after granting {payload}"
+
+    assembly.bus.subscribe("tc49/dispatch/request_submitted", collect)
+    assembly.bus.subscribe("#", lock_table)
+    assembly.bus.subscribe("tc49/dispatch/move_granted", grant)
+    assembly.bus.drain()
+    return assembly, minted
+
+
+def test_a_run_without_sensors_ended_by_arrived() -> None:
+    """The setting on, `t1` dragged from west_1 to e_main and said to have
+    arrived, and the setting off: the rules below in that order (#1324)."""
+    layout_id = "single-track-meet"
+    assembly, minted = assembled(
+        LAYOUTS[layout_id], ROSTERS[layout_id], {"t1": TrainSpec("west_1", "A-to-B")}
+    )
+    press(assembly, "tc49/layout/power_wanted", {"power": "on"})
+    press(assembly, "tc49/layout/settings_wanted", {"without_sensors": True})
+    press(
+        assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["e_main.A"]}
+    )
+    press(assembly, "tc49/dispatch/arrival_wanted", {"id": minted[-1]})
+    press(assembly, "tc49/layout/settings_wanted", {"without_sensors": False})
+
+    assert assembly.dispatcher.state.block_of == {"t1": "e_main"}
+
+
+def test_on_a_run_without_sensors_launched_for_a_train_left_crossing() -> None:
+    """`t1` is granted its move out of west by sensors, the setting goes on,
+    which ends the request and leaves the train crossing, and `t1` is dragged
+    again. The launch kept the crossing, so the train was active with no move
+    and crossing, which the lock table forbids (#1324). Found by the state
+    machine below.
+    """
+    layout_id = "facing-pair"
+    assembly, _minted = assembled(
+        LAYOUTS[layout_id], ROSTERS[layout_id], {"t1": TrainSpec("west", "A-to-B")}
+    )
+    press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
+    press(assembly, "tc49/layout/settings_wanted", {"without_sensors": True})
+    press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
+
+    picture = assembly.bus.last_values[ALLOCATION]
+    assert picture["crossing"] == {}
+    assert picture["occupied"] == {"t1": ["west", "gap.east_A__west_B", "east"]}
+
+
+@pytest.mark.xfail(
+    reason="a train a restart or a change of without_sensors leaves crossing is"
+    " launched by sensors and granted a move while crossing (ADR-0047); not"
+    " fixed under #1324",
+    strict=True,
+)
+def test_on_a_drag_by_sensors_for_a_train_left_crossing() -> None:
+    """`t1` is granted its move out of west by sensors, the setting goes on and
+    off again, which ends the request and leaves the train crossing, and `t1`
+    is dragged again. Nothing resolves a crossing with no move behind it but a
+    placement or a removal, and the launch grants a move over the transit the
+    train is listed crossing. A restart's crossing hint does the same. Found
+    by the state machine below, which draws no drag for such a train
+    (`left_crossing`)."""
+    layout_id = "facing-pair"
+    assembly, _minted = assembled(
+        LAYOUTS[layout_id], ROSTERS[layout_id], {"t1": TrainSpec("west", "A-to-B")}
+    )
+    press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
+    press(assembly, "tc49/layout/settings_wanted", {"without_sensors": True})
+    press(assembly, "tc49/layout/settings_wanted", {"without_sensors": False})
+    press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
+
+
+def left_crossing(rows: dict[str, Payload], train: str) -> bool:
+    """Whether the dispatcher lists `train` crossing with no request under way,
+    as a change of `without_sensors` leaves it, while the railroad runs by its
+    sensors. A drag for it then is
+    `test_on_a_drag_by_sensors_for_a_train_left_crossing`, which fails today,
+    so the state machines draw none."""
+    picture = rows.get(ALLOCATION, {})
+    underway = {req["train"] for req in picture.get("requests", []) if "route" in req}
+    without = rows.get("tc49/layout/state/settings", {}).get("without_sensors")
+    return (
+        without is not True
+        and train in picture.get("crossing", {})
+        and train not in underway
+    )
 
 
 @settings(deadline=None, stateful_step_count=40, max_examples=1000)
@@ -66,32 +178,9 @@ class GesturesAndReadings(RuleBasedStateMachine):
         self.layout = layout
         self.roster = roster
         self.layout_id = doc["layout"]
-        self.minted = []
         # The scenario's trains stand where it puts them; its requests are not
         # used, every request here being a drag drawn by the rules.
-        self.assembly = assemble_live(layout, roster, scenario.trains, Incremental)
-        check_invariants(self.assembly, Incremental)
-        bus = self.assembly.bus
-
-        def collect(topic: str, payload: Payload) -> None:
-            self.minted.append(str(payload["id"]))
-
-        def lock_table(topic: str, payload: Payload) -> None:
-            assert (
-                broken(self.assembly.dispatcher.state) == []
-            ), f"after {topic} {payload}"
-
-        def grant(topic: str, payload: Payload) -> None:
-            state = self.assembly.dispatcher.state
-            train = str(payload["train"])
-            if train in state.active:
-                _cur, rem, idle, _held = state_view(state)
-                assert not set(rem[train]) & set(idle), f"after granting {payload}"
-
-        bus.subscribe("tc49/dispatch/request_submitted", collect)
-        bus.subscribe("#", lock_table)
-        bus.subscribe("tc49/dispatch/move_granted", grant)
-        bus.drain()
+        self.assembly, self.minted = assembled(layout, roster, scenario.trains)
 
     def press(self, topic: str, payload: Payload) -> None:
         note(f"{topic} {payload}")
@@ -122,10 +211,11 @@ class GesturesAndReadings(RuleBasedStateMachine):
                 unique=True,
             )
         )
-        self.press(
-            "tc49/schedule/request_wanted",
-            {"train": data.draw(self.trains()), "dest": dest},
-        )
+        train = data.draw(self.trains())
+        if left_crossing(self.assembly.bus.last_values, train):
+            note(f"no drag for {train}, left crossing")
+            return
+        self.press("tc49/schedule/request_wanted", {"train": train, "dest": dest})
 
     @rule(data=st.data())
     def cancel(self, data: st.DataObject) -> None:
@@ -158,6 +248,14 @@ class GesturesAndReadings(RuleBasedStateMachine):
                 "position": data.draw(st.sampled_from(["closed", "thrown"])),
             },
         )
+
+    @rule(data=st.data())
+    def arrived(self, data: st.DataObject) -> None:
+        self.press("tc49/dispatch/arrival_wanted", {"id": data.draw(self.ids())})
+
+    @rule(without_sensors=st.booleans())
+    def setting(self, without_sensors: bool) -> None:
+        self.press("tc49/layout/settings_wanted", {"without_sensors": without_sensors})
 
     @rule(power=st.sampled_from(["on", "draining", "off"]))
     def power(self, power: str) -> None:
