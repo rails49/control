@@ -26,8 +26,11 @@ import {
   type Client,
   type Landing,
 } from "../src/model/session.js";
-import { Panel } from "../src/model/panel.js";
+import type { Drawing, Wire } from "../src/model/drawing.js";
+import { Panel, STUCK_MS } from "../src/model/panel.js";
+import type { Review } from "../src/model/store.js";
 import { Broker, DERIVES, RAILROAD, STOCK, stored } from "./support/session.js";
+import { CLEAN } from "./support/shell.js";
 
 const URL = "ws://localhost:5173/mqtt";
 
@@ -1196,5 +1199,143 @@ describe("a sensor that stops and comes back", () => {
     stood.broker.says(UNKNOWN_SENSORS, { sensors: [OUTAGE] });
     stood.broker.says(RAILROAD, { name: "" });
     expect(stood.session.status.faults).toEqual([]);
+  });
+});
+
+/**
+ * The railroad built again under the same name with the page left open
+ * (#1235): the model takes the new layout, and keeps everything the bus has
+ * told it, retained rows being delivered once (ADR-0032).
+ */
+describe("a drawing reviewed again under the same name", () => {
+  /** Block `b` alone, nothing joining it. */
+  const BEFORE: Review = {
+    ...CLEAN,
+    layout: { layout: "toy", blocks: { b: { length: 1000 } }, connections: {} },
+    explain: { layout: "toy", connections: {} },
+  };
+
+  /** Blocks `a` and `b`, joined by `j.over` over `p1`, which needs the point
+   *  at `12` thrown, `12` reported. */
+  const AFTER: Review = {
+    ...CLEAN,
+    layout: {
+      layout: "toy",
+      blocks: { a: { length: 1000 }, b: { length: 1000 } },
+      connections: {
+        j: {
+          transits: { over: ["a.B", "b.A"] },
+          points: { over: [{ addr: "12", position: "thrown", reported: true }] },
+        },
+      },
+    },
+    explain: {
+      layout: "toy",
+      connections: {
+        j: { transits: { over: { ends: ["a.B", "b.A"], way: [["p1", ""]] } }, exclusive: [] },
+      },
+    },
+  };
+
+  const WIRES: Wire[] = [
+    ["a.B", "p1.P"],
+    ["p1.P", "b.A"],
+  ];
+
+  function drawn(): Drawing {
+    return { ...stored("toy"), wires: WIRES };
+  }
+
+  /** A session joined to `toy`, its documents the first review. */
+  function before(): Stood {
+    const stood = standing();
+    stood.answering = false;
+    stood.broker.retains(RAILROAD, { name: "toy", built: true });
+    stood.broker.opens();
+    stood.session.documents(drawn(), BEFORE, STOCK);
+    return stood;
+  }
+
+  /** `goods` standing in `a`, holding `locks`. */
+  function inA(locks: Record<string, string> = { a: "goods" }) {
+    return { trains: { goods: "a" }, occupied: { goods: ["a"] }, locks, requests: [] };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("draws a train placed in a block the drawing gained", () => {
+    const stood = before();
+    stood.session.documents(drawn(), AFTER, STOCK);
+    stood.broker.says(ALLOCATION, inA());
+    expect(stood.session.panel!.blocks().get("a")).toEqual({
+      state: "occupied",
+      train: "goods",
+      named: "goods",
+    });
+  });
+
+  it("draws one placed there before the drawing gained it", () => {
+    const stood = before();
+    stood.broker.says(ALLOCATION, inA());
+    stood.session.documents(drawn(), AFTER, STOCK);
+    expect(stood.session.panel!.blocks().get("a")).toEqual({
+      state: "occupied",
+      train: "goods",
+      named: "goods",
+    });
+  });
+
+  it("keeps what the bus said before", () => {
+    const stood = before();
+    stood.broker.says(STATE_POWER, { power: "on" });
+    stood.broker.says(STATE_DRIVING, { driving: "automatic" });
+    stood.broker.says(ALLOCATION, {
+      trains: { goods: "b" },
+      occupied: { goods: ["b"] },
+      locks: { b: "goods" },
+      requests: [],
+    });
+    stood.session.documents(drawn(), AFTER, STOCK);
+    expect(stood.session.status).toMatchObject({
+      power: "on",
+      driving: "automatic",
+      placed: ["goods"],
+    });
+    expect(stood.session.panel!.blocks().get("b")).toMatchObject({
+      state: "occupied",
+      train: "goods",
+    });
+  });
+
+  it("lights a transit only the new review has", () => {
+    const stood = before();
+    stood.session.documents(drawn(), AFTER, STOCK);
+    stood.broker.says(ALLOCATION, inA({ a: "goods", "j.over": "goods" }));
+    const lit = stood.session.panel!.lit();
+    expect(lit.state.get("p1")).toBe("locked");
+    expect([...lit.wires.values()]).toEqual(["locked", "locked"]);
+  });
+
+  it("marks a point only the new layout lists as reported", () => {
+    vi.useFakeTimers();
+    const stood = before();
+    stood.session.documents(drawn(), AFTER, STOCK);
+    stood.broker.says(ALLOCATION, inA({ a: "goods", "j.over": "goods" }));
+    stood.broker.says("tc49/layout/state/wanted/point/12", { addr: "12", position: "thrown" });
+    stood.broker.says("tc49/layout/state/device/point/12", { addr: "12", position: "closed" });
+    vi.advanceTimersByTime(STUCK_MS + 1);
+    expect(stood.session.panel!.stuck()).toEqual(new Map([["12", "closed"]]));
+  });
+
+  it("changes nothing reviewed again with the same review", () => {
+    const stood = before();
+    stood.broker.says(STATE_POWER, { power: "on" });
+    const { panel, status, cabs } = stood.session;
+    stood.session.documents(drawn(), BEFORE, STOCK);
+    expect(stood.session.panel).toBe(panel);
+    expect(stood.session.status).toBe(status);
+    expect(stood.session.cabs).toBe(cabs);
   });
 });
