@@ -163,6 +163,7 @@ from tc49.lib.settings import (
     short_blocks,
     speed,
     throttle_silence,
+    without_sensors,
 )
 
 
@@ -500,7 +501,8 @@ class SettingsWanted:
     railroad's point gap, in seconds, some or all of its speeds, the
     installation's throttle silence, sensor silence (#1149) and arrival
     allowance (#1188), in seconds, and the railroad's `short_blocks`, whether
-    a route may use a block shorter than the train (#1286).
+    a route may use a block shorter than the train (#1286), and
+    `without_sensors`, whether the railroad runs without sensors (#1316).
     None, and a speed left out of `speeds`, leaves that setting as it is."""
 
     point_gap: float | None = None
@@ -509,6 +511,7 @@ class SettingsWanted:
     sensor_silence: float | None = None
     arrival_allowance: float | None = None
     short_blocks: bool | None = None
+    without_sensors: bool | None = None
 
 
 _SETTINGS_FIELDS = frozenset(
@@ -519,6 +522,7 @@ _SETTINGS_FIELDS = frozenset(
         "sensor_silence",
         "arrival_allowance",
         "short_blocks",
+        "without_sensors",
     }
 )
 
@@ -528,8 +532,9 @@ def wanted_settings(payload: object) -> SettingsWanted | None:
     asks for none.
 
     At least one of `point_gap`, `speeds`, `throttle_silence`,
-    `sensor_silence`, `arrival_allowance` and `short_blocks`, nothing else,
-    and each given in range (`lib.settings`), `short_blocks` `true` or
+    `sensor_silence`, `arrival_allowance`, `short_blocks` and
+    `without_sensors`, nothing else, and each given in range
+    (`lib.settings`), `short_blocks` and `without_sensors` each `true` or
     `false`, or the gesture is dropped whole: a good gap beside a bad silence is not half taken.
     `speeds` names `clear`, `caution` or both and nothing else.
     """
@@ -568,7 +573,12 @@ def wanted_settings(payload: object) -> SettingsWanted | None:
         short = short_blocks(fields["short_blocks"])
         if short is None:
             return None
-    return SettingsWanted(gap, speeds, silence, sensor, allowance, short)
+    without: bool | None = None
+    if "without_sensors" in fields:
+        without = without_sensors(fields["without_sensors"])
+        if without is None:
+            return None
+    return SettingsWanted(gap, speeds, silence, sensor, allowance, short, without)
 
 
 def _speeds(stated: object) -> dict[str, float] | None:
@@ -595,6 +605,15 @@ def said_short_blocks(payload: object) -> bool | None:
     if not isinstance(payload, dict):
         return None
     return short_blocks(cast(dict[str, object], payload).get("short_blocks"))
+
+
+def said_without_sensors(payload: object) -> bool | None:
+    """The `without_sensors` `tc49/layout/state/settings` says, whether the
+    railroad runs without sensors, or None where the row says none: the
+    field missing or not a bool (#1316)."""
+    if not isinstance(payload, dict):
+        return None
+    return without_sensors(cast(dict[str, object], payload).get("without_sensors"))
 
 
 def said_speeds(payload: object) -> dict[str, float] | None:

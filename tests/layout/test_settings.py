@@ -1,6 +1,6 @@
 """The settings a person sets from the Settings dialog on
 `tc49/layout/settings_wanted`: the railroad's point gap, speeds (#1126,
-#1132) and `short_blocks` (#1286), and the installation's throttle silence (#1132) and sensor silence
+#1132), `short_blocks` (#1286) and `without_sensors` (#1316), and the installation's throttle silence (#1132) and sensor silence
 (#1149).
 
 `layout` takes the gesture whatever track power and the run are doing, says
@@ -159,6 +159,7 @@ def test_a_gap_beside_good_speeds_and_silence_is_taken_with_them() -> None:
         "point_gap": 2.0,
         "speeds": {"clear": 0.8, "caution": 0.3},
         "short_blocks": False,
+        "without_sensors": False,
         "throttle_silence": 10.0,
         "sensor_silence": 3.0,
         "arrival_allowance": 60.0,
@@ -199,6 +200,7 @@ def test_a_speed_set_is_kept_with_the_railroad_beside_what_was_not_set() -> None
             "point_gap": 1.5,
             "speeds": {"clear": 0.6, "caution": 0.2},
             "short_blocks": False,
+            "without_sensors": False,
             "throttle_silence": 5.0,
             "sensor_silence": 3.0,
             "arrival_allowance": 60.0,
@@ -403,6 +405,54 @@ def test_short_blocks_that_is_no_bool_changes_nothing(stated: object) -> None:
     before = list(said)
     sets(bus, {"short_blocks": stated})
     sets(bus, {"point_gap": 2, "short_blocks": stated})
+    assert said == before
+    assert kept == []
+    assert app.point_gap == POINT_GAP_S
+
+
+def test_without_sensors_set_is_said_at_once_and_kept_with_the_railroad() -> None:
+    """Alone: the gap, the speeds and `short_blocks` stay as they stood, and
+    the row says it at once (#1316)."""
+    bus, _app, kept = kept_by_app()
+    sets(bus, {"point_gap": 1.5, "speeds": {"caution": 0.2}, "short_blocks": True})
+    said = heard(bus, SETTINGS)
+    sets(bus, {"without_sensors": True})
+    assert kept[-1] == KeptSettings(1.5, {"clear": 0.6, "caution": 0.2}, True, True)
+    assert said[-1][1]["without_sensors"] is True
+    assert said[-1][1]["point_gap"] == 1.5
+    assert said[-1][1]["short_blocks"] is True
+    sets(bus, {"without_sensors": False})
+    assert kept[-1] == KeptSettings(1.5, {"clear": 0.6, "caution": 0.2}, True, False)
+    assert bus.last_values[SETTINGS]["without_sensors"] is False
+
+
+def test_a_layout_built_without_without_sensors_says_false() -> None:
+    """The railroad runs by its sensors (#1316)."""
+    bus, _app, _kept = kept_by_app()
+    assert bus.last_values[SETTINGS]["without_sensors"] is False
+
+
+def test_an_app_built_with_kept_without_sensors_says_it() -> None:
+    clock = Clock()
+    bus = InProcessBus(clock)
+    LayoutInterface(bus, railroad(), stock(), clock, without_sensors=True)
+    bus.drain()
+    assert bus.last_values[SETTINGS] == {
+        "at": 0.0,
+        **settings_row(without_sensors=True),
+    }
+
+
+@pytest.mark.parametrize("stated", [0, 1, "true", None])
+def test_without_sensors_that_is_no_bool_changes_nothing(stated: object) -> None:
+    """Dropped whole: nothing said and nothing kept, a good field beside it
+    included (#1316)."""
+    bus, app, kept = kept_by_app()
+    said = heard(bus, SETTINGS)
+    bus.drain()
+    before = list(said)
+    sets(bus, {"without_sensors": stated})
+    sets(bus, {"point_gap": 2, "without_sensors": stated})
     assert said == before
     assert kept == []
     assert app.point_gap == POINT_GAP_S

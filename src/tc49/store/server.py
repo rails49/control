@@ -147,11 +147,12 @@ reading it at each build, so `/clocks` is on no proxy in front of a page
 either.
 
 The **settings** routes are the same for one railroad's settings, its point
-gap, the driver's speeds and `short_blocks`,
+gap, the driver's speeds, `short_blocks` and `without_sensors`,
 `layouts/<railroad>.settings.yaml`, answered and taken as `{"point_gap":
 <seconds>, "speeds": {"clear": <fraction>, "caution": <fraction>},
-"short_blocks": <boolean>}`, `speeds` and `short_blocks` optional (#1126,
-#1132, #1286). A railroad that
+"short_blocks": <boolean>, "without_sensors": <boolean>}`, `speeds`,
+`short_blocks` and `without_sensors` optional (#1126, #1132, #1286, #1316).
+A railroad that
 keeps none is a 404, and `layout` loads it at the defaults. Their one caller
 is `layout` too, so `/settings` is on no proxy in front of a page.
 
@@ -667,7 +668,8 @@ def _put_clock(store: AssetStore, backup: Backup, name: str, body: Any) -> Respo
 
 def _put_settings(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
     """One railroad's settings, created or replaced: `point_gap`, `speeds`
-    or none, `short_blocks` or none, and nothing else (#1126, #1132, #1286).
+    or none, `short_blocks` or none, `without_sensors` or none, and nothing
+    else (#1126, #1132, #1286, #1316).
 
     The layout binding is the one writer, when a person sets them; the
     railroad is not checked for a drawing, as a clock's is not either.

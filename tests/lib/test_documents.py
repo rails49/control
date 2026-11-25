@@ -329,6 +329,41 @@ def test_the_short_blocks_a_railroad_keeps_is_what_was_put(url: str) -> None:
     assert documents.settings(RAILROAD) == kept
 
 
+def test_a_settings_document_with_without_sensors_reads_it(
+    url: str, root: Path
+) -> None:
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text(
+        "point_gap: 1\nwithout_sensors: true\n"
+    )
+    assert client(url).settings(RAILROAD) == KeptSettings(1.0, without_sensors=True)
+
+
+def test_a_settings_document_without_without_sensors_reads_false(
+    url: str, root: Path
+) -> None:
+    """The railroad runs by its sensors (#1316)."""
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text("point_gap: 1\n")
+    kept = client(url).settings(RAILROAD)
+    assert kept is not None
+    assert kept.without_sensors is False
+
+
+def test_without_sensors_the_store_cannot_read_is_raised(url: str, root: Path) -> None:
+    """`1` is a number, not `true` (#1316)."""
+    (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text(
+        "point_gap: 1\nwithout_sensors: 1\n"
+    )
+    with pytest.raises(ValueError, match="without_sensors"):
+        client(url).settings(RAILROAD)
+
+
+def test_the_without_sensors_a_railroad_keeps_is_what_was_put(url: str) -> None:
+    documents = client(url)
+    kept = KeptSettings(1.0, short_blocks=True, without_sensors=True)
+    documents.put_settings(RAILROAD, kept)
+    assert documents.settings(RAILROAD) == kept
+
+
 def test_installation_settings_the_store_cannot_read_are_raised(
     url: str, root: Path
 ) -> None:

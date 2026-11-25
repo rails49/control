@@ -60,8 +60,8 @@ at once rather than at the next beat, and kept with the railroad
 store that does not answer is waited for, and the loop it would hold up is
 the one that says `alive_confirmed`.
 
-The railroad's settings, its point gap, the driver's speeds and `short_blocks`
-(#1286), go the same way: read at each build from `layouts/<layout>.settings.yaml`, the defaults
+The railroad's settings, its point gap, the driver's speeds, `short_blocks`
+(#1286) and `without_sensors` (#1316), go the same way: read at each build from `layouts/<layout>.settings.yaml`, the defaults
 where it keeps none or keeps some the store cannot read, set with
 `tc49/layout/settings_wanted` and written by the same thread (#1126, #1132),
 which writes the installation's throttle silence, sensor silence and arrival
@@ -304,6 +304,7 @@ class _Binding:
             sensor_silence_s=self._installation.sensor_silence,
             arrival_allowance_s=self._installation.arrival_allowance,
             short_blocks=(settings or KeptSettings()).short_blocks,
+            without_sensors=(settings or KeptSettings()).without_sensors,
         )
 
         def keep(changed: KeptClock) -> None:

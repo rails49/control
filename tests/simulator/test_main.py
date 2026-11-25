@@ -494,6 +494,7 @@ def test_a_speed_a_person_sets_is_said_and_kept_with_the_railroad(
         "point_gap": POINT_GAP_S,
         "speeds": {"clear": 0.5, "caution": 0.3},
         "short_blocks": False,
+        "without_sensors": False,
     }
     witness.close()
 
@@ -522,6 +523,7 @@ def test_short_blocks_a_person_sets_is_kept_and_said_by_the_next_simulator(
             "point_gap": POINT_GAP_S,
             "speeds": {"clear": 0.6, "caution": 0.3},
             "short_blocks": True,
+            "without_sensors": False,
         }
     finally:
         first.stop()
@@ -540,6 +542,56 @@ def test_short_blocks_a_person_sets_is_kept_and_said_by_the_next_simulator(
                 row.get("short_blocks") is True for row in rows(heard, SETTINGS)
             ),
         ), "the next simulator never said the kept short_blocks"
+    finally:
+        second.stop()
+        witness.close()
+
+
+def test_without_sensors_a_person_sets_is_kept_and_said_by_the_next_simulator(
+    broker: Broker, store: Store, root: Path
+) -> None:
+    """Said at once, written to the railroad's `settings.yaml` beside the gap,
+    the speeds and `short_blocks` as they stood, and read by the next app to
+    start (#1316)."""
+    store.start()
+    first = App(broker, store)
+    witness, heard = watching(broker)
+    path = root / "layouts" / f"{RAILROAD_NAME}.settings.yaml"
+    try:
+        first.start()
+        assert drained(witness, lambda: rows(heard, SETTINGS) != []), "no settings"
+        assert rows(heard, SETTINGS)[0]["without_sensors"] is False
+        witness.publish(SETTINGS_WANTED, {"without_sensors": True})
+        assert drained(
+            witness,
+            lambda: any(
+                row["without_sensors"] is True for row in rows(heard, SETTINGS)
+            ),
+        ), "it was never said"
+        assert until(path.exists), "never kept"
+        assert AssetStore(root).settings(RAILROAD_NAME) == {
+            "point_gap": POINT_GAP_S,
+            "speeds": {"clear": 0.6, "caution": 0.3},
+            "short_blocks": False,
+            "without_sensors": True,
+        }
+    finally:
+        first.stop()
+        # The row the first one left would say true whatever the next one read.
+        witness.clear(SETTINGS)
+        settle(witness)
+        witness.close()
+
+    witness, heard = watching(broker)
+    second = App(broker, store)
+    try:
+        second.start()
+        assert drained(
+            witness,
+            lambda: any(
+                row.get("without_sensors") is True for row in rows(heard, SETTINGS)
+            ),
+        ), "the next simulator never said the kept without_sensors"
     finally:
         second.stop()
         witness.close()

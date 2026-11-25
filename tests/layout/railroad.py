@@ -185,14 +185,17 @@ def settings_row(
     sensor_silence: float = SENSOR_SILENCE_S,
     arrival_allowance: float = ARRIVAL_ALLOWANCE_S,
     short_blocks: bool = False,
+    without_sensors: bool = False,
 ) -> Payload:
     """What `state/settings` says, less its stamp, for an app with this gap,
-    these silences, this arrival allowance and this `short_blocks`, and the
-    speeds nobody has set (#1125, #1130, #1149, #1188, #1286)."""
+    these silences, this arrival allowance, this `short_blocks` and this
+    `without_sensors`, and the speeds nobody has set (#1125, #1130, #1149,
+    #1188, #1286, #1316)."""
     return {
         "point_gap": point_gap,
         "speeds": {"clear": 0.6, "caution": 0.3},
         "short_blocks": short_blocks,
+        "without_sensors": without_sensors,
         "throttle_silence": throttle_silence,
         "sensor_silence": sensor_silence,
         "arrival_allowance": arrival_allowance,
