@@ -2257,10 +2257,14 @@ class Dispatcher:
         whose field does not read leaves that value held.
 
         `short_blocks` is read for routing and admission alone: what is
-        already routed keeps its route. `without_sensors` turning `true`
-        releases every train's residue, one `lock_released` per train, since
-        no reading will open it. Answers whether `without_sensors` changed,
-        for the caller to sweep.
+        already routed keeps its route. `without_sensors` changing, either
+        way, ends every request (`_end_every_request`, #1321); turning `true`
+        it also releases every train's residue, one `lock_released` per train,
+        since no reading will open it. Turning `false` it brings back the
+        readings and the sensors not reporting recorded meanwhile, at the
+        caller's sweep. Answers whether `without_sensors` changed, for the
+        caller to sweep. The seeding in the constructor finds no request to
+        end.
         """
         state = self._state
         said = said_short_blocks(payload)
@@ -2270,6 +2274,7 @@ class Dispatcher:
         if without is None or without == state.without_sensors:
             return False
         state.without_sensors = without
+        self._end_every_request()
         if without:
             for train in sorted({state.locks[kept] for kept in state.residue}):
                 self._open(
@@ -2277,6 +2282,29 @@ class Dispatcher:
                     [kept for kept in state.residue if state.locks[kept] == train],
                 )
         return True
+
+    def _end_every_request(self) -> None:
+        """`without_sensors` changed: every request ends `revoked`, in list
+        order, each with no onward end, so one submitted `after` it later is
+        cancelled too (#1321). No move is followed any more and nothing is
+        asked of `layout`. Each train running one keeps what is on its
+        `occupied` list, its standing block and its place in `crossing`, as
+        after a restart (`restored`), and gives up what it held ahead, one
+        `lock_released` per train."""
+        state = self._state
+        for train in sorted(state.active):
+            standing = state.block_of.get(train)
+            on = state.occupied.get(train, [])
+            self._release(train, keep=on if standing is None else (*on, standing))
+        state.active.clear()
+        state.following.clear()
+        state.departure.clear()
+        ended, self._requests = self._requests, []
+        for req in ended:
+            self._publish(
+                "request_cancelled", {"id": req.id, "reason": Cancellation.REVOKED}
+            )
+            self._finished[req.id] = (req.train, None)
 
     def _on_taken(self, payload: Payload) -> None:
         """Which trains a throttle holds (#1187). Read for `state/moving`
@@ -2684,8 +2712,9 @@ class Dispatcher:
         nothing when the supply goes, whether or not it is active: one a drain
         stopped at a signal partway along its route keeps that route and its
         locks, and carries on once power reads `on` again (ADR-0078). A
-        **crossing** train counts with no request behind it: a restored hint
-        is a train the dispatcher believes is between two blocks, and a drain
+        **crossing** train counts with no request behind it: a restored hint,
+        or one a change of `without_sensors` left (#1321), is a train the
+        dispatcher believes is between two blocks, and a drain
         that ended over one would have `layout` cut the supply under it.
         A train on `state/overdue` does not count, by any move or hint:
         `layout` has stopped it for not arriving within its allowance, and it
