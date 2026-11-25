@@ -283,6 +283,22 @@ def movings(assembly: Assembly) -> list[bool]:
     return [bool(line["moving"]) for line in leaves(assembly, "moving")]
 
 
+def left_crossing(rows: dict[str, Payload], train: str) -> bool:
+    """Whether the dispatcher lists `train` crossing with no request under way,
+    as a change of `without_sensors` leaves it, while the railroad runs by its
+    sensors. A drag for it then grants a move while crossing (#1326,
+    `test_on_a_drag_by_sensors_for_a_train_left_crossing`), so the state
+    machines draw none."""
+    picture = rows.get("tc49/dispatch/state/allocation", {})
+    underway = {req["train"] for req in picture.get("requests", []) if "route" in req}
+    without = rows.get("tc49/layout/state/settings", {}).get("without_sensors")
+    return (
+        without is not True
+        and train in picture.get("crossing", {})
+        and train not in underway
+    )
+
+
 class Recording(InProcessBus):
     """An in-process bus that remembers the order it was called in.
 
