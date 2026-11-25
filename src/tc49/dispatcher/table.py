@@ -9,6 +9,7 @@ the locking strategies read it through `locking.ReadOnlyState`.
 It imports `tc49.lib` and nothing else of the dispatcher.
 """
 
+from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 
 from tc49.lib.inventory import Refusal
@@ -314,6 +315,25 @@ class Table:
             if train not in overdue
         )
 
+    def kept(self, train: str) -> set[str]:
+        """What a removal of `train` leaves held: each block it holds with a
+        sensor last read occupied, and each transit on its `occupied` list with
+        either of its blocks among them (ADR-0069, #1171). Nothing while the
+        railroad runs without sensors, since no block reads occupied."""
+        kept = {
+            resource
+            for resource, holder in self.locks.items()
+            if holder == train and self.reads_occupied(resource)
+        }
+        kept.update(
+            [
+                entry
+                for entry in self.occupied.get(train, ())
+                if kept & transit_blocks(self.layout, entry)
+            ]
+        )
+        return kept
+
     def newest(self, train: str) -> Following | None:
         """The train's newest move whose readings are still expected."""
         following = self.following.get(train)
@@ -478,7 +498,34 @@ class MoveEnded:
     train: str
 
 
-Effect = Disputed | Released | HeadIn | MoveEnded
+@dataclass(frozen=True)
+class Placed:
+    """`train` stands in `block` and holds its lock, for `train_placed`: the
+    ledger line for a placement. A `lock_released` and a `lock_granted` would
+    say a route gave a block up and took another, which is not what happened:
+    a hand lifted a locomotive."""
+
+    train: str
+    block: str
+
+
+@dataclass(frozen=True)
+class Removed:
+    """`train` is off the layout, for `train_removed`."""
+
+    train: str
+
+
+@dataclass(frozen=True)
+class Opened:
+    """Residue `train` held, given up, for one `lock_released` naming the
+    resources sorted."""
+
+    train: str
+    resources: tuple[str, ...]
+
+
+Effect = Disputed | Released | HeadIn | MoveEnded | Placed | Removed | Opened
 
 
 # -- the transitions ----------------------------------------------------------
@@ -515,14 +562,176 @@ def not_reporting(table: Table, sensors: frozenset[str]) -> tuple[Table, list[Ef
     return replace(table, unknown_sensors=sensors), []
 
 
+def releasing(
+    table: Table, train: str, keep: Collection[str]
+) -> tuple[Table, list[Effect]]:
+    """Everything the train holds given up but `keep`, in one `Released`
+    sorted.
+
+    The release is by holder: a train at rest holds its standing block, a
+    restored crossing train holds its block as any placed train does (#154),
+    and a train under `FullRoute` holds every block of a route it will now
+    never run. A cancellation keeps what the train is on (ADR-0049); a
+    removal keeps what still reads occupied (ADR-0069). Residue of an earlier
+    removal is never released here: it waits for its clear reading whatever
+    the train does next. Nothing to give up returns the table as given. The
+    table given is left unchanged."""
+    released = sorted(
+        resource
+        for resource, holder in table.locks.items()
+        if holder == train and resource not in keep and resource not in table.residue
+    )
+    if not released:
+        return table, []
+    new = _copied(table)
+    for resource in released:
+        del new.locks[resource]
+    return new, [Released(train, tuple(released))]
+
+
+def retiring(
+    table: Table, train: str, keep: Collection[str] | None = None
+) -> tuple[Table, list[Effect]]:
+    """The train's request ended without it arriving: everything it holds
+    given up but `keep` (`releasing`), and the train no longer active,
+    crossing or departing. `keep` is by default what the train is on, its
+    `occupied` list and the block it stands in: releasing that would leave a
+    locomotive in a block the dispatcher believes free (ADR-0049). The table
+    given is left unchanged."""
+    if keep is None:
+        standing = table.block_of.get(train)
+        on = table.occupied.get(train, [])
+        keep = on if standing is None else (*on, standing)
+    new, effects = releasing(table, train, keep)
+    if new is table:
+        new = _copied(table)
+    del new.active[train]
+    new.crossing.pop(train, None)
+    new.departure.pop(train, None)
+    return new, effects
+
+
+def placing(table: Table, train: str, block: str) -> tuple[Table, list[Effect]]:
+    """A train put on the layout, or moved by hand from where it was, in a
+    block that is free of every claim (`Table.free`), its requests already
+    ended.
+
+    What it occupied behind it is released, a transit left by a far sensor's
+    reading among it (#1171), and it is followed no more: a person has said
+    where it is. Its standing lock moves to the block, which is `Placed` and
+    not a release and a grant; the lock it stood on is released only if it
+    holds it, since another train's lock is not this train's to give up. A
+    block it still holds as residue of its own removal becomes its standing
+    lock (ADR-0069), and a transit kept for that block alone opens after the
+    placement, having nothing left to wait for. Whatever it was crossing, it
+    is not crossing it now. The table given is left unchanged."""
+    standing = table.block_of.get(train)
+    new, effects = releasing(
+        table, train, (block,) if standing is None else (standing, block)
+    )
+    if new is table:
+        new = _copied(table)
+    new.residue.discard(block)
+    if standing is not None and new.locks.get(standing) == train:
+        del new.locks[standing]
+    new.locks[block] = train
+    new.block_of[train] = block
+    new.occupied[train] = [block]
+    new.following.pop(train, None)
+    new.crossing.pop(train, None)
+    effects.append(Placed(train, block))
+    return new, effects + _open(new, train, _spent(new, train))
+
+
+def removing(table: Table, train: str) -> tuple[Table, list[Effect]]:
+    """A train taken off the layout: lifted out of its block by hand. It
+    stays on the roster and can be placed again; what it loses is its place
+    on the rails (ADR-0039).
+
+    What it held is released, except what a loco may still be standing on
+    (`Table.kept`), which stays locked to it as residue until it reads clear
+    (`opening`, ADR-0069). A block the layout has said nothing about has
+    nothing to wait for and is released. The train is no longer recorded in a
+    block, occupying, followed or crossing: a crossing hint goes with the
+    placement it belonged to. A train already off the layout is left alone,
+    and the table comes back as given. The table given is left unchanged."""
+    if train not in table.block_of and train not in table.crossing:
+        return table, []
+    kept = table.kept(train)
+    new, effects = releasing(table, train, kept)
+    if new is table:
+        new = _copied(table)
+    new.residue |= kept
+    new.block_of.pop(train, None)
+    new.occupied.pop(train, None)
+    new.following.pop(train, None)
+    new.crossing.pop(train, None)
+    return new, [*effects, Removed(train)]
+
+
+def opening(table: Table) -> tuple[Table, list[Effect]]:
+    """A block a removed train still holds opens when neither of its sensors
+    reads occupied and neither is listed: the hand has lifted the loco
+    (ADR-0069, #1171). The dispatcher asks after each reading and each change
+    of `state/unknown_sensors`, since a sensor returning with an equal level
+    changes no reading.
+
+    It releases the block, and the transit kept for it once neither of that
+    transit's blocks is still residue, in one `Opened`, block by block in
+    sorted order. A clear reading under a train that stands in its block is
+    not one: a detector dropping out under a dirty wheel reads the same, and
+    only a removal says it was a lift. Nothing to open returns the table as
+    given. The table given is left unchanged."""
+    lifted = [
+        block
+        for block in sorted(table.residue)
+        if block in table.layout.blocks
+        and not table.reads_occupied(block)
+        and block not in table.out_of_use
+    ]
+    if not lifted:
+        return table, []
+    new = _copied(table)
+    effects: list[Effect] = []
+    for block in lifted:
+        train = new.locks[block]
+        new.residue.discard(block)
+        effects += _open(new, train, [block, *_spent(new, train)])
+    return new, effects
+
+
+def _spent(table: Table, train: str) -> list[str]:
+    """The transits `train` holds as residue that no residual block of its
+    own is left to keep."""
+    return [
+        resource
+        for resource in table.residue
+        if resource not in table.layout.blocks
+        and table.locks.get(resource) == train
+        and not any(
+            table.locks.get(block) == train and block in table.residue
+            for block in transit_blocks(table.layout, resource)
+        )
+    ]
+
+
+def _open(table: Table, train: str, resources: list[str]) -> list[Effect]:
+    """Residue given up, in one `Opened`."""
+    for resource in resources:
+        del table.locks[resource]
+        table.residue.discard(resource)
+    return [Opened(train, tuple(sorted(resources)))] if resources else []
+
+
 def _copied(table: Table) -> Table:
-    """A copy of `table` whose maps a reading may change are its own (#1330
-    freezes the table)."""
+    """A copy of `table` whose maps a transition may change are its own
+    (#1330 freezes the table)."""
     return replace(
         table,
         locks=dict(table.locks),
         block_of=dict(table.block_of),
         active={train: replace(each) for train, each in table.active.items()},
+        departure=dict(table.departure),
         crossing=dict(table.crossing),
         readings=dict(table.readings),
         occupied={train: list(listed) for train, listed in table.occupied.items()},
@@ -530,6 +739,7 @@ def _copied(table: Table) -> Table:
             train: [replace(each) for each in listed]
             for train, listed in table.following.items()
         },
+        residue=set(table.residue),
     )
 
 
