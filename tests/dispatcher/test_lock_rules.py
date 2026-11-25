@@ -8,6 +8,8 @@ broken rule asks `layout` for a drain once, and a person turning the power on
 again is honoured (ADR-0078, #811).
 """
 
+from dataclasses import replace
+
 import pytest
 
 from tc49.bench.runner import DEFAULT_K, placement
@@ -61,11 +63,24 @@ def a_state() -> Table:
 def with_residue(state: Table) -> Table:
     """`gone`, taken off the layout while crossing `up_straight` with `up_w`
     reading occupied: the block and the transit kept as residue."""
-    state.locks["up_w"] = "gone"
-    state.locks["crossover.up_straight"] = "gone"
-    state.residue |= {"up_w", "crossover.up_straight"}
-    state.readings["up_w.A"] = True
-    return state
+    return replace(
+        state,
+        locks={**state.locks, "up_w": "gone", "crossover.up_straight": "gone"},
+        residue={*state.residue, "up_w", "crossover.up_straight"},
+        readings={**state.readings, "up_w.A": True},
+    )
+
+
+def unlocked(state: Table, *resources: str) -> Table:
+    """`state` with the locks on `resources` gone."""
+    return replace(
+        state, locks={r: h for r, h in state.locks.items() if r not in resources}
+    )
+
+
+def locked(state: Table, **holders: str) -> Table:
+    """`state` with each resource named locked to the train given."""
+    return replace(state, locks={**state.locks, **holders})
 
 
 def test_a_valid_state_breaks_no_rule() -> None:
@@ -74,60 +89,51 @@ def test_a_valid_state_breaks_no_rule() -> None:
 
 
 def test_a_placed_train_holds_the_lock_on_its_block() -> None:
-    state = a_state()
-    del state.locks["up_e"]
+    state = unlocked(a_state(), "up_e")
     assert broken(state) == ["idle stands in up_e, which is locked to nobody"]
 
 
 def test_every_lock_is_a_placed_trains_or_residue() -> None:
-    state = a_state()
-    state.locks["up_w"] = "gone"
+    state = locked(a_state(), up_w="gone")
     assert broken(state) == ["up_w is locked to gone, which is not placed"]
 
 
 def test_an_idle_train_holds_its_block_and_its_residue() -> None:
-    state = a_state()
-    state.locks["up_w"] = "idle"
+    state = locked(a_state(), up_w="idle")
     assert broken(state) == ["idle is idle and holds up_w"]
 
 
 def test_residue_is_locked() -> None:
-    state = with_residue(a_state())
-    del state.locks["crossover.up_straight"]
+    state = unlocked(with_residue(a_state()), "crossover.up_straight")
     assert broken(state) == ["crossover.up_straight is residue and not locked"]
 
 
 def test_a_residue_block_reads_occupied() -> None:
     state = with_residue(a_state())
-    state.readings["up_w.A"] = False
+    state = replace(state, readings={**state.readings, "up_w.A": False})
     assert broken(state) == ["up_w is gone's residue and not read occupied"]
 
 
 def test_a_residue_transit_keeps_one_of_its_blocks() -> None:
-    state = with_residue(a_state())
-    state.residue.discard("up_w")
-    del state.locks["up_w"]
+    state = unlocked(with_residue(a_state()), "up_w")
+    state = replace(state, residue=state.residue - {"up_w"})
     assert broken(state) == [
         "crossover.up_straight is gone's residue with neither block kept"
     ]
 
 
 def test_a_residue_block_is_not_where_its_holder_stands() -> None:
-    state = a_state()
-    state.residue.add("up_e")
-    state.readings["up_e.A"] = True
+    state = replace(a_state(), residue={"up_e"}, readings={"up_e.A": True})
     assert broken(state) == ["up_e is idle's residue and it stands there"]
 
 
 def test_an_active_train_holds_its_move() -> None:
-    state = a_state()
-    del state.locks["dn_w"]
+    state = unlocked(a_state(), "dn_w")
     assert broken(state) == ["t is moving through dn_w and not holding it"]
 
 
 def test_an_active_train_is_crossing_its_move() -> None:
-    state = a_state()
-    del state.crossing["t"]
+    state = replace(a_state(), crossing={})
     assert broken(state) == [
         "t is moving through west_ladder.to_dn and not crossing it"
     ]
@@ -135,46 +141,55 @@ def test_an_active_train_is_crossing_its_move() -> None:
 
 def test_an_active_train_with_no_move_is_not_crossing() -> None:
     state = a_state()
-    state.active["t"].outstanding = None
+    state = replace(state, active={"t": replace(state.active["t"], outstanding=None)})
     assert broken(state) == ["t has no move and is crossing"]
 
 
 def test_an_active_train_is_placed() -> None:
     state = a_state()
-    del state.block_of["t"]
-    state.locks = {r: h for r, h in state.locks.items() if h != "t"}
-    del state.crossing["t"]
-    state.active["t"].outstanding = None
+    state = replace(
+        state,
+        locks={r: h for r, h in state.locks.items() if h != "t"},
+        block_of={"idle": "up_e"},
+        active={"t": replace(state.active["t"], outstanding=None)},
+        crossing={},
+    )
     assert broken(state) == ["t is active and not placed"]
 
 
 def test_a_crossing_train_is_placed() -> None:
     state = a_state()
-    state.crossing["gone"] = "crossover.up_straight"
+    state = replace(state, crossing={**state.crossing, "gone": "crossover.up_straight"})
     assert broken(state) == ["gone is crossing and not placed"]
 
 
 def test_no_two_trains_lock_conflicting_transits() -> None:
     state = a_state()
     # `up_to_dn` crosses `dn_straight` at the crossover.
-    state.locks["crossover.up_to_dn"] = "idle"
-    state.locks["crossover.dn_straight"] = "idle2"
-    state.locks["dn_e"] = "idle2"
-    state.block_of["idle2"] = "dn_e"
+    state = locked(
+        state,
+        **{"crossover.up_to_dn": "idle", "crossover.dn_straight": "idle2"},
+        dn_e="idle2",
+    )
     # Both active, so neither is an idle train holding a transit.
-    for train in ("idle", "idle2"):
-        request = Request(f"{train}-1", train, "yard_w.B", (), 0)
-        state.active[train] = Active(request.id, a_route(state.layout), 0, None)
+    state = replace(
+        state,
+        block_of={**state.block_of, "idle2": "dn_e"},
+        active={
+            **state.active,
+            **{
+                train: Active(f"{train}-1", a_route(state.layout), 0, None)
+                for train in ("idle", "idle2")
+            },
+        },
+    )
     assert state.layout.conflicts("crossover.up_to_dn", "crossover.dn_straight")
     line = "crossover.dn_straight locked to idle2 conflicts with crossover.up_to_dn"
     assert broken(state) == [f"{line} of idle"]
 
 
 def test_equal_states_give_equal_lists() -> None:
-    one, other = a_state(), a_state()
-    for state in (one, other):
-        del state.locks["up_e"]
-        del state.locks["dn_w"]
+    one, other = (unlocked(a_state(), "up_e", "dn_w") for _ in range(2))
     assert broken(one) == broken(other) == sorted(broken(one))
     assert len(broken(one)) == 2
 
@@ -195,7 +210,7 @@ def test_a_strategy_writes_nothing(strategy: type[Incremental | FullRoute]) -> N
     assert launched is not None and not isinstance(launched, Refused)
     assert state.locks == before
 
-    state.active["t"] = Active(request.id, route, 0, None)
+    state.table = replace(state.table, active={"t": Active(request.id, route, 0, None)})
     strategy(layout, 2).grant("t", state)
     assert state.locks == before
 
@@ -245,7 +260,7 @@ def test_a_newly_broken_rule_drains_the_railroad_once(
     bus, dispatcher, said = a_bus_dispatcher()
     capsys.readouterr()
 
-    del dispatcher.state.locks["up_e"]
+    dispatcher.state.table = unlocked(dispatcher.state.table, "up_e")
     deliver(
         bus,
         REQUEST_SUBMITTED,
@@ -270,7 +285,7 @@ def test_nothing_is_granted_between_asking_for_a_drain_and_the_answer() -> None:
     pressing `on` ends a drain nobody answered, which acknowledges the fault
     (ADR-0078, decision 7)."""
     bus, dispatcher, said = a_bus_dispatcher()
-    del dispatcher.state.locks["up_e"]
+    dispatcher.state.table = unlocked(dispatcher.state.table, "up_e")
     request: Payload = {
         "id": "r-1",
         "train": "freight_1",
@@ -328,7 +343,7 @@ def test_the_broken_rules_are_published_and_cleared(
     del said[:]
     capsys.readouterr()
 
-    del dispatcher.state.locks["up_e"]
+    dispatcher.state.table = unlocked(dispatcher.state.table, "up_e")
     deliver(
         bus,
         REQUEST_SUBMITTED,
@@ -343,7 +358,7 @@ def test_the_broken_rules_are_published_and_cleared(
     deliver(bus, POWER, {"power": DRAINING})
     assert rules(said) == [lines]
 
-    dispatcher.state.locks["up_e"] = "express_2"
+    dispatcher.state.table = locked(dispatcher.state.table, up_e="express_2")
     deliver(bus, POWER, {"power": ON})
     assert rules(said) == [lines, []]
 

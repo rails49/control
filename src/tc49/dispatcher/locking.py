@@ -5,9 +5,10 @@ A strategy answers two questions against the dispatcher's live state:
 departure end the dispatcher hands it, locking whatever the strategy's
 discipline requires; ``grant`` — advance an active train by one move. Both
 return what to lock and write nothing: the state they are handed is
-``ReadOnlyState``, and the dispatcher locks what they return and publishes
-the lock ledger from it, so the dispatcher is the lock table's one writer
-(#761).
+``ReadOnlyState``, and the dispatcher hands what they return to the table's
+transitions (`table.committing`, `table.granting`) and publishes the lock
+ledger from what those return, so the dispatcher stays the lock table's one
+writer (#761).
 """
 
 from __future__ import annotations
