@@ -7,6 +7,7 @@ publishes. `freight_1` stands in `yard_w` and is sent to `yard_e` over `dn_w` an
 """
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -91,7 +92,7 @@ class Railroad:
         return [p["id"] for p in self.leaf("request_cancelled")]
 
     def on(self) -> list[str]:
-        return self.state.occupied[TRAIN]
+        return list(self.state.occupied[TRAIN])
 
     def picture(self) -> dict[str, list[str]]:
         return dict(self.bus.last_values[ALLOCATION]["occupied"])
@@ -655,7 +656,10 @@ def test_the_lock_table_breaks_no_rule_along_a_move() -> None:
 
 def test_an_entry_on_a_list_that_is_not_locked_is_a_broken_rule() -> None:
     railroad = Railroad()
-    railroad.state.occupied[TRAIN].append("dn_e")
+    table = railroad.state.table
+    railroad.state.table = replace(
+        table, occupied={**table.occupied, TRAIN: [*table.occupied[TRAIN], "dn_e"]}
+    )
 
     assert broken(railroad.state.table) == [
         "freight_1 occupies dn_e, which is locked to nobody"

@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from itertools import pairwise
 
 import pytest
@@ -155,13 +156,16 @@ def test_a_passed_signal_shows_stop_once_the_next_block_reads_occupied() -> None
     route = a_route(layout)
     state = a_state(layout, route, 3)
     move = Move(route.blocks[0], route.transits[0], route.blocks[1], [], [])
-    state.active["t"] = Active(state.active["t"].request_id, route, 1, move)
+    active = Active(state.active["t"].request_id, route, 1, move)
+    state.table = replace(state.table, active={"t": active})
 
-    state.block_of["t"] = route.blocks[0]  # the entered block not yet occupied
+    # the entered block not yet occupied
+    state.table = replace(state.table, block_of={"t": route.blocks[0]})
     before = aspects(state, frozenset())
     assert before[exit_of(layout, route, 0)] == "clear"
 
-    state.block_of["t"] = route.blocks[1]  # it now reads occupied
+    # it now reads occupied
+    state.table = replace(state.table, block_of={"t": route.blocks[1]})
     after = aspects(state, frozenset())
     assert after[exit_of(layout, route, 0)] == "stop"
     assert after[exit_of(layout, route, 1)] == "clear"

@@ -1,16 +1,23 @@
-"""The lock table and the questions asked of it (#1315).
+"""The lock table, the questions asked of it and the transitions that change
+it (#1315).
 
 `Table` holds where each train is recorded, what it occupies and holds, the
 route it runs, the moves whose readings are still expected, each sensor's
 latest reading and the sensors not reporting. The questions read it and write
-nothing. The dispatcher keeps the current table and is its one writer (#761);
+nothing. A transition takes a table and an event and returns a new table and
+the effects to publish, in order. A table is a value: it is frozen, none of
+its maps or lists changes in place, and equal tables compare and hash equal.
+The dispatcher holds the current table and replaces it with each one a
+transition returns, so this module is the only code that changes it (#761);
 the locking strategies read it through `locking.ReadOnlyState`.
 
 It imports `tc49.lib` and nothing else of the dispatcher.
 """
 
 from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field, replace
+from typing import Any, NoReturn
 
 from tc49.lib.inventory import Refusal
 from tc49.lib.layout import (
@@ -20,6 +27,32 @@ from tc49.lib.layout import (
     opposite_end,
     transit_ends,
 )
+
+
+def _refused(*_: Any, **__: Any) -> NoReturn:
+    raise TypeError("a lock table is not changed in place")
+
+
+class FrozenDict[K, V](dict[K, V]):
+    """A dict that cannot be changed in place and hashes by its items. It
+    compares equal to a dict with the same items."""
+
+    def __hash__(self) -> int:  # pyright: ignore[reportIncompatibleVariableOverride]
+        return hash(frozenset(self.items()))
+
+    __setitem__ = __delitem__ = __ior__ = _refused
+    clear = pop = popitem = setdefault = update = _refused
+
+
+class FrozenList[T](list[T]):
+    """A list that cannot be changed in place and hashes by its items. It
+    compares equal to a list with the same items."""
+
+    def __hash__(self) -> int:  # pyright: ignore[reportIncompatibleVariableOverride]
+        return hash(tuple(self))
+
+    __setitem__ = __delitem__ = __iadd__ = __imul__ = _refused
+    append = extend = insert = pop = remove = reverse = sort = clear = _refused
 
 
 @dataclass(frozen=True)
@@ -48,23 +81,29 @@ class Move:
     from_block: str
     transit: str
     into: str
-    locked: list[str]  # resources newly locked for this move; [] under FullRoute
+    locked: Sequence[str]  # resources newly locked for this move; [] under FullRoute
     # The second increment, when it was obtained: a separate grant, published
     # as its own lock_granted so a grant stays one transit with its far block
     # (ADR-0029). Empty means it was not obtained, which is the `caution`
     # aspect rather than an error.
-    ahead: list[str]
+    ahead: Sequence[str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "locked", _frozen_list(self.locked))
+        object.__setattr__(self, "ahead", _frozen_list(self.ahead))
 
 
-@dataclass
+@dataclass(frozen=True)
 class Active:
+    """A train's committed route: the route record."""
+
     request_id: str  # the request it runs, which the dispatcher keeps
     route: Route
     cur_index: int  # index into route.blocks of cur(t)
     outstanding: Move | None  # granted move whose head is not yet in its block
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class Following:
     """A move whose readings are still expected (#1171). It outlives the
     request, since a reading can arrive after the request has ended. For a move
@@ -92,18 +131,41 @@ def transit_blocks(layout: Layout, transit: str) -> set[str]:
     return {block_of(end) for end in held.transits[name]}
 
 
-@dataclass
+def _frozen_list[T](items: Sequence[T]) -> FrozenList[T]:
+    return items if isinstance(items, FrozenList) else FrozenList(items)
+
+
+def _frozen_map[K, V](items: Mapping[K, V]) -> FrozenDict[K, V]:
+    return items if isinstance(items, FrozenDict) else FrozenDict(items)
+
+
+def _frozen_lists[T](
+    items: Mapping[str, Sequence[T]],
+) -> Mapping[str, FrozenList[T]]:
+    if isinstance(items, FrozenDict) and all(
+        isinstance(listed, FrozenList) for listed in items.values()
+    ):
+        return items  # pyright: ignore[reportReturnType]
+    return FrozenDict({key: _frozen_list(listed) for key, listed in items.items()})
+
+
+@dataclass(frozen=True)
 class Table:
+    """The lock table, frozen. It is built from plain dicts, lists and sets,
+    and holds them as `FrozenDict`, `FrozenList` and `frozenset`, so equal
+    tables compare and hash equal and an attempt to change one in place
+    raises."""
+
     # Read by `obstacle` for the conflict matrix and by `transit_blocks`. Left
     # out of equality and hashing, so every table of one railroad shares it.
     layout: Layout = field(compare=False)
-    locks: dict[str, str]  # resource -> holding train
-    block_of: dict[str, str]  # train -> block it stands in (or last parked)
-    active: dict[str, Active]
+    locks: Mapping[str, str]  # resource -> holding train
+    block_of: Mapping[str, str]  # train -> block it stands in (or last parked)
+    active: Mapping[str, Active]
     # train -> the end it will leave by once the last route committed for it
     # is done. Written when a route is chosen, since a route is fixed from
     # then on (ADR-0002), and so already true of a train still running one.
-    departure: dict[str, str] = field(default_factory=dict[str, str])
+    departure: Mapping[str, str] = field(default_factory=dict[str, str])
     # train -> the transit it is crossing: written at the grant, dropped when
     # the head is in, and so exactly the trains with an outstanding move.
     # `block_of` goes on naming the block the train left until its tail is out
@@ -111,29 +173,31 @@ class Table:
     # train is between two blocks rather than standing in one (#123). It
     # restores across a restart with no route behind it, which is what makes it
     # a placement hint and not a resumed move.
-    crossing: dict[str, str] = field(default_factory=dict[str, str])
+    crossing: Mapping[str, str] = field(default_factory=dict[str, str])
     # sensor `<block>.<end>` -> whether it last read occupied: the level each
     # one last settled at (`state/settled/sensor`), which is what makes an
     # at-least-once repeat a no-op (ADR-0047), and what the dispute check
     # compares (#153). Only sensors a row has spoken for are keys — silence is
     # not a clear reading, and a binding that reports nothing disputes nothing
     # rather than the whole railroad.
-    readings: dict[str, bool] = field(default_factory=dict[str, bool])
+    readings: Mapping[str, bool] = field(default_factory=dict[str, bool])
     # train -> the blocks and transits it occupies, tail to head, for each
     # placed train. A lock on no list is held ahead. A placed train's list holds
     # `block_of[train]`, unless the train is `crossing` with the block it left
     # already released (#1171).
-    occupied: dict[str, list[str]] = field(default_factory=dict[str, list[str]])
+    occupied: Mapping[str, Sequence[str]] = field(
+        default_factory=dict[str, Sequence[str]]
+    )
     # train -> the moves whose readings are still expected, oldest first.
-    following: dict[str, list[Following]] = field(
-        default_factory=dict[str, list[Following]]
+    following: Mapping[str, Sequence[Following]] = field(
+        default_factory=dict[str, Sequence[Following]]
     )
     # What a train taken off the layout still holds, because a sensor last read
     # occupied (ADR-0069): each block, and each transit on its `occupied` list
     # while either of that transit's blocks is here. The lock table names the
     # holder; this is what says the lock waits for a clear reading rather
     # than for a move, so that reading is explained (#1164).
-    residue: set[str] = field(default_factory=set[str])
+    residue: AbstractSet[str] = frozenset()
     # The sensors `layout` last listed as not reporting, `<block>.<end>`
     # (`state/unknown_sensors`). Empty until a row says otherwise: no row means
     # none, and a binding with no sensors lists none. Written only by that row,
@@ -144,6 +208,15 @@ class Table:
     # is out of use or disputed and none reads occupied, a launch locks its
     # whole route and no move is granted. `False` until a row says otherwise.
     without_sensors: bool = False
+
+    def __post_init__(self) -> None:
+        freeze = object.__setattr__
+        for name in ("locks", "block_of", "active", "departure", "crossing"):
+            freeze(self, name, _frozen_map(getattr(self, name)))
+        freeze(self, "readings", _frozen_map(self.readings))
+        freeze(self, "occupied", _frozen_lists(self.occupied))
+        freeze(self, "following", _frozen_lists(self.following))
+        freeze(self, "residue", frozenset(self.residue))
 
     @property
     def out_of_use(self) -> frozenset[str]:
@@ -574,13 +647,13 @@ def reading(table: Table, sensor: str, occupied: bool) -> tuple[Table, list[Effe
     is `Disputed`. The table given is left unchanged."""
     if table.readings.get(sensor) == occupied:
         return table, []
-    new = _copied(table)
-    new.readings[sensor] = occupied
-    effects: list[Effect] = [Disputed(new.disputed_blocks)]
+    recorded = replace(table, readings={**table.readings, sensor: occupied})
+    effects: list[Effect] = [Disputed(recorded.disputed_blocks)]
+    new = _copied(recorded)
     for train, following in new.following.items():
         for each in list(following):
             effects += _followed(new, train, each, sensor, occupied)
-    return new, effects
+    return new.table(), effects
 
 
 def not_reporting(table: Table, sensors: frozenset[str]) -> tuple[Table, list[Effect]]:
@@ -614,10 +687,9 @@ def releasing(
     )
     if not released:
         return table, []
-    new = _copied(table)
-    for resource in released:
-        del new.locks[resource]
-    return new, [Released(train, tuple(released))]
+    gone = set(released)
+    locks = {r: holder for r, holder in table.locks.items() if r not in gone}
+    return replace(table, locks=locks), [Released(train, tuple(released))]
 
 
 def retiring(
@@ -631,15 +703,14 @@ def retiring(
     given is left unchanged."""
     if keep is None:
         standing = table.block_of.get(train)
-        on = table.occupied.get(train, [])
+        on = table.occupied.get(train, ())
         keep = on if standing is None else (*on, standing)
-    new, effects = releasing(table, train, keep)
-    if new is table:
-        new = _copied(table)
+    released, effects = releasing(table, train, keep)
+    new = _copied(released)
     del new.active[train]
     new.crossing.pop(train, None)
     new.departure.pop(train, None)
-    return new, effects
+    return new.table(), effects
 
 
 def placing(table: Table, train: str, block: str) -> tuple[Table, list[Effect]]:
@@ -657,11 +728,10 @@ def placing(table: Table, train: str, block: str) -> tuple[Table, list[Effect]]:
     placement, having nothing left to wait for. Whatever it was crossing, it
     is not crossing it now. The table given is left unchanged."""
     standing = table.block_of.get(train)
-    new, effects = releasing(
+    released, effects = releasing(
         table, train, (block,) if standing is None else (standing, block)
     )
-    if new is table:
-        new = _copied(table)
+    new = _copied(released)
     new.residue.discard(block)
     if standing is not None and new.locks.get(standing) == train:
         del new.locks[standing]
@@ -671,7 +741,8 @@ def placing(table: Table, train: str, block: str) -> tuple[Table, list[Effect]]:
     new.following.pop(train, None)
     new.crossing.pop(train, None)
     effects.append(Placed(train, block))
-    return new, effects + _open(new, train, _spent(new, train))
+    effects += _open(new, train, _spent(new, train))
+    return new.table(), effects
 
 
 def removing(table: Table, train: str) -> tuple[Table, list[Effect]]:
@@ -689,15 +760,14 @@ def removing(table: Table, train: str) -> tuple[Table, list[Effect]]:
     if train not in table.block_of and train not in table.crossing:
         return table, []
     kept = table.kept(train)
-    new, effects = releasing(table, train, kept)
-    if new is table:
-        new = _copied(table)
+    released, effects = releasing(table, train, kept)
+    new = _copied(released)
     new.residue |= kept
     new.block_of.pop(train, None)
     new.occupied.pop(train, None)
     new.following.pop(train, None)
     new.crossing.pop(train, None)
-    return new, [*effects, Removed(train)]
+    return new.table(), [*effects, Removed(train)]
 
 
 def opening(table: Table) -> tuple[Table, list[Effect]]:
@@ -728,7 +798,7 @@ def opening(table: Table) -> tuple[Table, list[Effect]]:
         train = new.locks[block]
         new.residue.discard(block)
         effects += _open(new, train, [block, *_spent(new, train)])
-    return new, effects
+    return new.table(), effects
 
 
 def entered(layout: Layout, route: Route) -> str:
@@ -755,7 +825,7 @@ def committing(
         new.locks[resource] = train
     new.active[train] = Active(request_id, route, 0, None)
     new.departure[train] = departure_end(table.layout, entered(table.layout, route))
-    return new, [Granted(train, tuple(locked))]
+    return new.table(), [Granted(train, tuple(locked))]
 
 
 def committing_whole(
@@ -768,13 +838,15 @@ def committing_whole(
     crossing a change of the setting left ends here: what it held stays on
     the list until the run ends (#1324). The table given is left
     unchanged."""
-    new, effects = committing(table, train, request_id, route, locked)
+    committed, effects = committing(table, train, request_id, route, locked)
+    new = _copied(committed)
     new.crossing.pop(train, None)
     whole = route.interleaved()
-    occupying = new.occupied[train]
-    occupying[:] = [entry for entry in occupying if entry not in whole]
-    occupying += whole
-    return new, effects
+    new.occupied[train] = [
+        *(entry for entry in new.occupied[train] if entry not in whole),
+        *whole,
+    ]
+    return new.table(), effects
 
 
 def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]:
@@ -822,7 +894,7 @@ def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]
             exit_read=new.readings.get(leaving) is True,
         )
     ]
-    return new, effects
+    return new.table(), effects
 
 
 def cancelling(table: Table, train: str) -> tuple[Table, list[Effect]]:
@@ -860,16 +932,15 @@ def withdrawing(table: Table, train: str) -> tuple[Table, list[Effect]]:
     if new.block_of[train] not in occupying:
         occupying.append(new.block_of[train])
     new.following[train].pop()
-    return new, []
+    return new.table(), []
 
 
 def completing(table: Table, train: str) -> tuple[Table, list[Effect]]:
     """The train's run has ended at its route's last block: it is no longer
     active. It keeps what it is on, and the end it leaves by
     (`departure`). The table given is left unchanged."""
-    new = _copied(table)
-    del new.active[train]
-    return new, []
+    active = {other: each for other, each in table.active.items() if other != train}
+    return replace(table, active=active), []
 
 
 def arriving(table: Table, train: str) -> tuple[Table, list[Effect]]:
@@ -880,12 +951,11 @@ def arriving(table: Table, train: str) -> tuple[Table, list[Effect]]:
     unchanged."""
     block = table.active[train].route.arrival_block
     table = replace(table, occupied={**table.occupied, train: [block]})
-    new, effects = releasing(table, train, (block,))
-    if new is table:
-        new = _copied(table)
+    released, effects = releasing(table, train, (block,))
+    new = _copied(released)
     new.block_of[train] = block
     del new.active[train]
-    return new, effects
+    return new.table(), effects
 
 
 def adopting(
@@ -909,7 +979,7 @@ def adopting(
         new.block_of[train] = block
         new.occupied[train] = occupying
         effects.append(Granted(train, tuple(occupying)))
-    return new, effects
+    return new.table(), effects
 
 
 def setting_without_sensors(
@@ -933,23 +1003,79 @@ def setting_without_sensors(
     effects: list[Effect] = []
     for train in sorted(new.active):
         standing = new.block_of.get(train)
-        on = new.occupied.get(train, [])
+        on = new.occupied.get(train, ())
         new, released = releasing(
             new, train, on if standing is None else (*on, standing)
         )
         effects += released
     new = replace(new, active={}, following={}, departure={})
     effects.append(RunsEnded())
-    if without_sensors and new.residue:
-        new = _copied(new)
-        for train in sorted({new.locks[kept] for kept in new.residue}):
-            effects += _open(
-                new, train, [kept for kept in new.residue if new.locks[kept] == train]
-            )
-    return new, effects
+    if not without_sensors or not new.residue:
+        return new, effects
+    draft = _copied(new)
+    for train in sorted({draft.locks[kept] for kept in draft.residue}):
+        effects += _open(
+            draft,
+            train,
+            [kept for kept in draft.residue if draft.locks[kept] == train],
+        )
+    return draft.table(), effects
 
 
-def _spent(table: Table, train: str) -> list[str]:
+@dataclass
+class _Draft:
+    """A table one transition is changing: its own maps, lists and set, made
+    a `Table` again when the transition returns."""
+
+    layout: Layout
+    locks: dict[str, str]
+    block_of: dict[str, str]
+    active: dict[str, Active]
+    departure: dict[str, str]
+    crossing: dict[str, str]
+    readings: dict[str, bool]
+    occupied: dict[str, list[str]]
+    following: dict[str, list[Following]]
+    residue: set[str]
+    unknown_sensors: frozenset[str]
+    without_sensors: bool
+
+    def table(self) -> Table:
+        return Table(
+            self.layout,
+            self.locks,
+            self.block_of,
+            self.active,
+            self.departure,
+            self.crossing,
+            self.readings,
+            self.occupied,
+            self.following,
+            self.residue,
+            self.unknown_sensors,
+            self.without_sensors,
+        )
+
+
+def _copied(table: Table) -> _Draft:
+    """A draft of `table` for a transition to change."""
+    return _Draft(
+        table.layout,
+        dict(table.locks),
+        dict(table.block_of),
+        dict(table.active),
+        dict(table.departure),
+        dict(table.crossing),
+        dict(table.readings),
+        {train: list(listed) for train, listed in table.occupied.items()},
+        {train: list(listed) for train, listed in table.following.items()},
+        set(table.residue),
+        table.unknown_sensors,
+        table.without_sensors,
+    )
+
+
+def _spent(table: _Draft, train: str) -> list[str]:
     """The transits `train` holds as residue that no residual block of its
     own is left to keep."""
     return [
@@ -964,7 +1090,7 @@ def _spent(table: Table, train: str) -> list[str]:
     ]
 
 
-def _open(table: Table, train: str, resources: list[str]) -> list[Effect]:
+def _open(table: _Draft, train: str, resources: list[str]) -> list[Effect]:
     """Residue given up, in one `Opened`."""
     for resource in resources:
         del table.locks[resource]
@@ -972,28 +1098,8 @@ def _open(table: Table, train: str, resources: list[str]) -> list[Effect]:
     return [Opened(train, tuple(sorted(resources)))] if resources else []
 
 
-def _copied(table: Table) -> Table:
-    """A copy of `table` whose maps a transition may change are its own
-    (#1330 freezes the table)."""
-    return replace(
-        table,
-        locks=dict(table.locks),
-        block_of=dict(table.block_of),
-        active={train: replace(each) for train, each in table.active.items()},
-        departure=dict(table.departure),
-        crossing=dict(table.crossing),
-        readings=dict(table.readings),
-        occupied={train: list(listed) for train, listed in table.occupied.items()},
-        following={
-            train: [replace(each) for each in listed]
-            for train, listed in table.following.items()
-        },
-        residue=set(table.residue),
-    )
-
-
 def _followed(
-    table: Table, train: str, each: Following, sensor: str, occupied: bool
+    table: _Draft, train: str, each: Following, sensor: str, occupied: bool
 ) -> list[Effect]:
     """A changed reading, taken against one move that may expect it (#1171).
 
@@ -1007,30 +1113,35 @@ def _followed(
 
     A request ends when the whole train is in its last block, or when the far
     sensor reads `occupied` if the entry sensor was not seen to clear
-    (GOALS.md): the newest move ending is `MoveEnded`."""
-    newest = table.newest(train) is each
+    (GOALS.md): the newest move ending is `MoveEnded`.
+
+    `each` is found on the train's list by identity, not by value: a train
+    can have two equal moves expecting readings."""
+    following = table.following[train]
+    at = next(i for i, listed in enumerate(following) if listed is each)
+    newest = at == len(following) - 1
     effects: list[Effect] = []
     if occupied:
         if sensor == each.exit:
-            each.exit_read = True
+            following[at] = replace(each, exit_read=True)
         elif sensor in (each.entry, each.far):
             if not each.head_in:
-                effects += _head_in(table, train, each)
+                effects += _head_in(table, train, at)
             if sensor == each.far:
-                each.at_far = True
+                following[at] = replace(following[at], at_far=True)
                 if newest:
                     effects.append(MoveEnded(train))
     elif sensor == each.exit:
         if each.exit_read:
-            effects += _tail_out(table, train, each)
+            effects += _tail_out(table, train, at)
     elif sensor == each.entry and each.head_in:
-        effects += _tail_in(table, train, each)
+        effects += _tail_in(table, train, at)
         if newest:
             effects.append(MoveEnded(train))
     return effects
 
 
-def _head_in(table: Table, train: str, each: Following) -> list[Effect]:
+def _head_in(table: _Draft, train: str, at: int) -> list[Effect]:
     """Y's sensor at the end the train enters by reads `occupied`: the head is
     in Y, and the train may be granted its next move (GOALS.md).
 
@@ -1038,11 +1149,12 @@ def _head_in(table: Table, train: str, each: Following) -> list[Effect]:
     goes to the head of what the train occupies, from wherever a move back
     over a transit left it, and the train is recorded in Y, past the signal
     it left by, which now shows `stop` (ADR-0093)."""
-    into = each.move.into
-    each.head_in = True
+    following = table.following[train]
+    following[at] = replace(following[at], head_in=True)
+    into = following[at].move.into
     active = table.active.get(train)
     if active is not None:
-        active.outstanding = None
+        table.active[train] = replace(active, outstanding=None)
     table.crossing.pop(train, None)
     occupying = table.occupied[train]
     if into in occupying:
@@ -1052,27 +1164,27 @@ def _head_in(table: Table, train: str, each: Following) -> list[Effect]:
     return [HeadIn(train, into)]
 
 
-def _tail_out(table: Table, train: str, each: Following) -> list[Effect]:
+def _tail_out(table: _Draft, train: str, at: int) -> list[Effect]:
     """X's sensor at the end the train leaves by reads `occupied`, then
     `clear`: the tail has left X, and X is released (GOALS.md).
 
     The train is recorded in the block it is crossing into if it was still
     recorded in X. A move older than this one into X is dropped, so another
     train entering X later reads nothing for this one."""
-    left = each.move.from_block
+    following = table.following[train]
+    move = following[at].move
+    left = move.from_block
     occupying = table.occupied[train]
     if left not in occupying:
         return []
     effects = _give_up(table, train, [left])
     if table.block_of[train] == left:
-        table.block_of[train] = each.move.into
-    following = table.following[train]
-    older = following[: following.index(each)]
-    following[: len(older)] = [m for m in older if m.move.into != left]
+        table.block_of[train] = move.into
+    following[:at] = [older for older in following[:at] if older.move.into != left]
     return effects
 
 
-def _tail_in(table: Table, train: str, each: Following) -> list[Effect]:
+def _tail_in(table: _Draft, train: str, at: int) -> list[Effect]:
     """Y's sensor at the end the train entered by reads `clear` after the head
     is in: the whole train is in Y, and T is released, with anything of that
     train's still held behind it (GOALS.md), in one `Released`.
@@ -1080,19 +1192,19 @@ def _tail_in(table: Table, train: str, each: Following) -> list[Effect]:
     A transit a later move has taken again is not this one's to give up, nor
     is a block on the train's route ahead whose transit in is locked to it
     (#1230). This move and any older are no longer followed."""
+    following = table.following[train]
     occupying = table.occupied[train]
-    transit = each.move.transit
+    transit = following[at].move.transit
     effects: list[Effect] = []
     if transit in occupying:
         entered = _entered_ahead(table, train)
         behind = occupying[: occupying.index(transit) + 1]
         effects = _give_up(table, train, [r for r in behind if r not in entered])
-    following = table.following[train]
-    del following[: following.index(each) + 1]
+    del following[: at + 1]
     return effects
 
 
-def _entered_ahead(table: Table, train: str) -> set[str]:
+def _entered_ahead(table: _Draft, train: str) -> set[str]:
     """The blocks on the train's route from the one it is granted into on,
     each with the transit into it locked to the train."""
     active = table.active.get(train)
@@ -1106,7 +1218,7 @@ def _entered_ahead(table: Table, train: str) -> set[str]:
     }
 
 
-def _give_up(table: Table, train: str, resources: list[str]) -> list[Effect]:
+def _give_up(table: _Draft, train: str, resources: list[str]) -> list[Effect]:
     """What a train has left behind it, off its list and released."""
     occupying = table.occupied[train]
     for resource in resources:

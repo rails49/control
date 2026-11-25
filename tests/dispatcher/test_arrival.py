@@ -12,6 +12,7 @@ and a clear behind before the occupied ahead, which a train shorter than the
 gap between two blocks' sensors gives in normal running.
 """
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -257,7 +258,10 @@ def test_a_placement_over_a_broken_table() -> None:
     railroad = Railroad()
     railroad.power(OFF)
     state = railroad.dispatcher.state
-    del state.locks["yard_w"]
+    state.table = replace(
+        state.table,
+        locks={r: h for r, h in state.locks.items() if r != "yard_w"},
+    )
 
     railroad.deliver(PLACEMENT_WANTED, {"train": "freight_1", "block": "dn_w"})
 

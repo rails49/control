@@ -13,6 +13,7 @@ one way through `w_main` and `e_main` and two round its loops, and
 """
 
 from collections.abc import Iterable
+from dataclasses import replace
 from typing import cast
 
 import pytest
@@ -309,8 +310,11 @@ def test_an_unsafe_verdict_names_no_holder_for_a_block_out_of_use() -> None:
     route = standing(layout, "west_1", "w_main", "loop_up", "e_main", "east_1")
     state = under_way(layout, {"runner": route}, ["e_main.A"])
     state.roster["parked"] = 600
-    state.locks["e_main"] = "parked"
-    state.block_of["parked"] = "e_main"
+    state.table = replace(
+        state.table,
+        locks={**state.locks, "e_main": "parked"},
+        block_of={**state.block_of, "parked": "e_main"},
+    )
 
     assert Incremental(layout, 2).grant("runner", state) == Refused(
         Refusal.UNSAFE, [{"resource": "e_main", "holder": ""}]

@@ -8,8 +8,11 @@ event and asserting on the table and the effects returned. The railroad is
 """
 
 import ast
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
+from typing import Any, cast
+
+import pytest
 
 import tc49.dispatcher.table
 from tc49.dispatcher.routing import candidates
@@ -65,6 +68,52 @@ def test_the_table_imports_only_lib() -> None:
     } == set()
 
 
+def test_tables_built_the_same_way_compare_and_hash_equal() -> None:
+    """And one with a different lock does not compare equal (#1315)."""
+    one, other = granted(), granted()
+
+    assert one is not other
+    assert one == other
+    assert hash(one) == hash(other)
+    assert one != replace(one, locks={**one.locks, "up_e": "t"})
+
+
+def test_the_layout_is_left_out_of_equality_and_hashing() -> None:
+    table, _ = a_route()
+    layout, _roster, _ = load("single-track-meet/starvation")
+    elsewhere = replace(table, layout=layout)
+
+    assert elsewhere == table
+    assert hash(elsewhere) == hash(table)
+
+
+def test_a_table_is_not_changed_in_place() -> None:
+    """Its fields, its maps, its lists and the records in them."""
+    table = granted()
+
+    with pytest.raises(FrozenInstanceError):
+        cast(Any, table).locks = {}
+    with pytest.raises(TypeError):
+        cast(Any, table.locks)["up_e"] = "t"
+    with pytest.raises(TypeError):
+        del cast(Any, table.crossing)["t"]
+    with pytest.raises(TypeError):
+        cast(Any, table.block_of).update({"t": "dn_w"})
+    with pytest.raises(TypeError):
+        cast(Any, table.occupied["t"]).append("dn_w")
+    with pytest.raises(TypeError):
+        cast(Any, table.following["t"]).pop()
+    with pytest.raises(AttributeError):
+        cast(Any, table.residue).add("up_e")
+    with pytest.raises(FrozenInstanceError):
+        cast(Any, table.active["t"]).cur_index = 2
+    with pytest.raises(FrozenInstanceError):
+        cast(Any, table.following["t"][0]).head_in = True
+    with pytest.raises(TypeError):
+        cast(Any, table.following["t"][0].move.locked).append("up_e")
+    assert table == granted()
+
+
 def a_route() -> tuple[Table, Route]:
     """An empty table and `yard_w` to `yard_e` by the down line."""
     layout, _roster, _ = load("crossover-yard/meet")
@@ -82,16 +131,18 @@ def granted() -> Table:
     `yard_w.B`, which reads occupied."""
     table, route = a_route()
     move = Move("yard_w", T1, "dn_w", [T1, "dn_w"], [T2, "dn_e"])
-    table.locks.update({"yard_w": "t", T1: "t", "dn_w": "t", T2: "t", "dn_e": "t"})
-    table.block_of["t"] = "yard_w"
-    table.active["t"] = Active("t-1", route, 1, move)
-    table.crossing["t"] = T1
-    table.occupied["t"] = ["yard_w", T1]
-    table.readings["yard_w.B"] = True
-    table.following["t"] = [
-        Following(move, "yard_w.B", "dn_w.A", "dn_w.B", exit_read=True)
-    ]
-    return table
+    return replace(
+        table,
+        locks=dict.fromkeys(["yard_w", T1, "dn_w", T2, "dn_e"], "t"),
+        block_of={"t": "yard_w"},
+        active={"t": Active("t-1", route, 1, move)},
+        crossing={"t": T1},
+        occupied={"t": ["yard_w", T1]},
+        readings={"yard_w.B": True},
+        following={
+            "t": [Following(move, "yard_w.B", "dn_w.A", "dn_w.B", exit_read=True)]
+        },
+    )
 
 
 def headed() -> Table:
@@ -99,15 +150,21 @@ def headed() -> Table:
     not yet seen out of `yard_w`."""
     table = granted()
     move = table.following["t"][0].move
-    table.block_of["t"] = "dn_w"
-    table.active["t"].outstanding = None
-    del table.crossing["t"]
-    table.occupied["t"] = ["yard_w", T1, "dn_w"]
-    table.readings["dn_w.A"] = True
-    table.following["t"] = [
-        Following(move, "yard_w.B", "dn_w.A", "dn_w.B", exit_read=True, head_in=True)
-    ]
-    return table
+    return replace(
+        table,
+        block_of={"t": "dn_w"},
+        active={"t": replace(table.active["t"], outstanding=None)},
+        crossing={},
+        occupied={"t": ["yard_w", T1, "dn_w"]},
+        readings={**table.readings, "dn_w.A": True},
+        following={
+            "t": [
+                Following(
+                    move, "yard_w.B", "dn_w.A", "dn_w.B", exit_read=True, head_in=True
+                )
+            ]
+        },
+    )
 
 
 def test_a_repeated_reading_is_a_no_op() -> None:
@@ -160,11 +217,18 @@ def test_the_whole_train_in_keeps_a_block_ahead_whose_transit_is_locked() -> Non
     has not ended."""
     table = headed()
     second = Move("dn_w", T2, "dn_e", [T2, "dn_e"], [])
-    table.active["t"].cur_index = 2
-    table.active["t"].outstanding = second
-    table.crossing["t"] = T2
-    table.occupied["t"] = ["dn_e", "yard_w", T1, "dn_w", T2]
-    table.following["t"].append(Following(second, "dn_w.B", "dn_e.A", "dn_e.B"))
+    table = replace(
+        table,
+        active={"t": replace(table.active["t"], cur_index=2, outstanding=second)},
+        crossing={"t": T2},
+        occupied={"t": ["dn_e", "yard_w", T1, "dn_w", T2]},
+        following={
+            "t": [
+                *table.following["t"],
+                Following(second, "dn_w.B", "dn_e.A", "dn_e.B"),
+            ]
+        },
+    )
 
     new, effects = reading(table, "dn_w.A", False)
 
@@ -238,8 +302,7 @@ def test_an_unchanged_list_of_sensors_not_reporting_is_a_no_op() -> None:
 def test_a_release_gives_up_all_but_what_is_kept_and_the_residue() -> None:
     """In one `Released`, sorted."""
     table = granted()
-    table.locks["up_e"] = "t"
-    table.residue.add("up_e")
+    table = replace(table, locks={**table.locks, "up_e": "t"}, residue={"up_e"})
 
     new, effects = releasing(table, "t", ("yard_w", T1))
 
@@ -257,8 +320,7 @@ def test_a_release_with_nothing_to_give_up_is_a_no_op() -> None:
 def test_a_retire_keeps_what_the_train_is_on_and_ends_its_run() -> None:
     """Its standing block and its `occupied` list; what it held ahead goes,
     and it is no longer active, crossing or departing."""
-    table = granted()
-    table.departure["t"] = "yard_e.B"
+    table = replace(granted(), departure={"t": "yard_e.A"})
 
     new, effects = retiring(table, "t")
 
@@ -277,11 +339,24 @@ def test_a_retire_keeps_what_it_is_told_to() -> None:
 def standing(occupied: bool) -> Table:
     """`t` at rest in `yard_w`, whose sensor at `B` reads `occupied`."""
     table, _ = a_route()
-    table.locks["yard_w"] = "t"
-    table.block_of["t"] = "yard_w"
-    table.occupied["t"] = ["yard_w"]
-    table.readings["yard_w.B"] = occupied
-    return table
+    return replace(
+        table,
+        locks={"yard_w": "t"},
+        block_of={"t": "yard_w"},
+        occupied={"t": ["yard_w"]},
+        readings={"yard_w.B": occupied},
+    )
+
+
+def crossing(table: Table) -> Table:
+    """`table` with `t`, standing in `yard_w`, restored as crossing T1 into
+    `dn_w`, both locked to it."""
+    return replace(
+        table,
+        locks={**table.locks, T1: "t", "dn_w": "t"},
+        crossing={"t": T1},
+        occupied={"t": ["yard_w", T1]},
+    )
 
 
 def test_removing_a_train_whose_block_reads_occupied_leaves_residue() -> None:
@@ -305,12 +380,7 @@ def test_removing_a_train_whose_block_reads_clear_releases_it() -> None:
 def test_removing_a_crossing_train_keeps_the_transit_beside_an_occupied_block() -> None:
     """A restored hint: `t` over T1 with its tail in `yard_w`, which reads
     occupied. T1 is kept with `yard_w`; `dn_w` reads nothing and goes."""
-    table = standing(True)
-    table.locks.update({T1: "t", "dn_w": "t"})
-    table.crossing["t"] = T1
-    table.occupied["t"] = ["yard_w", T1]
-
-    new, effects = removing(table, "t")
+    new, effects = removing(crossing(standing(True)), "t")
 
     assert effects == [Released("t", ("dn_w",)), Removed("t")]
     assert new.residue == {"yard_w", T1}
@@ -329,10 +399,12 @@ def residue() -> Table:
     """`t` removed over T1, with `yard_w.B` and `dn_w.A` reading occupied:
     both blocks and T1 are its residue."""
     table, _ = a_route()
-    table.locks.update({"yard_w": "t", T1: "t", "dn_w": "t"})
-    table.residue.update({"yard_w", T1, "dn_w"})
-    table.readings.update({"yard_w.B": True, "dn_w.A": True})
-    return table
+    return replace(
+        table,
+        locks=dict.fromkeys(["yard_w", T1, "dn_w"], "t"),
+        residue={"yard_w", T1, "dn_w"},
+        readings={"yard_w.B": True, "dn_w.A": True},
+    )
 
 
 def test_residue_opens_on_the_clear_reading() -> None:
@@ -397,11 +469,7 @@ def test_placing_a_train_moves_its_standing_lock_without_a_release() -> None:
 def test_placing_a_crossing_train_releases_what_it_occupied_behind_it() -> None:
     """A restored hint over T1: T1 goes in a `Released` before the placement,
     and the train is no longer crossing or followed."""
-    table = standing(True)
-    table.locks.update({T1: "t", "dn_w": "t"})
-    table.crossing["t"] = T1
-    table.occupied["t"] = ["yard_w", T1]
-    table.following["t"] = []
+    table = replace(crossing(standing(True)), following={"t": []})
 
     new, effects = placing(table, "t", "dn_w")
 
@@ -431,10 +499,7 @@ def test_committing_a_route_locks_what_the_strategy_said_and_makes_the_train_act
 def test_committing_a_whole_route_occupies_all_of_it() -> None:
     """Without sensors (#1314): a person drives the train, which may be anywhere
     on its route. A crossing hint a change of the setting left ends (#1324)."""
-    table = replace(standing(False), without_sensors=True)
-    table.locks[T1] = "t"
-    table.crossing["t"] = T1
-    table.occupied["t"] = ["yard_w", T1]
+    table = replace(crossing(standing(False)), without_sensors=True)
     _, route = a_route()
     whole = route.crossing_order()
 
@@ -467,26 +532,16 @@ def test_granting_a_move_follows_it() -> None:
     assert (new.active["t"].cur_index, new.active["t"].outstanding) == (1, move)
     assert new.crossing == {"t": T1}
     assert new.occupied["t"] == ["yard_w", T1]
-    [followed] = new.following["t"]
-    assert (followed.move, followed.exit, followed.entry, followed.far) == (
-        move,
-        "yard_w.B",
-        "dn_w.A",
-        "dn_w.B",
-    )
-    assert (followed.exit_read, followed.head_in, followed.at_far) == (
-        True,
-        False,
-        False,
-    )
+    assert new.following["t"] == [
+        Following(move, "yard_w.B", "dn_w.A", "dn_w.B", exit_read=True)
+    ]
     assert broken(new) == []
 
 
 def test_granting_a_move_locks_its_increment_and_what_it_holds_ahead_apart() -> None:
     """Two `Granted`, not one of four (ADR-0029). The exit reads clear."""
-    table = standing(False)
     _, route = a_route()
-    table.active["t"] = Active("t-1", route, 0, None)
+    table = replace(standing(False), active={"t": Active("t-1", route, 0, None)})
     move = Move("yard_w", T1, "dn_w", [T1, "dn_w"], [T2, "dn_e"])
 
     new, effects = granting(table, "t", move)
@@ -498,7 +553,9 @@ def test_granting_a_move_locks_its_increment_and_what_it_holds_ahead_apart() -> 
 def test_granting_a_move_drops_an_older_one_at_its_far_sensor() -> None:
     """It expects nothing more; what it left on the list stays (#1171)."""
     table = headed()
-    table.following["t"][0].at_far = True
+    table = replace(
+        table, following={"t": [replace(table.following["t"][0], at_far=True)]}
+    )
     second = Move("dn_w", T2, "dn_e", [], [T3, "yard_e"])
 
     new, _ = granting(table, "t", second)
@@ -548,8 +605,7 @@ def test_withdrawing_puts_the_train_back_where_it_was_before_the_grant() -> None
 
 
 def test_completing_ends_the_run_and_keeps_where_the_train_leaves_by() -> None:
-    table = headed()
-    table.departure["t"] = "yard_e.A"
+    table = replace(headed(), departure={"t": "yard_e.A"})
 
     new, effects = completing(table, "t")
 
@@ -593,10 +649,12 @@ def test_adopting_a_kept_allocation_locks_what_each_train_occupies() -> None:
 
 def with_residue(table: Table) -> Table:
     """`table` with `gone`'s residue in `up_e`, which reads occupied."""
-    table.locks["up_e"] = "gone"
-    table.residue.add("up_e")
-    table.readings["up_e.A"] = True
-    return table
+    return replace(
+        table,
+        locks={**table.locks, "up_e": "gone"},
+        residue={*table.residue, "up_e"},
+        readings={**table.readings, "up_e.A": True},
+    )
 
 
 def test_running_without_sensors_ends_every_run_and_opens_every_residue() -> None:

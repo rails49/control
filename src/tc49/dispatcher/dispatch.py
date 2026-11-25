@@ -43,7 +43,7 @@ no move. A person drives the train, and the run ends by "arrived"
 """
 
 import sys
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 
@@ -248,39 +248,39 @@ class State:
     short_blocks: bool = False
 
     @property
-    def locks(self) -> dict[str, str]:
+    def locks(self) -> Mapping[str, str]:
         return self.table.locks
 
     @property
-    def block_of(self) -> dict[str, str]:
+    def block_of(self) -> Mapping[str, str]:
         return self.table.block_of
 
     @property
-    def active(self) -> dict[str, Active]:
+    def active(self) -> Mapping[str, Active]:
         return self.table.active
 
     @property
-    def departure(self) -> dict[str, str]:
+    def departure(self) -> Mapping[str, str]:
         return self.table.departure
 
     @property
-    def crossing(self) -> dict[str, str]:
+    def crossing(self) -> Mapping[str, str]:
         return self.table.crossing
 
     @property
-    def readings(self) -> dict[str, bool]:
+    def readings(self) -> Mapping[str, bool]:
         return self.table.readings
 
     @property
-    def occupied(self) -> dict[str, list[str]]:
+    def occupied(self) -> Mapping[str, Sequence[str]]:
         return self.table.occupied
 
     @property
-    def following(self) -> dict[str, list[Following]]:
+    def following(self) -> Mapping[str, Sequence[Following]]:
         return self.table.following
 
     @property
-    def residue(self) -> set[str]:
+    def residue(self) -> AbstractSet[str]:
         return self.table.residue
 
     @property
