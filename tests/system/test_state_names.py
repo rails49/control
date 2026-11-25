@@ -1,4 +1,5 @@
-"""The state topics the browser knows, against the inventory's state rows.
+"""The state topics the browser knows, against the inventory's state rows,
+and the topics it writes, against the rows marked ``browser``.
 
 The panel guards a state topic's ordering as the dispatcher does (#240), and
 it has to name the state topics to do it: the relay hands a page `{topic,
@@ -18,6 +19,7 @@ from pathlib import Path
 from tc49.lib.inventory import (
     DEVICE_PREFIX,
     DEVICE_TOPICS,
+    INBOUND,
     TOPICS,
     is_state_topic,
     leaf,
@@ -63,3 +65,17 @@ def test_the_device_rows_a_view_reads_are_device_rows() -> None:
     renamed takes this with it rather than leaving the browser ordering a
     topic nothing publishes."""
     assert {DEVICE_PREFIX + name for name in READ} <= set(DEVICE_TOPICS)
+
+
+WRITTEN = re.compile(r'^export const [A-Z_]+ = "(tc49/[^"]+)";$', re.MULTILINE)
+"""A topic constant of `trace.ts`: each is one the browser writes."""
+
+
+def test_the_browsers_written_topics_are_the_inventorys_browser_rows() -> None:
+    """A topic the page writes is a row marked ``browser``, and each such row
+    has its constant in `trace.ts` (#1314)."""
+    source = (ROOT / TRACE_TS).read_text()
+    assert set(WRITTEN.findall(source)) == INBOUND, (
+        f"{TRACE_TS} and tc49.lib.inventory disagree about the topics a browser"
+        " writes"
+    )
