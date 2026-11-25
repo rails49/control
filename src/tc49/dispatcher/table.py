@@ -1074,31 +1074,31 @@ def _copied(table: Table) -> _Draft:
     )
 
 
-def _spent(table: _Draft, train: str) -> list[str]:
+def _spent(draft: _Draft, train: str) -> list[str]:
     """The transits `train` holds as residue that no residual block of its
     own is left to keep."""
     return [
         resource
-        for resource in table.residue
-        if resource not in table.layout.blocks
-        and table.locks.get(resource) == train
+        for resource in draft.residue
+        if resource not in draft.layout.blocks
+        and draft.locks.get(resource) == train
         and not any(
-            table.locks.get(block) == train and block in table.residue
-            for block in transit_blocks(table.layout, resource)
+            draft.locks.get(block) == train and block in draft.residue
+            for block in transit_blocks(draft.layout, resource)
         )
     ]
 
 
-def _open(table: _Draft, train: str, resources: list[str]) -> list[Effect]:
+def _open(draft: _Draft, train: str, resources: list[str]) -> list[Effect]:
     """Residue given up, in one `Opened`."""
     for resource in resources:
-        del table.locks[resource]
-        table.residue.discard(resource)
+        del draft.locks[resource]
+        draft.residue.discard(resource)
     return [Opened(train, tuple(sorted(resources)))] if resources else []
 
 
 def _followed(
-    table: _Draft, train: str, each: Following, sensor: str, occupied: bool
+    draft: _Draft, train: str, each: Following, sensor: str, occupied: bool
 ) -> list[Effect]:
     """A changed reading, taken against one move that may expect it (#1171):
     the facts it gives (`tc49.lib.following.follow`) and what each does to
@@ -1110,7 +1110,7 @@ def _followed(
 
     `each` is found on the train's list by identity, not by value: a train
     can have two equal moves expecting readings."""
-    following = table.following[train]
+    following = draft.following[train]
     at = next(i for i, listed in enumerate(following) if listed is each)
     newest = at == len(following) - 1
     seen, facts = follow(
@@ -1124,19 +1124,19 @@ def _followed(
     following[at] = seen
     effects: list[Effect] = []
     if facts.head_in:
-        effects += _head_in(table, train, at)
+        effects += _head_in(draft, train, at)
     if facts.at_far and newest:
         effects.append(MoveEnded(train))
     if facts.tail_out:
-        effects += _tail_out(table, train, at)
+        effects += _tail_out(draft, train, at)
     if facts.whole_in:
-        effects += _tail_in(table, train, at)
+        effects += _tail_in(draft, train, at)
         if newest:
             effects.append(MoveEnded(train))
     return effects
 
 
-def _head_in(table: _Draft, train: str, at: int) -> list[Effect]:
+def _head_in(draft: _Draft, train: str, at: int) -> list[Effect]:
     """The head is in Y (`Facts.head_in`), and the train may be granted its
     next move (GOALS.md).
 
@@ -1144,39 +1144,39 @@ def _head_in(table: _Draft, train: str, at: int) -> list[Effect]:
     goes to the head of what the train occupies, from wherever a move back
     over a transit left it, and the train is recorded in Y, past the signal
     it left by, which now shows `stop` (ADR-0093)."""
-    into = table.following[train][at].move.into
-    active = table.active.get(train)
+    into = draft.following[train][at].move.into
+    active = draft.active.get(train)
     if active is not None:
-        table.active[train] = replace(active, outstanding=None)
-    table.crossing.pop(train, None)
-    occupying = table.occupied[train]
+        draft.active[train] = replace(active, outstanding=None)
+    draft.crossing.pop(train, None)
+    occupying = draft.occupied[train]
     if into in occupying:
         occupying.remove(into)
     occupying.append(into)
-    table.block_of[train] = into
+    draft.block_of[train] = into
     return [HeadIn(train, into)]
 
 
-def _tail_out(table: _Draft, train: str, at: int) -> list[Effect]:
+def _tail_out(draft: _Draft, train: str, at: int) -> list[Effect]:
     """The tail has left X (`Facts.tail_out`), and X is released (GOALS.md).
 
     The train is recorded in the block it is crossing into if it was still
     recorded in X. A move older than this one into X is dropped, so another
     train entering X later reads nothing for this one."""
-    following = table.following[train]
+    following = draft.following[train]
     move = following[at].move
     left = move.from_block
-    occupying = table.occupied[train]
+    occupying = draft.occupied[train]
     if left not in occupying:
         return []
-    effects = _give_up(table, train, [left])
-    if table.block_of[train] == left:
-        table.block_of[train] = move.into
+    effects = _give_up(draft, train, [left])
+    if draft.block_of[train] == left:
+        draft.block_of[train] = move.into
     following[:at] = [older for older in following[:at] if older.move.into != left]
     return effects
 
 
-def _tail_in(table: _Draft, train: str, at: int) -> list[Effect]:
+def _tail_in(draft: _Draft, train: str, at: int) -> list[Effect]:
     """The whole train is in Y (`Facts.whole_in`), and T is released, with
     anything of that train's still held behind it (GOALS.md), in one
     `Released`.
@@ -1184,37 +1184,37 @@ def _tail_in(table: _Draft, train: str, at: int) -> list[Effect]:
     A transit a later move has taken again is not this one's to give up, nor
     is a block on the train's route ahead whose transit in is locked to it
     (#1230). This move and any older are no longer followed."""
-    following = table.following[train]
-    occupying = table.occupied[train]
+    following = draft.following[train]
+    occupying = draft.occupied[train]
     transit = following[at].move.transit
     effects: list[Effect] = []
     if transit in occupying:
-        entered = _entered_ahead(table, train)
+        ahead = _entered_ahead(draft, train)
         behind = occupying[: occupying.index(transit) + 1]
-        effects = _give_up(table, train, [r for r in behind if r not in entered])
+        effects = _give_up(draft, train, [r for r in behind if r not in ahead])
     del following[: at + 1]
     return effects
 
 
-def _entered_ahead(table: _Draft, train: str) -> set[str]:
+def _entered_ahead(draft: _Draft, train: str) -> set[str]:
     """The blocks on the train's route from the one it is granted into on,
     each with the transit into it locked to the train."""
-    active = table.active.get(train)
+    active = draft.active.get(train)
     if active is None:
         return set()
     route = active.route
     return {
         route.blocks[i]
         for i in range(max(active.cur_index, 1), len(route.blocks))
-        if table.locks.get(route.transits[i - 1]) == train
+        if draft.locks.get(route.transits[i - 1]) == train
     }
 
 
-def _give_up(table: _Draft, train: str, resources: list[str]) -> list[Effect]:
+def _give_up(draft: _Draft, train: str, resources: list[str]) -> list[Effect]:
     """What a train has left behind it, off its list and released."""
-    occupying = table.occupied[train]
+    occupying = draft.occupied[train]
     for resource in resources:
         occupying.remove(resource)
-        if table.locks.get(resource) == train:
-            del table.locks[resource]
+        if draft.locks.get(resource) == train:
+            del draft.locks[resource]
     return [Released(train, tuple(resources))]

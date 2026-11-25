@@ -1581,9 +1581,9 @@ class Dispatcher:
         if device is not None and device[0] == SETTLED_SENSOR:
             # An older value than the one held is ignored as `state/power`'s is,
             # and an unreadable one dropped, the last value standing (#1168).
-            reading = settled_reading(payload)
-            if self._ordering.accepts(topic, payload) and reading is not None:
-                self._on_reading(*reading)
+            settled = settled_reading(payload)
+            if self._ordering.accepts(topic, payload) and settled is not None:
+                self._on_reading(*settled)
         elif leaf == "move_withdrawn":
             self._withdrawn(payload)
         elif leaf == "power_wanted":
