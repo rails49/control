@@ -18,12 +18,11 @@ const afterDark = unsafeCSS(
  * this sheet styles none of them. The palette of custom properties is declared
  * here, a page being the host every component inherits it from (#86).
  *
- * Each view fills the work with a left pane and its surface, and the shell is
- * where that pane's width is declared: one left-pane slot with a view's pane in
- * it — the editor's palette, the run view's roster
- * ([#169](https://github.com/rails49/control/issues/169)). Two views agreeing
- * on a number would be two places to change it, and the panes would drift
- * apart across a toggle.
+ * The editor and the run view fill the work with a left pane and a surface,
+ * and the shell is where that pane's width is declared: the editor's palette
+ * has it, and the run view's pane has it until a person drags its divider
+ * ([#169](https://github.com/rails49/control/issues/169),
+ * [#1344](https://github.com/rails49/control/issues/1344)).
  *
  * Every view sits in the work, over the others, and the ones that are not
  * current are hidden rather than taken away. Taking it away would close the
@@ -35,8 +34,8 @@ export const appStyles = css`
   :host {
     ${palette}
 
-    /* The left-pane slot every view fills: the palette in edit, the roster in
-       run. */
+    /* The left pane's width: the palette in edit, and the roster in run until
+       its divider is dragged. */
     --pane: 12rem;
 
     display: block;
