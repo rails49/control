@@ -12,9 +12,9 @@ Driven at the bus, which is where the value arrives: `tc49/layout/state/power`
 as the layout states it, and the trace out. What the dispatcher does with a
 value is the subject, so the value is stated rather than pressed and the
 binding's rules about which press it answers stay out of it. The runs that
-start off are built live — a batch run's timetable mints and is granted in
-the opening drain, before any statement could land, so what queues into them
-arrives as gestures.
+start off are built live — in a batch run the scenario's requests are minted
+and granted in the opening drain, before any statement could land, so what
+queues into them arrives as gestures.
 
 A payload the reader cannot make an enum value of is one of the "not `on`"
 cases too, and is driven at a dispatcher with no trace on its bus (#175).

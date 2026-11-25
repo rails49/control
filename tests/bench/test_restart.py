@@ -71,7 +71,8 @@ def facing(assembly: Assembly) -> dict[str, str]:
 
 def dragged() -> Assembly:
     """A live run on `crossover-yard/meet` with `freight_1` on its way across
-    the railroad: the timetable is off, so a drag is what moves it."""
+    the railroad: the scenario's requests are not submitted, so a drag is what
+    moves it."""
     layout, _roster, scenario = load("crossover-yard/meet")
     assembly = assemble_live(layout, _roster, scenario.trains)
     assembly.bus.publish(WANTED, {"train": "freight_1", "dest": ["yard_e.A"]})

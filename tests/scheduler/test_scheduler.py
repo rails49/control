@@ -33,7 +33,7 @@ TWO_TRAINS = {
     "express_2": TrainSpec("up_e", "B-to-A"),
 }
 """Where a document stands the two trains. The scheduler is never handed the
-document: the harness reads a scenario into a facing seed and a timetable, and
+document: the harness reads a scenario into a facing seed and its requests, and
 those two are all that reaches here (bench/runner.py, ADR-0036)."""
 
 REQUESTS = (
@@ -106,8 +106,8 @@ def test_a_scheduler_given_no_requests_is_exhausted_at_once() -> None:
 
 def test_a_run_given_no_requests_submits_nothing() -> None:
     """Which sources a run has is configuration (ADR-0036): a run an
-    operator drives has the same scheduler with no timetable at all, and the
-    first gesture's id is still `<train>-1`."""
+    operator drives has the same scheduler with no scenario's requests at all,
+    and the first gesture's id is still `<train>-1`."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded())
@@ -824,17 +824,17 @@ def test_gestures_and_the_scenarios_requests_share_one_undivided_counter() -> No
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), REQUESTS, nonce=NONCE)
 
-    bus.drain()  # the whole timetable goes out
+    bus.drain()  # the scenario's requests all go out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
     ordinal = seen[-1][1]["id"].rsplit("-", 1)[-1]
-    assert ordinal == "3"  # -2 is the timetable's return working
+    assert ordinal == "3"  # -2 is the scenario's return working
     assert seen[-1][1]["id"] == f"freight_1-{NONCE}-3"
 
 
 def test_two_schedulers_mint_the_same_ids_for_the_same_requests() -> None:
-    """The timetable path is untouched by the nonce, which is the whole of
-    what replay rests on (ADR-0033): the same document, minted twice, gives
-    the same ids in the same order."""
+    """The ids of the scenario's requests are untouched by the nonce, which is
+    the whole of what replay rests on (ADR-0033): the same document, minted
+    twice, gives the same ids in the same order."""
     minted: list[list[str]] = []
     for _ in range(2):
         bus = InProcessBus(Clock())
@@ -866,7 +866,7 @@ def test_two_schedulers_mint_different_ids_for_the_same_drag() -> None:
 def test_a_drags_id_carries_the_nonce_between_the_train_and_the_ordinal() -> None:
     """Three parts, and the middle one is the process's nonce rather than the
     ordinal: the ordinal is still the last part, so the counter is the same
-    undivided one the timetable draws from."""
+    undivided one the scenario's requests draw from."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
     Scheduler(bus, yard(), seeded(), nonce=NONCE)
