@@ -424,9 +424,9 @@ what keeps the avoidance layer the single place deadlock is reasoned about.
 With a set of arrival ends the refusal is rarer but unchanged in kind: the
 launch waits only when *every* candidate is refused, not merely the first.
 
-A request completes when its train is wholly in its last block: its entry sensor
-clears, which releases the trailing transit and anything behind it, or its far sensor
-reads occupied where the entry sensor said nothing. The train parks holding its
+A request completes when its train is wholly in its last block, or its far sensor
+reads occupied where the entry sensor said nothing
+([GOALS.md](../GOALS.md#dispatching)). The train parks holding its
 standing lock and whatever it was still seen to be on. Latency is completion time −
 arrival time.
 
@@ -453,25 +453,13 @@ physical railroad drive it the same way, each pacing its own sensor stream.
 **A reading applies where it lands.** A sensor reports a level on
 `state/settled/sensor`, so a repeated reading re-asserts what the dispatcher already
 holds and is an at-least-once no-op. A changed reading is taken against each move
-that expects that sensor, oldest first
+that expects that sensor, oldest first, as the reading table in
+[GOALS.md](../GOALS.md#dispatching) says
 ([#1171](https://github.com/rails49/control/issues/1171)). For a move out of `X`
-through `e`, over `T`, into `Y` through `f`:
-
-| Reading | The table |
-| --- | --- |
-| the move is granted | `T` is occupied |
-| `X.e` occupied then clear, or occupied at the grant and then clear | `X` is released |
-| `Y.f` occupied | `Y` is occupied, and the train may be granted its next move |
-| `Y.f` then clear | `T` is released, with anything of that train's still behind it except a block on its route ahead whose transit in it holds |
-
-A long train runs through blocks without stopping, its next move granted while its
-tail is behind it. A short train reads clear behind first, which releases `X` and
-records it in `Y`, and holds `T` until `Y.f` clears. A train that passed `f` while `f`
-was `unknown` is in by its far sensor, and leaves `T` occupied until its next move or
-a placement. A request ends at the last row, or when `Y`'s far sensor reads occupied
-if the tail was never seen to clear `f`. A train's next request starts only once its
-last has ended, so a train reversing is never sent back over its own tail. Any other
-reading changes nothing, and each changed reading sweeps.
+through `e`, over `T`, into `Y` through `f`, a long train runs through blocks
+without stopping, its next move granted while its tail is behind it. A short train
+reads clear behind first, which releases `X` and records it in `Y`, and holds `T`
+until `Y.f` clears. Each changed reading sweeps.
 Every grant is `safe()`-checked before it commits, so arrival order picks
 among options that were all safe and never reaches an unsafe state; under a
 future MQTT transport a straggling sensor delays a grant, conservative and
