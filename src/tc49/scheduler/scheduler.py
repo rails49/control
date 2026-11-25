@@ -200,7 +200,16 @@ class Scheduler:
         # a throttle is a third leaf under this role, later
 
     def _compose(self, payload: Payload) -> None:
-        """A drag, composed into the request it asks for.
+        """A `request_wanted` gesture: the drag it names, composed and
+        submitted (`_drag`)."""
+        wanted = gesture(payload)
+        if wanted is not None:
+            self._drag(wanted.train, wanted.arrivals)
+
+    def _drag(self, train: str, arrivals: tuple[str, ...]) -> str | None:
+        """A drag of `train` to `arrivals`, composed into the request it asks
+        for and submitted. The id it was given, or None where the scheduler
+        holds no facing for the train and submitted nothing.
 
         A gesture names a train and where to put it; the two fields it omits
         are the two the scheduler owns — the id it mints and the departure
@@ -235,23 +244,21 @@ class Scheduler:
         `_train_of` keeps; a person reorders the list on the dispatcher, not
         here. A train with nothing in flight composes off its facing (#827).
         """
-        wanted = gesture(payload)
-        if wanted is None:
-            return
-        facing = self._facing.get(wanted.train)
+        facing = self._facing.get(train)
         if facing is None:  # a train this session does not hold
-            return
-        self._counters[wanted.train] += 1
+            return None
+        self._counters[train] += 1
         event: Payload = {
-            "id": f"{wanted.train}-{self._nonce}-{self._counters[wanted.train]}",
-            "train": wanted.train,
+            "id": f"{train}-{self._nonce}-{self._counters[train]}",
+            "train": train,
         }
-        latest = self._latest_in_flight(wanted.train)
+        latest = self._latest_in_flight(train)
         event["depart"] = facing_ends(facing)[1] if latest is None else None
-        event["dest"] = list(wanted.arrivals)
+        event["dest"] = list(arrivals)
         if latest is not None:
             event["after"] = latest
         self._submit(event)
+        return event["id"]
 
     def _latest_in_flight(self, train: str) -> str | None:
         """The id of the train's request in flight announced last, or `None`
@@ -260,8 +267,16 @@ class Scheduler:
         return ids[-1] if ids else None
 
     def _reverse(self, payload: Payload) -> None:
+        """A `reversal_wanted` gesture: the train it names, turned around
+        (`_turn`)."""
+        train = named_train(payload)
+        if train is not None:
+            self._turn(train)
+
+    def _turn(self, train: str) -> bool:
         """Turning a train around at rest: the little arrow in the block it
-        stands in, and nothing else (#124).
+        stands in, and nothing else (#124). Whether it was applied: false
+        where it was dropped.
 
         Facing is fully determined once placed — routes are strict
         pass-throughs — with this one exception, which ADR-0019 named and
@@ -297,21 +312,20 @@ class Scheduler:
         stub can be left by either way, and facing never names an end that
         leads nowhere. Without that the gesture reaches the state
         `validate_scenario` refuses at load, and the next drag departs by the
-        wall and is rejected `unreachable` for the rest of the session.
+        wall and is rejected `unreachable` for the rest of the session. That
+        no-op counts as applied.
         """
-        train = named_train(payload)
-        if train is None:
-            return
         facing = self._facing.get(train)
         if facing is None:  # a train this session does not hold
-            return
+            return False
         if train in self._train_of.values():  # a request in flight
-            return
+            return False
         if train in self._kept:  # a move not yet taken up (#1025)
-            return
+            return False
         tail, _ = facing_ends(facing)
         self._facing[train] = facing_towards(connected_end(self._layout, tail))
         self._publish_facing()
+        return True
 
     # -- facing ------------------------------------------------------------
 
