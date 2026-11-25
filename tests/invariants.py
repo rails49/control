@@ -82,9 +82,11 @@ def checked(
         and (strategy is Incremental or invariant.adr not in INCREMENTAL_ONLY)
     ]
     each_message = [invariant for invariant in held if not cross_app(invariant)]
+    record = Record(layout, bus.last_values, roster)
 
     def assert_held(invariants: Collection[Invariant], after: str) -> None:
-        found = breaches(View(bus.last_values, layout, roster), invariants)
+        view = View(bus.last_values, layout, roster, record.without_sensors)
+        found = breaches(view, invariants)
         assert not found, f"{after}:\n" + "\n".join(found)
 
     def message(topic: str, payload: Payload) -> None:
@@ -99,10 +101,9 @@ def checked(
         if invariant.breaches.__name__ not in without
         and (one_order or not cross_app(invariant))
     ]
-    record = Record(layout, bus.last_values, roster)
 
     def heard(topic: str, payload: Payload) -> None:
-        view = View(record.rows, layout, roster)
+        view = View(record.rows, layout, roster, record.without_sensors)
         found = history_breaches(record, view, topic, payload, history)
         assert not found, f"at {topic} {payload}:\n" + "\n".join(found)
         record.observe(topic, payload)
@@ -136,7 +137,7 @@ def checked(
         if depth[0] == 0:
             assert_held(held, "with nothing left to deliver")
             if one_order:
-                view = View(record.rows, layout, roster)
+                view = View(record.rows, layout, roster, record.without_sensors)
                 found = history_breaches(record, view, QUIET, {}, history)
                 assert not found, "with nothing left to deliver:\n" + "\n".join(found)
                 record.observe(QUIET, {})

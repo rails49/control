@@ -391,7 +391,9 @@ CASES: list[tuple[Callable[[View], list[str]], str, Rows, Rows]] = [
 
 
 def view(layout_id: str, rows: Rows) -> View:
-    return View(rows, RAILROADS[layout_id], STOCK[layout_id])
+    """`rows` with `without_sensors` as a `Record` started from them holds it."""
+    layout, roster = RAILROADS[layout_id], STOCK[layout_id]
+    return View(rows, layout, roster, Record(layout, rows, roster).without_sensors)
 
 
 @pytest.mark.parametrize(
@@ -1062,7 +1064,8 @@ def breaches_over(
     record = Record(RAILROADS[layout_id], rows, STOCK[layout_id])
     found: list[str] = []
     for topic, payload in [*messages, (QUIET, {})]:
-        found += breaches(record, view(layout_id, record.rows), topic, payload)
+        seen = View(record.rows, record.layout, record.roster, record.without_sensors)
+        found += breaches(record, seen, topic, payload)
         record.observe(topic, payload)
     return found
 
@@ -1785,6 +1788,21 @@ def test_a_crossing_train_reads_not_moving_without_sensors() -> None:
     assert adr_0062_moving_while_crossing(view(MEET, still))
     assert adr_0062_moving_while_crossing(view(MEET, going | WITHOUT))
     assert adr_0062_moving_while_crossing(view(MEET, crossing | WITHOUT)) == []
+
+
+def test_a_crossing_train_reads_not_moving_after_a_setting_that_does_not_read() -> None:
+    """A `without_sensors` that does not read leaves the `true` the record
+    holds, and the view carries that value (#1314)."""
+    still = {
+        ALLOCATION: allocation({"t1": "west_1"}, crossing={"t1": "west_throat.from_1"}),
+        MOVING: {"moving": False},
+    }
+    record = Record(RAILROADS[MEET], still | WITHOUT, STOCK[MEET])
+    record.observe(*UNREADABLE)
+    seen = View(record.rows, record.layout, record.roster, record.without_sensors)
+
+    assert record.rows[SETTINGS] == UNREADABLE[1]
+    assert adr_0062_moving_while_crossing(seen) == []
 
 
 def test_a_reading_no_train_explains_is_no_dispute_without_sensors() -> None:
