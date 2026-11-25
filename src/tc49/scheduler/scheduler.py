@@ -95,11 +95,11 @@ class Scheduler:
         bus: Bus,
         layout: Layout,
         facing: dict[str, str] | None = None,
-        timetable: Sequence[RequestSpec] = (),
+        requests: Sequence[RequestSpec] = (),
         nonce: str | None = None,
     ) -> None:
         """`facing` is where a run built from a document says its trains point,
-        train to the run it would make across its block, and `timetable` is
+        train to the run it would make across its block, and `requests` is
         that document's request list. Both are the harness's: a run an
         operator drives is given neither, and its facing arrives with the
         placements a person makes (ADR-0036 — which sources a run has is
@@ -156,7 +156,7 @@ class Scheduler:
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
         bus.subscribe("tc49/schedule/#", self._on_gesture)
         self._publish_facing()
-        for request in timetable:
+        for request in requests:
             self._counters[request.train] += 1
             self._submit(
                 {
