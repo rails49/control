@@ -111,7 +111,8 @@ class Following(Seen):
     out of block X through end `e`, over transit T, into block Y through end
     `f`: `exit` is `X.e`, `entry` is `Y.f` and `far` is the end of Y opposite
     `f`. What has been read of it is `Seen`'s (`tc49.lib.following`);
-    `exit_read` holds from the grant where `exit` read occupied then."""
+    `exit_read` holds from the grant where `exit` read occupied then, unless
+    the train came into X by `e` (#1336)."""
 
     move: Move
     exit: str
@@ -873,9 +874,11 @@ def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]
     further along its route. The transit goes to the head of what the train
     occupies, moved there on a move back over the transit it came by. The
     move's readings are expected from now on (`Following`), its exit already
-    read where that sensor reads occupied, and an older move that has reached
-    its far sensor expects nothing more: what that one left on the list stays
-    until this move's tail is in (#1171). The table given is left
+    read where that sensor reads occupied. It is not where a move the train
+    is still followed on entered by that end: the tail on the sensor may roll
+    off it before the train stops and turns (#1336). An older move that has
+    reached its far sensor expects nothing more: what that one left on the
+    list stays until this move's tail is in (#1171). The table given is left
     unchanged."""
     new = _copied(table)
     for resource in (*move.locked, *move.ahead):
@@ -892,15 +895,15 @@ def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]
     new.crossing[train] = move.transit
     _to_head(new.occupied[train], move.transit)
     entry, leaving = _ends(table.layout, move.into, move.transit)
-    new.following[train] = [
-        each for each in new.following.get(train, []) if not each.at_far
-    ] + [
+    following = new.following.get(train, [])
+    reverses = any(each.entry == leaving for each in following)
+    new.following[train] = [each for each in following if not each.at_far] + [
         Following(
             move,
             leaving,
             entry,
             opposite_end(entry),
-            exit_read=new.readings.get(leaving) is True,
+            exit_read=not reverses and new.readings.get(leaving) is True,
         )
     ]
     return new.table(), effects

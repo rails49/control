@@ -399,6 +399,87 @@ def test_a_reversal_past_an_unknown_entry_sensor_waits_for_the_far_sensor() -> N
     assert "yard_e" not in railroad.state.locks
 
 
+def sent_back_at_its_far_sensor(strategy: Strategy) -> Railroad:
+    """`freight_1`, as long as `dn_w`, run from `yard_w` into `dn_w` with its
+    tail still on `dn_w.A` when its head reaches `dn_w.B`, and granted the
+    move back out by `dn_w.A` into `yard_w` then (#1336)."""
+    railroad = Railroad(strategy)
+    railroad.read("yard_w.B")
+    railroad.request("r-1", "yard_w.B", "dn_w.A")
+    railroad.request("r-2", "dn_w.A", "yard_w.B")
+    railroad.read("dn_w.A")
+    railroad.clear("yard_w.B")
+    railroad.read("dn_w.B")
+    assert railroad.completed() == ["r-1"]
+    assert railroad.granted() == ["dn_w", "yard_w"]
+    assert railroad.released() == [["yard_w"]]
+    return railroad
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_a_tail_rolling_off_the_sensor_a_reversal_leaves_by_releases_nothing(
+    strategy: Strategy,
+) -> None:
+    railroad = sent_back_at_its_far_sensor(strategy)
+
+    # Rolling on to its stop, before it backs out.
+    railroad.clear("dn_w.A")
+
+    assert railroad.released() == [["yard_w"]]
+    assert railroad.state.locks["dn_w"] == TRAIN
+    assert railroad.on() == ["dn_w", T1]
+    assert railroad.state.block_of[TRAIN] == "dn_w"
+
+    # Backing out over the sensor.
+    railroad.read("dn_w.A")
+    railroad.clear("dn_w.A")
+
+    assert railroad.released() == [["yard_w"], ["dn_w"]]
+    assert railroad.on() == [T1]
+    assert railroad.state.block_of[TRAIN] == "yard_w"
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_a_reversal_stopped_with_its_tail_on_the_sensor_releases_at_the_tail_in(
+    strategy: Strategy,
+) -> None:
+    railroad = sent_back_at_its_far_sensor(strategy)
+
+    railroad.read("yard_w.B")
+    railroad.clear("dn_w.A")
+
+    assert railroad.released() == [["yard_w"]]
+    assert railroad.on() == ["dn_w", T1, "yard_w"]
+
+    railroad.clear("yard_w.B")
+
+    assert railroad.released() == [["yard_w"], ["dn_w", T1]]
+    assert railroad.on() == ["yard_w"]
+    assert railroad.completed() == ["r-1", "r-2"]
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_a_late_clear_on_the_sensor_a_reversal_leaves_by_releases_nothing(
+    strategy: Strategy,
+) -> None:
+    """A short train, with `dn_w.B` occupied reaching the dispatcher before
+    `dn_w.A` clear, which the steel gave first."""
+    railroad = Railroad(strategy)
+    railroad.read("yard_w.B")
+    railroad.request("r-1", "yard_w.B", "dn_w.A")
+    railroad.request("r-2", "dn_w.A", "yard_w.B")
+    railroad.clear("yard_w.B")
+    railroad.read("dn_w.A")
+    railroad.read("dn_w.B")
+    assert railroad.granted() == ["dn_w", "yard_w"]
+
+    railroad.clear("dn_w.A")
+
+    assert railroad.released() == [["yard_w"]]
+    assert railroad.state.locks["dn_w"] == TRAIN
+    assert railroad.state.block_of[TRAIN] == "dn_w"
+
+
 def test_a_cancel_with_the_head_not_in_asks_for_the_move_back() -> None:
     railroad = Railroad()
     railroad.request("r-1", "yard_w.B", "yard_e.A")
