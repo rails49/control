@@ -16,10 +16,11 @@ from hypothesis import given, note, settings
 from hypothesis import strategies as st
 
 from tc49.dispatcher import FullRoute, Incremental
-from tc49.dispatcher.dispatch import Request, State, broken, effective_departure
+from tc49.dispatcher.dispatch import Request, State, effective_departure
 from tc49.dispatcher.locking import congested, state_view
 from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.safety import safe
+from tc49.dispatcher.table import broken
 from tc49.lib.bus import Payload
 from tc49.store import AssetStore
 from tests.generate import fixture_yaml, scenarios
@@ -97,11 +98,11 @@ def test_the_lock_table_keeps_its_rules_after_every_event(
     check_invariants(assembly, strategy)
 
     def check(topic: str, payload: Payload) -> None:
-        assert broken(assembly.dispatcher.state) == [], f"after {topic} {payload}"
+        assert broken(assembly.dispatcher.state.table) == [], f"after {topic} {payload}"
 
     assembly.bus.subscribe("#", check)
     assembly.simulator.run(TICK_LIMIT)
-    assert broken(assembly.dispatcher.state) == []
+    assert broken(assembly.dispatcher.state.table) == []
 
 
 def assert_quiescence_is_a_permanent_obstacle(assembly: Assembly) -> None:
@@ -229,7 +230,7 @@ def test_the_rules_hold_in_any_order_mqtt_delivers(
         # would then read a later state than the grant's (#1047).
         if built and subscriber is built[0].dispatcher:
             state = built[0].dispatcher.state
-            assert broken(state) == [], f"after {topic} {payload}"
+            assert broken(state.table) == [], f"after {topic} {payload}"
             assert safe(*state_view(state)), f"unsafe state after {topic} {payload}"
 
     def choose(n: int) -> int:
@@ -246,7 +247,7 @@ def test_the_rules_hold_in_any_order_mqtt_delivers(
     built.append(assembly)
     check_invariants(assembly, Incremental)
     assembly.simulator.run(TICK_LIMIT)
-    assert broken(assembly.dispatcher.state) == []
+    assert broken(assembly.dispatcher.state.table) == []
     assert_quiescence_is_a_permanent_obstacle(assembly)
 
 

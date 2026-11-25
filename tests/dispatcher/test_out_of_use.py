@@ -19,10 +19,11 @@ import pytest
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
-from tc49.dispatcher.dispatch import Active, Request, State, aspects
+from tc49.dispatcher.dispatch import Request, State, aspects
 from tc49.dispatcher.locking import Move, Refused, safety_view
 from tc49.dispatcher.routing import Route, candidates
 from tc49.dispatcher.safety import finishable
+from tc49.dispatcher.table import Active, Table
 from tc49.lib.bus import Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DRAINING, ON, Aspect, Refusal
@@ -171,10 +172,13 @@ def test_a_request_no_route_serves_is_still_unreachable(strategy: Strategy) -> N
     state = State(
         layout,
         {"runner": 600},
-        {"west_1": "runner"},
-        {"runner": "west_1"},
-        {},
-        unknown_sensors=frozenset({"west_1.A"}),
+        Table(
+            layout,
+            {"west_1": "runner"},
+            {"runner": "west_1"},
+            {},
+            unknown_sensors=frozenset({"west_1.A"}),
+        ),
     )
     request = Request("r-1", "runner", "west_1.A", ("east_1.A",), 0)
     assert strategy(layout, 2).launch(request, "west_1", "west_1.A", state) is None
@@ -246,19 +250,22 @@ def under_way(
     return State(
         layout,
         {train: 600 for train in routes_of},
-        locks,
-        {train: route.blocks[0] for train, route in routes_of.items()},
-        {
-            train: Active(
-                f"{train}-1",
-                route,
-                0,
-                None,
-            )
-            for train, route in routes_of.items()
-        },
+        Table(
+            layout,
+            locks,
+            {train: route.blocks[0] for train, route in routes_of.items()},
+            {
+                train: Active(
+                    f"{train}-1",
+                    route,
+                    0,
+                    None,
+                )
+                for train, route in routes_of.items()
+            },
+            unknown_sensors=frozenset(listed),
+        ),
         power=ON,
-        unknown_sensors=frozenset(listed),
     )
 
 
@@ -278,14 +285,18 @@ def test_an_active_train_standing_in_the_block_is_granted_nothing(
 def test_a_block_out_of_use_names_no_holder_whoever_stands_in_it() -> None:
     """What stops a train there is the sensor, and the train standing in the
     block cannot move either (#1254)."""
+    layout = drawing(MEET)
     state = State(
-        drawing(MEET),
+        layout,
         {"parked": 600, "runner": 600},
-        {"w_main": "parked", "e_main": "runner"},
-        {"parked": "w_main", "runner": "e_main"},
-        {},
+        Table(
+            layout,
+            {"w_main": "parked", "e_main": "runner"},
+            {"parked": "w_main", "runner": "e_main"},
+            {},
+            unknown_sensors=frozenset({"w_main.B"}),
+        ),
         power=ON,
-        unknown_sensors=frozenset({"w_main.B"}),
     )
 
     assert state.obstacle("w_main", "runner") == (Refusal.HELD, "w_main", "")
@@ -308,15 +319,19 @@ def test_an_unsafe_verdict_names_no_holder_for_a_block_out_of_use() -> None:
 
 def test_a_train_is_not_named_for_its_own_residue() -> None:
     """It waits for the block's sensor to read clear, and not for itself (#1254)."""
+    layout = drawing(MEET)
     state = State(
-        drawing(MEET),
+        layout,
         {"runner": 600},
-        {"w_main": "runner", "e_main": "runner"},
-        {"runner": "e_main"},
-        {},
+        Table(
+            layout,
+            {"w_main": "runner", "e_main": "runner"},
+            {"runner": "e_main"},
+            {},
+            readings={"w_main.A": True},
+            residue={"w_main"},
+        ),
         power=ON,
-        readings={"w_main.A": True},
-        residue={"w_main"},
     )
 
     assert state.obstacle("w_main", "runner") == (Refusal.HELD, "w_main", "")

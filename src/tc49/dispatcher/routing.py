@@ -12,30 +12,9 @@ end in or pass through a block shorter than the train (#1287).
 """
 
 from collections.abc import Set as AbstractSet
-from dataclasses import dataclass
 
+from tc49.dispatcher.table import Route
 from tc49.lib.layout import Layout, block_of, opposite_end
-
-
-@dataclass(frozen=True)
-class Route:
-    blocks: tuple[str, ...]  # origin .. arrival block
-    transits: tuple[str, ...]  # qualified ids, one per block pair
-
-    @property
-    def arrival_block(self) -> str:
-        return self.blocks[-1]
-
-    def crossing_order(self) -> list[str]:
-        """The resources beyond the origin, in the order crossed."""
-        result: list[str] = []
-        for transit, block in zip(self.transits, self.blocks[1:]):
-            result += [transit, block]
-        return result
-
-    def interleaved(self) -> list[str]:
-        """The alternating block/transit sequence, for the route_chosen event."""
-        return [self.blocks[0], *self.crossing_order()]
 
 
 def candidates(

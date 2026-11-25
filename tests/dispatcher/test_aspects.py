@@ -9,14 +9,13 @@ import pytest
 from tc49.bench.runner import Assembly, assemble, assemble_live
 from tc49.dispatcher import FullRoute, Incremental
 from tc49.dispatcher.dispatch import (
-    Active,
     Request,
     State,
     aspects,
-    broken,
 )
 from tc49.dispatcher.locking import Move
 from tc49.dispatcher.routing import Route, candidates
+from tc49.dispatcher.table import Active, Table, broken
 from tc49.lib.inventory import DRAINING, OFF, ON
 from tc49.lib.layout import Layout, block_of, opposite_end, transit_ends
 from tc49.lib.scenario import TrainSpec
@@ -64,9 +63,12 @@ def a_state(layout: Layout, route: Route, ahead: int) -> State:
     return State(
         layout,
         {"t": 500},
-        locks,
-        {"t": route.blocks[0]},
-        {"t": Active(request.id, route, 0, None)},
+        Table(
+            layout,
+            locks,
+            {"t": route.blocks[0]},
+            {"t": Active(request.id, route, 0, None)},
+        ),
         power=ON,
     )
 
@@ -507,7 +509,7 @@ def test_a_block_the_train_occupied_stays_locked_once_it_is_granted_into_it() ->
 
     assert events(assembly.trace, "move_granted")[-1]["into"] == "dn_e"
     assert assembly.dispatcher.state.locks.get("dn_e") == "t1"
-    assert broken(assembly.dispatcher.state) == []
+    assert broken(assembly.dispatcher.state.table) == []
 
 
 def test_a_block_the_train_occupies_and_was_not_granted_into_is_released() -> None:

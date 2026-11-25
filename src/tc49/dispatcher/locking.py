@@ -17,13 +17,14 @@ from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from tc49.dispatcher.routing import Route, candidates
+from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.safety import finishable, safe
+from tc49.dispatcher.table import Active, Move, Route
 from tc49.lib.inventory import Refusal
-from tc49.lib.layout import Layout, block_of
+from tc49.lib.layout import Layout
 
 if TYPE_CHECKING:
-    from tc49.dispatcher.dispatch import Active, Request
+    from tc49.dispatcher.dispatch import Request
 
 
 @dataclass(frozen=True)
@@ -39,19 +40,6 @@ class Refused:
     # One {resource, holder} per blocked candidate, or the one block out of use
     # that a launch names where no candidate is left to try (#1152).
     obstacles: list[dict[str, str]]
-
-
-@dataclass(frozen=True)
-class Move:
-    from_block: str
-    transit: str
-    into: str
-    locked: list[str]  # resources newly locked for this move; [] under FullRoute
-    # The second increment, when it was obtained: a separate grant, published
-    # as its own lock_granted so a grant stays one transit with its far block
-    # (ADR-0029). Empty means it was not obtained, which is the `caution`
-    # aspect rather than an error.
-    ahead: list[str]
 
 
 class ReadOnlyState(Protocol):
@@ -96,6 +84,8 @@ class ReadOnlyState(Protocol):
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
 
+    def standing_still(self) -> list[str]: ...
+
 
 class LockingStrategy(Protocol):
     @property
@@ -118,25 +108,6 @@ class LockingStrategy(Protocol):
         ...
 
 
-def standing_still(state: ReadOnlyState) -> list[str]:
-    """The blocks that read occupied and that nobody holds or that are
-    residue, since nothing is granted into them until they read clear
-    (ADR-0077), and the blocks out of use, until their sensors return (#1152):
-    obstacles as permanent as an idle train's block. None while the railroad
-    runs without sensors, whose readings are ignored (#1314)."""
-    if state.without_sensors:
-        return []
-    occupied = {block_of(s) for s, reading in state.readings.items() if reading}
-    return sorted(
-        state.out_of_use
-        | {
-            block
-            for block in occupied
-            if block not in state.locks or block in state.residue
-        }
-    )
-
-
 def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
     """The congested blocks route selection steers around (#33): blocks
     locked by another train — idle holders included — blocks on the
@@ -150,7 +121,7 @@ def congested(state: ReadOnlyState, train: str) -> frozenset[str]:
         for resource, holder in state.locks.items()
         if holder != train and "." not in resource
     }
-    blocks.update(standing_still(state))
+    blocks.update(state.standing_still())
     for other, active in state.active.items():
         if other != train:
             blocks.update(active.route.blocks[active.cur_index :])
@@ -410,7 +381,7 @@ def state_view(
             idle += [e for e in behind if e in state.layout.blocks and e != standing]
             idle.append(standing)
     idle += frozen
-    idle += standing_still(state)
+    idle += state.standing_still()
     return cur, rem, idle, held
 
 
@@ -456,7 +427,7 @@ def _unsafe_obstacle(
         dest = state.active[other].route.arrival_block
         if other != train and dest in remaining:
             return (dest, other)
-    still = standing_still(state)
+    still = state.standing_still()
     for block in remaining:
         if block in still and (found := state.obstacle(block, train)) is not None:
             return (block, found[2])

@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from tc49.dispatcher import FullRoute, Incremental
-from tc49.dispatcher.dispatch import broken
+from tc49.dispatcher.table import broken
 from tc49.lib.bus import Payload
 from tc49.lib.inventory import OFF, ON
 from tests.dispatcher.test_lock_rules import a_bus_dispatcher, deliver, drains
@@ -41,7 +41,7 @@ class Railroad:
         """One frame, the lock table checked after it, and — unless told
         otherwise — every move it granted run to its sensors."""
         deliver(self.bus, topic, payload)
-        assert broken(self.dispatcher.state) == []
+        assert broken(self.dispatcher.state.table) == []
         if answer:
             self.answer()
 

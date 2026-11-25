@@ -13,7 +13,8 @@ import pytest
 
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
-from tc49.dispatcher.dispatch import ALLOCATION, Adopted, broken, restored
+from tc49.dispatcher.dispatch import ALLOCATION, Adopted, restored
+from tc49.dispatcher.table import broken
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.inventory import ON
 from tests.dispatcher.test_lock_rules import a_bus_dispatcher, deliver
@@ -49,7 +50,7 @@ class Railroad:
 
     def deliver(self, topic: str, payload: Payload) -> None:
         deliver(self.bus, topic, payload)
-        assert broken(self.state) == []
+        assert broken(self.state.table) == []
 
     def read(self, sensor: str, occupied: bool = True) -> None:
         self.deliver(*settled(sensor, occupied))
@@ -526,7 +527,7 @@ def test_a_restart_holds_and_publishes_what_the_picture_says_a_train_occupies() 
     assert state.occupied == {"freight_1": [T1, "dn_w"], "express_2": ["up_e"]}
     assert state.locks == {T1: TRAIN, "dn_w": TRAIN, "up_e": "express_2"}
     assert bus.last_values[ALLOCATION]["occupied"] == state.occupied
-    assert broken(state) == []
+    assert broken(state.table) == []
 
 
 def test_a_restart_reads_the_field_an_entry_at_a_time() -> None:
@@ -649,14 +650,14 @@ def test_the_lock_table_breaks_no_rule_along_a_move() -> None:
     railroad = Railroad()
     for step in steps():
         step(railroad)  # `Railroad.deliver` asserts it
-    assert broken(railroad.state) == []
+    assert broken(railroad.state.table) == []
 
 
 def test_an_entry_on_a_list_that_is_not_locked_is_a_broken_rule() -> None:
     railroad = Railroad()
     railroad.state.occupied[TRAIN].append("dn_e")
 
-    assert broken(railroad.state) == [
+    assert broken(railroad.state.table) == [
         "freight_1 occupies dn_e, which is locked to nobody"
     ]
 
