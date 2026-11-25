@@ -3,7 +3,8 @@
 While `tc49/layout/state/settings` says `without_sensors: true` the dispatcher
 ignores sensor readings. A request that starts locks its whole route and sets
 all its points in one `align`, and no move is granted: a person drives the
-train with a throttle. The run ends by a cancel, a placement or a removal.
+train with a throttle. The run ends by "arrived" (`arrival_wanted`, #1320), a
+cancel, a placement or a removal.
 
 Driven at the bus on `reversing-loops`, the one railroad whose points carry
 addresses, with the bus invariants checked. `mover` stands in C4, and its one
@@ -435,16 +436,16 @@ def test_a_second_arrival_for_the_same_request_is_dropped(strategy: Strategy) ->
 def test_an_arrival_on_a_railroad_run_by_its_sensors_is_dropped(
     strategy: Strategy,
 ) -> None:
-    """The move granted into CE2 stands: its sensors end it.
-
-    ADR-0022's invariant is left out: `layout` writes the move's points one
-    gap apart on the clock, so at the end of the drain that grants it the
-    crossing train's points are not yet wanted. Any launch on this drawing
-    run by its sensors shows it."""
-    assembly = assemble_live(
-        drawing(), stock(mover=250), {"mover": STOOD["mover"]}, strategy
-    )
-    check(assembly, strategy, without={"adr_0022_points_set_for_the_crossing"})
+    """The move granted into CE2 stands: its sensors end it. The simulator
+    writes no `wanted/point`, so the route's points are put where it needs
+    them first, as `layout` would."""
+    assembly = railroad(strategy, without_sensors=False)
+    for point in POINTS:
+        press(
+            assembly,
+            f"{WANTED_POINT}/{point['addr']}",
+            {"addr": point["addr"], "position": point["position"]},
+        )
     wants(assembly, "mover", "A2.A")
     before = last(assembly, ALLOCATION)
 
@@ -452,6 +453,88 @@ def test_an_arrival_on_a_railroad_run_by_its_sensors_is_dropped(
     assert [line["into"] for line in leaves(assembly, "move_granted")] == ["CE2"]
     assert last(assembly, ALLOCATION) == before
     assert under_way_still(assembly)
+
+
+@each_strategy
+def test_a_request_held_on_the_route_launches_at_the_arrivals_sweep(
+    strategy: Strategy,
+) -> None:
+    """`crosser` runs from A1 to C1 by CW; `mover`'s route to A1 crosses j1
+    on a transit that conflicts with none of `crosser`'s and waits `held` on
+    A1, the route's origin, until the arrival releases it."""
+    assembly = railroad(strategy, "crosser")
+    every_sensor_unknown(assembly)
+    wants(assembly, "crosser", "C1.B")
+    wants(assembly, "mover", "A1.B")
+    assert refusals(assembly, "mover") == [("held", ["crosser", "crosser"])]
+
+    arrive(assembly, {"id": minted(assembly, "crosser")})
+
+    assert launched(assembly) == ["crosser", "mover"]
+    assert last(assembly, ALLOCATION)["trains"] == {"crosser": "C1", "mover": "C4"}
+
+
+ONWARD = ["A2", "j1.A2_B__CE2_B", "CE2", "j2.C1_A__CE2_A", "C1"]
+"""`mover`'s route on from A2 to C1, leaving by A2.B: the route to A2 came in
+by A2.A."""
+
+
+def chained(assembly: Assembly) -> str:
+    """A request of `mover`'s to C1, submitted after its first; its id."""
+    press(
+        assembly,
+        REQUEST_SUBMITTED,
+        {
+            "id": "m-on",
+            "train": "mover",
+            "dest": ["C1.A"],
+            "after": minted(assembly, "mover"),
+        },
+    )
+    return "m-on"
+
+
+@each_strategy
+def test_a_request_chained_after_the_arrival_departs_from_the_destination(
+    strategy: Strategy,
+) -> None:
+    """It waits while the first is under way, and launches at the arrival's
+    sweep as the first did: the whole route locked and occupied, its points
+    set in one `align`, no move."""
+    assembly = underway(strategy)
+    rid = chained(assembly)
+    assert events(assembly.trace, "route_chosen", rid=rid) == []
+
+    arrive(assembly, {"id": minted(assembly, "mover")})
+
+    [chosen] = events(assembly.trace, "route_chosen", rid=rid)
+    assert chosen["route"] == ONWARD
+    assert granted(assembly, "mover")[-1] == ONWARD[1:]
+    assert aligns(assembly)[-1]["transit"] is None
+    assert leaves(assembly, "move_granted") == []
+    picture = last(assembly, ALLOCATION)
+    assert picture["trains"] == {"mover": "A2"}
+    assert picture["occupied"] == {"mover": ONWARD}
+    assert [(req["id"], req["route"]) for req in picture["requests"]] == [(rid, ONWARD)]
+
+
+@each_strategy
+def test_with_the_power_off_the_chained_request_waits_for_it(
+    strategy: Strategy,
+) -> None:
+    assembly = underway(strategy)
+    rid = chained(assembly)
+    press(assembly, POWER_WANTED, {"power": "off"})
+
+    arrive(assembly, {"id": minted(assembly, "mover")})
+
+    assert events(assembly.trace, "route_chosen", rid=rid) == []
+    assert last(assembly, ALLOCATION)["occupied"] == {"mover": ["A2"]}
+
+    press(assembly, POWER_WANTED, {"power": "on"})
+
+    [chosen] = events(assembly.trace, "route_chosen", rid=rid)
+    assert chosen["route"] == ONWARD
 
 
 def place(assembly: Assembly, train: str, block: str | None) -> None:
