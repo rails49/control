@@ -27,6 +27,8 @@ the timetable loaded next.
 | `entry_wanted` | `changed(state, was, now)` |
 | `timetable_rename_wanted`, where the store has none of that name | `renamed(state, to)` |
 | it makes a new timetable because `untitled` or `new` said so | `made(state, name, layout, trains)` |
+| it read a timetable from the store because `loads` said so | `loaded(state, timetable)` |
+| it submitted a request to a start block | `positioned(state, request)` |
 | a retained state row, at a restart | `restarted(said, document)` |
 | the first allocation row after a restart | `listed(state, requests)` |
 
@@ -38,7 +40,8 @@ After each of them it asks, in this order:
 
 - `untitled(state)`: whether to make the timetable named `untitled`. On
   `timetable_wanted` with `new` it asks `new(state)`. Where the answer is yes
-  it calls `made`.
+  it calls `made`. On `timetable_wanted` without `new` it asks `loads(state)`
+  and calls `loaded`.
 - `starts(state)`: whether to start. On a person's gesture it asks
   `starts(state, asked=True)`. Where the answer is yes it publishes
   `tc49/layout/clock_wanted` with `state.timetable.start` and calls `started`.
@@ -70,6 +73,11 @@ The rules, in the words of #1345:
   `at` moves the entry to its place in the order. The entry keeps its state,
   its request and its ending, and a request that has gone out is left alone.
   It is taken in every phase and with Record on or off (`changed`).
+- **Load.** A timetable a person asks for by name is loaded only while power
+  reads `off`, and once the trains on the layout were told (`loads`). Its
+  phase is `loaded` and Record is off. The requests the scheduler submits to
+  send trains to their start blocks are listed until each ends (`loaded`,
+  `positioned`).
 - **Start.** A `loaded` timetable starts when every request to a start block
   has ended, however it ended, and power reads `on`. It also starts when a
   person asks. A timetable with no such request starts when power reads `on`
@@ -473,7 +481,8 @@ def listed(state: State, requests: Mapping[str, str]) -> State:
 
     A request can end while the scheduler is down. An entry that is `out`
     whose request the row does not list is `ended`, with no time of arrival
-    and so no dwell.
+    and so no dwell. A request to a start block the row does not list is no
+    longer listed in `positioning`.
     """
     progress = tuple(
         (
@@ -483,7 +492,43 @@ def listed(state: State, requests: Mapping[str, str]) -> State:
         )
         for one in state.progress
     )
-    return replace(state, progress=progress, in_flight=dict(requests))
+    return replace(
+        state,
+        progress=progress,
+        positioning=tuple(one for one in state.positioning if one in requests),
+        in_flight=dict(requests),
+    )
+
+
+def loads(state: State) -> bool:
+    """Whether a timetable a person asks for by name is loaded, which the
+    scheduler does with `loaded`: power reads `off` and the trains on the
+    layout were told."""
+    return state.power == "off" and state.placed is not None
+
+
+def loaded(state: State, timetable: Timetable) -> State:
+    """The state with `timetable`, read from the store, loaded in place of
+    the one loaded. The scheduler calls it where `loads` said yes.
+
+    Its phase is `loaded` and Record is off. No entry has gone out and no
+    request to a start block is listed. What the state was told of the
+    railroad is kept, the requests in flight among them.
+    """
+    return State(
+        timetable,
+        clock=state.clock,
+        power=state.power,
+        placed=state.placed,
+        in_flight=state.in_flight,
+    )
+
+
+def positioned(state: State, request: str) -> State:
+    """The state after the scheduler submitted the request with the id
+    `request` to send a train to its start block: it is listed in
+    `positioning` until it ends."""
+    return replace(state, positioning=(*state.positioning, request))
 
 
 def starts(state: State, asked: bool = False) -> bool:
