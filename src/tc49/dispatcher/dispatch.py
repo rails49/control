@@ -56,12 +56,19 @@ from tc49.dispatcher.locking import (
 from tc49.dispatcher.routing import candidates
 from tc49.dispatcher.table import (
     Active,
+    Disputed,
+    Effect,
     Following,
+    HeadIn,
     Move,
+    MoveEnded,
+    Released,
     Route,
     Table,
     broken,
     locked_ahead,
+    not_reporting,
+    reading,
     transit_blocks,
 )
 from tc49.lib.bus import Bus, Payload
@@ -446,7 +453,7 @@ def allocation(state: State, requests: Sequence[Request]) -> Payload:
     }
 
 
-def disputed(state: State) -> Payload:
+def disputed(blocks: AbstractSet[str]) -> Payload:
     """The blocks with a sensor reading occupied and no train explaining the
     reading (#153, #1164, #1171). Either of a block's sensors is enough. A train
     explains the reading when any of these holds:
@@ -478,8 +485,10 @@ def disputed(state: State) -> Payload:
 
     Only sensors `readings` carries take part: one the layout has said
     nothing about is unknown, and its block is not on the list for it.
+
+    `blocks` is the table's `disputed_blocks`.
     """
-    return {"blocks": sorted(state.disputed_blocks)}
+    return {"blocks": sorted(blocks)}
 
 
 @dataclass(frozen=True)
@@ -1495,7 +1504,7 @@ class Dispatcher:
                 )
                 self._publish_allocation()
                 return
-            newest = self._newest(req.train)
+            newest = self._state.table.newest(req.train)
             if newest is not None and newest.head_in and not newest.at_far:
                 req.cancelling = newest.move.into
                 self._publish_allocation()
@@ -1744,15 +1753,9 @@ class Dispatcher:
         self._check()
 
     def _on_reading(self, sensor: str, occupied: bool) -> None:
-        """One sensor's settled reading, applied where it lands (ADR-0047).
-
-        A sensor reports presence, which is a level: a reading that re-asserts
-        what `readings` already holds is an at-least-once repeat and a no-op, so
-        delivery needs no counter and no dedup. A reading that *changes* the
-        level is taken against every move still expecting that sensor, oldest
-        first (`_followed`), and a reading no move expects changes nothing for
-        any train: a person backing a train at a platform, with no move out
-        through that end.
+        """One sensor's settled reading, applied where it lands (ADR-0047):
+        the table takes it against every move still expecting that sensor
+        (`table.reading`), and a repeat changes nothing.
 
         A sensor reading occupied that no train explains is named on
         `state/disputed` and **a person is told and the rest keeps running**
@@ -1768,140 +1771,32 @@ class Dispatcher:
         train to place, and a person walks to what the set names and places
         what they find.
 
-        Every reading ends in a sweep, for whatever it released or disputed.
+        Every changed reading ends in a sweep, for whatever it released or
+        disputed.
         """
-        state = self._state
-        if state.readings.get(sensor) == occupied:
+        table, effects = reading(self._state.table, sensor, occupied)
+        if table is self._state.table:
             return
-        state.readings[sensor] = occupied
-        self._publish_disputed()
-        for train, following in state.following.items():
-            for each in list(following):
-                self._followed(train, each, sensor, occupied)
+        self._state.table = table
+        self._published(effects)
         self._lift_residue()
         self._sweep()
 
-    def _followed(
-        self, train: str, each: Following, sensor: str, occupied: bool
-    ) -> None:
-        """A changed reading, taken against one move that may expect it (#1171).
-
-        For a move out of X through `exit`, over T, into Y through `entry`:
-        `exit` occupied then clear is the tail out of X, or occupied at the
-        grant and then clear; `entry` occupied is the head in Y, and so is `far`
-        where `entry` said nothing; `entry` then clear is the whole train in Y;
-        `far` occupied is where it stops. Anything else changes nothing, and a
-        clear reading is never taken for a train gone: a short train stands
-        between its block's sensors and both read clear.
-        """
-        newest = self._newest(train) is each
-        if occupied:
-            if sensor == each.exit:
-                each.exit_read = True
-            elif sensor in (each.entry, each.far):
-                if not each.head_in:
-                    self._head_in(train, each)
-                if sensor == each.far:
-                    each.at_far = True
-                    if newest:
-                        self._request_over(train)
-        elif sensor == each.exit:
-            if each.exit_read:
-                self._tail_out(train, each)
-        elif sensor == each.entry and each.head_in:
-            self._tail_in(train, each)
-            if newest:
-                self._request_over(train)
-
-    def _newest(self, train: str) -> Following | None:
-        following = self._state.following.get(train)
-        return following[-1] if following else None
-
-    def _head_in(self, train: str, each: Following) -> None:
-        """The head is in the block the move enters: the move is no longer
-        outstanding, so the train may be granted its next one, and the block
-        goes to the head of what it occupies, from wherever a move back over a
-        transit left it.
-
-        The allocation recording it goes out before any grant it leads to: the
-        scheduler moves the train's facing when the allocation names it in the
-        block its move entered, and `layout` reads that facing for the next
-        `move`, dropping one whose facing names another block (#1025, #1038,
-        ADR-0052). The train is recorded past the signal it left by, which now
-        shows `stop` (ADR-0093)."""
-        state = self._state
-        into = each.move.into
-        each.head_in = True
-        active = state.active.get(train)
-        if active is not None:
-            active.outstanding = None
-        state.crossing.pop(train, None)
-        occupying = state.occupied[train]
-        if into in occupying:
-            occupying.remove(into)
-        occupying.append(into)
-        state.block_of[train] = into
-        self._publish_aspects()
-        self._publish_allocation()
-
-    def _tail_out(self, train: str, each: Following) -> None:
-        """The tail has left the block the move leaves, which is released, and
-        the train is recorded in the block it is crossing into if it was still
-        recorded in that one. A move older than this one into that block is
-        dropped, so another train entering it later reads nothing for this
-        one."""
-        state = self._state
-        left = each.move.from_block
-        occupying = state.occupied[train]
-        if left not in occupying:
-            return
-        self._give_up(train, [left])
-        if state.block_of[train] == left:
-            state.block_of[train] = each.move.into
-        following = state.following[train]
-        older = following[: following.index(each)]
-        following[: len(older)] = [m for m in older if m.move.into != left]
-
-    def _tail_in(self, train: str, each: Following) -> None:
-        """The whole train is in the block the move entered: the transit, and
-        anything of the train's still behind it, are released in one
-        `lock_released`, and this move and any older are no longer followed. A
-        transit a later move has taken again is not this one's to give up, nor
-        is a block on the train's route ahead whose transit in is locked to it
-        (#1230)."""
-        state = self._state
-        occupying = state.occupied[train]
-        transit = each.move.transit
-        if transit in occupying:
-            entered = self._entered_ahead(train)
-            behind = occupying[: occupying.index(transit) + 1]
-            self._give_up(train, [r for r in behind if r not in entered])
-        following = state.following[train]
-        del following[: following.index(each) + 1]
-
-    def _entered_ahead(self, train: str) -> set[str]:
-        """The blocks on the train's route from the one it is granted into on,
-        each with the transit into it locked to the train."""
-        state = self._state
-        active = state.active.get(train)
-        if active is None:
-            return set()
-        route = active.route
-        return {
-            route.blocks[i]
-            for i in range(max(active.cur_index, 1), len(route.blocks))
-            if state.locks.get(route.transits[i - 1]) == train
-        }
-
-    def _give_up(self, train: str, resources: list[str]) -> None:
-        """What a train has left behind it, off its list and released."""
-        state = self._state
-        occupying = state.occupied[train]
-        for resource in resources:
-            occupying.remove(resource)
-            if state.locks.get(resource) == train:
-                del state.locks[resource]
-        self._publish("lock_released", {"train": train, "resources": resources})
+    def _published(self, effects: list[Effect]) -> None:
+        """What a transition returned, published in the order returned."""
+        for effect in effects:
+            match effect:
+                case Disputed(blocks):
+                    self._publish_disputed(blocks)
+                case Released(train, resources):
+                    self._publish(
+                        "lock_released", {"train": train, "resources": list(resources)}
+                    )
+                case HeadIn():
+                    self._publish_aspects()
+                    self._publish_allocation()
+                case MoveEnded(train):
+                    self._request_over(train)
 
     def _request_over(self, train: str) -> None:
         """The newest move of the train has ended, at its `entry` clearing or
@@ -2054,9 +1949,13 @@ class Dispatcher:
         of whose sensors are on it.
         """
         listed = unknown_sensors(payload)
-        if listed is None or listed == self._state.unknown_sensors:
+        if listed is None:
             return
-        self._state.table.unknown_sensors = listed
+        table, effects = not_reporting(self._state.table, listed)
+        if table is self._state.table:
+            return
+        self._state.table = table
+        self._published(effects)
         self._lift_residue()
         self._sweep()
 
@@ -2553,14 +2452,16 @@ class Dispatcher:
             self._allocation = picture
             self._bus.publish(ALLOCATION, picture)
 
-    def _publish_disputed(self) -> None:
+    def _publish_disputed(self, blocks: frozenset[str] | None = None) -> None:
         """The blocks the sensors dispute, on a last-value topic, when they
         change — the panel points a person at them, and a panel joining later
         must find them there (ADR-0032). Published from every place that moves
         either side of the comparison: a reading arriving, a placement, and
         whatever starts or ends a move, each of which sweeps. It reads no
-        power: the set holds at every value (#1154)."""
-        found = disputed(self._state)
+        power: the set holds at every value (#1154). `blocks`, where given,
+        is the set a transition returned (`Disputed`), and otherwise the
+        current table's."""
+        found = disputed(self._state.disputed_blocks if blocks is None else blocks)
         if found != self._disputed:
             self._disputed = found
             self._publish("state/disputed", found)
