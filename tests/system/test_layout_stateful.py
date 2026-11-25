@@ -42,17 +42,20 @@ from tests.layout.railroad import (
     POINTS,
     POWER_WANTED,
     SENSOR,
+    SETTINGS_WANTED,
     TAKE_WANTED,
     THROTTLE_ALIVE,
     THROTTLE_WANTED,
     document,
     elapse,
+    heard,
     report,
     settle,
     stock,
 )
 
 DEVICE_POINT = "tc49/layout/state/device/point"
+ARRIVAL_WANTED = "tc49/dispatch/arrival_wanted"
 
 NEVER_SILENT_S = 1e9
 """Longer than any run here: nothing repeats a report, so a shorter silence would
@@ -217,6 +220,23 @@ def test_on_releasing_a_train_run_in_while_its_move_waits_for_a_point() -> None:
     settle(bus, app, clock)
 
 
+def test_a_run_without_sensors_ended_by_arrived() -> None:
+    """The setting on, `single` dragged from up_w to dn_e and said to have
+    arrived, and the setting off: the rules below in that order (#1324)."""
+    bus, _app, _clock = assembled()
+    submitted = heard(bus, "tc49/dispatch/request_submitted")
+    press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "up_w"})
+    press(bus, POWER_WANTED, {"power": "on"})
+    press(bus, DEVICE_TRACK, {"power": "on"})
+    press(bus, SETTINGS_WANTED, {"without_sensors": True})
+    press(bus, "tc49/schedule/request_wanted", {"train": "single", "dest": ["dn_e.A"]})
+    press(bus, ARRIVAL_WANTED, {"id": submitted[-1][1]["id"]})
+    press(bus, SETTINGS_WANTED, {"without_sensors": False})
+
+    assert bus.last_values[ALLOCATION]["trains"] == {"single": "dn_e"}
+
+
 @settings(deadline=None, stateful_step_count=40, max_examples=1500)
 class LayoutUnderTheAssembly(RuleBasedStateMachine):
     """One run of the bench railroad, driven one publish at a time."""
@@ -325,6 +345,14 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
                 ),
             },
         )
+
+    @rule(data=st.data())
+    def arrived(self, data: st.DataObject) -> None:
+        self.press(ARRIVAL_WANTED, {"id": data.draw(self.ids())})
+
+    @rule(without_sensors=st.booleans())
+    def setting(self, without_sensors: bool) -> None:
+        self.press(SETTINGS_WANTED, {"without_sensors": without_sensors})
 
     # -- a throttle, and the driving mode ---------------------------------
 
