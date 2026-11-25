@@ -314,6 +314,11 @@ class Table:
             if train not in overdue
         )
 
+    def newest(self, train: str) -> Following | None:
+        """The train's newest move whose readings are still expected."""
+        following = self.following.get(train)
+        return following[-1] if following else None
+
 
 def locked_ahead(state: Table, train: str, route: Route, standing: int) -> int:
     """How many blocks of `route` past index `standing` are locked to `train`
@@ -544,8 +549,7 @@ def _followed(
     A request ends when the whole train is in its last block, or when the far
     sensor reads `occupied` if the entry sensor was not seen to clear
     (GOALS.md): the newest move ending is `MoveEnded`."""
-    following = table.following.get(train)
-    newest = bool(following) and following[-1] is each
+    newest = table.newest(train) is each
     effects: list[Effect] = []
     if occupied:
         if sensor == each.exit:
