@@ -38,9 +38,11 @@ from tc49.scheduler.release import (
     due,
     ended,
     listed,
+    loads,
     made,
     new,
     placed,
+    positioned,
     powered,
     recording,
     released,
@@ -53,6 +55,7 @@ from tc49.scheduler.release import (
     turned_round,
     untitled,
 )
+from tc49.scheduler.release import loaded as release_loaded
 from tests.system.test_app_boundaries import tc49_imports
 
 
@@ -422,6 +425,74 @@ def test_a_loaded_timetable_releases_nothing_and_its_entries_read_later() -> Non
 
     assert due(state) == ()
     assert states(state) == [LATER]
+
+
+def test_a_timetable_is_loaded_only_with_power_off_and_the_trains_told() -> None:
+    assert not loads(State())
+    assert loads(placed(State(), frozenset()))
+    assert not loads(powered(placed(State(), frozenset()), "on"))
+    assert not loads(powered(placed(State(), frozenset()), "draining"))
+
+
+def test_a_load_replaces_the_timetable_loaded_with_record_off() -> None:
+    """What the state was told of the railroad is kept, and so are the
+    requests in flight, the entries' of the timetable before among them."""
+    entry = Entry(at("06:00"), "freight", ("dn_e",))
+    before = powered(released(running(entry), 0, "freight-ab-1"), "off")
+    before = clocked(replace(before, record=True), at("06:05"), 1)
+    later = Timetable(
+        "morning",
+        "crossover-yard",
+        at("09:00"),
+        {"freight": TrainStart("yard_w", "A-to-B")},
+        (Entry(at("09:00"), "freight", ("up_e",)),),
+    )
+
+    state = release_loaded(before, later)
+
+    assert row(state) == {
+        "timetable": "morning",
+        "phase": "loaded",
+        "record": False,
+        "start": "09:00",
+        "trains": {"freight": {"at": "yard_w", "facing": "A-to-B"}},
+        "positioning": [],
+        "entries": [
+            {"at": "09:00", "train": "freight", "to": ["up_e"], "state": "later"}
+        ],
+    }
+    assert (state.clock, state.power) == (at("06:05"), "off")
+    assert state.placed == frozenset({"freight"})
+    assert state.in_flight == {"freight-ab-1": "freight"}
+    assert state.time is None
+
+
+def test_a_request_to_a_start_block_is_listed_until_it_ends() -> None:
+    state = positioned(positioned(powered(loaded(), "on"), "f-8"), "f-9")
+
+    assert row(state)["positioning"] == ["f-8", "f-9"]
+    assert not starts(state)
+
+    state = ended(ended(state, "f-8", CANCELLED), "f-9", COMPLETED)
+
+    assert row(state)["positioning"] == []
+    assert starts(state)
+
+
+def test_after_a_restart_a_request_to_a_start_block_not_listed_has_ended() -> None:
+    before = loaded(positioning=("f-8", "f-9"))
+    assert before.timetable is not None
+    state = restarted(row(before), before.timetable)
+    assert state is not None
+    state = powered(state, "on")
+
+    assert state.positioning == ("f-8", "f-9")
+    assert not starts(state)
+
+    state = listed(state, {"f-9": "freight"})
+
+    assert state.positioning == ("f-9",)
+    assert starts(listed(state, {}))
 
 
 def test_after_a_start_the_run_begins_at_the_row_that_reads_the_start_time() -> None:
