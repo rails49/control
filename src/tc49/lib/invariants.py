@@ -39,6 +39,15 @@ false`, power does not come on" is not an invariant over the bus: the page
 refuses ON, and `layout` answers it so a person can power an unfinished track
 plan to test part of it (#889, #1049).
 
+The invariants that assume a reading or a move read `without_sensors` off
+`tc49/layout/state/settings` and state their rule for both values (#1314).
+On a railroad run without sensors the dispatcher ignores readings, locks a
+request's whole route at its launch, grants no move, and ends the run on a
+person's word, so `moving` reads false, no block is disputed or out of use,
+and a block reading occupied is no obstacle. No row, or a field that does not
+read, is `false`. The `Record` holds the value it last heard that read, and a
+change of it ends every move it follows.
+
 `ADR-0026` holds only where the dispatcher locks `Incremental`. The strategy
 is not on the bus, so the `View` carries no field for it and the caller that
 knows it leaves that invariant out.
@@ -1065,6 +1074,9 @@ class Record:
         self.lies: dict[str, str] = {}  # addr -> where `device/point` says
         self.halted: set[str] = set()  # trains a wrong report stopped mid-move
         self.without_sensors = False  # what `state/settings` last said that read
+        # train -> the last block of the route it completed without sensors,
+        # until its placement, its removal or the next allocation (#1314)
+        self.arrivals: dict[str, str] = {}
         for topic, payload in (rows or {}).items():
             self.rows[topic] = payload
             if topic == ALLOCATION:
@@ -1145,6 +1157,7 @@ class Record:
                 self.started.pop(train, None)
                 self.going.pop(train, None)
                 self.keeps.discard(train)
+                self.arrivals.pop(train, None)
                 for addr, _orientation in _addresses(self.roster, train):
                     self.removed[addr] = train
         elif topic == PLACEMENT_WANTED:
@@ -1161,6 +1174,8 @@ class Record:
             if train is not None and moves is not None:
                 self.moves[train] = moves
         elif topic in ENDED:
+            if topic == REQUEST_COMPLETED and self.without_sensors:
+                self._arrived(readable_id(payload))
             self._ended(readable_id(payload))
         elif topic == MOVE_WITHDRAWN:
             # `layout` took back a cancelled request's move nothing had
@@ -1267,6 +1282,7 @@ class Record:
             if request.route is not None or request.id in self.routes
         }
         self.placed_over.clear()
+        self.arrivals.clear()
 
     def _settings(self, payload: object) -> None:
         """A `state/settings`: a `without_sensors` that reads is the value
@@ -1428,6 +1444,7 @@ class Record:
         placed = placement(payload)
         if placed is not None:
             self.withdrawn.pop(placed.train, None)
+            self.arrivals.pop(placed.train, None)
         if placed is None or placed.block is None:
             return
         self.started.pop(placed.train, None)
@@ -1448,6 +1465,14 @@ class Record:
         self.moves.pop(train, None)
         self.placing.pop(train, None)
         self.turns[train] += 1
+
+    def _arrived(self, rid: str | None) -> None:
+        """A request completed without sensors: a person said its train is in
+        its route's last block, where `train_placed` stands it next (#1314)."""
+        train = None if rid is None else self.requests.get(rid)
+        route = None if rid is None else self.routes.get(rid)
+        if train is not None and route:
+            self.arrivals[train] = route[-1]
 
     def _ended(self, rid: str | None) -> None:
         if rid is None:
@@ -1872,14 +1897,25 @@ def adr_0049_placed_has_no_request(
     """When `train_placed` or `train_removed` is published, the train has no
     request left in the allocation
     ([ADR-0049](../../../docs/adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md)).
-    """
+
+    On a railroad run without sensors, "arrived" completes a request and then
+    places its train in the route's last block, while a request chained after
+    it is still listed and not started. So a `train_placed` naming the train
+    and block of a `request_completed` since the last allocation leaves out
+    that train's requests with no route (#1314)."""
     if topic not in (TRAIN_PLACED, TRAIN_REMOVED):
         return []
     train = named_train(payload)
+    placed = placement(payload) if topic == TRAIN_PLACED else None
+    arrived = (
+        placed is not None
+        and placed.block is not None
+        and record.arrivals.get(placed.train) == placed.block
+    )
     return [
         f"{train} is {topic.rsplit('_', 1)[-1]} with {rid} left"
         for rid, holder in sorted(record.requests.items())
-        if holder == train
+        if holder == train and not (arrived and rid not in record.routes)
     ]
 
 
@@ -2469,8 +2505,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     HistoryInvariant(
         "0049",
         "When `train_placed` or `train_removed` is published, the train has no"
-        " request left in the allocation.",
-        (TRAIN_PLACED, TRAIN_REMOVED, ALLOCATION, *ENDED),
+        " request left in the allocation; on a railroad run without sensors, a"
+        " `train_placed` into the last block of the route it has just completed"
+        " leaves out its requests with no route.",
+        (TRAIN_PLACED, TRAIN_REMOVED, ALLOCATION, ROUTE_CHOSEN, *ENDED, SETTINGS),
         adr_0049_placed_has_no_request,
     ),
     HistoryInvariant(
@@ -2512,8 +2550,8 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "`moving` reads false only where no granted move lies between its grant"
         " and its `entry` clear or `far` occupied, both those sensors listed"
         " aside for a train `state/taken` does not name, and every move of a"
-        " train `state/overdue` lists aside; a change of `without_sensors`"
-        " ends every move followed.",
+        " train `state/overdue` lists aside, and every move granted before the"
+        " railroad was last set to run with or without sensors.",
         (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, OVERDUE, TAKEN)
         + (LOCK_RELEASED, SETTINGS)
         + (MOVE_WITHDRAWN, PLACEMENT_WANTED, TRAIN_PLACED, TRAIN_REMOVED),
@@ -2553,8 +2591,8 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "A block leaves a train's move only after its `exit` read occupied then"
         " clear, or at a later `entry` clear; a transit only at its own `entry`"
         " clear or a later one; a request completes only at `entry` clear or"
-        " `far` occupied; a change of `without_sensors` ends every move"
-        " followed.",
+        " `far` occupied; a move granted before the railroad was last set to"
+        " run with or without sensors is outside it.",
         (EVERY_SETTLED, MOVE_GRANTED, LOCK_RELEASED, REQUEST_COMPLETED)
         + (PLACEMENT_WANTED, PLACEMENT_REFUSED, MOVE_WITHDRAWN, SETTINGS),
         adr_0077_released_on_the_tail,
