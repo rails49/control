@@ -23,6 +23,7 @@ from tc49.lib.invariants import (
     FACING,
     HISTORY_INVARIANTS,
     INVARIANTS,
+    LOCK_GRANTED,
     LOCK_RELEASED,
     MOVE,
     MOVE_GRANTED,
@@ -36,6 +37,7 @@ from tc49.lib.invariants import (
     REQUEST_CANCELLED,
     REQUEST_COMPLETED,
     ROUTE_CHOSEN,
+    SETTINGS,
     TAKEN,
     TRAIN_PLACED,
     TRAIN_REMOVED,
@@ -1760,4 +1762,160 @@ def test_a_clear_reading_is_no_dispute() -> None:
         MEET,
         DISPUTES,
         [clear, (DISPUTED, {"blocks": ["west_1"]})],
+    )
+
+
+# -- a railroad run without sensors (#1314) -----------------------------------
+
+WITHOUT: Rows = {SETTINGS: {"short_blocks": False, "without_sensors": True}}
+WITH: Rows = {SETTINGS: {"short_blocks": False, "without_sensors": False}}
+
+
+def test_a_crossing_train_reads_not_moving_without_sensors() -> None:
+    """The dispatcher follows no move, so `moving` reads false whatever the
+    allocation says is crossing; true is a breach (#1318)."""
+    crossing = {
+        ALLOCATION: allocation({"t1": "west_1"}, crossing={"t1": "west_throat.from_1"})
+    }
+    still = crossing | {MOVING: {"moving": False}}
+    going = crossing | {MOVING: {"moving": True}}
+
+    assert adr_0062_moving_while_crossing(view(MEET, still | WITHOUT)) == []
+    assert adr_0062_moving_while_crossing(view(MEET, still | WITH))
+    assert adr_0062_moving_while_crossing(view(MEET, still))
+    assert adr_0062_moving_while_crossing(view(MEET, going | WITHOUT))
+    assert adr_0062_moving_while_crossing(view(MEET, crossing | WITHOUT)) == []
+
+
+def test_a_reading_no_train_explains_is_no_dispute_without_sensors() -> None:
+    """Readings are ignored, so `disputed` lists nothing whatever the sensors
+    read (#1318)."""
+    stray = [read("west_1", False), read("loop_up")]
+    named = [*stray, (DISPUTED, {"blocks": ["loop_up"]})]
+    over = ON | DISPUTES
+
+    assert (
+        breaches_over(
+            adr_0048_disputed_lists_contradictions, MEET, over | WITHOUT, stray
+        )
+        == []
+    )
+    assert breaches_over(
+        adr_0048_disputed_lists_contradictions, MEET, over | WITH, stray
+    )
+    assert breaches_over(adr_0048_disputed_lists_contradictions, MEET, over, stray)
+    assert breaches_over(
+        adr_0048_disputed_lists_contradictions, MEET, over | WITHOUT, named
+    )
+
+
+def test_the_setting_heard_on_the_bus_ends_the_disputes() -> None:
+    stray = [read("west_1", False), read("loop_up")]
+    turned = [(SETTINGS, WITHOUT[SETTINGS]), *stray]
+
+    assert (
+        breaches_over(adr_0048_disputed_lists_contradictions, MEET, DISPUTES, turned)
+        == []
+    )
+
+
+UNREADABLE: tuple[str, Payload] = (SETTINGS, {"without_sensors": "yes"})
+"""A `state/settings` whose `without_sensors` does not read."""
+
+
+@pytest.mark.parametrize(
+    ("rows", "change"),
+    [
+        pytest.param(WITH, WITHOUT, id="turned on"),
+        pytest.param(WITHOUT, WITH, id="turned off"),
+    ],
+)
+def test_a_change_of_the_setting_ends_every_move_followed(
+    rows: Rows, change: Rows
+) -> None:
+    """The dispatcher follows no move after it, so none is owed `moving` and
+    none is released on its readings (#1318)."""
+    turned = (SETTINGS, change[SETTINGS])
+    falls = (MOVING, {"moving": False})
+    dropped = (LOCK_RELEASED, ONLY_THE_TRANSIT)
+    over = PLACED | {MOVING: {"moving": True}} | rows
+
+    for breaches, ended in (
+        (adr_0062_moving_to_the_tail, falls),
+        (adr_0077_released_on_the_tail, dropped),
+    ):
+        assert breaches_over(breaches, MEET, over, [GRANT, turned, ended]) == []
+        assert breaches_over(breaches, MEET, over, [GRANT, ended])
+        assert breaches_over(breaches, MEET, over, [GRANT, UNREADABLE, ended])
+        assert breaches_over(
+            breaches, MEET, over, [GRANT, (SETTINGS, rows[SETTINGS]), ended]
+        )
+
+
+def test_a_lock_into_a_block_reading_occupied_holds_without_sensors() -> None:
+    """A block reading occupied is no obstacle when readings are ignored
+    (#1318)."""
+    locked: tuple[str, Payload] = (
+        LOCK_GRANTED,
+        {"train": "t1", "resources": ["west_throat.from_1", "w_main"]},
+    )
+    heard: Messages = [read("w_main"), (QUIET, {}), locked]
+
+    assert (
+        breaches_over(adr_0077_not_into_occupied, MEET, PLACED | WITHOUT, heard) == []
+    )
+    assert breaches_over(adr_0077_not_into_occupied, MEET, PLACED | WITH, heard)
+    assert breaches_over(adr_0077_not_into_occupied, MEET, PLACED, heard)
+
+
+WHOLE: Rows = {
+    ALLOCATION: {
+        **allocation(
+            {"t1": "west_1"},
+            locks=dict.fromkeys(ROUTE, "t1"),
+            requests=[request(route=ROUTE)],
+        ),
+        "occupied": {"t1": ROUTE},
+    }
+}
+"""t1 in west_1 holding the whole of ROUTE, every block and transit of it on
+its `occupied` list: a run under way on a railroad run without sensors."""
+
+LIT: Rows = {
+    ASPECTS: {
+        "aspects": {
+            "west_1.B": "clear",
+            "w_main.B": "clear",
+            "loop_up.B": "clear",
+            "e_main.B": "caution",
+        }
+    }
+}
+"""The signals along WHOLE: four blocks ahead of west_1, one of e_main."""
+
+
+def test_no_block_is_out_of_use_in_the_aspects_without_sensors() -> None:
+    """A sensor of w_main listed not reporting puts no block out of use when
+    readings are ignored (#1318)."""
+    listed = {UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.A"}]}}
+    rows = WHOLE | ON | LIT | listed
+
+    assert (
+        breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | WITHOUT, []) == []
+    )
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows | WITH, [])
+    assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows, [])
+
+
+def test_a_setting_that_does_not_read_leaves_the_one_held() -> None:
+    stray = [read("west_1", False), read("loop_up")]
+
+    assert (
+        breaches_over(
+            adr_0048_disputed_lists_contradictions,
+            MEET,
+            DISPUTES | WITHOUT,
+            [UNREADABLE, *stray],
+        )
+        == []
     )
