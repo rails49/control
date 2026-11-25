@@ -43,6 +43,7 @@ def test_a_railroad_that_keeps_no_settings_says_the_defaults() -> None:
         "point_gap": 0.5,
         "speeds": {"clear": 0.6, "caution": 0.3},
         "short_blocks": False,
+        "without_sensors": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
@@ -56,6 +57,7 @@ def test_a_railroad_that_keeps_its_speeds_says_them() -> None:
         "point_gap": 1.0,
         "speeds": {"clear": 0.5, "caution": 0.25},
         "short_blocks": False,
+        "without_sensors": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
@@ -110,6 +112,7 @@ def test_a_speed_a_person_sets_is_said_at_once_and_kept_with_the_railroad() -> N
         "point_gap": 0.5,
         "speeds": {"clear": 0.5, "caution": 0.3},
         "short_blocks": False,
+        "without_sensors": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
@@ -130,6 +133,7 @@ def test_short_blocks_a_person_sets_is_said_at_once_and_kept_with_the_railroad()
         "point_gap": 0.5,
         "speeds": {"clear": 0.5, "caution": 0.3},
         "short_blocks": True,
+        "without_sensors": False,
         "throttle_silence": THROTTLE_SILENCE_S,
         "sensor_silence": SENSOR_SILENCE_S,
         "arrival_allowance": ARRIVAL_ALLOWANCE_S,
@@ -142,6 +146,36 @@ def test_short_blocks_a_person_sets_is_said_at_once_and_kept_with_the_railroad()
 
 def test_a_railroad_that_keeps_short_blocks_says_it() -> None:
     assert said_on_build(KeptSettings(short_blocks=True))["short_blocks"] is True
+
+
+def test_without_sensors_a_person_sets_is_said_at_once_and_kept_with_the_railroad() -> (
+    None
+):
+    """Said with the gap, the speeds and `short_blocks` as they were, and the
+    railroad's settings handed to keep, as `layout` takes it: this binding
+    keeps and says it and runs on nothing (#1316)."""
+    built = Built()
+    built.wanted({"speeds": {"clear": 0.5}, "short_blocks": True})
+    built.wanted({"without_sensors": True})
+    assert built.said == {
+        "point_gap": 0.5,
+        "speeds": {"clear": 0.5, "caution": 0.3},
+        "short_blocks": True,
+        "without_sensors": True,
+        "throttle_silence": THROTTLE_SILENCE_S,
+        "sensor_silence": SENSOR_SILENCE_S,
+        "arrival_allowance": ARRIVAL_ALLOWANCE_S,
+    }
+    assert built.kept[-1] == KeptSettings(
+        0.5, {"clear": 0.5, "caution": 0.3}, True, True
+    )
+    built.wanted({"without_sensors": 1})
+    assert built.said["without_sensors"] is True
+    assert len(built.kept) == 2
+
+
+def test_a_railroad_that_keeps_without_sensors_says_it() -> None:
+    assert said_on_build(KeptSettings(without_sensors=True))["without_sensors"] is True
 
 
 def test_a_throttle_silence_a_person_sets_is_said_and_kept_with_the_installation() -> (

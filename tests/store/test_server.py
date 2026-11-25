@@ -1404,6 +1404,32 @@ def test_short_blocks_that_is_no_bool_writes_nothing(
     assert not (tmp_path / "layouts").exists()
 
 
+def test_settings_keep_without_sensors_beside_the_gap(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """`without_sensors` is optional, `true` or `false` and nothing like
+    them (#1316)."""
+    store = AssetStore(tmp_path)
+    kept = {"point_gap": 1.5, "without_sensors": True}
+    assert handle(store, backup, "PUT", "/settings/shed", kept)[0] == 200
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
+    for stated in ("yes", 1, 0, None):
+        body = {"point_gap": 1, "without_sensors": stated}
+        status, said = handle(store, backup, "PUT", "/settings/shed", body)
+        assert status == 400, body
+        assert "without_sensors" in said["error"]
+    assert handle(store, backup, "GET", "/settings/shed", None) == (200, kept)
+
+
+def test_without_sensors_that_is_no_bool_writes_nothing(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    body = {"point_gap": 1, "without_sensors": "yes"}
+    assert handle(store, backup, "PUT", "/settings/shed", body)[0] == 400
+    assert not (tmp_path / "layouts").exists()
+
+
 INSTALLATION = {"throttle_silence": 10.0}
 """The installation's kept settings (#1132)."""
 

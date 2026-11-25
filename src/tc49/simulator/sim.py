@@ -205,7 +205,8 @@ class Simulator:
         and holds no throttle, so the point gap and the throttle silence are
         said and nothing here runs on them, nor on the sensor silence or the
         arrival allowance. `short_blocks` is said the same, routing on it
-        being the dispatcher's (#1286).
+        being the dispatcher's (#1286), and so is `without_sensors`, acting
+        on it being the dispatcher's too (#1316).
 
         `throttle_silence_s`: the installation's throttle silence, said
         beside the railroad's settings and run on by nothing here.

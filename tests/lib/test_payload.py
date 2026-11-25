@@ -52,6 +52,7 @@ from tc49.lib.payload import (
     reported_sensor,
     said_short_blocks,
     said_speeds,
+    said_without_sensors,
     settled_reading,
     shown_aspects,
     stamp,
@@ -422,15 +423,21 @@ def test_a_settings_gesture_reads_as_the_fields_it_sets() -> None:
     assert wanted_settings({"point_gap": 1, "short_blocks": True}) == SettingsWanted(
         point_gap=1.0, short_blocks=True
     )
+    assert wanted_settings({"without_sensors": True}) == SettingsWanted(
+        without_sensors=True
+    )
+    assert wanted_settings({"without_sensors": False}) == SettingsWanted(
+        without_sensors=False
+    )
 
 
 def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
-    """None of the six fields, an unknown field, or any value out of
+    """None of the seven fields, an unknown field, or any value out of
     range, and the whole gesture goes: a good gap beside a bad silence is
     not half taken (#1131)."""
     refused: list[object] = [
         [1],  # not an object at all
-        {},  # none of the six
+        {},  # none of the seven
         {"gap": 1},  # an unknown field alone
         {"point_gap": 1, "colour": "red"},  # an unknown field beside a good one
         {"point_gap": -0.5},
@@ -471,6 +478,11 @@ def test_a_settings_gesture_that_cannot_be_read_is_dropped() -> None:
         {"short_blocks": "true"},
         {"short_blocks": None},
         {"point_gap": 1, "short_blocks": 1},  # one bad field fails all
+        {"without_sensors": 0},  # a number is no bool
+        {"without_sensors": 1},
+        {"without_sensors": "true"},
+        {"without_sensors": None},
+        {"point_gap": 1, "without_sensors": 1},  # one bad field fails all
     ]
     for payload in refused:
         assert wanted_settings(payload) is None, payload
@@ -506,6 +518,16 @@ def test_the_settings_row_reads_as_the_short_blocks_it_says() -> None:
     ]
     for payload in refused:
         assert said_short_blocks(payload) is None, payload
+
+
+def test_the_settings_row_reads_as_the_without_sensors_it_says() -> None:
+    """`true` or `false`, and None for a row without the field or with one
+    that is no bool (#1316)."""
+    row = {"at": 3.0, "point_gap": 0.5, "short_blocks": False}
+    assert said_without_sensors({**row, "without_sensors": True}) is True
+    assert said_without_sensors({**row, "without_sensors": False}) is False
+    assert said_without_sensors(row) is None
+    assert said_without_sensors({**row, "without_sensors": 1}) is None
 
 
 def test_a_settings_row_whose_speeds_do_not_read_says_none() -> None:

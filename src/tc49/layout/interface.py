@@ -473,6 +473,7 @@ class LayoutInterface:
         sensor_silence_s: float = SENSOR_SILENCE_S,
         arrival_allowance_s: float = ARRIVAL_ALLOWANCE_S,
         short_blocks: bool = False,
+        without_sensors: bool = False,
     ) -> None:
         """`layout`: the railroad this app answers for — the transits a `move`
         may name, and the signal standing at each block end. The whole of what
@@ -543,7 +544,7 @@ class LayoutInterface:
 
         `keep`: where a changed setting is kept, handed the railroad's
         settings as they now stand where a person changed the gap, a
-        speed or `short_blocks`, and the installation's where they changed either silence or
+        speed, `short_blocks` or `without_sensors`, and the installation's where they changed either silence or
         the arrival allowance. `__main__` writes them to the store off the loop's thread;
         None keeps them nowhere, which is the simulator binding's and a
         test's.
@@ -560,6 +561,12 @@ class LayoutInterface:
         (#1286). This app keeps and says it and runs on nothing: routing on it
         is the dispatcher's, and a placement keeps its length check whatever
         this says.
+
+        `without_sensors`: whether the railroad runs without sensors, the one
+        the railroad keeps or `False` where it keeps none, said on
+        `state/settings` and changed on `settings_wanted` (#1316). This app
+        keeps and says it and runs on nothing: acting on it is the
+        dispatcher's.
         """
         self._bus = bus
         self._layout = layout
@@ -570,7 +577,9 @@ class LayoutInterface:
         self._installation = KeptInstallation(
             throttle_silence_s, sensor_silence_s, arrival_allowance_s
         )
-        self._settings = KeptSettings(point_gap, dict(speeds), short_blocks)
+        self._settings = KeptSettings(
+            point_gap, dict(speeds), short_blocks, without_sensors
+        )
         self._keep = keep
         # Where each train stands, which is the whole of the near-end check,
         # and which way each one points, which is half of the traction write's

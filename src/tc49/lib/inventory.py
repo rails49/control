@@ -155,7 +155,8 @@ TOPICS: dict[str, Topic] = {
     # `clear` and `caution`, each a fraction of the locomotive's maximum
     # above 0 and at most 1, which the driver runs at. `short_blocks` is the
     # railroad's too, whether a route may end in or pass through a block
-    # shorter than the train (#1286). `throttle_silence` is
+    # shorter than the train (#1286), and so is `without_sensors`, whether
+    # the railroad runs without sensors (#1316). `throttle_silence` is
     # the installation's seconds, 2 to 60, a throttle may go unheard before
     # `layout` lets go of its trains, the same whatever railroad is loaded
     # (#1130). `sensor_silence` is the installation's too, 2 to 60 seconds a
@@ -168,15 +169,16 @@ TOPICS: dict[str, Topic] = {
             "point_gap",
             "speeds",
             "short_blocks",
+            "without_sensors",
             "throttle_silence",
             "sensor_silence",
             "arrival_allowance",
         )
     ),
     # A person sets the settings from the Settings dialog: any of the point
-    # gap, the speeds, `short_blocks`, the two silences and the arrival
-    # allowance, at least one, each in the range `state/settings` gives it
-    # (#1126, #1131, #1286). `speeds` names `clear`, `caution` or both. A field left out keeps its value; an
+    # gap, the speeds, `short_blocks`, `without_sensors`, the two silences
+    # and the arrival allowance, at least one, each in the range
+    # `state/settings` gives it (#1126, #1131, #1286, #1316). `speeds` names `clear`, `caution` or both. A field left out keeps its value; an
     # unknown field or a value out of range drops the gesture whole. Taken
     # whatever track power and the run are doing, and needs no rebuild.
     "tc49/layout/settings_wanted": Topic(
@@ -184,6 +186,7 @@ TOPICS: dict[str, Topic] = {
             "point_gap",
             "speeds",
             "short_blocks",
+            "without_sensors",
             "throttle_silence",
             "sensor_silence",
             "arrival_allowance",
