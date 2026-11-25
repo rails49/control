@@ -568,7 +568,8 @@ export class Panel {
    *  `tc49/layout/state/settings` row said (#1322). The session sets it from
    *  that row, and to `false` before any row and whenever it drops its
    *  settings; `reset()` leaves it. While it is `true` the sensors not
-   *  reporting mark nothing: they are faults the owner already knows about. */
+   *  reporting mark nothing, and one chip says the railroad runs without
+   *  sensors. */
   withoutSensors = false;
 
   /** transit resource → the legs its way takes and the wires it is drawn

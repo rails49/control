@@ -137,8 +137,8 @@ that changes it sweeps.
 - **A hand throw** on a transit of the route is dropped, as on any locked route.
 
 **Changing the setting.** A row that changes the value the dispatcher holds,
-either way, ends every request before the sweep, so no train is left half under
-one rule and half under the other
+either way, ends every request before the sweep, and the sweep after it runs
+under the new value alone
 ([#1321](https://github.com/rails49/control/issues/1321)):
 
 - Each request, started or waiting, is cancelled `revoked`, in list order, and
