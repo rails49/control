@@ -407,15 +407,16 @@ class AssetStore:
 
     def copy(self, source: str, to: str) -> None:
         """Copy railroad `source`'s documents under the name `to`: its drawing,
-        and its roster, its script, its clock and its settings where it has
-        them, each drawing and roster naming itself `to` (ADR-0072,
-        ADR-0090, #1126).
+        and its roster, its script, its clock, its settings and its
+        timetables where it has them, each drawing, roster and timetable
+        naming itself `to` (ADR-0072, ADR-0090, #1126, #1345).
 
         Every document is read and validated before anything is written, so a
         refusal leaves the store as it was. A `source` with no drawing raises
-        `FileNotFoundError`, and a `to` any of whose five files exists raises
-        `FileExistsError` — a roster, a script, a clock or settings alone is
-        somebody's railroad already, and a copy laid over it would mix two.
+        `FileNotFoundError`, and a `to` any of whose five files exists, or
+        that has a timetable, raises `FileExistsError` — a roster, a script,
+        a clock, settings or a timetable alone is somebody's railroad
+        already, and a copy laid over it would mix two.
 
         Scenarios are the harness's and the catalogue is every railroad's, so
         neither is copied. Each document's file is taken as it is before the
@@ -431,6 +432,9 @@ class AssetStore:
         settings = (
             self.settings(source) if self._settings_path(source).exists() else None
         )
+        timetables = {
+            name: self.timetable(source, name) for name in self.timetables(source)
+        }
         taken = (
             self._drawing_path(to),
             self._roster_path(to),
@@ -438,7 +442,7 @@ class AssetStore:
             self._clock_path(to),
             self._settings_path(to),
         )
-        if any(path.exists() for path in taken):
+        if any(path.exists() for path in taken) or self.timetables(to):
             raise FileExistsError(f"'{to}' is already a railroad")
         atomic.write(self._drawing_path(to), self._drawing_path(source).read_bytes())
         self.put({**drawing, "drawing": to})
@@ -451,11 +455,13 @@ class AssetStore:
             self.put_clock(clock, to)
         if settings is not None:
             self.put_settings(settings, to)
+        for name, timetable in timetables.items():
+            self.put_timetable({**timetable, "layout": to}, to, name)
 
     def delete_railroad(self, name: str) -> None:
         """Delete railroad `name`: its drawing, and its roster, its script,
-        its clock, its settings and its scenarios where it has them (#1073,
-        #1126).
+        its clock, its settings, its timetables and its scenarios where it
+        has them (#1073, #1126, #1345).
 
         A `name` with no drawing raises `FileNotFoundError` and deletes
         nothing — a roster or a script alone is not a railroad this deletes.
@@ -474,8 +480,9 @@ class AssetStore:
         ):
             path.unlink(missing_ok=True)
         scenarios = self._scenario_path(f"{name}/").parent
-        if scenarios.is_dir():
-            shutil.rmtree(scenarios)
+        for kept in (self._timetable_dir(name), scenarios):
+            if kept.is_dir():
+                shutil.rmtree(kept)
 
     def loaded(self) -> str:
         """The railroad the layout binding last loaded, and `""` where
