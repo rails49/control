@@ -458,9 +458,10 @@ _Avoid_: grant phase (said of a beat), boundary, tick (formerly)
 **Fast clock**:
 The railroad's operating time of day. It runs at its speed-up from a start
 time, both kept with the railroad, begins at the start time each time the
-railroad is loaded, and wraps at midnight. There is one for the railroad, every
-page shows the same one, and it keeps running whatever track power and the run
-are doing. Nothing in the control path reads it
+railroad is loaded, and wraps at midnight. It stands while track power is off
+and runs on from the time it stood at when power is on again, so a break in
+operations pauses it. There is one for the railroad and every page shows the
+same one. Nothing in the control path reads it
 ([ADR-0090](docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 _Avoid_: scale time, sim time, run clock (the trace's elapsed seconds), session
 clock (the elapsed time the band showed before)

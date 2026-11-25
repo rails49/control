@@ -1450,6 +1450,15 @@ run clock once a second of it, and the clock is no event. A batch run
 (`bench`) gives it none, so it publishes no clock and stops without waiting on
 one
 ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
+In both bindings the fast clock stands while `tc49/layout/state/power` reads
+`off` and runs while it reads `on` or `draining`. A railroad comes up `off`,
+so its clock stands at its start time until power first reads `on`, and after
+a break it runs on from the time it stood at. While it stands the row is
+still said once a second with the same time, and a `clock_wanted` taken then
+sets the time it stands at and the speed-up it runs at once it runs. The rule
+is `lib/clock_row.py`'s, which reads the power row the binding states off the
+bus, so `layout` and the simulator do not each write it
+([#1350](https://github.com/rails49/control/issues/1350)).
 
 A settled row says what a sensor read, and nothing of which train or block that
 was. Initial occupancy is never published: the dispatcher's standing locks come
