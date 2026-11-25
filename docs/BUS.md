@@ -275,7 +275,7 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the fifteen gesture rows. The throttle a person
+Today the mark sits on exactly the eighteen gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207),
 [ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)),
 the railroad's driving mode, the
@@ -340,6 +340,9 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
 | `tc49/schedule/state/exhausted` | state | scheduler | the scenario's requests have all gone out |
 | `tc49/schedule/state/facing` | state | scheduler | the run each train would make across its block |
+| `tc49/schedule/timetable_wanted` | event | any (browser) | make a new timetable of this name ([#1345](https://github.com/rails49/control/issues/1345)) |
+| `tc49/schedule/timetable_record_wanted` | event | any (browser) | switch Record on or off ([#1345](https://github.com/rails49/control/issues/1345)) |
+| `tc49/schedule/state/timetable` | state | scheduler | the loaded timetable: its phase, Record and each entry's state ([#1345](https://github.com/rails49/control/issues/1345)) |
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/cancel_wanted` | event | any (browser) | end one request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md), [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
@@ -370,7 +373,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 
 | Consumer | Filter(s) |
 | --- | --- |
-| Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#` |
+| Scheduler | `tc49/dispatch/#` **and** `tc49/schedule/#`, **and** `tc49/layout/state/clock` and `tc49/layout/state/power` where it keeps timetables |
 | Dispatcher | `tc49/layout/#` **and** `tc49/dispatch/#` |
 | Driver | `tc49/dispatch/move_granted` |
 | Layout interface | `tc49/layout/sensor`, `tc49/layout/align`, `tc49/layout/move`, `tc49/layout/withdraw_wanted`, `tc49/layout/power_wanted`, `tc49/layout/railroad_wanted`, `tc49/layout/driving_wanted`, `tc49/layout/clock_wanted`, `tc49/layout/take_wanted`, `tc49/layout/throttle_alive`, `tc49/layout/throttle_wanted`, `tc49/layout/function_wanted`, `tc49/layout/settings_wanted`, `tc49/layout/state/power`, `tc49/dispatch/train_placed` / `train_removed`, `tc49/dispatch/state/aspects`, `tc49/dispatch/state/moving`, `tc49/dispatch/state/allocation`, `tc49/schedule/state/facing` `tc49/layout/state/device/#` **and** `tc49/layout/state/wanted/function/#` |
@@ -519,7 +522,9 @@ what a drop would cost:
   and takes the first row naming it as the build it runs. A build under the
   same name keeps `tc49/dispatch/state/allocation` and
   `tc49/schedule/state/facing`, which say where the trains stand on steel a
-  rebuild has not moved ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)). Clearing rather than republishing, because a
+  rebuild has not moved ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+  It keeps `tc49/schedule/state/timetable` too, so the timetable stays
+  loaded ([#1352](https://github.com/rails49/control/issues/1352)). Clearing rather than republishing, because a
   desired speed for a locomotive the new railroad does not have, or occupancy
   for a block end it does not have, is a row nothing would ever republish and
   a page opened afterwards would read as current. A railroad the store cannot
@@ -839,7 +844,8 @@ what a drop would cost:
   `off`, so a loaded railroad's clock stands at its start time until power
   first reads `on`. When power reads `on` again the clock runs on from the
   time it stood at. Both bindings take the rule from `lib/clock_row.py`
-  ([#1350](https://github.com/rails49/control/issues/1350)). The page reads it, and a
+  ([#1350](https://github.com/rails49/control/issues/1350)). The page reads it, the
+  scheduler reads it for the loaded timetable's time ([#1352](https://github.com/rails49/control/issues/1352)), and a
   translator may pass it on to its hardware without acting on it; no other app
   does, and nothing in the control path may
   ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md),
@@ -1038,7 +1044,7 @@ what a drop would cost:
 
 #### `schedule`
 
-The fifteen browser-writable rows — the two here, the four under `dispatch`
+The eighteen browser-writable rows — the four here, the five under `dispatch`
 and the nine under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
@@ -1056,6 +1062,52 @@ payload is read defensively, and one that fails the read is dropped.
   round. Kept through a rebuild under the same
   railroad name and adopted as after a restart; cleared when another railroad
   is loaded ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+- `tc49/schedule/timetable_wanted` — browser-writable — `timetable`: a name,
+  text and not empty; `new`: `true`, or left out. With `new` the scheduler
+  makes a new timetable of that name, in place of the one loaded and of a
+  stored one of that name. It is dropped unless `tc49/layout/state/power`
+  reads `off`, and until the scheduler has read a clock row and an
+  allocation row. A name the timetable document does not take, one with a
+  `/` or a leading `.`, is dropped. Without `new` the gesture is dropped
+  ([#1345](https://github.com/rails49/control/issues/1345), [#1352](https://github.com/rails49/control/issues/1352)).
+- `tc49/schedule/timetable_record_wanted` — browser-writable — `record`:
+  boolean. Switches Record of the loaded timetable. Dropped where none is
+  loaded ([#1345](https://github.com/rails49/control/issues/1345)).
+- `tc49/schedule/state/timetable` — the loaded timetable. The scheduler
+  publishes it when it changes, not each second, and only where it keeps
+  timetables: a run of the test harness or the bench has no such row.
+  - `timetable`: the loaded timetable's name, or `null`, in which case no
+    other field is present.
+  - `phase`: `loaded`, `running` or `over`. A new timetable is `running` at
+    once, and `over` 24 fast-clock hours after its start.
+  - `record`: boolean, whether a drag or a turn-round adds an entry.
+  - `start`: `"HH:MM"`, the clock's time when the timetable was made, rounded
+    down to the minute.
+  - `trains`: map of train to `{at, facing}`, the block each train stood in
+    when the timetable was made and `A-to-B` or `B-to-A`. A train off the
+    layout is left out.
+  - `positioning`: a list of request ids, empty.
+  - `entries`: the entries in order of time counted from `start`, each with
+    the document's fields ([LAYOUT.md](store/LAYOUT.md#timetable-schema)):
+    `at`, `train`, `to` or `turn`, and `dwell` and `description` where it has
+    them. Each also has
+    - `state`: `later`, `held`, `out`, `ended`, `rejected`, `cancelled` or
+      `skipped`. A recorded drag is `out` and follows its request: `ended`
+      at `request_completed`, `rejected` at `request_rejected`, `cancelled`
+      at `request_cancelled`. A recorded turn-round is `ended`.
+    - `request`: the id of the request it went out as, on an entry with `to`
+      that has gone out.
+    - `ended`: timetable time in seconds, counted from `start`, when it ended
+      by arrival.
+
+  Kept through a rebuild under the same railroad name, and cleared when
+  another railroad is loaded, as `state/facing` is. After a restart the
+  scheduler adopts the row and reads the document from the store. Where the
+  two differ the row's entries are kept. A row it cannot read, or a name the
+  store has no document for, leaves no timetable loaded. An entry that is
+  `out` whose request the first `tc49/dispatch/state/allocation` row does
+  not list in `requests` becomes `ended`, with no `ended` time
+  ([#1345](https://github.com/rails49/control/issues/1345), [#1352](https://github.com/rails49/control/issues/1352)).
 
 #### `dispatch`
 

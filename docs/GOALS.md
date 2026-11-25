@@ -125,6 +125,21 @@ The person's click reaches it as a **gesture**, which names a train and where
 to put it and is not itself a request
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
+A **timetable** is a railroad's named document of where its trains start and
+a list of **entries** in time order. An entry is a time, a train, and either
+a set of arrival ends with a **dwell** or a turn-round. It names no block the
+train leaves from. A timetable covers at most one fast-clock day and runs
+once ([#1345](https://github.com/rails49/control/issues/1345)).
+
+A timetable is a recording of a person's drags. With power on and no
+timetable loaded, the scheduler starts one named `untitled`: it notes the
+clock's time and where each train stands, and from then on adds every drag
+and every turn-round as an entry, with the fast-clock time it was made. A
+person starts one under another name with power off, and switches recording
+off and on. Every change is written to the store at once. Cancelling a
+request leaves its entry in the timetable. Placing a train, removing one and
+reordering the request list are not recorded.
+
 To invent traffic that can succeed, the scheduler has to know which trains are
 idle and where they stand, so it reads the layout and follows the dispatcher's
 events. It judges nothing: whether a request is possible is the dispatcher's

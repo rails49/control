@@ -49,7 +49,7 @@ flowchart TB
     bus["bus: tc49/#"]
     ui["ui<br>gestures out, everything in"]
 
-    store <-.->|"get, list"| scheduler
+    store <-.->|"get, list, put a timetable"| scheduler
     store <-.->|"get, list"| dispatcher
     store <-.->|"get, list"| layout
 
@@ -457,7 +457,8 @@ LAN is still the trust boundary and a browser is not on it
   partial update.
 - **Components only read** — the scheduler, dispatcher, driver and layout
   interface call `get` and `list` and nothing else. Writing belongs to
-  authoring tools. What is true during a run is on the bus and what happened
+  authoring tools. A timetable is the scheduler's exception: it writes the
+  loaded one's document at each change to it ([#1352](https://github.com/rails49/control/issues/1352)). What is true during a run is on the bus and what happened
   is in the trace, so a scenario that changed when it was run would no longer
   be a fixture a benchmark could repeat.
 - **Read once per build** — an app reads the store when a railroad is built
@@ -703,11 +704,13 @@ and the responsibility that accounts for exactly that much and no more.
 
 ### Scheduler
 
-*Reads* the layout. *Subscribes* `tc49/dispatch/#` and `tc49/schedule/#` —
+*Reads* the layout, and the loaded timetable's document after a restart.
+*Writes* that document. *Subscribes* `tc49/dispatch/#` and `tc49/schedule/#` —
 the gestures it responds to sit under its own name, and its own state topics
-come back past it ignored. *Publishes*
-`request_submitted` on the dispatcher's topic, and the `state/exhausted` and
-`state/facing` last-value topics.
+come back past it ignored — and `tc49/layout/state/clock` and
+`tc49/layout/state/power`. *Publishes*
+`request_submitted` on the dispatcher's topic, and the `state/exhausted`,
+`state/facing` and `state/timetable` last-value topics.
 
 The scheduler is the **one writer of requests**. It has three sources: the
 scenario's requests, submitted whole at the start of a run in the file's
@@ -814,6 +817,56 @@ That value is **read** like any other payload: rule 4 does not exempt the
 moment a retained one is read, and a value that states no facing map at all
 leaves the scheduler starting as a cold start does, with its seed and no
 restored facing, rather than refusing to start.
+
+It **records** a person's drags as a **timetable**
+([#1345](https://github.com/rails49/control/issues/1345), [#1352](https://github.com/rails49/control/issues/1352),
+[GOALS.md](GOALS.md#scheduling)). Nothing is set up first. When power reads
+`on`, no timetable is loaded, and it has read a clock row and an allocation
+row, it makes one named `untitled`, which replaces a stored `untitled`. A
+person makes one under another name with `tc49/schedule/timetable_wanted`
+and `new`, taken while power reads `off`; it replaces a timetable of that
+name, loaded or stored. A new timetable takes the clock's time, rounded down
+to the minute, as its start, and as its `trains` each train the allocation
+names in a block and the scheduler holds a facing for, with that block and
+facing. It has no entries, Record is on and it is `running` at once.
+
+While the timetable is `running` and Record is on:
+
+- a drag the scheduler composes adds an entry at the clock's time to the
+  minute, with the train and `to` as the gesture gave it. The entry is `out`
+  and carries the id of the request the drag made;
+- a turn-round the scheduler applies adds an entry with `turn: true` that
+  has `ended`. A turn-round it drops adds nothing.
+
+A new entry goes after the last entry at or before its time. An entry that
+is `out` follows its request: `ended` with the timetable's time at
+`request_completed`, `rejected` at `request_rejected`, `cancelled` at
+`request_cancelled`. A cancel leaves the entry in the document. With Record
+off, or once the timetable is `over`, 24 fast-clock hours after its start, a
+drag is a request with no entry. `tc49/schedule/timetable_record_wanted`
+switches Record. Placements, removals and reordering of the request list add
+nothing.
+
+The scheduler writes the document to the store at each change to it, on a
+thread of its own and in order, so a store that does not answer holds up no
+gesture. A change of an entry's state alone is no change to the document. It
+is the one writer of a loaded timetable: a hand edit of that file is lost at
+the next write. It publishes the loaded timetable on
+`tc49/schedule/state/timetable` when it changes.
+
+After a restart it adopts that row as it adopts facing, and reads the
+document from the store. Where the two differ the row's entries are kept. A
+row it cannot read, or a name the store has no document for, leaves no
+timetable loaded. A request can end while the scheduler is down, so an entry
+that is `out` whose request the first allocation row does not list becomes
+`ended`. Loading another railroad leaves no timetable loaded. A rebuild
+under the same railroad name keeps the loaded one, as it keeps facing
+([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+
+The rule and its state are `src/tc49/scheduler/release.py`, which has no
+bus. `scheduler.py` tells it what the bus said. A scheduler given no store
+client, as by the test harness and the bench, makes no timetable and
+publishes no timetable row.
 
 ### Dispatcher
 
