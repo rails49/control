@@ -59,6 +59,7 @@ from tc49.lib.cancellation import Reason as Cancellation
 from tc49.lib.inventory import DRAINING, OFF, ON, Aspect, Refusal, split_device
 from tc49.lib.layout import (
     Layout,
+    Point,
     block_of,
     departure_end,
     opposite_end,
@@ -430,6 +431,12 @@ def transit_blocks(layout: Layout, transit: str) -> set[str]:
     if held is None or name not in held.transits:
         return set()
     return {block_of(end) for end in held.transits[name]}
+
+
+def _aligned(point: Point) -> Payload:
+    """A point as `tc49/layout/align` lists it: its address, the position the
+    way needs and whether the address reports (ADR-0097)."""
+    return {"addr": point.addr, "position": point.position, "reported": point.reported}
 
 
 def locked_ahead(state: State, train: str, route: Route, standing: int) -> int:
@@ -2643,14 +2650,7 @@ class Dispatcher:
             {
                 "connection": connection,
                 "transit": transit,
-                "points": [
-                    {
-                        "addr": point.addr,
-                        "position": point.position,
-                        "reported": point.reported,
-                    }
-                    for point in needed
-                ],
+                "points": [_aligned(point) for point in needed],
             },
         )
 
@@ -2668,13 +2668,7 @@ class Dispatcher:
             for point in connections[connection].points.get(transit, ()):
                 if point.addr not in listed:
                     listed.add(point.addr)
-                    points.append(
-                        {
-                            "addr": point.addr,
-                            "position": point.position,
-                            "reported": point.reported,
-                        }
-                    )
+                    points.append(_aligned(point))
         self._bus.publish(
             "tc49/layout/align",
             {"connection": None, "transit": None, "points": points},

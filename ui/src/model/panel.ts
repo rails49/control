@@ -1133,9 +1133,8 @@ export class Panel {
       ...(this.fault === null ? [] : [this.fault]),
       ...this.broken().map((rule) => `dispatcher: ${rule}`),
       ...this.disputeFaults(),
-      ...(this.withoutSensors
-        ? ["without sensors: trains are driven by throttle"]
-        : this.unknownSensorFaults()),
+      ...(this.withoutSensors ? ["without sensors: trains are driven by throttle"] : []),
+      ...this.unknownSensorFaults(),
       ...this.overdueFaults(),
     ];
   }

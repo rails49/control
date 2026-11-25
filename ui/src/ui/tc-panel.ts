@@ -68,7 +68,7 @@ import "./tc-requests.js";
 import "./tc-roster.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
-import type { RequestArrival, RequestCancel, RequestReorder } from "./tc-requests.js";
+import type { RequestPress, RequestReorder } from "./tc-requests.js";
 import type { RosterDrag, TcRoster } from "./tc-roster.js";
 
 /** What the right-click found, as the canvas hands it over: `trainAt`'s answer
@@ -372,13 +372,13 @@ export class TcPanel extends LitElement {
 
   /** A row's cancel: one `cancel_wanted` naming that request, the requests
    *  chained after it ending with it (ADR-0080). */
-  private cancelled(event: CustomEvent<RequestCancel>): void {
+  private cancelled(event: CustomEvent<RequestPress>): void {
     this.session?.send(cancellation(event.detail.id));
   }
 
   /** A row's "arrived": one `arrival_wanted` naming that request. The row
    *  goes when the dispatcher's picture drops it (#1320). */
-  private arrived(event: CustomEvent<RequestArrival>): void {
+  private arrived(event: CustomEvent<RequestPress>): void {
     this.session?.send(arrival(event.detail.id));
   }
 
