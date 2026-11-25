@@ -291,6 +291,15 @@ settled, drives trains and stops them. It keeps no record of which block is
 occupied: that is the lock table's. The simulator reports sensor readings at
 block ends, as the physical railroad does, and nothing else.
 
+A railroad may be set to run **without sensors**, for the time its sensors
+are not installed or not working. Sensor readings are then ignored. A request
+locks its whole route and sets its points when it starts, and a person drives
+the train with a throttle. The route stays locked until the person says where
+the train is: arrived in its destination block, not left its block, or in a
+block they name. The lock table still keeps two routes that share track from
+being set at once. What a sensor would have shown is the person's word, and a
+wrong word is not guarded.
+
 ### What the app is assumed to be told
 
 Everything above assumes the layout interface tells the truth: that a detector

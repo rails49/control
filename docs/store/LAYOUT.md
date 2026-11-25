@@ -29,7 +29,7 @@ layouts/<layout>.drawing.yaml                   # the railroad, drawn
 layouts/<layout>.roster.yaml                    # the cars it owns, and its trains
 layouts/<layout>.script.py                      # the script its translator loads
 layouts/<layout>.clock.yaml                     # the start time and speed-up its fast clock is loaded at
-layouts/<layout>.settings.yaml                  # its settings: the point gap, the driver's speeds and short_blocks
+layouts/<layout>.settings.yaml                  # its settings: the point gap, the driver's speeds, short_blocks and without_sensors
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
@@ -381,10 +381,12 @@ the drawing, roster and script.
 
 ## Settings schema
 
-A railroad's settings, its point gap, the driver's speeds and `short_blocks`
+A railroad's settings, its point gap, the driver's speeds, `short_blocks` and
+`without_sensors`
 ([#1126](https://github.com/rails49/control/issues/1126),
 [#1132](https://github.com/rails49/control/issues/1132),
-[#1286](https://github.com/rails49/control/issues/1286)):
+[#1286](https://github.com/rails49/control/issues/1286),
+[#1316](https://github.com/rails49/control/issues/1316)):
 
 ```yaml
 point_gap: 1.5   # seconds, 0 to 5, `layout` waits after a point command
@@ -392,15 +394,17 @@ speeds:          # each a fraction of the locomotive's maximum, above 0, at most
   clear: 0.6
   caution: 0.3
 short_blocks: false   # whether a route may use a block shorter than the train
+without_sensors: false   # whether the railroad runs without sensors
 ```
 
 `point_gap` always, `speeds` with both `clear` and `caution` or not at all,
-`short_blocks` `true` or `false` or not at all, and nothing else. `layout`
+`short_blocks` and `without_sensors` each `true` or `false` or not at all,
+and nothing else. `layout`
 writes it when a person sets any of them
 (`tc49.lib.settings`); the simulator neither reads nor writes it. A railroad
 with no settings document is loaded at a point gap of 0.5 s, one without
-`speeds` at `clear` 0.6 and `caution` 0.3, and one without `short_blocks` at
-`false`; nothing is written until somebody
+`speeds` at `clear` 0.6 and `caution` 0.3, and one without `short_blocks` or
+`without_sensors` at `false`; nothing is written until somebody
 sets it. One that does not read is said in `layout`'s
 log and treated as none. Copy and delete carry it with the clock.
 

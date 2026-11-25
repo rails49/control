@@ -435,6 +435,11 @@ _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 The [org glossary](https://github.com/rails49/.github/blob/main/GLOSSARY.md)'s word. Here: a block the dispatcher grants nothing into while a failure holds on it. A sensor `unknown` stops grants into, out of and through its block (#1152), and nothing is granted into a disputed block (ADR-0077). What resumes use is the org's [OPERATING.md](https://github.com/rails49/.github/blob/main/docs/OPERATING.md).
 _Avoid_: blocked, disabled, failed
 
+**Without sensors**:
+Of a railroad: its setting `without_sensors` is on. The dispatcher ignores sensor readings, locks the whole route of a request when the request starts, sets its points, and grants no move. A person drives each train with a throttle and says where it is: arrived, not left its block (a cancel), or in a block they name (a placement). Off by default and kept with the railroad
+([GOALS.md](docs/GOALS.md#approach)).
+_Avoid_: manual (the driving mode), sensorless, test mode
+
 **Active / idle train**:
 A train is active while it has a committed route, launched and not yet
 completed, and idle otherwise, whether or not a request for it is pending
