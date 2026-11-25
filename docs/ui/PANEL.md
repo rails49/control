@@ -45,9 +45,29 @@ fixed
 ([ADR-0085](../adr/0085-the-editor-saves-when-it-is-left-and-a-railroad-can-be-named-without-being-built.md),
 decision 4, [#886](https://github.com/rails49/control/issues/886)).
 
-**The railroad's roster is listed in the left pane.** The shell has one
-left-pane slot and each view fills it: the editor's palette, this view's
-`tc-roster` ([#169](https://github.com/rails49/control/issues/169)). A row is
+**The pane is left of the drawing, and a divider sets its width.** The pane
+is the roster with the request list under it. A person drags the divider
+between the pane and the drawing with a mouse or a finger
+([#1344](https://github.com/rails49/control/issues/1344)). The pane has a
+least width, where the roster is still usable, and a greatest, which leaves
+the drawing a least width of its own; both are in `ui/src/model/pane.ts`.
+Until the divider is first dragged the pane is as wide as the editor's
+palette, which has no divider.
+
+**On a page taller than it is wide the pane is below the drawing**: a tablet
+held upright, a phone. The roster and the request list stand side by side in
+it, each scrolling on its own, and the divider sets the pane's height, held
+to a least and a greatest as its width is. The shape is the page's
+(`orientation`), not the view's.
+
+**The divider's position is kept in the browser**, in `localStorage`, one for
+each of the two arrangements. A tablet and a desktop each keep their own, and
+turning a tablet brings back the position last set for the arrangement it
+turns to. The position is on no topic and not in the store. The drawing is
+fitted again whenever the divider moves and whenever the page turns.
+
+**The railroad's roster is listed in the pane**, by `tc-roster`
+([#169](https://github.com/rails49/control/issues/169)). A row is
 the photo of a train's first locomotive, its name, its length, and where the
 run has it — the block it stands in, *crossing a transit* where it stands in
 none (on the layout all the same), or *off the layout*. The photo is the one
@@ -94,7 +114,8 @@ component of its own, read from `tc49/dispatch/state/allocation`'s `requests`
 Each list is as tall as its rows, up to half the pane, and scrolls on its own
 past that, so the requests sit directly under the trains and the space left
 over is below them
-([#895](https://github.com/rails49/control/issues/895)).
+([#895](https://github.com/rails49/control/issues/895)). Where the pane is
+below the drawing the two lists are side by side, each as tall as the pane.
 One row per request, in list order — the order the dispatcher serves them, so
 what the list shows is what the dispatcher does next. A row is the train,
 where the request starts, where it ends, and *waiting* or *underway*, a
