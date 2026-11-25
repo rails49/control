@@ -932,7 +932,10 @@ what a drop would cost:
     starts, and grants no move. A person drives each train with a throttle
     and says where it is. Kept in `layouts/<layout>.settings.yaml`, or
     `false` where it keeps none
-    ([#1316](https://github.com/rails49/control/issues/1316)).
+    ([#1316](https://github.com/rails49/control/issues/1316)). A change of
+    the value the dispatcher holds, either way, ends every request
+    `revoked`; each train keeps what it occupies
+    ([#1321](https://github.com/rails49/control/issues/1321)).
   - `throttle_silence`: number, seconds, `2` to `60`, how long a throttle
     holding a train may go unheard before `layout` lets go of its trains.
     The installation's, kept in `installation.yaml` at the store root, or 5
@@ -988,6 +991,8 @@ what a drop would cost:
     ([#1286](https://github.com/rails49/control/issues/1286)).
   - `without_sensors`: boolean, `true` or `false` and nothing like them, as
     `short_blocks` ([#1316](https://github.com/rails49/control/issues/1316)).
+    A change ends every request `revoked`
+    ([#1321](https://github.com/rails49/control/issues/1321)).
   - `throttle_silence`: number, seconds, `2` to `60`.
   - `sensor_silence`: number, seconds, `2` to `60`.
   - `arrival_allowance`: number, seconds, `5` to `600`.
@@ -1132,8 +1137,10 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/dispatch/request_cancelled` — `id`; `reason`: enum `revoked`,
   `removed`, `displaced` — the set is `tc49.lib.cancellation`. `revoked` is
   the gesture that names the request's own end, or the end of the request
-  it follows, and the other two are the two directions of a placement that
-  retired it.
+  it follows, or a change of `without_sensors` on `tc49/layout/state/settings`,
+  which ends every request
+  ([#1321](https://github.com/rails49/control/issues/1321)); the other two
+  are the two directions of a placement that retired it.
 - `tc49/dispatch/route_chosen` — `id`; `route`: list alternating block and
   transit names, starting and ending on a block, a single block for the
   degenerate already-there case; `k_tried`: integer, candidate routes

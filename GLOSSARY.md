@@ -402,8 +402,9 @@ nothing retries ([BUS.md](docs/BUS.md)).
 _Avoid_: late, stalled (one cause), timed out, expired
 
 **Cancellation**:
-A request ended without the train arriving, because a person cancelled it or
-placed the train somewhere. The reason is `revoked`, `removed` or `displaced`
+A request ended without the train arriving, because a person cancelled it,
+placed the train somewhere, or turned **without sensors** on or off, which ends
+every request. The reason is `revoked`, `removed` or `displaced`
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: abort, kill, delete, revoke (one of the three reasons), rejection
 (which refuses a request before it is queued)

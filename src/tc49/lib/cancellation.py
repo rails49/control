@@ -39,5 +39,7 @@ class Reason(StrEnum):
     """
 
     REVOKED = "revoked"
+    """A person cancelled the request, or the one it follows, or turned
+    `without_sensors` on or off, which ends every request (#1321)."""
     REMOVED = "removed"
     DISPLACED = "displaced"
