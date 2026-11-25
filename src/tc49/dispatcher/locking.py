@@ -89,12 +89,20 @@ class ReadOnlyState(Protocol):
     @property
     def short_blocks(self) -> bool: ...
 
+    @property
+    def without_sensors(self) -> bool: ...
+
     def reads_occupied(self, block: str) -> bool: ...
 
     def obstacle(self, resource: str, train: str) -> tuple[str, str, str] | None: ...
 
 
 class LockingStrategy(Protocol):
+    @property
+    def k(self) -> int:
+        """How many candidate routes a launch tries."""
+        ...
+
     def launch(
         self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
@@ -114,7 +122,10 @@ def standing_still(state: ReadOnlyState) -> list[str]:
     """The blocks that read occupied and that nobody holds or that are
     residue, since nothing is granted into them until they read clear
     (ADR-0077), and the blocks out of use, until their sensors return (#1152):
-    obstacles as permanent as an idle train's block."""
+    obstacles as permanent as an idle train's block. None while the railroad
+    runs without sensors, whose readings are ignored (#1314)."""
+    if state.without_sensors:
+        return []
     occupied = {block_of(s) for s, reading in state.readings.items() if reading}
     return sorted(
         state.out_of_use
@@ -201,6 +212,10 @@ class FullRoute:
         self._layout = layout
         self._k = k
 
+    @property
+    def k(self) -> int:
+        return self._k
+
     def launch(
         self, req: Request, origin: str, depart: str, state: ReadOnlyState
     ) -> Launched | Refused | None:
@@ -261,6 +276,10 @@ class Incremental:
     def __init__(self, layout: Layout, k: int) -> None:
         self._layout = layout
         self._k = k
+
+    @property
+    def k(self) -> int:
+        return self._k
 
     def launch(
         self, req: Request, origin: str, depart: str, state: ReadOnlyState
