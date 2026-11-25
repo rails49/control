@@ -30,7 +30,12 @@ changes nothing, facing being a fact about the stock and not about the plan
 `move_granted` and kept, and taken up when `tc49/dispatch/state/allocation`
 names the train in the block entered — until then the nose is still at the
 signal the grant cleared, which is what a throttle shows (#1025). A restart
-reads what it would have kept off the retained allocation's `crossing`.
+reads what it would have kept off the retained allocation's `crossing`. On a
+railroad run without sensors no move is granted, so the scheduler also keeps
+the route each `route_chosen` names, by request id, until the request ends. At
+`request_completed`, where the train's facing does not yet name the route's
+last block, the train takes the facing the same rule gives along the whole
+route (#1317).
 That is what the layout read is for — `move_granted` names a transit
 and the block entered, not the end entered through — and why the scheduler
 subscribes `tc49/dispatch/#` (ADR-0028's growth, spent on facing). What it
@@ -314,12 +319,19 @@ class Scheduler:
         A route is a strict pass-through, so a train that left nose-first
         faces away from the end it entered through, and a propelled one faces
         the end it entered through. Both are answers to a move that actually
-        happened: `route_chosen` is not one, and is ignored here like every
-        other leaf the scheduler does not act on. Committing to a route is a
-        plan, and facing is a fact about the stock — where the request departs
-        the end the train's tail stands at, which ADR-0019 allows, recording
-        the departure would say the train had turned around while nothing
-        touched it (#295).
+        happened: `route_chosen` is not one, and changes no facing. Committing
+        to a route is a plan, and facing is a fact about the stock — where the
+        request departs the end the train's tail stands at, which ADR-0019
+        allows, recording the departure would say the train had turned around
+        while nothing touched it (#295).
+
+        The route `route_chosen` names is kept, by request id, and dropped
+        when the request ends, whichever way. On a railroad run without
+        sensors no move is granted and the request completes when a person
+        says the train has arrived, so `request_completed` is the one answer
+        to the run: where the facing does not yet name the route's last
+        block, `_ran` carries it along the route (#1317). After a run
+        followed by sensors it already names that block, and nothing changes.
 
         A request ends by arrival, by rejection, or by **cancellation**
         (ADR-0049), and the third leaves as little behind as the other two:
