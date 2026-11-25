@@ -10,6 +10,9 @@
  * launch or a move (#1114). An underway row whose cancel the dispatcher holds
  * says where the train stops in place of `underway`, and its cancel is off
  * until the row goes (#1115): the train runs on into that block first.
+ * While the railroad runs without sensors an underway row also has "arrived"
+ * before its cancel, for the person to say the train is in its destination
+ * block (#1323).
  *
  * It works nothing out. The rows arrive as data (`Panel.requestList`), and
  * what a drag asks is `model/requests.ts`'s answer: this says which row was
@@ -25,6 +28,11 @@ import { requestsStyles } from "./tc-requests.styles.js";
 
 /** A cancel pressed: the request to end. */
 export interface RequestCancel {
+  id: string;
+}
+
+/** "Arrived" pressed: the request whose train is in its destination block. */
+export interface RequestArrival {
   id: string;
 }
 
@@ -45,6 +53,11 @@ export class TcRequests extends LitElement {
    *  to send a cancel or a move to. */
   @property({ type: Boolean }) live = false;
 
+  /** Whether an underway row offers "arrived": only while the railroad runs
+   *  without sensors, where the person says the train is in its destination
+   *  block (#1323). */
+  @property({ type: Boolean }) arrivable = false;
+
   /** The row being dragged, so it reads as picked up. */
   @state() private held: string | null = null;
 
@@ -62,7 +75,8 @@ export class TcRequests extends LitElement {
   }
 
   /** One request. A waiting row can be picked up; an underway one cannot,
-   *  having started. Both can be cancelled, once. */
+   *  having started. Both can be cancelled, once. An underway one can be
+   *  said to have arrived where the list is `arrivable`. */
   private row(request: RequestRow) {
     const { id, train, from, to, state, note, cancelling } = request;
     const pickable = this.live && state === "waiting";
@@ -81,6 +95,16 @@ export class TcRequests extends LitElement {
         <span class="state">${said}</span>
         <span class="way">${ends(from)} → ${ends(to)}</span>
         ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
+        ${this.live && this.arrivable && state === "underway"
+          ? html`<button
+              class="arrived"
+              aria-label="Train has arrived"
+              @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
+              @click=${() => this.arrived(id)}
+            >
+              arrived
+            </button>`
+          : nothing}
         ${this.live
           ? html`<button
               class="cancel"
@@ -133,6 +157,16 @@ export class TcRequests extends LitElement {
   private cancel(id: string): void {
     this.dispatchEvent(
       new CustomEvent<RequestCancel>("request-cancelled", {
+        detail: { id },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private arrived(id: string): void {
+    this.dispatchEvent(
+      new CustomEvent<RequestArrival>("request-arrived", {
         detail: { id },
         bubbles: true,
         composed: true,
