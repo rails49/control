@@ -846,11 +846,17 @@ unread. The layout filter carries `tc49/layout/state/unknown_sensors`,
 `tc49/layout/state/overdue`, `tc49/layout/state/taken` and
 `tc49/layout/state/settings`, each read as the
 power is: on starting, from the value the bus holds, and by its stamp. Of the
-settings it reads `short_blocks` alone: while it is `true` a route may end in
-or pass through a block shorter than the train and admission prunes nothing as
-`no_fit`, and a placement and a restore keep their length check
-([#1287](https://github.com/rails49/control/issues/1287)). Until a row is heard
-it is `false`, and a railroad load starts it so again.
+settings it reads `short_blocks` and `without_sensors`. While `short_blocks` is
+`true` a route may end in or pass through a block shorter than the train and
+admission prunes nothing as `no_fit`, and a placement and a restore keep their
+length check ([#1287](https://github.com/rails49/control/issues/1287)). While
+`without_sensors` is `true` readings are ignored, and a launch locks the whole
+route and publishes `route_chosen`, one `lock_granted` and one
+`tc49/layout/align` with no transit carrying every point of the route, and no
+`move_granted`: the run ends by a cancel, a placement or a removal
+([#1319](https://github.com/rails49/control/issues/1319),
+[DISPATCH.md](dispatcher/DISPATCH.md#without-sensors)). Until a row is heard
+each is `false`, and a railroad load starts them so again.
 *Publishes* the eleven `tc49/dispatch/*` events, plus `state/moving`,
 `state/aspects`, `state/disputed`, `state/unfit`, `state/broken` and `state/allocation`. The last of those is
 its picture of the run, written out from the lock table whenever it changes,

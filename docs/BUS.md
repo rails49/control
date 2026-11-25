@@ -730,8 +730,11 @@ what a drop would cost:
   A point without `reported`, or with one that is not a boolean, fails the
   whole frame, as any other unreadable point does. `points` is `[]` where
   nothing needs throwing. `connection` and `transit`
-  may both be `null`, for a throw by hand: the frame names no transit and
-  `points` carries the points to set, any number of them. A frame with only
+  may both be `null`, for a throw by hand and for a route launched while the
+  railroad runs without sensors: the frame names no transit and `points`
+  carries the points to set, any number of them; for a route, every point its
+  transits need, in route order, each address once
+  ([#1319](https://github.com/rails49/control/issues/1319)). A frame with only
   one of the two `null` is unreadable and dropped whole
   ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)).
 - `tc49/layout/move` — `train`; `connection`; `transit`: bare name, the
@@ -1177,7 +1180,9 @@ payload is read defensively, and one that fails the read is dropped.
   ([#1187](https://github.com/rails49/control/issues/1187)). A train on
   `tc49/layout/state/overdue` does not count, by any move or restored hint:
   it stands until it arrives, a throttle takes it, or it is placed or removed
-  ([#1191](https://github.com/rails49/control/issues/1191)).
+  ([#1191](https://github.com/rails49/control/issues/1191)). While
+  `without_sensors` is `true` it reads `false`: no move is granted or followed
+  ([#1319](https://github.com/rails49/control/issues/1319)).
   Republished when it changes. A
   reader takes an unreadable value as `true`
   ([Payload schemas](#payload-schemas)). `layout` reads it to end a drain
@@ -1193,7 +1198,9 @@ payload is read defensively, and one that fails the read is dropped.
   or when the block is at either end of the transit a restored crossing names.
   A lock held ahead explains nothing, and a clear reading disputes nothing.
   Nothing is granted into a block on the list, the holder's own move included;
-  the page shows each on the band and on the drawing.
+  the page shows each on the band and on the drawing. While `without_sensors`
+  is `true` it reads `{"blocks": []}`: readings are ignored
+  ([#1319](https://github.com/rails49/control/issues/1319)).
 - `tc49/dispatch/state/unfit` — `trains`: list of `{train, block, why}`, in
   train order: each train the last rebuild under the same railroad name took
   off the layout, the block it stood in, and `why` — `gone` where the new
@@ -1219,7 +1226,10 @@ payload is read defensively, and one that fails the read is dropped.
   block; `crossing`: map of crossing train to its transit, from the grant until
   the head is in; `locks`: map of resource to holding train; `occupied`: map of
   train to the blocks and transits it occupies, tail to head; a lock on no train's
-  list is held ahead; `requests`: list of
+  list is held ahead. While `without_sensors` is `true`, a train running a
+  route occupies all of it, origin first, after what it held before off the
+  route, and is recorded in its origin and not crossing
+  ([#1319](https://github.com/rails49/control/issues/1319)); `requests`: list of
   `{id, train, depart, dest, after, route, refused, cancelling}` in **list order**, the order the
   dispatcher serves them
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)),

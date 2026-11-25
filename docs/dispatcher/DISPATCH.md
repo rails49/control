@@ -86,6 +86,46 @@ This section covers the sensor cause; [GLOSSARY.md](../../GLOSSARY.md)'s
 The list changing runs a sweep, so a sensor returning routes at once with no
 press.
 
+### Without sensors
+
+While `tc49/layout/state/settings` says `without_sensors: true`, the dispatcher
+ignores sensor readings, locks a request's whole route at its launch and grants
+no move: a person drives the train with a throttle and says where it is
+([#1314](https://github.com/rails49/control/issues/1314)). The value is `false`
+until a row is heard, and a row whose field does not read leaves it held. A row
+that changes it sweeps.
+
+- **Readings are ignored.** No block is out of use, none is disputed and none
+  reads occupied, so a launch is refused only on locks and transit conflicts.
+  `state/disputed` reads `{"blocks": []}`. Each reading and the list of sensors
+  not reporting are still recorded, for when the setting goes off.
+- **Residue goes.** The value turning `true` releases every train's residue, one
+  `lock_released` per train, and a removal keeps none: no reading will open it.
+- **Nothing is moving.** `state/moving` reads `false`, so a drain ends at once.
+- **A launch takes the whole route.** Admission, the request list, route choice,
+  the fit check and `short_blocks` are as above. A waiting request is launched by
+  the full-route rule, whatever strategy the dispatcher was built with, and
+  `safe()` is not asked. A route that cannot be taken is refused `held` or
+  `transit_conflict` naming the holder.
+- **What a launch publishes:** `route_chosen`; one `lock_granted` for the route
+  beyond the origin in crossing order; one `tc49/layout/align` with `connection`
+  and `transit` `null` carrying every point each transit of the route needs, in
+  route order, an address listed once. No `move_granted`.
+- **While the run is under way** the train is recorded in its origin block and
+  is not crossing. Its `occupied` list is what it held before off the route,
+  then the whole route, origin first, since it may be anywhere on it. It is
+  offered no move. The signals along the route show by the locks (*Aspects*)
+  until the run ends.
+- **A cancel** ends the run at once: the train occupies its origin alone, the
+  rest is released in one `lock_released`, and the request is cancelled
+  `revoked`. Nothing is asked of `layout`. A request chained after it ends or
+  follows as for any cancel, departing by the end the route left by.
+- **A placement** cancels the request `displaced` and stands the train in the
+  block named, as everywhere. One on the origin is refused `not_free`: cancel is
+  the gesture for a train that has not left.
+- **A removal** releases everything the train held.
+- **A hand throw** on a transit of the route is dropped, as on any locked route.
+
 ### Requests
 
 A request is `(train, departure end, arrival ends)`. The
@@ -338,7 +378,9 @@ block it stands in, moving or parked, requested or not. Launching is therefore
 not "taking a lock on the train's own block"; it is the safety layer granting
 the request's first increment: the first transit plus the second block under
 incremental locking, with the increment beyond it asked for as the train
-starts moving, or the whole route under the full-route baseline.
+starts moving, or the whole route under the full-route baseline. While the
+railroad runs without sensors every launch takes the whole route and no move
+follows (*Without sensors*).
 
 **The queue does not filter on arrival occupancy.** A request whose arrival
 blocks are occupied is scanned like any other; whether it launches is the
