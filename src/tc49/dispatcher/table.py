@@ -9,7 +9,7 @@ the locking strategies read it through `locking.ReadOnlyState`.
 It imports `tc49.lib` and nothing else of the dispatcher.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from tc49.lib.inventory import Refusal
 from tc49.lib.layout import Layout, block_of
@@ -430,3 +430,224 @@ def broken(state: Table) -> list[str]:
             if by != also and state.layout.conflicts(one, other):
                 lines.append(f"{one} locked to {by} conflicts with {other} of {also}")
     return sorted(lines)
+
+
+# -- what a transition returns for the dispatcher to publish -----------------
+
+
+@dataclass(frozen=True)
+class Disputed:
+    """The blocks the sensors dispute once a reading is recorded and before
+    any move takes it (`Table.disputed_blocks`), for `state/disputed`."""
+
+    blocks: frozenset[str]
+
+
+@dataclass(frozen=True)
+class Released:
+    """Locks `train` has given up, for one `lock_released` naming them in
+    this order."""
+
+    train: str
+    resources: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HeadIn:
+    """The head of `train` is in `block`, the block its move entered. The
+    dispatcher publishes the aspects and the allocation here, before any grant
+    that follows: the scheduler moves the train's facing when the allocation
+    names it in the block its move entered, and `layout` reads that facing for
+    the next `move` (#1025, #1038, ADR-0052)."""
+
+    train: str
+    block: str
+
+
+@dataclass(frozen=True)
+class MoveEnded:
+    """The newest move of `train` has ended, at its entry sensor reading
+    `clear` or its far sensor reading `occupied`. What its request does is the
+    dispatcher's to decide."""
+
+    train: str
+
+
+Effect = Disputed | Released | HeadIn | MoveEnded
+
+
+# -- the transitions ----------------------------------------------------------
+
+
+def reading(table: Table, sensor: str, occupied: bool) -> tuple[Table, list[Effect]]:
+    """A sensor's settled reading (ADR-0047), taken against every move still
+    expecting that sensor, oldest first. A reading changes the table only for
+    the move that expects it, and a person backing a train at a platform
+    changes nothing (GOALS.md).
+
+    A sensor reports presence, which is a level: a reading that repeats what
+    `readings` holds is an at-least-once repeat, and the table comes back as
+    given with no effect. A changed reading is recorded, and its first effect
+    is `Disputed`. The table given is left unchanged."""
+    if table.readings.get(sensor) == occupied:
+        return table, []
+    new = _copied(table)
+    new.readings[sensor] = occupied
+    effects: list[Effect] = [Disputed(new.disputed_blocks)]
+    for train, following in new.following.items():
+        for each in list(following):
+            effects += _followed(new, train, each, sensor, occupied)
+    return new, effects
+
+
+def not_reporting(table: Table, sensors: frozenset[str]) -> tuple[Table, list[Effect]]:
+    """The sensors `layout` lists as not reporting (`state/unknown_sensors`).
+    A block with one is out of use (#1152). A list equal to the one held
+    changes nothing, and the table comes back as given. The table given is
+    left unchanged."""
+    if sensors == table.unknown_sensors:
+        return table, []
+    return replace(table, unknown_sensors=sensors), []
+
+
+def _copied(table: Table) -> Table:
+    """A copy of `table` whose maps a reading may change are its own (#1330
+    freezes the table)."""
+    return replace(
+        table,
+        locks=dict(table.locks),
+        block_of=dict(table.block_of),
+        active={train: replace(each) for train, each in table.active.items()},
+        crossing=dict(table.crossing),
+        readings=dict(table.readings),
+        occupied={train: list(listed) for train, listed in table.occupied.items()},
+        following={
+            train: [replace(each) for each in listed]
+            for train, listed in table.following.items()
+        },
+    )
+
+
+def _followed(
+    table: Table, train: str, each: Following, sensor: str, occupied: bool
+) -> list[Effect]:
+    """A changed reading, taken against one move that may expect it (#1171).
+
+    For a move out of X through `exit`, over T, into Y through `entry`:
+    `exit` occupied then clear is the tail out of X, or occupied at the grant
+    and then clear; `entry` occupied is the head in Y, and so is `far` where
+    `entry` was `unknown` as the train passed; `entry` then clear is the whole
+    train in Y; `far` occupied is where it stops. Anything else changes
+    nothing, and a clear reading is never taken for a train gone: a short
+    train stands between its block's sensors and both read clear.
+
+    A request ends when the whole train is in its last block, or when the far
+    sensor reads `occupied` if the entry sensor was not seen to clear
+    (GOALS.md): the newest move ending is `MoveEnded`."""
+    following = table.following.get(train)
+    newest = bool(following) and following[-1] is each
+    effects: list[Effect] = []
+    if occupied:
+        if sensor == each.exit:
+            each.exit_read = True
+        elif sensor in (each.entry, each.far):
+            if not each.head_in:
+                effects += _head_in(table, train, each)
+            if sensor == each.far:
+                each.at_far = True
+                if newest:
+                    effects.append(MoveEnded(train))
+    elif sensor == each.exit:
+        if each.exit_read:
+            effects += _tail_out(table, train, each)
+    elif sensor == each.entry and each.head_in:
+        effects += _tail_in(table, train, each)
+        if newest:
+            effects.append(MoveEnded(train))
+    return effects
+
+
+def _head_in(table: Table, train: str, each: Following) -> list[Effect]:
+    """Y's sensor at the end the train enters by reads `occupied`: the head is
+    in Y, and the train may be granted its next move (GOALS.md).
+
+    The move is no longer outstanding, and the train is no longer crossing. Y
+    goes to the head of what the train occupies, from wherever a move back
+    over a transit left it, and the train is recorded in Y, past the signal
+    it left by, which now shows `stop` (ADR-0093)."""
+    into = each.move.into
+    each.head_in = True
+    active = table.active.get(train)
+    if active is not None:
+        active.outstanding = None
+    table.crossing.pop(train, None)
+    occupying = table.occupied[train]
+    if into in occupying:
+        occupying.remove(into)
+    occupying.append(into)
+    table.block_of[train] = into
+    return [HeadIn(train, into)]
+
+
+def _tail_out(table: Table, train: str, each: Following) -> list[Effect]:
+    """X's sensor at the end the train leaves by reads `occupied`, then
+    `clear`: the tail has left X, and X is released (GOALS.md).
+
+    The train is recorded in the block it is crossing into if it was still
+    recorded in X. A move older than this one into X is dropped, so another
+    train entering X later reads nothing for this one."""
+    left = each.move.from_block
+    occupying = table.occupied[train]
+    if left not in occupying:
+        return []
+    effects = _give_up(table, train, [left])
+    if table.block_of[train] == left:
+        table.block_of[train] = each.move.into
+    following = table.following[train]
+    older = following[: following.index(each)]
+    following[: len(older)] = [m for m in older if m.move.into != left]
+    return effects
+
+
+def _tail_in(table: Table, train: str, each: Following) -> list[Effect]:
+    """Y's sensor at the end the train entered by reads `clear` after the head
+    is in: the whole train is in Y, and T is released, with anything of that
+    train's still held behind it (GOALS.md), in one `Released`.
+
+    A transit a later move has taken again is not this one's to give up, nor
+    is a block on the train's route ahead whose transit in is locked to it
+    (#1230). This move and any older are no longer followed."""
+    occupying = table.occupied[train]
+    transit = each.move.transit
+    effects: list[Effect] = []
+    if transit in occupying:
+        entered = _entered_ahead(table, train)
+        behind = occupying[: occupying.index(transit) + 1]
+        effects = _give_up(table, train, [r for r in behind if r not in entered])
+    following = table.following[train]
+    del following[: following.index(each) + 1]
+    return effects
+
+
+def _entered_ahead(table: Table, train: str) -> set[str]:
+    """The blocks on the train's route from the one it is granted into on,
+    each with the transit into it locked to the train."""
+    active = table.active.get(train)
+    if active is None:
+        return set()
+    route = active.route
+    return {
+        route.blocks[i]
+        for i in range(max(active.cur_index, 1), len(route.blocks))
+        if table.locks.get(route.transits[i - 1]) == train
+    }
+
+
+def _give_up(table: Table, train: str, resources: list[str]) -> list[Effect]:
+    """What a train has left behind it, off its list and released."""
+    occupying = table.occupied[train]
+    for resource in resources:
+        occupying.remove(resource)
+        if table.locks.get(resource) == train:
+            del table.locks[resource]
+    return [Released(train, tuple(resources))]
