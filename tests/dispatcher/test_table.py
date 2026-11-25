@@ -253,6 +253,36 @@ def test_the_far_sensor_says_the_head_is_in_where_the_entry_said_nothing() -> No
     assert new.block_of["t"] == "dn_w"
 
 
+def test_a_reading_ends_the_newer_of_two_equal_moves() -> None:
+    """`t` has two equal moves on its list, each with its head at `dn_w.B`,
+    which has read clear since. The sensor reading occupied again changes
+    neither record, and ends the newer one, once."""
+    table = headed()
+    move = table.following["t"][0].move
+    older, newer = (
+        Following(
+            move,
+            "yard_w.B",
+            "dn_w.A",
+            "dn_w.B",
+            exit_read=True,
+            head_in=True,
+            at_far=True,
+        )
+        for _ in range(2)
+    )
+    table = replace(
+        table,
+        readings={**table.readings, "dn_w.B": False},
+        following={"t": [older, newer]},
+    )
+
+    new, effects = reading(table, "dn_w.B", True)
+
+    assert effects == [Disputed(frozenset()), MoveEnded("t")]
+    assert new.following["t"] == [older, newer]
+
+
 def test_a_clear_reading_no_move_expects_changes_nothing() -> None:
     """A person backing a train at a platform: only the reading is recorded."""
     table = granted()
