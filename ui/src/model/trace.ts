@@ -94,6 +94,7 @@ export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
 export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";
+export const ARRIVAL_WANTED = "tc49/dispatch/arrival_wanted";
 export const REORDER_WANTED = "tc49/dispatch/reorder_wanted";
 export const POINT_WANTED = "tc49/dispatch/point_wanted";
 export const POWER_WANTED = "tc49/layout/power_wanted";
@@ -158,6 +159,13 @@ export function placement(train: string, block: string | null): Frame {
  *  [ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)). */
 export function cancellation(id: string): Frame {
   return { topic: CANCEL_WANTED, payload: { id } };
+}
+
+/** An `arrival_wanted` frame: on a railroad run without sensors, the train of
+ *  this underway request is in its destination block. The dispatcher drops it
+ *  for any other request, and while the railroad runs by its sensors (#1320). */
+export function arrival(id: string): Frame {
+  return { topic: ARRIVAL_WANTED, payload: { id } };
 }
 
 /** A `reorder_wanted` frame: move this request in front of `before`, or to
