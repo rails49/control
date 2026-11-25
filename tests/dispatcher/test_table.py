@@ -20,11 +20,20 @@ from tc49.dispatcher.table import (
     HeadIn,
     Move,
     MoveEnded,
+    Opened,
+    Placed,
     Released,
+    Removed,
     Route,
     Table,
+    broken,
     not_reporting,
+    opening,
+    placing,
     reading,
+    releasing,
+    removing,
+    retiring,
 )
 from tests.harness import load
 from tests.system.test_app_boundaries import tc49_imports
@@ -213,3 +222,196 @@ def test_an_unchanged_list_of_sensors_not_reporting_is_a_no_op() -> None:
     new, effects = not_reporting(table, frozenset({"dn_e.A"}))
     assert new is table
     assert effects == []
+
+
+def test_a_release_gives_up_all_but_what_is_kept_and_the_residue() -> None:
+    """In one `Released`, sorted."""
+    table = granted()
+    table.locks["up_e"] = "t"
+    table.residue.add("up_e")
+
+    new, effects = releasing(table, "t", ("yard_w", T1))
+
+    assert effects == [Released("t", (T2, "dn_e", "dn_w"))]
+    assert new.locks == {"yard_w": "t", T1: "t", "up_e": "t"}
+
+
+def test_a_release_with_nothing_to_give_up_is_a_no_op() -> None:
+    table = granted()
+    new, effects = releasing(table, "t", list(table.locks))
+    assert new is table
+    assert effects == []
+
+
+def test_a_retire_keeps_what_the_train_is_on_and_ends_its_run() -> None:
+    """Its standing block and its `occupied` list; what it held ahead goes,
+    and it is no longer active, crossing or departing."""
+    table = granted()
+    table.departure["t"] = "yard_e.B"
+
+    new, effects = retiring(table, "t")
+
+    assert effects == [Released("t", (T2, "dn_e", "dn_w"))]
+    assert new.locks == {"yard_w": "t", T1: "t"}
+    assert (new.active, new.crossing, new.departure) == ({}, {}, {})
+    assert new.occupied["t"] == ["yard_w", T1]
+
+
+def test_a_retire_keeps_what_it_is_told_to() -> None:
+    new, effects = retiring(granted(), "t", {"yard_w"})
+    assert effects == [Released("t", (T2, "dn_e", "dn_w", T1))]
+    assert new.locks == {"yard_w": "t"}
+
+
+def standing(occupied: bool) -> Table:
+    """`t` at rest in `yard_w`, whose sensor at `B` reads `occupied`."""
+    table, _ = a_route()
+    table.locks["yard_w"] = "t"
+    table.block_of["t"] = "yard_w"
+    table.occupied["t"] = ["yard_w"]
+    table.readings["yard_w.B"] = occupied
+    return table
+
+
+def test_removing_a_train_whose_block_reads_occupied_leaves_residue() -> None:
+    """The block stays locked to the train until it reads clear (ADR-0069)."""
+    new, effects = removing(standing(True), "t")
+
+    assert effects == [Removed("t")]
+    assert new.locks == {"yard_w": "t"}
+    assert new.residue == {"yard_w"}
+    assert (new.block_of, new.occupied) == ({}, {})
+    assert broken(new) == []
+
+
+def test_removing_a_train_whose_block_reads_clear_releases_it() -> None:
+    new, effects = removing(standing(False), "t")
+
+    assert effects == [Released("t", ("yard_w",)), Removed("t")]
+    assert (new.locks, new.residue) == ({}, set())
+
+
+def test_removing_a_crossing_train_keeps_the_transit_beside_an_occupied_block() -> None:
+    """A restored hint: `t` over T1 with its tail in `yard_w`, which reads
+    occupied. T1 is kept with `yard_w`; `dn_w` reads nothing and goes."""
+    table = standing(True)
+    table.locks.update({T1: "t", "dn_w": "t"})
+    table.crossing["t"] = T1
+    table.occupied["t"] = ["yard_w", T1]
+
+    new, effects = removing(table, "t")
+
+    assert effects == [Released("t", ("dn_w",)), Removed("t")]
+    assert new.residue == {"yard_w", T1}
+    assert new.crossing == {}
+    assert broken(new) == []
+
+
+def test_removing_a_train_off_the_layout_is_a_no_op() -> None:
+    table, _ = a_route()
+    new, effects = removing(table, "t")
+    assert new is table
+    assert effects == []
+
+
+def residue() -> Table:
+    """`t` removed over T1, with `yard_w.B` and `dn_w.A` reading occupied:
+    both blocks and T1 are its residue."""
+    table, _ = a_route()
+    table.locks.update({"yard_w": "t", T1: "t", "dn_w": "t"})
+    table.residue.update({"yard_w", T1, "dn_w"})
+    table.readings.update({"yard_w.B": True, "dn_w.A": True})
+    return table
+
+
+def test_residue_opens_on_the_clear_reading() -> None:
+    """The hand has lifted the loco. T1 stays kept for `yard_w`."""
+    table, _ = reading(residue(), "dn_w.A", False)
+
+    new, effects = opening(table)
+
+    assert effects == [Opened("t", ("dn_w",))]
+    assert new.locks == {"yard_w": "t", T1: "t"}
+    assert new.residue == {"yard_w", T1}
+    assert broken(new) == []
+
+
+def test_a_transit_kept_for_residue_opens_once_neither_block_is_residue() -> None:
+    """With the last of its blocks, in one `Opened`, sorted."""
+    table, _ = opening(reading(residue(), "dn_w.A", False)[0])
+    table, _ = reading(table, "yard_w.B", False)
+
+    new, effects = opening(table)
+
+    assert effects == [Opened("t", (T1, "yard_w"))]
+    assert (new.locks, new.residue) == ({}, set())
+
+
+def test_residue_does_not_open_while_a_sensor_is_listed() -> None:
+    """A sensor not reporting says nothing about the loco (#1152)."""
+    table, _ = reading(residue(), "dn_w.A", False)
+    table, _ = not_reporting(table, frozenset({"dn_w.B"}))
+
+    new, effects = opening(table)
+
+    assert new is table
+    assert effects == []
+
+
+def test_placing_a_train_back_on_its_own_residue() -> None:
+    """The block is free to it and becomes its standing lock: the person is
+    saying the loco never left (ADR-0069). T1, kept for that block alone,
+    opens after the placement."""
+    table, _ = opening(reading(residue(), "dn_w.A", False)[0])
+    assert table.free("yard_w", "t")
+
+    new, effects = placing(table, "t", "yard_w")
+
+    assert effects == [Placed("t", "yard_w"), Opened("t", (T1,))]
+    assert new.locks == {"yard_w": "t"}
+    assert new.residue == set()
+    assert (new.block_of, new.occupied) == ({"t": "yard_w"}, {"t": ["yard_w"]})
+    assert broken(new) == []
+
+
+def test_placing_a_train_moves_its_standing_lock_without_a_release() -> None:
+    """`train_placed` is the ledger line for a placement."""
+    new, effects = placing(standing(True), "t", "up_e")
+
+    assert effects == [Placed("t", "up_e")]
+    assert new.locks == {"up_e": "t"}
+    assert new.block_of == {"t": "up_e"}
+
+
+def test_placing_a_crossing_train_releases_what_it_occupied_behind_it() -> None:
+    """A restored hint over T1: T1 goes in a `Released` before the placement,
+    and the train is no longer crossing or followed."""
+    table = standing(True)
+    table.locks.update({T1: "t", "dn_w": "t"})
+    table.crossing["t"] = T1
+    table.occupied["t"] = ["yard_w", T1]
+    table.following["t"] = []
+
+    new, effects = placing(table, "t", "dn_w")
+
+    assert effects == [Released("t", (T1,)), Placed("t", "dn_w")]
+    assert new.locks == {"dn_w": "t"}
+    assert (new.crossing, new.following) == ({}, {})
+    assert broken(new) == []
+
+
+def test_placement_removal_release_and_opening_leave_the_table_unchanged() -> None:
+    """So a search can branch from one table (#1315)."""
+    lifted, _ = reading(residue(), "dn_w.A", False)
+    tables = [granted(), standing(True), lifted]
+    before = [repr(table) for table in tables]
+
+    retiring(tables[0], "t")
+    for table in tables:
+        releasing(table, "t", ())
+        removing(table, "t")
+        placing(table, "t", "up_e")
+        placing(table, "t", "yard_w")
+        opening(table)
+
+    assert [repr(table) for table in tables] == before
