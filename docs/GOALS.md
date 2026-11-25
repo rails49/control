@@ -162,8 +162,13 @@ block X, over transit T, into block Y:
 | that sensor then reads `clear` | the whole train is in Y | T is released, with anything of that train's still held behind it |
 
 X's sensor reading `occupied` when the move is granted counts as its first
-reading. The last line does not release a block on the train's route ahead
-that it holds with the transit into it
+reading, unless the train came into X by that end. Its tail may then still
+roll off that sensor before the train stops and turns, so only a reading after
+the grant counts. Where none comes, the train having stopped with its tail on
+the sensor, X is released with T at the last line
+([#1336](https://github.com/rails49/control/issues/1336)). The last line
+does not release a block on the train's route ahead that it holds with the
+transit into it
 ([#1230](https://github.com/rails49/control/issues/1230)).
 
 A reading changes the table only for the move that expects it. A train that
