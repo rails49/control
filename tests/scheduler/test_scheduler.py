@@ -36,7 +36,7 @@ TWO_TRAINS = {
 document: the harness reads a scenario into a facing seed and a timetable, and
 those two are all that reaches here (bench/runner.py, ADR-0036)."""
 
-TIMETABLE = (
+REQUESTS = (
     RequestSpec("freight_1", "yard_w.B", ("yard_e",)),
     RequestSpec("express_2", "up_e.A", ("yard_w.B",)),
     RequestSpec("freight_1", "yard_e.A", ("yard_w",)),
@@ -54,10 +54,10 @@ def collect(bus: InProcessBus, topic_filter: str) -> list[tuple[str, Payload]]:
     return seen
 
 
-def test_submits_the_whole_timetable_in_order_with_deterministic_ids() -> None:
+def test_submits_the_scenarios_requests_in_order_with_deterministic_ids() -> None:
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded(), requests=TIMETABLE)
+    Scheduler(bus, yard(), seeded(), requests=REQUESTS)
 
     bus.drain()
     assert [p for _, p in seen] == [
@@ -85,7 +85,7 @@ def test_submits_the_whole_timetable_in_order_with_deterministic_ids() -> None:
 def test_exhausted_set_when_the_last_request_is_out() -> None:
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/schedule/state/exhausted")
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
 
     bus.drain()
     # Stamped by the binding that published it, the run clock reading zero
@@ -95,7 +95,7 @@ def test_exhausted_set_when_the_last_request_is_out() -> None:
     assert len(seen) == 1  # set once, not republished
 
 
-def test_an_empty_timetable_is_exhausted_at_once() -> None:
+def test_a_scheduler_given_no_requests_is_exhausted_at_once() -> None:
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/schedule/state/exhausted")
     Scheduler(bus, yard(), seeded())
@@ -104,7 +104,7 @@ def test_an_empty_timetable_is_exhausted_at_once() -> None:
     assert [p for _, p in seen] == [{"at": 0.0, "exhausted": True}]
 
 
-def test_a_run_given_no_timetable_submits_nothing() -> None:
+def test_a_run_given_no_requests_submits_nothing() -> None:
     """Which sources a run has is configuration (ADR-0036): a run an
     operator drives has the same scheduler with no timetable at all, and the
     first gesture's id is still `<train>-1`."""
@@ -125,7 +125,7 @@ def test_the_documents_placement_is_the_first_facing() -> None:
     (ADR-0036)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     assert [p["facing"] for _, p in seen] == [
         {"express_2": "up_e.B-to-A", "freight_1": "yard_w.A-to-B"}
@@ -138,7 +138,7 @@ def test_a_retained_facing_is_adopted_in_place_of_the_placement() -> None:
     placement is the cold start's seed and nothing more."""
     bus = retaining({FACING: {"facing": {"freight_1": "dn_e.B-to-A"}}})
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
 
     # `express_2` is not in the retained map, so it falls back to its
@@ -157,7 +157,7 @@ def test_a_facing_that_is_a_bare_end_letter_is_refused() -> None:
     the document gives it."""
     bus = retaining({FACING: {"facing": {"freight_1": "dn_e.A"}}})
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
 
     assert facing(seen) == {
@@ -183,7 +183,7 @@ def test_a_retained_value_that_states_no_facing_map_is_a_cold_start() -> None:
     for retained in unreadable:
         bus = retaining({FACING: cast(Payload, retained)})
         seen = collect(bus, FACING)
-        Scheduler(bus, yard(), seeded(), TIMETABLE)
+        Scheduler(bus, yard(), seeded(), REQUESTS)
         bus.drain()
 
         assert facing(seen) == {
@@ -199,7 +199,7 @@ def test_a_train_the_retained_map_states_unreadably_loses_only_itself() -> None:
     placement, and `express_2` is adopted as it always was."""
     bus = retaining({FACING: {"facing": {"freight_1": 7, "express_2": "dn_e.A-to-B"}}})
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
 
     assert facing(seen) == {
@@ -253,7 +253,7 @@ def test_a_granted_move_turns_the_train_away_from_the_end_it_entered() -> None:
     comes in through A and faces A-to-B."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.publish(
         "tc49/dispatch/move_granted",
         {
@@ -342,7 +342,7 @@ def test_a_route_out_of_the_end_the_train_faces_moves_the_arrow_on_arrival() -> 
     it away from the end entered."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()  # express_2-1 goes out, so the scheduler knows whose route it is
     published = len(seen)
 
@@ -363,7 +363,7 @@ def test_a_route_out_of_the_other_end_moves_no_arrow() -> None:
     `layout` reads the same value."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     published = len(seen)
 
@@ -446,7 +446,7 @@ def test_a_grant_moves_no_arrow_until_the_allocation_records_the_arrival() -> No
     naming it in the block it is crossing out of (ADR-0019)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     published = len(seen)
 
@@ -584,7 +584,7 @@ def test_facing_is_published_only_when_it_moves() -> None:
     map on every dispatch event would be a line in the trace per grant."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     bus.publish("tc49/dispatch/request_admitted", {"id": "freight_1-1", "dest": []})
     bus.publish(
@@ -816,13 +816,13 @@ def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     assert seen[-1][1]["depart"] == "yard_w.B"
 
 
-def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
+def test_gestures_and_the_scenarios_requests_share_one_undivided_counter() -> None:
     """One counter for both sources (ADR-0036): a person's drag simply takes
     the next number, and the nonce beside it is what makes the drag's id its
     own rather than which source minted it."""
     bus = InProcessBus(Clock())
     seen = collect(bus, "tc49/dispatch/request_submitted")
-    Scheduler(bus, yard(), seeded(), TIMETABLE, nonce=NONCE)
+    Scheduler(bus, yard(), seeded(), REQUESTS, nonce=NONCE)
 
     bus.drain()  # the whole timetable goes out
     gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
@@ -831,7 +831,7 @@ def test_gestures_and_the_timetable_share_one_undivided_counter() -> None:
     assert seen[-1][1]["id"] == f"freight_1-{NONCE}-3"
 
 
-def test_two_schedulers_mint_the_same_ids_for_one_timetable() -> None:
+def test_two_schedulers_mint_the_same_ids_for_the_same_requests() -> None:
     """The timetable path is untouched by the nonce, which is the whole of
     what replay rests on (ADR-0033): the same document, minted twice, gives
     the same ids in the same order."""
@@ -839,7 +839,7 @@ def test_two_schedulers_mint_the_same_ids_for_one_timetable() -> None:
     for _ in range(2):
         bus = InProcessBus(Clock())
         seen = collect(bus, "tc49/dispatch/request_submitted")
-        Scheduler(bus, yard(), seeded(), TIMETABLE)
+        Scheduler(bus, yard(), seeded(), REQUESTS)
         bus.drain()
         minted.append([p["id"] for _, p in seen])
 
@@ -855,7 +855,7 @@ def test_two_schedulers_mint_different_ids_for_the_same_drag() -> None:
     for _ in range(2):
         bus = InProcessBus(Clock())
         seen = collect(bus, "tc49/dispatch/request_submitted")
-        Scheduler(bus, yard(), seeded(), TIMETABLE)
+        Scheduler(bus, yard(), seeded(), REQUESTS)
         bus.drain()
         gesture(bus, {"train": "freight_1", "dest": ["dn_e.A"]})
         minted.append(seen[-1][1]["id"])
@@ -1429,7 +1429,7 @@ def test_an_announcement_that_cannot_be_read_leaves_facing_where_it_was() -> Non
     """
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     published, settled = len(seen), facing(seen)
 
@@ -1478,7 +1478,7 @@ def test_a_leaf_the_scheduler_does_not_act_on_is_ignored() -> None:
     (BUS.md)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     published, settled = len(seen), facing(seen)
 
@@ -1503,7 +1503,7 @@ def test_an_answer_that_cannot_be_read_leaves_the_request_in_flight() -> None:
     and the request stays the scheduler's to remember (#124)."""
     bus = InProcessBus(Clock())
     seen = collect(bus, FACING)
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     bus.drain()
     settled = facing(seen)
 
@@ -1529,5 +1529,5 @@ def test_it_subscribes_before_it_publishes_anything() -> None:
     scheduler ran against a real broker.
     """
     bus = Recording()
-    Scheduler(bus, yard(), seeded(), TIMETABLE)
+    Scheduler(bus, yard(), seeded(), REQUESTS)
     subscribed_before_publishing(bus)

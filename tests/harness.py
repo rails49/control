@@ -54,7 +54,7 @@ __all__ = [
     "run",
     "stock",
     "ticks",
-    "timetabled",
+    "with_requests",
 ]
 
 ROOT = find_root()  # the checkout: the goldens and the generated sources
@@ -231,7 +231,7 @@ POWER_WANTED = "tc49/layout/power_wanted"
 
 
 @pytest.fixture
-def timetabled() -> Assembly:
+def with_requests() -> Assembly:
     """`crossover-yard/meet` with its timetable on: three requests minted
     into the run in the file's order, freight_1's return working last."""
     return build(*load("crossover-yard/meet"))
