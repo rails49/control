@@ -90,6 +90,15 @@ describe("what the pane lists", () => {
     expect(rosterStyles.cssText).not.toContain("text-overflow");
   });
 
+  /** Safari stops selecting only for the prefixed rule, and a finger resting
+   *  on a row would select its text instead of dragging it (#1312). happy-dom
+   *  selects nothing either way, so this reads the rule. */
+  it("leaves Safari no text to select on a row", () => {
+    const row = /^\s*li \{([^}]*)\}/m.exec(rosterStyles.cssText)![1]!;
+    expect(row).toMatch(/-webkit-user-select:\s*none/);
+    expect(row).toMatch(/-webkit-touch-callout:\s*none/);
+  });
+
   /** The order is the model's (`panel.roster`), so the pane draws what it is
    *  handed and never sorts: two parties ordering the list is one of them
    *  reshuffling it under the reader. */
