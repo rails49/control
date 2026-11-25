@@ -401,7 +401,8 @@ without_sensors: false   # whether the railroad runs without sensors
 `short_blocks` and `without_sensors` each `true` or `false` or not at all,
 and nothing else. `layout`
 writes it when a person sets any of them
-(`tc49.lib.settings`); the simulator neither reads nor writes it. A railroad
+(`tc49.lib.settings`); the simulator in its place reads it at each build and
+writes it as `layout` does. A railroad
 with no settings document is loaded at a point gap of 0.5 s, one without
 `speeds` at `clear` 0.6 and `caution` 0.3, and one without `short_blocks` or
 `without_sensors` at `false`; nothing is written until somebody
