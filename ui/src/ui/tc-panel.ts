@@ -53,6 +53,7 @@ import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import { widgetPress, widgetTopic } from "../model/widgets.js";
 import {
+  arrival,
   cancellation,
   gesture,
   placement,
@@ -67,7 +68,7 @@ import "./tc-requests.js";
 import "./tc-roster.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { MenuItem } from "./tc-menu.js";
-import type { RequestCancel, RequestReorder } from "./tc-requests.js";
+import type { RequestArrival, RequestCancel, RequestReorder } from "./tc-requests.js";
 import type { RosterDrag, TcRoster } from "./tc-roster.js";
 
 /** What the right-click found, as the canvas hands it over: `trainAt`'s answer
@@ -375,6 +376,12 @@ export class TcPanel extends LitElement {
     this.session?.send(cancellation(event.detail.id));
   }
 
+  /** A row's "arrived": one `arrival_wanted` naming that request. The row
+   *  goes when the dispatcher's picture drops it (#1320). */
+  private arrived(event: CustomEvent<RequestArrival>): void {
+    this.session?.send(arrival(event.detail.id));
+  }
+
   /** A row let go elsewhere in the list: one `reorder_wanted`. The list
    *  redraws when the dispatcher's picture says the order changed, not
    *  before. */
@@ -403,7 +410,9 @@ export class TcPanel extends LitElement {
         <tc-requests
           .requests=${this.inSession && !grey ? (this.panel?.requestList() ?? []) : []}
           ?live=${this.inSession && !grey}
+          ?arrivable=${this.panel?.withoutSensors ?? false}
           @request-cancelled=${this.cancelled}
+          @request-arrived=${this.arrived}
           @request-reordered=${this.reordered}
         ></tc-requests>
       </aside>

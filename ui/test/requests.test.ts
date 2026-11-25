@@ -164,6 +164,61 @@ describe("tc-requests", () => {
     expect(seen).toEqual(["g1"]);
   });
 
+  /** Running without sensors a person says the train is in its destination
+   *  block (#1323). Only an underway request has a train on its way. */
+  describe("arrived", () => {
+    async function arrivable(live: boolean, arrivable: boolean): Promise<TcRequests> {
+      const element = await list(ROWS);
+      element.live = live;
+      element.arrivable = arrivable;
+      await element.updateComplete;
+      return element;
+    }
+
+    /** Each row's id where it has the button. */
+    function arrivals(element: TcRequests): string[] {
+      return [...element.renderRoot.querySelectorAll("li")]
+        .filter((row) => row.querySelector(".arrived") !== null)
+        .map((row) => row.dataset["id"]!);
+    }
+
+    it("is on an underway row and not on a waiting one", async () => {
+      const element = await arrivable(true, true);
+      expect(arrivals(element)).toEqual(["e1"]);
+      const button = element.renderRoot.querySelector<HTMLButtonElement>(".arrived")!;
+      expect(button.textContent!.trim()).toBe("arrived");
+      expect(button.getAttribute("aria-label")).toBe("Train has arrived");
+    });
+
+    it("is on no row without arrivable or without live", async () => {
+      expect(arrivals(await arrivable(true, false))).toEqual([]);
+      document.body.replaceChildren();
+      expect(arrivals(await arrivable(false, true))).toEqual([]);
+    });
+
+    it("comes before the cancel", async () => {
+      const element = await arrivable(true, true);
+      const buttons = [...element.renderRoot.querySelectorAll("li")[0]!.querySelectorAll("button")];
+      expect(buttons.map((button) => button.className)).toEqual(["arrived", "cancel"]);
+    });
+
+    it("raises request-arrived with the row's id and picks nothing up", async () => {
+      const element = await arrivable(true, true);
+      const seen: string[] = [];
+      element.addEventListener("request-arrived", (event) =>
+        seen.push((event as CustomEvent<{ id: string }>).detail.id),
+      );
+      const button = element.renderRoot.querySelector<HTMLButtonElement>(".arrived")!;
+      button.dispatchEvent(
+        new PointerEvent("pointerdown", { button: 0, bubbles: true, composed: true }),
+      );
+      button.click();
+      await element.updateComplete;
+      expect(seen).toEqual(["e1"]);
+      expect(element.renderRoot.querySelectorAll("li.held")).toHaveLength(0);
+    });
+  });
+
   it("raises a move with its before", async () => {
     const element = await list(ROWS);
     expect(reorders(element, () => element.move("l1", 1))).toEqual([
@@ -219,6 +274,29 @@ describe("the run view's request list", () => {
     expect(written()).toEqual([
       { topic: "tc49/dispatch/cancel_wanted", payload: { id: "g2" } },
     ]);
+  });
+
+  /** "Arrived" is offered only while the railroad runs without sensors
+   *  (#1322, #1323). */
+  async function settings(shell: TcApp, without_sensors: boolean): Promise<void> {
+    await said(shell, "tc49/layout/state/settings", { at: 1, without_sensors });
+    await settled(shell);
+  }
+
+  it("writes one arrival_wanted naming the row's request without sensors", async () => {
+    const { shell, element } = await serving();
+    await settings(shell, true);
+    element.renderRoot.querySelector<HTMLButtonElement>(".arrived")!.click();
+    expect(written()).toEqual([
+      { topic: "tc49/dispatch/arrival_wanted", payload: { id: "e1" } },
+    ]);
+  });
+
+  it("offers no arrived while the railroad runs by its sensors", async () => {
+    const { shell, element } = await serving();
+    await settings(shell, true);
+    await settings(shell, false);
+    expect(element.renderRoot.querySelector(".arrived")).toBeNull();
   });
 
   it("writes one reorder_wanted for a move, and nothing for a refused one", async () => {

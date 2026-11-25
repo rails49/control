@@ -7,7 +7,8 @@ import { css } from "lit";
  * It sits under the roster in the run view's left pane, so its width is the
  * shell's (`--pane`). A row is the train and its state on one line, where the
  * request goes from and to under them, which train it waits for under that
- * where the dispatcher refused it one (#1114), and the cancel at the right. A
+ * where the dispatcher refused it one (#1114), and the cancel at the right,
+ * with "arrived" before it on an underway row without sensors (#1323). A
  * long train name wraps onto a second line and is not cut short. A waiting
  * row takes the grab cursor, being something to drag into another place; an
  * underway one takes none, having started.
@@ -34,7 +35,7 @@ export const requestsStyles = css`
 
   li {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     column-gap: 0.5rem;
     align-items: baseline;
     padding: 0.25rem 0.2rem;
@@ -70,9 +71,9 @@ export const requestsStyles = css`
     color: inherit;
   }
 
+  .arrived,
   .cancel {
     grid-row: 1 / span 2;
-    grid-column: 3;
     align-self: center;
     border: none;
     background: none;
@@ -82,6 +83,16 @@ export const requestsStyles = css`
     padding: 0 0.2rem;
   }
 
+  .arrived {
+    grid-column: 3;
+    font-size: 0.7rem;
+  }
+
+  .cancel {
+    grid-column: 4;
+  }
+
+  .arrived:hover,
   .cancel:hover {
     color: inherit;
   }
