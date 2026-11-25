@@ -59,6 +59,7 @@ from tc49.dispatcher.table import (
     Disputed,
     Effect,
     Following,
+    Granted,
     HeadIn,
     Move,
     MoveEnded,
@@ -67,17 +68,27 @@ from tc49.dispatcher.table import (
     Released,
     Removed,
     Route,
+    RunsEnded,
     Table,
+    adopting,
+    arriving,
     broken,
+    cancelling,
+    committing,
+    committing_whole,
+    completing,
+    entered,
+    granting,
     locked_ahead,
     not_reporting,
     opening,
     placing,
     reading,
-    releasing,
     removing,
     retiring,
+    setting_without_sensors,
     transit_blocks,
+    withdrawing,
 )
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
@@ -86,7 +97,6 @@ from tc49.lib.layout import (
     Layout,
     Point,
     block_of,
-    departure_end,
     opposite_end,
     transit_ends,
 )
@@ -722,13 +732,7 @@ class Dispatcher:
         self._state = State(
             layout,
             roster.lengths(),
-            Table(
-                layout,
-                {},
-                {},
-                {},
-                crossing=adopted.crossing,
-            ),
+            Table(layout, {}, {}, {}),
             # The railroad comes up `off` (`State.power`), restored or cold,
             # so nothing is routed until a person turns the power on
             # (ADR-0078): a restored picture is wherever the last session
@@ -746,15 +750,11 @@ class Dispatcher:
         # `tc49/layout/#` is published from this constructor at all.
         bus.subscribe("tc49/layout/#", self._on_layout)
         bus.subscribe("tc49/dispatch/#", self._on_dispatch)
-        for train, at in adopted.standing.items():
-            occupying = adopted.occupied[train]
-            self._state.locks.update(dict.fromkeys(occupying, train))
-            self._state.block_of[train] = at
-            self._state.occupied[train] = occupying
-            bus.publish(
-                "tc49/dispatch/lock_granted",
-                {"train": train, "resources": list(occupying)},
+        self._take(
+            adopting(
+                self._state.table, adopted.standing, adopted.occupied, adopted.crossing
             )
+        )
         # Every request still alive, waiting or started, in the order the
         # dispatcher serves them (ADR-0080). A restart loses it.
         self._requests: list[Request] = []
@@ -788,7 +788,9 @@ class Dispatcher:
         # before that drain is not to be sent into a block out of use.
         stated = bus.last_values.get(UNKNOWN_SENSORS)
         if stated is not None and self._ordering.accepts(UNKNOWN_SENSORS, stated):
-            self._state.table.unknown_sensors = unknown_sensors(stated) or frozenset()
+            self._take(
+                not_reporting(self._state.table, unknown_sensors(stated) or frozenset())
+            )
         # And the trains stopped for not arriving, so the first `moving` leaves
         # them out.
         stated = bus.last_values.get(OVERDUE)
@@ -1316,17 +1318,6 @@ class Dispatcher:
         self._state.table, effects = result
         self._published(effects)
 
-    def _open(self, train: str, resources: list[str]) -> None:
-        """Residue given up, as one `lock_released`."""
-        state = self._state
-        for resource in resources:
-            del state.locks[resource]
-            state.residue.discard(resource)
-        if resources:
-            self._publish(
-                "lock_released", {"train": train, "resources": sorted(resources)}
-            )
-
     def _revoke(self, payload: Payload) -> None:
         """A person ending one request without it arriving (ADR-0049,
         ADR-0080), named by its id.
@@ -1363,11 +1354,9 @@ class Dispatcher:
             if req.cancelled:
                 return
             req.revoking = frozenset(each.id for each in self._followers(req))
-            if self._state.without_sensors:
-                # The train has not left its block: it occupies that alone,
-                # and the rest of its route is released (#1314).
-                self._state.occupied[req.train] = [self._state.block_of[req.train]]
-            elif active.outstanding is not None:
+            # While the railroad runs without sensors there is no move, and
+            # the cancel takes effect at once (`table.cancelling`, #1314).
+            if not self._state.without_sensors and active.outstanding is not None:
                 # Deferred: it frees nothing yet and dequeues nothing, so
                 # there is nothing for a sweep to hand anybody. `layout` is
                 # asked to take the move back, which it does where nothing
@@ -1390,7 +1379,11 @@ class Dispatcher:
                 req.cancelling = newest.move.into
                 self._publish_allocation()
                 return
-            self._retire(req.train, active, Cancellation.REVOKED)
+            self._retire(
+                active,
+                Cancellation.REVOKED,
+                cancelling(self._state.table, req.train),
+            )
         else:
             self._requests.remove(req)
             self._publish(
@@ -1426,10 +1419,7 @@ class Dispatcher:
             return
         train = req.train
         block = active.route.arrival_block
-        state.occupied[train] = [block]
-        self._take(releasing(state.table, train, (block,)))
-        state.block_of[train] = block
-        del state.active[train]
+        self._take(arriving(state.table, train))
         self._requests.remove(req)
         self._publish("request_completed", {"id": req.id})
         self._publish("train_placed", {"train": train, "block": block})
@@ -1462,15 +1452,12 @@ class Dispatcher:
             or move.into != withdrawn.into
         ):
             return
-        active.outstanding = None
-        active.cur_index -= 1
-        del self._state.crossing[withdrawn.train]
-        occupying = self._state.occupied[withdrawn.train]
-        occupying.remove(move.transit)
-        if self._state.block_of[withdrawn.train] not in occupying:
-            occupying.append(self._state.block_of[withdrawn.train])
-        self._state.following[withdrawn.train].pop()
-        self._retire(withdrawn.train, active, Cancellation.REVOKED)
+        self._take(withdrawing(self._state.table, withdrawn.train))
+        self._retire(
+            self._state.active[withdrawn.train],
+            Cancellation.REVOKED,
+            retiring(self._state.table, withdrawn.train),
+        )
         self._sweep()
 
     def _reorder(self, payload: Payload) -> None:
@@ -1547,30 +1534,29 @@ class Dispatcher:
             self._requests.remove(req)
         active = self._state.active.get(train)
         if active is not None:
-            self._retire(train, active, reason, keep)
+            self._retire(active, reason, retiring(self._state.table, train, keep))
         for req in waiting:
             self._publish("request_cancelled", {"id": req.id, "reason": reason})
             self._ending(req, None)
 
     def _retire(
         self,
-        train: str,
         active: Active,
         reason: Cancellation,
-        keep: Collection[str] | None = None,
+        retired: tuple[Table, list[Effect]],
     ) -> None:
-        """The active request ended: the table takes the retire
-        (`table.retiring`), and the one event that says so follows. A
-        person's cancel leaves the requests chained after it once it was asked
-        departing from where the train stopped (#836); a placement or a
-        removal leaves none.
+        """The active request ended: the table takes `retired`, what
+        `table.retiring` or `table.cancelling` returned for it, and the one
+        event that says so follows. A person's cancel leaves the requests
+        chained after it once it was asked departing from where the train
+        stopped (#836); a placement or a removal leaves none.
 
         `_seen_ids` is not pruned. A cancelled id stays used for the session,
         because an id is unique and not meaningful (ADR-0033) and a resubmit
         of it is the duplicate it looks like.
         """
         req = self._request(active)
-        self._take(retiring(self._state.table, train, keep))
+        self._take(retired)
         self._requests.remove(req)
         self._publish("request_cancelled", {"id": req.id, "reason": reason})
         if reason is Cancellation.REVOKED:
@@ -1661,6 +1647,10 @@ class Dispatcher:
             match effect:
                 case Disputed(blocks):
                     self._publish_disputed(blocks)
+                case Granted(train, resources):
+                    self._publish(
+                        "lock_granted", {"train": train, "resources": list(resources)}
+                    )
                 case Released(train, resources) | Opened(train, resources):
                     self._publish(
                         "lock_released", {"train": train, "resources": list(resources)}
@@ -1676,6 +1666,8 @@ class Dispatcher:
                         self._publish_unfit()
                 case Removed(train):
                     self._publish("train_removed", {"train": train})
+                case RunsEnded():
+                    self._end_every_request()
 
     def _request_over(self, train: str) -> None:
         """The newest move of the train has ended, at its `entry` clearing or
@@ -1691,9 +1683,9 @@ class Dispatcher:
             return
         req = self._request(active)
         if req.cancelled:
-            self._retire(train, active, Cancellation.REVOKED)
+            self._retire(active, Cancellation.REVOKED, retiring(state.table, train))
         elif active.cur_index == len(active.route.blocks) - 1:
-            del state.active[train]
+            self._take(completing(state.table, train))
             self._requests.remove(req)
             self._publish("request_completed", {"id": req.id})
             self._ending(req, opposite_end(self._entered(active.route)))
@@ -1837,8 +1829,9 @@ class Dispatcher:
 
         `short_blocks` is read for routing and admission alone: what is
         already routed keeps its route. `without_sensors` changing, either
-        way, ends every request (`_end_every_request`, #1321); turning `true`
-        it also releases every train's residue, one `lock_released` per train.
+        way, ends every train's run (`table.setting_without_sensors`) and
+        every request (`_end_every_request`, #1321); turning `true` it also
+        releases every train's residue, one `lock_released` per train.
         Turning `false` it brings back the
         readings and the sensors not reporting recorded meanwhile, at the
         caller's sweep. Answers whether `without_sensors` changed, for the
@@ -1852,33 +1845,14 @@ class Dispatcher:
         without = said_without_sensors(payload)
         if without is None or without == state.without_sensors:
             return False
-        state.table.without_sensors = without
-        self._end_every_request()
-        if without:
-            for train in sorted({state.locks[kept] for kept in state.residue}):
-                self._open(
-                    train,
-                    [kept for kept in state.residue if state.locks[kept] == train],
-                )
+        self._take(setting_without_sensors(state.table, without))
         return True
 
     def _end_every_request(self) -> None:
-        """`without_sensors` changed: every request ends `revoked`, in list
-        order, each with no onward end, so one submitted `after` it later is
-        cancelled too (#1321). No move is followed any more and nothing is
-        asked of `layout`. Each train running one keeps what is on its
-        `occupied` list, its standing block and its place in `crossing`, as
-        after a restart (`restored`), and gives up what it held ahead, one
-        `lock_released` per train."""
-        state = self._state
-        for train in sorted(state.active):
-            standing = state.block_of.get(train)
-            on = state.occupied.get(train, [])
-            keep = on if standing is None else (*on, standing)
-            self._take(releasing(state.table, train, keep))
-        state.active.clear()
-        state.following.clear()
-        state.departure.clear()
+        """`without_sensors` changed and every run has ended (`RunsEnded`):
+        every request ends `revoked`, in list order, each with no onward end,
+        so one submitted `after` it later is cancelled too (#1321). Nothing is
+        asked of `layout`."""
         ended, self._requests = self._requests, []
         for req in ended:
             self._publish(
@@ -2030,11 +2004,6 @@ class Dispatcher:
         all its points (#1314)."""
         req.refused = None
         # The request stays where it is in the list, started (ADR-0080).
-        # The strategy says what to lock and the dispatcher locks it (#761),
-        # before the grant below, which reads the launch's locks to tell what
-        # it newly locks.
-        for resource in launched.locked:
-            self._state.locks[resource] = req.train
         self._publish(
             "route_chosen",
             {
@@ -2043,30 +2012,30 @@ class Dispatcher:
                 "k_tried": launched.k_tried,
             },
         )
-        self._publish(
-            "lock_granted", {"train": req.train, "resources": launched.locked}
-        )
-        self._state.active[req.train] = Active(req.id, launched.route, 0, None)
-        # A route is fixed once chosen (ADR-0002), so the end it leaves the
-        # train facing is settled here rather than on arrival — which is what
-        # lets a request dragged in mid-route be answered while it is asked.
-        # Which end the route comes in through is read here: `lib` states the
-        # rule and takes the end, knowing nothing of routes (#155).
-        self._state.departure[req.train] = departure_end(
-            self._state.layout, self._entered(launched.route)
-        )
+        # The strategy says what to lock and the table locks it (#761),
+        # before the grant below, which reads the launch's locks to tell what
+        # it newly locks. The end the route leaves the train facing is settled
+        # with it, which is what lets a request dragged in mid-route be
+        # answered while it is asked.
         if self._state.without_sensors:
-            # The train may be anywhere on its route once a person drives it,
-            # so it occupies all of it, and every point is set at once. A
-            # crossing a change of the setting left ends here: what it held
-            # stays on the list until the run ends (#1324).
-            self._state.crossing.pop(req.train, None)
-            route = launched.route.interleaved()
-            occupying = self._state.occupied[req.train]
-            occupying[:] = [entry for entry in occupying if entry not in route]
-            occupying += route
+            # The train occupies all of its route, and every point is set at
+            # once (`table.committing_whole`).
+            self._take(
+                committing_whole(
+                    self._state.table,
+                    req.train,
+                    req.id,
+                    launched.route,
+                    launched.locked,
+                )
+            )
             self._align_route(launched.route)
             return
+        self._take(
+            committing(
+                self._state.table, req.train, req.id, launched.route, launched.locked
+            )
+        )
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
         self._apply_move(self._state.active[req.train], move)
@@ -2089,9 +2058,7 @@ class Dispatcher:
 
     def _entered(self, route: Route) -> str:
         """The end of its arrival block a route comes in through."""
-        ends = transit_ends(self._state.layout, route.arrival_block, route.transits[-1])
-        assert ends is not None  # a route's transits reach its blocks
-        return ends[0]
+        return entered(self._state.layout, route)
 
     def _apply_move(self, active: Active, result: Move | Refused) -> None:
         req = self._request(active)
@@ -2107,16 +2074,7 @@ class Dispatcher:
             )
             return
         req.refused = None
-        for resource in (*result.locked, *result.ahead):
-            self._state.locks[resource] = req.train
-        for resources in (result.locked, result.ahead):
-            # Two grants, not one of four: a grant is a transit with its far
-            # block, and the second increment is a separate one (ADR-0029).
-            if resources:
-                self._publish(
-                    "lock_granted",
-                    {"train": req.train, "resources": resources},
-                )
+        self._take(granting(self._state.table, req.train, result))
         self._align(result.transit)
         self._publish(
             "move_granted",
@@ -2126,7 +2084,7 @@ class Dispatcher:
                 "transit": result.transit,
                 "into": result.into,
                 # Read off the locks the move has just taken, from where
-                # the train still stands: cur_index advances below.
+                # the train stood: `active` is its record before the grant.
                 "aspect": aspect_of(
                     locked_ahead(
                         self._state.table,
@@ -2137,36 +2095,6 @@ class Dispatcher:
                 ),
             },
         )
-        active.outstanding = result
-        self._state.crossing[req.train] = result.transit
-        active.cur_index += 1
-        self._follow_move(req.train, result)
-
-    def _follow_move(self, train: str, move: Move) -> None:
-        """The readings a move granted now expects: its transit goes to the head
-        of what the train occupies, moved there on a move back over the transit
-        it came by, and an older move that has reached its far sensor expects
-        nothing more. What that one left on the list stays until this move's
-        tail is in (#1171)."""
-        state = self._state
-        occupying = state.occupied[train]
-        if move.transit in occupying:
-            occupying.remove(move.transit)
-        occupying.append(move.transit)
-        ends = transit_ends(state.layout, move.into, move.transit)
-        assert ends is not None  # a route's transits reach its blocks
-        entry, leaving = ends
-        state.following[train] = [
-            each for each in state.following.get(train, []) if not each.at_far
-        ] + [
-            Following(
-                move,
-                leaving,
-                entry,
-                opposite_end(entry),
-                exit_read=state.readings.get(leaving) is True,
-            )
-        ]
 
     def _align(self, transit_id: str) -> None:
         """Set the connection to the transit, before the move that takes it.
