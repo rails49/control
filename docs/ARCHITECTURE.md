@@ -104,6 +104,10 @@ src/tc49/
     scenario.py   Scenario, TrainSpec, RequestSpec — the harness's own
                   document, which no app reads (#171)
     inventory.py  the event inventory's leaf fields
+    following.py  follow() — what one sensor reading says about a move
+                  whose readings are still expected: tail out, head in,
+                  whole train in, at the far sensor. The dispatcher and
+                  `layout` both take the facts from it
     invariants.py INVARIANTS — what the ADRs say the bus shows, one function
                   per rule over the retained values; HISTORY_INVARIANTS over a
                   Record of the messages too; checked in tests only (ADR-0096)
@@ -139,8 +143,12 @@ src/tc49/
                               railroad's documents off the store,
                               the broker, this app's own rows, then a drain
                               loop that ends on a signal (ADR-0059)
-  dispatcher/   dispatch.py   Dispatcher — admission, queue, lock table,
-                              sensor roles, grant sweep, align
+  dispatcher/   dispatch.py   Dispatcher — admission, queue, grant sweep,
+                              align; it holds the current lock table and
+                              publishes what a transition returns
+                table.py      Table — the lock table, the questions asked
+                              of it and the transitions that change it; no
+                              bus work (dispatcher/INTERNALS.md)
                 locking.py    LockingStrategy, FullRoute, Incremental
                 routing.py    candidates(layout, origin, depart_end,
                               arrivals, train_length, k) — k-shortest over

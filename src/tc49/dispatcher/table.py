@@ -156,7 +156,7 @@ class Table:
     raises."""
 
     # Read by `obstacle` for the conflict matrix and by `transit_blocks`. Left
-    # out of equality and hashing, so every table of one railroad shares it.
+    # out of equality and hashing.
     layout: Layout = field(compare=False)
     locks: Mapping[str, str]  # resource -> holding train
     block_of: Mapping[str, str]  # train -> block it stands in (or last parked)

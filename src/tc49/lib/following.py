@@ -25,8 +25,7 @@ from dataclasses import dataclass, field, replace
 
 @dataclass(frozen=True)
 class Seen:
-    """What has been read of a move so far. The flags are keyword-only, so a
-    record that extends this one keeps its own fields first."""
+    """What has been read of a move so far. The flags are keyword-only."""
 
     exit_read: bool = field(default=False, kw_only=True)  # `exit` read occupied
     head_in: bool = field(default=False, kw_only=True)  # `entry` or `far` read occupied

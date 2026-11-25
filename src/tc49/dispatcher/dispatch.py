@@ -205,8 +205,8 @@ def departs_elsewhere(depart: str | None, expected: str | None) -> bool:
 @dataclass
 class State:
     """The dispatcher's state: the lock table and what else it reads. Each
-    read of the table is handed to `table`, so `State` satisfies
-    `locking.ReadOnlyState` and the strategies read it as before."""
+    read of the table is handed to `table`, and `State` satisfies
+    `locking.ReadOnlyState`, which the strategies read it through."""
 
     layout: Layout
     # train -> its length: the railroad's **roster**, and the whole of what
