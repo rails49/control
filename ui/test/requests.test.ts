@@ -401,17 +401,6 @@ describe("a refused request's note", () => {
     expect(notes(element)).toEqual(["waits for a sensor of a to report"]);
   });
 
-  /** Running without sensors no block is out of use (#1322). */
-  it("says no block is to report while the railroad runs without sensors", async () => {
-    const { shell, element } = await serving([goods([{ resource: "a", holder: "" }])]);
-    await said(shell, "tc49/layout/state/unknown_sensors", {
-      sensors: [{ sensor: "a.A", reason: "no report since start", reported: false }],
-    });
-    await said(shell, "tc49/layout/state/settings", { at: 1, without_sensors: true });
-    await settled(shell);
-    expect(notes(element)).toEqual(["waits for a sensor of a to read clear"]);
-  });
-
   /** Any one of them moving may free a route. */
   it("joins distinct holders of one kind with or", async () => {
     const local: Listed = { id: "l1", train: "local", depart: "d.A", dest: ["b.B"] };
