@@ -576,7 +576,7 @@ class Simulator:
         of run clock up to the last event, ahead of an event due at the same
         reading, as the live loop says it."""
         self._say_clock()
-        self._bus.drain()  # the startup cascade: the whole timetable goes in
+        self._bus.drain()  # the startup cascade: the scenario's requests all go in
         fired = 0
         while self._events and self._supply == ON:
             if self._fast is not None and self._beat <= self._events[0][0]:

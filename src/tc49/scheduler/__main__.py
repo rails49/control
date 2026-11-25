@@ -24,8 +24,8 @@ first one the row names that the store can give (#564, `lib/loading.py`).
 Then the loop, which is a drain and a sleep, and `alive_confirmed` once a
 second by the monotonic clock while it is built (#1113); standing, it says
 nothing. `Scheduler` is handed a `Bus` and nothing else changes in the package: what a run an operator drives has is a
-railroad and a person placing trains on it — no facing seed and no timetable,
-those being the harness's (ADR-0036).
+railroad and a person placing trains on it — no facing seed and no scenario's
+requests, those being the harness's (ADR-0036).
 """
 
 import contextlib

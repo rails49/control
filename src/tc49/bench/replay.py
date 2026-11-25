@@ -66,7 +66,8 @@ def arrival_ends(arrivals: tuple[str, ...]) -> list[str]:
 
 class Replay:
     """Lays the railroad out from `scenario`, turns the power on, and feeds the
-    timetable in the file's order. Built onto an assembly that is already up.
+    scenario's requests in the file's order. Built onto an assembly that is
+    already up.
     """
 
     def __init__(self, bus: Bus, layout: Layout, scenario: Scenario) -> None:

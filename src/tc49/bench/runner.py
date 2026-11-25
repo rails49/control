@@ -38,9 +38,9 @@ A replay feeds its document as drags (`bench/replay.py`), and a drag's id
 carries the minting process's nonce (ADR-0033). Left to `secrets` that would
 make two runs of one document differ in every id, which is the one thing a
 replay is for. Stated here instead, so a replayed run is reproducible the way
-a timetable's was. Nothing is protected by its being unguessable: the
-collision the nonce prevents needs a second scheduler process, and a bench run
-has one.
+a run of the scenario's requests was. Nothing is protected by its being
+unguessable: the collision the nonce prevents needs a second scheduler
+process, and a bench run has one.
 """
 
 StrategyFactory = Callable[[Layout, int], LockingStrategy]
@@ -170,9 +170,9 @@ def powered(bus: InProcessBus, simulator: Simulator) -> Simulator:
     drained here, ahead of the scheduler and the dispatcher, so they come up
     on a railroad that already has power — as apps started on a box where a
     person has pressed ON do (ADR-0059, decision 5). Pressed after them
-    instead, the timetable would be admitted while the dispatcher reads `off`
-    and routed only once `on` arrived, which is a different startup cascade
-    from the one the batch loop measures (ADR-0078).
+    instead, the scenario's requests would be admitted while the dispatcher
+    reads `off` and routed only once `on` arrived, which is a different startup
+    cascade from the one the batch loop measures (ADR-0078).
     """
     bus.publish("tc49/layout/power_wanted", {"power": ON})
     bus.drain()
@@ -214,13 +214,14 @@ def assemble_live(
     *,
     make_bus: Callable[[Clock], InProcessBus] = InProcessBus,
 ) -> Assembly:
-    """The live wiring (#71): **a railroad and its roster**, and no timetable.
-    That is the whole of what a run an operator drives is built from (#171) —
-    a drawing, the trains the railroad owns, and a person who places them.
+    """The live wiring (#71): **a railroad and its roster**, and no scenario's
+    requests. That is the whole of what a run an operator drives is built from
+    (#171) — a drawing, the trains the railroad owns, and a person who places
+    them.
 
     Which sources a run has is configuration rather than a rule (ADR-0036), and
-    a live run is given no timetable at all: a scenario is the harness's file
-    format, and `bench/replay.py` replays one as gestures instead.
+    a live run is given no scenario's requests at all: a scenario is the
+    harness's file format, and `bench/replay.py` replays one as gestures instead.
 
     `trains` stands them before anything runs instead, and is the harness's
     own: the suite's runs, and the baseline a replay is measured against. A

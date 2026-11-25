@@ -32,9 +32,9 @@ about.
 
 Then the loop, which is a drain and a sleep. `Dispatcher` is handed a `Bus`
 and nothing else changes in the package: what a run an operator drives has is
-a railroad and its roster, no placement and no timetable — the trains arrive
-by gesture and a train nothing places comes up off the layout (ADR-0039,
-ADR-0036).
+a railroad and its roster, no placement and no scenario's requests — the
+trains arrive by gesture and a train nothing places comes up off the layout
+(ADR-0039, ADR-0036).
 """
 
 import contextlib

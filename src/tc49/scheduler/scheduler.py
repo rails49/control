@@ -1,16 +1,17 @@
 """Scheduler: the one writer of requests, and the holder of facing.
 
-Its sources are configuration rather than a rule (ADR-0036): a timetable
-submitted whole at the start of a run, in the file's order, and a person
-gesturing on the two topics the scheduler declares,
+Its sources are configuration rather than a rule (ADR-0036): the scenario's
+requests, submitted whole at the start of a run in the file's order, and a
+person gesturing on the two topics the scheduler declares,
 `tc49/schedule/request_wanted` and `tc49/schedule/reversal_wanted`. Time is
 the scheduler's responsibility, and a timetable released against a clock is
 a feature nothing needs yet (ADR-0047); the queue does the
 staggering, there never being enough tracks to satisfy every request at
 once. A gesture is not a request — it names a train and
 where to put it, and the id and the departure end are what the scheduler
-adds. A timetable's ids are minted deterministically in its order
-(`<train>-1`, `<train>-2`, ...) from one undivided counter and a drag's carry
+adds. The ids of the scenario's requests are minted deterministically in
+their order (`<train>-1`, `<train>-2`, ...) from one undivided counter and a
+drag's carry
 a **per-process nonce** in between (`<train>-<nonce>-<n>`), which is
 ADR-0033's split moved inside this app: a document's requests read in the
 document's order, and a restart of this process alone — ordinary now the apps
@@ -19,7 +20,7 @@ dispatcher already holds and has dropped unanswered. The harness states the
 nonce rather than taking the minted one, which is what keeps a replayed run
 reproducible now that a replay feeds its document as drags. The arrival-end expansion is purely mechanical (a bare
 block becomes both of its ends), and `exhausted` is set as soon as the last
-timetable request is out.
+of the scenario's requests is out.
 
 It **holds facing** (ADR-0019), seeded where a run was built from a document
 and carried forward from the bus: a train that left nose-first faces away from
@@ -208,7 +209,8 @@ class Scheduler:
         end that run comes out at, said as an end (#241).
 
         The id carries this process's nonce, `<train>-<nonce>-<n>`, where the
-        timetable's is `<train>-<n>`: nothing a person drags is reproducible,
+        id of one of the scenario's requests is `<train>-<n>`: nothing a person
+        drags is reproducible,
         and a restart that re-minted `<train>-1` for a drag would have it
         dropped as a duplicate and never answered (ADR-0033).
 
