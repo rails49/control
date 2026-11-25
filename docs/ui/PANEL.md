@@ -133,8 +133,17 @@ block being that value, and its cancel is disabled, so a second press is not
 sent and dropped
 ([#1115](https://github.com/rails49/control/issues/1115)). The mark goes with
 the row, and a page opened after the press shows it, the picture being
-retained. A
-**waiting** row can be dragged to another place in the list, which publishes
+retained.
+
+While the railroad runs without sensors (`without_sensors` on
+`tc49/layout/state/settings`), an **underway** row has an **arrived** button
+before its cancel, for the person to say the train is in its destination
+block. It publishes `tc49/dispatch/arrival_wanted` (`{id}`) naming that
+request, and the dispatcher ends the run there (BUS.md). A waiting row has
+none, and while the railroad runs by its sensors no row has one
+([#1323](https://github.com/rails49/control/issues/1323)).
+
+A **waiting** row can be dragged to another place in the list, which publishes
 `tc49/dispatch/reorder_wanted` (`{id, before}`): `before` is the first waiting
 request the row lands in front of, `null` for the end. An **underway** row
 cannot be dragged, having started, and a drag that would put a train's chained
