@@ -1,5 +1,7 @@
 # `layout` publishes the fast clock, and the railroad keeps its start and speed-up
 
+*Superseded in part by [#1345](https://github.com/rails49/control/issues/1345) and [#1350](https://github.com/rails49/control/issues/1350): decision 5's "It runs whatever track power and the run are doing" goes. The fast clock stands while `tc49/layout/state/power` reads `off` and runs while it reads `on` or `draining`.*
+
 The work is [#987](https://github.com/rails49/control/issues/987),
 [#988](https://github.com/rails49/control/issues/988),
 [#989](https://github.com/rails49/control/issues/989),

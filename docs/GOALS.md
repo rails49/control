@@ -107,7 +107,10 @@ railroad's **fast clock**, the scaled time a model railroad runs its
 operations on and the only thing a timetable can be written against; posting
 a request at its time is the scheduler's own responsibility, and nothing of
 it reaches the dispatcher's contract
-([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)). Its prototype counterpart is the timetable,
+([ADR-0047](adr/0047-the-dispatcher-grants-on-events-and-the-boundary-leaves-the-contract.md)).
+The fast clock stands while track power is off and runs on from where it stood
+when power is on again, so a break in operations does not make every time
+that passed in it due at once. Its prototype counterpart is the timetable,
 though a model railroad more often wants plausible random traffic than an
 exact one. Requests arrive continually; a schedule may also be set up in
 advance.

@@ -390,7 +390,9 @@ either, being the row's writer: it follows
 binding of it reads back its own `tc49/layout/state/power` for the
 precondition on that gesture and waits for `off`, the one that drives no
 hardware included: the simulator answers the band's power presses as the
-layout does and comes up `off` (ADR-0070).
+layout does and comes up `off` (ADR-0070). Every binding reads it back for
+the fast clock too, which stands while it reads `off`
+([#1350](https://github.com/rails49/control/issues/1350)).
 
 Two things the inventory has to keep true:
 
@@ -830,8 +832,14 @@ what a drop would cost:
   and starts the clock again at the start time and speed-up the railroad
   keeps in the store, `layouts/<layout>.clock.yaml`
   ([LAYOUT.md](store/LAYOUT.md)), or at the box's wall time of day at a
-  speed-up of 1 where it keeps none. It wraps at midnight, has no date, and
-  runs whatever track power and the run are doing. The page reads it, and a
+  speed-up of 1 where it keeps none. It wraps at midnight and has no date.
+  **The clock stands while `tc49/layout/state/power` reads `off`** and runs
+  while it reads `on` or `draining`. While it stands the row is still
+  published once a second and repeats the same `time`. A railroad comes up
+  `off`, so a loaded railroad's clock stands at its start time until power
+  first reads `on`. When power reads `on` again the clock runs on from the
+  time it stood at. Both bindings take the rule from `lib/clock_row.py`
+  ([#1350](https://github.com/rails49/control/issues/1350)). The page reads it, and a
   translator may pass it on to its hardware without acting on it; no other app
   does, and nothing in the control path may
   ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md),
@@ -841,7 +849,9 @@ what a drop would cost:
   once; and `speed_up`: number greater than 0, which the clock runs at from
   now. A field left out leaves that part of the clock as it is. A payload with
   neither, or with a value out of range, is dropped whole, as any malformed
-  gesture is. Taken whatever track power and the run are doing. `layout`, or
+  gesture is. It is taken at any power. Taken while the clock stands, a `time`
+  sets the time it stands at, and a `speed_up` is the rate it runs at once it
+  runs ([#1350](https://github.com/rails49/control/issues/1350)). `layout`, or
   the simulator in its place, answers it, publishes `state/clock` at once and
   keeps the setting with the railroad: a new `time` as its start, rounded down
   to the minute, and the speed-up the clock now runs at
@@ -1326,7 +1336,10 @@ that comparison alone.
 **`layout` publishes the fast clock** on `tc49/layout/state/clock`, once a
 real second while a railroad is loaded: the railroad's time of day and its
 speed-up. The simulator, when it is given one, publishes the same row off its
-run clock; a batch run gives it none. A person sets it from any page with
+run clock; a batch run gives it none. The clock stands while track power
+reads `off`, repeating the same time each second, and runs on from there when
+power reads `on` again
+([#1350](https://github.com/rails49/control/issues/1350)). A person sets it from any page with
 `tc49/layout/clock_wanted`, and every page is told at once. The railroad keeps
 the start time and speed-up it is loaded at, saved when a person sets them and
 never as the clock runs. Every page draws the time it is sent and reads no wall
