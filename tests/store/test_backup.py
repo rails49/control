@@ -180,6 +180,9 @@ def test_a_changed_path_is_named_as_the_document_it_is() -> None:
     assert document("scenarios/reversing-loops/meet.scenario.yaml") == (
         "reversing-loops/meet"
     )
+    assert document("timetables/reversing-loops/evening.timetable.yaml") == (
+        "reversing-loops/evening timetable"
+    )
 
 
 def test_a_path_the_store_does_not_know_is_passed_through() -> None:
