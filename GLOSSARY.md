@@ -388,7 +388,8 @@ would strand it. A train standing in a block, at a signal partway along its rout
 or anywhere else, is not moving, nor is one no throttle holds that `layout` has
 stopped with both its sensors `unknown`. Nor is one `layout` has stopped for not arriving within its
 allowance and lists on `state/overdue`: it stands until it arrives, a throttle
-takes it, or it is placed or removed. It is a
+takes it, or it is placed or removed. While the railroad runs **without
+sensors** nothing is moving. It is a
 boolean beside power, not a fourth value
 ([SYSTEM.md](docs/SYSTEM.md#dispatcher)).
 _Avoid_: busy, in motion, rolling, quiet, still (say not moving)
@@ -412,7 +413,8 @@ Of a block: one of its sensors reads `occupied` and no train explains it, at
 every power value. A train explains the reading when it occupies the block or
 has been granted the move into it. The set points a person at each block and
 resolves nothing, and no train is sent into a block on it. A `clear` reading
-disputes nothing
+disputes nothing. While the railroad runs **without sensors** no block is
+disputed
 ([GOALS.md](docs/GOALS.md#what-the-app-is-assumed-to-be-told)).
 _Avoid_: mismatch, discrepancy, error, conflict (two transits that may not be
 in use at once)
@@ -432,7 +434,7 @@ _Avoid_: unexpected sensor, stray reading, phantom occupancy, false positive
 (one cause of such a reading)
 
 **Out of use**:
-The [org glossary](https://github.com/rails49/.github/blob/main/GLOSSARY.md)'s word. Here: a block the dispatcher grants nothing into while a failure holds on it. A sensor `unknown` stops grants into, out of and through its block (#1152), and nothing is granted into a disputed block (ADR-0077). What resumes use is the org's [OPERATING.md](https://github.com/rails49/.github/blob/main/docs/OPERATING.md).
+The [org glossary](https://github.com/rails49/.github/blob/main/GLOSSARY.md)'s word. Here: a block the dispatcher grants nothing into while a failure holds on it. A sensor `unknown` stops grants into, out of and through its block (#1152), and nothing is granted into a disputed block (ADR-0077). What resumes use is the org's [OPERATING.md](https://github.com/rails49/.github/blob/main/docs/OPERATING.md). While the railroad runs **without sensors** no block is out of use.
 _Avoid_: blocked, disabled, failed
 
 **Without sensors**:

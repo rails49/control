@@ -33,6 +33,13 @@ goes through a reader in `lib.payload` and nothing subscripts a frame it has
 not read. The one thing left that could take the app off the bus was a sensor
 reading no granted move accounts for; it is named on `state/disputed` instead
 and the rest keeps running (#1154).
+
+While `state/settings` says `without_sensors` the railroad runs without
+sensors (#1314, DISPATCH.md, *Without sensors*): readings are recorded and
+ignored, a launch locks the whole route by the `FullRoute` rule whatever the
+strategy, sets every point of it in one `align` naming no transit, and grants
+no move. A person drives the train, and the run ends by a cancel, a placement
+or a removal.
 """
 
 import sys
@@ -1565,7 +1572,8 @@ class Dispatcher:
     def _kept(self, train: str) -> set[str]:
         """What a removal of `train` leaves held: each block it holds with a
         sensor last read occupied, and each transit on its `occupied` list with
-        either of its blocks among them (ADR-0069, #1171)."""
+        either of its blocks among them (ADR-0069, #1171). Nothing while the
+        railroad runs without sensors, since no block reads occupied."""
         state = self._state
         kept = {
             resource
@@ -1653,7 +1661,10 @@ class Dispatcher:
         cancel was asked departs from where the train stops (`_follow`, #836).
         Where the head is not yet in, the deferral asks `layout` to take the
         move back, and ends at once where it does (`_withdrawn`, #1068); with
-        the head in there is nothing left to take back, so it asks nothing. An id the
+        the head in there is nothing left to take back, so it asks nothing.
+        While the railroad runs without sensors there is no move: the train has
+        not left its block, which it is left occupying alone, and the request
+        retires at once, asking `layout` nothing (#1314). An id the
         dispatcher does not hold is dropped in silence and to the trace, as
         every gesture it cannot act on is (ADR-0034).
 
@@ -2404,6 +2415,10 @@ class Dispatcher:
                 self._launch(req, result)
 
     def _launch(self, req: Request, launched: Launched) -> None:
+        """A route taken: its locks, `route_chosen` and `lock_granted`, and
+        the first move at once. While the railroad runs without sensors there
+        is no move: the train occupies the whole route and one `align` sets
+        all its points (#1314)."""
         req.refused = None
         # The request stays where it is in the list, started (ADR-0080).
         # The strategy says what to lock and the dispatcher locks it (#761),
