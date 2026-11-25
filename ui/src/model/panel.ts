@@ -471,8 +471,10 @@ export class Panel {
   /** address → the position its `wanted/point` row last said: what was
    *  asked, and where a point lies unless its address is reported. */
   private lyingByAddress = new Map<string, Position>();
-  /** address → the position its `device/point` row last said, kept for a
-   *  reported address only: where that point lies (ADR-0097). */
+  /** address → the position its `device/point` row last said: where the
+   *  point lies, for an address the layout lists as reported (ADR-0097).
+   *  Kept for every address, so one the layout lists after a rebuild under
+   *  the same name has its retained row (#1235). */
   private reports = new Map<string, Position>();
   /** reported address → since when, on `now`, its report has differed from
    *  its `wanted/point` row. No report differs from any row: a point that
@@ -573,16 +575,17 @@ export class Panel {
    *  sensors. */
   withoutSensors = false;
 
+  /** The layout the store last derived, as `relayout` was last handed it. */
   private layout!: Layout;
   /** transit resource → the legs its way takes and the wires it is drawn
    *  over, both the store's — the wires through the rule `inspect.wiresOn`
    *  transcribes from it. Worked out in `relayout`. */
-  private ways = new Map<string, { legs: [string, string][]; wires: string[] }>();
+  private readonly ways = new Map<string, { legs: [string, string][]; wires: string[] }>();
   /** transit resource → the reported addresses among the points it needs,
    *  as the layout marks them (ADR-0097). Worked out in `relayout`. */
-  private reportedOn = new Map<string, string[]>();
+  private readonly reportedOn = new Map<string, string[]>();
   /** Every reported address the layout names. */
-  private reported = new Set<string>();
+  private readonly reported = new Set<string>();
 
   /** `now` is the wall clock in milliseconds, which only a reported point's
    *  mark reads: two seconds are a person's, and no topic carries them. */
@@ -598,14 +601,14 @@ export class Panel {
   /**
    * The layout, explanation and wires read from now on, in place of those
    * held: the railroad built again under the same name (#1235). Everything
-   * the bus has said is kept. A report for an address no longer reported is
-   * dropped, and every address is compared again against what was asked.
+   * the bus has said is kept, and every point is compared again against what
+   * was asked.
    */
   relayout(layout: Layout, explain: Explained, wires: readonly Wire[]): void {
     this.layout = layout;
-    this.ways = new Map();
-    this.reportedOn = new Map();
-    this.reported = new Set();
+    this.ways.clear();
+    this.reportedOn.clear();
+    this.reported.clear();
     for (const [connection, { transits, points }] of Object.entries(layout.connections)) {
       for (const [transit, needed] of Object.entries(points ?? {})) {
         const addrs = needed.filter((point) => point.reported === true).map((point) => point.addr);
@@ -621,9 +624,6 @@ export class Panel {
           wires: wiresOn(crossing, wires),
         });
       }
-    }
-    for (const addr of [...this.reports.keys()]) {
-      if (!this.reported.has(addr)) this.reports.delete(addr);
     }
     for (const addr of [...this.differing.keys()]) {
       if (!this.reported.has(addr)) this.differing.delete(addr);
@@ -731,7 +731,7 @@ export class Panel {
           addr?: unknown;
           position?: unknown;
         };
-        if (typeof addr !== "string" || !this.reported.has(addr)) return;
+        if (typeof addr !== "string") return;
         if (position === "closed" || position === "thrown") this.reports.set(addr, position);
         else this.reports.delete(addr);
         this.compare(addr);
@@ -1312,7 +1312,8 @@ export class Panel {
   positionsByAddress(): ReadonlyMap<string, Position> {
     if (this.reported.size === 0) return this.lyingByAddress;
     const lying = [...this.lyingByAddress].filter(([addr]) => !this.reported.has(addr));
-    return new Map([...lying, ...this.reports]);
+    const reports = [...this.reports].filter(([addr]) => this.reported.has(addr));
+    return new Map([...lying, ...reports]);
   }
 
   /**

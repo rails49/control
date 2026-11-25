@@ -1205,7 +1205,7 @@ describe("a sensor that stops and comes back", () => {
 /**
  * The railroad built again under the same name with the page left open
  * (#1235): the model takes the new layout, and keeps everything the bus has
- * told it, retained rows being delivered once (ADR-0032).
+ * told it.
  */
 describe("a drawing reviewed again under the same name", () => {
   /** Block `b` alone, nothing joining it. */
@@ -1327,6 +1327,14 @@ describe("a drawing reviewed again under the same name", () => {
     stood.broker.says("tc49/layout/state/device/point/12", { addr: "12", position: "closed" });
     vi.advanceTimersByTime(STUCK_MS + 1);
     expect(stood.session.panel!.stuck()).toEqual(new Map([["12", "closed"]]));
+  });
+
+  it("draws a point from the report it had before the layout listed it", () => {
+    const stood = before();
+    stood.broker.says("tc49/layout/state/wanted/point/12", { addr: "12", position: "thrown" });
+    stood.broker.says("tc49/layout/state/device/point/12", { addr: "12", position: "closed" });
+    stood.session.documents(drawn(), AFTER, STOCK);
+    expect(stood.session.panel!.positionsByAddress().get("12")).toBe("closed");
   });
 
   it("changes nothing reviewed again with the same review", () => {
