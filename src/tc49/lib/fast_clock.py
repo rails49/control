@@ -1,7 +1,9 @@
 """The fast clock: the railroad's operating time of day (ADR-0090).
 
 It runs at its **speed-up** from a start time, wraps at midnight and has no
-date. `layout` holds one per build and publishes it on
+date. It stands while track power is off and runs on from the time it stood
+at when power is on again (#1350); when it stands and runs is
+`lib.clock_row`'s to say. `layout` holds one per build and publishes it on
 `tc49/layout/state/clock` once a real second, so every page draws the same
 time and none reads a wall clock of its own (ADR-0009). Nothing in the control
 path reads it (ADR-0044): it feeds scheduling and scenery, never dispatch and
@@ -32,11 +34,14 @@ DAY_S = 24 * 60 * 60
 class FastClock:
     """The fast clock as it was started: `start` fast-clock seconds since
     midnight at `since`, a reading of the real clock in seconds, running
-    `speed_up` fast seconds per real second from there."""
+    `speed_up` fast seconds per real second from there. One that `stands`
+    reads `start` at every reading, and `speed_up` is the rate it runs at
+    once it runs."""
 
     start: int
     speed_up: float
     since: float
+    stands: bool = False
 
     def __post_init__(self) -> None:
         # Written so that `nan`, which compares false with everything, fails.
@@ -46,7 +51,19 @@ class FastClock:
     def time(self, now: float) -> int:
         """The time of day at the real clock's reading `now`, in whole
         fast-clock seconds since midnight, `0` to `DAY_S - 1`."""
+        if self.stands:
+            return self.start
         return int(self.start + (now - self.since) * self.speed_up) % DAY_S
+
+    def stood(self, now: float) -> "FastClock":
+        """The clock standing from the real clock's reading `now`, at the
+        whole second it reads there."""
+        return FastClock(self.time(now), self.speed_up, now, True)
+
+    def ran(self, now: float) -> "FastClock":
+        """The clock running from the real clock's reading `now`: on from the
+        time it stood at, or as it was where it already ran."""
+        return FastClock(self.start, self.speed_up, now) if self.stands else self
 
     def changed(
         self, now: float, time: int | None = None, speed_up: float | None = None
@@ -55,11 +72,17 @@ class FastClock:
         `time` from now, or where it stands if None, and running at
         `speed_up`, or the one it ran at if None (ADR-0090, decision 2).
 
-        Where it stands keeps the part of a second it had run into, so a
-        speed-up set again and again does not hold the clock back."""
+        A clock that stands goes on standing, at `time` or where it stood,
+        and `speed_up` is the rate it runs at once it runs.
+
+        Where a running clock stands keeps the part of a second it had run
+        into, so a speed-up set again and again does not hold the clock
+        back."""
         rate = self.speed_up if speed_up is None else speed_up
         if time is not None:
-            return FastClock(time, rate, now)
+            return FastClock(time, rate, now, self.stands)
+        if self.stands:
+            return FastClock(self.start, rate, now, True)
         stands = self.start + (now - self.since) * self.speed_up
         whole = math.floor(stands)
         return FastClock(whole % DAY_S, rate, now - (stands - whole) / rate)

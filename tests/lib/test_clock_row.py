@@ -1,5 +1,6 @@
 """The fast clock's row as a layout binding holds it: said at each beat and
-at once when a person sets it, and what is kept with the railroad (ADR-0090)."""
+at once when a person sets it, standing while the binding states power `off`
+(#1350), and what is kept with the railroad (ADR-0090)."""
 
 import time
 from collections.abc import Callable
@@ -19,6 +20,12 @@ from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock
 from tc49.lib.settings import KeptInstallation, kept_installation
 
+POWER = "tc49/layout/state/power"
+"""Where a layout binding states its power, which the clock stands by."""
+
+SIX = 6 * 3600
+"""06:00, the start time the railroad under test keeps."""
+
 
 class Monotonic:
     """A real clock a test moves by hand."""
@@ -33,10 +40,11 @@ class Monotonic:
 def clocked(
     kept: list[KeptClock] | None = None,
 ) -> tuple[InProcessBus, Monotonic, Callable[[], None], list[Payload]]:
-    """The fast clock's row on a bus, started at 07:00:30 at a speed-up of 1
-    on a railroad that keeps 07:00, the beat that says it, and what it says.
-    What it keeps goes in `kept`."""
+    """The fast clock's row on a bus whose binding states power `on`, started
+    at 07:00:30 at a speed-up of 1 on a railroad that keeps 07:00, the beat
+    that says it, and what it says. What it keeps goes in `kept`."""
     bus = InProcessBus(Clock())
+    bus.publish(POWER, {"power": "on"})
     monotonic = Monotonic()
     said: list[Payload] = []
     bus.subscribe(CLOCK, lambda _topic, payload: said.append(payload))
@@ -52,6 +60,7 @@ def clocked(
         row.say()
         bus.drain()
 
+    bus.drain()
     beat()
     return bus, monotonic, beat, said
 
@@ -136,6 +145,153 @@ def loaded_on(
     row.say()
     bus.drain()
     return bus, said
+
+
+def powered(
+    power: str,
+) -> tuple[InProcessBus, Monotonic, Callable[[], None], list[int], list[KeptClock]]:
+    """The row a build starts on a railroad keeping 06:00 at a speed-up of 4,
+    on a bus whose binding states `power`: the bus, the real clock, the beat
+    that says the row, each time it says, and what it keeps."""
+    bus = InProcessBus(Clock())
+    bus.publish(POWER, {"power": power})
+    monotonic = Monotonic()
+    said: list[int] = []
+    bus.subscribe(CLOCK, lambda _topic, payload: said.append(payload["time"]))
+    moment = time.strptime("2026-10-24 14:25:07", "%Y-%m-%d %H:%M:%S")
+    kept: list[KeptClock] = []
+    row = loaded(bus, KeptClock(SIX, 4.0), monotonic, moment, kept.append)
+
+    def beat() -> None:
+        row.say()
+        bus.drain()
+
+    return bus, monotonic, beat, said, kept
+
+
+def test_a_clock_loaded_with_power_off_repeats_its_start_time_on_each_beat() -> None:
+    """A railroad comes up `off`, so its clock stands at its start time."""
+    _, monotonic, beat, said, _ = powered("off")
+    for _ in range(3):
+        beat()
+        monotonic.now += 1
+    assert said == [SIX, SIX, SIX]
+
+
+def test_the_clock_runs_from_the_start_time_when_power_first_reads_on() -> None:
+    """Ten real seconds off count for nothing; five on are twenty at 4."""
+    bus, monotonic, beat, said, _ = powered("off")
+    monotonic.now += 10
+    bus.publish(POWER, {"power": "on"})
+    beat()
+    monotonic.now += 5
+    beat()
+    assert said == [SIX, SIX + 20]
+
+
+def test_the_clock_runs_through_draining() -> None:
+    """A drain leaves the rails live and trains moving: five real seconds on
+    and five draining are forty at 4."""
+    bus, monotonic, beat, said, _ = powered("on")
+    beat()
+    monotonic.now += 5
+    bus.publish(POWER, {"power": "draining"})
+    beat()
+    monotonic.now += 5
+    beat()
+    assert said == [SIX, SIX + 20, SIX + 40]
+
+
+def test_the_clock_stands_from_off_and_runs_on_from_there_at_the_next_on() -> None:
+    """A break: three real seconds on are twelve at 4, the hundred off count
+    for nothing, and two more on are eight."""
+    bus, monotonic, beat, said, _ = powered("on")
+    beat()
+    monotonic.now += 3
+    bus.publish(POWER, {"power": "off"})
+    beat()
+    monotonic.now += 50
+    beat()
+    monotonic.now += 50
+    bus.publish(POWER, {"power": "on"})
+    beat()
+    monotonic.now += 2
+    beat()
+    assert said == [SIX, SIX + 12, SIX + 12, SIX + 12, SIX + 20]
+
+
+def test_a_time_set_while_the_clock_stands_is_the_time_it_stands_at() -> None:
+    """Said at once, repeated on each beat, where the clock runs from at the
+    next `on`, and kept as the railroad's start as any time set is."""
+    bus, monotonic, beat, said, kept = powered("off")
+    beat()
+    monotonic.now += 7
+    bus.publish(CLOCK_WANTED, {"time": 9 * 3600})
+    bus.drain()
+    monotonic.now += 1
+    beat()
+    monotonic.now += 1
+    bus.publish(POWER, {"power": "on"})
+    beat()
+    monotonic.now += 2
+    beat()
+    assert said == [SIX, 9 * 3600, 9 * 3600, 9 * 3600, 9 * 3600 + 8]
+    assert kept == [KeptClock(9 * 3600, 4.0)]
+
+
+def test_a_speed_up_set_while_the_clock_stands_is_the_rate_from_the_next_on() -> None:
+    """The row says the new speed-up at once and the time it stood at; three
+    real seconds on are thirty at 10."""
+    bus, monotonic, beat, _, kept = powered("off")
+    rows: list[Payload] = []
+    bus.subscribe(CLOCK, lambda _topic, payload: rows.append(payload))
+    monotonic.now += 7
+    bus.publish(CLOCK_WANTED, {"speed_up": 10})
+    bus.drain()
+    monotonic.now += 7
+    bus.publish(POWER, {"power": "on"})
+    beat()
+    monotonic.now += 3
+    beat()
+    assert [(row["time"], row["speed_up"]) for row in rows] == [
+        (SIX, 10.0),
+        (SIX, 10.0),
+        (SIX + 30, 10.0),
+    ]
+    assert kept == [KeptClock(SIX, 10.0)]
+
+
+def test_a_clock_told_nothing_about_power_stands() -> None:
+    """No row is no evidence that the rails have power."""
+    bus = InProcessBus(Clock())
+    monotonic = Monotonic()
+    said: list[int] = []
+    bus.subscribe(CLOCK, lambda _topic, payload: said.append(payload["time"]))
+    kept: list[KeptClock] = []
+    row = FastClockRow(
+        bus,
+        FastClock(SIX, 4.0, monotonic.now),
+        KeptClock(SIX, 4.0),
+        monotonic,
+        kept.append,
+    )
+    for _ in range(2):
+        monotonic.now += 1
+        row.say()
+        bus.drain()
+    assert said == [SIX, SIX]
+
+
+def test_a_power_row_that_cannot_be_read_is_read_as_off() -> None:
+    """As every reader of the row takes it (`lib.payload.power`)."""
+    bus, monotonic, beat, said, _ = powered("on")
+    beat()
+    monotonic.now += 1
+    bus.publish(POWER, {"power": "stopped"})
+    beat()
+    monotonic.now += 1
+    beat()
+    assert said == [SIX, SIX + 4, SIX + 4]
 
 
 def test_a_railroad_is_loaded_at_the_start_time_it_keeps() -> None:
