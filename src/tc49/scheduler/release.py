@@ -21,10 +21,22 @@ the timetable loaded next.
 | it submitted the request for an entry `due` listed | `released(state, index, request)` |
 | it applied the turn-round of an entry `due` listed | `turned(state, index)` |
 | it published `clock_wanted` because `starts` said so | `started(state)` |
+| it composed and submitted a `request_wanted` gesture | `dragged(state, train, to, request)` |
+| it applied a `reversal_wanted` gesture | `turned_round(state, train)` |
+| `timetable_record_wanted` | `recording(state, record)` |
+| it makes a new timetable because `untitled` or `new` said so | `made(state, name, layout, trains)` |
 | a retained state row, at a restart | `restarted(said, document)` |
+| the first allocation row after a restart | `listed(state, requests)` |
+
+A request the scheduler submits for an entry it tells with `released`, and
+one for a gesture with `dragged`. Each `request_submitted` also comes back
+off the bus and is told with `announced`, which then changes nothing.
 
 After each of them it asks, in this order:
 
+- `untitled(state)`: whether to make the timetable named `untitled`. On
+  `timetable_wanted` with `new` it asks `new(state)`. Where the answer is yes
+  it calls `made`.
 - `starts(state)`: whether to start. On a person's gesture it asks
   `starts(state, asked=True)`. Where the answer is yes it publishes
   `tc49/layout/clock_wanted` with `state.timetable.start` and calls `started`.
@@ -40,6 +52,17 @@ A position `due` gives is good until the timetable's entries change.
 
 The rules, in the words of #1345:
 
+- **New.** A new timetable takes the clock's time, rounded down to the
+  minute, as `start`. It has no entries, Record is on and it is `running` at
+  once. The scheduler makes `untitled` when power reads `on` and no
+  timetable is loaded (`untitled`). A person asks for one by name, which is
+  dropped unless power reads `off` (`new`). Both wait for a clock row and for
+  the trains on the layout.
+- **Record.** While the timetable is `running` and Record is on, a drag adds
+  an entry at the clock's time to the minute, `out` as the request the drag
+  made, and a turn-round adds an entry that has `ended`. A new entry goes
+  after the last entry at or before its time. In any other phase, or with
+  Record off, a drag is a request with no entry (`dragged`, `turned_round`).
 - **Start.** A `loaded` timetable starts when every request to a start block
   has ended, however it ended, and power reads `on`. It also starts when a
   person asks. A timetable with no such request starts when power reads `on`
@@ -75,8 +98,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
-from tc49.lib.fast_clock import DAY_S
-from tc49.lib.timetable import Entry, Timetable, read_entry, read_timetable
+from tc49.lib.fast_clock import DAY_S, start_of
+from tc49.lib.timetable import (
+    Entry,
+    Timetable,
+    TrainStart,
+    read_entry,
+    read_timetable,
+)
+
+UNTITLED = "untitled"
+"""The name of the timetable the scheduler makes itself."""
 
 LOADED = "loaded"
 RUNNING = "running"
@@ -268,6 +300,141 @@ def turned(state: State, index: int) -> State:
     """The state after the scheduler applied the turn-round at position
     `index`: the entry is `ended`."""
     return replace(state, progress=_with(state.progress, index, Progress(ENDED)))
+
+
+def untitled(state: State) -> bool:
+    """Whether to make the timetable named `untitled`, which the scheduler
+    does with `made`: power reads `on`, no timetable is loaded, a clock row
+    was told and the trains on the layout were told."""
+    return state.timetable is None and state.power == "on" and _makes(state)
+
+
+def new(state: State) -> bool:
+    """Whether a new timetable a person asks for by name is made: power reads
+    `off`, a clock row was told and the trains on the layout were told. It
+    replaces the timetable loaded."""
+    return state.power == "off" and _makes(state)
+
+
+def _makes(state: State) -> bool:
+    """Whether the state has what a new timetable takes: the clock's time
+    for its start, and the trains told for where they stand."""
+    return state.clock is not None and state.placed is not None
+
+
+def made(
+    state: State, name: str, layout: str, trains: Mapping[str, TrainStart]
+) -> State:
+    """The state with a new timetable named `name` loaded, for the railroad
+    `layout`, in place of the one loaded. The scheduler calls it where
+    `untitled` or `new` said yes.
+
+    Its `start` is the clock's time rounded down to the minute, and `trains`
+    is where each train on the layout stands. It has no entries, Record is on
+    and it is `running` at once. Its time begins at the clock's time less
+    `start`, the seconds into that minute. What the state was told of the
+    railroad is kept.
+
+    A `name` or `layout` the document does not take is a `ValueError`
+    (`tc49.lib.timetable.Timetable`).
+    """
+    assert state.clock is not None
+    start = start_of(state.clock)
+    return State(
+        Timetable(name, layout, start, dict(trains), ()),
+        RUNNING,
+        True,
+        time=state.clock - start,
+        clock=state.clock,
+        power=state.power,
+        placed=state.placed,
+        in_flight=state.in_flight,
+    )
+
+
+def recording(state: State, record: bool) -> State:
+    """The state with Record on or off, as a person asked. With no timetable
+    loaded there is none to switch, and the state is as it was."""
+    if state.timetable is None:
+        return state
+    return replace(state, record=record)
+
+
+def dragged(state: State, train: str, to: tuple[str, ...], request: str) -> State:
+    """The state after the scheduler composed a `request_wanted` gesture for
+    `train` to the arrival ends `to`, as the gesture gave them, and submitted
+    it as the request with the id `request`. The request is in flight for
+    the train.
+
+    While the timetable is `running` and Record is on, the drag is added as
+    an entry: `at` the clock's time to the minute, after the last entry at or
+    before that time, `out` as `request`. In any other phase, with Record
+    off, with no timetable loaded, and after a restart until the first clock
+    row, it is a request with no entry.
+    """
+    flying = {**state.in_flight, request: train}
+    if not _records(state):
+        return replace(state, in_flight=flying)
+    assert state.clock is not None
+    entry = Entry(start_of(state.clock), train, to)
+    return _added(replace(state, in_flight=flying), entry, Progress(OUT, request))
+
+
+def turned_round(state: State, train: str) -> State:
+    """The state after the scheduler applied a `reversal_wanted` gesture for
+    `train`. Where `dragged` adds an entry, this adds one with `turn`, which
+    has `ended`. A turn-round the scheduler dropped is not told."""
+    if not _records(state):
+        return state
+    assert state.clock is not None
+    return _added(state, Entry(start_of(state.clock), train), Progress(ENDED))
+
+
+def _records(state: State) -> bool:
+    """Whether a person's drag or turn-round is added as an entry now."""
+    return (
+        state.timetable is not None
+        and state.phase == RUNNING
+        and state.record
+        and state.clock is not None
+    )
+
+
+def _added(state: State, entry: Entry, progress: Progress) -> State:
+    """`state` with `entry` added to its timetable, and `progress` at the
+    position the entry took."""
+    timetable = state.timetable
+    assert timetable is not None
+    position = timetable.place(entry.at)
+    return replace(
+        state,
+        timetable=timetable.added(entry),
+        progress=(
+            *state.progress[:position],
+            progress,
+            *state.progress[position:],
+        ),
+    )
+
+
+def listed(state: State, requests: Mapping[str, str]) -> State:
+    """The state after the first `tc49/dispatch/state/allocation` row a
+    restart reads: `requests` is each request the row lists, its id to its
+    train. They are the requests in flight.
+
+    A request can end while the scheduler is down. An entry that is `out`
+    whose request the row does not list is `ended`, with no time of arrival
+    and so no dwell.
+    """
+    progress = tuple(
+        (
+            replace(one, state=ENDED, ended=None)
+            if one.state == OUT and one.request not in requests
+            else one
+        )
+        for one in state.progress
+    )
+    return replace(state, progress=progress, in_flight=dict(requests))
 
 
 def starts(state: State, asked: bool = False) -> bool:

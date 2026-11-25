@@ -33,16 +33,23 @@ from tc49.scheduler.release import (
     State,
     announced,
     clocked,
+    dragged,
     due,
     ended,
+    listed,
+    made,
+    new,
     placed,
     powered,
+    recording,
     released,
     restarted,
     row,
     started,
     starts,
     turned,
+    turned_round,
+    untitled,
 )
 from tests.system.test_app_boundaries import tc49_imports
 
@@ -684,3 +691,240 @@ def test_a_row_that_cannot_be_read_restarts_no_timetable(said: object) -> None:
     assert document is not None
 
     assert restarted(said, document) is None
+
+
+YARD = {"freight": TrainStart("yard_w", "A-to-B")}
+
+
+def told(time: int, power: str = "on") -> State:
+    """No timetable loaded, a clock row at `time`, power as given and
+    `freight` on the layout."""
+    state = clocked(powered(State(), power), time, 1)
+    return placed(state, frozenset({"freight"}))
+
+
+def test_untitled_is_made_with_power_on_a_clock_row_and_the_trains_told() -> None:
+    assert untitled(told(at("06:00") + 30))
+    assert not untitled(told(at("06:00") + 30, "off"))
+    assert not untitled(told(at("06:00") + 30, "draining"))
+    assert not untitled(placed(powered(State(), "on"), frozenset({"freight"})))
+    assert not untitled(clocked(powered(State(), "on"), at("06:00"), 1))
+    assert not untitled(powered(running(), "on"))
+
+
+def test_a_new_timetable_starts_at_the_clocks_minute_and_is_running() -> None:
+    """Its time begins at the clock's time less `start`, so an entry at
+    06:01 is due 30 seconds on."""
+    before = announced(told(at("06:00") + 30), "freight-9", "freight")
+
+    state = made(before, "untitled", "crossover-yard", YARD)
+
+    assert row(state) == {
+        "timetable": "untitled",
+        "phase": "running",
+        "record": True,
+        "start": "06:00",
+        "trains": {"freight": {"at": "yard_w", "facing": "A-to-B"}},
+        "positioning": [],
+        "entries": [],
+    }
+    assert state.timetable is not None
+    assert state.timetable.layout == "crossover-yard"
+    assert state.time == 30
+    assert (state.clock, state.power) == (before.clock, "on")
+    assert (state.placed, state.in_flight) == (before.placed, before.in_flight)
+
+
+def test_a_new_timetable_replaces_the_one_loaded() -> None:
+    before = clocked(every_state(), at("09:15") + 59, 1)
+
+    state = made(before, "morning", "crossover-yard", {})
+
+    assert row(state)["timetable"] == "morning"
+    assert row(state)["start"] == "09:15"
+    assert (state.positioning, state.progress, state.time) == ((), (), 59)
+
+
+def test_a_new_timetable_takes_a_name_the_document_takes() -> None:
+    with pytest.raises(ValueError, match="a name is not empty"):
+        made(told(at("06:00")), "a/b", "crossover-yard", {})
+
+
+def test_a_new_timetable_by_name_is_made_only_with_power_off() -> None:
+    assert new(told(at("06:00"), "off"))
+    assert not new(told(at("06:00"), "on"))
+    assert not new(told(at("06:00"), "draining"))
+    assert not new(placed(State(), frozenset({"freight"})))
+    assert not new(clocked(State(), at("06:00"), 1))
+    assert new(powered(clocked(every_state(), at("06:20"), 1), "off"))
+
+
+def recording_from(hh_mm: str) -> State:
+    """`untitled`, made when the clock read `hh_mm`, with `freight` on the
+    layout and power on."""
+    return made(told(at(hh_mm)), "untitled", "crossover-yard", YARD)
+
+
+def test_a_drag_is_recorded_as_an_entry_that_is_out_and_follows_its_request() -> None:
+    state = clocked(recording_from("06:00"), at("06:02") + 10, 1)
+
+    state = dragged(state, "freight", ("dn_e", "up_e"), "freight-ab-1")
+
+    assert row(state)["entries"] == [
+        {
+            "at": "06:02",
+            "train": "freight",
+            "to": ["dn_e", "up_e"],
+            "state": "out",
+            "request": "freight-ab-1",
+        }
+    ]
+    assert state.in_flight == {"freight-ab-1": "freight"}
+    assert due(state) == ()
+
+    state = ended(clocked(state, at("06:05"), 1), "freight-ab-1", COMPLETED)
+
+    assert row(state)["entries"][0] | {"at": "", "to": []} == {
+        "at": "",
+        "train": "freight",
+        "to": [],
+        "state": "ended",
+        "request": "freight-ab-1",
+        "ended": 5 * 60,
+    }
+    assert state.in_flight == {}
+
+
+@pytest.mark.parametrize("how", [REJECTED, CANCELLED])
+def test_a_recorded_entry_whose_request_is_refused_stays_in_the_timetable(
+    how: str,
+) -> None:
+    state = dragged(recording_from("06:00"), "freight", ("dn_e",), "freight-ab-1")
+
+    state = ended(state, "freight-ab-1", how)
+
+    assert row(state)["entries"] == [
+        {
+            "at": "06:00",
+            "train": "freight",
+            "to": ["dn_e"],
+            "state": how,
+            "request": "freight-ab-1",
+        }
+    ]
+
+
+def test_a_recorded_entry_goes_after_the_last_entry_at_or_before_its_time() -> None:
+    """The clock set back to 06:03 puts the third drag before the two made
+    at 06:05, which keep the order they were made in."""
+    state = clocked(recording_from("06:00"), at("06:05"), 1)
+    state = dragged(state, "freight", ("dn_e",), "freight-ab-1")
+    state = dragged(state, "express", ("up_e",), "express-ab-1")
+    state = clocked(state, at("06:03") + 59, 1)
+
+    state = dragged(state, "local", ("dn_w",), "local-ab-1")
+
+    assert [(one["at"], one["request"]) for one in row(state)["entries"]] == [
+        ("06:03", "local-ab-1"),
+        ("06:05", "freight-ab-1"),
+        ("06:05", "express-ab-1"),
+    ]
+    assert states(state) == [OUT, OUT, OUT]
+
+
+def test_a_turn_round_is_recorded_as_an_entry_that_has_ended() -> None:
+    state = clocked(recording_from("06:00"), at("06:10") + 5, 1)
+    state = dragged(state, "freight", ("dn_e",), "freight-ab-1")
+
+    state = turned_round(state, "express")
+
+    assert row(state)["entries"][1] == {
+        "at": "06:10",
+        "train": "express",
+        "turn": True,
+        "state": "ended",
+    }
+    assert states(state) == [OUT, ENDED]
+
+
+def test_with_record_off_a_drag_is_a_request_and_a_turn_round_nothing() -> None:
+    state = recording(recording_from("06:00"), False)
+
+    assert row(state)["record"] is False
+
+    state = turned_round(dragged(state, "freight", ("dn_e",), "freight-ab-1"), "local")
+
+    assert row(state)["entries"] == []
+    assert state.in_flight == {"freight-ab-1": "freight"}
+
+    state = dragged(recording(state, True), "freight", ("up_e",), "freight-ab-2")
+
+    assert [one["request"] for one in row(state)["entries"]] == ["freight-ab-2"]
+
+
+def test_record_is_no_ones_to_switch_with_no_timetable_loaded() -> None:
+    assert recording(State(), True) == State()
+
+
+def test_nothing_is_recorded_once_the_timetable_is_over() -> None:
+    state = recording_from("06:00")
+    for hh_mm in ("17:00", "04:00", "06:00"):
+        state = clocked(state, at(hh_mm), 1)
+    assert (state.phase, state.record) == (OVER, True)
+
+    state = turned_round(dragged(state, "freight", ("dn_e",), "freight-ab-1"), "local")
+
+    assert row(state)["entries"] == []
+    assert state.in_flight == {"freight-ab-1": "freight"}
+
+
+def test_nothing_is_recorded_in_a_timetable_that_has_not_started() -> None:
+    state = replace(loaded(), record=True, clock=at("06:00"))
+
+    state = turned_round(dragged(state, "freight", ("dn_e",), "freight-ab-1"), "local")
+
+    assert row(state)["entries"] == []
+
+
+def test_nothing_is_recorded_after_a_restart_until_a_clock_row() -> None:
+    """An entry takes its time from the clock, and the state has none yet."""
+    before = recording_from("06:00")
+    assert before.timetable is not None
+    state = restarted(row(before), before.timetable)
+    assert state is not None
+
+    state = dragged(state, "freight", ("dn_e",), "freight-ab-1")
+
+    assert row(state)["entries"] == []
+    assert state.in_flight == {"freight-ab-1": "freight"}
+
+
+def test_after_a_restart_an_entry_out_whose_request_is_not_listed_has_ended() -> None:
+    """The request ended while the scheduler was down, so the entry has no
+    time of arrival, whether or not a clock row came first."""
+    before = dragged(recording_from("06:00"), "freight", ("dn_e",), "freight-ab-1")
+    before = dragged(before, "express", ("up_e",), "express-ab-1")
+    assert before.timetable is not None
+    state = restarted(row(before), before.timetable)
+    assert state is not None
+    state = clocked(state, at("06:09"), 1)
+
+    state = listed(state, {"express-ab-1": "express", "local-9": "local"})
+
+    assert row(state)["entries"] == [
+        {
+            "at": "06:00",
+            "train": "freight",
+            "to": ["dn_e"],
+            "state": "ended",
+            "request": "freight-ab-1",
+        },
+        {
+            "at": "06:00",
+            "train": "express",
+            "to": ["up_e"],
+            "state": "out",
+            "request": "express-ab-1",
+        },
+    ]
+    assert state.in_flight == {"express-ab-1": "express", "local-9": "local"}
