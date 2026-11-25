@@ -16,8 +16,9 @@ waiting, and it is short enough that a person's gesture is acted on in the
 same tenth of a second whoever started the container.
 
 The startup order is `lib/startup.py`'s, and this app runs all three of its
-steps with nothing of its own to add: one document, the layout, and one row it
-already owns, the facing (`tc49/schedule/state/facing`). A railroad the store
+steps with nothing of its own to add: one document, the layout, and two rows it
+already owns, the facing (`tc49/schedule/state/facing`) and the loaded
+timetable (`tc49/schedule/state/timetable`, #1352). A railroad the store
 does not have leaves it **standing** — up, with no railroad, built on the
 first one the row names that the store can give (#564, `lib/loading.py`).
 
@@ -26,6 +27,10 @@ second by the monotonic clock while it is built (#1113); standing, it says
 nothing. `Scheduler` is handed a `Bus` and nothing else changes in the package: what a run an operator drives has is a
 railroad and a person placing trains on it — no facing seed and no scenario's
 requests, those being the harness's (ADR-0036).
+
+It is also handed the store, for the railroad's timetables (#1352): the
+`Documents` this app reads the layout through, with the writes done on a
+thread of their own (`tc49.scheduler.keeping.Kept`).
 """
 
 import contextlib
@@ -45,7 +50,8 @@ from tc49.lib.startup import (
     connected,
     retained,
 )
-from tc49.scheduler.scheduler import FACING, Scheduler
+from tc49.scheduler.keeping import Kept
+from tc49.scheduler.scheduler import FACING, TIMETABLE, Scheduler
 
 CLIENT_ID = "tc49-scheduler"
 """What this app calls itself to the broker, so its log names an app rather
@@ -96,7 +102,8 @@ def serve(
     app still running the last one is worth more than one running none
     (ADR-0050, `lib/loading.py`). Under the same name `facing` stays and is
     adopted as after a restart: a train kept placed keeps the way it points
-    (ADR-0071).
+    (ADR-0071). So does the timetable row, and the timetable stays loaded.
+    Under another name both go, and no timetable is loaded (#1352).
     """
     loaded = Loaded(railroad)
     if not connected(bus, stop, log):
@@ -106,9 +113,11 @@ def serve(
         return
     log(f"'{loaded.name}': {len(layout.blocks)} blocks")
     alive = Alive(bus, ALIVE_CONFIRMED)
+    timetables = Kept(documents, log)
     while not stop.is_set():
         retained(bus, FACING, stop, retained_s)
-        Scheduler(bus, layout)
+        retained(bus, TIMETABLE, stop, retained_s)
+        Scheduler(bus, layout, store=timetables)
         # After the app is built and not before: the row is retained, so
         # subscribing here is handed whatever it holds, and nothing this app
         # does on the way up moves — a gesture published in the instant
@@ -124,7 +133,7 @@ def serve(
         if not loaded.moved:
             return
         layout = taken(loaded, built, layout, log, documents.layout)
-        kept = (FACING,) if loaded.name == built else ()
+        kept = (FACING, TIMETABLE) if loaded.name == built else ()
         gone = dropped(bus, OWNED, stop, retained_s, keep=kept)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 
