@@ -73,6 +73,27 @@ def test_the_tail_out_after_the_grant_and_the_whole_train_in() -> None:
     assert seen == Seen(exit_read=True, head_in=True, at_far=True)
 
 
+@pytest.mark.parametrize("sensor, occupied", list(ROWS))
+@pytest.mark.parametrize("seen", SO_FAR)
+def test_a_move_with_no_exit_sensor_reads_its_exit_as_any_other_sensor(
+    seen: Seen, sensor: str, occupied: bool
+) -> None:
+    """`layout`'s crossing follows only the entered block (#1334)."""
+    other = OTHER if sensor == EXIT else sensor
+    sets, facts = ROWS[other, occupied]
+
+    new, given = follow(
+        seen, exit=None, entry=ENTRY, far=FAR, sensor=sensor, occupied=occupied
+    )
+
+    assert new == Seen(
+        exit_read=seen.exit_read or "exit_read" in sets,
+        head_in=seen.head_in or "head_in" in sets,
+        at_far=seen.at_far or "at_far" in sets,
+    )
+    assert given == facts(seen)
+
+
 def test_a_subclass_comes_back_as_itself() -> None:
     """A record that extends `Seen` with fields of its own is returned updated,
     those fields kept."""

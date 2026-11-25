@@ -44,11 +44,13 @@ class Facts:
 
 
 def follow[S: Seen](
-    seen: S, *, exit: str, entry: str, far: str, sensor: str, occupied: bool
+    seen: S, *, exit: str | None, entry: str, far: str, sensor: str, occupied: bool
 ) -> tuple[S, Facts]:
     """`seen` updated by `sensor` reading `occupied` or clear, and the facts
     that reading gives. The head is in only once; the tail out, the whole
-    train in and the far sensor are given at each reading that says them."""
+    train in and the far sensor are given at each reading that says them.
+    `exit` is None for a move followed in the entered block only, as
+    `layout`'s crossing is: no reading then gives the tail out."""
     if occupied:
         if sensor == exit:
             return replace(seen, exit_read=True), Facts()
