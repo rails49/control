@@ -55,6 +55,7 @@ export default defineConfig({
       "/rosters": { target: STORE, changeOrigin: false },
       "/catalogue": { target: STORE, changeOrigin: false },
       "/railroads": { target: STORE, changeOrigin: false },
+      "/timetables": { target: STORE, changeOrigin: false },
       // Not the store, and `changeOrigin: false` all the same: the door in
       // front of a box passes the host header through for this prefix as for
       // the others, so development behaves the way deployment does.

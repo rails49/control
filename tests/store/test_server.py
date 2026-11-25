@@ -1529,6 +1529,213 @@ def test_installation_settings_arm_the_backup_as_a_save_does(tmp_path: Path) -> 
     assert saved == [True]
 
 
+TIMETABLE = {
+    "timetable": "evening",
+    "layout": "shed",
+    "start": "06:00",
+    "trains": {"freight_1": {"at": "yard_w", "facing": "A-to-B"}},
+    "entries": [
+        {
+            "at": "06:02",
+            "train": "freight_1",
+            "to": ["dn_e", "up_e"],
+            "dwell": 2,
+            "description": "meets the express",
+        },
+        {"at": "12:30", "train": "freight_1", "turn": True},
+    ],
+}
+"""A railroad's timetable (#1345), with a time YAML 1.1 reads as a number
+unquoted."""
+
+
+def test_a_timetable_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
+    """The route is the document, and the railroad needs no drawing, as a
+    clock's does not."""
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "PUT", "/timetables/shed/evening", TIMETABLE) == (
+        200,
+        {"saved": "shed/evening"},
+    )
+    assert handle(store, backup, "GET", "/timetables/shed/evening", None) == (
+        200,
+        TIMETABLE,
+    )
+    assert (tmp_path / "timetables" / "shed" / "evening.timetable.yaml").exists()
+
+
+def test_a_timetable_that_is_not_one_is_refused_and_writes_nothing(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    for body in (
+        None,
+        ["evening"],
+        {"timetable": "evening", "layout": "shed"},
+        {**TIMETABLE, "start": 360},
+        {**TIMETABLE, "entries": [{"at": "06:02", "train": "freight_1"}]},
+    ):
+        status, said = handle(store, backup, "PUT", "/timetables/shed/evening", body)
+        assert status == 400, body
+        assert said["error"]
+    assert not (tmp_path / "timetables").exists()
+
+
+def test_a_timetable_naming_another_railroad_or_name_is_refused(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The path is where it is filed, so the document has to agree with it,
+    and nothing is written where it does not."""
+    store = AssetStore(tmp_path)
+    for path in ("/timetables/yard/evening", "/timetables/shed/morning"):
+        status, said = handle(store, backup, "PUT", path, TIMETABLE)
+        assert status == 400, path
+        assert "shed/evening" in said["error"]
+    assert not (tmp_path / "timetables").exists()
+
+
+def test_a_railroad_without_that_timetable_is_not_found(
+    tmp_path: Path, backup: Backup
+) -> None:
+    store = AssetStore(tmp_path)
+    handle(store, backup, "PUT", "/timetables/shed/evening", TIMETABLE)
+    for path in ("/timetables/shed/morning", "/timetables/yard/evening"):
+        status, said = handle(store, backup, "GET", path, None)
+        assert status == 404, path
+        assert path.removeprefix("/timetables/") in said["error"]
+
+
+def test_a_hand_written_timetable_that_is_not_one_is_a_bad_request(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Unquoted, `12:30` is the number 750 to the store's reader."""
+    filed = tmp_path / "timetables" / "shed"
+    filed.mkdir(parents=True)
+    (filed / "evening.timetable.yaml").write_text(
+        "timetable: evening\nlayout: shed\nstart: 12:30\ntrains: {}\nentries: []\n"
+    )
+    status, body = handle(
+        AssetStore(tmp_path), backup, "GET", "/timetables/shed/evening", None
+    )
+    assert status == 400
+    assert "HH:MM" in body["error"]
+
+
+def test_a_timetable_filed_under_another_name_is_a_bad_request(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A file copied by hand and not renamed inside: a write of what it reads
+    as would land on the timetable it was copied from."""
+    store = AssetStore(tmp_path)
+    handle(store, backup, "PUT", "/timetables/shed/evening", TIMETABLE)
+    filed = tmp_path / "timetables" / "shed"
+    shutil.copy(filed / "evening.timetable.yaml", filed / "morning.timetable.yaml")
+    status, body = handle(store, backup, "GET", "/timetables/shed/morning", None)
+    assert status == 400
+    assert "shed/evening" in body["error"]
+
+
+def test_a_railroads_timetables_are_listed_by_name(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """Sorted, and only that railroad's. A railroad with none has an empty
+    list, whether or not it has a drawing."""
+    store = AssetStore(tmp_path)
+    assert handle(store, backup, "GET", "/timetables/shed", None) == (
+        200,
+        {"timetables": []},
+    )
+    for railroad, name in (("shed", "morning"), ("shed", "evening"), ("yard", "night")):
+        doc = {**TIMETABLE, "layout": railroad, "timetable": name}
+        assert (
+            handle(store, backup, "PUT", f"/timetables/{railroad}/{name}", doc)[0]
+            == 200
+        )
+    assert handle(store, backup, "GET", "/timetables/shed", None) == (
+        200,
+        {"timetables": ["evening", "morning"]},
+    )
+
+
+def test_a_timetable_is_deleted(tmp_path: Path, backup: Backup) -> None:
+    """That one, and no other of the railroad's."""
+    store = AssetStore(tmp_path)
+    for name in ("evening", "morning"):
+        handle(
+            store,
+            backup,
+            "PUT",
+            f"/timetables/shed/{name}",
+            {**TIMETABLE, "timetable": name},
+        )
+    assert handle(store, backup, "DELETE", "/timetables/shed/evening", None) == (
+        200,
+        {"deleted": "shed/evening"},
+    )
+    assert handle(store, backup, "GET", "/timetables/shed/evening", None)[0] == 404
+    assert handle(store, backup, "GET", "/timetables/shed", None) == (
+        200,
+        {"timetables": ["morning"]},
+    )
+
+
+def test_deleting_a_timetable_that_is_not_there_is_not_found(
+    tmp_path: Path, backup: Backup
+) -> None:
+    status, body = handle(
+        AssetStore(tmp_path), backup, "DELETE", "/timetables/shed/evening", None
+    )
+    assert status == 404
+    assert "shed/evening" in body["error"]
+
+
+def test_a_timetable_path_reaches_no_file_outside_its_railroad(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """`..` as the railroad would name the directory above, so a railroad or
+    a name that is no path segment is refused before a file is looked for."""
+    store = AssetStore(tmp_path)
+    outside = tmp_path / "evening.timetable.yaml"
+    outside.write_text("timetable: evening\n")
+    assert handle(store, backup, "DELETE", "/timetables/../evening", None)[0] == 400
+    assert handle(store, backup, "GET", "/timetables/../evening", None)[0] == 400
+    assert handle(store, backup, "GET", "/timetables/..", None)[0] == 400
+    assert handle(store, backup, "GET", "/timetables/shed/", None)[0] == 400
+    assert outside.exists()
+
+
+def test_a_path_below_a_timetable_is_no_route(tmp_path: Path, backup: Backup) -> None:
+    store = AssetStore(tmp_path)
+    handle(store, backup, "PUT", "/timetables/shed/evening", TIMETABLE)
+    for method in ("GET", "PUT", "DELETE"):
+        status, _ = handle(
+            store, backup, method, "/timetables/shed/evening/entries", TIMETABLE
+        )
+        assert status == 404, method
+    assert handle(store, backup, "PUT", "/timetables/shed", TIMETABLE)[0] == 404
+    assert handle(store, backup, "DELETE", "/timetables/shed", None)[0] == 404
+
+
+def test_a_timetable_written_or_deleted_arms_the_backup_as_a_save_does(
+    tmp_path: Path,
+) -> None:
+    saved: list[bool] = []
+
+    class Saving(Backup):
+        def saved(self) -> None:
+            saved.append(True)
+
+    store = AssetStore(tmp_path)
+    backup = Saving(tmp_path, log=lambda _: None)
+    handle(store, backup, "PUT", "/timetables/shed/evening", TIMETABLE)
+    assert saved == [True]
+    handle(store, backup, "DELETE", "/timetables/shed/evening", None)
+    assert saved == [True, True]
+    handle(store, backup, "DELETE", "/timetables/shed/evening", None)
+    handle(store, backup, "PUT", "/timetables/shed/morning", TIMETABLE)
+    assert saved == [True, True]
+
+
 def test_a_railroad_is_copied_with_its_roster_and_script(
     store: AssetStore, tmp_path: Path, backup: Backup
 ) -> None:
