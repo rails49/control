@@ -21,9 +21,10 @@ from tc49.dispatcher import Dispatcher, FullRoute
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.scenario import Scenario, TrainSpec
-from tests.harness import events, load, stock
+from tests.harness import events, load, press, stock
 
 REQUESTS = "tc49/dispatch/request_submitted"
+PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 
 GOOD: Payload = {
     "id": "freight_1-1",
@@ -199,3 +200,44 @@ def test_a_request_for_a_train_off_the_layout_is_answered() -> None:
     submit(assembly, GOOD)
 
     assert reason(assembly, "freight_1-1") == "no_origin"
+
+
+def test_a_request_for_a_train_a_restart_left_crossing_is_answered() -> None:
+    """A restart keeps the crossing hint and no request (#123): the train may
+    stand anywhere on that transit, so by sensors a request for it is
+    answered `crossing` and nothing is granted. A placement ends the entry,
+    and a request after it is admitted and granted (#1326)."""
+    kept: dict[str, Payload] = {
+        "tc49/dispatch/state/allocation": {
+            "trains": {"freight_1": "yard_w", "leviathan": "dn_e"},
+            "crossing": {"freight_1": "west_ladder.to_dn"},
+            "occupied": {},
+            "locks": {},
+            "requests": [],
+        }
+    }
+    layout, _roster, _ = load("crossover-yard/meet")
+    assembly = assemble_live(
+        layout,
+        stock(freight_1=1100, leviathan=2000),
+        {
+            "freight_1": TrainSpec("yard_w", "A-to-B"),
+            "leviathan": TrainSpec("dn_e", "B-to-A"),
+        },
+        retained=kept,
+    )
+    assembly.bus.drain()
+
+    submit(assembly, GOOD)
+
+    assert reason(assembly, "freight_1-1") == "crossing"
+    assert events(assembly.trace, "move_granted") == []
+
+    press(assembly, PLACEMENT_WANTED, {"train": "freight_1", "block": "up_w"})
+    submit(
+        assembly,
+        {**GOOD, "id": "freight_1-2", "depart": "up_w.B", "dest": ["up_e.A"]},
+    )
+
+    assert events(assembly.trace, "request_rejected", rid="freight_1-2") == []
+    assert events(assembly.trace, "move_granted", rid="freight_1-2")
