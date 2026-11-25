@@ -44,9 +44,9 @@ The invariants that assume a reading or a move read `without_sensors` off
 On a railroad run without sensors the dispatcher ignores readings, locks a
 request's whole route at its launch, grants no move, and ends the run on a
 person's word, so `moving` reads false, no block is disputed or out of use,
-and a block reading occupied is no obstacle. No row, or a field that does not
-read, is `false`. The `Record` holds the value it last heard that read, and a
-change of it ends every move it follows.
+and a block reading occupied is no obstacle. The `Record` holds the value it
+last heard that read, `false` until one does, and a change of it ends every
+move it follows. A `View` carries the value the `Record` holds.
 
 `ADR-0026` holds only where the dispatcher locks `Incremental`. The strategy
 is not on the bus, so the `View` carries no field for it and the caller that
@@ -172,11 +172,13 @@ scheduler's and `layout`'s (BUS.md, rule 1)."""
 @dataclass(frozen=True)
 class View:
     """What an invariant reads: the retained values — `bus.last_values` — and
-    the drawing and roster the run was built on, which no row carries."""
+    the drawing and roster the run was built on, which no row carries, and
+    `without_sensors` as the `Record` of the same messages holds it."""
 
     rows: Mapping[str, Payload]
     layout: Layout
     roster: Roster
+    without_sensors: bool = False
 
 
 @dataclass(frozen=True)
@@ -336,12 +338,6 @@ def _journeys(view: View) -> Iterator[_Journey]:
 
 def _listed(view: View) -> frozenset[str]:
     return unknown_sensors(view.rows.get(UNKNOWN_SENSORS)) or frozenset()
-
-
-def _without_sensors(view: View) -> bool:
-    """Whether `state/settings` says the railroad runs without sensors; no
-    row, or a field that does not read, says it does not (#1314)."""
-    return said_without_sensors(view.rows.get(SETTINGS)) is True
 
 
 def _overdue(view: View) -> frozenset[str]:
@@ -617,7 +613,7 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
     On a railroad run without sensors the dispatcher follows no move, so
     `moving` reads false whoever is crossing, and a row that reads true is the
     breach (#1314)."""
-    if _without_sensors(view):
+    if view.without_sensors:
         if MOVING in view.rows and moving(view.rows[MOVING]):
             return ["moving reads true on a railroad run without sensors"]
         return []
