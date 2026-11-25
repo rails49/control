@@ -2512,7 +2512,10 @@ class Dispatcher:
         )
         if self._state.without_sensors:
             # The train may be anywhere on its route once a person drives it,
-            # so it occupies all of it, and every point is set at once.
+            # so it occupies all of it, and every point is set at once. A
+            # crossing a change of the setting left ends here: what it held
+            # stays on the list until the run ends (#1324).
+            self._state.crossing.pop(req.train, None)
             route = launched.route.interleaved()
             occupying = self._state.occupied[req.train]
             occupying[:] = [entry for entry in occupying if entry not in route]
