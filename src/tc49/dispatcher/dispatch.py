@@ -2295,8 +2295,8 @@ class Dispatcher:
         `short_blocks` is read for routing and admission alone: what is
         already routed keeps its route. `without_sensors` changing, either
         way, ends every request (`_end_every_request`, #1321); turning `true`
-        it also releases every train's residue, one `lock_released` per train,
-        since no reading will open it. Turning `false` it brings back the
+        it also releases every train's residue, one `lock_released` per train.
+        Turning `false` it brings back the
         readings and the sensors not reporting recorded meanwhile, at the
         caller's sweep. Answers whether `without_sensors` changed, for the
         caller to sweep. The seeding in the constructor finds no request to
