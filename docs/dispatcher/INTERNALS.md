@@ -67,9 +67,10 @@ opposite `f`, and notes whether `X.e` has read occupied, at the grant or
 since, whether the head is in, and whether the head has reached the far
 sensor. A changed reading is taken against every record that expects that
 sensor, oldest first, as the reading table in
-[GOALS.md](../GOALS.md#dispatching) says. A record is dropped once the whole
-train is in `Y`, or once a later move is granted after the head reached the far
-sensor. The tail leaving `X` drops an older move into `X`, and a placement, a
+[GOALS.md](../GOALS.md#dispatching) says: `tc49.lib.following.follow` gives
+what the reading makes true, and `table.py` acts on each fact. A record is
+dropped once the whole train is in `Y`, or once a later move is granted after
+the head reached the far sensor. The tail leaving `X` drops an older move into `X`, and a placement, a
 removal, a withdrawn move and a change of `without_sensors` drop records too.
 
 ### Transitions
