@@ -66,7 +66,7 @@ def a_state(layout: Layout, route: Route, ahead: int) -> State:
         {"t": 500},
         locks,
         {"t": route.blocks[0]},
-        {"t": Active(request, route, 0, None)},
+        {"t": Active(request.id, route, 0, None)},
         power=ON,
     )
 
@@ -76,7 +76,7 @@ def test_only_ends_something_can_leave_by_carry_a_signal() -> None:
     never clear is furniture. Such an end is in no connection, so it simply
     does not appear."""
     layout, _roster, _ = load("crossover-yard/meet")
-    shown = aspects(a_state(layout, a_route(layout), 0))
+    shown = aspects(a_state(layout, a_route(layout), 0), frozenset())
 
     assert "yard_e.A" in shown  # the end trains enter and leave by
     assert "yard_e.B" not in shown  # the buffer stop
@@ -91,7 +91,7 @@ def test_the_aspect_is_how_far_ahead_the_dispatcher_has_locked() -> None:
     end = ends[0]
 
     for ahead, expected in ((0, "stop"), (1, "caution"), (2, "clear"), (3, "clear")):
-        shown = aspects(a_state(layout, route, ahead))
+        shown = aspects(a_state(layout, route, ahead), frozenset())
         assert shown[end] == expected, f"{ahead} ahead should show {expected}"
 
 
@@ -108,7 +108,7 @@ def test_an_end_no_train_is_leaving_by_shows_stop() -> None:
     (ADR-0093), and not the other end of the very block it stands in."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    shown = aspects(a_state(layout, route, 2))
+    shown = aspects(a_state(layout, route, 2), frozenset())
 
     assert {e for e, a in shown.items() if a != "stop"} == {
         exit_of(layout, route, 0),
@@ -124,7 +124,7 @@ def test_every_signal_along_the_locked_blocks_shows_its_aspect() -> None:
     counted from its own block (ADR-0093)."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    shown = aspects(a_state(layout, route, 2))
+    shown = aspects(a_state(layout, route, 2), frozenset())
 
     assert shown[exit_of(layout, route, 0)] == "clear"
     assert shown[exit_of(layout, route, 1)] == "caution"
@@ -137,7 +137,7 @@ def test_a_committed_block_that_is_not_locked_shows_stop() -> None:
     to another train."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
-    shown = aspects(a_state(layout, route, 1))
+    shown = aspects(a_state(layout, route, 1), frozenset())
 
     assert shown[exit_of(layout, route, 0)] == "caution"
     for i in range(1, len(route.transits)):
@@ -153,14 +153,14 @@ def test_a_passed_signal_shows_stop_once_the_next_block_reads_occupied() -> None
     route = a_route(layout)
     state = a_state(layout, route, 3)
     move = Move(route.blocks[0], route.transits[0], route.blocks[1], [], [])
-    state.active["t"] = Active(state.active["t"].request, route, 1, move)
+    state.active["t"] = Active(state.active["t"].request_id, route, 1, move)
 
     state.block_of["t"] = route.blocks[0]  # the entered block not yet occupied
-    before = aspects(state)
+    before = aspects(state, frozenset())
     assert before[exit_of(layout, route, 0)] == "clear"
 
     state.block_of["t"] = route.blocks[1]  # it now reads occupied
-    after = aspects(state)
+    after = aspects(state, frozenset())
     assert after[exit_of(layout, route, 0)] == "stop"
     assert after[exit_of(layout, route, 1)] == "clear"
     assert after[exit_of(layout, route, 2)] == "caution"
@@ -174,17 +174,17 @@ def test_power_not_on_puts_every_signal_to_stop() -> None:
     has to be undone and put back."""
     layout, _roster, _ = load("crossover-yard/meet")
     state = a_state(layout, a_route(layout), 2)
-    routing = aspects(state)
+    routing = aspects(state, frozenset())
     assert "clear" in routing.values()
 
     for value in (DRAINING, OFF):
         state.power = value
-        stopped = aspects(state)
+        stopped = aspects(state, frozenset())
         assert set(stopped.values()) == {"stop"}, value
         assert set(stopped) == set(routing)  # the same ends (ADR-0032)
 
     state.power = ON
-    assert aspects(state) == routing
+    assert aspects(state, frozenset()) == routing
 
 
 def test_power_going_off_and_on_both_republish_the_aspects() -> None:
