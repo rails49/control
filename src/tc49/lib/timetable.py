@@ -4,11 +4,35 @@ entries in time order (#1345, GLOSSARY.md).
 The store and the scheduler both read a timetable through this module, as
 they read a clock through `tc49.lib.fast_clock`. It has no bus and no file
 access: `read_timetable` takes a parsed YAML document and gives a `Timetable`
-or a refusal, and `Timetable.document` gives the document back.
+or a refusal, and `Timetable.document` gives the document back. `read_entry`
+and `Entry.document` do the same for one entry.
+
+```yaml
+timetable: evening
+layout: crossover-yard
+start: "06:00"
+
+trains:
+  freight_1: { at: yard_w, facing: A-to-B }
+
+entries:
+  - { at: "06:02", train: freight_1, to: [dn_e, up_e], dwell: 2, description: meets the express }
+  - { at: "06:10", train: freight_1, turn: true }
+  - { at: "06:12", train: freight_1, to: [yard_w.B] }
+```
+
+The values are frozen. A changed timetable is a new one: `Timetable.added`,
+`removed` and `replaced` for its entries, `dataclasses.replace` for its name,
+and every one of them holds its entries in order.
+
+A time of day is held in seconds since midnight on a whole minute, which is
+what `"HH:MM"` says. `tc49.lib.fast_clock.start_of` rounds a clock's time down
+to one.
 """
 
 import re
-from dataclasses import dataclass
+from bisect import bisect_right
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from tc49.lib.fast_clock import DAY_S
@@ -31,7 +55,9 @@ class TrainStart:
 @dataclass(frozen=True)
 class Entry:
     """One row of a timetable: at a time, send a train to one of a set of
-    arrival ends, or turn it round."""
+    arrival ends, or turn it round. It carries no id, so two entries with the
+    same fields are equal. A time that is not a minute of the day is a
+    `ValueError`."""
 
     at: int
     """The time of day it is due, in seconds since midnight on a whole
@@ -48,6 +74,11 @@ class Entry:
 
     def __post_init__(self) -> None:
         _check_minute(self.at, "an entry's 'at'")
+
+    @property
+    def turn(self) -> bool:
+        """Whether the entry is a turn-round: it has no arrival ends."""
+        return not self.to
 
     def document(self) -> dict[str, Any]:
         """The entry as the document lists it: `at` as `"HH:MM"`, `to` or
@@ -67,17 +98,26 @@ class Entry:
 
 @dataclass(frozen=True)
 class Timetable:
-    """A railroad's timetable."""
+    """A railroad's timetable.
+
+    Made with entries in any order, it holds them in order (see `entries`).
+    A `name` or `layout` that is no path segment, or a `start` that is not a
+    minute of the day, is a `ValueError`."""
 
     name: str
+    """Its name, a path segment in the store: not empty, with no `/` and no
+    leading `.`."""
     layout: str
-    """The railroad it belongs to."""
+    """The railroad it belongs to, a path segment as `name` is."""
     start: int
     """The time of day it starts at, in seconds since midnight on a whole
     minute."""
     trains: dict[str, TrainStart]
     """Where each train stands at the start."""
     entries: tuple[Entry, ...]
+    """The entries in order of time counted from `start`, so with a start of
+    22:00 an entry at 01:00 comes after one at 23:00. Entries in the same
+    minute keep the order they were given in."""
 
     def __post_init__(self) -> None:
         for field, name in (("timetable", self.name), ("layout", self.layout)):
@@ -87,6 +127,50 @@ class Timetable:
                     " and no leading '.'"
                 )
         _check_minute(self.start, "a timetable's 'start'")
+        # sorted() is stable, so entries in one minute keep the order given.
+        ordered = sorted(self.entries, key=lambda entry: self.since_start(entry.at))
+        object.__setattr__(self, "entries", tuple(ordered))
+
+    def since_start(self, time: int) -> int:
+        """Seconds from `start` to the time of day `time`, in seconds since
+        midnight, within the day: `0` to `DAY_S - 1`. With a start of 22:00,
+        01:00 is three hours."""
+        return (time - self.start) % DAY_S
+
+    def place(self, at: int) -> int:
+        """The position in `entries` a new entry at the time of day `at`
+        goes in: after the last entry at or before `at`, so after every entry
+        that shares its minute."""
+        return bisect_right(
+            self.entries,
+            self.since_start(at),
+            key=lambda entry: self.since_start(entry.at),
+        )
+
+    def added(self, entry: Entry) -> "Timetable":
+        """The timetable with `entry` added at `place(entry.at)`."""
+        position = self.place(entry.at)
+        return replace(
+            self,
+            entries=(*self.entries[:position], entry, *self.entries[position:]),
+        )
+
+    def removed(self, index: int) -> "Timetable":
+        """The timetable without the entry at position `index`."""
+        entries = list(self.entries)
+        del entries[index]
+        return replace(self, entries=tuple(entries))
+
+    def replaced(self, index: int, entry: Entry) -> "Timetable":
+        """The timetable with `entry` in place of the one at position
+        `index`. Where `entry.at` is the time the old one had, it stays at
+        `index`. Where it is another, it moves to its place in the order,
+        `self.removed(index).place(entry.at)`."""
+        if entry.at != self.entries[index].at:
+            return self.removed(index).added(entry)
+        entries = list(self.entries)
+        entries[index] = entry
+        return replace(self, entries=tuple(entries))
 
     def document(self) -> dict[str, Any]:
         """The store's document. `read_timetable` reads it as an equal
@@ -115,7 +199,7 @@ def read_timetable(doc: object) -> Timetable:
     - `trains` maps each train to its `at`, a block, and its `facing`,
       `A-to-B` or `B-to-A`, both and nothing else. It may be empty;
     - `entries` is a list of entries as `read_entry` reads them. It may be
-      empty, and need not be in order.
+      empty. One out of order is put in order, not refused.
 
     A time is text because YAML 1.1, which the store reads in, takes an
     unquoted `12:30` as the integer 750. Only the shape is checked: the
@@ -171,6 +255,9 @@ def read_entry(doc: object, where: str = "entry") -> Entry:
     non-empty text. `dwell` is a whole number of minutes, 0 or more, and goes
     only with `to`. A bool is no number. `description` is text. `dwell` and
     `description` may be left out, and any other key is refused.
+
+    An entry with a `dwell` of 0 or an empty `description` reads equal to one
+    that leaves it out. A block or a train is not checked against a railroad.
     """
     check_keys(doc, where, {"at", "train"}, {"to", "turn", "dwell", "description"})
     fields = cast(dict[str, Any], doc)
