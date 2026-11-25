@@ -1988,6 +1988,86 @@ def test_a_name_with_a_slash_in_it_is_no_delete_route(
     )
 
 
+def _timetabled(store: AssetStore, railroad: str, *names: str) -> None:
+    """Give `railroad` one timetable under each of `names`."""
+    for name in names:
+        store.put_timetable(
+            {**TIMETABLE, "layout": railroad, "timetable": name}, railroad, name
+        )
+
+
+def test_a_copied_railroad_has_its_sources_timetables(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """Each under its own name with `layout` naming the copy, and the
+    source's as they were (#1345)."""
+    _timetabled(store, "facing-pair", "evening", "morning")
+    filed = tmp_path / "timetables" / "facing-pair"
+    before = {path.name: path.read_bytes() for path in filed.iterdir()}
+
+    assert handle(
+        store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"}
+    ) == (200, {"copied": "b"})
+
+    assert handle(store, backup, "GET", "/timetables/b", None) == (
+        200,
+        {"timetables": ["evening", "morning"]},
+    )
+    for name in ("evening", "morning"):
+        assert handle(store, backup, "GET", f"/timetables/b/{name}", None) == (
+            200,
+            {**TIMETABLE, "layout": "b", "timetable": name},
+        )
+    assert {path.name: path.read_bytes() for path in filed.iterdir()} == before
+
+
+def test_a_copy_onto_a_name_that_has_a_timetable_is_a_conflict(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """A timetable alone is a railroad's already, as a clock alone is."""
+    _timetabled(store, "b", "night")
+    _timetabled(store, "facing-pair", "evening")
+    status, body = handle(
+        store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"}
+    )
+    assert (status, body) == (409, {"error": "'b' is already a railroad"})
+    assert not list((tmp_path / "layouts").glob("b.*"))
+    assert store.timetables("b") == ["night"]
+
+
+def test_a_copy_whose_sources_timetable_does_not_read_writes_nothing(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    _timetabled(store, "facing-pair", "evening")
+    filed = tmp_path / "timetables" / "facing-pair"
+    (filed / "morning.timetable.yaml").write_text("timetable: morning\n")
+    status, _ = handle(
+        store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"}
+    )
+    assert status == 400
+    assert not list((tmp_path / "layouts").glob("b.*"))
+    assert not (tmp_path / "timetables" / "b").exists()
+
+
+def test_a_deleted_railroad_takes_its_timetables_and_no_others(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    _timetabled(store, "facing-pair", "evening", "morning")
+    _timetabled(store, "reversing-loops-v0", "evening")
+    assert handle(store, backup, "DELETE", "/railroads/facing-pair", None)[0] == 200
+    assert not (tmp_path / "timetables" / "facing-pair").exists()
+    assert handle(store, backup, "GET", "/timetables/facing-pair", None) == (
+        200,
+        {"timetables": []},
+    )
+    assert handle(
+        store, backup, "GET", "/timetables/reversing-loops-v0/evening", None
+    ) == (
+        200,
+        {**TIMETABLE, "layout": "reversing-loops-v0", "timetable": "evening"},
+    )
+
+
 def test_a_deleted_railroad_leaves_the_catalogue_as_it_was(
     store: AssetStore, backup: Backup
 ) -> None:
