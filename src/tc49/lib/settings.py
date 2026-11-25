@@ -142,20 +142,19 @@ def point_gap(value: object) -> float | None:
     return float(value)
 
 
-def short_blocks(value: object) -> bool | None:
-    """`value` as a `short_blocks`, or None where it is not one: `True` or
-    `False`. A number is no bool, `0` and `1` included."""
+def on_or_off(value: object) -> bool | None:
+    """`value` as a setting that is on or off, or None where it is not one:
+    `True` or `False`. A number is no bool, `0` and `1` included."""
     if not isinstance(value, bool):
         return None
     return value
 
 
-def without_sensors(value: object) -> bool | None:
-    """`value` as a `without_sensors`, or None where it is not one: `True` or
-    `False`. A number is no bool, `0` and `1` included."""
-    if not isinstance(value, bool):
-        return None
-    return value
+short_blocks = on_or_off
+"""`value` as a `short_blocks`: `on_or_off`."""
+
+without_sensors = on_or_off
+"""`value` as a `without_sensors`: `on_or_off`."""
 
 
 @dataclass(frozen=True)

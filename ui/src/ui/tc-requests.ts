@@ -26,13 +26,8 @@ import { customElement, property, state } from "lit/decorators.js";
 import { reordering, type RequestRow } from "../model/requests.js";
 import { requestsStyles } from "./tc-requests.styles.js";
 
-/** A cancel pressed: the request to end. */
-export interface RequestCancel {
-  id: string;
-}
-
-/** "Arrived" pressed: the request whose train is in its destination block. */
-export interface RequestArrival {
+/** A row's cancel or "arrived" pressed: the request the row shows. */
+export interface RequestPress {
   id: string;
 }
 
@@ -156,7 +151,7 @@ export class TcRequests extends LitElement {
 
   private cancel(id: string): void {
     this.dispatchEvent(
-      new CustomEvent<RequestCancel>("request-cancelled", {
+      new CustomEvent<RequestPress>("request-cancelled", {
         detail: { id },
         bubbles: true,
         composed: true,
@@ -166,7 +161,7 @@ export class TcRequests extends LitElement {
 
   private arrived(id: string): void {
     this.dispatchEvent(
-      new CustomEvent<RequestArrival>("request-arrived", {
+      new CustomEvent<RequestPress>("request-arrived", {
         detail: { id },
         bubbles: true,
         composed: true,

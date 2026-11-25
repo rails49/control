@@ -158,6 +158,7 @@ from tc49.lib.layout import Point
 from tc49.lib.settings import (
     SPEEDS,
     arrival_allowance,
+    on_or_off,
     point_gap,
     sensor_silence,
     short_blocks,
@@ -602,18 +603,22 @@ def said_short_blocks(payload: object) -> bool | None:
     """The `short_blocks` `tc49/layout/state/settings` says, whether a route
     may use a block shorter than the train, or None where the row says none:
     the field missing or not a bool (#1286)."""
-    if not isinstance(payload, dict):
-        return None
-    return short_blocks(cast(dict[str, object], payload).get("short_blocks"))
+    return _said_on_or_off(payload, "short_blocks")
 
 
 def said_without_sensors(payload: object) -> bool | None:
     """The `without_sensors` `tc49/layout/state/settings` says, whether the
     railroad runs without sensors, or None where the row says none: the
     field missing or not a bool (#1316)."""
+    return _said_on_or_off(payload, "without_sensors")
+
+
+def _said_on_or_off(payload: object, field: str) -> bool | None:
+    """`field` of a `tc49/layout/state/settings` row as `on_or_off` reads it,
+    or None where the row is no object."""
     if not isinstance(payload, dict):
         return None
-    return without_sensors(cast(dict[str, object], payload).get("without_sensors"))
+    return on_or_off(cast(dict[str, object], payload).get(field))
 
 
 def said_speeds(payload: object) -> dict[str, float] | None:
