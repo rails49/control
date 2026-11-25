@@ -149,6 +149,53 @@ def test_a_clock_set_is_said_at_once_and_counted_on_the_run_clock() -> None:
     assert kept == [KeptClock(9 * 3600, 2.0)]
 
 
+def test_the_clock_stands_while_the_simulator_states_power_off() -> None:
+    """The rule is the row's (`lib.clock_row`), by the power this binding
+    states: it comes up `off`, ON is answered at 3 s of run clock, OFF at 6 s
+    and ON again at 8 s, on a clock at a speed-up of 2."""
+    layout, _roster, _scenario = load("crossover-yard/meet")
+    clock = Clock()
+    bus = InProcessBus(clock)
+    kept: list[KeptClock] = []
+    row = FastClockRow(
+        bus,
+        FastClock(SEVEN, 2.0, clock.now),
+        KeptClock(SEVEN, 2.0),
+        lambda: clock.now,
+        kept.append,
+    )
+    simulator = Simulator(bus, layout, clock, fast=row)
+    said: list[tuple[float, int]] = []
+    bus.subscribe(
+        CLOCK, lambda _topic, payload: said.append((clock.now, payload["time"]))
+    )
+    presses = {3: "on", 6: "off", 8: "on"}
+    turn = 0
+
+    def stop() -> bool:
+        """A press before the turn that ends at its second, drained there."""
+        nonlocal turn
+        turn += 1
+        if turn in presses:
+            bus.publish("tc49/layout/power_wanted", {"power": presses[turn]})
+        return turn > 10
+
+    simulator.run_live(1000.0, sleep=lambda _seconds: None, stop=stop)
+    assert said == [
+        (0.0, SEVEN),
+        (1.0, SEVEN),
+        (2.0, SEVEN),
+        (3.0, SEVEN),
+        (4.0, SEVEN + 2),
+        (5.0, SEVEN + 4),
+        (6.0, SEVEN + 6),
+        (7.0, SEVEN + 6),
+        (8.0, SEVEN + 6),
+        (9.0, SEVEN + 8),
+        (10.0, SEVEN + 10),
+    ]
+
+
 def test_a_simulator_given_no_clock_says_none() -> None:
     """What the research harness builds: its traces are what they were."""
     layout, _roster, scenario = load("crossover-yard/meet")
