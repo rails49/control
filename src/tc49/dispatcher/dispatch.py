@@ -1354,6 +1354,8 @@ class Dispatcher:
             self._place(payload)
         elif leaf == "cancel_wanted":
             self._revoke(payload)
+        elif leaf == "arrival_wanted":
+            self._arrive(payload)
         elif leaf == "reorder_wanted":
             self._reorder(payload)
         elif leaf == "point_wanted":
@@ -1721,6 +1723,40 @@ class Dispatcher:
         # What a cancelled route was holding is exactly what somebody else
         # has been refused for, and a request that waited can have been
         # what kept its train's next one from starting (ADR-0047).
+        self._sweep()
+
+    def _arrive(self, payload: Payload) -> None:
+        """A person saying the train of an underway request is in its
+        destination block, on a railroad run without sensors (#1314), where
+        nothing else says so. Accepted at any power.
+
+        Everything the train holds but the route's last block is released as
+        one `lock_released`, the request completes, and `train_placed` says
+        the train stands in that block. The requests chained after it depart
+        by the end opposite the one the route came in by, as after an arrival
+        followed by sensors (`_request_over`), and a sweep hands the released
+        track on. A payload with no readable id, an id the dispatcher does not
+        hold, a request still waiting, and any request while the railroad runs
+        by its sensors are dropped in silence and to the trace (ADR-0034).
+        """
+        state = self._state
+        rid = readable_id(payload)
+        req = None if rid is None else self._listed(rid)
+        if not state.without_sensors or req is None:
+            return
+        active = state.active.get(req.train)
+        if active is None or active.request is not req:
+            return
+        train = req.train
+        block = active.route.arrival_block
+        state.occupied[train] = [block]
+        self._release(train, keep=(block,))
+        state.block_of[train] = block
+        del state.active[train]
+        self._requests.remove(req)
+        self._publish("request_completed", {"id": req.id})
+        self._publish("train_placed", {"train": train, "block": block})
+        self._ending(req, opposite_end(self._entered(active.route)))
         self._sweep()
 
     def _withdrawn(self, payload: Payload) -> None:

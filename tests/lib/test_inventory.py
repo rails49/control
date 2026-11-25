@@ -25,6 +25,7 @@ RUN = "tc49/dispatch/state/run"
 MOVING = "tc49/dispatch/state/moving"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
+ARRIVAL_WANTED = "tc49/dispatch/arrival_wanted"
 POINT_WANTED = "tc49/dispatch/point_wanted"
 REORDER_WANTED = "tc49/dispatch/reorder_wanted"
 ALLOCATION = "tc49/dispatch/state/allocation"
@@ -250,6 +251,14 @@ def test_a_person_cancels_and_reorders_one_request_by_id() -> None:
     assert ALLOCATION not in INBOUND
 
 
+def test_a_person_says_a_request_has_arrived_by_its_id() -> None:
+    """On a railroad run without sensors nothing else tells the dispatcher a
+    train is in its destination block (#1314): a page says so, naming the
+    request."""
+    assert ARRIVAL_WANTED in INBOUND
+    assert TOPICS[ARRIVAL_WANTED].fields == ("id",)
+
+
 def test_a_request_may_follow_an_earlier_one_of_its_train() -> None:
     """A train's later request starts where its earlier one ends (#820):
     `after` names the request it follows, and the request then carries no
@@ -284,6 +293,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         REVERSAL_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
+        ARRIVAL_WANTED,
         REORDER_WANTED,
         POINT_WANTED,
         THROTTLE_WANTED,
