@@ -701,15 +701,20 @@ def retiring(
     locomotive in a block the dispatcher believes free (ADR-0049). The table
     given is left unchanged."""
     if keep is None:
-        standing = table.block_of.get(train)
-        on = table.occupied.get(train, ())
-        keep = on if standing is None else (*on, standing)
+        keep = _on(table, train)
     released, effects = releasing(table, train, keep)
     new = _copied(released)
     del new.active[train]
     new.crossing.pop(train, None)
     new.departure.pop(train, None)
     return new.table(), effects
+
+
+def _on(table: Table, train: str) -> Sequence[str]:
+    """What the train is on: its `occupied` list and the block it stands in."""
+    standing = table.block_of.get(train)
+    on = table.occupied.get(train, ())
+    return on if standing is None else (*on, standing)
 
 
 def placing(table: Table, train: str, block: str) -> tuple[Table, list[Effect]]:
@@ -802,9 +807,14 @@ def opening(table: Table) -> tuple[Table, list[Effect]]:
 
 def entered(layout: Layout, route: Route) -> str:
     """The end of its arrival block a route comes in through."""
-    ends = transit_ends(layout, route.arrival_block, route.transits[-1])
+    return _ends(layout, route.arrival_block, route.transits[-1])[0]
+
+
+def _ends(layout: Layout, block: str, transit: str) -> tuple[str, str]:
+    """The two ends a route's transit joins, the end on `block` first."""
+    ends = transit_ends(layout, block, transit)
     assert ends is not None  # a route's transits reach its blocks
-    return ends[0]
+    return ends
 
 
 def committing(
@@ -875,13 +885,8 @@ def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]
         active, cur_index=active.cur_index + 1, outstanding=move
     )
     new.crossing[train] = move.transit
-    occupying = new.occupied[train]
-    if move.transit in occupying:
-        occupying.remove(move.transit)
-    occupying.append(move.transit)
-    ends = transit_ends(table.layout, move.into, move.transit)
-    assert ends is not None  # a route's transits reach its blocks
-    entry, leaving = ends
+    _to_head(new.occupied[train], move.transit)
+    entry, leaving = _ends(table.layout, move.into, move.transit)
     new.following[train] = [
         each for each in new.following.get(train, []) if not each.at_far
     ] + [
@@ -1001,11 +1006,7 @@ def setting_without_sensors(
     new = replace(table, without_sensors=without_sensors)
     effects: list[Effect] = []
     for train in sorted(new.active):
-        standing = new.block_of.get(train)
-        on = new.occupied.get(train, ())
-        new, released = releasing(
-            new, train, on if standing is None else (*on, standing)
-        )
+        new, released = releasing(new, train, _on(new, train))
         effects += released
     new = replace(new, active={}, following={}, departure={})
     effects.append(RunsEnded())
@@ -1149,12 +1150,17 @@ def _head_in(draft: _Draft, train: str, at: int) -> list[Effect]:
     if active is not None:
         draft.active[train] = replace(active, outstanding=None)
     draft.crossing.pop(train, None)
-    occupying = draft.occupied[train]
-    if into in occupying:
-        occupying.remove(into)
-    occupying.append(into)
+    _to_head(draft.occupied[train], into)
     draft.block_of[train] = into
     return [HeadIn(train, into)]
+
+
+def _to_head(occupying: list[str], entry: str) -> None:
+    """`entry` at the head of what a train occupies, moved there if it was
+    already on the list."""
+    if entry in occupying:
+        occupying.remove(entry)
+    occupying.append(entry)
 
 
 def _tail_out(draft: _Draft, train: str, at: int) -> list[Effect]:

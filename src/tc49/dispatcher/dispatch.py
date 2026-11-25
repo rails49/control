@@ -1633,11 +1633,14 @@ class Dispatcher:
         Every changed reading ends in a sweep, for whatever it released or
         disputed.
         """
-        table, effects = reading(self._state.table, sensor, occupied)
-        if table is self._state.table:
+        self._sensed(reading(self._state.table, sensor, occupied))
+
+    def _sensed(self, result: tuple[Table, list[Effect]]) -> None:
+        """What a reading or a list of sensors not reporting came to, where it
+        changed the table: taken, then residue opened, then a sweep."""
+        if result[0] is self._state.table:
             return
-        self._state.table = table
-        self._published(effects)
+        self._take(result)
         self._take(opening(self._state.table))
         self._sweep()
 
@@ -1798,13 +1801,7 @@ class Dispatcher:
         listed = unknown_sensors(payload)
         if listed is None:
             return
-        table, effects = not_reporting(self._state.table, listed)
-        if table is self._state.table:
-            return
-        self._state.table = table
-        self._published(effects)
-        self._take(opening(self._state.table))
-        self._sweep()
+        self._sensed(not_reporting(self._state.table, listed))
 
     def _on_overdue(self, payload: Payload) -> None:
         """Which trains `layout` has stopped for not arriving within the
