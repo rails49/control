@@ -69,6 +69,7 @@ from tc49.lib.layout import (
     transit_ends,
 )
 from tc49.lib.payload import (
+    chosen,
     gesture,
     grant,
     kept_allocation,
@@ -122,6 +123,7 @@ class Scheduler:
             bus.last_values.get(ALLOCATION)
         )
         self._train_of: dict[str, str] = {}  # request id -> the train it moves
+        self._routes: dict[str, tuple[str, ...]] = {}  # request id -> its route
         self._counters: Counter[str] = Counter()  # one undivided minter
         # What makes a drag's id unique across a restart of this process
         # alone: the counter above starts empty in every process, so without
@@ -382,11 +384,39 @@ class Scheduler:
             submitted, mover = readable_id(payload), named_train(payload)
             if submitted is not None and mover is not None:
                 self._train_of[submitted] = mover
+        elif leaf == "route_chosen":
+            picked = chosen(payload)
+            if picked is not None:
+                self._routes[picked.id] = picked.route
         elif leaf in ("request_completed", "request_rejected", "request_cancelled"):
             answered = readable_id(payload)
             if answered is not None:
-                self._train_of.pop(answered, None)
+                route = self._routes.pop(answered, None)
+                train = self._train_of.pop(answered, None)
+                if leaf == "request_completed" and route and train is not None:
+                    self._ran(train, route)
         self._publish_facing()
+
+    def _ran(self, train: str, route: tuple[str, ...]) -> None:
+        """Facing after a request completed whose moves no grant described:
+        `_across` applied to each transit of the route in turn, from the
+        facing held (#1317).
+
+        Only where that facing does not already name the route's last block.
+        Where it does, the moves were granted and taken up one by one, and
+        nothing is left to carry. A train with no facing held gets none, and
+        a transit this layout does not hold leaves the facing as it was.
+        """
+        facing = self._facing.get(train)
+        if facing is None or block_of(facing) == route[-1]:
+            return
+        for transit, into in zip(route[1::2], route[2::2]):
+            ends = transit_ends(self._layout, into, transit)
+            if ends is None:
+                return
+            entered, left_by = ends
+            facing = self._across(facing, left_by, entered)
+        self._facing[train] = facing
 
     def _granted(self, payload: Payload) -> None:
         """Facing after a move the dispatcher authorised, **kept** rather than

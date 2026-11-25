@@ -595,6 +595,187 @@ def test_facing_is_published_only_when_it_moves() -> None:
     assert len(seen) == 1
 
 
+LOOP_ROUTE = ["CW", "j1.A1_A__CW_A", "A1", "j1.A1_B__CE1_B", "CE1"]
+"""Two transits on the bench railroad: out of `CW.A` into `A1.A`, then out of
+`A1.B` into `CE1.B`. Both blocks entered have a second end, so a train that
+ran nose-first and one that was propelled come to face opposite ways."""
+
+
+def without_sensors(
+    bus: InProcessBus, request: str, train: str, route: list[str]
+) -> None:
+    """A request run on a railroad without sensors, as the scheduler reads
+    it: announced, its route chosen, and completed when a person says the
+    train has arrived. No move is granted and no allocation names the train
+    anywhere (#1314)."""
+    announce(bus, "request_submitted", {"id": request, "train": train})
+    chose(bus, request, route)
+    announce(bus, "request_completed", {"id": request})
+
+
+def test_a_request_completed_with_no_move_faces_away_from_the_end_entered() -> None:
+    """`shunter` stands in `CW` facing B-to-A, nose at `CW.A`, and leaves by
+    that end. Nose-first the whole way, it enters `CE1` through `CE1.B` and
+    faces away from it (#1317)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "B-to-A")}),
+    )
+
+    without_sensors(bus, "shunter-1", "shunter", LOOP_ROUTE)
+    assert facing(seen)["shunter"] == "CE1.B-to-A"
+
+
+def test_a_request_completed_with_no_move_propelled_faces_the_end_entered() -> None:
+    """The same route with `shunter` facing A-to-B, so it leaves `CW` by the
+    end its tail stands at. Propelled the whole way, it enters `CE1` through
+    `CE1.B` tail-first and its nose points at that end."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "A-to-B")}),
+    )
+
+    without_sensors(bus, "shunter-1", "shunter", LOOP_ROUTE)
+    assert facing(seen)["shunter"] == "CE1.A-to-B"
+
+
+def test_a_request_completed_with_no_move_into_a_terminal_block() -> None:
+    """`express_2` leaves `up_e` nose-first by `up_e.A`, through `up_w` and
+    into `yard_w` through `yard_w.B`. `yard_w.A` is a wall, so the train
+    faces the one connected end (#145)."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+
+    without_sensors(
+        bus,
+        "express_2-1",
+        "express_2",
+        ["up_e", "crossover.up_straight", "up_w", "west_ladder.to_up", "yard_w"],
+    )
+    assert facing(seen)["express_2"] == "yard_w.A-to-B"
+
+
+def test_a_route_chosen_alone_publishes_no_facing() -> None:
+    """Committing to a route is a plan (ADR-0019): only the request's
+    completion says the train ran it."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "B-to-A")}),
+    )
+    bus.drain()
+    published = len(seen)
+
+    announce(bus, "request_submitted", {"id": "shunter-1", "train": "shunter"})
+    chose(bus, "shunter-1", LOOP_ROUTE)
+    assert len(seen) == published
+
+
+def test_a_request_completed_after_its_moves_publishes_no_facing() -> None:
+    """A run followed by sensors: each move granted and taken up when the
+    allocation names the train in the block entered. The facing already
+    names the route's last block when the request completes. Propelled, so
+    running the route again from there would turn the train round."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "A-to-B")}),
+    )
+    announce(bus, "request_submitted", {"id": "shunter-1", "train": "shunter"})
+    chose(bus, "shunter-1", LOOP_ROUTE)
+    arrived(bus, "shunter", "j1.A1_A__CW_A", "A1")
+    arrived(bus, "shunter", "j1.A1_B__CE1_B", "CE1")
+    assert facing(seen)["shunter"] == "CE1.A-to-B"
+    published = len(seen)
+
+    announce(bus, "request_completed", {"id": "shunter-1"})
+    assert len(seen) == published
+
+
+def test_the_placement_after_a_request_completed_with_no_move_publishes_nothing() -> (
+    None
+):
+    """On a railroad run without sensors the dispatcher follows the
+    completion with `train_placed` naming the same block. Its run letter is
+    carried into that block and nothing moves, propelled or into a terminal
+    block alike."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "A-to-B")}),
+    )
+    without_sensors(bus, "shunter-1", "shunter", LOOP_ROUTE)
+    published = len(seen)
+
+    placed(bus, {"train": "shunter", "block": "CE1"})
+    assert len(seen) == published
+
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(bus, yard(), seeded())
+    without_sensors(
+        bus,
+        "express_2-1",
+        "express_2",
+        ["up_e", "crossover.up_straight", "up_w", "west_ladder.to_up", "yard_w"],
+    )
+    published = len(seen)
+
+    placed(bus, {"train": "express_2", "block": "yard_w"})
+    assert len(seen) == published
+
+
+def test_a_request_cancelled_or_rejected_drops_its_route() -> None:
+    """The route is the request's and goes when the request ends. The id is
+    announced again after the end, so the train is known once more, and the
+    completion that follows still moves no arrow."""
+    for ended in ("request_cancelled", "request_rejected"):
+        bus = InProcessBus(Clock())
+        seen = collect(bus, FACING)
+        Scheduler(
+            bus,
+            reversing_loops(),
+            seed(reversing_loops(), {"shunter": TrainSpec("CW", "B-to-A")}),
+        )
+        announce(bus, "request_submitted", {"id": "shunter-1", "train": "shunter"})
+        chose(bus, "shunter-1", LOOP_ROUTE)
+        announce(bus, ended, {"id": "shunter-1", "reason": "revoked"})
+        published = len(seen)
+
+        announce(bus, "request_submitted", {"id": "shunter-1", "train": "shunter"})
+        announce(bus, "request_completed", {"id": "shunter-1"})
+        assert len(seen) == published, ended
+
+
+def test_a_request_completed_over_a_route_of_one_block_changes_nothing() -> None:
+    """A train already in its destination block is sent nowhere."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, FACING)
+    Scheduler(
+        bus,
+        reversing_loops(),
+        seed(reversing_loops(), {"shunter": TrainSpec("CW", "B-to-A")}),
+    )
+    bus.drain()
+    published = len(seen)
+
+    without_sensors(bus, "shunter-1", "shunter", ["CW"])
+    assert len(seen) == published
+
+
 WANTED = "tc49/schedule/request_wanted"
 
 
