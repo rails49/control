@@ -741,8 +741,22 @@ block the move entered, the train's nose past the signal it left by
 publishes the allocation recording an arrival before any grant that arrival
 leads to, so the facing `layout` signs the next `move` on has already moved
 ([#1038](https://github.com/rails49/control/issues/1038)). A restart reads
-the kept facing off the retained allocation's `crossing` instead. The scheduler
-publishes facing on a state topic that every view reads to draw the train's
+the kept facing off the retained allocation's `crossing` instead.
+
+On a railroad run without sensors no `move_granted` is published: the whole
+route is locked at once, a person drives the train, and the request completes
+when the person says it has arrived
+([#1314](https://github.com/rails49/control/issues/1314)). So the scheduler
+also keeps the route each `route_chosen` names, until the request completes,
+is rejected or is cancelled. At `request_completed`, where the train's facing
+does not yet name the route's last block, the train takes the facing that
+running the whole route gives: the first three rules applied to each transit
+in turn. Where the facing already names that block, as after a run followed by
+sensors, nothing changes. The `train_placed` the dispatcher publishes next
+names the same block and so changes nothing either
+([#1317](https://github.com/rails49/control/issues/1317)).
+
+The scheduler publishes facing on a state topic that every view reads to draw the train's
 direction arrow
 ([ADR-0032](adr/0032-a-joining-client-is-served-the-runs-retained-state.md))
 and `layout` reads to give a speed its sign
