@@ -369,6 +369,7 @@ describe("Ordering", () => {
       "railroad",
       "settings",
       "taken",
+      "timetable",
       "unfit",
       "unknown_sensors",
     ]);

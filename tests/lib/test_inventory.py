@@ -20,6 +20,9 @@ from tc49.lib.inventory import (
 
 REQUEST_WANTED = "tc49/schedule/request_wanted"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
+TIMETABLE_WANTED = "tc49/schedule/timetable_wanted"
+TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted"
+TIMETABLE = "tc49/schedule/state/timetable"
 RUN_WANTED = "tc49/dispatch/run_wanted"
 RUN = "tc49/dispatch/state/run"
 MOVING = "tc49/dispatch/state/moving"
@@ -291,6 +294,8 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
     assert INBOUND == {
         REQUEST_WANTED,
         REVERSAL_WANTED,
+        TIMETABLE_WANTED,
+        TIMETABLE_RECORD_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
         ARRIVAL_WANTED,
@@ -501,3 +506,23 @@ def test_layout_is_asked_to_take_a_move_back_and_says_when_it_has() -> None:
         assert TOPICS[topic].fields == ("train", "transit", "into")
         assert topic not in INBOUND
         assert not is_state_topic(topic)
+
+
+def test_the_loaded_timetable_is_the_schedulers_state_and_two_gestures_ask() -> None:
+    """A page asks for a new timetable and switches Record (#1345, #1352).
+    The row is the scheduler's and no page writes it."""
+    assert TOPICS[TIMETABLE_WANTED].fields == ("timetable", "new")
+    assert TOPICS[TIMETABLE_RECORD_WANTED].fields == ("record",)
+    assert {TIMETABLE_WANTED, TIMETABLE_RECORD_WANTED} <= INBOUND
+    assert TOPICS[TIMETABLE].fields == (
+        AT,
+        "timetable",
+        "phase",
+        "record",
+        "start",
+        "trains",
+        "positioning",
+        "entries",
+    )
+    assert is_state_topic(TIMETABLE)
+    assert TIMETABLE not in INBOUND

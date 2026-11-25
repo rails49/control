@@ -200,6 +200,29 @@ TOPICS: dict[str, Topic] = {
     "tc49/schedule/reversal_wanted": Topic(("train",), browser=True),
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
     "tc49/schedule/state/facing": Topic((AT, "facing")),
+    # A person asks for a timetable by name: with `new`, which is `true` or
+    # left out, a new one is made, taken while power reads `off` (#1345,
+    # #1352). And a person switches Record, a boolean.
+    "tc49/schedule/timetable_wanted": Topic(("timetable", "new"), browser=True),
+    "tc49/schedule/timetable_record_wanted": Topic(("record",), browser=True),
+    # The loaded timetable, written when it changes: `timetable` is its name,
+    # or `null`, and then no other field is present. `phase` is `loaded`,
+    # `running` or `over`, `start` is `"HH:MM"`, `trains` maps each train to
+    # `{at, facing}`, `positioning` lists request ids, and `entries` is each
+    # entry's document fields with its `state`, its `request` where it went
+    # out as one and `ended` where it ended by arrival (#1345).
+    "tc49/schedule/state/timetable": Topic(
+        (
+            AT,
+            "timetable",
+            "phase",
+            "record",
+            "start",
+            "trains",
+            "positioning",
+            "entries",
+        )
+    ),
     # A train's later request starts where its earlier one ends (#820):
     # `after` is the id of the train's request this one follows, and is left
     # out where it follows none. With it `depart` is `null`, the departure end
@@ -539,7 +562,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the page's write surface, and what a broker's
 ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
 the rows' marks rather than off a prefix — a topic names the component that
-responds to it, so the fifteen gestures sit under `schedule`, `dispatch` and
+responds to it, so the eighteen gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 

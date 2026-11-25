@@ -130,6 +130,12 @@ and a reader that subscripted it would be taken down by whatever wrote it.
 `Ordering` is the comparison a consumer makes with it, and it lives here
 because this is where payloads are read — the stamping lives where the
 binding publishes, in `lib.bus`.
+
+The scheduler's **timetable** payloads are read here (#1345, #1352): the two
+gestures a page writes, `wanted_timetable` and `wanted_record`; the clock row
+it moves the timetable's time by, `said_clock`; and, at a restart, the name
+on its own retained row, `loaded_timetable`, and the requests the
+allocation lists, `listed_requests`.
 """
 
 import math
@@ -206,6 +212,44 @@ def named_train(payload: object) -> str | None:
         return None
     train = cast(dict[str, object], payload).get("train")
     return train if isinstance(train, str) else None
+
+
+@dataclass(frozen=True)
+class TimetableWanted:
+    """What a `tc49/schedule/timetable_wanted` gesture asks for: the
+    timetable `name` loaded, or, with `new`, a new one of that name made
+    (#1345)."""
+
+    name: str
+    new: bool
+
+
+def wanted_timetable(payload: object) -> TimetableWanted | None:
+    """The timetable a `timetable_wanted` gesture asks for, or None where it
+    asks for none.
+
+    `timetable` is text and not empty. `new` is left out or `true`, and any
+    other value drops the gesture. Whether the name is one a timetable
+    document takes is `tc49.lib.timetable`'s to say.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    name = fields.get("timetable")
+    if not isinstance(name, str) or not name:
+        return None
+    if "new" in fields and fields["new"] is not True:
+        return None
+    return TimetableWanted(name, "new" in fields)
+
+
+def wanted_record(payload: object) -> bool | None:
+    """What a `tc49/schedule/timetable_record_wanted` gesture switches
+    Record to, or None where it says neither (#1345)."""
+    if not isinstance(payload, dict):
+        return None
+    record = cast(dict[str, object], payload).get("record")
+    return record if isinstance(record, bool) else None
 
 
 def readable_id(payload: object) -> str | None:
@@ -494,6 +538,17 @@ def wanted_clock(payload: object) -> ClockSet | None:
             return None
         speed_up = float(stated)
     return ClockSet(time, speed_up)
+
+
+def said_clock(payload: object) -> tuple[int, float] | None:
+    """The time of day and the speed-up a `tc49/layout/state/clock` row
+    says, or None where it does not say both. Each is read as `wanted_clock`
+    reads it. The scheduler moves the loaded timetable's time by it
+    (#1345)."""
+    said = wanted_clock(payload)
+    if said is None or said.time is None or said.speed_up is None:
+        return None
+    return said.time, said.speed_up
 
 
 @dataclass(frozen=True)
@@ -1356,6 +1411,20 @@ def kept_facing(payload: object) -> dict[str, str] | None:
     return _named(cast(dict[object, object], held))
 
 
+def loaded_timetable(payload: object) -> str | None:
+    """The name of the timetable a retained `tc49/schedule/state/timetable`
+    value says is loaded, or None where it says none is or names none.
+
+    The scheduler reads the name first, to ask the store for that document.
+    The rest of the row is read against the document by
+    `tc49.scheduler.release.restarted` (#1345).
+    """
+    if not isinstance(payload, dict):
+        return None
+    name = cast(dict[str, object], payload).get("timetable")
+    return name if isinstance(name, str) and name else None
+
+
 @dataclass(frozen=True)
 class KeptAllocation:
     """The two maps a retained `tc49/dispatch/state/allocation` value states
@@ -1413,6 +1482,28 @@ def kept_allocation(payload: object) -> KeptAllocation | None:
         _named(cast(dict[object, object], crossing)),
         _occupying(cast(dict[object, object], occupied)),
     )
+
+
+def listed_requests(payload: object) -> dict[str, str] | None:
+    """The requests a `tc49/dispatch/state/allocation` value lists, each id
+    to its train, in the list's order, or None where the value has no
+    `requests` list.
+
+    The scheduler reads it once after a restart, to learn which requests
+    ended while it was down (#1352). An entry is read by its `id` and
+    `train` alone, and one that states either unreadably is left out.
+    """
+    if not isinstance(payload, dict):
+        return None
+    requests = cast(dict[str, object], payload).get("requests")
+    if not isinstance(requests, list):
+        return None
+    listed: dict[str, str] = {}
+    for one in cast(list[object], requests):
+        request, train = readable_id(one), named_train(one)
+        if request is not None and train is not None:
+            listed[request] = train
+    return listed
 
 
 def _occupying(stated: dict[object, object]) -> dict[str, tuple[str, ...]]:
