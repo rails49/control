@@ -1268,8 +1268,8 @@ waits at least one gap, and a reported point still waits for its
 `device/point` as well. Signals are not spaced. Time is the injected clock's, as the settling time's is.
 
 `layout` says the railroad's settings on `state/settings` as each railroad is
-loaded: the point gap, the driver's speeds and `short_blocks`, the
-railroad's, and the
+loaded: the point gap, the driver's speeds, `short_blocks` and
+`without_sensors`, the railroad's, and the
 throttle silence, the sensor silence and the arrival allowance, the
 installation's and the same whatever railroad is loaded
 ([#1130](https://github.com/rails49/control/issues/1130),
@@ -1287,8 +1287,12 @@ driver's, and `layout` also reads `caution` for its drop, from the next check.
 than the train: `layout` keeps and says it and runs on nothing, a placement
 keeping its length check whatever it says, and the dispatcher routes on it
 ([#1286](https://github.com/rails49/control/issues/1286),
-[#1287](https://github.com/rails49/control/issues/1287)). The gap, the
-speeds and `short_blocks` are kept with the
+[#1287](https://github.com/rails49/control/issues/1287)).
+`without_sensors` is whether the railroad runs without sensors: `layout` and
+the simulator keep and say it and run on nothing, acting on it being the
+dispatcher's ([#1316](https://github.com/rails49/control/issues/1316),
+[#1319](https://github.com/rails49/control/issues/1319)). The gap, the
+speeds, `short_blocks` and `without_sensors` are kept with the
 railroad in `layouts/<layout>.settings.yaml`, the two silences and the
 arrival allowance with the installation in `installation.yaml`, read once as
 `layout` starts
@@ -1298,7 +1302,8 @@ arrival allowance with the installation in `installation.yaml`, read once as
 holds from the next check of who is overdue
 ([#1190](https://github.com/rails49/control/issues/1190)). A
 railroad that keeps none, or keeps one that does not read, is loaded at 0.5 s,
-the speeds 0.6 and 0.3 and `short_blocks` `false`, an installation that keeps none at 5 s, 3 s and 60 s, and
+the speeds 0.6 and 0.3, `short_blocks` `false` and `without_sensors`
+`false`, an installation that keeps none at 5 s, 3 s and 60 s, and
 nothing is written until a person sets it
 ([#1125](https://github.com/rails49/control/issues/1125),
 [#1126](https://github.com/rails49/control/issues/1126),
