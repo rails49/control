@@ -17,6 +17,7 @@ from tc49.dispatcher.table import (
     Active,
     Disputed,
     Following,
+    Granted,
     HeadIn,
     Move,
     MoveEnded,
@@ -25,8 +26,16 @@ from tc49.dispatcher.table import (
     Released,
     Removed,
     Route,
+    RunsEnded,
     Table,
+    adopting,
+    arriving,
     broken,
+    cancelling,
+    committing,
+    committing_whole,
+    completing,
+    granting,
     not_reporting,
     opening,
     placing,
@@ -34,6 +43,8 @@ from tc49.dispatcher.table import (
     releasing,
     removing,
     retiring,
+    setting_without_sensors,
+    withdrawing,
 )
 from tests.harness import load
 from tests.system.test_app_boundaries import tc49_imports
@@ -398,6 +409,252 @@ def test_placing_a_crossing_train_releases_what_it_occupied_behind_it() -> None:
     assert new.locks == {"dn_w": "t"}
     assert (new.crossing, new.following) == ({}, {})
     assert broken(new) == []
+
+
+def test_committing_a_route_locks_what_the_strategy_said_and_makes_the_train_active() -> (
+    None
+):
+    """At its first block with no move, leaving by `yard_e.A` once the route is
+    done: `yard_e` is a terminal track."""
+    table = standing(False)
+    _, route = a_route()
+
+    new, effects = committing(table, "t", "t-1", route, [T1, "dn_w"])
+
+    assert effects == [Granted("t", (T1, "dn_w"))]
+    assert new.locks == {"yard_w": "t", T1: "t", "dn_w": "t"}
+    assert new.active == {"t": Active("t-1", route, 0, None)}
+    assert new.departure == {"t": "yard_e.A"}
+    assert broken(new) == []
+
+
+def test_committing_a_whole_route_occupies_all_of_it() -> None:
+    """Without sensors (#1314): a person drives the train, which may be anywhere
+    on its route. A crossing hint a change of the setting left ends (#1324)."""
+    table = replace(standing(False), without_sensors=True)
+    table.locks[T1] = "t"
+    table.crossing["t"] = T1
+    table.occupied["t"] = ["yard_w", T1]
+    _, route = a_route()
+    whole = route.crossing_order()
+
+    new, effects = committing_whole(table, "t", "t-1", route, whole)
+
+    assert effects == [Granted("t", tuple(whole))]
+    assert new.occupied["t"] == ["yard_w", T1, "dn_w", T2, "dn_e", T3, "yard_e"]
+    assert new.crossing == {}
+    assert new.departure == {"t": "yard_e.A"}
+    assert broken(new) == []
+
+
+def committed(occupied: bool) -> Table:
+    """`t` at rest in `yard_w`, committed to the down line with T1 and `dn_w`
+    locked, as `Incremental` launches."""
+    _, route = a_route()
+    return committing(standing(occupied), "t", "t-1", route, [T1, "dn_w"])[0]
+
+
+def test_granting_a_move_follows_it() -> None:
+    """The move after a launch locks only what it holds ahead. The train is
+    crossing T1, its transit at the head of what it occupies, and the move's
+    readings are expected: the tail already over `yard_w.B` reads occupied."""
+    move = Move("yard_w", T1, "dn_w", [], [T2, "dn_e"])
+
+    new, effects = granting(committed(True), "t", move)
+
+    assert effects == [Granted("t", (T2, "dn_e"))]
+    assert new.locks == dict.fromkeys(["yard_w", T1, "dn_w", T2, "dn_e"], "t")
+    assert (new.active["t"].cur_index, new.active["t"].outstanding) == (1, move)
+    assert new.crossing == {"t": T1}
+    assert new.occupied["t"] == ["yard_w", T1]
+    [followed] = new.following["t"]
+    assert (followed.move, followed.exit, followed.entry, followed.far) == (
+        move,
+        "yard_w.B",
+        "dn_w.A",
+        "dn_w.B",
+    )
+    assert (followed.exit_read, followed.head_in, followed.at_far) == (
+        True,
+        False,
+        False,
+    )
+    assert broken(new) == []
+
+
+def test_granting_a_move_locks_its_increment_and_what_it_holds_ahead_apart() -> None:
+    """Two `Granted`, not one of four (ADR-0029). The exit reads clear."""
+    table = standing(False)
+    _, route = a_route()
+    table.active["t"] = Active("t-1", route, 0, None)
+    move = Move("yard_w", T1, "dn_w", [T1, "dn_w"], [T2, "dn_e"])
+
+    new, effects = granting(table, "t", move)
+
+    assert effects == [Granted("t", (T1, "dn_w")), Granted("t", (T2, "dn_e"))]
+    assert not new.following["t"][0].exit_read
+
+
+def test_granting_a_move_drops_an_older_one_at_its_far_sensor() -> None:
+    """It expects nothing more; what it left on the list stays (#1171)."""
+    table = headed()
+    table.following["t"][0].at_far = True
+    second = Move("dn_w", T2, "dn_e", [], [T3, "yard_e"])
+
+    new, _ = granting(table, "t", second)
+
+    assert [each.move for each in new.following["t"]] == [second]
+    assert new.occupied["t"] == ["yard_w", T1, "dn_w", T2]
+
+
+def test_cancelling_gives_up_what_the_train_holds_ahead() -> None:
+    new, effects = cancelling(granted(), "t")
+
+    assert effects == [Released("t", (T2, "dn_e", "dn_w"))]
+    assert new.locks == {"yard_w": "t", T1: "t"}
+    assert (new.active, new.crossing) == ({}, {})
+
+
+def whole() -> Table:
+    """`t` committed to the whole down line, without sensors."""
+    _, route = a_route()
+    table = replace(standing(False), without_sensors=True)
+    return committing_whole(table, "t", "t-1", route, route.crossing_order())[0]
+
+
+def test_cancelling_without_sensors_leaves_the_train_occupying_its_block() -> None:
+    """It has not left it (#1314)."""
+    new, effects = cancelling(whole(), "t")
+
+    assert effects == [Released("t", (T2, "dn_e", "dn_w", T3, T1, "yard_e"))]
+    assert new.locks == {"yard_w": "t"}
+    assert new.occupied == {"t": ["yard_w"]}
+    assert broken(new) == []
+
+
+def test_withdrawing_puts_the_train_back_where_it_was_before_the_grant() -> None:
+    """`layout` took the move back (#1068): the train stays active, one block
+    back, with no move, and what the grant locked stays locked."""
+    table = granted()
+
+    new, effects = withdrawing(table, "t")
+
+    assert effects == []
+    assert (new.active["t"].cur_index, new.active["t"].outstanding) == (0, None)
+    assert new.crossing == {}
+    assert new.occupied["t"] == ["yard_w"]
+    assert new.following["t"] == []
+    assert new.locks == table.locks
+
+
+def test_completing_ends_the_run_and_keeps_where_the_train_leaves_by() -> None:
+    table = headed()
+    table.departure["t"] = "yard_e.A"
+
+    new, effects = completing(table, "t")
+
+    assert effects == []
+    assert new.active == {}
+    assert new.departure == {"t": "yard_e.A"}
+    assert new.locks == table.locks
+
+
+def test_arriving_on_a_persons_word_stands_the_train_in_its_last_block() -> None:
+    """Everything else it holds is released, and it is no longer active
+    (#1314)."""
+    new, effects = arriving(whole(), "t")
+
+    assert effects == [Released("t", (T2, "dn_e", "dn_w", T3, T1, "yard_w"))]
+    assert new.locks == {"yard_e": "t"}
+    assert (new.block_of, new.occupied) == ({"t": "yard_e"}, {"t": ["yard_e"]})
+    assert new.active == {}
+    assert broken(new) == []
+
+
+def test_adopting_a_kept_allocation_locks_what_each_train_occupies() -> None:
+    """A restart: one `Granted` per train, in the order given, and the crossing
+    hint taken with no move behind it (#123, #1171)."""
+    table, _ = a_route()
+
+    new, effects = adopting(
+        table,
+        {"t": "dn_w", "u": "up_e"},
+        {"t": [T1, "dn_w"], "u": ["up_e"]},
+        {"t": T1},
+    )
+
+    assert effects == [Granted("t", (T1, "dn_w")), Granted("u", ("up_e",))]
+    assert new.locks == {T1: "t", "dn_w": "t", "up_e": "u"}
+    assert new.block_of == {"t": "dn_w", "u": "up_e"}
+    assert new.occupied == {"t": [T1, "dn_w"], "u": ["up_e"]}
+    assert new.crossing == {"t": T1}
+    assert broken(new) == []
+
+
+def with_residue(table: Table) -> Table:
+    """`table` with `gone`'s residue in `up_e`, which reads occupied."""
+    table.locks["up_e"] = "gone"
+    table.residue.add("up_e")
+    table.readings["up_e.A"] = True
+    return table
+
+
+def test_running_without_sensors_ends_every_run_and_opens_every_residue() -> None:
+    """What each active train held ahead goes, one `Released` per train,
+    before every request ends (`RunsEnded`); it keeps what it is on and its
+    crossing (#1321). Then the residue opens, one `Opened` per train."""
+    new, effects = setting_without_sensors(with_residue(granted()), True)
+
+    assert effects == [
+        Released("t", (T2, "dn_e", "dn_w")),
+        RunsEnded(),
+        Opened("gone", ("up_e",)),
+    ]
+    assert new.without_sensors
+    assert (new.active, new.following, new.departure) == ({}, {}, {})
+    assert new.locks == {"yard_w": "t", T1: "t"}
+    assert new.crossing == {"t": T1}
+    assert new.residue == set()
+
+
+def test_running_by_sensors_again_ends_every_run_and_keeps_the_residue() -> None:
+    table = replace(with_residue(granted()), without_sensors=True)
+
+    new, effects = setting_without_sensors(table, False)
+
+    assert effects == [Released("t", (T2, "dn_e", "dn_w")), RunsEnded()]
+    assert not new.without_sensors
+    assert new.residue == {"up_e"}
+
+
+def test_an_unchanged_setting_is_a_no_op() -> None:
+    table = granted()
+    new, effects = setting_without_sensors(table, False)
+    assert new is table
+    assert effects == []
+
+
+def test_commit_grant_cancel_and_the_without_sensors_events_leave_the_table_unchanged() -> (
+    None
+):
+    """So a search can branch from one table (#1315)."""
+    _, route = a_route()
+    tables = [standing(True), committed(True), granted(), headed(), whole()]
+    before = [repr(table) for table in tables]
+
+    committing(tables[0], "t", "t-1", route, [T1, "dn_w"])
+    committing_whole(tables[0], "t", "t-1", route, route.crossing_order())
+    granting(tables[1], "t", Move("yard_w", T1, "dn_w", [], [T2, "dn_e"]))
+    withdrawing(tables[2], "t")
+    completing(tables[3], "t")
+    arriving(tables[4], "t")
+    adopting(tables[0], {"u": "up_e"}, {"u": ["up_e"]}, {})
+    for table in tables[1:]:
+        cancelling(table, "t")
+    for table in tables:
+        setting_without_sensors(table, not table.without_sensors)
+
+    assert [repr(table) for table in tables] == before
 
 
 def test_placement_removal_release_and_opening_leave_the_table_unchanged() -> None:

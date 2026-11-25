@@ -9,11 +9,17 @@ the locking strategies read it through `locking.ReadOnlyState`.
 It imports `tc49.lib` and nothing else of the dispatcher.
 """
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
 from tc49.lib.inventory import Refusal
-from tc49.lib.layout import Layout, block_of
+from tc49.lib.layout import (
+    Layout,
+    block_of,
+    departure_end,
+    opposite_end,
+    transit_ends,
+)
 
 
 @dataclass(frozen=True)
@@ -469,6 +475,15 @@ class Disputed:
 
 
 @dataclass(frozen=True)
+class Granted:
+    """Locks taken for `train`, for one `lock_granted` naming them in this
+    order."""
+
+    train: str
+    resources: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Released:
     """Locks `train` has given up, for one `lock_released` naming them in
     this order."""
@@ -525,7 +540,23 @@ class Opened:
     resources: tuple[str, ...]
 
 
-Effect = Disputed | Released | HeadIn | MoveEnded | Placed | Removed | Opened
+@dataclass(frozen=True)
+class RunsEnded:
+    """Every train's run has ended with a change of `without_sensors`
+    (#1321). What each request does is the dispatcher's to decide."""
+
+
+Effect = (
+    Disputed
+    | Granted
+    | Released
+    | HeadIn
+    | MoveEnded
+    | Placed
+    | Removed
+    | Opened
+    | RunsEnded
+)
 
 
 # -- the transitions ----------------------------------------------------------
@@ -697,6 +728,224 @@ def opening(table: Table) -> tuple[Table, list[Effect]]:
         train = new.locks[block]
         new.residue.discard(block)
         effects += _open(new, train, [block, *_spent(new, train)])
+    return new, effects
+
+
+def entered(layout: Layout, route: Route) -> str:
+    """The end of its arrival block a route comes in through."""
+    ends = transit_ends(layout, route.arrival_block, route.transits[-1])
+    assert ends is not None  # a route's transits reach its blocks
+    return ends[0]
+
+
+def committing(
+    table: Table, train: str, request_id: str, route: Route, locked: Sequence[str]
+) -> tuple[Table, list[Effect]]:
+    """A route committed for a train, with what the locking strategy said to
+    lock for it: locked to the train, in one `Granted` in the order given.
+
+    The train is active on the route, at its first block with no move. A
+    route is fixed once chosen (ADR-0002), so the end the train leaves by
+    once it is done is settled here rather than on arrival (`departure`): the
+    end of the arrival block opposite the one the route comes in through, or
+    a terminal block's one connected end. The table given is left
+    unchanged."""
+    new = _copied(table)
+    for resource in locked:
+        new.locks[resource] = train
+    new.active[train] = Active(request_id, route, 0, None)
+    new.departure[train] = departure_end(table.layout, entered(table.layout, route))
+    return new, [Granted(train, tuple(locked))]
+
+
+def committing_whole(
+    table: Table, train: str, request_id: str, route: Route, locked: Sequence[str]
+) -> tuple[Table, list[Effect]]:
+    """A route committed while the railroad runs without sensors (#1314), with
+    every resource of it locked by the `FullRoute` rule whatever the strategy
+    (`committing`). A person drives the train, which may then be anywhere on
+    its route, so it occupies all of it, after whatever else it is on. A
+    crossing a change of the setting left ends here: what it held stays on
+    the list until the run ends (#1324). The table given is left
+    unchanged."""
+    new, effects = committing(table, train, request_id, route, locked)
+    new.crossing.pop(train, None)
+    whole = route.interleaved()
+    occupying = new.occupied[train]
+    occupying[:] = [entry for entry in occupying if entry not in whole]
+    occupying += whole
+    return new, effects
+
+
+def granting(table: Table, train: str, move: Move) -> tuple[Table, list[Effect]]:
+    """A move granted to an active train: what it newly locks and what it
+    locks ahead, each in its own `Granted` where there is any, since a grant
+    is a transit with its far block and the second increment a separate one
+    (ADR-0029).
+
+    The move is outstanding and the train is crossing its transit, one block
+    further along its route. The transit goes to the head of what the train
+    occupies, moved there on a move back over the transit it came by. The
+    move's readings are expected from now on (`Following`), its exit already
+    read where that sensor reads occupied, and an older move that has reached
+    its far sensor expects nothing more: what that one left on the list stays
+    until this move's tail is in (#1171). The table given is left
+    unchanged."""
+    new = _copied(table)
+    for resource in (*move.locked, *move.ahead):
+        new.locks[resource] = train
+    effects: list[Effect] = [
+        Granted(train, tuple(resources))
+        for resources in (move.locked, move.ahead)
+        if resources
+    ]
+    active = new.active[train]
+    new.active[train] = replace(
+        active, cur_index=active.cur_index + 1, outstanding=move
+    )
+    new.crossing[train] = move.transit
+    occupying = new.occupied[train]
+    if move.transit in occupying:
+        occupying.remove(move.transit)
+    occupying.append(move.transit)
+    ends = transit_ends(table.layout, move.into, move.transit)
+    assert ends is not None  # a route's transits reach its blocks
+    entry, leaving = ends
+    new.following[train] = [
+        each for each in new.following.get(train, []) if not each.at_far
+    ] + [
+        Following(
+            move,
+            leaving,
+            entry,
+            opposite_end(entry),
+            exit_read=new.readings.get(leaving) is True,
+        )
+    ]
+    return new, effects
+
+
+def cancelling(table: Table, train: str) -> tuple[Table, list[Effect]]:
+    """A person's cancel of the train's run, taking effect at once: what it
+    holds ahead given up and nothing it is on, and the train no longer active
+    (`retiring`, ADR-0049). While the railroad runs without sensors there is
+    no move, and the train has not left its block: it occupies that alone,
+    and the rest of its route is released (#1314). The table given is left
+    unchanged."""
+    if table.without_sensors:
+        table = replace(
+            table, occupied={**table.occupied, train: [table.block_of[train]]}
+        )
+    return retiring(table, train)
+
+
+def withdrawing(table: Table, train: str) -> tuple[Table, list[Effect]]:
+    """`layout` took back the move the train had outstanding: nothing had
+    driven the train since it acted on the move, so the train never left its
+    block (#1068). It is put back where it was before the grant, one block
+    back along its route with no move, not crossing, the move's transit no
+    longer among what it occupies and the move followed no more. It stays
+    active, and what the grant locked stays locked: what the run does next
+    is the dispatcher's. The table given is left unchanged."""
+    new = _copied(table)
+    active = new.active[train]
+    move = active.outstanding
+    assert move is not None  # the dispatcher withdraws only an outstanding move
+    new.active[train] = replace(
+        active, cur_index=active.cur_index - 1, outstanding=None
+    )
+    del new.crossing[train]
+    occupying = new.occupied[train]
+    occupying.remove(move.transit)
+    if new.block_of[train] not in occupying:
+        occupying.append(new.block_of[train])
+    new.following[train].pop()
+    return new, []
+
+
+def completing(table: Table, train: str) -> tuple[Table, list[Effect]]:
+    """The train's run has ended at its route's last block: it is no longer
+    active. It keeps what it is on, and the end it leaves by
+    (`departure`). The table given is left unchanged."""
+    new = _copied(table)
+    del new.active[train]
+    return new, []
+
+
+def arriving(table: Table, train: str) -> tuple[Table, list[Effect]]:
+    """A person saying the train is in its route's last block, on a railroad
+    run without sensors, where nothing else says so (#1314). It stands there
+    and occupies that block alone, everything else it holds is released in
+    one `Released`, and its run has ended. The table given is left
+    unchanged."""
+    block = table.active[train].route.arrival_block
+    table = replace(table, occupied={**table.occupied, train: [block]})
+    new, effects = releasing(table, train, (block,))
+    if new is table:
+        new = _copied(table)
+    new.block_of[train] = block
+    del new.active[train]
+    return new, effects
+
+
+def adopting(
+    table: Table,
+    standing: Mapping[str, str],
+    occupied: Mapping[str, Sequence[str]],
+    crossing: Mapping[str, str],
+) -> tuple[Table, list[Effect]]:
+    """A restart's picture adopted (`dispatch.restored`): each train standing
+    in its block and occupying what it occupied, tail to head, all of it
+    locked to it, in one `Granted` per train in the order given; and the
+    transit each train was crossing, as a placement hint with no move behind
+    it (#123, #1171). The table given is left unchanged."""
+    new = _copied(table)
+    new.crossing.update(crossing)
+    effects: list[Effect] = []
+    for train, block in standing.items():
+        occupying = list(occupied[train])
+        for resource in occupying:
+            new.locks[resource] = train
+        new.block_of[train] = block
+        new.occupied[train] = occupying
+        effects.append(Granted(train, tuple(occupying)))
+    return new, effects
+
+
+def setting_without_sensors(
+    table: Table, without_sensors: bool
+) -> tuple[Table, list[Effect]]:
+    """`layout` saying whether the railroad runs without sensors (#1314). A
+    value equal to the one held changes nothing, and the table comes back as
+    given.
+
+    A change either way ends every train's run (#1321): each gives up what
+    it held ahead, one `Released` per train in train order, and keeps what is
+    on its `occupied` list, its standing block and its place in `crossing`,
+    as after a restart; no move is followed any more and no route fixes where
+    a train leaves by. `RunsEnded` follows. Turning `true`, every train's
+    residue then opens, one `Opened` per train in train order: no block reads
+    occupied any more, so none waits for a clear reading. The table given is
+    left unchanged."""
+    if without_sensors == table.without_sensors:
+        return table, []
+    new = replace(table, without_sensors=without_sensors)
+    effects: list[Effect] = []
+    for train in sorted(new.active):
+        standing = new.block_of.get(train)
+        on = new.occupied.get(train, [])
+        new, released = releasing(
+            new, train, on if standing is None else (*on, standing)
+        )
+        effects += released
+    new = replace(new, active={}, following={}, departure={})
+    effects.append(RunsEnded())
+    if without_sensors and new.residue:
+        new = _copied(new)
+        for train in sorted({new.locks[kept] for kept in new.residue}):
+            effects += _open(
+                new, train, [kept for kept in new.residue if new.locks[kept] == train]
+            )
     return new, effects
 
 
