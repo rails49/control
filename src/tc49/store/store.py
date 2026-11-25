@@ -38,6 +38,14 @@ speeds, `layouts/<railroad>.settings.yaml`, written by the layout binding when a
 sets them (#1126, #1132). Their shape is `tc49.lib.settings`'s, which
 `layout` reads them with.
 
+A **timetable** is the railroad's too, and a railroad has any number of them:
+one file each, `timetables/<railroad>/<name>.timetable.yaml`, as a scenario is
+at `scenarios/<layout>/<name>.scenario.yaml` (#1345). The scheduler writes the
+one it has loaded at each change, and a person may write one by hand. Its
+shape is `tc49.lib.timetable`'s, and the store checks that and the name and
+railroad the document gives against the path. The blocks and trains it names
+are not checked against the railroad.
+
 The **installation's settings** belong to no railroad: the throttle silence,
 the sensor silence and the arrival allowance, `installation.yaml` at the store
 root, written by the layout binding when a person sets one and read once as it
@@ -72,6 +80,7 @@ from tc49.lib.layout import (
 from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
 from tc49.lib.settings import kept_installation, kept_settings
+from tc49.lib.timetable import read_timetable
 from tc49.store import atomic, yamlfile
 from tc49.store.drawing import Drawing
 
@@ -192,6 +201,16 @@ def _items(section: Any) -> list[tuple[Any, Any]]:
 def _entries(listed: Any) -> list[Any]:
     """A train's `cars` as written, and none where it is not a list."""
     return cast(list[Any], listed) if isinstance(listed, list) else []
+
+
+def _segment(name: str) -> str:
+    """`name` where it is one path segment, by the rule a timetable's name
+    and railroad are held to (`tc49.lib.timetable.Timetable`)."""
+    if not name or "/" in name or name.startswith("."):
+        raise ValueError(
+            f"{name!r} is no name: a name is not empty, has no '/' and no leading '.'"
+        )
+    return name
 
 
 class AssetStore:
@@ -345,6 +364,46 @@ class AssetStore:
         path = self._settings_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
         atomic.write(path, yaml.safe_dump(doc, sort_keys=False))
+
+    def timetables(self, railroad: str) -> list[str]:
+        """The names of `railroad`'s timetables (#1345), sorted. A railroad
+        with none has an empty list, whether or not it has a drawing."""
+        paths = self._timetable_dir(railroad).glob("*.timetable.yaml")
+        return sorted(path.name.removesuffix(".timetable.yaml") for path in paths)
+
+    def timetable(self, railroad: str, name: str) -> dict[str, Any]:
+        """Timetable `name` of `railroad`, checked and answered as written.
+        One the railroad does not have raises `FileNotFoundError`. A file
+        that does not pass `read_timetable`, or whose `layout` and
+        `timetable` are not `railroad` and `name`, raises `ValueError` or
+        `TypeError`."""
+        doc = self._read(self._timetable_path(railroad, name))
+        self._timetable(doc, railroad, name)
+        return cast(dict[str, Any], doc)
+
+    def put_timetable(self, doc: dict[str, Any], railroad: str, name: str) -> None:
+        """Create or replace timetable `name` of `railroad`, checked as
+        `timetable` checks it before anything is written, and dumped as the
+        clock is. The railroad is not checked for a drawing."""
+        self._timetable(doc, railroad, name)
+        path = self._timetable_path(railroad, name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic.write(path, yaml.safe_dump(doc, sort_keys=False))
+
+    def delete_timetable(self, railroad: str, name: str) -> None:
+        """Delete timetable `name` of `railroad`. One the railroad does not
+        have raises `FileNotFoundError`."""
+        self._timetable_path(railroad, name).unlink()
+
+    def _timetable(self, doc: Any, railroad: str, name: str) -> None:
+        """Refuse a timetable document that does not read, or that names
+        another railroad or another name than it is filed under."""
+        read = read_timetable(doc)
+        if (read.layout, read.name) != (railroad, name):
+            raise ValueError(
+                f"timetable '{railroad}/{name}': the document names itself"
+                f" '{read.layout}/{read.name}'"
+            )
 
     def copy(self, source: str, to: str) -> None:
         """Copy railroad `source`'s documents under the name `to`: its drawing,
@@ -662,6 +721,15 @@ class AssetStore:
 
     def _settings_path(self, name: str) -> Path:
         return self._root / "layouts" / f"{name}.settings.yaml"
+
+    def _timetable_dir(self, railroad: str) -> Path:
+        """Where `railroad`'s timetables are. The railroad is a directory
+        here, so one that is no path segment is a `ValueError`: `..` would
+        name the store's root."""
+        return self._root / "timetables" / _segment(railroad)
+
+    def _timetable_path(self, railroad: str, name: str) -> Path:
+        return self._timetable_dir(railroad) / f"{_segment(name)}.timetable.yaml"
 
     def _scenario_path(self, name: str) -> Path:
         layout, _, scenario = name.partition("/")

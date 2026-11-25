@@ -28,12 +28,17 @@ rather than to an app of its own — a `ui` package could not import
     PUT  /clocks/<railroad>     save them, replacing what was
     GET  /settings/<railroad>   the settings that railroad keeps
     PUT  /settings/<railroad>   save them, replacing what was
+    GET  /timetables/<railroad> the names of that railroad's timetables
+    GET  /timetables/<railroad>/<name> one timetable, as the document it is
+    PUT  /timetables/<railroad>/<name> save it, replacing what was
+    DELETE /timetables/<railroad>/<name> delete it
     POST /railroads/<from>/copy copy that railroad's drawing, roster, script,
-                                clock and settings under the name the body
-                                gives
+                                clock, settings and timetables under the name
+                                the body gives
     DELETE /railroads/<name>    delete that railroad's drawing, roster,
-                                script, clock, settings and scenarios, if it
-                                is not loaded, backing the store up first
+                                script, clock, settings, timetables and
+                                scenarios, if it is not loaded, backing the
+                                store up first
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /installation          the installation's settings
@@ -100,8 +105,8 @@ independently editable and a backup's `git diff` readable.
 drawing's, and it is the one a fresh box needs: with no `catalogue/` directory
 every car names a model the installation has not got, so no roster can be
 written at all (#392). `DELETE /catalogue/<name>` removes the model's photo
-with it; `DELETE /railroads/<name>` is the face's other DELETE, and it refuses
-the loaded railroad (#1073). **A model a roster uses is
+with it; `DELETE /railroads/<name>` and a timetable's are the face's other
+DELETEs, and the first refuses the loaded railroad (#1073). **A model a roster uses is
 refused** — every `layouts/*.roster.yaml`, whichever railroad is loaded, read
 as written for a car or a train entry naming it — with a 400 naming each
 railroad and place, so a person knows what to change (#976).
@@ -131,7 +136,7 @@ store keeps it and reads none of it — it does not parse, compile or run the
 text, and the only thing it refuses is the shape of the document, so a script
 that will not compile is still one somebody can save and come back to. No
 `ETag` and no `304`: a translator holding a script compares the text itself.
-No `DELETE`, as for every document here but a model.
+No `DELETE`, as for every document here but a model and a timetable.
 
 **Both callers are apps rather than pages** — the translator that loads the
 script, and the face that edits it — each `rails49/dccex`'s and reaching this
@@ -156,6 +161,19 @@ A railroad that
 keeps none is a 404, and `layout` loads it at the defaults. Their one caller
 is `layout` too, so `/settings` is on no proxy in front of a page.
 
+The **timetable** routes are one railroad's timetables (#1345), one file each
+at `timetables/<railroad>/<name>.timetable.yaml`, answered and taken as the
+document `tc49.lib.timetable` reads. `GET /timetables/<railroad>` answers
+`{"timetables": [<name>, …]}`, sorted, and an empty list for a railroad with
+none. A `PUT` creates or replaces one and is a 400 where the body is no
+document, does not pass that module's shape check, or has a `layout` or
+`timetable` that is not the railroad or the name in the path. A `GET` of a
+file that fails either check is a 400 too. A `GET` or a `DELETE` of one that
+is not there is a 404. The railroad is not checked for a drawing, as a
+clock's is not. The scheduler reads, writes and deletes them, and the page
+reads the list and one document and deletes, so `/timetables` is on the proxy
+in front of a page.
+
 `/installation` is the installation's settings, `installation.yaml` at the
 store root, built as `/loaded` is: `{"throttle_silence": <seconds>,
 "sensor_silence": <seconds>, "arrival_allowance": <seconds>}`, any of them
@@ -175,8 +193,8 @@ that is not a repository is answered rather than initialized, and what git
 said comes back as it came (ADR-0053, #321). It becomes one by adopting an
 empty repository the person made, cloned at the address they give (#355). A
 save is what arms the idle timer, which is why every `PUT` — a drawing's, a
-model's, a roster's, a script's, a clock's, a railroad's settings, the
-installation's — tells the
+model's, a roster's, a script's, a clock's, a railroad's settings, a
+timetable's, the installation's — tells the
 backup it happened, the one place the two meet.
 
 **Every route is refused to a page on another origin.** A request carrying an
@@ -436,6 +454,25 @@ def _route(
         if method == "PUT":
             return _put_settings(store, backup, settings, body)
 
+    timetable = route.removeprefix("/timetables/")
+    if timetable != route:
+        # `/timetables/<railroad>` is the list of that railroad's, and
+        # `/timetables/<railroad>/<name>` is one of them.
+        railroad, below, name = timetable.partition("/")
+        if not below:
+            if method == "GET":
+                return 200, {"timetables": store.timetables(railroad)}
+        elif "/" not in name:
+            if method == "GET":
+                try:
+                    return 200, store.timetable(railroad, name)
+                except FileNotFoundError:
+                    return 404, {"error": f"no timetable '{railroad}/{name}'"}
+            if method == "PUT":
+                return _put_timetable(store, backup, railroad, name, body)
+            if method == "DELETE":
+                return _delete_timetable(store, backup, railroad, name)
+
     copied = route.removeprefix("/railroads/")
     if method == "POST" and copied != route:
         source, _, verb = copied.partition("/")
@@ -684,6 +721,35 @@ def _put_settings(store: AssetStore, backup: Backup, name: str, body: Any) -> Re
     # has moved.
     backup.saved()
     return 200, {"saved": name}
+
+
+def _put_timetable(
+    store: AssetStore, backup: Backup, railroad: str, name: str, body: Any
+) -> Response:
+    """One timetable of a railroad, created or replaced (#1345).
+
+    Refused where the body is no document, where it does not pass
+    `tc49.lib.timetable.read_timetable`, and where its `layout` or
+    `timetable` is not the railroad or the name in the path. The railroad is
+    not checked for a drawing, as a clock's is not.
+    """
+    if not isinstance(body, dict):
+        return 400, {"error": "a timetable document is required"}
+    store.put_timetable(cast(dict[str, Any], body), railroad, name)
+    backup.saved()
+    return 200, {"saved": f"{railroad}/{name}"}
+
+
+def _delete_timetable(
+    store: AssetStore, backup: Backup, railroad: str, name: str
+) -> Response:
+    """One timetable of a railroad, deleted. A 404 where there is none."""
+    try:
+        store.delete_timetable(railroad, name)
+    except FileNotFoundError:
+        return 404, {"error": f"no timetable '{railroad}/{name}'"}
+    backup.saved()
+    return 200, {"deleted": f"{railroad}/{name}"}
 
 
 def _put_installation(store: AssetStore, backup: Backup, body: Any) -> Response:
