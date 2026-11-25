@@ -216,6 +216,7 @@ from dataclasses import dataclass, replace
 from tc49.lib import settings
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.following import Seen, follow
 from tc49.lib.inventory import (
     AUTOMATIC,
     DRAINING,
@@ -349,9 +350,10 @@ NO_REASON_GIVEN = "no reason given"
 
 
 @dataclass(frozen=True)
-class _Crossing:
+class _Crossing(Seen):
     """A move this app carried out, and what the entered block's detectors
-    will report about it.
+    will report about it. What has been read of it is `Seen`'s
+    (`tc49.lib.following`): only the entered block's sensors are followed.
 
     `origin` is the block the train is leaving, which is where a move asked
     back puts it (`_on_withdraw_wanted`): no detector can name the block behind
@@ -380,8 +382,8 @@ class _Crossing:
     on the arrival, and with a further `move` that carries the train through
     (`_passed`). A throttle's lever is applied either way (ADR-0081).
 
-    `head_in` is the entry sensor having settled occupied, and `tail_in` its
-    having then settled clear. Both are kept whether or not the crossing is
+    `head_in` is the head being in (`Seen`), and `tail_in` the whole train
+    being in (`Facts.whole_in`). Both are kept whether or not the crossing is
     outstanding, the sensors going on saying them (#1169).
 
     `driving` is whether the wheels are this app's for the length of this
@@ -414,7 +416,6 @@ class _Crossing:
     driving: bool = True
     outstanding: bool = True
     reported: tuple[tuple[str, str], ...] = ()
-    head_in: bool = False
     tail_in: bool = False
     timed: float | None = None
 
@@ -2510,8 +2511,9 @@ class LayoutInterface:
         occupied, which also ends the crossing; the entry sensor clear with
         `head_in` and the far sensor unknown, the crossing staying as it does
         for any train that never reads its far sensor; and the far sensor going
-        unknown with `tail_in` (`_call_unknown`). The entry sensor reading
-        occupied stops nothing, and is a check of the `caution` drop.
+        unknown with `tail_in` (`_call_unknown`). What a reading says of the
+        move is `follow`'s. The entry sensor reading occupied stops nothing,
+        and each time it does is a check of the `caution` drop.
 
         A blind crossing is given its speed back by anything else that comes
         back: the entry sensor occupied, and then stopped when it reads clear;
@@ -2523,24 +2525,29 @@ class LayoutInterface:
         sensor returns clear having never read the train. It is given its speed
         back and nothing stops it unless the far sensor returns.
         """
-        if end == crossing.far and level == OCCUPIED:
+        crossing, facts = follow(
+            crossing,
+            exit=None,
+            entry=crossing.entry,
+            far=crossing.far,
+            sensor=end,
+            occupied=level == OCCUPIED,
+        )
+        if facts.at_far:
             if crossing.outstanding:
                 crossing = self._arrival(block, crossing)
             del self._crossing[block]
             self._put_back(crossing.train)
             return
-        if end == crossing.entry:
-            if level == OCCUPIED:
-                crossing = replace(crossing, head_in=True)
-                self._crossing[block] = crossing
-                self._lower(block)
-            elif crossing.head_in:
-                crossing = replace(crossing, tail_in=True, reported=())
-                self._crossing[block] = crossing
-                if crossing.outstanding and crossing.far in self._unknown:
-                    self._arrival(block, crossing)
-                    self._put_back(crossing.train)
-                    return
+        if facts.whole_in:
+            crossing = replace(crossing, tail_in=True, reported=())
+        self._crossing[block] = crossing
+        if end == crossing.entry and level == OCCUPIED:
+            self._lower(block)
+        elif facts.whole_in and crossing.outstanding and crossing.far in self._unknown:
+            self._arrival(block, crossing)
+            self._put_back(crossing.train)
+            return
         if blind:
             self._carry_on(block, crossing)
 
