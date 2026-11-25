@@ -141,6 +141,12 @@ export const settingsStyles = css`
     }
   }
 
+  /* Automatic driving's checkboxes, one under the other (#1322). */
+  .driving sl-checkbox {
+    display: block;
+    margin-top: 0.4rem;
+  }
+
   .shutdown {
     display: flex;
     flex-direction: column;

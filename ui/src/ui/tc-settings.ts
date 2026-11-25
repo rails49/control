@@ -45,7 +45,8 @@
  * the locomotive's top speed (#1134): each commit sends the one field
  * committed. It ends with a checkbox letting the dispatcher send a train into
  * a block shorter than itself, showing `short_blocks` and sending it alone
- * when ticked or unticked (#1288). Installation's **Throttles** does the same for the throttle
+ * when ticked or unticked (#1288), then one running the railroad without
+ * sensors, which does the same for `without_sensors` (#1322). Installation's **Throttles** does the same for the throttle
  * silence (#1142), and **Sensors**, after it, for the sensor silence and the
  * arrival allowance (#1149, #1192). Each field of these sections is drawn
  * from its `SETTING_FIELDS` entry (#1185).
@@ -405,10 +406,12 @@ export class TcSettings extends LitElement {
   }
 
   /** The Automatic driving section (#1134, #1250): the speeds at clear and at caution, in percent
-   *  of the locomotive's top speed, then the checkbox for `short_blocks`, dead
-   *  while the row does not say it (#1288). */
+   *  of the locomotive's top speed, then the checkboxes for `short_blocks`
+   *  (#1288) and `without_sensors` (#1322), each dead while the row does not
+   *  say it. */
   private driving() {
     const shortBlocks = this.settings?.shortBlocks ?? null;
+    const withoutSensors = this.settings?.withoutSensors ?? null;
     return this.setting(
       ["clear", "caution"],
       html`<p class="hint">In percent of the locomotive's top speed.</p>
@@ -420,8 +423,17 @@ export class TcSettings extends LitElement {
           @sl-change=${(event: Event) =>
             this.settingsWanted({ short_blocks: (event.target as HTMLInputElement).checked })}
           >Send trains into blocks shorter than themselves</sl-checkbox
+        >
+        <sl-checkbox
+          class="sensorless"
+          help-text="Sensor readings are ignored and each train is driven with a throttle. Changing this ends every request."
+          ?checked=${live(withoutSensors === true)}
+          ?disabled=${withoutSensors === null}
+          @sl-change=${(event: Event) =>
+            this.settingsWanted({ without_sensors: (event.target as HTMLInputElement).checked })}
+          >Run without sensors</sl-checkbox
         >`,
-      shortBlocks === null,
+      shortBlocks === null || withoutSensors === null,
     );
   }
 
