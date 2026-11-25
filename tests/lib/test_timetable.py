@@ -9,8 +9,15 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+import yaml
 
-from tc49.lib.timetable import Entry, Timetable, TrainStart, read_timetable
+from tc49.lib.timetable import (
+    Entry,
+    Timetable,
+    TrainStart,
+    read_entry,
+    read_timetable,
+)
 
 
 def hm(hours: int, minutes: int) -> int:
@@ -18,25 +25,35 @@ def hm(hours: int, minutes: int) -> int:
     return (hours * 60 + minutes) * 60
 
 
+EXAMPLE = """
+timetable: evening
+layout: crossover-yard
+start: "06:00"
+
+trains:
+  freight_1: { at: yard_w, facing: A-to-B }
+
+entries:
+  - { at: "06:02", train: freight_1, to: [dn_e, up_e], dwell: 2, description: meets the express }
+  - { at: "06:10", train: freight_1, turn: true }
+  - { at: "06:12", train: freight_1, to: [yard_w.B] }
+"""
+"""The example of #1345, as the file in the store: one train, two runs and a
+turn-round between."""
+
+
 def document(**over: Any) -> dict[str, Any]:
-    """The example of #1345: one train, two runs and a turn-round between."""
-    return {
-        "timetable": "evening",
-        "layout": "crossover-yard",
-        "start": "06:00",
-        "trains": {"freight_1": {"at": "yard_w", "facing": "A-to-B"}},
-        "entries": [
-            {
-                "at": "06:02",
-                "train": "freight_1",
-                "to": ["dn_e", "up_e"],
-                "dwell": 2,
-                "description": "meets the express",
-            },
-            {"at": "06:10", "train": "freight_1", "turn": True},
-            {"at": "06:12", "train": "freight_1", "to": ["yard_w.B"]},
-        ],
-    } | over
+    """The example as the store parses it, with `over` in place of its
+    fields."""
+    return yaml.safe_load(EXAMPLE) | over
+
+
+def test_a_time_left_unquoted_in_the_file_is_refused() -> None:
+    """YAML 1.1 reads a bare 12:30 as the number 750."""
+    doc = yaml.safe_load(EXAMPLE.replace('"06:00"', "12:30"))
+
+    with pytest.raises(ValueError, match="'start' is 750"):
+        read_timetable(doc)
 
 
 def test_a_timetable_is_its_start_its_trains_and_its_entries() -> None:
@@ -155,7 +172,7 @@ TURN = {"at": "06:10", "train": "freight_1", "turn": True}
         (document(start="24:00"), "start"),
         (document(start="06:60"), "start"),
         (document(start="06:00:30"), "start"),
-        (entry(**RUN | {"at": 362}), "at"),
+        (entry(**RUN | {"at": 750}), "at"),
         (entry(**RUN | {"at": "6:02"}), "at"),
         # A train's start is its block and its facing.
         (document(trains=[]), "trains"),
@@ -219,6 +236,23 @@ def test_a_refusal_says_which_entry_it_is() -> None:
         read_timetable(doc)
 
 
+def test_an_entry_is_read_and_written_on_its_own() -> None:
+    """As a gesture and the state row carry one, outside any timetable."""
+    run_ = read_entry(RUN | {"dwell": 2})
+    turn = read_entry(TURN | {"description": "runs round"})
+
+    assert run_ == Entry(hm(6, 2), "freight_1", ("dn_e",), dwell=2)
+    assert turn == Entry(hm(6, 10), "freight_1", description="runs round")
+    assert (run_.turn, turn.turn) == (False, True)
+    assert run_.document() == RUN | {"dwell": 2}
+    assert turn.document() == TURN | {"description": "runs round"}
+
+
+def test_an_entry_read_on_its_own_is_refused_by_its_field() -> None:
+    with pytest.raises(ValueError, match="^entry: 'dwell'"):
+        read_entry(RUN | {"dwell": -1})
+
+
 @pytest.mark.parametrize("name", ["", "late/evening", ".evening"])
 def test_a_timetable_takes_no_name_that_is_not_a_path_segment(name: str) -> None:
     """A rename is the value under a new name, and the same rule holds."""
@@ -236,3 +270,139 @@ def test_a_time_that_is_not_a_minute_of_the_day_is_refused(time: int) -> None:
         Entry(at=time, train="freight_1")
     with pytest.raises(ValueError, match="'start'"):
         replace(read_timetable(document()), start=time)
+
+
+def run(at: str, train: str = "freight_1", **fields: Any) -> dict[str, Any]:
+    """An entry's document: `train` sent to `dn_e` at `at`."""
+    return {"at": at, "train": train, "to": ["dn_e"]} | fields
+
+
+def times(timetable: Timetable) -> list[str]:
+    """The entries' times in the order the timetable holds them."""
+    return [entry["at"] for entry in timetable.document()["entries"]]
+
+
+def trains(timetable: Timetable) -> list[str]:
+    """The entries' trains in the order the timetable holds them."""
+    return [entry.train for entry in timetable.entries]
+
+
+def test_entries_are_held_in_order_of_time_counted_from_the_start() -> None:
+    """With a start of 22:00, 01:00 is three hours in and comes after
+    23:00."""
+    read = read_timetable(
+        document(start="22:00", entries=[run("01:00"), run("23:00"), run("22:30")])
+    )
+
+    assert times(read) == ["22:30", "23:00", "01:00"]
+
+
+def test_the_day_counted_from_the_start_ends_a_minute_before_it() -> None:
+    read = read_timetable(document(start="22:00", entries=[run("21:59"), run("22:00")]))
+
+    assert times(read) == ["22:00", "21:59"]
+
+
+def test_entries_in_one_minute_keep_the_documents_order() -> None:
+    read = read_timetable(
+        document(
+            entries=[
+                run("06:10", "express"),
+                run("06:05", "local"),
+                run("06:05", "freight_1"),
+                run("06:05", "branch"),
+            ]
+        )
+    )
+
+    assert trains(read) == ["local", "freight_1", "branch", "express"]
+
+
+def test_a_time_of_day_is_so_many_seconds_from_the_start_within_the_day() -> None:
+    read = read_timetable(document(start="22:00"))
+
+    assert read.since_start(hm(22, 0)) == 0
+    assert read.since_start(hm(22, 0) + 59) == 59
+    assert read.since_start(hm(23, 30)) == 90 * 60
+    assert read.since_start(hm(1, 0)) == 3 * 3600
+    assert read.since_start(hm(21, 59)) == 24 * 3600 - 60
+
+
+NIGHT = read_timetable(
+    document(
+        start="22:00",
+        entries=[
+            run("22:30", "local"),
+            run("23:00", "express"),
+            run("23:00", "freight_1"),
+            run("01:00", "branch"),
+        ],
+    )
+)
+"""A timetable that runs over midnight, with two entries in one minute."""
+
+
+def new(at: int, train: str = "new", **fields: Any) -> Entry:
+    """An entry to add: `train` sent to `up_e` at `at`."""
+    return Entry(at, train, ("up_e",), **fields)
+
+
+def test_a_new_entry_goes_after_the_entries_that_share_its_time() -> None:
+    added = NIGHT.added(new(hm(23, 0)))
+
+    assert trains(added) == ["local", "express", "freight_1", "new", "branch"]
+    assert NIGHT.place(hm(23, 0)) == 3
+
+
+def test_a_new_entry_goes_after_the_last_entry_before_its_time() -> None:
+    """Counted from the start: 00:30 is after 23:00 and before 01:00."""
+    added = NIGHT.added(new(hm(0, 30)))
+
+    assert trains(added) == ["local", "express", "freight_1", "new", "branch"]
+    assert NIGHT.place(hm(0, 30)) == 3
+
+
+def test_a_new_entry_before_every_other_is_first_and_after_every_other_last() -> None:
+    assert trains(NIGHT.added(new(hm(22, 0)))) == [
+        "new",
+        "local",
+        "express",
+        "freight_1",
+        "branch",
+    ]
+    assert trains(NIGHT.added(new(hm(21, 59)))) == [
+        "local",
+        "express",
+        "freight_1",
+        "branch",
+        "new",
+    ]
+    assert (NIGHT.place(hm(22, 0)), NIGHT.place(hm(21, 59))) == (0, 4)
+
+
+def test_adding_leaves_the_timetable_it_was_added_to_as_it_was() -> None:
+    NIGHT.added(new(hm(23, 0)))
+
+    assert trains(NIGHT) == ["local", "express", "freight_1", "branch"]
+
+
+def test_an_entry_is_removed_by_its_position() -> None:
+    """By position because two entries can be equal."""
+    assert trains(NIGHT.removed(1)) == ["local", "freight_1", "branch"]
+
+
+def test_an_entry_replaced_at_the_same_time_stays_where_it_is() -> None:
+    """A dwell or a description changed does not move an entry past the
+    others in its minute."""
+    replaced = NIGHT.replaced(1, new(hm(23, 0), "express", dwell=5))
+
+    assert trains(replaced) == ["local", "express", "freight_1", "branch"]
+    assert replaced.entries[1].dwell == 5
+
+
+def test_an_entry_replaced_at_another_time_moves_to_its_place() -> None:
+    later = NIGHT.replaced(0, new(hm(23, 0), "local"))
+    earlier = NIGHT.replaced(3, new(hm(22, 30), "branch"))
+
+    assert trains(later) == ["express", "freight_1", "local", "branch"]
+    assert trains(earlier) == ["local", "branch", "express", "freight_1"]
