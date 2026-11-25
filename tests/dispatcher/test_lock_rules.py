@@ -12,9 +12,10 @@ import pytest
 
 from tc49.bench.runner import DEFAULT_K, placement
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
-from tc49.dispatcher.dispatch import Active, Request, State, broken
+from tc49.dispatcher.dispatch import Request, State
 from tc49.dispatcher.locking import Move, Refused
 from tc49.dispatcher.routing import Route, candidates
+from tc49.dispatcher.table import Active, Table, broken
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DRAINING, ON
@@ -36,16 +37,15 @@ def a_route(layout: Layout) -> Route:
     return route
 
 
-def a_state() -> State:
+def a_state() -> Table:
     """`t` moving out of `yard_w` into `dn_w`, the move outstanding, and
     `idle` standing in `up_e`: every rule kept."""
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
     request = Request("t-1", "t", "yard_w.B", ("yard_e.A",), 0)
     move = Move("yard_w", route.transits[0], "dn_w", [], [])
-    return State(
+    return Table(
         layout,
-        {"t": 500, "idle": 500, "gone": 500},
         {
             "yard_w": "t",
             route.transits[0]: "t",
@@ -58,7 +58,7 @@ def a_state() -> State:
     )
 
 
-def with_residue(state: State) -> State:
+def with_residue(state: Table) -> Table:
     """`gone`, taken off the layout while crossing `up_straight` with `up_w`
     reading occupied: the block and the transit kept as residue."""
     state.locks["up_w"] = "gone"
@@ -186,7 +186,9 @@ def test_a_strategy_writes_nothing(strategy: type[Incremental | FullRoute]) -> N
     layout, _roster, _ = load("crossover-yard/meet")
     route = a_route(layout)
     request = Request("t-1", "t", "yard_w.B", ("yard_e.A",), 0)
-    state = State(layout, {"t": 500}, {"yard_w": "t"}, {"t": "yard_w"}, {})
+    state = State(
+        layout, {"t": 500}, Table(layout, {"yard_w": "t"}, {"t": "yard_w"}, {})
+    )
     before = dict(state.locks)
 
     launched = strategy(layout, 2).launch(request, "yard_w", "yard_w.B", state)
@@ -295,14 +297,14 @@ def power_on_is_honoured(
     broken from the last check does not drain again (#811)."""
     deliver(bus, POWER, {"power": DRAINING})
     deliver(bus, POWER, {"power": ON})
-    assert broken(dispatcher.state)  # still broken, and not drained for it
+    assert broken(dispatcher.state.table)  # still broken, and not drained for it
     deliver(
         bus,
         REQUEST_SUBMITTED,
         {"id": "r-2", "train": "express_2", "depart": "up_e.A", "dest": ["up_w.B"]},
     )
     assert dispatcher.state.crossing["express_2"] == "crossover.up_straight"
-    assert broken(dispatcher.state)
+    assert broken(dispatcher.state.table)
     assert drains(said) == [DRAINING]
 
 
@@ -332,7 +334,7 @@ def test_the_broken_rules_are_published_and_cleared(
         REQUEST_SUBMITTED,
         {"id": "r-1", "train": "freight_1", "depart": "yard_w.B", "dest": ["dn_w.A"]},
     )
-    lines = broken(dispatcher.state)
+    lines = broken(dispatcher.state.table)
     assert lines and rules(said) == [lines]
     assert capsys.readouterr().err.splitlines() == [
         f"dispatcher: lock table: {line}" for line in lines

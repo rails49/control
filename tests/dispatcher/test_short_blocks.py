@@ -13,7 +13,8 @@ from typing import Any
 
 from tc49.bench.runner import DEFAULT_K
 from tc49.dispatcher import Dispatcher, Incremental
-from tc49.dispatcher.dispatch import SETTINGS, broken
+from tc49.dispatcher.dispatch import SETTINGS
+from tc49.dispatcher.table import broken
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import ON
@@ -124,11 +125,11 @@ def test_a_tail_that_never_clears_the_entry_sensor_keeps_its_transit() -> None:
     )
     assert [p["id"] for p in granted] == ["f-1"]
     assert state.locks[T1] == "freight_1"
-    assert broken(state) == []
+    assert broken(state.table) == []
 
     deliver(bus, *settled("dn_w.A", False))
 
     assert T1 not in state.locks
     assert [p["id"] for p in granted] == ["f-1", "e-1"]
     assert granted[-1]["into"] == "yard_w"
-    assert broken(state) == []
+    assert broken(state.table) == []

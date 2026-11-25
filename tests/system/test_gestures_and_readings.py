@@ -32,8 +32,8 @@ from hypothesis.stateful import (
 )
 
 from tc49.dispatcher import Incremental
-from tc49.dispatcher.dispatch import broken
 from tc49.dispatcher.locking import state_view
+from tc49.dispatcher.table import broken
 from tc49.lib.bus import Payload
 from tc49.lib.layout import Layout
 from tc49.lib.roster import Roster
@@ -74,7 +74,7 @@ def assembled(
         minted.append(str(payload["id"]))
 
     def lock_table(topic: str, payload: Payload) -> None:
-        assert broken(assembly.dispatcher.state) == [], f"after {topic} {payload}"
+        assert broken(assembly.dispatcher.state.table) == [], f"after {topic} {payload}"
 
     def grant(topic: str, payload: Payload) -> None:
         state = assembly.dispatcher.state

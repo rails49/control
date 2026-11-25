@@ -10,10 +10,11 @@ from collections.abc import Iterable, Mapping
 from itertools import pairwise
 
 from tc49.dispatcher import Incremental
-from tc49.dispatcher.dispatch import Active, State
+from tc49.dispatcher.dispatch import State
 from tc49.dispatcher.locking import Move, Refused, safety_view
 from tc49.dispatcher.routing import Route
 from tc49.dispatcher.safety import safe
+from tc49.dispatcher.table import Active, Table
 from tc49.lib.inventory import Refusal
 from tests.harness import load
 
@@ -39,18 +40,21 @@ def railroad(
     return State(
         layout,
         {train: 500 for train in routes},
-        locks,
-        {train: blocks[0] for train, blocks in routes.items()},
-        {
-            train: Active(
-                f"{train}-1",
-                Route(blocks, tuple(f"c.{a}_{b}" for a, b in pairwise(blocks))),
-                0,
-                None,
-            )
-            for train, blocks in routes.items()
-        },
-        readings={f"{block}.A": True for block in reading},
+        Table(
+            layout,
+            locks,
+            {train: blocks[0] for train, blocks in routes.items()},
+            {
+                train: Active(
+                    f"{train}-1",
+                    Route(blocks, tuple(f"c.{a}_{b}" for a, b in pairwise(blocks))),
+                    0,
+                    None,
+                )
+                for train, blocks in routes.items()
+            },
+            readings={f"{block}.A": True for block in reading},
+        ),
     )
 
 

@@ -1,9 +1,10 @@
 """Incremental locking gated by safe(): issue #27's acceptance criteria."""
 
 from tc49.dispatcher import Incremental
-from tc49.dispatcher.dispatch import Active, Request, State
+from tc49.dispatcher.dispatch import Request, State
 from tc49.dispatcher.locking import Move
 from tc49.dispatcher.routing import Route, candidates
+from tc49.dispatcher.table import Active, Table
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import RequestSpec, Scenario, TrainSpec
 from tc49.store import AssetStore
@@ -210,9 +211,12 @@ def a_state(layout: Layout, route: Route, locks: dict[str, str]) -> State:
     return State(
         layout,
         {"t": 500, "other": 500},
-        dict(locks),
-        {"t": route.blocks[0]},
-        {"t": Active(request.id, route, 0, None)},
+        Table(
+            layout,
+            dict(locks),
+            {"t": route.blocks[0]},
+            {"t": Active(request.id, route, 0, None)},
+        ),
     )
 
 
