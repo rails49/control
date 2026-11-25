@@ -96,6 +96,7 @@ from tc49.lib.payload import (
     placement,
     power,
     readable_id,
+    said_without_sensors,
     shown_aspects,
     supply,
     taken,
@@ -141,6 +142,7 @@ WANTED_TRACK = "tc49/layout/state/wanted/track"
 DEVICE_TRACK = "tc49/layout/state/device/track"
 DEVICE_LINK = "tc49/layout/state/device/link"
 DEVICE_POINT = "tc49/layout/state/device/point"
+SETTINGS = "tc49/layout/state/settings"
 
 EVERY_TRACTION = f"{WANTED_TRACTION}/+"
 EVERY_SETTLED = f"{SETTLED_SENSOR}/+"
@@ -325,6 +327,12 @@ def _journeys(view: View) -> Iterator[_Journey]:
 
 def _listed(view: View) -> frozenset[str]:
     return unknown_sensors(view.rows.get(UNKNOWN_SENSORS)) or frozenset()
+
+
+def _without_sensors(view: View) -> bool:
+    """Whether `state/settings` says the railroad runs without sensors; no
+    row, or a field that does not read, says it does not (#1314)."""
+    return said_without_sensors(view.rows.get(SETTINGS)) is True
 
 
 def _overdue(view: View) -> frozenset[str]:
@@ -595,7 +603,15 @@ def adr_0062_moving_while_crossing(view: View) -> list[str]:
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
     as narrowed by #844, #1152, #1171, #1191 and #1187). A train a throttle
     holds runs on between two unknown sensors, so it counts. The other
-    direction needs the readings: `adr_0062_moving_to_the_tail`."""
+    direction needs the readings: `adr_0062_moving_to_the_tail`.
+
+    On a railroad run without sensors the dispatcher follows no move, so
+    `moving` reads false whoever is crossing, and a row that reads true is the
+    breach (#1314)."""
+    if _without_sensors(view):
+        if MOVING in view.rows and moving(view.rows[MOVING]):
+            return ["moving reads true on a railroad run without sensors"]
+        return []
     if moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
@@ -805,8 +821,9 @@ INVARIANTS: tuple[Invariant, ...] = (
         "0062",
         "`moving` is true whenever a train is crossing, unless both sensors of"
         " the block it is crossing into are listed and `state/taken` does not"
-        " name the train, or `state/overdue` lists the train.",
-        (MOVING, ALLOCATION, UNKNOWN_SENSORS, OVERDUE, TAKEN),
+        " name the train, or `state/overdue` lists the train; on a railroad"
+        " run without sensors it is false.",
+        (MOVING, ALLOCATION, UNKNOWN_SENSORS, OVERDUE, TAKEN, SETTINGS),
         adr_0062_moving_while_crossing,
     ),
     Invariant(
@@ -1047,10 +1064,13 @@ class Record:
         self.keeps: set[str] = set()  # trains let go of mid-move in automatic
         self.lies: dict[str, str] = {}  # addr -> where `device/point` says
         self.halted: set[str] = set()  # trains a wrong report stopped mid-move
+        self.without_sensors = False  # what `state/settings` last said that read
         for topic, payload in (rows or {}).items():
             self.rows[topic] = payload
             if topic == ALLOCATION:
                 self._allocation(payload)
+            elif topic == SETTINGS:
+                self.without_sensors = said_without_sensors(payload) is True
         # A lock is a placed train's or residue, so a train off the layout in
         # the rows it starts from holds only that.
         self.residue = {
@@ -1063,7 +1083,10 @@ class Record:
         """The blocks that read occupied with no train explaining them: none
         recorded there, occupying them, entering them by the move it has
         outstanding, left holding them by its removal, or on the transit a
-        restored crossing names (#1164, #1171)."""
+        restored crossing names (#1164, #1171). None on a railroad run without
+        sensors, whose readings are ignored (#1314)."""
+        if self.without_sensors:
+            return frozenset()
         explained = set(self.trains.values()) | self.residue
         for listed in self.occupied.values():
             explained.update(listed)
@@ -1218,6 +1241,8 @@ class Record:
             self._let_go(payload)
         elif topic == UNKNOWN_SENSORS:
             self._over(unknown_sensors(payload) or frozenset())
+        elif topic == SETTINGS:
+            self._settings(payload)
         elif (split := split_device(topic)) is not None and split[0] == DEVICE_POINT:
             self._lies(split[1], payload)
         elif split is not None and split[0] == SETTLED_SENSOR:
@@ -1242,6 +1267,19 @@ class Record:
             if request.route is not None or request.id in self.routes
         }
         self.placed_over.clear()
+
+    def _settings(self, payload: object) -> None:
+        """A `state/settings`: a `without_sensors` that reads is the value
+        held, and one that does not leaves it. A change ends every request,
+        so the dispatcher follows no move any more; what `layout` drives is
+        kept (#1314)."""
+        said = said_without_sensors(payload)
+        if said is None or said == self.without_sensors:
+            return
+        self.without_sensors = said
+        self.moves.clear()
+        self.placing.clear()
+        self.cancelled.clear()
 
     def _read(self, sensor: str, occupied: bool) -> None:
         """A reading, which changes something only where it changes the level
@@ -1814,7 +1852,9 @@ def adr_0048_disputed_lists_contradictions(
     """`disputed` lists exactly the blocks that read occupied with no train
     explaining them, at every power value, and the row has no `trains` (#1154,
     #1164, amending
-    [ADR-0048](../../../docs/adr/0048-an-unexplained-reading-holds-the-run.md))."""
+    [ADR-0048](../../../docs/adr/0048-an-unexplained-reading-holds-the-run.md)).
+    On a railroad run without sensors that is none: readings are ignored
+    (#1314)."""
     if topic != QUIET or DISPUTED not in record.rows:
         return []
     listed = _disputed(record.rows[DISPUTED])
@@ -1952,7 +1992,9 @@ def adr_0062_moving_to_the_tail(
     ([ADR-0062](../../../docs/adr/0062-track-power-is-cut-only-when-nothing-is-moving-and-the-layout-checks.md),
     #1171, #1191, #1187). A train a throttle holds runs on between two unknown
     sensors, so its move is owed `moving`. Once the bus is quiet: the row
-    follows the sweep a reading runs."""
+    follows the sweep a reading runs. A change of `without_sensors` ends every
+    move followed, and on a railroad run without sensors none is granted
+    (#1314)."""
     if topic != QUIET or moving(view.rows.get(MOVING)):
         return []
     listed = _listed(view)
@@ -2019,7 +2061,12 @@ def adr_0077_not_into_occupied(
     heard it: a grant can cross one still in flight, and with no drain to stop
     the sweeps that is an ordinary order of delivery (#1154). A stuck detector
     is what this catches, and it stays stuck.
+
+    On a railroad run without sensors it asks nothing: readings are ignored,
+    and a block reading occupied is no obstacle (#1314).
     """
+    if record.without_sensors:
+        return []
     if topic == MOVE_GRANTED:
         granted = grant(payload)
         if (
@@ -2050,7 +2097,9 @@ def adr_0077_released_on_the_tail(
     a later one; a request completes only at `entry` clear or `far` occupied (#1165,
     #1171, amending
     [ADR-0077](../../../docs/adr/0077-a-train-is-not-sent-into-a-block-that-reads-occupied-and-a-move-ends-on-both-readings.md)).
-    A placement, a removal and a cancel are outside it."""
+    A placement, a removal and a cancel are outside it, and so is a move
+    granted before a change of `without_sensors`, which ends every move
+    followed; on a railroad run without sensors none is granted (#1314)."""
     lines: list[str] = []
     if topic == LOCK_RELEASED:
         held = _held(payload)
@@ -2315,7 +2364,9 @@ def adr_0093_aspects_along_the_locks(
     move lights nothing (#1160); every other end shows `stop`
     ([ADR-0093](../../../docs/adr/0093-every-signal-along-a-trains-locked-blocks-shows-its-aspect-and-a-passed-signal-shows-stop.md)).
     A history invariant because the record says which blocks are disputed, and
-    `adr_0048` holds the row to it.
+    `adr_0048` holds the row to it. On a railroad run without sensors no block
+    is out of use, whatever `state/unknown_sensors` lists, and none is
+    disputed (#1314).
     """
     if topic != QUIET or power(view.rows.get(POWER)) != ON:
         return []
@@ -2324,7 +2375,11 @@ def adr_0093_aspects_along_the_locks(
         return ["no aspects are shown"]
     expected = {end: str(Aspect.STOP) for end in view.layout.end_connection}
     locks = _locks(view)
-    out = frozenset(block_of(sensor) for sensor in _listed(view))
+    out = (
+        frozenset[str]()
+        if record.without_sensors
+        else frozenset(block_of(sensor) for sensor in _listed(view))
+    )
     disputed = record.disputed_blocks()
 
     def depth(journey: _Journey, index: int) -> int:
@@ -2405,8 +2460,9 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
     HistoryInvariant(
         "0048",
         "`disputed` lists exactly the blocks that read occupied with no train"
-        " explaining them, at every power value, and has no `trains`.",
-        (DISPUTED, ALLOCATION, POWER, EVERY_SETTLED)
+        " explaining them, at every power value, and has no `trains`; on a"
+        " railroad run without sensors it lists none.",
+        (DISPUTED, ALLOCATION, POWER, EVERY_SETTLED, SETTINGS)
         + (LOCK_GRANTED, LOCK_RELEASED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0048_disputed_lists_contradictions,
     ),
@@ -2456,9 +2512,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "`moving` reads false only where no granted move lies between its grant"
         " and its `entry` clear or `far` occupied, both those sensors listed"
         " aside for a train `state/taken` does not name, and every move of a"
-        " train `state/overdue` lists aside.",
+        " train `state/overdue` lists aside; a change of `without_sensors`"
+        " ends every move followed.",
         (MOVING, MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, OVERDUE, TAKEN)
-        + (LOCK_RELEASED,)
+        + (LOCK_RELEASED, SETTINGS)
         + (MOVE_WITHDRAWN, PLACEMENT_WANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0062_moving_to_the_tail,
     ),
@@ -2487,8 +2544,8 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "0077",
         "No move is granted into, and no lock taken on, a block with a sensor"
         " heard reading occupied, whoever holds it, unless the train occupies"
-        " it.",
-        (MOVE_GRANTED, LOCK_GRANTED, EVERY_SETTLED, ALLOCATION),
+        " it; on a railroad run without sensors, nothing is asked.",
+        (MOVE_GRANTED, LOCK_GRANTED, EVERY_SETTLED, ALLOCATION, SETTINGS),
         adr_0077_not_into_occupied,
     ),
     HistoryInvariant(
@@ -2496,9 +2553,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "A block leaves a train's move only after its `exit` read occupied then"
         " clear, or at a later `entry` clear; a transit only at its own `entry`"
         " clear or a later one; a request completes only at `entry` clear or"
-        " `far` occupied.",
+        " `far` occupied; a change of `without_sensors` ends every move"
+        " followed.",
         (EVERY_SETTLED, MOVE_GRANTED, LOCK_RELEASED, REQUEST_COMPLETED)
-        + (PLACEMENT_WANTED, PLACEMENT_REFUSED, MOVE_WITHDRAWN),
+        + (PLACEMENT_WANTED, PLACEMENT_REFUSED, MOVE_WITHDRAWN, SETTINGS),
         adr_0077_released_on_the_tail,
     ),
     HistoryInvariant(
@@ -2577,9 +2635,10 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "With power `on`, the exit signal of every block from the one a train"
         " is recorded in to its last locked block shows `clear` with two or"
         " more blocks beyond locked, `caution` with one, `stop` with none,"
-        " depth counting only up to a block out of use or disputed; every other"
-        " end shows `stop`.",
-        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS)
+        " depth counting only up to a block out of use or disputed, of which"
+        " there is none on a railroad run without sensors; every other end"
+        " shows `stop`.",
+        (ASPECTS, ALLOCATION, POWER, UNKNOWN_SENSORS, SETTINGS)
         + (EVERY_SETTLED, MOVE_GRANTED, TRAIN_PLACED, TRAIN_REMOVED),
         adr_0093_aspects_along_the_locks,
     ),
