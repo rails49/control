@@ -130,7 +130,13 @@ Railroad, in this order:
   shows `short_blocks` from `tc49/layout/state/settings`, is dead with the
   section's hint until the row says it, and when ticked or unticked publishes
   `settings_wanted` with `short_blocks` alone. Placing a train still needs a
-  block it fits.
+  block it fits. A second checkbox follows, *Run without sensors*
+  ([#1322](https://github.com/rails49/control/issues/1322)): it shows
+  `without_sensors` from `tc49/layout/state/settings`, is dead with the
+  section's hint until the row says it, and when ticked or unticked publishes
+  `settings_wanted` with `without_sensors` alone. Its help text says that
+  sensor readings are ignored, each train is driven with a throttle, and
+  changing it ends every request.
 
 Installation, in this order:
 

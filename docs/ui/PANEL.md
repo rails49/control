@@ -119,7 +119,9 @@ the obstacle is a transit, the block the holder last stood in. A holder of
 `""`, a block that reads occupied with no train explaining it: "waits for a
 sensor of B7 to read clear". A holder of `""` on a block out of use, either
 of its sensors on `state/unknown_sensors`: "waits for a sensor of B7 to
-report" ([#1254](https://github.com/rails49/control/issues/1254)). The same note serves `unsafe`, `held` and `transit_conflict`.
+report" ([#1254](https://github.com/rails49/control/issues/1254)), except
+while the railroad runs without sensors, when no block is out of use
+([#1322](https://github.com/rails49/control/issues/1322)). The same note serves `unsafe`, `held` and `transit_conflict`.
 
 Each row has a **cancel**, which publishes `tc49/dispatch/cancel_wanted`
 (`{id}`) naming that request, the requests chained after it ending with it.
@@ -193,7 +195,11 @@ outline rather than a stroke on it, so a disputed block wears both and the
 state of the block still reads. Grey rather than amber, because a railroad with
 no sensors wired yet wears it on every block. The dispatcher has such a block out of use
 ([DISPATCH.md](../dispatcher/DISPATCH.md#out-of-use)); the mark is why a train
-waits there.
+waits there. No block wears it while the railroad runs without sensors
+(`without_sensors` on `tc49/layout/state/settings`,
+[#1322](https://github.com/rails49/control/issues/1322)): the owner already
+knows those sensors do not report. The sensor squares at each block end are
+drawn either way, so sensors can be checked as they are installed.
 
 **A block naming a train overdue says so.** Each block that names a train
 `tc49/layout/state/overdue` lists says `no arrival` under it in amber, where a
@@ -1063,7 +1069,10 @@ such a sensor out of all the drawing's blocks. A chip goes when the row no longe
 lists its sensors, and the row's two changes are the frames a short outage
 leaves behind. A row that cannot be read is ignored and the last value stands,
 one bad entry dropping the whole row. The band only tells: the person acts with
-the tools they already have.
+the tools they already have. While `tc49/layout/state/settings` says
+`without_sensors: true` none of these chips is shown, and one chip stands in
+their place: `without sensors: trains are driven by throttle`
+([#1322](https://github.com/rails49/control/issues/1322)).
 
 **Beside those, each train `layout` stopped for not arriving**, off
 `tc49/layout/state/overdue`, in any view and whichever way power stands
