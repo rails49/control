@@ -4,8 +4,9 @@ import { css } from "lit";
  * The request list (`tc-requests`): one row per request the dispatcher holds,
  * in the order it serves them (#829).
  *
- * It sits under the roster in the run view's left pane, so its width is the
- * shell's (`--pane`). A row is the train and its state on one line, where the
+ * It sits in the run view's pane, under the roster or beside it, and its
+ * size is the view's (`tc-panel.styles.ts`). A row is the train and its state
+ * on one line, where the
  * request goes from and to under them, which train it waits for under that
  * where the dispatcher refused it one (#1114), and the cancel at the right,
  * with "arrived" before it on an underway row without sensors (#1323). A

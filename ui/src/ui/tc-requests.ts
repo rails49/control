@@ -4,7 +4,8 @@
  * ([ADR-0080](../../../docs/adr/0080-the-waiting-requests-are-a-list-a-person-orders.md),
  * [#829](https://github.com/rails49/control/issues/829)).
  *
- * It sits under the roster in the run view's left pane. A row is the train,
+ * It sits in the run view's pane, under the roster, or beside it where the
+ * pane is below the drawing. A row is the train,
  * where the request starts, where it ends, and `waiting` or `underway`, and,
  * under them, which train it waits for where the dispatcher refused it a
  * launch or a move (#1114). An underway row whose cancel the dispatcher holds

@@ -31,6 +31,7 @@ import { readFileSync } from "node:fs";
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
+import { DRAWING, LEAST, UPRIGHT } from "../src/model/pane.js";
 import { COLOURS, DARK } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
@@ -114,13 +115,12 @@ describe("the palette", () => {
 });
 
 /**
- * The shell has one left-pane slot and the views with a pane fill it: the
- * palette in edit, the roster in run (#169, #291). One width, declared where
- * the page is, or the panes drift apart across a switch and the slot stops
- * being one. The throttle has no pane: its picker and its cab are full width
+ * The left pane's width is declared on the page: the palette in edit has it,
+ * and the roster in run has it until a person drags its divider (#169, #291,
+ * #1344). The throttle has no pane: its picker and its cab are full width
  * (#853).
  */
-describe("the left-pane slot", () => {
+describe("the left pane's width", () => {
   it("is declared on the page and read by every view that fills it", () => {
     expect(appStyles.cssText).toContain("--pane:");
     for (const sheet of [editorStyles, panelStyles]) {
@@ -480,12 +480,31 @@ describe("the note on a block naming a train overdue", () => {
 });
 
 /**
- * The run view's left pane (#895): the trains, then the requests directly
+ * The run view's pane (#895): the trains, then the requests directly
  * under them. Each takes its content's height up to half the pane and scrolls
  * on its own past that, so what is left over is below the requests rather
- * than between the two lists.
+ * than between the two lists. On a page taller than it is wide the pane is
+ * below the drawing and the two lists are side by side (#1344).
  */
-describe("the run view's left pane", () => {
+describe("the run view's pane", () => {
+  it("is below the drawing on a page taller than it is wide, its lists side by side", () => {
+    const upright = panelStyles.cssText.split(`@media ${UPRIGHT}`)[1]!;
+    expect(upright).toMatch(/"sheet"\s*"divider"\s*"roster"/);
+    expect(rule(upright, "aside")).toMatch(/flex-direction:\s*row/);
+  });
+
+  /** The limits a drag is held to also hold when the window changes size,
+   *  the stylesheet reading the same two numbers. */
+  it("is held to the divider's least and greatest by the stylesheet", () => {
+    const [left, upright] = panelStyles.cssText.split(`@media ${UPRIGHT}`);
+    expect(rule(left!, ":host")).toContain(
+      `clamp(${LEAST}px, var(--pane-size, var(--pane)), 100% - ${DRAWING.left}px)`,
+    );
+    expect(rule(upright!, ":host")).toContain(
+      `clamp(${LEAST}px, var(--pane-size, 14rem), 100% - ${DRAWING.below}px)`,
+    );
+  });
+
   it.each(["tc-roster", "tc-requests"])("%s takes its content's height, up to half", (list) => {
     const block = rule(panelStyles.cssText, list);
     expect(block).toMatch(/flex:\s*0 1 auto/);

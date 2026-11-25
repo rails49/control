@@ -4,10 +4,8 @@
  * [#170](https://github.com/rails49/control/issues/170),
  * [#1012](https://github.com/rails49/control/issues/1012)).
  *
- * It fills the shell's left-pane slot in the run view, where the editor puts
- * its palette
- * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
- * One slot, a view's pane in it.
+ * It is in the run view's pane, left of the drawing or below it
+ * (ui/PANEL.md).
  *
  * A railroad's roster is every train it owns, whether on the layout or off it
  * ([ADR-0039](../../../docs/adr/0039-a-train-may-be-off-the-layout.md)), so a

@@ -18,7 +18,7 @@
  * ([#168](https://github.com/rails49/control/issues/168)). What this holds is
  * what only the run view has: the overlay it hands the canvas, the machine
  * that says what a drag means (model/drag.ts), the right-click menu, the
- * roster pane and the request list under it.
+ * roster pane, the request list in it, and the divider that sizes the pane.
  *
  * Everything shown is the panel model's answer (model/panel.ts). It computes
  * nothing: occupancy, aspects, markers, the lit route, arrival ends and
@@ -47,6 +47,7 @@ import {
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
 import type { Point } from "../model/geometry.js";
+import { keep, kept, sizeAt, UPRIGHT, type Arrangement } from "../model/pane.js";
 import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
 import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
@@ -127,6 +128,11 @@ export class TcPanel extends LitElement {
   private grey = false;
   /** The redraw waiting on a reported point's mark, `null` for none. */
   private marking: ReturnType<typeof setTimeout> | null = null;
+  /** Whether the page is taller than it is wide, which puts the pane below
+   *  the drawing. */
+  private readonly upright = matchMedia(UPRIGHT);
+  /** Whether the divider is being dragged. */
+  private resizing = false;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -390,6 +396,53 @@ export class TcPanel extends LitElement {
     this.session?.send(reorderWanted(id, before));
   }
 
+  // --- the pane's size ------------------------------------------------------
+  //
+  // The divider between the pane and the drawing sets the pane's width, or
+  // its height while the pane is below the drawing. The size is kept in the
+  // browser, one for each arrangement, and the drawing is fitted again
+  // whenever the pane changes size (#1344).
+
+  private get arrangement(): Arrangement {
+    return this.upright.matches ? "below" : "left";
+  }
+
+  /** Hand the stylesheet the pane's size, `null` for the stylesheet's own. */
+  private setSize(size: number | null): void {
+    if (size === null) this.style.removeProperty("--pane-size");
+    else this.style.setProperty("--pane-size", `${size}px`);
+  }
+
+  /** The page turned: the pane is on the other side of the drawing, at the
+   *  size last set for it there. A drag of the divider ends. */
+  private readonly turned = (): void => {
+    this.resizing = false;
+    this.setSize(kept(this.arrangement));
+    this.canvas?.fit();
+  };
+
+  private grab(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    this.resizing = true;
+  }
+
+  private resize(event: PointerEvent): void {
+    if (!this.resizing) return;
+    const size = sizeAt(this.arrangement, this.getBoundingClientRect(), {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    this.setSize(size);
+    keep(this.arrangement, size);
+    this.canvas?.fit();
+  }
+
+  private release(): void {
+    this.resizing = false;
+  }
+
   // --- painting -------------------------------------------------------------
 
   override render() {
@@ -416,6 +469,13 @@ export class TcPanel extends LitElement {
           @request-reordered=${this.reordered}
         ></tc-requests>
       </aside>
+      <div
+        class="divider"
+        @pointerdown=${this.grab}
+        @pointermove=${this.resize}
+        @pointerup=${this.release}
+        @pointercancel=${this.release}
+      ></div>
 
       ${off.length === 0
         ? nothing
@@ -468,8 +528,15 @@ export class TcPanel extends LitElement {
     this.awaitMark();
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.upright.addEventListener("change", this.turned);
+    this.setSize(kept(this.arrangement));
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.upright.removeEventListener("change", this.turned);
     if (this.marking !== null) clearTimeout(this.marking);
     this.marking = null;
   }

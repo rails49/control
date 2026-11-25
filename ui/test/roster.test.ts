@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * The roster pane in the run view's half of the shell's left-pane slot
+ * The roster pane in the run view
  * ([#169](https://github.com/rails49/control/issues/169),
  * [#170](https://github.com/rails49/control/issues/170)).
  *

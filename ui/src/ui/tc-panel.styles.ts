@@ -1,4 +1,6 @@
-import { css } from "lit";
+import { css, unsafeCSS } from "lit";
+
+import { DRAWING, LEAST, UPRIGHT } from "../model/pane.js";
 
 /**
  * The run view (`tc-panel`): the chrome round the drawing, laid out inside the
@@ -8,29 +10,66 @@ import { css } from "lit";
  * a symbol, a wire, a route or a train is declared there and not here
  * ([#168](https://github.com/rails49/control/issues/168)).
  *
- * The roster fills the shell's left-pane slot, whose width is the shell's
- * (`--pane`), and the pane takes the full height of the work row: it is the
- * same rectangle the editor's palette occupies, so a toggle does not move the
- * pane under the pointer ([#169](https://github.com/rails49/control/issues/169)).
- * The request list sits directly under the roster in the same pane (#829,
- * #895).
+ * The pane, the roster with the request list under it (#829, #895), is left
+ * of the drawing and takes the full height of the work row. On a page taller
+ * than it is wide it is below the drawing, with the two lists side by side
+ * ([#1344](https://github.com/rails49/control/issues/1344)).
+ *
+ * The divider between the pane and the drawing sets the pane's size. The view
+ * hands it over as `--pane-size`, and until a person has dragged the divider
+ * the width is the shell's `--pane`, which the editor's palette has. The
+ * size is held to the limits a drag is held to (`model/pane.ts`) when the
+ * window changes size.
  */
 export const panelStyles = css`
   :host {
     display: grid;
-    grid-template-columns: var(--pane) 1fr;
+    grid-template-columns:
+      clamp(${LEAST}px, var(--pane-size, var(--pane)), 100% - ${DRAWING.left}px)
+      auto 1fr;
     grid-template-rows: auto 1fr;
     grid-template-areas:
-      "roster notice"
-      "roster sheet";
+      "roster divider notice"
+      "roster divider sheet";
   }
 
   aside {
     grid-area: roster;
-    border-right: 1px solid var(--rule);
     display: flex;
     flex-direction: column;
+    min-width: 0;
     min-height: 0;
+  }
+
+  /* A line one pixel wide. What takes the press is wider, and wider again
+     under a finger, and lies over the edges of the pane and the drawing. */
+  .divider {
+    --reach: 0.3rem;
+
+    grid-area: divider;
+    position: relative;
+    z-index: 1;
+    width: 1px;
+    background: var(--rule);
+    cursor: col-resize;
+    touch-action: none; /* a drag on a touch screen is a drag, not a scroll */
+  }
+
+  @media (pointer: coarse) {
+    .divider {
+      --reach: 0.7rem;
+    }
+  }
+
+  .divider::before {
+    content: "";
+    position: absolute;
+    inset: 0 calc(-1 * var(--reach));
+  }
+
+  .divider:hover,
+  .divider:active {
+    background: var(--hint);
   }
 
   /* Each list is its content's height, capped at half the pane, so the
@@ -68,6 +107,48 @@ export const panelStyles = css`
     display: grid;
     overflow: hidden;
     min-height: 0;
+  }
+
+  @media ${unsafeCSS(UPRIGHT)} {
+    :host {
+      grid-template-columns: 1fr;
+      grid-template-rows:
+        auto 1fr auto
+        clamp(${LEAST}px, var(--pane-size, 14rem), 100% - ${DRAWING.below}px);
+      grid-template-areas:
+        "notice"
+        "sheet"
+        "divider"
+        "roster";
+    }
+
+    /* The two lists side by side, each the pane's height and scrolling on its
+       own. */
+    aside {
+      flex-direction: row;
+    }
+
+    tc-roster,
+    tc-requests {
+      flex: 1 1 0;
+      min-width: 0;
+      max-height: none;
+    }
+
+    tc-requests {
+      border-top: none;
+      border-left: 1px solid var(--rule);
+    }
+
+    .divider {
+      width: auto;
+      height: 1px;
+      cursor: row-resize;
+    }
+
+    .divider::before {
+      inset: calc(-1 * var(--reach)) 0;
+    }
   }
 
   /* A railroad the apps did not build: its saved drawing is invalid, so it is

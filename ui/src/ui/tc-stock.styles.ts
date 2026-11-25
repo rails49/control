@@ -7,8 +7,9 @@ import { css } from "lit";
  * top, and under it the list, `minmax(300px, 380px)`, beside the editor of the
  * item chosen in it.
  *
- * **Not the shell's left-pane slot.** `--pane` is the width of the strip
- * beside a drawing surface — the editor's palette, the run view's roster
+ * **No pane of the shell's width.** `--pane` is the width of the strip
+ * beside a drawing surface — the editor's palette, and the run view's pane
+ * until its divider is dragged
  * ([#169](https://github.com/rails49/control/issues/169)) — and this view has
  * no surface, so it declares its own columns and leaves `--pane` alone.
  *

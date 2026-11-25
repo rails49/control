@@ -87,6 +87,8 @@ src/
     views.ts     the views the app has of the railroad, and the hash they are
                  bookmarked by
     panel.ts     the run's model: bus payloads in, render state out
+    pane.ts      the run view's pane: which side of the drawing it is on, and
+                 the size its divider was dragged to, kept in the browser
     session.ts   the page's one broker connection: the railroad the row
                  names, the panel model it feeds, the presses, the OFF drain
     throttle.ts  what the throttle draws for each train there is to drive
@@ -147,11 +149,12 @@ src/
     tc-backup.ts   the backup dialog: whether the store is kept anywhere,
                    the press that keeps it now, and the backups to come back to
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
-                   the drag, the right-click menu and the roster pane
+                   the drag, the right-click menu, and the pane with the
+                   divider that sizes it
     tc-roster.ts   the roster pane: every train the railroad owns, on the
                    layout or off it, a row to drag out of and back to
-    tc-requests.ts the request list under the roster: a cancel on each, a
-                   drag to reorder the waiting ones
+    tc-requests.ts the request list in the run view's pane: a cancel on
+                   each, a drag to reorder the waiting ones
     tc-throttle.ts the throttle view: a row of throttles, each a panel with
                    its own id, as many as its width fits; the session stays
                    the app's

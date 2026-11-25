@@ -3,9 +3,8 @@ import { css } from "lit";
 /**
  * The roster pane (`tc-roster`): the trains the run has, one row each.
  *
- * It sits in the shell's left-pane slot, which the editor's palette sits in
- * too, so the width is the shell's (`--pane`) and not declared here
- * ([#169](https://github.com/rails49/control/issues/169)).
+ * It sits in the run view's pane, whose size is the view's
+ * (`tc-panel.styles.ts`) and not declared here.
  *
  * A row is the photo of the train's first locomotive, its name, where it is,
  * and how long it is. The photo sits in a slot of its own down the left, the
