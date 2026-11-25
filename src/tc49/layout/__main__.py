@@ -50,7 +50,10 @@ box can cut track power when the box goes silent (#716). Standing and
 reloading are outside it and say nothing. The fast clock goes out at the same
 beat, `tc49/layout/state/clock`, started at each build at the start time and
 speed-up the railroad keeps, `layouts/<layout>.clock.yaml`, and run on the
-monotonic clock from there (ADR-0090). A railroad that keeps none starts at
+monotonic clock from there (ADR-0090). It stands while `state/power` reads
+`off`, so from each build until power first reads `on`, and runs while it
+reads `on` or `draining`; the row is said at every beat either way
+(`lib/clock_row.py`, #1350). A railroad that keeps none starts at
 the box's wall time of day at a speed-up of 1, and nothing is written: the
 wall clock is read once a build, here, and by nothing in `LayoutInterface`,
 which never learns what time it is (ADR-0044). A person sets it with
@@ -272,7 +275,8 @@ class _Binding:
         starting at zero, and the fast clock started: at the start time the
         railroad keeps (ADR-0090, decision 4), or, where it keeps none, at
         the box's time of day at a speed-up of 1, which is not written until
-        a person sets the clock. The interface can read the railroad's
+        a person sets the clock. It stands there until power first reads
+        `on` (#1350). The interface can read the railroad's
         roster again, once, for a placement or a take naming a train it was
         not built with (ADR-0092, decision 2). It starts at the settings
         the railroad keeps, the defaults where it keeps none, and a person's

@@ -257,8 +257,9 @@ class _Binding:
 
         The fast clock is started as `layout` starts it, at the start time and
         speed-up the railroad keeps or at the box's time of day at 1, and run
-        on the run clock from there; what a person sets is kept with the
-        railroad as `layout` keeps it (ADR-0090).
+        on the run clock from there while power is not `off` (#1350); what a
+        person sets is kept with the railroad as `layout` keeps it
+        (ADR-0090).
 
         The settings are taken on `settings_wanted` and kept as `layout`
         keeps them, the railroad's with the railroad and the two silences and

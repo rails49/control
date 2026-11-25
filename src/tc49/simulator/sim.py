@@ -78,7 +78,10 @@ It says the **fast clock** as `layout` does, on `tc49/layout/state/clock`,
 when it is built with one (`lib.clock_row`): read off the run clock and said
 once a second of it, which is a real second live and a simulated one in
 batch, so a replay stays byte-identical (ADR-0090, decision 1). It is no
-event on the queue, so it never holds a batch run open.
+event on the queue, so it never holds a batch run open. It stands while this
+binding states power `off` and runs while it states `on` or `draining`, by
+the rule `layout`'s clock keeps, which is the row's and not written here
+(`lib.clock_row`, #1350).
 
 Where each train stands is held in memory and goes with the process. On a
 real railroad the steel is the persistence — the trains are simply still
@@ -195,8 +198,9 @@ class Simulator:
         (ADR-0085, decision 4).
 
         `fast`: the fast clock, read off `clock`, said once each `CLOCK_S` of
-        it from the run's start (ADR-0090). A run given none says none, which
-        is the research harness's: its traces are what they were.
+        it from the run's start (ADR-0090), standing while this binding
+        states power `off` (#1350). A run given none says none, which is the
+        research harness's: its traces are what they were.
 
         `settings`: the railroad's settings, said on
         `tc49/layout/state/settings` as the layout interface says them, so
@@ -649,9 +653,9 @@ class Simulator:
         """The fast clock said where a beat is due by the run clock, once
         however many were passed, and the next one set a `CLOCK_S` on from
         the one due, so the beats keep to the run's own seconds. The clock is
-        no event: it runs whatever track power and the run are doing, and a
-        batch run ends at quiescence without waiting on it (ADR-0090,
-        decision 5)."""
+        no event, and a batch run ends at quiescence without waiting on it.
+        It is said at each beat whatever the power is: while this binding
+        states `off` the row stands and repeats the same time (#1350)."""
         if self._fast is None or self._beat > self._clock.now:
             return
         self._fast.say()

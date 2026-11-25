@@ -30,6 +30,7 @@ from tc49.layout.__main__ import OWNED, retained, serve
 from tc49.layout.interface import (
     ALIVE_CONFIRMED,
     ALLOCATION,
+    DEVICE_TRACK,
     DRIVING,
     OVERDUE,
     POWER,
@@ -435,6 +436,51 @@ def test_a_railroad_is_loaded_at_the_start_time_it_keeps(
     said = rows(heard, CLOCK)[0]
     assert said["speed_up"] == 4
     assert 3 * 3600 + 15 * 60 <= said["time"] < 3 * 3600 + 15 * 60 + 4 * 5
+    witness.close()
+
+
+def test_the_fast_clock_stands_while_power_is_off_and_runs_while_it_is_on(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """The rule both bindings keep (`lib/clock_row.py`, #1350), by the power
+    this app states: it comes up `off`, so the clock repeats its start time;
+    it runs once the supply reports `on`; and after a press of OFF it repeats
+    the time it stood at. At a speed-up of 60 a clock that ran would move a
+    minute between two rows."""
+    start = 3 * 3600 + 15 * 60
+    (root / "layouts" / f"{NAME}.clock.yaml").write_text(
+        "start: '03:15'\nspeed_up: 60\n"
+    )
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: len(rows(heard, CLOCK)) >= 2), "no clock came"
+    assert {row["time"] for row in rows(heard, CLOCK)} == {start}
+
+    hand = MqttBus(port=broker.port)
+    assert hand.wait_connected()
+    hand.publish(POWER_WANTED, {"power": "on"})
+    assert drained(
+        witness, lambda: rows(heard, WANTED_TRACK)[-1]["power"] == "on"
+    ), "the press was dropped"
+    hand.publish(DEVICE_TRACK, {"power": "on"})
+    assert drained(
+        witness, lambda: rows(heard, CLOCK)[-1]["time"] > start
+    ), "the clock stood with power on"
+
+    hand.publish(POWER_WANTED, {"power": "off"})
+    assert drained(
+        witness, lambda: rows(heard, POWER)[-1]["power"] == "off"
+    ), "the press was dropped"
+    settle(witness, 0.2)
+    began = len(rows(heard, CLOCK))
+    assert drained(
+        witness, lambda: len(rows(heard, CLOCK)) >= began + 2
+    ), "no clock came"
+    stood = {row["time"] for row in rows(heard, CLOCK)[began:]}
+    assert len(stood) == 1, f"the clock ran with power off: {sorted(stood)}"
+    assert stood.pop() > start
+    hand.close()
     witness.close()
 
 
