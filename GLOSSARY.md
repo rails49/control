@@ -471,6 +471,29 @@ railroad's day takes 7.5 minutes
 ([ADR-0090](docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 _Avoid_: multiplier, rate, scale
 
+### Timetable
+
+**Timetable**:
+A railroad's named document of where its trains start and a list of entries in
+time order. The scheduler releases each entry at its time on the fast clock,
+and a person's drags are added to it while it records. It covers at most one
+fast-clock day and runs once ([GOALS.md](docs/GOALS.md#scheduling)).
+_Avoid_: schedule, time schedule, scenario (the test harness's document, which
+has no times)
+
+**Entry**:
+One row of a timetable: a time, a train, and either a set of arrival ends with
+a dwell or a turn-round. It names no block the train leaves from. The scheduler
+makes a request from it when it is due
+([GOALS.md](docs/GOALS.md#scheduling)).
+_Avoid_: request (what the dispatcher receives), working, trip
+
+**Dwell**:
+The least time, in fast-clock minutes, a train stands where an entry took it
+before its next entry is released. It defaults to 0
+([GOALS.md](docs/GOALS.md#scheduling)).
+_Avoid_: stop (the aspect), wait, layover
+
 ### Bus
 
 **Topic**:
