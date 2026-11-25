@@ -29,7 +29,7 @@
  */
 
 import { render, type LitElement } from "lit";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
@@ -264,5 +264,117 @@ describe("a right-click while two menus are open", () => {
     expect(top.dismissed()).toBe(true);
     expect(offered(shell)).toEqual([]);
     expect(overlays.map((one) => one.style.pointerEvents)).toEqual(["", ""]);
+  });
+});
+
+/**
+ * The long press that lands on a menu's overlay (#1310). A finger has no
+ * `contextmenu` to forward on an iPad, and the canvas never sees the press, so
+ * the second long press took the menu down and opened nothing.
+ *
+ * The overlay goes with its menu while the finger is down, so the rest of the
+ * pointer's events are dispatched on the drawing here, which is where Chrome
+ * sends them. Safari's routing, and that Safari puts no menu of its own up,
+ * are read in a browser.
+ */
+describe("a long press while a canvas menu is open", () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** One event of a finger, on `on`. */
+  function finger(on: Element, name: string, at: Point, pointerId: number): void {
+    on.dispatchEvent(
+      new PointerEvent(name, {
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+        clientX: at.x,
+        clientY: at.y,
+        pointerType: "touch",
+        pointerId,
+      }),
+    );
+  }
+
+  /** A finger on `on`, held still for the half second a long press takes,
+   *  then lifted. */
+  async function held(shell: TcApp, on: Element, at: Point, pointerId: number) {
+    finger(on, "pointerdown", at, pointerId);
+    await settled(shell);
+    vi.advanceTimersByTime(500);
+    await settled(shell);
+    finger(surface(shell), "pointerup", at, pointerId);
+    await settled(shell);
+  }
+
+  /** A joined session with the first train's menu opened by a long press, and
+   *  the overlay that menu dropped. */
+  async function opened(): Promise<{ shell: TcApp; over: HTMLElement }> {
+    const shell = await standing();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await held(shell, surface(shell), MIDDLE.a, 1);
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
+    underneath(shell);
+    const menu = running(shell).renderRoot.querySelector("tc-menu")!;
+    return { shell, over: overlay(menu) };
+  }
+
+  it("dismisses that menu and opens one for the train under the finger", async () => {
+    const { shell, over } = await opened();
+    await held(shell, over, MIDDLE.b, 2);
+
+    expect(offered(shell)).toEqual(["Turn around", "Cancel request"]);
+    await chose(shell, "Turn around");
+    expect(written()).toEqual([
+      { topic: "tc49/schedule/reversal_wanted", payload: { train: "shunter" } },
+    ]);
+  });
+
+  it("opens nothing after a tap", async () => {
+    const { shell, over } = await opened();
+    finger(over, "pointerdown", MIDDLE.b, 2);
+    await settled(shell);
+    finger(surface(shell), "pointerup", MIDDLE.b, 2);
+    vi.advanceTimersByTime(5000);
+    await settled(shell);
+    expect(offered(shell)).toEqual([]);
+  });
+
+  it("opens nothing for a finger that moved past the slop", async () => {
+    const { shell, over } = await opened();
+    finger(over, "pointerdown", MIDDLE.b, 2);
+    await settled(shell);
+    finger(surface(shell), "pointermove", { x: MIDDLE.b.x + 13, y: MIDDLE.b.y }, 2);
+    vi.advanceTimersByTime(5000);
+    await settled(shell);
+    expect(offered(shell)).toEqual([]);
+  });
+
+  it("opens nothing once a second finger lands", async () => {
+    const { shell, over } = await opened();
+    finger(over, "pointerdown", MIDDLE.b, 2);
+    await settled(shell);
+    // Lifted at once, so the drawing makes no long press of the second
+    // finger either.
+    finger(surface(shell), "pointerdown", MIDDLE.a, 3);
+    finger(surface(shell), "pointerup", MIDDLE.a, 3);
+    vi.advanceTimersByTime(5000);
+    await settled(shell);
+    expect(offered(shell)).toEqual([]);
+  });
+
+  it("opens nothing for a mouse held still", async () => {
+    const { shell, over } = await opened();
+    over.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        composed: true,
+        clientX: MIDDLE.b.x,
+        clientY: MIDDLE.b.y,
+        pointerType: "mouse",
+      }),
+    );
+    vi.advanceTimersByTime(5000);
+    await settled(shell);
+    expect(offered(shell)).toEqual([]);
   });
 });

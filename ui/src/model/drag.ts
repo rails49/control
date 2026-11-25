@@ -362,6 +362,10 @@ export function schedulingMachine(drag: Drag, view: Gestures): Machine {
   };
 }
 
+/** How long a finger or a pen rests before the press opens the right-click
+ *  menu, in milliseconds (#1275). */
+export const HELD_FOR = 500;
+
 /** Whether the pointer has travelled too far from a press for its release to
  *  be a click: further on a touch screen, a finger rolling as it lifts. The
  *  canvas asks the same of a long press (#1275). */
