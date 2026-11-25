@@ -2401,22 +2401,22 @@ class Dispatcher:
         # Active trains first, by request arrival then train id (DISPATCH.md).
         # None is offered a move while the railroad runs without sensors: a
         # person drives it (#1314).
-        for train in sorted(
-            () if state.without_sensors else state.active,
-            key=lambda t: (state.active[t].request.phase, t),
-        ):
-            active = state.active[train]
-            if (
-                active.outstanding is not None
-                or active.request.cancelled
-                or active.cur_index == len(active.route.blocks) - 1
+        if not state.without_sensors:
+            for train in sorted(
+                state.active, key=lambda t: (state.active[t].request.phase, t)
             ):
-                # A cancelled request is waiting for the move it was already
-                # making to end, and takes no other (ADR-0049). A train at its
-                # route's last block has no next move: its tail is what it
-                # waits for (#1171).
-                continue
-            self._apply_move(active, self._strategy.grant(train, state))
+                active = state.active[train]
+                if (
+                    active.outstanding is not None
+                    or active.request.cancelled
+                    or active.cur_index == len(active.route.blocks) - 1
+                ):
+                    # A cancelled request is waiting for the move it was
+                    # already making to end, and takes no other (ADR-0049). A
+                    # train at its route's last block has no next move: its
+                    # tail is what it waits for (#1171).
+                    continue
+                self._apply_move(active, self._strategy.grant(train, state))
         # The list in its order (ADR-0080): each waiting request is offered
         # the first claim in turn, and one that cannot start is skipped, so a
         # later one still starts where an earlier one cannot. A train's own
