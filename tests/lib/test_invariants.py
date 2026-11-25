@@ -1907,6 +1907,147 @@ def test_no_block_is_out_of_use_in_the_aspects_without_sensors() -> None:
     assert breaches_over(adr_0093_aspects_along_the_locks, MEET, rows, [])
 
 
+def arrival_rows(chained: dict[str, Any]) -> Rows:
+    """t1 in west_1 on WHOLE, r1 under way on ROUTE and `chained` listed
+    after it."""
+    return {
+        ALLOCATION: {
+            **WHOLE[ALLOCATION],
+            "requests": [request(route=ROUTE), chained],
+        }
+    }
+
+
+CHAINED = request("r2", after="r1", dest=["w_main.B"])
+"""r2 of t1, chained after r1 and not started."""
+
+COMPLETED: tuple[str, Payload] = (REQUEST_COMPLETED, {"id": "r1"})
+
+
+def test_a_train_placed_at_its_arrival_keeps_its_chained_request() -> None:
+    """ "Arrived" completes r1 and places t1 in the route's last block while r2
+    is still listed, with no route; only that placement is excepted (#1318)."""
+    rows = arrival_rows(CHAINED)
+    arrived = [COMPLETED, placed("t1", "east_1")]
+
+    assert (
+        breaches_over(adr_0049_placed_has_no_request, MEET, rows | WITHOUT, arrived)
+        == []
+    )
+    assert breaches_over(
+        adr_0049_placed_has_no_request,
+        MEET,
+        rows | WITHOUT,
+        [COMPLETED, placed("t1", "e_main")],
+    )
+    assert breaches_over(
+        adr_0049_placed_has_no_request,
+        MEET,
+        arrival_rows(CHAINED | {"route": ["east_1", "east_throat.to_1", "e_main"]})
+        | WITHOUT,
+        arrived,
+    )
+    assert breaches_over(
+        adr_0049_placed_has_no_request,
+        MEET,
+        rows | WITHOUT,
+        [COMPLETED, (ALLOCATION, arrival_rows(CHAINED)[ALLOCATION]), arrived[1]],
+    )
+    assert breaches_over(
+        adr_0049_placed_has_no_request, MEET, rows | WITHOUT, arrived[1:]
+    )
+    assert breaches_over(adr_0049_placed_has_no_request, MEET, rows | WITH, arrived)
+    assert breaches_over(adr_0049_placed_has_no_request, MEET, rows, arrived)
+
+
+QUIETLY: Rows = {
+    MOVING: {"moving": False},
+    DISPUTED: NONE_DISPUTED,
+    UNKNOWN_SENSORS: {"sensors": [{"sensor": "w_main.A"}, {"sensor": "e_main.B"}]},
+}
+"""What the dispatcher says of the sensors on a railroad run without them,
+whatever `state/unknown_sensors` lists."""
+
+
+def test_a_run_holding_its_whole_route_breaches_no_invariant() -> None:
+    """The picture of a run under way without sensors, `Incremental`'s two
+    blocks ahead and the transit with each block included (#1318)."""
+    rows = WHOLE | ON | LIT | QUIETLY | WITHOUT
+
+    assert {
+        invariant.breaches.__name__: invariant.breaches(view(MEET, rows))
+        for invariant in INVARIANTS
+    } == {invariant.breaches.__name__: [] for invariant in INVARIANTS}
+
+
+def test_a_launch_and_its_arrival_breach_no_history_invariant() -> None:
+    """r1 is launched over the whole of ROUTE with no move and ended by
+    "arrived", r2 chained after it still listed (#1318)."""
+    standing: Rows = {
+        ALLOCATION: {
+            **allocation(
+                {"t1": "west_1"},
+                locks={"west_1": "t1"},
+                requests=[request(), CHAINED],
+            ),
+            "occupied": {"t1": ["west_1"]},
+        },
+        ASPECTS: {"aspects": {}},
+    }
+    rows = standing | ON | QUIETLY | WITHOUT
+    launch: Messages = [
+        CHOSEN,
+        (LOCK_GRANTED, {"train": "t1", "resources": ROUTE[1:]}),
+        (ALIGN, {"connection": None, "transit": None, "points": []}),
+        *LIT.items(),
+        (ALLOCATION, arrival_rows(CHAINED)[ALLOCATION]),
+        (QUIET, {}),
+    ]
+    arrived: Messages = [
+        (LOCK_RELEASED, {"train": "t1", "resources": ROUTE[:-1]}),
+        COMPLETED,
+        placed("t1", "east_1"),
+        (ASPECTS, {"aspects": {}}),
+        (
+            ALLOCATION,
+            {
+                **allocation(
+                    {"t1": "east_1"}, locks={"east_1": "t1"}, requests=[CHAINED]
+                ),
+                "occupied": {"t1": ["east_1"]},
+            },
+        ),
+    ]
+
+    assert {
+        invariant.breaches.__name__: breaches_over(
+            invariant.breaches, MEET, rows, [*launch, *arrived]
+        )
+        for invariant in HISTORY_INVARIANTS
+    } == {invariant.breaches.__name__: [] for invariant in HISTORY_INVARIANTS}
+
+
+def test_the_invariants_a_run_without_sensors_changes_read_the_setting() -> None:
+    """Each names `state/settings` among its reads, and so each is checked
+    only where every subscriber sees one order (#1318)."""
+    by_name = {
+        invariant.breaches.__name__: invariant
+        for invariant in (*INVARIANTS, *HISTORY_INVARIANTS)
+    }
+    for name in (
+        "adr_0062_moving_while_crossing",
+        "adr_0048_disputed_lists_contradictions",
+        "adr_0077_not_into_occupied",
+        "adr_0093_aspects_along_the_locks",
+        "adr_0049_placed_has_no_request",
+        "adr_0062_moving_to_the_tail",
+        "adr_0077_released_on_the_tail",
+    ):
+        assert SETTINGS in by_name[name].reads, name
+        assert "without sensors" in by_name[name].states, name
+        assert cross_app(by_name[name]), name
+
+
 def test_a_setting_that_does_not_read_leaves_the_one_held() -> None:
     stray = [read("west_1", False), read("loop_up")]
 
