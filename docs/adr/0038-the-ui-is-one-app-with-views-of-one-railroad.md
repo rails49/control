@@ -4,6 +4,8 @@
 
 **Amended by [ADR-0059](0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md), 2026-09-03:** `tc49 live` and the bridge below are deleted. The page reaches the bus as a client of the broker on `/mqtt`, and the store, the containers and the hardware answer it as before. One page, one loaded railroad, a list of views: unchanged.
 
+*Superseded in part by [#1344](https://github.com/rails49/control/issues/1344): the run view's pane has a divider a person drags and is below the drawing on a page taller than it is wide, so the left pane is no longer the same width and the same place in both views ([PANEL.md](../ui/PANEL.md)).*
+
 *Amended by [ADR-0073](0073-the-chrome-comes-from-look.md) (#749): the band and the rail are `@rails49/look`'s elements drawn by `tc-app`, and `tc-header.ts` is deleted; track power on the band is look's power toggle and stop sign.*
 
 The browser ships one page. It holds **one loaded railroad** and a list of

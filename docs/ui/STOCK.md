@@ -665,8 +665,9 @@ a model whose picture is chosen three times would leak two. In development `ui/v
 to a photo camera the way it proxies the store's prefixes, so the page fetches both on its own
 origin.
 
-The view is not in the shell's left-pane slot. `--pane` is the width of the
-strip beside a drawing surface — the editor's palette, the run view's roster
+The view has no pane of the shell's width. `--pane` is the width of the
+strip beside a drawing surface — the editor's palette, and the run view's
+pane until its divider is dragged
 ([#169](https://github.com/rails49/control/issues/169)) — and this view has no
 surface, so it declares its own columns and leaves `--pane` alone. It puts
 no commands on the rail either: `RAIL.stock` is empty, there being no viewport
