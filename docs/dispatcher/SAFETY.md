@@ -20,10 +20,8 @@ collision mechanism, and it is not one.
   anything — it only vetoes grants that the lock table would otherwise make.
 
 A consequence worth stating: a train mid-transit from `X` to `Y` holds
-`{X, T, Y}`. Its lock on `X` is released once the sensor at the end it leaves by
-reads occupied then clear, or occupied at the grant and then clear, and its lock on
-`T` once the sensor at the end it enters by reads occupied then clear, with anything
-of that train's still behind it
+`{X, T, Y}`, and the sensors release `X` and then `T` behind it as the reading
+table in [GOALS.md](../GOALS.md#dispatching) says
 ([#1171](https://github.com/rails49/control/issues/1171)). Real trains straddle the
 boundary, and a short one can stand between the two blocks' sensors on the
 connection's points; the rule handles both without the dispatcher knowing how long

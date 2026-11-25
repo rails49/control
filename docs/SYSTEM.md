@@ -1090,17 +1090,12 @@ a departure block its train is not standing in gets one of those answers,
 Sensor readings are **applied where they land** (ADR-0047). The dispatcher reads
 `tc49/layout/state/settled/sensor/<block>.<end>`, and a reading that re-asserts the
 level it already holds is an at-least-once repeat and a no-op. A change is taken
-against every move that expects that sensor
-([#1171](https://github.com/rails49/control/issues/1171)). For a move out of X
-through `e`, over T, into Y through `f`: the grant puts T on what the train occupies;
-`X.e` occupied then clear, or occupied at the grant and then clear, releases X; `Y.f`
-occupied says the head is in, so Y is occupied and the train may be granted its next
-move; `Y.f` then clear releases T with anything of that train's still behind it,
-except a block on its route ahead whose transit in it holds (#1230), and ends the
-request at its last block. The far sensor of Y reading occupied says the
-head is in where `f` said nothing, and ends the request too. Any other reading
-changes nothing for any train, so a person backing a train at a platform moves
-nothing. Every changed reading ends in a **sweep** over the whole waiting set, as does
+against every move that expects that sensor, as the reading table in
+[GOALS.md](GOALS.md#dispatching) says
+([#1171](https://github.com/rails49/control/issues/1171)). What it releases goes out
+as `lock_released`, a head in a block brings the aspects and the allocation up
+to date before any grant that follows, and the reading that ends a request's last move ends
+the request. Every changed reading ends in a **sweep** over the whole waiting set, as does
 anything else that changes the lock table or the waiting set: a request admitted, the
 power reading `on` again, the list of unknown sensors changing. Every grant is `safe()`-checked
 before it commits, so arrival order picks among safe options and never
