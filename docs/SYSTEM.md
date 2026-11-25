@@ -61,8 +61,8 @@ flowchart TB
 ```
 
 - **Scheduler** — the one writer of requests. It composes a person's gestures
-  into requests, and submits a timetable whole at the start of a run, in the
-  file's order.
+  into requests, and submits the scenario's requests whole at the start of a
+  run, in the file's order.
 - **Dispatcher** — admits requests, chooses routes, and grants moves without
   deadlock ([DISPATCH.md](dispatcher/DISPATCH.md),
   [SAFETY.md](dispatcher/SAFETY.md)).
@@ -89,8 +89,8 @@ generator publishes the same schedule topics as the scheduler does now.
 
 One turn of the machine (ADR-0047):
 
-1. The scheduler submits a request — the timetable at the start of a run, a
-   person's gesture whenever it lands.
+1. The scheduler submits a request — the scenario's requests at the start of a
+   run, a person's gesture whenever it lands.
 2. The dispatcher admits it and sweeps: it chooses routes and publishes
    granted moves, `align` before each, so the route is set before anything
    moves.
@@ -692,22 +692,22 @@ come back past it ignored. *Publishes*
 `request_submitted` on the dispatcher's topic, and the `state/exhausted` and
 `state/facing` last-value topics.
 
-The scheduler is the **one writer of requests**. It has three sources: a
-timetable, submitted whole at the start of a run in the file's order; a
-person gesturing on the panel; and, later, a generator inventing traffic. Those are three
-sources inside one scheduler, not three publishers
+The scheduler is the **one writer of requests**. It has three sources: the
+scenario's requests, submitted whole at the start of a run in the file's
+order; a person gesturing on the panel; and, later, a generator inventing
+traffic. Those are three sources inside one scheduler, not three publishers
 ([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
 [GOALS.md](GOALS.md#scheduling)). Which of them a run has is configuration
-rather than a rule: a run an operator drives has no timetable at all
+rather than a rule: a run an operator drives has no scenario's requests at all
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
-From a timetable request the scheduler does one thing: it expands the arrival
-ends, `to: [yard_e]` becoming `yard_e.A, yard_e.B`, which is *syntax* and
-needs no layout. From a **gesture** it supplies the two fields the gesture
-leaves out, the id and the departure end. It makes each request's **id** from
-a single counter, in the timetable's order (`<train>-1`, `<train>-2`), which
-is what a document's own order requires. The id means nothing to a consumer and
-only has to be unique
+From one of the scenario's requests the scheduler does one thing: it expands
+the arrival ends, `to: [yard_e]` becoming `yard_e.A, yard_e.B`, which is
+*syntax* and needs no layout. From a **gesture** it supplies the two fields
+the gesture leaves out, the id and the departure end. It makes each request's
+**id** from a single counter, in the order of the scenario's requests
+(`<train>-1`, `<train>-2`), which is what a document's own order requires.
+The id means nothing to a consumer and only has to be unique
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)). A run
 carrying gestures makes no claim about that order — so a gesture's id takes
 that same counter with a nonce the scheduler process mints once in between,
@@ -789,7 +789,7 @@ the gesture that ended it was a person's. Facing needs no case of its own:
 `removed` is followed by `train_removed`, which already pops it, and
 `displaced` by `train_placed`, which already recomputes it.
 
-When the last timetable request has gone out it sets `exhausted`, which is
+When the scenario's requests have all gone out it sets `exhausted`, which is
 how a run knows it is over. Where a **`state/facing` value survived
 a restart** it adopts that value, and a train the value does not name — or
 names in a spelling this build refuses — has no facing until it is placed.
