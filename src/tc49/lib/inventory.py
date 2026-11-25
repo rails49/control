@@ -209,6 +209,9 @@ TOPICS: dict[str, Topic] = {
     # request is cancelled by its id, and one moved in front of `before`, or
     # to the end of the list where `before` is `null`.
     "tc49/dispatch/cancel_wanted": Topic(("id",), browser=True),
+    # A person saying a train is in its destination block, on a railroad run
+    # without sensors (#1314): `id` is the request that has arrived.
+    "tc49/dispatch/arrival_wanted": Topic(("id",), browser=True),
     "tc49/dispatch/reorder_wanted": Topic(("id", "before"), browser=True),
     "tc49/dispatch/point_wanted": Topic(("addr", "position"), browser=True),
     "tc49/dispatch/request_admitted": Topic(("id", "dest", "pruned")),

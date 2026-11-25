@@ -347,6 +347,113 @@ def test_a_cancel_releases_all_but_the_origin_at_once(strategy: Strategy) -> Non
     assert picture["requests"] == []
 
 
+ARRIVAL_WANTED = "tc49/dispatch/arrival_wanted"
+
+
+def arrive(assembly: Assembly, payload: Payload) -> list[tuple[str, Payload]]:
+    """`arrival_wanted` pressed: each leaf the dispatcher publishes on its
+    drain, with its payload, in order."""
+    heard: list[tuple[str, Payload]] = []
+    assembly.bus.subscribe(
+        "tc49/dispatch/#",
+        lambda topic, said: heard.append((topic.removeprefix("tc49/dispatch/"), said)),
+    )
+    assembly.bus.drain()
+    heard.clear()  # the retained rows a subscription is handed
+    press(assembly, ARRIVAL_WANTED, payload)
+    return [(leaf, said) for leaf, said in heard if leaf != "arrival_wanted"]
+
+
+@each_strategy
+@pytest.mark.parametrize("power", ["on", "off"])
+def test_arrived_releases_the_route_completes_and_places_the_train(
+    strategy: Strategy, power: str
+) -> None:
+    """At any power: everything on the route but A2, the origin among it, is
+    released, the request completes, and `mover` stands in A2. The picture
+    that follows has it there alone, and every signal along the route shows
+    `stop`."""
+    assembly = underway(strategy)
+    rid = minted(assembly, "mover")
+    press(assembly, POWER_WANTED, {"power": power})
+
+    said = arrive(assembly, {"id": rid})
+
+    assert said[:3] == [
+        ("lock_released", {"train": "mover", "resources": sorted(ROUTE[:-1])}),
+        ("request_completed", {"id": rid}),
+        ("train_placed", {"train": "mover", "block": "A2"}),
+    ]
+    # The aspects row only where it changes: with the power off every signal
+    # already shows `stop`.
+    assert [leaf for leaf, _ in said[3:]] == (
+        ["state/aspects", "state/allocation"] if power == "on" else ["state/allocation"]
+    )
+    picture = last(assembly, ALLOCATION)
+    assert picture["trains"] == {"mover": "A2"}
+    assert picture["locks"] == {"A2": "mover"}
+    assert picture["occupied"] == {"mover": ["A2"]}
+    assert picture["requests"] == []
+    assert proceed(assembly) == {}
+
+
+@each_strategy
+@pytest.mark.parametrize("payload", [{}, {"id": 7}, {"id": "nobody"}])
+def test_an_arrival_naming_no_request_held_is_dropped(
+    strategy: Strategy, payload: Payload
+) -> None:
+    assembly = underway(strategy)
+
+    assert arrive(assembly, payload) == []
+    assert under_way_still(assembly)
+    assert last(assembly, ALLOCATION)["occupied"] == {"mover": ROUTE}
+
+
+@each_strategy
+def test_an_arrival_for_a_waiting_request_is_dropped(strategy: Strategy) -> None:
+    """`sharer` waits `held` on C3b, which `loner`'s route ends in."""
+    assembly = underway(strategy, "loner", "sharer")
+    wants(assembly, "loner", "C3b.B")
+    wants(assembly, "sharer", "C3b.A")
+
+    assert arrive(assembly, {"id": minted(assembly, "sharer")}) == []
+    assert launched(assembly) == ["mover", "loner"]
+    assert under_way_still(assembly, "loner")
+
+
+@each_strategy
+def test_a_second_arrival_for_the_same_request_is_dropped(strategy: Strategy) -> None:
+    assembly = underway(strategy)
+    rid = minted(assembly, "mover")
+    arrive(assembly, {"id": rid})
+
+    assert arrive(assembly, {"id": rid}) == []
+    assert last(assembly, ALLOCATION)["trains"] == {"mover": "A2"}
+
+
+@each_strategy
+def test_an_arrival_on_a_railroad_run_by_its_sensors_is_dropped(
+    strategy: Strategy,
+) -> None:
+    """The move granted into CE2 stands: its sensors end it.
+
+    ADR-0022's invariant is left out: `layout` writes the move's points one
+    gap apart on the clock, so at the end of the drain that grants it the
+    crossing train's points are not yet wanted. Any launch on this drawing
+    run by its sensors shows it."""
+    assembly = assemble_live(
+        drawing(), stock(mover=250), {"mover": STOOD["mover"]}, strategy
+    )
+    check(assembly, strategy, without={"adr_0022_points_set_for_the_crossing"})
+    wants(assembly, "mover", "A2.A")
+    before = last(assembly, ALLOCATION)
+
+    assert arrive(assembly, {"id": minted(assembly, "mover")}) == []
+    assert [line["into"] for line in leaves(assembly, "move_granted")] == ["CE2"]
+    assert last(assembly, ALLOCATION) == before
+    assert under_way_still(assembly)
+
+
 def place(assembly: Assembly, train: str, block: str | None) -> None:
     press(assembly, PLACEMENT_WANTED, {"train": train, "block": block})
 
