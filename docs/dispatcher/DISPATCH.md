@@ -116,6 +116,16 @@ that changes it sweeps.
   then the whole route, origin first, since it may be anywhere on it. It is
   offered no move. The signals along the route show by the locks (*Aspects*)
   until the run ends.
+- **"Arrived"** (`tc49/dispatch/arrival_wanted`, naming the request) is a
+  person saying the train is in its destination block
+  ([#1320](https://github.com/rails49/control/issues/1320)). It is accepted at
+  any power for a request under way. Everything the train holds but the route's
+  last block is released in one `lock_released`, the request completes
+  (`request_completed`), and `train_placed` names the train and that block,
+  which its `occupied` list then holds alone. A request chained after it departs
+  from there at the sweep that follows, by the end opposite the one the route
+  came in by, as after any arrival. An id the dispatcher does not hold, a request
+  still waiting, and any request while the setting is off are dropped.
 - **A cancel** ends the run at once: the train occupies its origin alone, the
   rest is released in one `lock_released`, and the request is cancelled
   `revoked`. Nothing is asked of `layout`. A request chained after it ends or
@@ -417,6 +427,10 @@ clears, which releases the trailing transit and anything behind it, or its far s
 reads occupied where the entry sensor said nothing. The train parks holding its
 standing lock and whatever it was still seen to be on. Latency is completion time −
 arrival time.
+
+While the railroad runs without sensors no sensor says so, and a request
+completes when a person says "arrived" instead: the train parks in the route's
+last block holding that alone (*Without sensors*).
 
 A request **cancelled** ends the same way and short of the arrival: what its train
 holds ahead is released and what it is on is not, and the train parks wherever along

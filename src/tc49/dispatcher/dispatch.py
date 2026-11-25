@@ -25,7 +25,7 @@ second scheduler submitting alongside the first needs no change here
 
 The whole of what arrives is read that way (#260). Two filters: the requests
 this app answers — `request_submitted`, `placement_wanted`,
-`cancel_wanted`, `reorder_wanted` and `point_wanted`, from the ui, the scheduler, or a second scheduler introduced
+`cancel_wanted`, `arrival_wanted`, `reorder_wanted` and `point_wanted`, from the ui, the scheduler, or a second scheduler introduced
 later — and what
 the layout interface observes, on a filter that also carries the `align` and
 `move` commands, which name the layout and are passed by unread. Every leaf
@@ -38,8 +38,8 @@ While `state/settings` says `without_sensors` the railroad runs without
 sensors (#1314, DISPATCH.md, *Without sensors*): readings are recorded and
 ignored, a launch locks the whole route by the `FullRoute` rule whatever the
 strategy, sets every point of it in one `align` naming no transit, and grants
-no move. A person drives the train, and the run ends by a cancel, a placement
-or a removal.
+no move. A person drives the train, and the run ends by "arrived"
+(`arrival_wanted`), a cancel, a placement or a removal.
 """
 
 import sys
@@ -1331,9 +1331,9 @@ class Dispatcher:
     # -- what is addressed to the dispatcher --------------------------------
 
     def _on_dispatch(self, topic: str, payload: Payload) -> None:
-        """The five topics the dispatcher responds to, on one filter.
+        """The six topics the dispatcher responds to, on one filter.
 
-        A request, and the four gestures a person makes on a page: all five
+        A request, and the five gestures a person makes on a page: all six
         name the dispatcher because the dispatcher is what answers them, and
         none of them says who sent it. The scheduler submits requests today
         and a second one could submit them tomorrow with nothing here to

@@ -839,8 +839,9 @@ else to stand. The other falls back to its own starting block. Where that is
 taken too, it comes up placed nowhere at all and is shown as a train with no
 block ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)).
 
-*Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the three
-gestures it responds to sit under its own name, its own announcements come
+*Subscribes* `tc49/layout/#` and `tc49/dispatch/#` — the request and the five
+gestures it responds to (`placement_wanted`, `cancel_wanted`,
+`arrival_wanted`, `reorder_wanted` and `point_wanted`) sit under its own name, its own announcements come
 back past it ignored, and the two commands on the layout filter pass by
 unread. The layout filter carries `tc49/layout/state/unknown_sensors`,
 `tc49/layout/state/overdue`, `tc49/layout/state/taken` and
@@ -853,7 +854,8 @@ length check ([#1287](https://github.com/rails49/control/issues/1287)). While
 `without_sensors` is `true` readings are ignored, and a launch locks the whole
 route and publishes `route_chosen`, one `lock_granted` and one
 `tc49/layout/align` with no transit carrying every point of the route, and no
-`move_granted`: the run ends by a cancel, a placement or a removal
+`move_granted`: the run ends by "arrived" (`arrival_wanted`), a cancel, a
+placement or a removal
 ([#1319](https://github.com/rails49/control/issues/1319),
 [DISPATCH.md](dispatcher/DISPATCH.md#without-sensors)). Until a row is heard
 each is `false`, and a railroad load starts them so again.
@@ -1010,6 +1012,17 @@ ahead
 [#1080](https://github.com/rails49/control/issues/1080)). A cancelled id
 stays used for the session; no id ever resumes
 ([ADR-0033](adr/0033-a-request-id-is-unique-not-meaningful.md)).
+
+**It alone reads `tc49/dispatch/arrival_wanted`**, a person saying the train
+of an underway request is in its destination block, on a railroad run without
+sensors, where nothing else says so
+([#1320](https://github.com/rails49/control/issues/1320)). It is accepted at
+any power while `without_sensors` is `true`; anything else is dropped like
+any other gesture it cannot act on. Everything the train holds but the
+route's last block is released as one `lock_released`, `request_completed`
+follows, then `train_placed` naming the train and that block, which the
+scheduler and the layout interface read as for a placement. A request chained
+after it departs from there at the sweep that follows.
 
 **At every power value it publishes what the detectors dispute**
 ([#1154](https://github.com/rails49/control/issues/1154)), on `state/disputed`:

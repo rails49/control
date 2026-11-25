@@ -343,6 +343,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
 | `tc49/dispatch/cancel_wanted` | event | any (browser) | end one request without arriving ([ADR-0049](adr/0049-a-request-ends-by-cancellation-as-well-as-by-arrival.md), [ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
+| `tc49/dispatch/arrival_wanted` | event | any (browser) | the train of an underway request is in its destination block, on a railroad run without sensors ([#1320](https://github.com/rails49/control/issues/1320)) |
 | `tc49/dispatch/reorder_wanted` | event | any (browser) | move one request in the list the dispatcher serves ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)) |
 | `tc49/dispatch/point_wanted` | event | any (browser) | a person asks for a point's position ([ADR-0068](adr/0068-a-person-throws-a-point-and-the-dispatcher-drops-it-on-a-lit-road.md)) |
 | `tc49/dispatch/request_admitted` | event | dispatcher | admission accepted it, with what survived pruning |
@@ -1106,6 +1107,15 @@ payload is read defensively, and one that fails the read is dropped.
   ([#836](https://github.com/rails49/control/issues/836)). An id the
   dispatcher does not hold is dropped like any other gesture it cannot act on
   ([ADR-0080](adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+- `tc49/dispatch/arrival_wanted` — browser-writable — `id`: the request whose
+  train is in its destination block, said by a person on a railroad run
+  without sensors. The dispatcher accepts it for a request that is underway
+  while `without_sensors` reads `true`, at any power, and drops anything else
+  with no reply. It publishes `lock_released` for everything the train holds
+  but the route's last block, then `request_completed`, then `train_placed`
+  naming the train and that block, and a request chained after it starts
+  from there
+  ([#1320](https://github.com/rails49/control/issues/1320)).
 - `tc49/dispatch/reorder_wanted` — browser-writable — `id`: the request to
   move; `before`: the id of the request it is to go in front of, or `null`
   for the end of the list. The key's presence is load-bearing: a payload
@@ -1133,7 +1143,8 @@ payload is read defensively, and one that fails the read is dropped.
   `unknown_train`, `unknown_block`, `no_origin`, `wrong_origin`, `no_fit`,
   `no_entry`, `unreachable` — the set is `tc49.lib.rejection`, and the UI's
   copy of it is generated.
-- `tc49/dispatch/request_completed` — `id`.
+- `tc49/dispatch/request_completed` — `id`. Published when the train
+  arrives, and also after an `arrival_wanted` the dispatcher accepts.
 - `tc49/dispatch/request_cancelled` — `id`; `reason`: enum `revoked`,
   `removed`, `displaced` — the set is `tc49.lib.cancellation`. `revoked` is
   the gesture that names the request's own end, or the end of the request
@@ -1161,7 +1172,9 @@ payload is read defensively, and one that fails the read is dropped.
   ([ADR-0078](adr/0078-power-is-on-draining-or-off-and-replaces-go-and-hold.md)).
 - `tc49/dispatch/lock_granted`, `tc49/dispatch/lock_released` — `train`;
   `resources`: list of blocks and transits.
-- `tc49/dispatch/train_placed` — `train`; `block`.
+- `tc49/dispatch/train_placed` — `train`; `block`. Published for a placement
+  accepted, and also after an `arrival_wanted` the dispatcher accepts, naming
+  the route's last block.
 - `tc49/dispatch/placement_refused` — `train`: the train the
   `placement_wanted` named; `block`: the block it named, or `null` for a
   removal; `reason`: enum `unknown_train` (on neither the dispatcher's roster
