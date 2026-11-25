@@ -21,7 +21,7 @@
 import { LitElement, html, svg, nothing, type SVGTemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import { strayed } from "../model/drag.js";
+import { HELD_FOR, strayed } from "../model/drag.js";
 import {
   emptyDrawing,
   symbolOf,
@@ -76,10 +76,6 @@ export type Mode = "edit" | "run";
 /** How long a tap on a block shows its train's name in place of the photo,
  *  in milliseconds (#1018). */
 const NAMED_FOR = 3000;
-
-/** How long a finger or a pen rests before the press opens the right-click
- *  menu, in milliseconds (#1275). */
-const HELD_FOR = 500;
 
 /**
  * What the canvas lights, worked out once a render: the legs of the symbols on

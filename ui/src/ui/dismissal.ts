@@ -25,13 +25,18 @@
 
 import { html, type TemplateResult } from "lit";
 
+import { HELD_FOR, strayed } from "../model/drag.js";
+
 /** The overlay, with what a press outside the menu does. Rendered by the
  *  component the menu belongs to, so that the press is dismissed by the thing
  *  that knows what *dismissed* means there. */
 export function dismissal(dismiss: () => void): TemplateResult {
   return html`<div
     class="dismiss"
-    @pointerdown=${dismiss}
+    @pointerdown=${(event: PointerEvent) => {
+      dismiss();
+      holdAndForward(event);
+    }}
     @contextmenu=${(event: MouseEvent) => dismissAndForward(event, dismiss)}
   ></div>`;
 }
@@ -59,22 +64,64 @@ export function dismissal(dismiss: () => void): TemplateResult {
 function dismissAndForward(event: MouseEvent, dismiss: () => void): void {
   dismiss();
   const overlay = event.currentTarget as HTMLElement;
+  if (forward(overlay, event.clientX, event.clientY, event.button)) event.preventDefault();
+}
+
+/** A right-click at a point, handed to whatever is under the overlay there:
+ *  `true` where what took it suppressed the native menu. */
+function forward(overlay: HTMLElement, x: number, y: number, button: number): boolean {
   overlay.style.pointerEvents = "none";
   try {
-    const under = deepestAt(event.clientX, event.clientY);
-    if (under === null) return;
+    const under = deepestAt(x, y);
+    if (under === null) return false;
     const again = new MouseEvent("contextmenu", {
       bubbles: true,
       composed: true,
       cancelable: true,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      button: event.button,
+      clientX: x,
+      clientY: y,
+      button,
     });
     under.dispatchEvent(again);
-    if (again.defaultPrevented) event.preventDefault();
+    return again.defaultPrevented;
   } finally {
     overlay.style.pointerEvents = "";
+  }
+}
+
+/**
+ * The long press the overlay is standing in the way of. The press has taken
+ * the menu down already. A finger or a pen that then rests for `HELD_FOR`
+ * within a finger's slop is the right-click the canvas makes of a long press
+ * (#1275), and it is handed on as one (#1310). The canvas never saw this
+ * press, so the timer runs here.
+ *
+ * The overlay goes with its menu while the finger is still down, and where
+ * the rest of that pointer's events land then differs by browser. So the
+ * document element captures the pointer, and the lift, the cancel and a move
+ * past the slop are read off the window. Another pointer landing ends the
+ * wait too: two fingers pinch.
+ */
+function holdAndForward(event: PointerEvent): void {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  const overlay = event.currentTarget as HTMLElement;
+  const { pointerId, clientX, clientY } = event;
+  const press = { screen: { x: clientX, y: clientY }, touch: true };
+  const waiting = new AbortController();
+  const timer = setTimeout(() => {
+    waiting.abort();
+    forward(overlay, clientX, clientY, 0);
+  }, HELD_FOR);
+  const over = (later: Event) => {
+    const { type, pointerId: id, clientX: x, clientY: y } = later as PointerEvent;
+    if (type !== "pointerdown" && id !== pointerId) return;
+    if (type === "pointermove" && !strayed(press, { x, y })) return;
+    clearTimeout(timer);
+    waiting.abort();
+  };
+  document.documentElement.setPointerCapture?.(pointerId);
+  for (const name of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) {
+    window.addEventListener(name, over, { capture: true, signal: waiting.signal });
   }
 }
 
