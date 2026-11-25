@@ -862,6 +862,14 @@ def test_with_record_off_a_drag_is_a_request_and_a_turn_round_nothing() -> None:
     assert [one["request"] for one in row(state)["entries"]] == ["freight-ab-2"]
 
 
+def test_a_drag_to_no_arrival_end_is_not_recorded_as_a_turn_round() -> None:
+    """An entry with no arrival ends is a turn-round, which this is not."""
+    state = dragged(recording_from("06:00"), "freight", (), "freight-ab-1")
+
+    assert row(state)["entries"] == []
+    assert state.in_flight == {"freight-ab-1": "freight"}
+
+
 def test_record_is_no_ones_to_switch_with_no_timetable_loaded() -> None:
     assert recording(State(), True) == State()
 

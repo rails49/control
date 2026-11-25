@@ -370,10 +370,11 @@ def dragged(state: State, train: str, to: tuple[str, ...], request: str) -> Stat
     an entry: `at` the clock's time to the minute, after the last entry at or
     before that time, `out` as `request`. In any other phase, with Record
     off, with no timetable loaded, and after a restart until the first clock
-    row, it is a request with no entry.
+    row, it is a request with no entry. So is a drag to no arrival end: an
+    entry with none is a turn-round.
     """
     flying = {**state.in_flight, request: train}
-    if not _records(state):
+    if not to or not _records(state):
         return replace(state, in_flight=flying)
     assert state.clock is not None
     entry = Entry(start_of(state.clock), train, to)
