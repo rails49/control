@@ -365,7 +365,9 @@ not held, since no speed is written for it: the person reverses with the lever.
 
 A crossing remembers two things about its **entry sensor**, the end it comes in
 at: `head_in`, that it has settled occupied, and `tail_in`, that it has then
-settled clear. The **arrival** happens once, at the first of:
+settled clear. Both come from `tc49.lib.following.follow`, the function the
+dispatcher reads the same sensors with. The **arrival** happens once, at the
+first of:
 
 | Reading | Result |
 |---|---|
