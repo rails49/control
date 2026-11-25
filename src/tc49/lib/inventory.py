@@ -141,12 +141,15 @@ TOPICS: dict[str, Topic] = {
     "tc49/layout/state/driving": Topic((AT, "driving")),
     # The fast clock, once a real second while a railroad is loaded:
     # `time` in whole fast-clock seconds since midnight, `speed_up` the fast
-    # seconds per real second (ADR-0090). Nothing in the control path reads
-    # it (ADR-0044).
+    # seconds per real second (ADR-0090). The clock stands while
+    # `state/power` reads `off`, the row repeating the same `time`, and runs
+    # while it reads `on` or `draining` (#1350). Nothing in the control path
+    # reads it (ADR-0044).
     "tc49/layout/state/clock": Topic((AT, "time", "speed_up")),
     # A person sets the fast clock from any page: a time of day, a
-    # speed-up, or both, at least one (ADR-0090). Taken whatever track power
-    # and the run are doing.
+    # speed-up, or both, at least one (ADR-0090). Taken at any power: while
+    # the clock stands, the time is the one it stands at and the speed-up
+    # the rate it runs at once it runs (#1350).
     "tc49/layout/clock_wanted": Topic(("time", "speed_up"), browser=True),
     # The railroad's settings as `layout` holds them, said as a railroad is
     # loaded (#1125), every field always present. `point_gap` is the

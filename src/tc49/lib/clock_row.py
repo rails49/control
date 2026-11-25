@@ -1,6 +1,7 @@
 """The fast clock as a binding of the layout interface holds it for one
 build: said on `tc49/layout/state/clock`, set on `tc49/layout/clock_wanted`,
-and kept with the railroad (ADR-0090).
+standing while `tc49/layout/state/power` reads `off` (#1350), and kept with
+the railroad (ADR-0090).
 
 Both bindings hold it, `layout` timed off the monotonic clock and the
 simulator off its run clock, so it is here and not in either app (ADR-0013).
@@ -16,7 +17,8 @@ from collections.abc import Callable
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import FastClock, KeptClock, start_of, time_of_day
-from tc49.lib.payload import wanted_clock
+from tc49.lib.inventory import OFF
+from tc49.lib.payload import power, wanted_clock
 from tc49.lib.settings import KeptInstallation, KeptSettings
 
 type Kept = KeptClock | KeptSettings | KeptInstallation
@@ -29,6 +31,10 @@ CLOCK = "tc49/layout/state/clock"
 CLOCK_WANTED = "tc49/layout/clock_wanted"
 """A person setting the fast clock: a time of day, a speed-up, or both
 (ADR-0090, decision 2)."""
+
+POWER = "tc49/layout/state/power"
+"""Whether the rails have power, as the binding holding the clock states it:
+the clock stands while it reads `off` (#1350)."""
 
 
 class Keeping:
@@ -85,6 +91,14 @@ class FastClockRow:
     beat, and at once when a person sets it on `tc49/layout/clock_wanted`.
     The real seconds are read off `monotonic`.
 
+    The clock stands while `tc49/layout/state/power` reads `off` and runs
+    while it reads `on` or `draining` (#1350). It is made standing at the
+    time `fast` reads, since a railroad comes up `off`, and runs from there
+    when power first reads `on`. While it stands the row is still said each
+    beat and repeats the same time. The power is read off the bus, as the
+    binding holding the clock states it, so both bindings stand and run by
+    this one rule.
+
     `kept` is the start time and speed-up the railroad keeps, or would keep:
     each setting is handed to `keep` with what it changed, a new time as the
     start rounded down to the minute and a new speed-up as it is (ADR-0090,
@@ -102,21 +116,34 @@ class FastClockRow:
         keep: Callable[[KeptClock], None],
     ) -> None:
         self._bus = bus
-        self._fast = fast
+        self._fast = fast.stood(monotonic())
         self._kept = kept
         self._monotonic = monotonic
         self._keep = keep
         bus.subscribe(CLOCK_WANTED, self._wanted)
+        bus.subscribe(POWER, self._powered)
 
     def say(self) -> None:
         """What the clock reads now, on `tc49/layout/state/clock`."""
         self._bus.publish(CLOCK, self._fast.row(self._monotonic()))
 
+    def _powered(self, topic: str, payload: Payload) -> None:
+        """What the binding states about its power: the clock stands from
+        `off`, at the whole second it reads, and runs on from there at `on`
+        or `draining`. A row that cannot be read is read as `off`, as
+        `lib.payload.power` reads it for every reader."""
+        now = self._monotonic()
+        if power(payload) == OFF:
+            self._fast = self._fast.stood(now)
+        else:
+            self._fast = self._fast.ran(now)
+
     def _wanted(self, topic: str, payload: Payload) -> None:
         """A person set the clock (ADR-0090, decision 2): the new time taken
         at once, the new speed-up run at from now, and every page told
-        without waiting for the beat. Taken whatever track power and the run
-        are doing, and one that cannot be read is dropped as any malformed
+        without waiting for the beat. Taken while the clock stands, the time
+        is the one it stands at and the speed-up the rate it runs at once it
+        runs (#1350). One that cannot be read is dropped as any malformed
         gesture is (ADR-0034). Then kept with the railroad."""
         wanted = wanted_clock(payload)
         if wanted is None:
@@ -154,7 +181,8 @@ def loaded(
     """The row a build starts: at the start time the railroad keeps
     (ADR-0090, decision 4), or, where it keeps none, at `moment`'s time of
     day, the box's wall clock read once a build, at a speed-up of 1, which is
-    not written until a person sets the clock."""
+    not written until a person sets the clock. It stands at that time until
+    power first reads `on` (`FastClockRow`)."""
     if kept is None:
         now = time_of_day(moment)
         fast = FastClock(now, 1.0, monotonic())
