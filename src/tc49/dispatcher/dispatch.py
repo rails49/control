@@ -39,7 +39,13 @@ import sys
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 
-from tc49.dispatcher.locking import Launched, LockingStrategy, Move, Refused
+from tc49.dispatcher.locking import (
+    FullRoute,
+    Launched,
+    LockingStrategy,
+    Move,
+    Refused,
+)
 from tc49.dispatcher.routing import Route, candidates
 from tc49.lib.bus import Bus, Payload
 from tc49.lib.cancellation import Reason as Cancellation
@@ -60,6 +66,7 @@ from tc49.lib.payload import (
     power,
     readable_id,
     said_short_blocks,
+    said_without_sensors,
     settled_reading,
     taken,
     unknown_sensors,
@@ -258,6 +265,11 @@ class State:
     # would be unprotected. `False` until a row says otherwise, so a railroad
     # just loaded routes on fit until its own row is heard.
     short_blocks: bool = False
+    # Whether `layout` last said the railroad runs without sensors
+    # (`state/settings`, #1314). While it does, readings are ignored: no block
+    # is out of use or disputed and none reads occupied, a launch locks its
+    # whole route and no move is granted. `False` until a row says otherwise.
+    without_sensors: bool = False
 
     @property
     def out_of_use(self) -> frozenset[str]:
@@ -266,12 +278,16 @@ class State:
         route through one waits at its signal, keeping its route (ADR-0002).
         Placing does not ask: `free` and `_judged` answer as they did, and a
         placement on a block out of use is accepted. This covers the sensor
-        cause; GLOSSARY.md, **Out of use**, lists every cause."""
+        cause; GLOSSARY.md, **Out of use**, lists every cause. None while the
+        railroad runs without sensors."""
+        if self.without_sensors:
+            return frozenset()
         return frozenset(block_of(sensor) for sensor in self.unknown_sensors)
 
     def reads_occupied(self, block: str) -> bool:
-        """Whether either of the block's sensors last read occupied."""
-        return (
+        """Whether either of the block's sensors last read occupied; never
+        while the railroad runs without sensors."""
+        return not self.without_sensors and (
             self.readings.get(f"{block}.A") is True
             or self.readings.get(f"{block}.B") is True
         )
@@ -279,7 +295,10 @@ class State:
     @property
     def disputed_blocks(self) -> frozenset[str]:
         """The blocks that read occupied with no train explaining the reading
-        (`disputed`, #1164, #1171)."""
+        (`disputed`, #1164, #1171); none while the railroad runs without
+        sensors."""
+        if self.without_sensors:
+            return frozenset()
         explained = set(self.residue)
         for listed in self.occupied.values():
             explained.update(listed)
@@ -891,6 +910,9 @@ class Dispatcher:
         """
         self._bus = bus
         self._strategy = strategy
+        # What launches a request while the railroad runs without sensors,
+        # whatever `strategy` is: the whole route or nothing (#1314).
+        self._whole = FullRoute(layout, strategy.k)
         self._reread = reread
         # The last picture, where the bus binding held one across a restart:
         # the dispatcher's own state topic, found waiting exactly as it would
@@ -980,8 +1002,10 @@ class Dispatcher:
         stated = bus.last_values.get(TAKEN)
         if stated is not None and self._ordering.accepts(TAKEN, stated):
             self._state.held = frozenset(taken(stated))
-        # And whether a route may use a block shorter than the train, so the
-        # first request is admitted under the railroad's own setting.
+        # And whether a route may use a block shorter than the train, and
+        # whether the railroad runs without sensors, so the first request is
+        # admitted and launched under the railroad's own settings. No sweep:
+        # the opening rows below follow it.
         stated = bus.last_values.get(SETTINGS)
         if stated is not None and self._ordering.accepts(SETTINGS, stated):
             self._on_settings(stated)
@@ -1649,7 +1673,11 @@ class Dispatcher:
             if req.cancelled:
                 return
             req.revoking = frozenset(each.id for each in self._followers(req))
-            if active.outstanding is not None:
+            if self._state.without_sensors:
+                # The train has not left its block: it occupies that alone,
+                # and the rest of its route is released (#1314).
+                self._state.occupied[req.train] = [self._state.block_of[req.train]]
+            elif active.outstanding is not None:
                 # Deferred: it frees nothing yet and dequeues nothing, so
                 # there is nothing for a sweep to hand anybody. `layout` is
                 # asked to take the move back, which it does where nothing
@@ -1876,8 +1904,8 @@ class Dispatcher:
             if self._ordering.accepts(topic, payload):
                 self._on_taken(payload)
         elif leaf == "settings":
-            if self._ordering.accepts(topic, payload):
-                self._on_settings(payload)
+            if self._ordering.accepts(topic, payload) and self._on_settings(payload):
+                self._sweep()
         self._check()
 
     def _on_reading(self, sensor: str, occupied: bool) -> None:
@@ -2211,15 +2239,33 @@ class Dispatcher:
         self._state.overdue = listed
         self._publish_moving()
 
-    def _on_settings(self, payload: Payload) -> None:
-        """Whether the railroad's settings let a route end in or pass through
-        a block shorter than the train (#1287). A row whose `short_blocks`
-        does not read leaves the value held. Read for routing and admission
-        alone: it sweeps nothing, and what is already routed keeps its route.
+    def _on_settings(self, payload: Payload) -> bool:
+        """What the railroad's settings say the dispatcher runs on: whether a
+        route may end in or pass through a block shorter than the train
+        (#1287), and whether the railroad runs without sensors (#1314). A row
+        whose field does not read leaves that value held.
+
+        `short_blocks` is read for routing and admission alone: what is
+        already routed keeps its route. `without_sensors` turning `true`
+        releases every train's residue, one `lock_released` per train, since
+        no reading will open it. Answers whether `without_sensors` changed,
+        for the caller to sweep.
         """
+        state = self._state
         said = said_short_blocks(payload)
         if said is not None:
-            self._state.short_blocks = said
+            state.short_blocks = said
+        without = said_without_sensors(payload)
+        if without is None or without == state.without_sensors:
+            return False
+        state.without_sensors = without
+        if without:
+            for train in sorted({state.locks[kept] for kept in state.residue}):
+                self._open(
+                    train,
+                    [kept for kept in state.residue if state.locks[kept] == train],
+                )
+        return True
 
     def _on_taken(self, payload: Payload) -> None:
         """Which trains a throttle holds (#1187). Read for `state/moving`
@@ -2271,8 +2317,11 @@ class Dispatcher:
     def _grant(self) -> None:
         state = self._state
         # Active trains first, by request arrival then train id (DISPATCH.md).
+        # None is offered a move while the railroad runs without sensors: a
+        # person drives it (#1314).
         for train in sorted(
-            state.active, key=lambda t: (state.active[t].request.phase, t)
+            () if state.without_sensors else state.active,
+            key=lambda t: (state.active[t].request.phase, t),
         ):
             active = state.active[train]
             if (
@@ -2333,7 +2382,8 @@ class Dispatcher:
                 self._publish("request_completed", {"id": req.id})
                 self._ending(req, depart)
                 continue
-            result = self._strategy.launch(req, origin, depart, state)
+            strategy = self._whole if state.without_sensors else self._strategy
+            result = strategy.launch(req, origin, depart, state)
             if result is None:
                 self._requests.remove(req)
                 self._reject(req.id, Reason.UNREACHABLE)
@@ -2381,6 +2431,15 @@ class Dispatcher:
         self._state.departure[req.train] = departure_end(
             self._state.layout, self._entered(launched.route)
         )
+        if self._state.without_sensors:
+            # The train may be anywhere on its route once a person drives it,
+            # so it occupies all of it, and every point is set at once.
+            route = launched.route.interleaved()
+            occupying = self._state.occupied[req.train]
+            occupying[:] = [entry for entry in occupying if entry not in route]
+            occupying += route
+            self._align_route(launched.route)
+            return
         move = self._strategy.grant(req.train, self._state)
         assert isinstance(move, Move)  # the launch just granted the first increment
         self._apply_move(self._state.active[req.train], move)
@@ -2513,6 +2572,32 @@ class Dispatcher:
             },
         )
 
+    def _align_route(self, route: Route) -> None:
+        """Set every point a route needs, for a launch while the railroad runs
+        without sensors (#1314): one `align` naming no transit, as a hand
+        throw's does (ADR-0068), so it authorises no crossing. The points of
+        each transit in route order, each as `_align` writes it, an address
+        already listed not repeated."""
+        connections = self._state.layout.connections
+        points: list[Payload] = []
+        listed: set[str] = set()
+        for transit_id in route.transits:
+            connection, _, transit = transit_id.partition(".")
+            for point in connections[connection].points.get(transit, ()):
+                if point.addr not in listed:
+                    listed.add(point.addr)
+                    points.append(
+                        {
+                            "addr": point.addr,
+                            "position": point.position,
+                            "reported": point.reported,
+                        }
+                    )
+        self._bus.publish(
+            "tc49/layout/align",
+            {"connection": None, "transit": None, "points": points},
+        )
+
     def _throw(self, payload: Payload) -> None:
         """A person throwing a point by hand, passed on unless the point is
         **lit** (ADR-0068).
@@ -2591,8 +2676,13 @@ class Dispatcher:
         `layout` has stopped it for not arriving within its allowance, and it
         stands until it arrives, a throttle takes it, or it is placed or
         removed (#1191, GLOSSARY.md, **Moving**).
+
+        Nothing is moving while the railroad runs without sensors: no move is
+        followed, so a drain ends at once (#1314).
         """
         state = self._state
+        if state.without_sensors:
+            return False
         listed = state.unknown_sensors
         overdue = state.overdue
         held = state.held
