@@ -135,9 +135,10 @@ src/tc49/
                             own timer, a restore refused over a dirty tree
                             (store/BACKUP.md, ADR-0053)
   scheduler/    scheduler.py  Scheduler — composes gestures into requests
-                              and submits a timetable whole at the start of a
-                              run, mechanical arrival-end expansion,
-                              deterministic ids, exhausted state topic
+                              and submits the scenario's requests whole at
+                              the start of a run, mechanical arrival-end
+                              expansion, deterministic ids, exhausted state
+                              topic
                 __main__.py   `python -m tc49.scheduler --broker … --store
                               …`, the command line a container runs: the
                               railroad's documents off the store,

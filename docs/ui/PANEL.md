@@ -476,7 +476,8 @@ right-click, which turns one around where it stands.
 
 Deciding by the run's state instead would make one motion mean two things
 depending on a word in the band, and would cost queuing a request while the
-run is held, which the hold deliberately keeps working for a timetable
+run is held, which the hold deliberately keeps working for the scenario's
+requests
 ([ADR-0037](../adr/0037-the-run-is-held-or-running-and-held-blocks-commitment.md)).
 
 **Dragging** a train from its block to a destination block publishes
@@ -508,9 +509,9 @@ first"; when it is sent is in [BUS.md](../BUS.md). `no_origin` is a train that i
 ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)); a drag of the
 canvas cannot ask for one — a train off the layout has no marker to pick up,
 and the scheduler drops a gesture it cannot compose a departure end for — so
-it answers a timetable or a stale page. The last three answer a payload the
-dispatcher could not read as a request; an honest drag cannot produce one, and
-the page that can is a stale one, a race or a
+it answers one of the scenario's requests or a stale page. The last three
+answer a payload the dispatcher could not read as a request; an honest drag
+cannot produce one, and the page that can is a stale one, a race or a
 bug ([ADR-0034](../adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md)).
 The names are not retyped here: `src/rejection.generated.ts` is written from
 `tc49.lib.rejection` by `tc49 generate`, and the wording table is keyed by
@@ -522,8 +523,8 @@ the one writer of requests is the scheduler app
 ([ADR-0036](../adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)). Two
 tabs are two views and harmless, which is what the earlier arrangement could
 not manage — it made them two holders of facing and two minters of ids. Modes
-stop being exclusive: a timetable and a person are two sources of one
-scheduler, and which of them a run has is configuration. Batch runs keep
+stop being exclusive: the scenario's requests and a person are two sources of
+one scheduler, and which of them a run has is configuration. Batch runs keep
 byte-identical replay; a run carrying gestures makes no such claim, and a
 benchmark run receives none.
 

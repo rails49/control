@@ -338,7 +338,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/layout/settings_wanted` | event | any (browser) | set the point gap, the driver's speeds, `short_blocks`, `without_sensors`, the throttle silence, the sensor silence or the arrival allowance, each optional; taken by `layout` or the simulator in its place ([#1126](https://github.com/rails49/control/issues/1126), [#1131](https://github.com/rails49/control/issues/1131), [#1140](https://github.com/rails49/control/issues/1140), [#1149](https://github.com/rails49/control/issues/1149), [#1188](https://github.com/rails49/control/issues/1188), [#1286](https://github.com/rails49/control/issues/1286), [#1316](https://github.com/rails49/control/issues/1316)) |
 | `tc49/schedule/request_wanted` | event | any (browser) | a gesture: the request minus the id and depart the scheduler owns |
 | `tc49/schedule/reversal_wanted` | event | any (browser) | turn a train around where it stands |
-| `tc49/schedule/state/exhausted` | state | scheduler | the timetable has run dry |
+| `tc49/schedule/state/exhausted` | state | scheduler | the scenario's requests have all gone out |
 | `tc49/schedule/state/facing` | state | scheduler | the run each train would make across its block |
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
@@ -1036,7 +1036,7 @@ payload is read defensively, and one that fails the read is dropped.
   each entry a block or a block end, a bare block meaning either end.
 - `tc49/schedule/reversal_wanted` — browser-writable — `train`.
 - `tc49/schedule/state/exhausted` — `exhausted`: boolean, `true` once the
-  last timetable request has gone out.
+  scenario's requests have all gone out.
 - `tc49/schedule/state/facing` — `facing`: map of train to the run it would
   make across its block, `<block>.A-to-B` or `<block>.B-to-A`; a train facing
   `<block>.A-to-B` would depart through that block's B end (GLOSSARY.md,
@@ -1311,7 +1311,7 @@ a beat, and never learns what time it is.
 every workday at 7:00"; the scheduler posts the request that morning. The
 dispatcher's contract carries no time, and a simulator that wants timed
 submissions owns that timing itself, inside the `simulator` app
-(ADR-0047). Nothing needs it yet: a timetable goes in whole at the
+(ADR-0047). Nothing needs it yet: the scenario's requests go in whole at the
 start of a run, and the queue does the staggering.
 
 **No event payload carries a timestamp.** Time on the record is observation:
