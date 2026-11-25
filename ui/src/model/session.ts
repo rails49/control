@@ -334,6 +334,9 @@ export class Session {
   /** The railroad the model was built for, so it is rebuilt when the app loads
    *  another and kept when anything else changes. */
   private built: string | null = null;
+  /** The review the model reads its layout from, so a new one under the
+   *  same name is handed to it (#1235). */
+  private review: Review | null = null;
   /** The loaded railroad's trains, as `documents` was last handed them. */
   private trains: Record<string, TrainDoc> = {};
   private live: Live | null = null;
@@ -403,6 +406,11 @@ export class Session {
    * and the band says why — a fact about the documents and not about the bus:
    * the broker goes on running the railroad it named.
    *
+   * A review other than the one the model holds, under the same name, is the
+   * railroad built again with the page open: the model reads its layout,
+   * explanation and wires from then on and keeps all the bus has said
+   * (`Panel.relayout`, #1235). The same review again changes nothing.
+   *
    * It notifies nothing, the app being mid-render when it calls; what moved is
    * read off `panel`, `status` and `cabs` straight after.
    */
@@ -423,9 +431,13 @@ export class Session {
     } else if (name !== this.built) {
       this.panel = new Panel(layout, explain, drawing!.wires);
       this.built = name;
+      this.review = review;
       this.sensors.clear();
       for (const event of this.held ?? []) this.applied(event);
       this.held = null;
+    } else if (review !== this.review) {
+      this.panel!.relayout(layout, explain, drawing!.wires);
+      this.review = review;
     }
     this.settle();
   }

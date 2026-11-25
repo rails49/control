@@ -573,29 +573,39 @@ export class Panel {
    *  sensors. */
   withoutSensors = false;
 
+  private layout!: Layout;
   /** transit resource → the legs its way takes and the wires it is drawn
-   *  over. Worked out once, at construction: neither answer can change while
-   *  a railroad is on screen, and both are the store's — the wires through
-   *  the rule `inspect.wiresOn` transcribes from it. */
-  private readonly ways = new Map<
-    string,
-    { legs: [string, string][]; wires: string[] }
-  >();
+   *  over, both the store's — the wires through the rule `inspect.wiresOn`
+   *  transcribes from it. Worked out in `relayout`. */
+  private ways = new Map<string, { legs: [string, string][]; wires: string[] }>();
   /** transit resource → the reported addresses among the points it needs,
-   *  as the layout marks them (ADR-0097). Fixed while a railroad is on
-   *  screen, as `ways` is. */
-  private readonly reportedOn = new Map<string, string[]>();
+   *  as the layout marks them (ADR-0097). Worked out in `relayout`. */
+  private reportedOn = new Map<string, string[]>();
   /** Every reported address the layout names. */
-  private readonly reported = new Set<string>();
+  private reported = new Set<string>();
 
   /** `now` is the wall clock in milliseconds, which only a reported point's
    *  mark reads: two seconds are a person's, and no topic carries them. */
   constructor(
-    private readonly layout: Layout,
+    layout: Layout,
     explain: Explained,
     wires: readonly Wire[],
     private readonly now: () => number = () => Date.now(),
   ) {
+    this.relayout(layout, explain, wires);
+  }
+
+  /**
+   * The layout, explanation and wires read from now on, in place of those
+   * held: the railroad built again under the same name (#1235). Everything
+   * the bus has said is kept. A report for an address no longer reported is
+   * dropped, and every address is compared again against what was asked.
+   */
+  relayout(layout: Layout, explain: Explained, wires: readonly Wire[]): void {
+    this.layout = layout;
+    this.ways = new Map();
+    this.reportedOn = new Map();
+    this.reported = new Set();
     for (const [connection, { transits, points }] of Object.entries(layout.connections)) {
       for (const [transit, needed] of Object.entries(points ?? {})) {
         const addrs = needed.filter((point) => point.reported === true).map((point) => point.addr);
@@ -612,6 +622,13 @@ export class Panel {
         });
       }
     }
+    for (const addr of [...this.reports.keys()]) {
+      if (!this.reported.has(addr)) this.reports.delete(addr);
+    }
+    for (const addr of [...this.differing.keys()]) {
+      if (!this.reported.has(addr)) this.differing.delete(addr);
+    }
+    for (const addr of this.lyingByAddress.keys()) this.compare(addr);
   }
 
   reset(): void {

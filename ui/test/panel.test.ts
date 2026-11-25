@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { locomotives, Panel, refusal, roster } from "../src/model/panel.js";
+import { locomotives, Panel, refusal, roster, STUCK_MS } from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import type { Position } from "../src/symbols.generated.js";
@@ -1256,6 +1256,26 @@ describe("a reported point", () => {
     const { model } = clocked();
     feed(model, wanted("12", "thrown"), reported("12", "closed"));
     expect(model.positionsByAddress().get("12")).toBe("closed");
+  });
+
+  /** The railroad built again with `13` reported in place of `12` (#1235). */
+  it("lies where it was asked once the layout no longer lists it", () => {
+    const { model, tick } = clocked();
+    feed(model, locked, wanted("12", "thrown"), reported("12", "closed"));
+    const moved: Layout = {
+      ...LAYOUT,
+      connections: {
+        ...LAYOUT.connections,
+        sw: {
+          ...LAYOUT.connections.sw!,
+          points: { side: [{ addr: "13", position: "thrown", reported: true }] },
+        },
+      },
+    };
+    model.relayout(moved, EXPLAIN, WIRES);
+    tick(STUCK_MS + 1);
+    expect(model.positionsByAddress().get("12")).toBe("thrown");
+    expect(model.stuck()).toEqual(new Map());
   });
 
   it("leaves any other address drawn from wanted/point", () => {
