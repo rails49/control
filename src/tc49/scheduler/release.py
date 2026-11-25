@@ -21,6 +21,7 @@ the timetable loaded next.
 | it submitted the request for an entry `due` listed | `released(state, index, request)` |
 | it applied the turn-round of an entry `due` listed | `turned(state, index)` |
 | it published `clock_wanted` because `starts` said so | `started(state)` |
+| a retained state row, at a restart | `restarted(said, document)` |
 
 After each of them it asks, in this order:
 
@@ -72,10 +73,10 @@ whole.
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, cast
 
 from tc49.lib.fast_clock import DAY_S
-from tc49.lib.timetable import Entry, Timetable
+from tc49.lib.timetable import Entry, Timetable, read_entry, read_timetable
 
 LOADED = "loaded"
 RUNNING = "running"
@@ -189,7 +190,7 @@ def clocked(state: State, time: int, speed_up: float) -> State:
     arrive. Rows are ignored until one reads `start` or up to two beats past
     it, 2 × `speed_up` seconds, and the rule above applies from that row on.
 
-    After a restart the first row gives the time: its `time`
+    After a restart (`restarted`) the first row gives the time: its `time`
     less `start`, within the day.
     """
     state = replace(state, clock=time)
@@ -347,6 +348,85 @@ def row(state: State) -> dict[str, Any]:
         "positioning": list(state.positioning),
         "entries": entries,
     }
+
+
+def restarted(said: object, document: Timetable) -> State | None:
+    """The state a restart takes from `said`, a retained
+    `tc49/schedule/state/timetable` value, and `document`, the timetable the
+    store has under the name it gives. None where the row cannot be read or
+    names another timetable.
+
+    The phase, Record, `positioning` and each entry's state, request and
+    ending are the row's. So are the start time, the trains and the entries
+    where the document's differ: the scheduler is the one writer of a loaded
+    timetable. The document gives the railroad's name. A row whose phase is
+    `over` stays `over`.
+
+    The state has been told nothing of the railroad. Its time is None, and
+    the first clock row gives it (`clocked`).
+    """
+    try:
+        return _read(said, document)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _read(said: object, document: Timetable) -> State:
+    """`restarted`, with a `KeyError`, `TypeError` or `ValueError` where the
+    row cannot be read."""
+    if not isinstance(said, dict):
+        raise TypeError("the row is no mapping")
+    fields = cast(dict[str, Any], said)
+    if fields["timetable"] != document.name:
+        raise ValueError("the row names another timetable")
+    timetable = read_timetable(
+        {
+            "timetable": document.name,
+            "layout": document.layout,
+            "start": fields["start"],
+            "trains": fields["trains"],
+            "entries": [],
+        }
+    )
+    listed: list[tuple[Entry, Progress]] = []
+    for one in _list(fields["entries"]):
+        if not isinstance(one, dict):
+            raise TypeError(f"the entry {one!r} is no mapping")
+        entry = dict(cast(dict[str, Any], one))
+        state = entry.pop("state")
+        request = entry.pop("request", None)
+        arrived = entry.pop("ended", None)
+        if (
+            state not in STATES
+            or not isinstance(request, str | None)
+            or isinstance(arrived, bool)
+            or not isinstance(arrived, int | None)
+        ):
+            raise ValueError("an entry's state, request or ending does not read")
+        listed.append((read_entry(entry), Progress(state, request, arrived)))
+    # sorted() is stable, as `Timetable` is, so each progress stays with its
+    # entry.
+    listed.sort(key=lambda pair: timetable.since_start(pair[0].at))
+    positioning = _list(fields["positioning"])
+    if (
+        fields["phase"] not in PHASES
+        or not isinstance(fields["record"], bool)
+        or not all(isinstance(one, str) for one in positioning)
+    ):
+        raise ValueError("the phase, Record or a request id does not read")
+    return State(
+        replace(timetable, entries=tuple(entry for entry, _ in listed)),
+        fields["phase"],
+        fields["record"],
+        positioning=tuple(positioning),
+        progress=tuple(progress for _, progress in listed),
+    )
+
+
+def _list(value: object) -> list[Any]:
+    if not isinstance(value, list):
+        raise TypeError(f"{value!r} is no list")
+    return cast(list[Any], value)
 
 
 def _with(
