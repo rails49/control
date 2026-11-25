@@ -915,6 +915,19 @@ class Dispatcher:
             self._reject(rid, Reason.NO_ORIGIN, request.train)
             return
         expected = self._expected_block(request.train)
+        if (
+            expected is not None
+            and request.train in self._state.crossing
+            and not self._state.without_sensors
+        ):
+            # Listed crossing with no request of its own, as a restart or a
+            # change of `without_sensors` leaves it (#1326, #1321): it may
+            # stand anywhere on that transit until a placement or a removal
+            # ends the entry. A restart lists no request and a change of the
+            # setting revokes them all, so this is the only way in. Without
+            # sensors the run takes it out of `crossing` as it starts (#1324).
+            self._reject(rid, Reason.CROSSING, request.train)
+            return
         if departs_elsewhere(request.depart, expected):
             self._reject(rid, Reason.WRONG_ORIGIN, request.train)
             return

@@ -12,6 +12,7 @@ export type Reason =
   | "unknown_train"
   | "unknown_block"
   | "no_origin"
+  | "crossing"
   | "wrong_origin"
   | "no_fit"
   | "no_entry"

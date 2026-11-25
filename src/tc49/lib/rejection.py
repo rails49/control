@@ -27,18 +27,20 @@ class Reason(StrEnum):
     """Why the dispatcher rejected a request outright rather than queuing it,
     in the order admission reaches them: the payload could not be read as a
     request at all, it names stock or track the railroad does not have, it
-    names a train that is known but off the layout, it departs from where the
-    train is not standing, no arrival end survives pruning — none fits, asked
-    only while the railroad's settings do not say `short_blocks` (#1287), none
-    can be entered, or no route to one exists from the origin, which for a
-    request queued behind a pending one is settled at the first launch attempt
-    instead. A grant refused mid-run is a different event with its own reasons
+    names a train that is known but off the layout, it names a train listed
+    crossing with no request of its own while the railroad runs by its
+    sensors (#1326), it departs from where the train is not standing, no
+    arrival end survives pruning — none fits, asked only while the railroad's
+    settings do not say `short_blocks` (#1287), none can be entered, or no
+    route to one exists from the origin, which for a request queued behind a
+    pending one is settled at the first launch attempt instead. A grant refused mid-run is a different event with its own reasons
     (`grant_refused`)."""
 
     MALFORMED = "malformed"
     UNKNOWN_TRAIN = "unknown_train"
     UNKNOWN_BLOCK = "unknown_block"
     NO_ORIGIN = "no_origin"
+    CROSSING = "crossing"
     WRONG_ORIGIN = "wrong_origin"
     NO_FIT = "no_fit"
     NO_ENTRY = "no_entry"

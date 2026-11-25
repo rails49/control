@@ -21,7 +21,6 @@ publishes the same two events.
 import unittest
 from typing import Any, cast
 
-import pytest
 from hypothesis import note, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import (
@@ -42,7 +41,6 @@ from tests.generate import ENDS, LAYOUTS, ROSTERS, fixture_yaml, scenarios
 from tests.harness import (
     Assembly,
     assemble_live,
-    left_crossing,
     press,
     settled,
     ticks,
@@ -128,27 +126,34 @@ def test_on_a_run_without_sensors_launched_for_a_train_left_crossing() -> None:
     assert picture["occupied"] == {"t1": ["west", "gap.east_A__west_B", "east"]}
 
 
-@pytest.mark.xfail(
-    reason="a train a restart or a change of without_sensors leaves crossing is"
-    " launched by sensors and granted a move while crossing (ADR-0047): #1326",
-    strict=True,
-)
 def test_on_a_drag_by_sensors_for_a_train_left_crossing() -> None:
     """`t1` is granted its move out of west by sensors, the setting goes on and
     off again, which ends the request and leaves the train crossing, and `t1`
-    is dragged again. Nothing resolves a crossing with no move behind it but a
-    placement or a removal, and the launch grants a move over the transit the
-    train is listed crossing. A restart's crossing hint does the same. Found
-    by the state machine below, which draws no drag for such a train
-    (`left_crossing`)."""
+    is dragged again. Nothing ends a crossing with no move behind it but a
+    placement or a removal, so the drag is rejected `crossing` and no move is
+    granted over the transit the train is listed crossing (ADR-0047, #1326).
+    Found by the state machine below."""
     layout_id = "facing-pair"
-    assembly, _minted = assembled(
+    assembly, minted = assembled(
         LAYOUTS[layout_id], ROSTERS[layout_id], {"t1": TrainSpec("west", "A-to-B")}
+    )
+    granted: list[Payload] = []
+    rejected: list[Payload] = []
+    assembly.bus.subscribe(
+        "tc49/dispatch/move_granted", lambda _topic, payload: granted.append(payload)
+    )
+    assembly.bus.subscribe(
+        "tc49/dispatch/request_rejected",
+        lambda _topic, payload: rejected.append(payload),
     )
     press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
     press(assembly, "tc49/layout/settings_wanted", {"without_sensors": True})
     press(assembly, "tc49/layout/settings_wanted", {"without_sensors": False})
+    granted.clear()
     press(assembly, "tc49/schedule/request_wanted", {"train": "t1", "dest": ["east.A"]})
+
+    assert rejected == [{"id": minted[-1], "reason": "crossing"}]
+    assert granted == []
 
 
 @settings(deadline=None, stateful_step_count=40, max_examples=1000)
@@ -202,9 +207,6 @@ class GesturesAndReadings(RuleBasedStateMachine):
             )
         )
         train = data.draw(self.trains())
-        if left_crossing(self.assembly.bus.last_values, train):
-            note(f"no drag for {train}, left crossing")
-            return
         self.press("tc49/schedule/request_wanted", {"train": train, "dest": dest})
 
     @rule(data=st.data())

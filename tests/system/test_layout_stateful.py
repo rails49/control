@@ -33,7 +33,6 @@ from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC, MANUAL
 from tc49.lib.layout import Layout
 from tc49.scheduler import Scheduler
-from tests.harness import left_crossing
 from tests.invariants import checked
 from tests.layout.railroad import (
     ALLOCATION,
@@ -306,9 +305,6 @@ class LayoutUnderTheAssembly(RuleBasedStateMachine):
     def drag(self, data: st.DataObject) -> None:
         dest = data.draw(st.lists(self.ends(), min_size=1, max_size=2, unique=True))
         train = data.draw(self.trains())
-        if left_crossing(self.bus.last_values, train):
-            note(f"no drag for {train}, left crossing")
-            return
         self.press("tc49/schedule/request_wanted", {"train": train, "dest": dest})
 
     @rule(data=st.data())
