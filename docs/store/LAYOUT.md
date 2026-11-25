@@ -30,6 +30,7 @@ layouts/<layout>.roster.yaml                    # the cars it owns, and its trai
 layouts/<layout>.script.py                      # the script its translator loads
 layouts/<layout>.clock.yaml                     # the start time and speed-up its fast clock is loaded at
 layouts/<layout>.settings.yaml                  # its settings: the point gap, the driver's speeds, short_blocks and without_sensors
+timetables/<layout>/<timetable>.timetable.yaml  # e.g. crossover-yard/evening
 scenarios/<layout>/<scenario>.scenario.yaml     # e.g. reversing-loops/meet
 ```
 
@@ -452,7 +453,10 @@ entry at 01:00 comes after one at 23:00. Entries in the same minute keep the
 file's order. A file out of order is sorted when read, not refused.
 
 The document is checked for shape only (`tc49.lib.timetable`). A block or a
-train the railroad does not have is not refused.
+train the railroad does not have is not refused. The store also refuses one
+whose `timetable` or `layout` is not the name or the railroad in its path.
+Copy and delete of a railroad carry its timetables, a copy's with `layout`
+naming the copy.
 
 ## Scenario schema
 

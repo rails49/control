@@ -142,12 +142,16 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /clocks/<railroad>     create or replace them
     GET  /settings/<railroad>   the settings that railroad keeps
     PUT  /settings/<railroad>   create or replace them
-    POST /railroads/<from>/copy its drawing, roster, script, clock and
-                                settings under the name `{"to": …}` gives;
-                                409 where that is taken
-    DELETE /railroads/<name>    its drawing, roster, script, clock, settings
-                                and scenarios; 409 where it is loaded, or
-                                where the backup made first fails
+    GET  /timetables/<railroad> the names of that railroad's timetables
+    GET  /timetables/<railroad>/<name> one timetable, whole
+    PUT  /timetables/<railroad>/<name> create or replace it
+    DELETE /timetables/<railroad>/<name> delete it
+    POST /railroads/<from>/copy its drawing, roster, script, clock, settings
+                                and timetables under the name `{"to": …}`
+                                gives; 409 where that is taken
+    DELETE /railroads/<name>    its drawing, roster, script, clock, settings,
+                                timetables and scenarios; 409 where it is
+                                loaded, or where the backup made first fails
     GET  /loaded                the railroad the store records as loaded, or ""
     PUT  /loaded                record which railroad is loaded
     GET  /installation          the installation's settings; 404 where none
@@ -194,12 +198,25 @@ derives to, so the editor holds no second copy of the derivation
 ([ui/EDITOR.md](ui/EDITOR.md)). `/rosters/<name>/trains` is the other
 derivation the browser reads: what the run views read, and a path of its own
 because `GET` and `PUT` on the document have to be inverses
-([#388](https://github.com/rails49/control/issues/388)). No one document of
-a railroad is deleted on its own: `DELETE /railroads/<name>` takes the
-railroad whole, backing the store up first where it is a repository so a
-restore brings it back
+([#388](https://github.com/rails49/control/issues/388)). A timetable is the
+one document of a railroad that is deleted on its own. For the rest,
+`DELETE /railroads/<name>` takes the railroad whole, backing the store up
+first where it is a repository so a restore brings it back
 ([#1073](https://github.com/rails49/control/issues/1073)). A scenario is on no
 route at all (below).
+
+The `/timetables` routes are one railroad's timetables
+([#1345](https://github.com/rails49/control/issues/1345)), each the document
+[LAYOUT.md](store/LAYOUT.md) describes. The list is `{"timetables": [<name>,
+…]}`, sorted, and empty for a railroad with none. A `PUT` is a **400** where
+the document does not pass the shape check, or where its `layout` or
+`timetable` is not the railroad or the name in the path. A `GET` of a file
+that fails either check is a **400** too, and a `GET` or a `DELETE` of one
+that is not there is a **404**. The railroad is not checked for a drawing.
+The scheduler reads, writes and deletes a timetable, and the page reads the
+list and one document and deletes. Copying a railroad copies its timetables,
+each with `layout` naming the copy, and a name that has a timetable already
+is taken. Deleting a railroad deletes its timetables.
 
 `/layouts/<name>` is the derivation **the apps** read. Each of the scheduler,
 the dispatcher and the layout interface takes a `Layout` at construction, and
