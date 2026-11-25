@@ -149,7 +149,9 @@ one rule and half under the other
 - Each train keeps the blocks and transits on its `occupied` list, its standing
   block, and its place in `crossing` where it has one, as after a restart. What
   it held ahead is released, one `lock_released` per train. The track it keeps
-  is released by its next run or by a placement.
+  is released by its next run or by a placement. A run without sensors takes
+  the train out of `crossing` as it starts, and the track stays on its
+  `occupied` list until the run ends.
 - Turning `false`, the readings and the sensors not reporting recorded while it
   was `true` are back in use at the sweep: `state/disputed` and the blocks out
   of use are worked out from them. A train left crossing counts as moving, as a
