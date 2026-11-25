@@ -148,6 +148,12 @@ def _frozen_lists[T](
     return FrozenDict({key: _frozen_list(listed) for key, listed in items.items()})
 
 
+# The fields of a table that are maps, and those that are maps of lists. A
+# `Table` holds them frozen, and a `_Draft` holds its own copy of each.
+_MAPS = ("locks", "block_of", "active", "departure", "crossing", "readings")
+_LISTS = ("occupied", "following")
+
+
 @dataclass(frozen=True)
 class Table:
     """The lock table, frozen. It is built from plain dicts, lists and sets,
@@ -210,11 +216,10 @@ class Table:
 
     def __post_init__(self) -> None:
         freeze = object.__setattr__
-        for name in ("locks", "block_of", "active", "departure", "crossing"):
+        for name in _MAPS:
             freeze(self, name, _frozen_map(getattr(self, name)))
-        freeze(self, "readings", _frozen_map(self.readings))
-        freeze(self, "occupied", _frozen_lists(self.occupied))
-        freeze(self, "following", _frozen_lists(self.following))
+        for name in _LISTS:
+            freeze(self, name, _frozen_lists(getattr(self, name)))
         freeze(self, "residue", frozenset(self.residue))
 
     @property
@@ -1024,8 +1029,9 @@ def setting_without_sensors(
 
 @dataclass
 class _Draft:
-    """A table one transition is changing: its own maps, lists and set, made
-    a `Table` again when the transition returns."""
+    """A table one transition is changing: `Table`'s fields under the same
+    names, with its own maps, lists and set, made a `Table` again when the
+    transition returns."""
 
     layout: Layout
     locks: dict[str, str]
@@ -1041,38 +1047,18 @@ class _Draft:
     without_sensors: bool
 
     def table(self) -> Table:
-        return Table(
-            self.layout,
-            self.locks,
-            self.block_of,
-            self.active,
-            self.departure,
-            self.crossing,
-            self.readings,
-            self.occupied,
-            self.following,
-            self.residue,
-            self.unknown_sensors,
-            self.without_sensors,
-        )
+        return Table(**vars(self))
 
 
 def _copied(table: Table) -> _Draft:
     """A draft of `table` for a transition to change."""
-    return _Draft(
-        table.layout,
-        dict(table.locks),
-        dict(table.block_of),
-        dict(table.active),
-        dict(table.departure),
-        dict(table.crossing),
-        dict(table.readings),
-        {train: list(listed) for train, listed in table.occupied.items()},
-        {train: list(listed) for train, listed in table.following.items()},
-        set(table.residue),
-        table.unknown_sensors,
-        table.without_sensors,
-    )
+    own: dict[str, Any] = dict(vars(table))
+    for name in _MAPS:
+        own[name] = dict(own[name])
+    for name in _LISTS:
+        own[name] = {train: list(listed) for train, listed in own[name].items()}
+    own["residue"] = set(table.residue)
+    return _Draft(**own)
 
 
 def _spent(draft: _Draft, train: str) -> list[str]:
