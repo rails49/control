@@ -409,6 +409,51 @@ with no settings document is loaded at a point gap of 0.5 s, one without
 sets it. One that does not read is said in `layout`'s
 log and treated as none. Copy and delete carry it with the clock.
 
+## Timetable schema
+
+A railroad's timetables are one document each, at
+`timetables/<railroad>/<name>.timetable.yaml` in the store
+([#1345](https://github.com/rails49/control/issues/1345)):
+
+```yaml
+timetable: evening       # the name in the path
+layout: crossover-yard   # the railroad in the path
+start: "06:00"           # "HH:MM", quoted: YAML reads a bare 12:30 as a number
+
+trains:                  # where each train stands at the start
+  freight_1: { at: yard_w, facing: A-to-B }
+
+entries:
+  - { at: "06:02", train: freight_1, to: [dn_e, up_e], dwell: 2, description: meets the express }
+  - { at: "06:10", train: freight_1, turn: true }
+  - { at: "06:12", train: freight_1, to: [yard_w.B] }
+```
+
+All five fields, and nothing else. `trains` may be an empty map and `entries`
+an empty list.
+
+- `timetable` and `layout` are text, not empty, with no `/` and no leading
+  `.`.
+- `start` and each `at` are a time of day on the fast clock, `"HH:MM"` as
+  text.
+- `trains` maps a train to `at`, the block it stands in, and `facing`,
+  `A-to-B` or `B-to-A`. Both fields, and nothing else.
+- An entry has `at`, `train` and one of `to` or `turn: true`, not both.
+  - `to` is a non-empty list of arrival ends, each `<block>.<end>` or a bare
+    `<block>` meaning either end.
+  - `turn: true` is a turn-round.
+  - `dwell` is a whole number of fast-clock minutes, 0 or more, and 0 where
+    left out. It goes only with `to`.
+  - `description` is text and may be left out.
+  - Any other key is refused.
+
+Entries are in order of time counted from `start`, so with a start of 22:00 an
+entry at 01:00 comes after one at 23:00. Entries in the same minute keep the
+file's order. A file out of order is sorted when read, not refused.
+
+The document is checked for shape only (`tc49.lib.timetable`). A block or a
+train the railroad does not have is not refused.
+
 ## Scenario schema
 
 ```yaml
