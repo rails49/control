@@ -159,7 +159,11 @@ APPS = (
     App(
         "scheduler",
         store=True,
-        rows=("tc49/schedule/state/facing", "tc49/schedule/state/exhausted"),
+        rows=(
+            "tc49/schedule/state/facing",
+            "tc49/schedule/state/exhausted",
+            "tc49/schedule/state/timetable",
+        ),
     ),
     App(
         "dispatcher",
