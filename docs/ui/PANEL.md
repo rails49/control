@@ -119,9 +119,7 @@ the obstacle is a transit, the block the holder last stood in. A holder of
 `""`, a block that reads occupied with no train explaining it: "waits for a
 sensor of B7 to read clear". A holder of `""` on a block out of use, either
 of its sensors on `state/unknown_sensors`: "waits for a sensor of B7 to
-report" ([#1254](https://github.com/rails49/control/issues/1254)), except
-while the railroad runs without sensors, when no block is out of use
-([#1322](https://github.com/rails49/control/issues/1322)). The same note serves `unsafe`, `held` and `transit_conflict`.
+report" ([#1254](https://github.com/rails49/control/issues/1254)). The same note serves `unsafe`, `held` and `transit_conflict`.
 
 Each row has a **cancel**, which publishes `tc49/dispatch/cancel_wanted`
 (`{id}`) naming that request, the requests chained after it ending with it.
