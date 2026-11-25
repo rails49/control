@@ -21,9 +21,11 @@ import pytest
 
 from tc49.bench.runner import Assembly, assemble_live
 from tc49.dispatcher import Dispatcher, FullRoute, Incremental
-from tc49.lib.bus import Payload
+from tc49.lib.bus import InProcessBus, Payload
+from tc49.lib.clock import Clock
 from tc49.lib.layout import Layout
 from tc49.lib.scenario import TrainSpec
+from tests.dispatcher.test_power import Reordering
 from tests.harness import (
     events,
     leaves,
@@ -38,6 +40,7 @@ from tests.harness import (
 from tests.invariants import check
 
 REQUEST_WANTED = "tc49/schedule/request_wanted"
+REQUEST_SUBMITTED = "tc49/dispatch/request_submitted"
 SETTINGS_WANTED = "tc49/layout/settings_wanted"
 UNKNOWN_SENSORS = "tc49/layout/state/unknown_sensors"
 ALLOCATION = "tc49/dispatch/state/allocation"
@@ -79,10 +82,12 @@ def drawing() -> Layout:
     return layout
 
 
-def railroad(strategy: Strategy = Incremental, *trains: str) -> Assembly:
+def railroad(
+    strategy: Strategy = Incremental, *trains: str, without_sensors: bool = True
+) -> Assembly:
     """`reversing-loops` with `mover` and each of `trains` standing as
     `STOOD` has them, power on, the invariants checked, and the settings
-    saying `without_sensors`."""
+    saying `without_sensors` unless told otherwise."""
     names = ("mover", *trains)
     assembly = assemble_live(
         drawing(),
@@ -91,7 +96,8 @@ def railroad(strategy: Strategy = Incremental, *trains: str) -> Assembly:
         strategy,
     )
     check(assembly, strategy)
-    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+    if without_sensors:
+        press(assembly, SETTINGS_WANTED, {"without_sensors": True})
     return assembly
 
 
@@ -339,3 +345,184 @@ def test_a_cancel_releases_all_but_the_origin_at_once(strategy: Strategy) -> Non
     assert picture["occupied"] == {"mover": ["C4"]}
     assert picture["locks"] == {"C4": "mover"}
     assert picture["requests"] == []
+
+
+def place(assembly: Assembly, train: str, block: str | None) -> None:
+    press(assembly, PLACEMENT_WANTED, {"train": train, "block": block})
+
+
+@each_strategy
+def test_a_placement_on_the_route_ends_the_run_there(strategy: Strategy) -> None:
+    assembly = underway(strategy)
+    rid = minted(assembly, "mover")
+
+    place(assembly, "mover", "CE2")
+
+    assert [
+        (line["id"], line["reason"]) for line in leaves(assembly, "request_cancelled")
+    ] == [(rid, "displaced")]
+    assert [line["block"] for line in leaves(assembly, "train_placed")] == ["CE2"]
+    picture = last(assembly, ALLOCATION)
+    assert picture["trains"] == {"mover": "CE2"}
+    assert picture["occupied"] == {"mover": ["CE2"]}
+    assert picture["locks"] == {"CE2": "mover"}
+
+
+@each_strategy
+def test_a_placement_on_the_origin_is_refused_and_the_run_stands(
+    strategy: Strategy,
+) -> None:
+    """Cancel is the gesture for a train that has not left."""
+    assembly = underway(strategy)
+
+    place(assembly, "mover", "C4")
+
+    assert [line["reason"] for line in leaves(assembly, "placement_refused")] == [
+        "not_free"
+    ]
+    assert under_way_still(assembly)
+    assert last(assembly, ALLOCATION)["occupied"] == {"mover": ROUTE}
+
+
+@each_strategy
+def test_a_removal_keeps_nothing_where_a_sensor_reads_occupied(
+    strategy: Strategy,
+) -> None:
+    assembly = underway(strategy)
+    press(assembly, *settled("C4.A"))
+
+    place(assembly, "mover", None)
+
+    assert released(assembly, "mover") == [sorted(ROUTE)]
+    assert len(leaves(assembly, "train_removed")) == 1
+    picture = last(assembly, ALLOCATION)
+    assert picture["locks"] == {}
+    assert picture["trains"] == {}
+
+
+def throw(assembly: Assembly, addr: str) -> None:
+    press(assembly, POINT_WANTED, {"addr": addr, "position": "closed"})
+
+
+@each_strategy
+def test_a_hand_throw_on_the_route_is_dropped_and_one_off_it_goes_out(
+    strategy: Strategy,
+) -> None:
+    """`110` is on j2's transit of the route; `112` lies in j3 alone."""
+    assembly = underway(strategy)
+
+    throw(assembly, "110")
+    throw(assembly, "112")
+
+    assert [line["points"] for line in aligns(assembly)[1:]] == [
+        [{"addr": "112", "position": "closed", "reported": False}]
+    ]
+
+
+@each_strategy
+def test_turning_the_setting_on_releases_residue(strategy: Strategy) -> None:
+    """`mover` lifted off C4 with C4 reading occupied keeps C4 as residue,
+    on a railroad run by its sensors. No reading will open it once they are
+    ignored, so the row saying `without_sensors` releases it."""
+    assembly = railroad(strategy, without_sensors=False)
+    press(assembly, *settled("C4.A"))
+    place(assembly, "mover", None)
+    assert last(assembly, ALLOCATION)["locks"] == {"C4": "mover"}
+
+    press(assembly, SETTINGS_WANTED, {"without_sensors": True})
+
+    assert released(assembly, "mover") == [["C4"]]
+    assert last(assembly, ALLOCATION)["locks"] == {}
+
+
+def bare(bus: InProcessBus) -> None:
+    """The dispatcher alone over `reversing-loops`, `mover` in C4, the power
+    on."""
+    layout = drawing()
+    Dispatcher(bus, layout, stock(mover=250), {"mover": "C4"}, Incremental(layout, 2))
+    bus.publish(POWER, {"power": "on"})
+    bus.drain()
+
+
+def submit(bus: InProcessBus) -> None:
+    bus.publish(
+        REQUEST_SUBMITTED,
+        {"id": "m-1", "train": "mover", "depart": "C4.A", "dest": ["A2.A"]},
+    )
+    bus.drain()
+
+
+def heard(bus: InProcessBus, leaf: str) -> list[Payload]:
+    found: list[Payload] = []
+    bus.subscribe(f"tc49/dispatch/{leaf}", lambda topic, payload: found.append(payload))
+    return found
+
+
+def test_a_row_older_than_the_one_held_changes_nothing() -> None:
+    """`true` then `false`, delivered backwards: the stamp says `false` is
+    the later, so the railroad runs by its sensors and the launch grants a
+    move."""
+    clock = Clock()
+    bus = Reordering(clock, SETTINGS)
+    bare(bus)
+    moves = heard(bus, "move_granted")
+
+    clock.advance(10.0)
+    bus.publish(SETTINGS, {"without_sensors": True})
+    clock.advance(20.0)
+    bus.publish(SETTINGS, {"without_sensors": False})
+    bus.drain()
+    submit(bus)
+
+    assert [move["into"] for move in moves] == ["CE2"]
+
+
+def test_a_row_whose_field_does_not_read_changes_nothing() -> None:
+    bus = InProcessBus(Clock())
+    bare(bus)
+    moves = heard(bus, "move_granted")
+
+    bus.publish(SETTINGS, {"without_sensors": True})
+    bus.drain()
+    bus.publish(SETTINGS, {"without_sensors": "yes"})
+    bus.drain()
+    bus.publish(SETTINGS, {"short_blocks": True})
+    bus.drain()
+    submit(bus)
+
+    assert moves == []
+    assert bus.last_values[ALLOCATION]["occupied"] == {"mover": ROUTE}
+
+
+@each_strategy
+def test_a_drag_chained_before_the_cancel_is_cancelled_with_it(
+    strategy: Strategy,
+) -> None:
+    assembly = underway(strategy)
+    first = minted(assembly, "mover")
+    wants(assembly, "mover", "CE2.B")
+    second = minted(assembly, "mover", 2)
+
+    press(assembly, CANCEL_WANTED, {"id": first})
+
+    assert [
+        (line["id"], line["reason"]) for line in leaves(assembly, "request_cancelled")
+    ] == [(first, "revoked"), (second, "revoked")]
+
+
+@each_strategy
+def test_a_request_chained_after_the_cancel_departs_by_the_end_the_route_left_by(
+    strategy: Strategy,
+) -> None:
+    assembly = underway(strategy)
+    first = minted(assembly, "mover")
+    press(assembly, CANCEL_WANTED, {"id": first})
+
+    press(
+        assembly,
+        REQUEST_SUBMITTED,
+        {"id": "m-late", "train": "mover", "dest": ["CE2.A"], "after": first},
+    )
+
+    [chosen] = events(assembly.trace, "route_chosen", rid="m-late")
+    assert chosen["route"] == ROUTE[:3]
