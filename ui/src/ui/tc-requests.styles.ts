@@ -40,7 +40,9 @@ export const requestsStyles = css`
     padding: 0.25rem 0.2rem;
     cursor: grab;
     touch-action: none; /* a drag on a touch screen is a drag, not a scroll */
+    -webkit-user-select: none; /* the rule Safari stops selecting for (#1312) */
     user-select: none;
+    -webkit-touch-callout: none;
   }
 
   li + li {
