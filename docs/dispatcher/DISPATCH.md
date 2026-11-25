@@ -18,7 +18,11 @@ avoidance at high throughput. Terminology follows [GLOSSARY.md](../../GLOSSARY.m
   where an earlier one of the same train is still pending, at the first launch
   attempt. A request stating a departure block its train is not standing in
   is rejected too, as is a payload the dispatcher cannot read as a request at
-  all. All other requests are accepted and queued.
+  all. While the railroad runs by its sensors, a request for a train listed in
+  `crossing` with no request of its own is rejected `crossing`, until a
+  placement or a removal ends the entry
+  ([#1326](https://github.com/rails49/control/issues/1326)). All other
+  requests are accepted and queued.
 - **Fixed routes** — a route is chosen when the train starts moving and never
   changed; only its locks are incremental
   ([ADR-0002](../adr/0002-fixed-route-per-request.md)).
@@ -155,7 +159,8 @@ under the new value alone
 - Turning `false`, the readings and the sensors not reporting recorded while it
   was `true` are back in use at the sweep: `state/disputed` and the blocks out
   of use are worked out from them. A train left crossing counts as moving, as a
-  crossing with no move behind it does, until it is placed or removed.
+  crossing with no move behind it does, until it is placed or removed, and a
+  request for it is rejected `crossing` until then.
 - A row that says the value already held ends nothing.
 
 ### Requests
