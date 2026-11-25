@@ -44,8 +44,13 @@ it.
 **The checks, at every state:** each piece a train covers is locked to that
 train, so nothing was released under it and no two trains cover one piece;
 `broken()` returns nothing (ADR-0076); and a `clear` reading changed nothing
-of any train but one whose move expected that sensor. A state with a fault is
-counted and not gone on from.
+but what the reading table gives the move that expected it (`unexpected`).
+
+**The faults.** The search keeps every fault it finds and goes on from a
+state with one, so one fault does not hide another. Each case has two tests.
+One passes while every fault found has the shape of #1336 (`rolled_off`),
+and pins the count of states visited. The other asserts there is no fault,
+and is `xfail` for #1336 where the case has a long train.
 
 **Left out:** the cases GOALS.md lists as not guarded, `unknown` sensors, the
 deadlock check (#1331), and readings reaching the dispatcher later than the
@@ -54,7 +59,7 @@ steel gave them.
 
 from collections import deque
 from collections.abc import Iterator
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import cache
 
 import pytest
@@ -191,42 +196,79 @@ def turned(head: str, piece: str, facing: str) -> str:
 
 @dataclass(frozen=True)
 class Fault:
+    """Something a check found wrong. `train` and `piece` are given for a
+    piece a train covers with no lock on it."""
+
     check: str
     detail: str
+    train: str = ""
+    piece: str = ""
 
 
 def sensed(table: Table, sensor: str, occupied: bool, faults: list[Fault]) -> Table:
     """A settled reading taken as the dispatcher takes it: the reading, a run
     whose newest move ended at its last block completing, then residue
-    opening. A clear reading that changes a train whose move did not expect
-    it is a fault."""
-    expecting = {
-        train
-        for train, following in table.following.items()
-        for each in following
-        if (each.exit == sensor and each.exit_read)
-        or (each.entry == sensor and each.head_in)
-    }
+    opening. What a clear reading changed that no move expecting it accounts
+    for is a fault (`unexpected`)."""
     new, effects = reading(table, sensor, occupied)
     if not occupied:
-        for train in table.block_of:
-            if train not in expecting and _of(table, train) != _of(new, train):
-                faults.append(
-                    Fault("clear", f"{sensor} clear changed {train}: {_of(new, train)}")
-                )
+        faults += unexpected(table, new, sensor)
     new = _ended(new, effects)
     return opening(new)[0]
 
 
-def _of(table: Table, train: str) -> tuple[object, ...]:
-    return (
-        frozenset(r for r, holder in table.locks.items() if holder == train),
-        table.block_of.get(train),
-        table.active.get(train),
-        table.crossing.get(train),
-        table.occupied.get(train),
-        table.following.get(train),
-    )
+def unexpected(table: Table, new: Table, sensor: str) -> list[Fault]:
+    """What `sensor` reading clear changed, from `table` to `new`, that no
+    move expecting it accounts for (GOALS.md, the reading table).
+
+    A move out of X over T into Y expects its exit sensor to read clear once
+    it has read occupied: X may then be released, and the train recorded in
+    Y. It expects its entry sensor to read clear once the head is in: T may
+    then be released, with what the train occupies behind it. Either may end
+    the following of that move and of older ones. Anything else is a fault: a
+    lock taken, any other lock released, the train's run or crossing changed,
+    or a move newer than those that expected the reading not followed as it
+    was."""
+    faults: list[Fault] = []
+    for train, standing in table.block_of.items():
+        following = table.following.get(train, [])
+        on = table.occupied[train]
+        may_release: set[str] = set()
+        may_stand = {standing}
+        newer = list(following)
+        for at, each in enumerate(following):
+            if each.exit == sensor and each.exit_read:
+                may_release.add(each.move.from_block)
+                may_stand.add(each.move.into)
+            elif each.entry == sensor and each.head_in:
+                if each.move.transit in on:
+                    may_release.update(on[: on.index(each.move.transit) + 1])
+            else:
+                continue
+            newer = list(following[at + 1 :])
+        was, now = _held(table, train), _held(new, train)
+        followed = list(new.following.get(train, []))
+        wrong = [
+            *(f"took {resource}" for resource in sorted(now - was)),
+            *(f"released {resource}" for resource in sorted(was - now - may_release)),
+        ]
+        if new.block_of[train] not in may_stand:
+            wrong.append(f"stands in {new.block_of[train]}")
+        if new.occupied[train] != [resource for resource in on if resource in now]:
+            wrong.append(f"occupies {new.occupied[train]}")
+        if (new.active.get(train), new.crossing.get(train)) != (
+            table.active.get(train),
+            table.crossing.get(train),
+        ):
+            wrong.append("has another run or crossing")
+        if followed[len(followed) - len(newer) :] != newer:
+            wrong.append(f"is followed as {followed}")
+        faults += [Fault("clear", f"{sensor} clear: {train} {each}") for each in wrong]
+    return faults
+
+
+def _held(table: Table, train: str) -> set[str]:
+    return {resource for resource, holder in table.locks.items() if holder == train}
 
 
 def _ended(table: Table, effects: list[Effect]) -> Table:
@@ -297,10 +339,14 @@ def steps(case: Case, state: State) -> Iterator[tuple[str, State, list[Fault]]]:
                 others,
             )
         if each.turning:
-            yield f"{train} stops and turns", (
-                table,
-                (*steel[:i], _turned(each), *steel[i + 1 :]),
-            ), []
+            yield (
+                f"{train} stops and turns",
+                (
+                    table,
+                    (*steel[:i], _turned(each), *steel[i + 1 :]),
+                ),
+                [],
+            )
     for i, train in enumerate(names):
         active = table.active.get(train)
         if active is None:
@@ -414,8 +460,9 @@ def _grants(
 
 
 def checked(case: Case, state: State) -> list[Fault]:
-    """What the state breaks: a piece a train covers not locked to it, a piece
-    two trains cover, and the table's own rules."""
+    """What the state breaks: a piece two trains cover (`collision`), a piece
+    a train covers not locked to it (`lock`), and the table's own rules
+    (`broken`)."""
     table, steel = state
     faults: list[Fault] = []
     covering: dict[str, str] = {}
@@ -423,36 +470,67 @@ def checked(case: Case, state: State) -> list[Fault]:
         for piece in each.stretch:
             if piece in covering:
                 faults.append(
-                    Fault("steel", f"{train} and {covering[piece]} cover {piece}")
+                    Fault("collision", f"{train} and {covering[piece]} cover {piece}")
                 )
             covering[piece] = train
-            if not any(table.locks.get(r) == train for r in resources(piece)):
+            if not _locked(table, train, piece):
                 faults.append(
-                    Fault("steel", f"{train} covers {piece}, which it holds no lock on")
+                    Fault(
+                        "lock",
+                        f"{train} covers {piece}, which it holds no lock on",
+                        train,
+                        piece,
+                    )
                 )
     faults += [Fault("broken", line) for line in broken(table)]
     return faults
 
 
+def _locked(table: Table, train: str, piece: str) -> bool:
+    return any(table.locks.get(r) == train for r in resources(piece))
+
+
+@dataclass(frozen=True)
+class Found:
+    """A fault, with the step that came to it: the state before, the step and
+    the state after."""
+
+    fault: Fault
+    before: State
+    step: str
+    after: State
+
+
 @dataclass
 class Searched:
     visited: int
-    fault: Fault | None
-    sequence: list[str]
+    faults: list[Found] = field(repr=False)
+    parent: dict[State, tuple[State, str] | None] = field(repr=False)
+
+    def told(self, found: Found) -> str:
+        """A fault, with the steps that reach it."""
+        labels = [found.step]
+        state = found.before
+        while (came := self.parent[state]) is not None:
+            state, label = came
+            labels.append(label)
+        return "\n".join([str(found.fault), *labels[::-1]])
 
 
 @cache
 def search(name: str) -> Searched:
-    """Every state reachable from the case's placements, breadth first, so
-    the first fault found comes with the shortest sequence of steps that
-    reaches it. A state with a fault is counted and not gone on from: what
-    follows a table that no longer describes the steel is not asked about."""
+    """Every state reachable from the case's placements, breadth first, with
+    every fault found on the way, so the first comes with the shortest
+    sequence of steps that reaches it. A state with a fault is gone on from
+    like any other, so one fault does not hide another behind it. A state
+    where two trains cover one piece is the exception, since trains do not
+    run through each other."""
     case = CASES[name]
     start, faults = placed(case)
     faults += checked(case, start)
     assert not faults, faults
     parent: dict[State, tuple[State, str] | None] = {start: None}
-    found: tuple[Fault, list[str]] | None = None
+    found: list[Found] = []
     queue = deque([start])
     while queue:
         state = queue.popleft()
@@ -460,21 +538,38 @@ def search(name: str) -> Searched:
             if new not in parent:
                 parent[new] = (state, label)
                 faults += checked(case, new)
-                if not faults:
+                if not any(fault.check == "collision" for fault in faults):
                     queue.append(new)
-            if faults and found is None:
-                found = (faults[0], [*_sequence(parent, state), label])
-    if found is None:
-        return Searched(len(parent), None, [])
-    return Searched(len(parent), *found)
+            found += [Found(fault, state, label, new) for fault in faults]
+    return Searched(len(parent), found, parent)
 
 
-def _sequence(parent: dict[State, tuple[State, str] | None], state: State) -> list[str]:
-    labels: list[str] = []
-    while (came := parent[state]) is not None:
-        state, label = came
-        labels.append(label)
-    return labels[::-1]
+def rolled_off(case: Case, found: Found) -> bool:
+    """Whether a fault has the shape of #1336: a train covers a piece of a
+    block with no lock on it, because its tail rolled off a sensor of that
+    block while the whole train was still in the block, inside that sensor,
+    and the table released the block. Either the step was that roll and the
+    train held the block until it, or the train was already on a piece
+    needing the same lock without it before the step."""
+    fault = found.fault
+    if fault.check != "lock" or fault.piece in TRANSITS:
+        return False
+    i = sorted(case.placed).index(fault.train)
+    table, steel = found.before
+    was, now = steel[i].stretch, found.after[1][i].stretch
+    if any(
+        resources(piece) == resources(fault.piece)
+        and not _locked(table, fault.train, piece)
+        for piece in was
+    ):
+        return True
+    sensor, block = was[0], block_of(fault.piece)
+    return (
+        sensor in (f"{block}.A", f"{block}.B")
+        and now == was[1:]
+        and table.locks.get(block) == fault.train
+        and set(now) <= set(pieces(block, opposite_end(sensor))[2:])
+    )
 
 
 def _steel(*cuts: str, facing: str) -> Steel:
@@ -524,15 +619,66 @@ REVERSING = pytest.mark.xfail(
 @pytest.mark.parametrize(
     ("name", "visited"),
     [
-        ("a short and a long train", 31033),
+        ("a short and a long train", 38873),
         ("two short trains", 35969),
-        ("two long trains", 22709),
-        ("a train placed beyond the sensor it leaves by", 31653),
+        ("two long trains", 33419),
+        ("a train placed beyond the sensor it leaves by", 39493),
     ],
 )
-def test_the_search_visits_every_state_once(name: str, visited: int) -> None:
-    """The count, so a change that shrinks the search shows."""
-    assert search(name).visited == visited
+def test_every_fault_the_search_finds_is_1336(name: str, visited: int) -> None:
+    """No fault of another shape than #1336's, and the count of states
+    visited, so a change that shrinks the search shows."""
+    found = search(name)
+
+    other = [each for each in found.faults if not rolled_off(CASES[name], each)]
+    assert not other, found.told(other[0])
+    assert found.visited == visited
+
+
+def test_a_fault_of_another_shape_is_not_taken_for_1336(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A short train run out of its block against a `reading` that releases
+    T with X when the tail leaves X. The clear reading was expected by the
+    move, and did more than that move's line of the reading table says."""
+
+    taken = reading
+
+    def hasty(table: Table, sensor: str, occupied: bool) -> tuple[Table, list[Effect]]:
+        new, effects = taken(table, sensor, occupied)
+        left = {
+            each.move.transit
+            for following in table.following.values()
+            for each in following
+            if not occupied and each.exit == sensor and each.exit_read
+        }
+        locks = {r: holder for r, holder in new.locks.items() if r not in left}
+        return replace(new, locks=locks), effects
+
+    monkeypatch.setitem(globals(), "reading", hasty)
+    case = CASES["a short and a long train"]
+    state, _ = placed(case)
+    found: list[Found] = []
+
+    for label in [
+        "s launched stub-down",
+        "s head onto stub.3",
+        "s tail off stub.2",
+        "s head onto stub.B",
+        "s tail off stub.3",
+        "s head onto stub.b",
+        "s tail off stub.B",
+    ]:
+        new, faults = next(
+            (new, faults) for step, new, faults in steps(case, state) if step == label
+        )
+        faults += checked(case, new)
+        found += [Found(fault, state, label, new) for fault in faults]
+        state = new
+
+    assert {each.step for each in found} == {"s tail off stub.B"}
+    assert {each.fault.check for each in found} == {"clear", "lock", "broken"}
+    assert not any(rolled_off(case, each) for each in found)
 
 
 @pytest.mark.parametrize(
@@ -547,4 +693,4 @@ def test_the_search_visits_every_state_once(name: str, visited: int) -> None:
 def test_no_reading_order_releases_track_under_a_train(name: str) -> None:
     found = search(name)
 
-    assert found.fault is None, "\n".join([str(found.fault), *found.sequence])
+    assert not found.faults, found.told(found.faults[0])
