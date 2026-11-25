@@ -400,16 +400,18 @@ export class Session {
    *
    * The model is built once per railroad and kept across everything else. One
    * built afresh would forget what the bus has shown it, and only the next
-   * picture would bring any of it back. So it is rebuilt only when the
-   * drawing's name changes or the drawing turns valid or invalid. A railroad
-   * whose drawing is invalid has no layout to build from, so nothing is painted
-   * and the band says why — a fact about the documents and not about the bus:
-   * the broker goes on running the railroad it named.
+   * picture would bring any of it back. So it is built only for a drawing
+   * whose name is not the one it was built for. A railroad whose drawing is
+   * invalid under a new name has no layout to build from, so there is no
+   * model, nothing is painted and the band says why — a fact about the
+   * documents and not about the bus: the broker goes on running the railroad
+   * it named.
    *
-   * A review other than the one the model holds, under the same name, is the
-   * railroad built again with the page open: the model reads its layout,
-   * explanation and wires from then on and keeps all the bus has said
-   * (`Panel.relayout`, #1235). The same review again changes nothing.
+   * Under the same name the model is kept. A review other than the one the
+   * model holds, with a layout, is the railroad built again with the page open:
+   * the model reads its layout, explanation and wires from then on and keeps
+   * all the bus has said (`Panel.relayout`, #1235). A review with no layout
+   * leaves it on the last one. The same review again changes nothing.
    *
    * It notifies nothing, the app being mid-render when it calls; what moved is
    * read off `panel`, `status` and `cabs` straight after.
