@@ -24,6 +24,7 @@ from tc49.lib.settings import (
     KeptInstallation,
     KeptSettings,
 )
+from tc49.lib.timetable import Entry, Timetable, TrainStart
 from tc49.store import AssetStore
 from tc49.store.server import make_server
 from tests.harness import ASSETS, catalogued
@@ -376,3 +377,91 @@ def test_kept_settings_the_store_cannot_read_are_raised(url: str, root: Path) ->
     (root / "layouts" / f"{RAILROAD}.settings.yaml").write_text("point_gap: 9\n")
     with pytest.raises(ValueError, match="point_gap"):
         client(url).settings(RAILROAD)
+
+
+EVENING = Timetable(
+    "evening",
+    RAILROAD,
+    6 * 3600,
+    {"freight_1": TrainStart("yard_w", "A-to-B")},
+    (
+        Entry((6 * 60 + 2) * 60, "freight_1", ("dn_e", "up_e"), 2, "meets the express"),
+        Entry((12 * 60 + 30) * 60, "freight_1"),
+    ),
+)
+"""A timetable of the railroad (#1345): a run with a dwell and a note, and a
+turn-round at a time YAML 1.1 reads as a number unquoted."""
+
+
+def test_the_timetable_a_railroad_keeps_is_what_was_put(url: str, root: Path) -> None:
+    """None where the store has none, and filed by the railroad and the name
+    the timetable gives."""
+    documents = client(url)
+    assert documents.timetable(RAILROAD, "evening") is None
+    documents.put_timetable(EVENING)
+    assert documents.timetable(RAILROAD, "evening") == EVENING
+    assert (root / "timetables" / RAILROAD / "evening.timetable.yaml").exists()
+
+
+def test_a_timetable_put_again_replaces_the_one_before(url: str) -> None:
+    documents = client(url)
+    documents.put_timetable(EVENING)
+    shorter = EVENING.removed(1)
+    documents.put_timetable(shorter)
+    assert documents.timetable(RAILROAD, "evening") == shorter
+
+
+def test_a_deleted_timetable_is_one_the_store_has_not_got(url: str) -> None:
+    documents = client(url)
+    documents.put_timetable(EVENING)
+    documents.delete_timetable(RAILROAD, "evening")
+    assert documents.timetable(RAILROAD, "evening") is None
+
+
+def test_deleting_a_timetable_the_store_has_not_got_is_no_error(url: str) -> None:
+    """A delete whose answer was lost is asked again, and by then the
+    timetable is gone."""
+    client(url).delete_timetable(RAILROAD, "evening")
+
+
+def test_a_timetable_the_store_cannot_read_is_raised(url: str, root: Path) -> None:
+    filed = root / "timetables" / RAILROAD
+    filed.mkdir(parents=True)
+    (filed / "evening.timetable.yaml").write_text(
+        f"timetable: evening\nlayout: {RAILROAD}\nstart: 12:30\n"
+        "trains: {}\nentries: []\n"
+    )
+    with pytest.raises(ValueError, match="HH:MM"):
+        client(url).timetable(RAILROAD, "evening")
+
+
+def test_a_timetable_is_deleted_once_the_store_comes_up(root: Path) -> None:
+    """A write and a delete wait for a store that does not answer, as a read
+    does."""
+    AssetStore(root).put_timetable(EVENING.document(), RAILROAD, "evening")
+    port = free_port()
+    said: list[str] = []
+    asking = threading.Thread(
+        target=lambda: client(f"http://127.0.0.1:{port}", said).delete_timetable(
+            RAILROAD, "evening"
+        ),
+        daemon=True,
+    )
+    asking.start()
+    waiting = time.monotonic() + 5
+    while not said and time.monotonic() < waiting:  # asked, nothing to answer
+        time.sleep(0.01)
+    assert said, "the client did not wait for a store that was not there"
+
+    server = make_server(root, port=port)
+    serving = threading.Thread(target=server.serve_forever, daemon=True)
+    serving.start()
+    try:
+        asking.join(timeout=10)
+    finally:
+        server.shutdown()
+        server.server_close()
+        serving.join(timeout=5)
+
+    assert not asking.is_alive()
+    assert AssetStore(root).timetables(RAILROAD) == []

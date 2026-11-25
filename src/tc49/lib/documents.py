@@ -29,7 +29,9 @@ The writes are the layout binding's: its record of which railroad it loaded
 (`put_loaded`, ADR-0072 decision 5), the railroad's clock when a person
 sets it (`put_clock`, ADR-0090 decision 3), the railroad's settings when
 a person sets them (`put_settings`, #1126), and the installation's when a
-person sets those (`put_installation`, #1132).
+person sets those (`put_installation`, #1132). The scheduler reads, writes
+and deletes a railroad's timetables (`timetable`, `put_timetable`,
+`delete_timetable`, #1345).
 """
 
 import json
@@ -51,6 +53,7 @@ from tc49.lib.settings import (
     kept_settings,
 )
 from tc49.lib.stock import validate_model, validate_roster
+from tc49.lib.timetable import Timetable, read_timetable
 
 FIRST_BACKOFF_S = 0.5
 MAX_BACKOFF_S = 8.0
@@ -166,6 +169,32 @@ class Documents:
         answers."""
         self._put("installation", body=kept.document())
 
+    def timetable(self, railroad: str, name: str) -> Timetable | None:
+        """Timetable `name` of `railroad`, or None where the store has none
+        (#1345). One the store cannot read is a `ValueError`. Waited for
+        until the store answers."""
+        try:
+            return read_timetable(self._get("timetables", railroad, name))
+        except FileNotFoundError:
+            return None
+
+    def put_timetable(self, timetable: Timetable) -> None:
+        """Keep `timetable` under its own `layout` and `name`, replacing
+        the one the store has there. Waited for until the store answers, as
+        `put_clock` is. One the store refuses is a `ValueError`."""
+        self._put(
+            "timetables", timetable.layout, timetable.name, body=timetable.document()
+        )
+
+    def delete_timetable(self, railroad: str, name: str) -> None:
+        """Delete timetable `name` of `railroad`. Waited for until the store
+        answers, as `put_clock` is. One the store does not have is no
+        error."""
+        try:
+            self._asked(("timetables", railroad, name), "DELETE")
+        except FileNotFoundError:
+            pass
+
     def loaded(self) -> str:
         """The railroad the store records as loaded, and `""` where it records
         none (ADR-0072 decision 5). The layout binding's, read once as it
@@ -184,17 +213,22 @@ class Documents:
     def _get(self, *path: str, once: bool = False) -> dict[str, Any]:
         """One document, waited for until the store answers — or, `once`,
         asked for one time."""
-        return self._asked(path, None, once)
+        return self._asked(path, once=once)
 
     def _put(self, *path: str, body: dict[str, Any]) -> dict[str, Any]:
         """`body` put there, and the store's answer waited for."""
-        return self._asked(path, body)
+        return self._asked(path, "PUT", body)
 
     def _asked(
-        self, path: tuple[str, ...], body: dict[str, Any] | None, once: bool = False
+        self,
+        path: tuple[str, ...],
+        method: str = "GET",
+        body: dict[str, Any] | None = None,
+        once: bool = False,
     ) -> dict[str, Any]:
-        """The store's answer at `path`, retried while it does not answer,
-        and `once` raised as a `ConnectionError` instead. The route is given
+        """The store's answer to `method` at `path`, retried while it does
+        not answer, and `once` raised as a `ConnectionError` instead. `body`
+        is the document sent with a `PUT`. The route is given
         a level at a time and each is escaped: a name is one level, so a
         railroad called `a/b` is a name the store does not have rather than a
         route of its own."""
@@ -202,7 +236,7 @@ class Documents:
         backoff = self._first_backoff_s
         while True:
             try:
-                return _fetch(where, self._timeout_s, body)
+                return _fetch(where, self._timeout_s, method, body)
             except _Unanswered as away:
                 if once:
                     raise ConnectionError(f"{where}: {away}") from None
@@ -217,18 +251,12 @@ class _Unanswered(Exception):
 
 
 def _fetch(
-    where: str, timeout_s: float, sent: dict[str, Any] | None = None
+    where: str, timeout_s: float, method: str, sent: dict[str, Any] | None
 ) -> dict[str, Any]:
-    asked = (
-        urllib.request.Request(
-            where,
-            data=json.dumps(sent).encode(),
-            headers={"Content-Type": "application/json"},
-            method="PUT",
-        )
-        if sent is not None
-        else where
-    )
+    asked = urllib.request.Request(where, method=method)
+    if sent is not None:
+        asked.data = json.dumps(sent).encode()
+        asked.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(asked, timeout=timeout_s) as answer:
             body = json.load(answer)
