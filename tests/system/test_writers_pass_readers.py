@@ -20,7 +20,9 @@ Two kinds of run between them cover every writer in the table:
 2. one `LayoutInterface` on the railroad `tests/layout/railroad.py` draws,
    driven with that module's helpers — `layout`'s writes, a function press
    among them, since `desired_function` is read only in `rails49/dccex`
-   (#1092).
+   (#1092);
+3. one scheduler given a store, recording a drag as a timetable (#1352): a
+   bench run's scheduler is given none and writes no timetable row.
 
 A frame the test publishes itself is not checked: it is not an app's.
 """
@@ -52,6 +54,8 @@ from tc49.lib.payload import (
     granted_aspect,
     kept_allocation,
     kept_facing,
+    listed_requests,
+    loaded_timetable,
     moving,
     overdue,
     placement,
@@ -62,6 +66,8 @@ from tc49.lib.payload import (
     taken,
     unknown_sensors,
 )
+from tc49.lib.timetable import Timetable
+from tc49.scheduler.release import restarted
 from tests.harness import ASSETS, load
 from tests.layout.railroad import (
     ALIGN,
@@ -87,6 +93,7 @@ from tests.layout.railroad import (
     switches_function,
     takes,
 )
+from tests.scheduler import test_recording
 
 Frame = dict[str, Any]
 
@@ -109,7 +116,26 @@ def _allocation(frame: Frame) -> bool:
         kept is not None
         and _keeps(frame, "trains", kept.trains)
         and _keeps(frame, "crossing", kept.crossing)
+        and _lists(frame)
     )
+
+
+def _lists(frame: Frame) -> bool:
+    """Whether the requests the reader lists are the frame's, in order."""
+    listed = listed_requests(frame)
+    return listed is not None and list(listed.items()) == [
+        (request["id"], request["train"]) for request in frame["requests"]
+    ]
+
+
+def _timetable(frame: Frame) -> bool:
+    """Whether a restart reads the row: no timetable where it names none,
+    and otherwise every entry, against a document of that name."""
+    name = loaded_timetable(frame)
+    if name is None:
+        return set(frame) == {"at", "timetable"} and frame["timetable"] is None
+    state = restarted(frame, Timetable(name, "crossover-yard", 0, {}, ()))
+    return state is not None and len(state.progress) == len(frame["entries"])
 
 
 @dataclass(frozen=True)
@@ -167,6 +193,7 @@ TABLE: tuple[Rule, ...] = (
         "kept_facing",
         lambda f: _keeps(f, "facing", kept_facing(f)),
     ),
+    Rule("tc49/schedule/state/timetable", "loaded_timetable, restarted", _timetable),
     Rule("tc49/layout/state/power", "power", lambda f: power(f) == f.get("power")),
     Rule(
         "tc49/layout/state/driving",
@@ -310,11 +337,35 @@ def layout_run() -> Recorded:
     return [(topic, payload) for topic, payload in seen if topic not in ours]
 
 
+def recording_run() -> Recorded:
+    """A scheduler given a store, as `tests/scheduler/test_recording.py`
+    builds one: `untitled` made, a drag recorded and its request completed.
+    Every topic the test writes is left out, so what is left is the
+    scheduler's."""
+    bus = test_recording.recording(test_recording.Store())
+    seen = recording(bus)
+    test_recording.drag(bus, "freight_1", "dn_e")
+    test_recording.say(
+        bus,
+        "tc49/dispatch/request_completed",
+        {"id": test_recording.entries(bus)[0]["request"]},
+    )
+    ours = {
+        test_recording.ALLOCATION,
+        test_recording.CLOCK,
+        test_recording.POWER,
+        test_recording.WANTED,
+        "tc49/dispatch/request_completed",
+    }
+    return [(topic, payload) for topic, payload in seen if topic not in ours]
+
+
 @pytest.fixture(scope="module")
 def runs() -> dict[str, Recorded]:
     recorded = {scenario: bench_run(scenario) for scenario in scenario_ids()}
     recorded[f"{REPLAYED}, replayed"] = replayed_run(REPLAYED)
     recorded["layout"] = layout_run()
+    recorded["recording"] = recording_run()
     return recorded
 
 
