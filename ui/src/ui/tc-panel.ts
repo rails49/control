@@ -18,7 +18,8 @@
  * ([#168](https://github.com/rails49/control/issues/168)). What this holds is
  * what only the run view has: the overlay it hands the canvas, the machine
  * that says what a drag means (model/drag.ts), the right-click menu, the
- * roster pane, the request list in it, and the divider that sizes the pane.
+ * roster pane, the list of the timetable and the requests in it, and the
+ * divider that sizes the pane.
  *
  * Everything shown is the panel model's answer (model/panel.ts). It computes
  * nothing: occupancy, aspects, markers, the lit route, arrival ends and

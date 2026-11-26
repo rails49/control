@@ -46,7 +46,8 @@ fixed
 decision 4, [#886](https://github.com/rails49/control/issues/886)).
 
 **The pane is left of the drawing, and a divider sets its width.** The pane
-is the roster with the request list under it. A person drags the divider
+is the roster with the list of the timetable and the requests under it. A
+person drags the divider
 between the pane and the drawing with a mouse or a finger
 ([#1344](https://github.com/rails49/control/issues/1344)). The pane has a
 least width, where the roster is still usable, and a greatest, which leaves
@@ -55,7 +56,7 @@ Until the divider is first dragged the pane is as wide as the editor's
 palette, which has no divider.
 
 **On a page taller than it is wide the pane is below the drawing**: a tablet
-held upright, a phone. The roster and the request list stand side by side in
+held upright, a phone. The roster and the list stand side by side in
 it, each scrolling on its own, and the divider sets the pane's height, held
 to a least and a greatest as its width is. The shape is the page's
 (`orientation`), not the view's.
@@ -107,10 +108,13 @@ back onto the railroad. They do not freeze the drawing: track power does
 ([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing)), and a save with power
 off keeps the trains that still fit.
 
-**The request list is under the roster**, in the same pane: `tc-requests`, a
-component of its own, read from `tc49/dispatch/state/allocation`'s `requests`
+**The list under the roster is headed "Timetable"**, in the same pane:
+`tc-requests`, a component of its own. With no timetable loaded, and before
+the scheduler has said whether one is, it is the request list, read from
+`tc49/dispatch/state/allocation`'s `requests`
 ([#829](https://github.com/rails49/control/issues/829),
 [ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
+With one loaded it shows the timetable, described after the request rows.
 Each list is as tall as its rows, up to half the pane, and scrolls on its own
 past that, so the requests sit directly under the trains and the space left
 over is below them
@@ -172,6 +176,50 @@ moves the dispatcher would drop. The list moves when the picture does, not on
 the drop. The rows and what a drag asks are worked out in
 `ui/src/model/requests.ts`; the component draws them and reports where a row
 was let go.
+
+**With a timetable loaded the list shows it**
+([#1345](https://github.com/rails49/control/issues/1345),
+[#1356](https://github.com/rails49/control/issues/1356)). The scheduler says
+which timetable is loaded, and what became of each entry, on
+`tc49/schedule/state/timetable` (BUS.md). The panel model keeps that row as it
+keeps facing. The heading is "Timetable" and the timetable's name. The rows,
+top to bottom:
+
+- **Each entry**, in the row's order, which is time order. An entry that is
+  `out` while the dispatcher lists its request is that request's row as
+  above: *waiting* or *underway*, its cancel, its "waits for" line, and
+  *arrived* without sensors. The entry's time starts the line under the
+  train, before where the request goes from and to.
+- **Any other entry** is its train, its state, and under them its time and
+  where it goes, *turn* for a turn-round. The state is the row's word:
+  `later`, `held`, `out`, `ended`, `rejected`, `cancelled` or `skipped`. A row
+  that is `ended`, `rejected`, `cancelled` or `skipped` is dimmed. An entry
+  reads `out` with no request row while the dispatcher's picture does not
+  list its request.
+- **Then each request no entry went out as**, a row as above with no time: a
+  drag made with Record off is one.
+
+**The requests that are out keep the dispatcher's order among themselves.**
+They fill the places the out entries have in the timetable, in the order the
+dispatcher serves them. A waiting one is dragged as above. It lands in front
+of the first waiting request below where it is let go, `null` for none, and
+entries that are not out are passed over. An entry that is not out is not
+dragged: it is in time order. A row that is not dragged scrolls the list
+under a finger.
+
+**The list opens at the first row that is not done.** When a timetable is
+first drawn, the page opened during a run or another timetable loaded, the
+list is scrolled to its first row that is not `ended`, `rejected`,
+`cancelled` or `skipped`. It is not scrolled again while that timetable stays
+loaded.
+
+**Where the list is 24rem wide or more, a row also shows its entry's dwell
+and description**, each on a line under where it goes. Both are in the row's
+markup at any width. The width read is the list's own and not the page's,
+since a person sets the pane's width.
+
+The rows, what a drag asks and where the list opens are worked out in
+`ui/src/model/timetable.ts`.
 
 **A train's name is drawn in each block it occupies**, whatever the block's
 colour: every block on its list in the picture's `occupied`. A train passing
