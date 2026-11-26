@@ -858,8 +858,9 @@ entry. `tc49/schedule/timetable_record_wanted`
 switches Record. Placements, removals and reordering of the request list add
 nothing.
 
-A person changes the loaded timetable with two gestures
-([#1354](https://github.com/rails49/control/issues/1354)):
+A person changes the loaded timetable with three gestures
+([#1354](https://github.com/rails49/control/issues/1354),
+[#1368](https://github.com/rails49/control/issues/1368)):
 
 - `tc49/schedule/entry_wanted` changes one entry, or deletes it. Entries
   carry no id, so the gesture names the entry as it reads now, and the
@@ -874,6 +875,11 @@ A person changes the loaded timetable with two gestures
   the document under the new name, then deletes the one under the old name.
   It is dropped where the store has a timetable of the new name. Renaming
   `untitled` keeps it from being replaced by the next recording.
+- `tc49/schedule/timetable_repeat_wanted` sets its `repeat`, so a
+  three-hour sequence can repeat every three hours. It is taken only while
+  power reads `off`, so a round in progress does not change under the
+  trains, and is dropped where an entry would fall at or after the start
+  plus the new repeat. Each entry keeps its round.
 
 The scheduler writes the document to the store at each change to it, on a
 thread of its own and in order, so a write to a store that does not answer
