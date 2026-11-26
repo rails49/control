@@ -215,8 +215,8 @@ _Avoid_: feature, effect, output
 
 **Camera car**:
 A car that carries a camera. A throttle holding a train the camera car is in
-shows the camera's live picture. The roster says where the camera answers
-([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
+shows the camera's live picture. The roster holds the URL of the camera's
+MJPEG stream ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: camera train, video car
 
 **Catalogue**:

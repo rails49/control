@@ -387,8 +387,9 @@ LAN is still the trust boundary and a browser is not on it
   page on the app's TLS origin cannot reach itself
   ([ADR-0082](adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
   The app reads the railroad's roster from the store on every request and
-  takes the train's `camera` (`lib/roster.py`), so the next request after an
-  edit reads the new one. **404** with no body where the store has no such
+  takes the train's `camera` (`lib/roster.py`), the URL of the camera's
+  stream, which it asks with `GET` and Basic auth, so the next request after
+  an edit reads the new one. **404** with no body where the store has no such
   railroad, the roster no such train or the train no camera, and for any
   other path or method; **502** with no body where the camera sends no first
   frame within 5 s — unreachable, refusing, answering anything but 200, a 401
@@ -398,8 +399,8 @@ LAN is still the trust boundary and a browser is not on it
   that type, #955), each part `image/jpeg` with its `Content-Length` and one JPEG as the camera
   sent it. It ends when the camera's stream ends or the camera goes 5 s
   without a frame, and nothing reconnects: a page asks again, with a query
-  string if it must, which is ignored. One connection per camera however many
-  requests read it, each request handed the newest frame and a slow one
+  string if it must, which is ignored. One connection per camera URL however
+  many requests read it, each request handed the newest frame and a slow one
   skipping frames rather than holding anything up, and the connection closed
   10 s after its last reader leaves. No `Access-Control-*` header: on a box
   the `camera` container claims `/picture` on `control.$BOX_DOMAIN`, and in
