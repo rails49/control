@@ -132,10 +132,10 @@ class Car:
     overridden**: who made a product and what scale it is are facts about the
     product, so a car saying otherwise would be describing a different one.
 
-    `camera` is where the camera this car carries answers on the LAN — a host
-    name or an IPv4 address, bare — and absent where it carries none. It is
-    the item's and never the model's: two cars of one product, one with a
-    camera fitted, are still one product
+    `camera` is the URL of the MJPEG stream of the camera this car carries
+    (`http://192.168.178.58/media/?action=stream`), absent where it carries
+    none. It is the item's and never the model's: two cars of one product, one
+    with a camera fitted, are still one product
     ([ADR-0082](../../../docs/adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
     Last, so the positional constructions in `lib.stock` still hold.
 
@@ -237,9 +237,9 @@ class Train:
 
     @property
     def camera(self) -> str | None:
-        """Where the train's camera answers: the first car, head first, that
-        carries one, else `None`. The `camera` app reads it to relay the picture
-        (ADR-0082); no view does, since it is an address.
+        """The URL of the train's camera's stream: the first car, head first,
+        that carries one, else `None`. The `camera` app reads it to relay the
+        picture (ADR-0082); no view does, since it is an address on the LAN.
         """
         for coupled in self.cars:
             if coupled.car.camera is not None:

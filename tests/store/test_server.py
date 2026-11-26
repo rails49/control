@@ -231,8 +231,8 @@ def test_a_roster_naming_one_car_in_two_trains_is_refused_and_not_written(
 def test_a_roster_with_a_camera_car_is_written_and_read_back(
     tmp_path: Path, backup: Backup
 ) -> None:
-    """The document keeps where the camera answers; the run views' answer
-    says only that the train carries one, and not where it answers
+    """The document keeps the camera's stream URL; the run views' answer
+    says only that the train carries one, and not its URL
     (ADR-0082)."""
     catalogued(tmp_path)
     store = AssetStore(tmp_path)
@@ -240,7 +240,10 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
         "roster": "oval",
         "cars": {
             "krokodil_a": {"model": "arnold-ce68", "addr": "3"},
-            "cam_1": {"model": "bench-600", "camera": "192.168.178.58"},
+            "cam_1": {
+                "model": "bench-600",
+                "camera": "http://192.168.178.58/media/?action=stream",
+            },
         },
         "trains": {
             "ore": {"cars": [{"car": "krokodil_a"}, {"car": "cam_1"}]},
@@ -266,11 +269,11 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
 @pytest.mark.parametrize(
     ("cars", "named"),
     [
-        ({"cam_1": {"model": "bench-600", "camera": "http://cam"}}, "car 'cam_1'"),
+        ({"cam_1": {"model": "bench-600", "camera": "cam"}}, "car 'cam_1'"),
         (
             {
-                "cam_1": {"model": "bench-600", "camera": "cam.local"},
-                "cam_2": {"model": "bench-600", "camera": "cam.local"},
+                "cam_1": {"model": "bench-600", "camera": "http://cam/"},
+                "cam_2": {"model": "bench-600", "camera": "http://cam/"},
             },
             "cars 'cam_1' and 'cam_2'",
         ),
