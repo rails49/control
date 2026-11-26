@@ -34,6 +34,8 @@ RENAME_WANTED = "tc49/schedule/timetable_rename_wanted"
 
 FREIGHT = {"at": "06:02", "train": "freight_1", "to": ["dn_e", "up_e"]}
 EXPRESS = {"at": "06:05", "train": "express_2", "to": ["dn_w"]}
+LATER = {"state": "later", "round": 0}
+"""What the row adds to an entry not yet out in round 0."""
 
 
 def evening(
@@ -64,7 +66,7 @@ def evening(
         "repeat": repeat,
         "trains": {},
         "positioning": [],
-        "entries": [one | {"state": "later"} for one in listed],
+        "entries": [one | LATER for one in listed],
     }
     return store, restarted(store, before.last_values | {TIMETABLE: said})
 
@@ -88,7 +90,7 @@ def test_a_change_of_dwell_and_description_is_in_the_row_and_the_document() -> N
 
     change(bus, FREIGHT, now)
 
-    assert entries(bus) == [now | {"state": "later"}, EXPRESS | {"state": "later"}]
+    assert entries(bus) == [now | LATER, EXPRESS | LATER]
     assert written(store) == [now, EXPRESS]
 
 
@@ -101,7 +103,7 @@ def test_a_changed_time_moves_the_entry_after_the_ones_that_share_its_minute() -
     change(bus, FREIGHT, now)
 
     assert written(store) == [EXPRESS, local, now, last]
-    assert entries(bus) == [one | {"state": "later"} for one in written(store)]
+    assert entries(bus) == [one | LATER for one in written(store)]
 
 
 def test_a_changed_time_on_day_1_is_listed_in_the_time_form() -> None:
@@ -160,7 +162,7 @@ def fields(entry: dict[str, Any]) -> dict[str, Any]:
     return {
         field: value
         for field, value in entry.items()
-        if field not in ("state", "request", "ended")
+        if field not in ("state", "round", "request", "ended")
     }
 
 
@@ -185,7 +187,7 @@ def test_a_change_to_an_entry_that_is_out_keeps_its_state_and_request() -> None:
 
     assert entries(bus) == [
         express,
-        now | {"state": "out", "request": freight["request"]},
+        now | {"state": "out", "round": 0, "request": freight["request"]},
     ]
     assert written(store, "untitled") == [fields(express), now]
     assert seen == []
@@ -196,7 +198,7 @@ def test_a_deleted_entry_is_gone_from_the_row_and_the_document() -> None:
 
     change(bus, FREIGHT, None)
 
-    assert entries(bus) == [EXPRESS | {"state": "later"}]
+    assert entries(bus) == [EXPRESS | LATER]
     assert written(store) == [EXPRESS]
 
 
@@ -279,12 +281,12 @@ def test_a_gesture_that_cannot_be_read_changes_nothing() -> None:
         FREIGHT | {"turn": True},
         FREIGHT | {"to": []},
         FREIGHT | {"description": 7},
-        FREIGHT | {"state": "later"},
+        FREIGHT | LATER,
         {"at": "06:02", "train": "freight_1"},
         "06:02",
     ):
         change(bus, FREIGHT, now)
-    change(bus, FREIGHT | {"state": "later"}, None)
+    change(bus, FREIGHT | LATER, None)
     change(bus, None, None)
     say(bus, ENTRY_WANTED, {"was": FREIGHT})
     say(bus, ENTRY_WANTED, {})
@@ -301,18 +303,6 @@ def test_an_entry_gesture_with_no_timetable_loaded_is_dropped() -> None:
     change(bus, FREIGHT, EXPRESS)
 
     assert row(bus) == {"timetable": None}
-
-
-def test_an_entry_of_a_timetable_that_is_over_can_be_changed_and_deleted() -> None:
-    store, bus = evening(FREIGHT, EXPRESS, phase="over")
-    now = FREIGHT | {"at": "06:10", "dwell": 2}
-
-    change(bus, FREIGHT, now)
-    change(bus, EXPRESS, None)
-
-    assert row(bus)["phase"] == "over"
-    assert [fields(one) for one in entries(bus)] == [now]
-    assert written(store) == [now]
 
 
 class Logged(Store):

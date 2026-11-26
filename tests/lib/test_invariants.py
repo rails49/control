@@ -1145,7 +1145,6 @@ def test_a_train_a_running_timetable_has_a_turn_round_for_may_be_turned(
         turn_round(train="t2"),
         turn_round(state="ended"),
         turn_round(phase="loaded"),
-        turn_round(phase="over"),
         turn_round()
         | {
             "entries": [
@@ -1158,7 +1157,6 @@ def test_a_train_a_running_timetable_has_a_turn_round_for_may_be_turned(
         "the turn-round is another train's",
         "the turn-round was applied",
         "the timetable is loaded and not started",
-        "the timetable is over",
         "the entry is no turn-round",
     ],
 )

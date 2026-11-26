@@ -66,8 +66,12 @@ this module tells the rule what the bus said and does what it answers, in
   row read, it makes one named `untitled`, in place of a stored `untitled`.
   A person makes one by name on `tc49/schedule/timetable_wanted` with `new`,
   taken while power reads `off`.
-- A new timetable starts at the clock's minute. Its `trains` are each train
-  the allocation names in a block and the scheduler holds a facing for.
+- A new timetable starts at the clock's minute of the day, and repeats
+  every day. The scheduler publishes `tc49/layout/clock_wanted` with the
+  clock's time of day to the second, on day 0, so the clock and the
+  timetable read the same numbers and the face does not move. Its `trains`
+  are each train the allocation names in a block and the scheduler holds a
+  facing for.
 - While the timetable is `running` and Record is on, a drag composed from a
   gesture is added as an entry that is `out`, and a turn-round applied as one
   that has `ended`. The entry follows its request to `ended`, `rejected` or
@@ -105,18 +109,19 @@ It **loads** a timetable and **releases** its entries on the fast clock
   ends. They are not entries.
 - It starts when the last of them has ended and power reads `on`, or when a
   person asks on `tc49/schedule/timetable_start_wanted`: the scheduler
-  publishes `tc49/layout/clock_wanted` with the start time, and the phase
-  is `running`.
+  publishes `tc49/layout/clock_wanted` with the start time on day 0, and
+  the phase is `running`.
 - An entry the rule says is due is released: one with `to` as a drag of its
   train to those arrival ends, which chains after the train's latest
   request in flight as a person's drag does, and a turn-round as the
   reversal a person's gesture makes. A person's own drag is composed at
   once, whatever dwell an entry stated.
-- 24 fast-clock hours after its start the phase is `over`. The timetable
-  stays loaded until another is loaded or made.
-- A restart adopts a `loaded` phase and the row's `positioning`. An id the
-  first allocation row read does not list has ended. One rejected as
-  `unreachable` after a restart gets no second request.
+- The timetable repeats every `repeat` and never ends: each entry runs once
+  in each round. It stays loaded until another is loaded or made.
+- A restart adopts a `loaded` phase, the row's `positioning` and each
+  entry's round and state. An id the first allocation row read does not
+  list has ended. One rejected as `unreachable` after a restart gets no
+  second request.
 """
 
 import secrets
@@ -418,11 +423,17 @@ class Scheduler:
         if not release.new(self._state):
             return
         try:
-            self._state = release.made(
-                self._state, wanted.name, self._layout.name, self._stands()
-            )
+            self._make(wanted.name)
         except ValueError:  # no name a timetable document takes
             return
+
+    def _make(self, name: str) -> None:
+        """A new timetable named `name` made (`release.made`), and the clock
+        asked to be set to its time of day on day 0, to the second, on
+        `tc49/layout/clock_wanted` with no `speed_up`. A `name` no timetable
+        document takes is a `ValueError`, and nothing is made or asked."""
+        self._state = release.made(self._state, name, self._layout.name, self._stands())
+        self._bus.publish(CLOCK_WANTED, {"time": self._state.clock})
 
     def _rename(self, payload: Payload) -> None:
         """A `timetable_rename_wanted` gesture: the loaded timetable takes
@@ -848,8 +859,8 @@ class Scheduler:
         return release.restarted(retained, document) or release.State()
 
     def _on_clock(self, topic: str, payload: Payload) -> None:
-        """A `tc49/layout/state/clock` row: the loaded timetable's time
-        moves by it. One that cannot be read is dropped."""
+        """A `tc49/layout/state/clock` row: the release rule takes the
+        clock's time from it. One that cannot be read is dropped."""
         said = said_clock(payload)
         if said is None:
             return
@@ -964,9 +975,7 @@ class Scheduler:
             if on_layout != self._state.placed:
                 self._state = release.placed(self._state, on_layout)
         if release.untitled(self._state):
-            self._state = release.made(
-                self._state, release.UNTITLED, self._layout.name, self._stands()
-            )
+            self._make(release.UNTITLED)
         if release.starts(self._state):
             self._start()
         self._release()

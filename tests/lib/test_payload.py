@@ -1697,7 +1697,6 @@ def test_a_running_timetable_row_lists_the_trains_with_a_turn_round_to_come() ->
     }
     assert awaited_turns(row) == {"freight_1", "express_2"}
     assert awaited_turns(row | {"phase": "loaded"}) == frozenset()
-    assert awaited_turns(row | {"phase": "over"}) == frozenset()
 
 
 @pytest.mark.parametrize(
