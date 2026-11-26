@@ -306,6 +306,24 @@ def written_entries(store: Store) -> list[dict[str, Any]]:
     return held["entries"]
 
 
+def test_a_clock_set_before_the_first_entry_writes_the_new_start() -> None:
+    """Made with the clock at 18:51, then set to 10:00 (#1371)."""
+    store = Store()
+    bus = recording(store, "18:51", 0)
+
+    clock(bus, "10:00", 20)
+
+    assert row(bus)["start"] == "10:00"
+    held = store.document("untitled")
+    assert held is not None
+    assert held["start"] == "10:00"
+
+    clock(bus, "10:00", 21)
+    drag(bus, "freight_1", "dn_e")
+
+    assert [one["at"] for one in written_entries(store)] == ["10:00"]
+
+
 def test_a_drag_of_a_train_the_scheduler_cannot_compose_adds_no_entry() -> None:
     bus = recording(Store())
     seen = collect(bus, SUBMITTED)
