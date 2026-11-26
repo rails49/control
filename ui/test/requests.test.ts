@@ -162,7 +162,8 @@ describe("tc-requests", () => {
   });
 
   /** The headings stay in view at the top of what scrolls, over the rows
-   *  scrolled under them. */
+   *  scrolled under them. A row the list scrolls to lands under the
+   *  headings, not behind them: the scroll stops their height short. */
   it("keeps its column headings at the top of what scrolls", async () => {
     const element = await list(ROWS);
     const scrolled = element.renderRoot.querySelector(".table")!;
@@ -174,6 +175,10 @@ describe("tc-requests", () => {
     expect(columns).toMatch(/position:\s*sticky/);
     expect(columns).toMatch(/top:\s*0/);
     expect(columns).toMatch(/background:\s*var\(--paper\)/);
+    // A line of 1rem and 0.2rem above and below it.
+    expect(columns).toMatch(/line-height:\s*1rem/);
+    expect(columns).toMatch(/padding:\s*0\.2rem;/);
+    expect(rule(sheet, ".table")).toMatch(/scroll-padding-top:\s*1\.4rem/);
   });
 
   /** Every other row takes the stripe shade, and no line divides two rows.
