@@ -497,20 +497,18 @@ def changed(state: State, was: Entry, now: Entry | None) -> State:
     timetable = state.timetable
     if timetable is None or was not in timetable.entries:
         return state
-    if now is not None and not (
-        timetable.start <= now.at < timetable.start + timetable.repeat
-    ):
-        return state
     index = timetable.entries.index(was)
     rest = timetable.removed(index)
     progress = [*state.progress[:index], *state.progress[index + 1 :]]
     if now is None:
         return replace(state, timetable=rest, progress=tuple(progress))
+    try:
+        replaced = timetable.replaced(index, now)
+    except ValueError:  # `now` outside the repeat
+        return state
     position = index if now.at == was.at else rest.place(now.at)
     progress.insert(position, state.progress[index])
-    return replace(
-        state, timetable=timetable.replaced(index, now), progress=tuple(progress)
-    )
+    return replace(state, timetable=replaced, progress=tuple(progress))
 
 
 def renamed(state: State, to: str) -> State:

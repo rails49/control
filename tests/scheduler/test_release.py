@@ -1346,6 +1346,16 @@ def test_a_change_names_the_first_entry_equal_to_it_or_none() -> None:
     assert state.progress == (Progress(OUT, "freight-ab-1"), Progress(HELD))
 
 
+def test_a_change_to_a_time_outside_the_repeat_is_not_taken() -> None:
+    """Before the start, or at the start plus the repeat or after."""
+    entry = Entry(at("06:05"), "freight", ("dn_e",))
+    state = running(entry, repeat="03:00")
+
+    for outside in ("05:59", "09:00", "1d06:02"):
+        assert changed(state, entry, replace(entry, at=at(outside))) == state
+    assert changed(state, entry, replace(entry, at=at("08:59"))) != state
+
+
 def test_a_rename_changes_the_name_and_nothing_else() -> None:
     state = every_state()
 
