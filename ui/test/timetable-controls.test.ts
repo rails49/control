@@ -18,11 +18,12 @@ import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcMenu } from "../src/ui/tc-menu.js";
 import type { TcTimetableControls } from "../src/ui/tc-timetable-controls.js";
 import type { TcTimetableDialog } from "../src/ui/tc-timetable-dialog.js";
-import { running, serving, settled, type Answers } from "./support/shell.js";
+import { mounted, running, serving, settled, type Answers } from "./support/shell.js";
 import {
   brokering,
   DERIVES,
   joined,
+  loads,
   said,
   STOCK,
   stored,
@@ -248,6 +249,15 @@ describe("the menu", () => {
       expect(written()).toEqual([]);
     });
   }
+
+  /** No scheduler to ask and no railroad to name to the store. */
+  it("does not open before a session is joined", async () => {
+    const shell = await mounted("run");
+    expect(part(controlsOf(shell), ".menu")!.disabled).toBe(true);
+
+    await loads(shell, "toy");
+    expect(part(controlsOf(shell), ".menu")!.disabled).toBe(false);
+  });
 
   it("closes when a row is chosen", async () => {
     const { shell, controls } = await standing();
