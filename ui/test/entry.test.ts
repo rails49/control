@@ -390,6 +390,8 @@ function loaded(...entries: Scheduled[]): Timetable {
     name: "evening",
     phase: "running",
     record: false,
+    start: 6 * 3600,
+    repeat: 86_400,
     trains: {},
     entries,
   };
@@ -810,6 +812,7 @@ describe("the run view's open row", () => {
     phase: "running",
     record: false,
     start: "06:00",
+    repeat: "1d00:00",
     trains: {},
     positioning: [],
     entries: ENTRIES.map(({ entry, ...became }) => ({ ...entry, ...became })),

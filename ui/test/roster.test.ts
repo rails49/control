@@ -292,6 +292,8 @@ describe("the note about where the timetable starts", () => {
     name: "evening",
     phase: "loaded",
     record: false,
+    start: 6 * 3600,
+    repeat: 86_400,
     trains: {
       express: { at: "b", facing: "B-to-A" },
       goods: { at: "a", facing: "A-to-B" },
@@ -382,6 +384,7 @@ describe("the note about where the timetable starts", () => {
       phase: "loaded",
       record: false,
       start: "06:00",
+      repeat: "1d00:00",
       trains: {
         goods: { at: "a", facing: "A-to-B" },
         shunter: { at: "b", facing: "A-to-B" },
