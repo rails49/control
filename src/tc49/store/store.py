@@ -406,6 +406,12 @@ class AssetStore:
         self._timetable(doc, railroad, name)
         return cast(dict[str, Any], doc)
 
+    def timetable_text(self, railroad: str, name: str) -> bytes:
+        """Timetable `name` of `railroad` as the bytes of its file, refused
+        as `timetable` refuses it (#1381)."""
+        self.timetable(railroad, name)
+        return self._timetable_path(railroad, name).read_bytes()
+
     def put_timetable(self, doc: dict[str, Any], railroad: str, name: str) -> None:
         """Create or replace timetable `name` of `railroad`, checked as
         `timetable` checks it before anything is written, and dumped
