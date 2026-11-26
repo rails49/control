@@ -6,8 +6,8 @@ import { LIMITS, SPACE } from "../model/divider.js";
  * The stock view (`tc-stock`), as
  * [stock-mockup.html](../../../docs/ui/images/stock-mockup.html) lays it out
  * and in the throttle's visual style (ui/STOCK.md, #978): a bar across the
- * top, and under it the list, `minmax(300px, 380px)`, beside the editor of the
- * item chosen in it.
+ * top, and under it the list, `minmax(300px, 380px)` until its divider is
+ * dragged, beside the editor of the item chosen in it.
  *
  * **The space between the list and the editor is a divider**, `look-gap`
  * (rails49/look#62), in the middle of the 16px between the two boxes
