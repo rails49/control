@@ -484,13 +484,36 @@ describe("the note on a block naming a train overdue", () => {
  * under them. Each takes its content's height up to half the pane and scrolls
  * on its own past that, so what is left over is below the requests rather
  * than between the two lists. On a page taller than it is wide the pane is
- * below the drawing and the two lists are side by side (#1344).
+ * above the drawing and the two lists are side by side (#1344, #1390).
+ *
+ * The lists and the drawing are panels on the paper colour, on a ground of
+ * the gap colour, and the divider between the pane and the drawing is a 6px
+ * gap (#1390).
  */
 describe("the run view's pane", () => {
-  it("is below the drawing on a page taller than it is wide, its lists side by side", () => {
+  it("is above the drawing on a page taller than it is wide, its lists side by side", () => {
     const upright = panelStyles.cssText.split(`@media ${UPRIGHT}`)[1]!;
-    expect(upright).toMatch(/"sheet"\s*"divider"\s*"roster"/);
+    expect(upright).toMatch(/"roster"\s*"divider"\s*"notice"\s*"sheet"/);
     expect(rule(upright, "aside")).toMatch(/flex-direction:\s*row/);
+  });
+
+  it("is panels on the paper colour on a ground of the gap colour", () => {
+    const sheet = panelStyles.cssText;
+    expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
+    for (const panel of ["tc-roster", "tc-requests", "main"]) {
+      expect(rule(sheet, panel)).toMatch(/background:\s*var\(--paper\)/);
+    }
+    expect(sheet).not.toMatch(/border-(top|left):\s*1px solid var\(--rule\)/);
+  });
+
+  it("is divided from the drawing by a 6px gap, the chosen colour under a pointer", () => {
+    const [left, upright] = panelStyles.cssText.split(`@media ${UPRIGHT}`);
+    expect(rule(left!, ".divider")).toMatch(/width:\s*6px/);
+    expect(rule(left!, ".divider")).toMatch(/background:\s*var\(--gap\)/);
+    expect(rule(upright!, ".divider")).toMatch(/height:\s*6px/);
+    expect(rule(left!, ".divider:hover,\n  .divider:active")).toMatch(
+      /background:\s*var\(--chosen\)/,
+    );
   });
 
   /** The limits a drag is held to also hold when the window changes size,
@@ -501,15 +524,39 @@ describe("the run view's pane", () => {
       `clamp(${LEAST}px, var(--pane-size, var(--pane)), 100% - ${DRAWING.left}px)`,
     );
     expect(rule(upright!, ":host")).toContain(
-      `clamp(${LEAST}px, var(--pane-size, 14rem), 100% - ${DRAWING.below}px)`,
+      `clamp(${LEAST}px, var(--pane-size, 14rem), 100% - ${DRAWING.above}px)`,
     );
   });
 
-  it.each(["tc-roster", "tc-requests"])("%s takes its content's height, up to half", (list) => {
-    const block = rule(panelStyles.cssText, list);
-    expect(block).toMatch(/flex:\s*0 1 auto/);
-    expect(block).toMatch(/max-height:\s*50%/);
-    expect(block).toMatch(/overflow-y:\s*auto/);
+  /** The gap is a solid grey darker than the rule, and the stripe the lists'
+   *  rows take (#1392, #1393) a faint shade of ink on the paper, in either
+   *  theme. */
+  it.each([
+    ["light", COLOURS],
+    ["dark", DARK],
+  ])("has a gap colour and a stripe shade in the %s palette", (_, colours) => {
+    const grey = (hex: string): number[] =>
+      [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+    const darkness = (hex: string): number => grey(hex).reduce((sum, c) => sum + c, 0);
+    expect(colours["--gap"]).toMatch(/^#[0-9a-f]{6}$/);
+    expect(darkness(colours["--gap"]!)).toBeLessThan(darkness(colours["--rule"]!));
+    expect(colours["--stripe"]).toMatch(/^#[0-9a-f]{6}$/);
+    const [paper, stripe, ink] = ["--paper", "--stripe", "--ink"].map((name) => grey(colours[name]!));
+    for (const c of [0, 1, 2]) {
+      const towards = (stripe![c]! - paper![c]!) / (ink![c]! - paper![c]!);
+      expect(towards).toBeGreaterThan(0);
+      expect(towards).toBeLessThan(0.1);
+    }
+  });
+
+  it("gives the trains their content's height, up to half, and the timetable the rest", () => {
+    const trains = rule(panelStyles.cssText, "tc-roster");
+    expect(trains).toMatch(/flex:\s*0 1 auto/);
+    expect(trains).toMatch(/max-height:\s*50%/);
+    expect(trains).toMatch(/overflow-y:\s*auto/);
+    const timetable = rule(panelStyles.cssText, "tc-requests");
+    expect(timetable).toMatch(/flex:\s*1 1 0/);
+    expect(timetable).toMatch(/overflow-y:\s*auto/);
   });
 });
 

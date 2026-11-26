@@ -1,7 +1,12 @@
 /**
  * The run view's pane, the roster with the request list: which side of the
- * drawing it is on, and the size a person dragged its divider to
- * (ui/PANEL.md, [#1344](https://github.com/rails49/control/issues/1344)).
+ * drawing it is on, and the size a person dragged the gap between them to
+ * (ui/PANEL.md, [#1344](https://github.com/rails49/control/issues/1344),
+ * [#1390](https://github.com/rails49/control/issues/1390)).
+ *
+ * The pane is left of the drawing, or above it on a page taller than it is
+ * wide. Its size is measured from the view's edge on the pane's side: the
+ * left edge, or the top one.
  *
  * The size is kept in the browser's `localStorage`, one for each arrangement.
  * It is not on the bus and not in the store.
@@ -9,9 +14,9 @@
 
 import type { Point } from "./geometry.js";
 
-/** Where the pane is: left of the drawing, or below it on a page taller than
+/** Where the pane is: left of the drawing, or above it on a page taller than
  *  it is wide. */
-export type Arrangement = "left" | "below";
+export type Arrangement = "left" | "above";
 
 /** The media query that is true of a page taller than it is wide. The run
  *  view's stylesheet lays the pane out by it and the view asks it which
@@ -23,12 +28,12 @@ export const UPRIGHT = "(orientation: portrait)";
 export const LEAST = 144;
 
 /** What the pane leaves the drawing, in CSS pixels: of the view's width with
- *  the pane on the left, of its height with the pane below. */
-export const DRAWING: Record<Arrangement, number> = { left: 256, below: 192 };
+ *  the pane on the left, of its height with the pane above. */
+export const DRAWING: Record<Arrangement, number> = { left: 256, above: 192 };
 
 /**
- * The pane's size in CSS pixels with the divider at a client point: its width
- * from the view's left edge, or its height from the view's bottom edge, held
+ * The pane's size in CSS pixels with the gap at a client point: its width
+ * from the view's left edge, or its height from the view's top edge, held
  * to `LEAST` and to what `DRAWING` leaves of the view. In a view too small for
  * both, `LEAST` holds.
  */
@@ -36,7 +41,7 @@ export function sizeAt(arrangement: Arrangement, view: DOMRect, at: Point): numb
   const [wanted, room] =
     arrangement === "left"
       ? [at.x - view.left, view.width]
-      : [view.bottom - at.y, view.height];
+      : [at.y - view.top, view.height];
   return Math.round(Math.max(LEAST, Math.min(wanted, room - DRAWING[arrangement])));
 }
 

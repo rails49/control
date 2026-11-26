@@ -134,7 +134,7 @@ export class TcPanel extends LitElement {
   private grey = false;
   /** The redraw waiting on a reported point's mark, `null` for none. */
   private marking: ReturnType<typeof setTimeout> | null = null;
-  /** Whether the page is taller than it is wide, which puts the pane below
+  /** Whether the page is taller than it is wide, which puts the pane above
    *  the drawing. */
   private readonly upright = matchMedia(UPRIGHT);
   /** Whether the divider is being dragged. */
@@ -419,12 +419,12 @@ export class TcPanel extends LitElement {
   // --- the pane's size ------------------------------------------------------
   //
   // The divider between the pane and the drawing sets the pane's width, or
-  // its height while the pane is below the drawing. The size is kept in the
+  // its height while the pane is above the drawing. The size is kept in the
   // browser, one for each arrangement, and the drawing is fitted again
   // whenever the pane changes size (#1344).
 
   private get arrangement(): Arrangement {
-    return this.upright.matches ? "below" : "left";
+    return this.upright.matches ? "above" : "left";
   }
 
   /** Hand the stylesheet the pane's size, `null` for the stylesheet's own. */
