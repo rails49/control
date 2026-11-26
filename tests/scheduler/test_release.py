@@ -25,7 +25,6 @@ from tc49.scheduler.release import (
     LATER,
     LOADED,
     OUT,
-    OVER,
     REJECTED,
     RUNNING,
     SKIPPED,
@@ -76,14 +75,16 @@ def at(time: str) -> int:
     return read_time(time, "a time")
 
 
-def running(*entries: Entry, start: str = "06:00") -> State:
-    """A timetable of `entries` that has just started, with its trains on the
-    layout and power on."""
-    timetable = Timetable("evening", "crossover-yard", at(start), DAY_S, {}, entries)
+def running(*entries: Entry, start: str = "06:00", repeat: str = "1d00:00") -> State:
+    """A timetable of `entries` that has just started, the clock at its
+    start, with its trains on the layout and power on."""
+    timetable = Timetable(
+        "evening", "crossover-yard", at(start), at(repeat), {}, entries
+    )
     return State(
         timetable,
         RUNNING,
-        time=0,
+        clock=at(start),
         power="on",
         placed=frozenset(entry.train for entry in entries),
     )
@@ -107,6 +108,11 @@ def states(state: State) -> list[str]:
     return [progress.state for progress in state.progress]
 
 
+def rounds(state: State) -> list[tuple[str, int]]:
+    """Each entry's state and the round it is for, in order."""
+    return [(progress.state, progress.round) for progress in state.progress]
+
+
 def test_an_entry_is_released_when_the_clock_reaches_its_time() -> None:
     entry = Entry(at("06:02"), "freight", ("dn_e", "up_e"))
     state = clocked(running(entry), at("06:01") + 59, 1)
@@ -116,6 +122,92 @@ def test_an_entry_is_released_when_the_clock_reaches_its_time() -> None:
     state = clocked(state, at("06:02"), 1)
 
     assert due(state) == (Release(0, entry),)
+
+
+def test_an_entry_after_midnight_is_due_on_day_1_and_not_on_day_0() -> None:
+    entry = Entry(at("1d01:00"), "freight", ("dn_e",))
+    state = running(entry, start="22:00")
+
+    assert due(clocked(state, at("01:00"), 1)) == ()
+    assert due(clocked(state, at("1d00:59") + 59, 1)) == ()
+    assert due(clocked(state, at("1d01:00"), 1)) == (Release(0, entry),)
+
+
+def test_with_a_repeat_of_3_hours_an_entry_is_due_every_3_hours() -> None:
+    """At 06:10, 09:10 and 12:10, in rounds 0, 1 and 2."""
+    entry = Entry(at("06:10"), "freight", ("dn_e",))
+    state = running(entry, repeat="03:00")
+
+    for number, time in enumerate(("06:10", "09:10", "12:10")):
+        state = clocked(state, at(time) - 1, 1)
+
+        assert due(state) == ()
+        assert rounds(state) == [(LATER, number)]
+
+        state = clocked(state, at(time), 1)
+
+        assert due(state) == (Release(0, entry),)
+
+        state = ended(released(state, 0, f"f-{number}"), f"f-{number}", COMPLETED)
+
+        assert rounds(state) == [(ENDED, number)]
+
+
+def test_a_train_late_into_the_next_round_runs_late_and_nothing_is_dropped() -> None:
+    """Its round-0 entries go out before its first round-1 entry."""
+    first = Entry(at("06:10"), "freight", ("dn_e",))
+    second = Entry(at("08:50"), "freight", ("yard_w",))
+    state = running(first, second, repeat="03:00")
+    state = released(clocked(state, at("06:10"), 1), 0, "f-1")
+
+    state = clocked(state, at("09:20"), 1)
+
+    assert rounds(state) == [(OUT, 0), (HELD, 0)]
+    assert due(state) == ()
+
+    state = ended(state, "f-1", COMPLETED)
+
+    assert rounds(state) == [(HELD, 1), (HELD, 0)]
+    assert due(state) == (Release(1, second),)
+
+    state = ended(released(state, 1, "f-2"), "f-2", COMPLETED)
+
+    assert rounds(state) == [(HELD, 1), (LATER, 1)]
+    assert due(state) == (Release(0, first),)
+
+
+def test_a_trains_first_entry_of_a_round_waits_for_its_last_of_the_round_before() -> (
+    None
+):
+    """And for its dwell, though the next round has begun."""
+    first = Entry(at("06:10"), "freight", ("dn_e",))
+    last = Entry(at("08:50"), "freight", ("yard_w",), dwell=5)
+    state = running(first, last, repeat="03:00")
+    state = ended(released(clocked(state, at("06:10"), 1), 0, "f-1"), "f-1", COMPLETED)
+    state = released(clocked(state, at("08:50"), 1), 1, "f-2")
+
+    state = ended(clocked(state, at("09:12"), 1), "f-2", COMPLETED)
+
+    assert rounds(state) == [(HELD, 1), (LATER, 1)]
+    assert due(clocked(state, at("09:16") + 59, 1)) == ()
+    assert due(clocked(state, at("09:17"), 1)) == (Release(0, first),)
+
+
+def test_a_clock_set_forward_over_three_entries_releases_them_in_order() -> None:
+    entries = [
+        Entry(at(time), "freight", (to,))
+        for time, to in (("06:10", "dn_e"), ("06:20", "yard_e"), ("06:30", "up_w"))
+    ]
+    state = clocked(running(*entries), at("06:05"), 1)
+
+    state = clocked(state, at("07:00"), 1)
+
+    for index, entry in enumerate(entries):
+        assert due(state) == (Release(index, entry),)
+
+        state = ended(released(state, index, f"f-{index}"), f"f-{index}", COMPLETED)
+
+    assert due(state) == ()
 
 
 def test_an_entry_the_scheduler_released_is_not_due_again() -> None:
@@ -154,7 +246,7 @@ def test_a_late_trains_next_entry_leaves_as_soon_as_the_one_before_ends() -> Non
     state = ended(state, "freight-ab-1", COMPLETED)
 
     assert due(state) == (Release(1, second),)
-    assert state.progress[0] == Progress(ENDED, "freight-ab-1", 9 * 60)
+    assert state.progress[0] == Progress(ENDED, "freight-ab-1", at("06:09"))
 
 
 def test_two_trains_entries_do_not_wait_on_each_other() -> None:
@@ -239,7 +331,7 @@ def test_an_entry_is_not_skipped_for_a_train_whose_entry_before_is_out() -> None
 
 def test_nothing_is_released_or_skipped_before_the_trains_placed_are_told() -> None:
     entry = Entry(at("06:02"), "freight", ("dn_e",))
-    state = State(running(entry).timetable, RUNNING, time=0)
+    state = State(running(entry).timetable, RUNNING, clock=at("06:00"))
 
     state = clocked(state, at("06:02"), 1)
 
@@ -308,7 +400,6 @@ def test_a_clock_set_forward_makes_the_entries_passed_over_due_in_order() -> Non
 
     state = clocked(state, at("08:05"), 1)
 
-    assert state.time == 2 * 3600 + 5 * 60
     assert due(state) == (Release(0, first), Release(1, express))
 
     state = ended(released(state, 0, "f-1"), "f-1", COMPLETED)
@@ -316,60 +407,93 @@ def test_a_clock_set_forward_makes_the_entries_passed_over_due_in_order() -> Non
     assert due(state) == (Release(1, express), Release(2, second))
 
 
-def test_a_clock_set_back_moves_nothing_until_it_passes_where_it_had_been() -> None:
-    """So nothing is released twice."""
+def test_a_clock_set_back_makes_the_entries_not_yet_out_wait_again() -> None:
+    """And releases nothing twice."""
     first = Entry(at("06:02"), "freight", ("dn_e",))
     second = Entry(at("06:10"), "freight", ("yard_w",))
-    state = released(clocked(running(first, second), at("06:02"), 1), 0, "f-1")
-    state = clocked(ended(state, "f-1", CANCELLED), at("06:08"), 1)
+    third = Entry(at("06:12"), "express", ("up_w",))
+    state = released(clocked(running(first, second, third), at("06:02"), 1), 0, "f-1")
+    state = clocked(ended(state, "f-1", CANCELLED), at("06:11"), 1)
+    assert states(state) == [CANCELLED, HELD, LATER]
 
-    for time in (at("05:50"), at("06:02"), at("06:07") + 59):
+    for time in (at("05:50"), at("06:02"), at("06:09") + 59):
         state = clocked(state, time, 1)
 
-        assert state.time == 8 * 60
         assert due(state) == ()
-        assert states(state) == [CANCELLED, LATER]
+        assert states(state) == [CANCELLED, LATER, LATER]
 
     state = clocked(state, at("06:10"), 1)
 
-    assert state.time == 10 * 60
     assert due(state) == (Release(1, second),)
 
 
-def test_a_clock_set_12_hours_or_more_forward_reads_as_a_set_back() -> None:
-    entry = Entry(at("09:00"), "freight", ("dn_e",))
-    state = clocked(running(entry), at("06:08"), 1)
+def test_a_clock_set_back_across_a_round_start_releases_nothing_twice() -> None:
+    first = Entry(at("06:10"), "freight", ("dn_e",))
+    second = Entry(at("06:20"), "express", ("up_w",))
+    state = running(first, second, repeat="03:00")
+    state = ended(released(clocked(state, at("06:10"), 1), 0, "f-1"), "f-1", COMPLETED)
+    state = ended(released(clocked(state, at("06:20"), 1), 1, "e-1"), "e-1", COMPLETED)
+    state = released(clocked(state, at("09:10"), 1), 0, "f-2")
+    assert rounds(state) == [(OUT, 1), (LATER, 1)]
 
-    assert clocked(state, at("18:08"), 1).time == 8 * 60
-    assert due(clocked(state, at("19:00"), 1)) == ()
-    assert clocked(state, at("18:07"), 1).time == 12 * 3600 + 7 * 60
+    state = clocked(state, at("08:00"), 1)
 
-
-def test_a_timetable_is_over_24_hours_after_its_start_and_releases_no_more() -> None:
-    first = Entry(at("06:02"), "freight", ("dn_e",))
-    last = Entry(at("1d05:58"), "express", ("up_w",))
-    state = running(first, last)
-    for time in (at("17:00"), at("04:00"), at("05:59")):
-        state = clocked(state, time, 60)
-
-    assert state.phase == RUNNING
-    assert due(state) == (Release(0, first), Release(1, last))
-
-    state = clocked(state, at("06:00"), 60)
-
-    assert state.phase == OVER
     assert due(state) == ()
-    assert states(state) == [HELD, HELD]
-    assert due(clocked(state, at("06:05"), 60)) == ()
+    assert rounds(state) == [(OUT, 1), (LATER, 1)]
+
+    state = ended(state, "f-2", COMPLETED)
+    state = clocked(state, at("09:15"), 1)
+
+    assert due(state) == ()
+    assert rounds(state) == [(ENDED, 1), (LATER, 1)]
+    assert due(clocked(state, at("09:20"), 1)) == (Release(1, second),)
 
 
-def test_a_timetable_whose_entries_have_all_ended_is_still_running() -> None:
+def test_a_dwell_from_an_arrival_before_midnight_ends_on_day_1() -> None:
+    first = Entry(at("23:50"), "freight", ("dn_e",), dwell=5)
+    second = Entry(at("23:56"), "freight", ("yard_w",))
+    state = running(first, second, start="22:00")
+    state = released(clocked(state, at("23:50"), 1), 0, "f-1")
+
+    state = ended(clocked(state, at("23:58"), 1), "f-1", COMPLETED)
+
+    assert state.progress[0] == Progress(ENDED, "f-1", at("23:58"))
+    assert due(clocked(state, at("1d00:02") + 59, 1)) == ()
+    assert due(clocked(state, at("1d00:03"), 1)) == (Release(1, second),)
+
+
+def test_a_skipped_entry_is_later_in_the_next_round_and_runs_once_placed() -> None:
+    entry = Entry(at("06:10"), "freight", ("dn_e",))
+    state = placed(running(entry, repeat="03:00"), frozenset())
+
+    state = clocked(state, at("06:10"), 1)
+
+    assert rounds(state) == [(SKIPPED, 0)]
+
+    state = clocked(placed(state, frozenset({"freight"})), at("09:00"), 1)
+
+    assert rounds(state) == [(LATER, 1)]
+    assert due(clocked(state, at("09:10"), 1)) == (Release(0, entry),)
+
+
+def test_a_train_off_the_layout_has_each_round_passed_over_skipped() -> None:
+    entry = Entry(at("06:10"), "freight", ("dn_e",))
+    state = placed(running(entry, repeat="03:00"), frozenset())
+
+    state = clocked(state, at("12:15"), 1)
+
+    assert rounds(state) == [(SKIPPED, 2)]
+
+
+def test_a_timetable_whose_entries_have_all_ended_runs_them_in_the_next_round() -> None:
     entry = Entry(at("06:02"), "freight", ("dn_e",))
     state = released(clocked(running(entry), at("06:02"), 1), 0, "f-1")
 
-    state = clocked(ended(state, "f-1", COMPLETED), at("09:00"), 1)
+    state = clocked(ended(state, "f-1", COMPLETED), at("1d06:01"), 1)
 
     assert state.phase == RUNNING
+    assert rounds(state) == [(LATER, 1)]
+    assert due(clocked(state, at("1d06:02"), 1)) == (Release(0, entry),)
 
 
 def test_a_loaded_timetable_starts_when_its_requests_to_start_blocks_have_ended() -> (
@@ -413,9 +537,8 @@ def test_a_loaded_timetable_starts_when_a_person_asks() -> None:
 
 def test_only_a_loaded_timetable_starts() -> None:
     entry = Entry(at("06:02"), "freight", ("dn_e",))
-    over = replace(running(entry), phase=OVER)
 
-    for state in (State(power="on"), running(entry), over):
+    for state in (State(power="on"), running(entry)):
         assert not starts(state)
         assert not starts(state, asked=True)
 
@@ -461,13 +584,18 @@ def test_a_load_replaces_the_timetable_loaded_with_record_off() -> None:
         "trains": {"freight": {"at": "yard_w", "facing": "A-to-B"}},
         "positioning": [],
         "entries": [
-            {"at": "09:00", "train": "freight", "to": ["up_e"], "state": "later"}
+            {
+                "at": "09:00",
+                "train": "freight",
+                "to": ["up_e"],
+                "state": "later",
+                "round": 0,
+            }
         ],
     }
     assert (state.clock, state.power) == (at("06:05"), "off")
     assert state.placed == frozenset({"freight"})
     assert state.in_flight == {"freight-ab-1": "freight"}
-    assert state.time is None
 
 
 def test_a_request_to_a_start_block_is_listed_until_it_ends() -> None:
@@ -503,33 +631,37 @@ def test_after_a_start_the_run_begins_at_the_row_that_reads_the_start_time() -> 
     nothing. An entry at the start time is due at the start."""
     first = Entry(at("06:00"), "freight", ("dn_e",))
     second = Entry(at("06:02"), "express", ("up_w",))
-    state = clocked(powered(loaded(first, second), "on"), at("09:30"), 1)
+    state = clocked(powered(loaded(first, second), "on"), at("2d09:30"), 1)
 
     state = started(state)
 
-    assert state.time == 0
+    assert state.clock == at("06:00")
     assert due(state) == (Release(0, first),)
 
-    state = clocked(state, at("09:30") + 1, 1)
+    state = clocked(state, at("2d09:30") + 1, 1)
 
-    assert state.time == 0
+    assert state.clock == at("06:00")
     assert due(state) == (Release(0, first),)
 
     state = clocked(clocked(state, at("06:00"), 1), at("06:02"), 1)
 
-    assert state.time == 2 * 60
+    assert state.clock == at("06:02")
     assert due(state) == (Release(0, first), Release(1, second))
 
 
 @pytest.mark.parametrize(
-    ("past", "speed_up", "time"), [(2, 1, 2), (3, 1, 0), (120, 60, 120), (121, 60, 0)]
+    ("past", "speed_up", "taken"),
+    [(2, 1, True), (3, 1, False), (120, 60, True), (121, 60, False), (-1, 1, False)],
 )
 def test_after_a_start_a_row_up_to_two_beats_past_the_start_time_begins_the_run(
-    past: int, speed_up: float, time: int
+    past: int, speed_up: float, taken: bool
 ) -> None:
     state = started(powered(loaded(), "on"))
 
-    assert clocked(state, at("06:00") + past, speed_up).time == time
+    state = clocked(state, at("06:00") + past, speed_up)
+
+    assert state.clock == at("06:00") + past if taken else at("06:00")
+    assert state.starting is not taken
 
 
 def every_state() -> State:
@@ -557,10 +689,10 @@ def every_state() -> State:
         timetable,
         RUNNING,
         record=True,
-        time=20 * 60,
+        clock=at("06:20"),
         positioning=("local-ab-1",),
         progress=(
-            Progress(ENDED, "freight-ab-1", 5 * 60),
+            Progress(ENDED, "freight-ab-1", at("06:05")),
             Progress(REJECTED, "express-ab-1"),
             Progress(CANCELLED, "express-ab-2"),
             Progress(SKIPPED),
@@ -577,7 +709,8 @@ def every_state() -> State:
 
 def test_the_state_row_has_the_timetable_and_each_entrys_state() -> None:
     """The fields #1345 lists under "The bus". `request` is on an entry that
-    went out as a request, and `ended` on one that ended by arrival."""
+    went out as a request, and `ended` on one that ended by arrival, the
+    clock's time at the arrival."""
     said = row(every_state())
 
     assert said == {
@@ -596,14 +729,16 @@ def test_the_state_row_has_the_timetable_and_each_entrys_state() -> None:
                 "dwell": 2,
                 "description": "meets the express",
                 "state": "ended",
+                "round": 0,
                 "request": "freight-ab-1",
-                "ended": 300,
+                "ended": at("06:05"),
             },
             {
                 "at": "06:02",
                 "train": "express",
                 "to": ["up_w"],
                 "state": "rejected",
+                "round": 0,
                 "request": "express-ab-1",
             },
             {
@@ -611,19 +746,45 @@ def test_the_state_row_has_the_timetable_and_each_entrys_state() -> None:
                 "train": "express",
                 "to": ["yard_e.A"],
                 "state": "cancelled",
+                "round": 0,
                 "request": "express-ab-2",
             },
-            {"at": "06:04", "train": "local", "to": ["dn_w"], "state": "skipped"},
-            {"at": "06:05", "train": "freight", "turn": True, "state": "ended"},
+            {
+                "at": "06:04",
+                "train": "local",
+                "to": ["dn_w"],
+                "state": "skipped",
+                "round": 0,
+            },
+            {
+                "at": "06:05",
+                "train": "freight",
+                "turn": True,
+                "state": "ended",
+                "round": 0,
+            },
             {
                 "at": "06:06",
                 "train": "freight",
                 "to": ["yard_w.B"],
                 "state": "out",
+                "round": 0,
                 "request": "freight-ab-2",
             },
-            {"at": "06:07", "train": "freight", "to": ["dn_e"], "state": "held"},
-            {"at": "06:30", "train": "express", "to": ["up_e"], "state": "later"},
+            {
+                "at": "06:07",
+                "train": "freight",
+                "to": ["dn_e"],
+                "state": "held",
+                "round": 0,
+            },
+            {
+                "at": "06:30",
+                "train": "express",
+                "to": ["up_e"],
+                "state": "later",
+                "round": 0,
+            },
         ],
     }
     assert json.loads(json.dumps(said)) == said
@@ -650,8 +811,8 @@ def test_a_state_takes_one_progress_for_each_entry() -> None:
 
 
 def test_a_restart_releases_nothing_the_row_says_has_gone_out() -> None:
-    """The state is built from the row and the document, and takes how far
-    the timetable has run from the first clock row."""
+    """The state is built from the row and the document, and takes the
+    clock's time from the first clock row."""
     before = every_state()
     assert before.timetable is not None
 
@@ -659,7 +820,7 @@ def test_a_restart_releases_nothing_the_row_says_has_gone_out() -> None:
 
     assert state is not None
     assert state.timetable == before.timetable
-    assert (state.phase, state.record, state.time) == (RUNNING, True, None)
+    assert (state.phase, state.record, state.clock) == (RUNNING, True, None)
     assert state.positioning == ("local-ab-1",)
     assert state.progress[:6] == before.progress[:6]
     assert states(state)[6:] == [LATER, LATER]
@@ -667,7 +828,6 @@ def test_a_restart_releases_nothing_the_row_says_has_gone_out() -> None:
     state = placed(state, frozenset({"freight", "express"}))
     state = clocked(state, at("06:29"), 1)
 
-    assert state.time == 29 * 60
     assert states(state) == states(before)
     assert due(state) == ()
     assert due(clocked(state, at("06:30"), 1)) == (
@@ -675,15 +835,40 @@ def test_a_restart_releases_nothing_the_row_says_has_gone_out() -> None:
     )
 
 
-def test_a_restart_takes_the_time_from_the_clock_within_the_day() -> None:
-    before = running(Entry(at("1d05:58"), "freight", ("dn_e",)))
+def test_a_restart_resumes_each_entrys_round_and_state_from_the_row() -> None:
+    """Nothing goes out twice: an entry out in round 1 is not released, and
+    one that ended in round 1 runs again in round 2."""
+    first = Entry(at("06:10"), "freight", ("dn_e",))
+    second = Entry(at("06:20"), "express", ("up_w",))
+    before = running(first, second, repeat="03:00")
+    before = ended(
+        released(clocked(before, at("06:10"), 1), 0, "f-1"), "f-1", COMPLETED
+    )
+    before = ended(
+        released(clocked(before, at("06:20"), 1), 1, "e-1"), "e-1", COMPLETED
+    )
+    before = released(clocked(before, at("09:10"), 1), 0, "f-2")
+    before = ended(
+        released(clocked(before, at("09:20"), 1), 1, "e-2"), "e-2", COMPLETED
+    )
     assert before.timetable is not None
-    state = restarted(row(before), before.timetable)
+    assert [one["round"] for one in row(before)["entries"]] == [1, 1]
+
+    state = restarted(json.loads(json.dumps(row(before))), before.timetable)
+
     assert state is not None
+    assert rounds(state) == [(OUT, 1), (ENDED, 1)]
 
-    state = clocked(state, at("05:59") + 30, 1)
+    state = placed(listed(state, {"f-2": "freight"}), frozenset({"freight", "express"}))
+    state = clocked(state, at("09:30"), 1)
 
-    assert state.time == 24 * 3600 - 30
+    assert due(state) == ()
+    assert rounds(state) == [(OUT, 1), (ENDED, 1)]
+
+    state = clocked(state, at("12:20"), 1)
+
+    assert rounds(state) == [(OUT, 1), (HELD, 2)]
+    assert due(state) == (Release(1, second),)
 
 
 def test_a_restart_keeps_the_rows_entries_where_the_documents_differ() -> None:
@@ -711,18 +896,6 @@ def test_a_restart_puts_a_rows_entries_in_order_with_their_progress() -> None:
     assert state.progress[:6] == before.progress[:6]
 
 
-def test_a_restart_from_a_row_that_is_over_stays_over() -> None:
-    before = replace(every_state(), phase=OVER)
-    assert before.timetable is not None
-
-    state = restarted(row(before), before.timetable)
-
-    assert state is not None
-    state = clocked(placed(state, frozenset({"express"})), at("06:30"), 1)
-    assert state.phase == OVER
-    assert due(state) == ()
-
-
 def _with(**fields: object) -> dict[str, Any]:
     return row(every_state()) | fields
 
@@ -739,6 +912,12 @@ def _with_entry(**fields: object) -> dict[str, Any]:
     return said
 
 
+def _without_round() -> dict[str, Any]:
+    said = row(every_state())
+    del said["entries"][0]["round"]
+    return said
+
+
 @pytest.mark.parametrize(
     "said",
     [
@@ -747,6 +926,7 @@ def _with_entry(**fields: object) -> dict[str, Any]:
         {"timetable": None},
         _with(timetable="morning"),
         _with(phase="paused"),
+        _with(phase="over"),
         _with(record="yes"),
         _with(start=360),
         _with(trains=[]),
@@ -757,6 +937,11 @@ def _with_entry(**fields: object) -> dict[str, Any]:
         _without("phase"),
         _without("entries"),
         _with_entry(state="late"),
+        _with_entry(round=-1),
+        _with_entry(round=True),
+        _with_entry(round="1"),
+        _with_entry(round=None),
+        _without_round(),
         _with_entry(request=7),
         _with_entry(ended="06:05"),
         _with_entry(ended=True),
@@ -791,8 +976,6 @@ def test_untitled_is_made_with_power_on_a_clock_row_and_the_trains_told() -> Non
 
 
 def test_a_new_timetable_starts_at_the_clocks_minute_and_is_running() -> None:
-    """Its time begins at the clock's time less `start`, so an entry at
-    06:01 is due 30 seconds on."""
     before = announced(told(at("06:00") + 30), "freight-9", "freight")
 
     state = made(before, "untitled", "crossover-yard", YARD)
@@ -809,19 +992,17 @@ def test_a_new_timetable_starts_at_the_clocks_minute_and_is_running() -> None:
     }
     assert state.timetable is not None
     assert state.timetable.layout == "crossover-yard"
-    assert state.time == 30
     assert (state.clock, state.power) == (before.clock, "on")
     assert (state.placed, state.in_flight) == (before.placed, before.in_flight)
 
 
-def test_a_new_timetable_made_on_day_1_starts_at_the_clocks_time_of_day() -> None:
-    """The clock counts days (#1364); the timetable still takes the time of
-    day, and runs, until the release rule changes in #1367."""
-    state = made(told(DAY_S + at("06:00") + 30), "untitled", "crossover-yard", YARD)
+def test_a_new_timetable_made_on_day_1_puts_the_clock_on_day_0() -> None:
+    """At the same time of day to the second, so the face does not move."""
+    state = made(told(at("1d06:00") + 30), "untitled", "crossover-yard", YARD)
 
     assert row(state)["start"] == "06:00"
     assert row(state)["phase"] == "running"
-    assert state.time == 30
+    assert state.clock == at("06:00") + 30
 
 
 def test_a_new_timetable_replaces_the_one_loaded() -> None:
@@ -831,7 +1012,8 @@ def test_a_new_timetable_replaces_the_one_loaded() -> None:
 
     assert row(state)["timetable"] == "morning"
     assert row(state)["start"] == "09:15"
-    assert (state.positioning, state.progress, state.time) == ((), (), 59)
+    assert (state.positioning, state.progress) == ((), ())
+    assert state.clock == at("09:15") + 59
 
 
 def test_a_new_timetable_takes_a_name_the_document_takes() -> None:
@@ -865,6 +1047,7 @@ def test_a_drag_is_recorded_as_an_entry_that_is_out_and_follows_its_request() ->
             "train": "freight",
             "to": ["dn_e", "up_e"],
             "state": "out",
+            "round": 0,
             "request": "freight-ab-1",
         }
     ]
@@ -878,8 +1061,9 @@ def test_a_drag_is_recorded_as_an_entry_that_is_out_and_follows_its_request() ->
         "train": "freight",
         "to": [],
         "state": "ended",
+        "round": 0,
         "request": "freight-ab-1",
-        "ended": 5 * 60,
+        "ended": at("06:05"),
     }
     assert state.in_flight == {}
 
@@ -898,6 +1082,7 @@ def test_a_recorded_entry_whose_request_is_refused_stays_in_the_timetable(
             "train": "freight",
             "to": ["dn_e"],
             "state": how,
+            "round": 0,
             "request": "freight-ab-1",
         }
     ]
@@ -932,6 +1117,7 @@ def test_a_turn_round_is_recorded_as_an_entry_that_has_ended() -> None:
         "train": "express",
         "turn": True,
         "state": "ended",
+        "round": 0,
     }
     assert states(state) == [OUT, ENDED]
 
@@ -963,16 +1149,30 @@ def test_record_is_no_ones_to_switch_with_no_timetable_loaded() -> None:
     assert recording(State(), True) == State()
 
 
-def test_nothing_is_recorded_once_the_timetable_is_over() -> None:
-    state = recording_from("06:00")
-    for hh_mm in ("17:00", "04:00", "06:00"):
-        state = clocked(state, at(hh_mm), 1)
-    assert (state.phase, state.record) == (OVER, True)
+def test_a_drag_in_round_1_is_stored_within_the_repeat_and_is_out_in_round_1() -> None:
+    state = replace(running(start="06:00", repeat="03:00"), record=True)
+    state = clocked(placed(state, frozenset({"freight"})), at("09:20") + 30, 1)
 
-    state = turned_round(dragged(state, "freight", ("dn_e",), "freight-ab-1"), "local")
+    state = dragged(state, "freight", ("dn_e",), "freight-ab-1")
+    state = turned_round(state, "freight")
 
-    assert row(state)["entries"] == []
-    assert state.in_flight == {"freight-ab-1": "freight"}
+    assert row(state)["entries"] == [
+        {
+            "at": "06:20",
+            "train": "freight",
+            "to": ["dn_e"],
+            "state": "out",
+            "round": 1,
+            "request": "freight-ab-1",
+        },
+        {
+            "at": "06:20",
+            "train": "freight",
+            "turn": True,
+            "state": "ended",
+            "round": 1,
+        },
+    ]
 
 
 def test_nothing_is_recorded_in_a_timetable_that_has_not_started() -> None:
@@ -1014,6 +1214,7 @@ def test_after_a_restart_an_entry_out_whose_request_is_not_listed_has_ended() ->
             "train": "freight",
             "to": ["dn_e"],
             "state": "ended",
+            "round": 0,
             "request": "freight-ab-1",
         },
         {
@@ -1021,6 +1222,7 @@ def test_after_a_restart_an_entry_out_whose_request_is_not_listed_has_ended() ->
             "train": "express",
             "to": ["up_e"],
             "state": "out",
+            "round": 0,
             "request": "express-ab-1",
         },
     ]
@@ -1078,7 +1280,7 @@ def test_a_moved_entry_takes_its_state_request_and_ending_with_it() -> None:
     state = clocked(running(first, second, third), at("06:03"), 1)
     state = released(released(state, 0, "freight-ab-1"), 1, "express-ab-1")
     state = ended(clocked(state, at("06:04"), 1), "freight-ab-1", COMPLETED)
-    arrived = Progress(ENDED, "freight-ab-1", 4 * 60)
+    arrived = Progress(ENDED, "freight-ab-1", at("06:04"))
 
     later = changed(state, first, replace(first, at=at("06:25")))
 
@@ -1094,6 +1296,20 @@ def test_a_moved_entry_takes_its_state_request_and_ending_with_it() -> None:
 
     assert earlier.progress == (Progress(HELD), Progress(OUT, "express-ab-1"), arrived)
     assert due(earlier) == (Release(0, replace(third, at=at("06:01"))),)
+
+
+def test_a_moved_entry_keeps_its_round() -> None:
+    entry = Entry(at("06:10"), "freight", ("dn_e",))
+    moved = replace(entry, at=at("08:00"))
+    state = running(entry, repeat="03:00")
+    state = ended(released(clocked(state, at("06:10"), 1), 0, "f-1"), "f-1", COMPLETED)
+    state = clocked(state, at("09:30"), 1)
+    assert rounds(state) == [(HELD, 1)]
+
+    state = changed(state, entry, moved)
+
+    assert rounds(state) == [(LATER, 1)]
+    assert due(clocked(state, at("11:00"), 1)) == (Release(0, moved),)
 
 
 def test_a_deleted_entry_takes_its_progress_and_leaves_its_request_in_flight() -> None:

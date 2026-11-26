@@ -21,6 +21,7 @@ from tests.scheduler.test_scheduler import NONCE, collect, seeded, yard
 
 TIMETABLE = "tc49/schedule/state/timetable"
 CLOCK = "tc49/layout/state/clock"
+CLOCK_WANTED = "tc49/layout/clock_wanted"
 POWER = "tc49/layout/state/power"
 ALLOCATION = "tc49/dispatch/state/allocation"
 SUBMITTED = "tc49/dispatch/request_submitted"
@@ -168,6 +169,31 @@ def test_with_power_on_and_a_clock_row_untitled_is_made_and_written() -> None:
     }
 
 
+def test_a_new_timetable_puts_the_clock_on_day_0_at_its_time_of_day() -> None:
+    """To the second, so the face does not move when recording begins. So
+    does one a person makes by name."""
+    store = Store()
+    bus = InProcessBus(Clock())
+    seen = collect(bus, CLOCK_WANTED)
+    Scheduler(bus, yard(), seeded(), nonce=NONCE, store=store)
+    allocation(bus)
+    say(bus, CLOCK, {"time": 2 * DAY_S + at("06:00", 30), "speed_up": 1.0})
+
+    power(bus, "on")
+
+    assert [payload for _, payload in seen] == [{"time": at("06:00", 30)}]
+    assert row(bus)["start"] == "06:00"
+
+    power(bus, "off")
+    say(bus, CLOCK, {"time": DAY_S + at("07:15", 59), "speed_up": 1.0})
+    say(bus, TIMETABLE_WANTED, {"timetable": "evening", "new": True})
+
+    assert [payload for _, payload in seen] == [
+        {"time": at("06:00", 30)},
+        {"time": at("07:15", 59)},
+    ]
+
+
 def test_a_scheduler_given_no_store_publishes_no_timetable_row() -> None:
     bus = InProcessBus(Clock())
     seen = collect(bus, TIMETABLE)
@@ -249,6 +275,7 @@ def test_a_drag_is_recorded_at_the_clocks_minute_and_written() -> None:
             "train": "freight_1",
             "to": ["dn_e", "up_e.A"],
             "state": "out",
+            "round": 0,
             "request": f"freight_1-{NONCE}-1",
         }
     ]
@@ -299,7 +326,13 @@ def test_a_turn_round_applied_is_recorded_as_ended() -> None:
         "up_e.A-to-B"
     )
     assert entries(bus) == [
-        {"at": "06:10", "train": "express_2", "turn": True, "state": "ended"}
+        {
+            "at": "06:10",
+            "train": "express_2",
+            "turn": True,
+            "state": "ended",
+            "round": 0,
+        }
     ]
     held = store.document("untitled")
     assert held is not None
@@ -331,7 +364,7 @@ def test_a_recorded_entry_follows_its_request_to_the_end() -> None:
     say(bus, "tc49/dispatch/request_cancelled", {"id": second, "reason": "asked"})
 
     assert [(one["state"], one.get("ended")) for one in entries(bus)] == [
-        ("ended", 7 * 60 + 30),
+        ("ended", at("06:07", 30)),
         ("cancelled", None),
     ]
 
@@ -554,8 +587,9 @@ def test_a_restart_comes_up_with_the_timetable_and_records_after_its_entries() -
         "train": "express_2",
         "to": ["dn_w"],
         "state": "ended",
+        "round": 0,
         "request": express,
-        "ended": 9 * 60,
+        "ended": at("06:09"),
     }
 
 
@@ -569,7 +603,7 @@ def test_after_a_restart_an_entry_whose_request_is_not_listed_has_ended() -> Non
     bus = restarted(store, rows)
 
     assert [(one["state"], one.get("ended")) for one in entries(bus)] == [
-        ("ended", 4 * 60),
+        ("ended", at("06:04")),
         ("ended", None),
     ]
 

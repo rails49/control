@@ -21,6 +21,7 @@ from tc49.scheduler import Scheduler
 from tests.scheduler.test_edits import change
 from tests.scheduler.test_recording import (
     ALLOCATION,
+    CLOCK,
     RECORD_WANTED,
     SUBMITTED,
     TIMETABLE,
@@ -118,7 +119,13 @@ def test_a_load_sends_each_train_standing_elsewhere_to_its_start_block() -> None
         },
         "positioning": [TO_START],
         "entries": [
-            {"at": "06:02", "train": "freight_1", "to": ["dn_e"], "state": "later"}
+            {
+                "at": "06:02",
+                "train": "freight_1",
+                "to": ["dn_e"],
+                "state": "later",
+                "round": 0,
+            }
         ],
     }
 
@@ -416,6 +423,7 @@ def test_an_entry_is_released_at_its_time_as_the_drag_a_person_would_make() -> N
             "train": "freight_1",
             "to": ["dn_e", "up_e.A"],
             "state": "out",
+            "round": 0,
             "request": f"freight_1-{NONCE}-1",
         }
     ]
@@ -482,7 +490,7 @@ def test_a_released_entry_follows_its_request_to_the_end() -> None:
     reject(bus, express)
 
     assert [(one["state"], one.get("ended")) for one in entries(bus)] == [
-        ("ended", 5 * 60),
+        ("ended", at("06:05")),
         ("rejected", None),
     ]
 
@@ -506,12 +514,19 @@ def test_a_turn_round_entry_turns_the_train_and_has_ended() -> None:
     assert len(rows) == 1
     assert bus.last_values[FACING]["facing"]["express_2"] == "up_e.A-to-B"
     assert entries(bus) == [
-        {"at": "06:02", "train": "express_2", "turn": True, "state": "ended"},
+        {
+            "at": "06:02",
+            "train": "express_2",
+            "turn": True,
+            "state": "ended",
+            "round": 0,
+        },
         {
             "at": "06:02",
             "train": "express_2",
             "to": ["dn_w"],
             "state": "out",
+            "round": 0,
             "request": f"express_2-{NONCE}-1",
         },
     ]
@@ -661,29 +676,30 @@ def test_before_the_start_a_persons_drag_is_a_request_with_no_entry() -> None:
     assert entries(bus) == []
 
 
-def test_a_timetable_is_over_24_hours_after_its_start_and_stays_loaded() -> None:
-    """Nothing more is released or recorded, and `untitled` is not made in
-    its place."""
+def test_a_timetable_runs_on_past_midnight_and_again_the_next_day() -> None:
+    """An entry at 1d05:59 goes out on day 1, and in round 1 on day 2."""
     entry = Entry(at("05:59") + DAY_S, "freight_1", ("dn_e",))
     bus = running(Store(evening(entry, trains=IN_PLACE)))
-    say(bus, RECORD_WANTED, {"record": True})
     seen = collect(bus, SUBMITTED)
-    clock(bus, "17:00")
-    clock(bus, "04:00")
+    say(bus, CLOCK, {"time": at("05:59"), "speed_up": 1.0})
 
-    assert (row(bus)["phase"], states(bus)) == ("running", ["later"])
-
-    clock(bus, "06:00")
-
-    assert (row(bus)["timetable"], row(bus)["phase"]) == ("evening", "over")
     assert seen == []
 
-    drag(bus, "express_2", "dn_w")
-    power(bus, "off")
-    power(bus, "on")
+    say(bus, CLOCK, {"time": DAY_S + at("05:59"), "speed_up": 1.0})
 
-    assert (row(bus)["timetable"], row(bus)["phase"]) == ("evening", "over")
-    assert [one["train"] for one in entries(bus)] == ["freight_1"]
+    assert len(seen) == 1
+    (request,) = (one["request"] for one in entries(bus))
+    say(bus, "tc49/dispatch/request_completed", {"id": request})
+    say(bus, CLOCK, {"time": 2 * DAY_S + at("05:58"), "speed_up": 1.0})
+
+    assert row(bus)["phase"] == "running"
+    assert [(one["state"], one["round"]) for one in entries(bus)] == [("later", 1)]
+    assert len(seen) == 1
+
+    say(bus, CLOCK, {"time": 2 * DAY_S + at("05:59"), "speed_up": 1.0})
+
+    assert len(seen) == 2
+    assert [(one["state"], one["round"]) for one in entries(bus)] == [("out", 1)]
 
 
 def test_a_restart_adopts_a_loaded_timetable_and_its_requests_to_start_blocks() -> None:
