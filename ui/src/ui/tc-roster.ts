@@ -77,20 +77,22 @@ export class TcRoster extends LitElement {
       ${this.trains.length === 0
         ? html`<p class="hint">no trains on the roster</p>`
         : html`
-            <table>
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Train</th>
-                  <th>Where</th>
-                  ${this.startColumn ? html`<th>Start</th>` : nothing}
-                  <th class="length">Length mm</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.trains.map((train) => this.row(train))}
-              </tbody>
-            </table>
+            <div class="rows">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Train</th>
+                    <th>Where</th>
+                    ${this.startColumn ? html`<th>Start</th>` : nothing}
+                    <th class="length">Length mm</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${this.trains.map((train) => this.row(train))}
+                </tbody>
+              </table>
+            </div>
           `}
     `;
   }
