@@ -841,7 +841,8 @@ timetable read the same numbers and the face does not move
 and has no entries, a clock row that reads before the clock, or more than two
 beats (2 × `speed_up` seconds) after it, moves the start to that row's time of
 day rounded down to the minute, the clock to that time of day on day 0, and
-the document is written
+the document is written. A row on day 1 or later also has the scheduler
+publish `tc49/layout/clock_wanted` with that time of day on day 0
 ([#1371](https://github.com/rails49/control/issues/1371)).
 
 While the timetable is `running` and Record is on:

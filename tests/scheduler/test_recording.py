@@ -185,6 +185,7 @@ def test_a_new_timetable_puts_the_clock_on_day_0_at_its_time_of_day() -> None:
     assert row(bus)["start"] == "06:00"
 
     power(bus, "off")
+    say(bus, RECORD_WANTED, {"record": False})
     say(bus, CLOCK, {"time": DAY_S + at("07:15", 59), "speed_up": 1.0})
     say(bus, TIMETABLE_WANTED, {"timetable": "evening", "new": True})
 
@@ -322,6 +323,36 @@ def test_a_clock_set_before_the_first_entry_writes_the_new_start() -> None:
     drag(bus, "freight_1", "dn_e")
 
     assert [one["at"] for one in written_entries(store)] == ["10:00"]
+
+
+def test_a_clock_set_to_a_later_day_before_the_first_entry_asks_for_day_0() -> None:
+    """Set to 1d10:00:20: the clock is asked for 10:00:20 on day 0, as for a
+    new timetable, and the next drag is in round 0 (#1371)."""
+    store = Store()
+    bus = recording(store, "18:51", 0)
+    seen = collect(bus, CLOCK_WANTED)
+
+    say(bus, CLOCK, {"time": DAY_S + at("10:00", 20), "speed_up": 1.0})
+
+    assert [payload for _, payload in seen] == [{"time": at("10:00", 20)}]
+    assert row(bus)["start"] == "10:00"
+
+    clock(bus, "10:00", 21)
+    drag(bus, "freight_1", "dn_e")
+    clock(bus, "10:00", 22)
+
+    assert len(seen) == 1
+    assert [one["round"] for one in entries(bus)] == [0]
+
+
+def test_a_clock_set_on_day_0_before_the_first_entry_asks_for_nothing() -> None:
+    store = Store()
+    bus = recording(store, "18:51", 0)
+    seen = collect(bus, CLOCK_WANTED)
+
+    clock(bus, "10:00", 20)
+
+    assert seen == []
 
 
 def test_a_drag_of_a_train_the_scheduler_cannot_compose_adds_no_entry() -> None:
