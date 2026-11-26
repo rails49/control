@@ -296,8 +296,8 @@ def clocked(state: State, time: int, speed_up: float) -> State:
         and state.clock is not None
         and not state.clock <= time <= state.clock + 2 * speed_up
     ):
-        start = replace(timetable, start=start_of(time))
-        return replace(state, timetable=start, clock=time % DAY_S)
+        moved = replace(timetable, start=start_of(time))
+        return replace(state, timetable=moved, clock=time % DAY_S)
     return replace(state, clock=time)
 
 
