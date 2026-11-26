@@ -108,6 +108,27 @@ back onto the railroad. They do not freeze the drawing: track power does
 ([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing)), and a save with power
 off keeps the trains that still fit.
 
+**A row carries a note where its train is not where the loaded timetable
+starts** ([#1357](https://github.com/rails49/control/issues/1357)), on a line
+under where the train is. The timetable's `trains` name the block each train
+stood in and its facing when the timetable was made
+(`tc49/schedule/state/timetable`, BUS.md). The note is:
+
+- *off the layout* for a train the timetable names and the run does not have;
+- *not at B7*, naming the start block, for a train in another block or
+  crossing a transit;
+- *facing the other way* for a train in its start block whose facing is not
+  the one recorded.
+
+A train in place and a train the timetable does not name have no note. The
+train's block is the one `tc49/dispatch/state/allocation` gives and its
+facing is `tc49/schedule/state/facing`. The note is shown while the
+timetable's phase is `loaded`: once it runs, its trains leave their start
+blocks. The scheduler sends a train to its start block where it can (BUS.md),
+so a note that stays is one a person acts on: place the train, give it a
+request, or turn it round. The page corrects nothing. The note is worked out
+by `startNotes` in `ui/src/model/timetable.ts`.
+
 **The list under the roster is headed "Timetable"**, in the same pane:
 `tc-requests`, a component of its own. With no timetable loaded, and before
 the scheduler has said whether one is, it is the request list, read from
@@ -271,6 +292,56 @@ focused field.
 
 The rows, what a drag asks, where the list opens and what a typed field makes
 of an entry are worked out in `ui/src/model/timetable.ts`.
+
+**The heading has a menu, the Record switch and Start**
+([#1357](https://github.com/rails49/control/issues/1357)), drawn by
+`tc-timetable-controls` after the timetable's name. Where the pane is too
+narrow for one line they are on a line of their own under the name. They are
+there with no timetable loaded too, since New and Load are how one comes to be
+loaded. The page changes nothing by itself: each control publishes a gesture
+or asks the store, and what is drawn afterwards is what
+`tc49/schedule/state/timetable` then says. The scheduler answers a gesture it
+drops with nothing (BUS.md), so the page checks what it can before it
+publishes.
+
+The menu opens under its button and has four rows, each opening a dialog:
+
+- **New** asks for a name and publishes `tc49/schedule/timetable_wanted`
+  (`{timetable, new: true}`). The scheduler makes a timetable of that name in
+  place of the one loaded, and of a stored one of that name.
+- **Load** lists the names `GET /timetables/<railroad>` gives. A press on one
+  reads `GET /timetables/<railroad>/<name>` first. Where the store answers an
+  error the dialog shows the store's words and publishes nothing. Otherwise
+  it publishes `tc49/schedule/timetable_wanted` (`{timetable}`).
+- **Rename** asks for a name and publishes
+  `tc49/schedule/timetable_rename_wanted` (`{to}`). It is disabled with no
+  timetable loaded. A name the store already lists is refused in the dialog.
+- **Delete** lists the same names less the loaded one. A press on one asks
+  "Delete <name>?", and its Delete sends `DELETE /timetables/<railroad>/<name>`.
+  Nothing is published: the loaded timetable is not offered.
+
+New and Load are disabled while track power reads `on` or `draining`, since
+the scheduler takes them only with power `off`. The row says *track power is
+on* in its tooltip, as the rail does for a view that does not open. A dialog
+left open while power comes on publishes nothing and says the same.
+
+A name typed for New or Rename is checked as the timetable document checks it
+([LAYOUT.md](../store/LAYOUT.md#timetable-schema)): not empty, no `/`, no
+leading `.`. A name that fails is refused in the dialog and nothing is
+published.
+
+**The Record switch** shows the row's `record` and publishes
+`tc49/schedule/timetable_record_wanted` (`{record}`) with the other value. It
+moves when the row does, not at the press. It is disabled with no timetable
+loaded and once the phase is `over`.
+
+**Start** is drawn only while the phase is `loaded`. It publishes
+`tc49/schedule/timetable_start_wanted` (`{}`), which starts the timetable
+whether or not its trains have reached their start blocks.
+
+The name check and the power rule are in `ui/src/model/timetable.ts`, the
+store's three calls in `ui/src/model/store.ts`, and the dialogs in
+`tc-timetable-dialog`.
 
 **A train's name is drawn in each block it occupies**, whatever the block's
 colour: every block on its list in the picture's `occupied`. A train passing
