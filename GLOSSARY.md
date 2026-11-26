@@ -456,9 +456,10 @@ list, in its order, run where the lock table or the waiting set changes
 _Avoid_: grant phase (said of a beat), boundary, tick (formerly)
 
 **Fast clock**:
-The railroad's operating time of day. It runs at its speed-up from a start
+The railroad's operating time. It runs at its speed-up from a start
 time, both kept with the railroad, begins at the start time each time the
-railroad is loaded, and wraps at midnight. It stands while track power is off
+railroad is loaded, and counts days from 0: a time is a day and a time of
+day, written `1d06:00`, and the band shows only the time of day. It stands while track power is off
 and runs on from the time it stood at when power is on again, so a break in
 operations pauses it. There is one for the railroad and every page shows the
 same one. Nothing in the control path reads it
