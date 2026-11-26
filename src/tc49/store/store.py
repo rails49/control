@@ -80,7 +80,7 @@ from tc49.lib.layout import (
 from tc49.lib.roster import Model, Roster
 from tc49.lib.scenario import Scenario, named, validate_scenario
 from tc49.lib.settings import kept_installation, kept_settings
-from tc49.lib.timetable import read_timetable
+from tc49.lib.timetable import read_timetable, segment
 from tc49.store import atomic, yamlfile
 from tc49.store.drawing import Drawing
 
@@ -230,16 +230,6 @@ def _items(section: Any) -> list[tuple[Any, Any]]:
 def _entries(listed: Any) -> list[Any]:
     """A train's `cars` as written, and none where it is not a list."""
     return cast(list[Any], listed) if isinstance(listed, list) else []
-
-
-def _segment(name: str) -> str:
-    """`name` where it is one path segment, by the rule a timetable's name
-    and railroad are held to (`tc49.lib.timetable.Timetable`)."""
-    if not name or "/" in name or name.startswith("."):
-        raise ValueError(
-            f"{name!r} is no name: a name is not empty, has no '/' and no leading '.'"
-        )
-    return name
 
 
 class AssetStore:
@@ -397,7 +387,7 @@ class AssetStore:
     def timetables(self, railroad: str) -> list[str]:
         """The names of `railroad`'s timetables (#1345), sorted. A railroad
         with none has an empty list, whether or not it has a drawing. A file
-        whose name starts with `.` is no timetable: `_segment` refuses that
+        whose name starts with `.` is no timetable: `segment` refuses that
         name on every route."""
         paths = self._timetable_dir(railroad).glob("[!.]*.timetable.yaml")
         return sorted(path.name.removesuffix(".timetable.yaml") for path in paths)
@@ -764,10 +754,11 @@ class AssetStore:
         """Where `railroad`'s timetables are. The railroad is a directory
         here, so one that is no path segment is a `ValueError`: `..` would
         name the store's root."""
-        return self._root / "timetables" / _segment(railroad)
+        return self._root / "timetables" / segment(railroad, "the railroad")
 
     def _timetable_path(self, railroad: str, name: str) -> Path:
-        return self._timetable_dir(railroad) / f"{_segment(name)}.timetable.yaml"
+        filed = f"{segment(name, 'the timetable')}.timetable.yaml"
+        return self._timetable_dir(railroad) / filed
 
     def _scenario_path(self, name: str) -> Path:
         layout, _, scenario = name.partition("/")

@@ -120,12 +120,8 @@ class Timetable:
     minute keep the order they were given in."""
 
     def __post_init__(self) -> None:
-        for field, name in (("timetable", self.name), ("layout", self.layout)):
-            if not name or "/" in name or name.startswith("."):
-                raise ValueError(
-                    f"'{field}' is {name!r}: a name is not empty, has no '/'"
-                    " and no leading '.'"
-                )
+        segment(self.name, "'timetable'")
+        segment(self.layout, "'layout'")
         _check_minute(self.start, "a timetable's 'start'")
         # sorted() is stable, so entries in one minute keep the order given.
         ordered = sorted(self.entries, key=lambda entry: self.since_start(entry.at))
@@ -296,6 +292,17 @@ def read_entry(doc: object, where: str = "entry") -> Entry:
         dwell,
         description,
     )
+
+
+def segment(name: str, what: str) -> str:
+    """`name` where it is one path segment in the store, as a timetable's
+    name and its railroad's are: not empty, with no `/` and no leading `.`.
+    Any other is a `ValueError` saying `what` it is."""
+    if not name or "/" in name or name.startswith("."):
+        raise ValueError(
+            f"{what} is {name!r}: a name is not empty, has no '/' and no leading '.'"
+        )
+    return name
 
 
 def _check_minute(time: int, what: str) -> None:
