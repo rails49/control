@@ -419,7 +419,7 @@ def test_a_new_timetable_asked_for_with_power_on_is_dropped() -> None:
 
 
 def test_a_timetable_gesture_the_scheduler_cannot_act_on_is_dropped() -> None:
-    """One without `new`, which loads a timetable from #1353 on; one that
+    """One without `new` for a name the store does not have; one that
     cannot be read; and a name no timetable document takes."""
     store = Store()
     bus = recording(store)
