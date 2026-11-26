@@ -128,8 +128,11 @@ to put it and is not itself a request
 A **timetable** is a railroad's named document of where its trains start and
 a list of **entries** in time order. An entry is a time, a train, and either
 a set of arrival ends with a **dwell** or a turn-round. It names no block the
-train leaves from. A timetable covers at most one fast-clock day and runs
-once ([#1345](https://github.com/rails49/control/issues/1345)).
+train leaves from. A timetable repeats every `repeat`, one day unless a
+person sets another, and never ends: each round runs its entries again, and a
+train late at the end of one round runs late into the next
+([#1345](https://github.com/rails49/control/issues/1345),
+[#1363](https://github.com/rails49/control/issues/1363)).
 
 A timetable is a recording of a person's drags. With power on and no
 timetable loaded, the scheduler starts one named `untitled`: it notes the

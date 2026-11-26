@@ -478,10 +478,23 @@ _Avoid_: multiplier, rate, scale
 **Timetable**:
 A railroad's named document of where its trains start and a list of entries in
 time order. The scheduler releases each entry at its time on the fast clock,
-and a person's drags are added to it while it records. It covers at most one
-fast-clock day and runs once ([GOALS.md](docs/GOALS.md#scheduling)).
+and a person's drags are added to it while it records. It repeats every
+`repeat` and never ends ([GOALS.md](docs/GOALS.md#scheduling)).
 _Avoid_: schedule, time schedule, scenario (the test harness's document, which
 has no times)
+
+**Repeat**:
+The time from a timetable's start to where it begins again, one day unless a
+person sets another. Every entry's time lies from the start to before the
+start plus the repeat
+([#1363](https://github.com/rails49/control/issues/1363)).
+_Avoid_: period, cycle, interval
+
+**Round**:
+One run through a timetable's entries, numbered from 0. In round _n_ an entry
+is due at its time plus _n_ × repeat
+([SYSTEM.md](docs/SYSTEM.md#scheduler)).
+_Avoid_: cycle, pass, iteration, day (a round can be shorter or longer)
 
 **Entry**:
 One row of a timetable: a time, a train, and either a set of arrival ends with
@@ -501,13 +514,6 @@ The block a timetable says a train stands in at the start. Loading the
 timetable sends each train that stands in another block there by a request
 ([SYSTEM.md](docs/SYSTEM.md#scheduler)).
 _Avoid_: home, origin, start position
-
-**Timetable time**:
-How far a running timetable has run, in fast-clock seconds since its start.
-Each row of the fast clock moves it, and an entry is due when it reaches the
-entry's time. A clock set back does not move it back
-([SYSTEM.md](docs/SYSTEM.md#scheduler)).
-_Avoid_: elapsed time, run time, run clock (the trace's elapsed seconds)
 
 ### Bus
 
