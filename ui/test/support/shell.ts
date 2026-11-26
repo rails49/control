@@ -81,6 +81,11 @@ export interface Answers {
    *  answers and what the stock screen edits: the two are different shapes on
    *  two routes, one derived and one as written (#388). */
   documentOf: (railroad: string) => RosterDoc;
+  /** A railroad's timetables by name, each the document
+   *  `/timetables/<railroad>/<name>` answers; `/timetables/<railroad>` lists
+   *  the names. A name it does not have is a 404 in the store's words, and
+   *  `refuses` gives a document the store has and will not read (#1349). */
+  timetables: (railroad: string) => Record<string, unknown>;
   /** Every model the installation knows, which `/catalogue` answers. An
    *  installation that has written none answers an empty map — a fresh box,
    *  and not a fault (#392). */
@@ -144,7 +149,8 @@ export interface Answers {
    *  status: a JSON body carrying `error`, which is the store answering and not
    *  something in front of it (`intercepted`). Nothing is recorded in `saved`
    *  for it — a refusal writes nothing. `null` for a write the store takes,
-   *  which is every write by default. */
+   *  which is every write by default. The read of one timetable is refused
+   *  through it too. */
   refuses: (path: string) => { status: number; error: string } | null;
 }
 
@@ -181,6 +187,9 @@ const OFF = "/box/off";
  *  it fetches the store's (docs/DEPLOY.md). */
 const SNAPSHOT = "/camera/snapshot";
 
+/** The store's routes for one railroad's timetables (#1349). */
+const TIMETABLES = "/timetables/";
+
 /** The camera app's route, a camera car's live picture (ADR-0082). */
 const PICTURE = "/picture/";
 
@@ -195,6 +204,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     drawings: [],
     rosterOf: () => ({}),
     documentOf: (railroad) => ({ roster: railroad, trains: {} }),
+    timetables: () => ({}),
     catalogue: {},
     saved: [],
     deleted: [],
@@ -261,6 +271,8 @@ export function serving(answers: Partial<Answers> = {}): Answers {
       } as unknown as Response);
     }
     if (between !== null) return Promise.resolve(interposed(between));
+    const unread = path.startsWith(TIMETABLES) ? unreadable(store, path) : null;
+    if (unread !== null) return Promise.resolve(refused(unread));
     return answered(store, path).then(
       (body) =>
         ({ ok: true, json: () => Promise.resolve(body) }) as unknown as Response,
@@ -325,10 +337,35 @@ function refused(what: { status: number; error: string }): Response {
   } as unknown as Response;
 }
 
+/** The railroad and the timetable a `/timetables` path names, each decoded;
+ *  no name on the path that lists them. */
+function timetableAt(path: string): [string, string | undefined] {
+  const [railroad, name] = path.slice(TIMETABLES.length).split("/").map(decodeURIComponent);
+  return [railroad!, name];
+}
+
+/** What the store refuses the read of one timetable with: what a suite says
+ *  it does (`refuses`), or a 404 for a name the railroad has none of. `null`
+ *  for a read it answers. */
+function unreadable(store: Answers, path: string): { status: number; error: string } | null {
+  const [railroad, name] = timetableAt(path);
+  if (name === undefined) return null;
+  const refusal = store.refuses(path);
+  if (refusal !== null || name in store.timetables(railroad)) return refusal;
+  return { status: 404, error: `no timetable '${railroad}/${name}'` };
+}
+
 /** The store's side of one call, over the routes the editor asks
  *  (EDITOR.md#implementation). */
 function answered(store: Answers, path: string): Promise<unknown> {
   if (path === "/review") return store.review();
+  if (path.startsWith(TIMETABLES)) {
+    const [railroad, name] = timetableAt(path);
+    const held = store.timetables(railroad);
+    return Promise.resolve(
+      name === undefined ? { timetables: Object.keys(held).sort() } : held[name],
+    );
+  }
   if (path === "/backup" || path.startsWith("/backup/")) {
     return Promise.resolve(store.backup);
   }

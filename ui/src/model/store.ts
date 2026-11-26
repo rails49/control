@@ -358,6 +358,31 @@ export async function saveRoster(roster: RosterDoc, leaving = false): Promise<vo
   await ask("PUT", `/rosters/${encodeURIComponent(roster.roster)}`, roster, leaving);
 }
 
+/** The names of a railroad's timetables, sorted, none for a railroad with
+ *  none (docs/SYSTEM.md, #1349). */
+export async function listTimetables(railroad: string): Promise<string[]> {
+  const listed = await ask<{ timetables: string[] }>(
+    "GET",
+    `/timetables/${encodeURIComponent(railroad)}`,
+  );
+  return listed.timetables;
+}
+
+/** One timetable's document, whole. Refused where the railroad has none of
+ *  that name and where the file does not pass the store's checks. */
+export async function readTimetable(railroad: string, name: string): Promise<unknown> {
+  return await ask<unknown>("GET", timetablePath(railroad, name));
+}
+
+/** Delete one timetable. Refused where the railroad has none of that name. */
+export async function deleteTimetable(railroad: string, name: string): Promise<void> {
+  await ask("DELETE", timetablePath(railroad, name));
+}
+
+function timetablePath(railroad: string, name: string): string {
+  return `/timetables/${encodeURIComponent(railroad)}/${encodeURIComponent(name)}`;
+}
+
 /**
  * One model: what a product *is*, independent of any railroad that owns one
  * ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
