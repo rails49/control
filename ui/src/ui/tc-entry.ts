@@ -4,16 +4,20 @@
  * ([#1345](https://github.com/rails49/control/issues/1345),
  * [#1358](https://github.com/rails49/control/issues/1358)).
  *
- * `tc-requests` draws it under the row a person tapped. The time is `HH:MM`,
- * the dwell whole fast-clock minutes and the description text. A turn-round
+ * `tc-requests` draws it under the row a person tapped. The time is in the
+ * time form `[<day>d]HH:MM` (`model/clock.ts`), the dwell whole fast-clock
+ * minutes and the description text. A turn-round
  * has no dwell field. The destination is not here: a person deletes the entry
  * and drags again.
  *
  * A field changed and then left, or Enter pressed in it, raises
  * `entry-changed` with the entry as it reads and as it should read
  * (`model/timetable.ts`, `edited`). Words that are no value for the field, or
- * that change nothing, raise nothing. Delete raises it with no entry to read,
- * and does not ask first.
+ * that change nothing, raise nothing. A time outside the timetable's repeat
+ * raises nothing and the row says why under the time, "before the start
+ * 06:00" or "after the last minute, 1d05:59" (`outside`), until the next
+ * field is changed. Delete raises it with no entry to read, and does not ask
+ * first.
  *
  * It changes nothing by itself. A field shows what the entry has, and shows
  * the change when the scheduler's row hands this a changed entry (ADR-0035).
@@ -29,7 +33,7 @@ import { customElement, property } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { live } from "lit/directives/live.js";
 
-import { edited, type Entry, type Field } from "../model/timetable.js";
+import { edited, outside, type Entry, type Field, type Timetable } from "../model/timetable.js";
 import { entryStyles } from "./tc-entry.styles.js";
 
 /** What an open row asks for: the entry as it reads, and as it should read,
@@ -47,8 +51,14 @@ export class TcEntry extends LitElement {
    *  lists it. */
   @property({ attribute: false }) entry: Entry | null = null;
 
+  /** The start and the repeat of the timetable the entry is in. */
+  @property({ attribute: false }) timetable: Pick<Timetable, "start" | "repeat"> | null = null;
+
   /** The field a person has typed in and not yet left, `null` for none. */
   private typing: Field | null = null;
+
+  /** Why the time last typed was refused, `null` for none. */
+  private refused: string | null = null;
 
   override render() {
     const entry = this.entry;
@@ -58,6 +68,7 @@ export class TcEntry extends LitElement {
         <span>Time</span>
         ${this.field(entry, "at", entry.at)}
       </label>
+      ${this.refused === null ? nothing : html`<p class="refused">${this.refused}</p>`}
       ${entry.to === undefined
         ? nothing
         : html`<label>
@@ -91,7 +102,10 @@ export class TcEntry extends LitElement {
   /** A field left, or Enter pressed in it, with its words changed. The field
    *  is drawn again with what the entry has. */
   private typed(entry: Entry, field: Field, event: Event): void {
-    const now = edited(entry, field, (event.target as HTMLInputElement).value);
+    const words = (event.target as HTMLInputElement).value;
+    this.refused =
+      field === "at" && this.timetable !== null ? outside(this.timetable, words) : null;
+    const now = this.refused === null ? edited(entry, field, words) : null;
     this.left();
     if (now !== null) this.ask(entry, now);
   }

@@ -300,6 +300,7 @@ export class TcRequests extends LitElement {
   private fields(entry: Entry) {
     return html`<tc-entry
       .entry=${entry}
+      .timetable=${this.timetable}
       @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
       @entry-changed=${this.asked}
     ></tc-entry>`;
