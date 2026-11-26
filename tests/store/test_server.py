@@ -242,7 +242,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
             "krokodil_a": {"model": "arnold-ce68", "addr": "3"},
             "cam_1": {
                 "model": "bench-600",
-                "camera": "http://192.168.178.58/media/?action=stream",
+                "camera": "http://192.0.2.58/media/?action=stream",
             },
         },
         "trains": {

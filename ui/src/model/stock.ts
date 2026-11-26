@@ -1737,13 +1737,19 @@ export class Stock {
  *  or whitespace. The login is the `camera` app's (ADR-0082). Split as RFC
  *  3986 splits a URL, not with `URL`, which rewrites what it reads. */
 function streamTrouble(camera: string): string | null {
-  if (/\s/.test(camera)) return "it holds whitespace";
-  const [, scheme, netloc] = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?/.exec(camera)!;
+  if (/[\s\x1c-\x1f\x85]/.test(camera)) return "it holds whitespace";
+  const [, scheme, netloc = ""] = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?/.exec(camera)!;
+  if (/[[\]]/.test(netloc)) {
+    // A bracket is only an IPv6 host's, as `urlsplit` has it.
+    const [, inner] = /^(?:[^@]*@)?\[([^\]]*)\](?::[^[\]]*)?$/.exec(netloc) ?? [];
+    if (inner === undefined || !URL.canParse(`http://[${inner}]/`)) {
+      return "it is not a URL";
+    }
+  }
   if (scheme?.toLowerCase() !== "http") return "it must start http://";
-  if (netloc?.includes("@")) return "leave the login out: the camera app has it";
-  const [, host, port] = /^(\[[^\]]*\]|[^:]*)(?::(.*))?$/.exec(netloc ?? "") ?? [];
-  if (host === undefined) return "it is not a URL";
-  if (host === "" || host === "[]") return "it names no host";
+  if (netloc.includes("@")) return "leave the login out: the camera app has it";
+  const [, host, port] = /^(\[[^\]]*\]|[^:]*)(?::(.*))?$/.exec(netloc)!;
+  if (host === "") return "it names no host";
   if (port !== undefined && port !== "") {
     if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
       return "its port must be 1–65535";

@@ -107,7 +107,7 @@ model is.
 
 **A car's camera sits under its address**, in the car editor: the URL of
 the MJPEG stream of the camera riding in that car, as
-`http://192.168.178.58/media/?action=stream`, checked by the rules
+`http://192.0.2.58/media/?action=stream`, checked by the rules
 `lib/stock.py` checks it by ([LAYOUT.md](../store/LAYOUT.md#roster-schema),
 [ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
 Emptying the field takes the camera off and keeps the car. A URL those rules

@@ -354,7 +354,7 @@ def test_an_address_is_written_as_a_string() -> None:
 @pytest.mark.parametrize(
     "camera",
     [
-        "http://192.168.178.58/media/?action=stream",
+        "http://192.0.2.58/media/?action=stream",
         "http://cam:8080/?action=stream",
         "http://cam/",
     ],
@@ -387,6 +387,11 @@ def test_a_car_may_name_its_cameras_stream(camera: str) -> None:
         "http://cam:99999/",
         "http://cam/#x",
         "http://ca m/",
+        "http://cam\x1f/",
+        "http://[x]/",
+        "http://ca[m]/",
+        "http://[]/",
+        "http://[::1/",
     ],
 )
 def test_a_camera_is_a_plain_http_url(camera: Any) -> None:
