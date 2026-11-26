@@ -6,10 +6,11 @@
  * ([#1345](https://github.com/rails49/control/issues/1345),
  * [#1358](https://github.com/rails49/control/issues/1358)).
  *
- * Four parts. What a typed field makes of an entry is `model/timetable.ts`'s.
- * Then `tc-entry`, the open row, which draws the fields and raises what a
- * person changed. Then `tc-requests`, which opens one row at a time. Then the
- * run view, which writes one `entry_wanted` for each change.
+ * Four parts. What a typed field makes of an entry, and which row is open,
+ * are `model/timetable.ts`'s. Then `tc-entry`, the open row, which draws the
+ * fields and raises what a person changed. Then `tc-requests`, which draws
+ * the open row and keeps its fields. Then the run view, which writes one
+ * `entry_wanted` for each change.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,10 +20,16 @@ import "../src/ui/tc-entry.js";
 import "../src/ui/tc-requests.js";
 import { requestRows } from "../src/model/requests.js";
 import {
+  asking,
   edited,
+  followed,
+  placeOf,
   same,
+  tapped,
   type Entry,
   type Field,
+  type ListRow,
+  type Opened,
   type Scheduled,
   type Timetable,
 } from "../src/model/timetable.js";
@@ -140,6 +147,73 @@ describe("two entries", () => {
 
   it("are not the same where one is a turn-round", () => {
     expect(same(TURN, { at: "06:10", train: "goods", to: ["b.A"] })).toBe(false);
+  });
+});
+
+describe("the open row", () => {
+  const later: Entry = { at: "06:30", train: "local", to: ["c.B"] };
+
+  /** `GOODS`, a turn-round and `later`, in that order. */
+  const rows: ListRow[] = [
+    { entry: GOODS, state: "ended" },
+    { entry: TURN, state: "held" },
+    { entry: later, state: "later" },
+  ];
+
+  const open = (entry: Entry, sent: Entry | null = null): Opened => ({ entry, sent });
+
+  it("is the row tapped", () => {
+    expect(tapped(null, TURN)).toEqual(open(TURN));
+  });
+
+  it("is none after a second tap on it", () => {
+    expect(tapped(open(TURN), { ...TURN })).toBeNull();
+  });
+
+  it("is another row after a tap on that one", () => {
+    expect(tapped(open(TURN, { ...TURN, at: "06:11" }), later)).toEqual(open(later));
+  });
+
+  it("is none once it asked for its entry to be deleted", () => {
+    expect(asking(open(later), null)).toBeNull();
+  });
+
+  it("keeps what it asked its entry to read", () => {
+    const moved = { ...later, at: "06:00" };
+    expect(asking(open(later), moved)).toEqual(open(later, moved));
+    expect(asking(null, moved)).toBeNull();
+  });
+
+  it("stays where new rows list its entry as it read", () => {
+    expect(followed(open(later), rows)).toEqual(open(later));
+    // The scheduler has not taken the change yet.
+    const asked = open(later, { ...later, at: "06:00" });
+    expect(followed(asked, rows)).toEqual(asked);
+  });
+
+  /** A changed time moves the entry in the scheduler's row, and entries
+   *  carry no id. */
+  it("is the row that reads as the change asked, once new rows list one", () => {
+    const moved = { ...later, at: "06:00" };
+    const said: ListRow[] = [
+      { entry: moved, state: "held" },
+      { entry: GOODS, state: "ended" },
+      { entry: TURN, state: "held" },
+    ];
+    expect(followed(open(later, moved), said)).toEqual(open(moved));
+    expect(placeOf(said, moved)).toBe(0);
+  });
+
+  it("is none once no row lists its entry", () => {
+    expect(followed(open(BARE, null), rows.slice(0, 2))).toBeNull();
+    expect(followed(null, rows)).toBeNull();
+  });
+
+  /** The scheduler changes the first of two entries that read the same. */
+  it("is at the first of two rows whose entries read the same", () => {
+    const twice: ListRow[] = [...rows, { entry: { ...TURN }, state: "later" }];
+    expect(placeOf(twice, TURN)).toBe(1);
+    expect(placeOf(rows, { ...TURN, at: "07:00" })).toBe(-1);
   });
 });
 
@@ -401,18 +475,12 @@ describe("tc-requests with a row tapped", () => {
     expect(open(element)).toEqual([at]);
   });
 
-  it("closes the open row at a second tap", async () => {
+  it("closes the open row at a second tap, and opens another at a tap on it", async () => {
     const element = await list();
     await tap(element, 4);
     await tap(element, 4);
     expect(open(element)).toEqual([]);
-  });
-
-  it("moves the opening at a tap on another row", async () => {
-    const element = await list();
-    await tap(element, 4);
     await tap(element, 1);
-    expect(open(element)).toEqual([1]);
     await tap(element, 2);
     expect(open(element)).toEqual([2]);
   });
