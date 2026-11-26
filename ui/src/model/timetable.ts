@@ -36,7 +36,7 @@
  * loaded timetable starts.
  */
 
-import { hhmm, timeOf } from "./clock.js";
+import { timeOf, written } from "./clock.js";
 import { reordering, type RequestRow } from "./requests.js";
 import { trackLive, type Power } from "./trace.js";
 
@@ -227,7 +227,8 @@ export type Field = "at" | "dwell" | "description";
  * `now`, or `null` where nothing is to be sent: the words are no value for
  * that field, or the entry reads the same with them.
  *
- * - A time is `H:MM` or `HH:MM` and is said as `HH:MM`.
+ * - A time is read and said as `model/clock.ts` reads and writes one:
+ *   `6:10` is said as `06:10`.
  * - A dwell is whole minutes in digits, 0 or more, and only an entry with
  *   `to` has one. Emptied it is 0, and 0 is the key left out.
  * - A description is the words with the space round them dropped. Emptied,
@@ -240,7 +241,7 @@ export function edited(entry: Entry, field: Field, words: string): Entry | null 
   if (field === "at") {
     const time = timeOf(typed);
     if (time === null) return null;
-    now = { ...entry, at: hhmm(time) };
+    now = { ...entry, at: written(time) };
   } else if (field === "dwell") {
     if (entry.to === undefined || !/^\d*$/.test(typed)) return null;
     const minutes = Number(typed);

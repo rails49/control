@@ -61,6 +61,10 @@ describe("an entry with a field typed", () => {
     expect(edited(GOODS, "at", " 23:59 ")).toEqual({ ...GOODS, at: "23:59" });
   });
 
+  it("keeps the day of a time typed with one", () => {
+    expect(edited(GOODS, "at", "1d06:10")).toEqual({ ...GOODS, at: "1d06:10" });
+  });
+
   it.each(["", "soon", "0610", "24:00", "06:60"])("is not changed by %j, which is no time", (words) => {
     expect(edited(GOODS, "at", words)).toBeNull();
   });

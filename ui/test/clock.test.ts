@@ -52,6 +52,13 @@ describe("the station clock", () => {
     expect(angle(clock, "hour")).toBe(304);
   });
 
+  it("reads the time of day of a time on a later day", async () => {
+    const clock = await mounted(2 * 86_400 + 6 * 3600);
+    expect(clock.renderRoot.querySelector("svg")!.getAttribute("aria-label")).toBe("06:00");
+    expect(angle(clock, "hour")).toBe(180);
+    expect(angle(clock, "minute")).toBe(0);
+  });
+
   it("draws twelve bar markers", async () => {
     const clock = await mounted(TEN_PAST);
     expect(clock.renderRoot.querySelectorAll(".marker")).toHaveLength(12);
