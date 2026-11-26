@@ -54,9 +54,9 @@ export class TcRoster extends LitElement {
    *  land on is the view's to judge. */
   @property({ attribute: false }) live = false;
 
-  /** Whether the Start column is drawn: while the loaded timetable's phase
-   *  is `loaded`. */
-  @property({ attribute: false }) starting = false;
+  /** Whether the Start column is drawn, its heading included: the panel
+   *  model's `startColumn`. */
+  @property({ attribute: false }) startColumn = false;
 
   /** The row being dragged, so it reads as picked up. Nothing else about the
    *  drag is here: where it lands is the view's. */
@@ -83,7 +83,7 @@ export class TcRoster extends LitElement {
                   <th></th>
                   <th>Train</th>
                   <th>Where</th>
-                  ${this.starting ? html`<th>Start</th>` : nothing}
+                  ${this.startColumn ? html`<th>Start</th>` : nothing}
                   <th class="length">Length mm</th>
                 </tr>
               </thead>
@@ -123,7 +123,7 @@ export class TcRoster extends LitElement {
               ${placed ? (block ?? "crossing a transit") : "off the layout"}
             </td>`
           : html`<td class="where refused">${refused}</td>`}
-        ${this.starting ? this.start(start) : nothing}
+        ${this.startColumn ? this.start(start) : nothing}
         <td class="length">${length === null ? nothing : length}</td>
       </tr>
     `;
@@ -134,8 +134,8 @@ export class TcRoster extends LitElement {
    *  for a train the timetable does not name (#1392). */
   private start(start: Start | undefined) {
     if (start === undefined) return html`<td class="start"></td>`;
-    return html`<td class="start ${start.is}">
-      ${start.is === "turned" ? `${start.block} · turned` : start.block}
+    return html`<td class="start ${start.state}">
+      ${start.state === "turned" ? `${start.block} · turned` : start.block}
     </td>`;
   }
 

@@ -37,9 +37,10 @@
  * id, so the open row is the first whose entry reads the same (`placeOf`).
  *
  * `starts` is each train's start cell in the roster: the block the loaded
- * timetable starts it in, and whether it is there. `repeatRefused` is why a length is refused as its
- * repeat, and `typedRepeatRefused` why the Repeat dialog sends nothing for
- * what a person typed.
+ * timetable starts it in, and whether it is there. `startShown` is whether
+ * the roster has those cells at all. `repeatRefused` is why a length is
+ * refused as its repeat, and `typedRepeatRefused` why the Repeat dialog
+ * sends nothing for what a person typed.
  */
 
 import { DAY_S, timeOf, written } from "./clock.js";
@@ -433,7 +434,14 @@ export function followed(open: Opened | null, rows: readonly ListRow[]): Opened 
  *  facing the other way. */
 export interface Start {
   block: string;
-  is: "met" | "missed" | "turned";
+  state: "met" | "missed" | "turned";
+}
+
+/** Whether the roster shows where the loaded timetable starts its trains:
+ *  only while its phase is `loaded`, as a timetable that has started moves
+ *  its trains out of their start blocks. */
+export function startShown(timetable: Timetable | null): timetable is Timetable {
+  return timetable?.phase === "loaded";
 }
 
 /**
@@ -447,8 +455,7 @@ export interface Start {
  * `<block>.<end>`, as `tc49/schedule/state/facing` says it. A train with no
  * facing said is not turned.
  *
- * Only while the phase is `loaded`: a timetable that has started moves its
- * trains out of their start blocks.
+ * None unless `startShown`.
  */
 export function starts(
   timetable: Timetable | null,
@@ -456,17 +463,17 @@ export function starts(
   noses: ReadonlyMap<string, string>,
 ): Map<string, Start> {
   const cells = new Map<string, Start>();
-  if (timetable?.phase !== "loaded") return cells;
+  if (!startShown(timetable)) return cells;
   const where = new Map(placed.map(({ train, block }) => [train, block]));
   for (const [train, { at, facing }] of Object.entries(timetable.trains)) {
     const nose = noses.get(train);
-    const is =
+    const state =
       where.get(train) !== at
         ? "missed"
         : nose !== undefined && nose !== `${at}.${facing.split("-to-")[1]}`
           ? "turned"
           : "met";
-    cells.set(train, { block: at, is });
+    cells.set(train, { block: at, state });
   }
   return cells;
 }
