@@ -26,6 +26,9 @@ import { css } from "lit";
  * list is 24rem wide or more they are shown, each on a line under where the
  * entry goes. The width is the list's own, read with a container query, since
  * a person sets the pane's width (#1344).
+ *
+ * An entry's open row (`tc-entry`, #1358) is the last thing in its row and as
+ * wide as the row. A done row is not dimmed while it is open.
  */
 export const requestsStyles = css`
   :host {
@@ -90,6 +93,11 @@ export const requestsStyles = css`
 
   li.done {
     opacity: 0.5;
+  }
+
+  /* Not while it is open: a dimmed field reads as one that takes no typing. */
+  li.done:has(tc-entry) {
+    opacity: 1;
   }
 
   .train {
@@ -174,6 +182,11 @@ export const requestsStyles = css`
     grid-column: time / arrived;
     font-size: 0.7rem;
     font-style: italic;
+  }
+
+  /* An entry's open row, under the rest of its row and across it. */
+  tc-entry {
+    grid-column: 1 / -1;
   }
 
   .hint {
