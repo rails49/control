@@ -17,8 +17,9 @@ import { heading } from "./shared.styles.js";
  * The rows are a table (#1393): columns Time, Train, To, Dwell, Description,
  * State and the action, under a row of column headings that stays at the top
  * of what scrolls. Every row takes the table's columns (CSS subgrid), so the
- * cells line up with the headings. A row is one line. A long train name wraps
- * in its cell and is not cut short. A refused request's "waits for" line is
+ * cells line up with the headings. A row is one line. The Train column is at
+ * most 30% of the table's width; a longer train name wraps in its cell and is
+ * not cut short. A row the list scrolls to stops under the headings. A refused request's "waits for" line is
  * under its row, from the Train column to the right edge. An entry's open row
  * (`tc-entry`, #1358) is under its row, across the table.
  *
@@ -53,9 +54,10 @@ export const requestsStyles = css`
     min-height: 0;
     overflow-y: auto;
     display: grid;
-    grid-template-columns: [time] auto [train] auto [way] 1fr [state] auto [action] auto;
+    grid-template-columns: [time] auto [train] fit-content(30%) [way] 1fr [state] auto [action] auto;
     align-content: start;
     column-gap: 0.5rem;
+    scroll-padding-top: 1.4rem; /* a row scrolled to is not under the headings */
   }
 
   .columns {
@@ -68,6 +70,8 @@ export const requestsStyles = css`
     padding: 0.2rem;
     background: var(--paper);
     font-size: 0.7rem;
+    line-height: 1rem;
+    white-space: nowrap;
     color: var(--hint);
   }
 
@@ -186,7 +190,7 @@ export const requestsStyles = css`
   @container (min-width: 34rem) {
     .table {
       grid-template-columns:
-        [time] auto [train] auto [way] 1fr [dwell] auto [description] 1fr
+        [time] auto [train] fit-content(30%) [way] 1fr [dwell] auto [description] 1fr
         [state] auto [action] auto;
     }
 
