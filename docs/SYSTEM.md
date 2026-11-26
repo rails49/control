@@ -705,7 +705,8 @@ and the responsibility that accounts for exactly that much and no more.
 ### Scheduler
 
 *Reads* the layout, and the loaded timetable's document after a restart.
-*Writes* that document. *Subscribes* `tc49/dispatch/#` and `tc49/schedule/#` —
+*Writes* that document, and at a rename deletes the one under the old name.
+*Subscribes* `tc49/dispatch/#` and `tc49/schedule/#` —
 the gestures it responds to sit under its own name, and its own state topics
 come back past it ignored — and `tc49/layout/state/clock` and
 `tc49/layout/state/power`. *Publishes*
@@ -846,6 +847,23 @@ off, or once the timetable is `over`, 24 fast-clock hours after its start, a
 drag is a request with no entry. `tc49/schedule/timetable_record_wanted`
 switches Record. Placements, removals and reordering of the request list add
 nothing.
+
+A person tunes the loaded timetable with two gestures
+([#1354](https://github.com/rails49/control/issues/1354)):
+
+- `tc49/schedule/entry_wanted` changes one entry, or deletes it. Entries
+  carry no id, so the gesture names the entry as it reads now, and the
+  scheduler changes the first entry equal to it. Where none is equal the
+  gesture is dropped. A changed time moves the entry to its place in the
+  order, after the last entry at or before the new time. The entry keeps its
+  state, its request and its ending. Changing or deleting an entry that has
+  gone out changes the timetable and leaves the request alone. The gesture
+  is taken in every phase, with Record on or off and at any power value, so
+  an entry that ran tonight can be changed for the next run.
+- `tc49/schedule/timetable_rename_wanted` renames it. The scheduler writes
+  the document under the new name, then deletes the one under the old name.
+  It is dropped where the store has a timetable of the new name. Renaming
+  `untitled` keeps it from being replaced by the next recording.
 
 The scheduler writes the document to the store at each change to it, on a
 thread of its own and in order, so a store that does not answer holds up no

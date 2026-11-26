@@ -275,7 +275,7 @@ would carry were one built
 ([ADR-0034](adr/0034-the-bridge-enforces-the-topic-the-dispatcher-the-payload.md),
 [ADR-0059](adr/0059-the-bus-is-a-broker-each-app-is-its-own-process-and-the-bridge-is-deleted.md)
 decision 4).
-Today the mark sits on exactly the eighteen gesture rows. The throttle a person
+Today the mark sits on exactly the twenty gesture rows. The throttle a person
 drives with ([#207](https://github.com/rails49/control/issues/207),
 [ADR-0079](adr/0079-the-railroad-has-one-driving-mode-and-a-train-one-throttle.md)),
 the railroad's driving mode, the
@@ -342,6 +342,8 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/schedule/state/facing` | state | scheduler | the run each train would make across its block |
 | `tc49/schedule/timetable_wanted` | event | any (browser) | make a new timetable of this name ([#1345](https://github.com/rails49/control/issues/1345)) |
 | `tc49/schedule/timetable_record_wanted` | event | any (browser) | switch Record on or off ([#1345](https://github.com/rails49/control/issues/1345)) |
+| `tc49/schedule/timetable_rename_wanted` | event | any (browser) | rename the loaded timetable ([#1354](https://github.com/rails49/control/issues/1354)) |
+| `tc49/schedule/entry_wanted` | event | any (browser) | change or delete one entry of the loaded timetable ([#1354](https://github.com/rails49/control/issues/1354)) |
 | `tc49/schedule/state/timetable` | state | scheduler | the loaded timetable: its phase, Record and each entry's state ([#1345](https://github.com/rails49/control/issues/1345)) |
 | `tc49/dispatch/request_submitted` | event | any | a request, composed and released |
 | `tc49/dispatch/placement_wanted` | event | any (browser) | where a train actually is ([ADR-0039](adr/0039-a-train-may-be-off-the-layout.md)) |
@@ -1044,7 +1046,7 @@ what a drop would cost:
 
 #### `schedule`
 
-The eighteen browser-writable rows — the four here, the five under `dispatch`
+The twenty browser-writable rows — the six here, the five under `dispatch`
 and the nine under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
@@ -1073,6 +1075,33 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/schedule/timetable_record_wanted` — browser-writable — `record`:
   boolean. Switches Record of the loaded timetable. Dropped where none is
   loaded ([#1345](https://github.com/rails49/control/issues/1345)).
+- `tc49/schedule/timetable_rename_wanted` — browser-writable — `to`: a name,
+  text and not empty. The scheduler writes the loaded timetable's document
+  under that name, then deletes the one under the old name, and
+  `state/timetable` names the new one. Dropped where no timetable is loaded,
+  where the name is one the timetable document does not take, and where the
+  store has a timetable of that name, the loaded one's own name included
+  ([#1345](https://github.com/rails49/control/issues/1345), [#1354](https://github.com/rails49/control/issues/1354)).
+- `tc49/schedule/entry_wanted` — browser-writable — `was`: an entry as
+  `state/timetable` lists it, with the document's fields only: `at`, `train`,
+  `to` or `turn`, and `dwell` and `description` where it has them. `now`: an
+  entry in the same form, or `null` to delete. Entries carry no id, so `was`
+  names the entry by what it reads now.
+  - The scheduler changes the first entry equal to `was` in every field, a
+    `dwell` left out being 0 and a `description` left out being empty.
+  - A changed `at` moves the entry to its place in the order, after the last
+    entry at or before its new time.
+  - The entry keeps its `state`, `request` and `ended`. An entry that has
+    gone out is changed or deleted in the timetable and its request is left
+    alone: nothing is cancelled or submitted. An entry not yet out is due at
+    its new time.
+  - It is taken in every phase, with Record on or off and at any power
+    value. A changed `to` or `train` is not refused.
+  - Dropped where no entry equals `was`, where `was` or `now` is no entry the
+    timetable document takes ([LAYOUT.md](store/LAYOUT.md#timetable-schema)),
+    which a `state`, `request` or `ended` field makes it, and where `now` is
+    left out
+    ([#1345](https://github.com/rails49/control/issues/1345), [#1354](https://github.com/rails49/control/issues/1354)).
 - `tc49/schedule/state/timetable` — the loaded timetable. The scheduler
   publishes it when it changes, not each second, and only where it keeps
   timetables: a run of the test harness or the bench has no such row.
