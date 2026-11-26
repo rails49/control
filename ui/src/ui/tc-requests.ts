@@ -35,11 +35,11 @@
  * ([#1358](https://github.com/rails49/control/issues/1358)): `tc-entry` is
  * drawn under the row's lines, with the entry's time, dwell and description
  * and a Delete. One row is open at a time and a tap on the open row closes
- * it. A request no entry went out as does not open. Entries carry no id, so
- * the open row is known by what its entry reads: after a change it is the row
- * that reads as the change asked, wherever the scheduler's row lists it. The
- * list is scrolled to a row that opens and to an open row that moves. What
- * the open row asks, `entry-changed`, goes on to the view.
+ * it. A request no entry went out as does not open. Which row is open after
+ * a tap, after a change and when the scheduler says new rows is
+ * `model/timetable.ts`'s answer (`Opened`). The list is scrolled to a row
+ * that opens and to an open row that moves. What the open row asks,
+ * `entry-changed`, goes on to the view.
  *
  * The open row's elements are the same ones from the tap that opened it until
  * it closes or another row is tapped, wherever the scheduler's rows put its
@@ -48,9 +48,10 @@
  *
  * It works nothing out. The requests and the timetable arrive as data
  * (`Panel.requestList`, `Panel.timetable`), the rows are `model/timetable.ts`'s
- * answer and so is what a drag asks: this says which row was
- * let go where, and raises `request-reordered` only where that answer is a
- * move, so a refused drag sends nothing and the row stays where it was.
+ * answer and so are which row is open and what a drag asks: this says which
+ * row was tapped and which was let go where, and raises `request-reordered`
+ * only where that answer is a move, so a refused drag sends nothing and the
+ * row stays where it was.
  */
 
 import { LitElement, html, nothing, type PropertyValues } from "lit";
@@ -60,14 +61,18 @@ import { keyed } from "lit/directives/keyed.js";
 
 import type { RequestRow } from "../model/requests.js";
 import {
+  asking,
   done,
+  followed,
   listRows,
   moving,
   opening,
-  same,
+  placeOf,
+  tapped,
   type Entry,
   type EntryState,
   type ListRow,
+  type Opened,
   type Timetable,
 } from "../model/timetable.js";
 import "./tc-entry.js";
@@ -114,18 +119,13 @@ export class TcRequests extends LitElement {
    *  none. */
   private opened: string | null = null;
 
-  /** The entry whose row is open, as the scheduler's row lists it, `null`
-   *  for none. */
-  @state() private open: Entry | null = null;
-
-  /** The open entry as the last change asked of it reads, `null` once the
-   *  scheduler's row lists it so. */
-  private sent: Entry | null = null;
+  /** The entry whose row is open, `null` for none. */
+  @state() private open: Opened | null = null;
 
   /** The open row's place in `rows`, -1 for none. */
   private at = -1;
 
-  /** How many taps have opened a row. */
+  /** How many taps on an entry's row there have been. */
   private taps = 0;
 
   /** The tap that opened the row last scrolled to and the place it had,
@@ -135,9 +135,9 @@ export class TcRequests extends LitElement {
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has("requests") || changed.has("timetable")) {
       this.rows = listRows(this.timetable, this.requests);
-      this.follow();
+      this.open = followed(this.open, this.rows);
     }
-    this.at = this.open === null ? -1 : this.place(this.open);
+    this.at = this.open === null ? -1 : placeOf(this.rows, this.open.entry);
   }
 
   /** The open row is drawn apart from the rows before and after it, and all
@@ -305,29 +305,9 @@ export class TcRequests extends LitElement {
     ></tc-entry>`;
   }
 
-  /** The place in the list of the first row whose entry reads as `entry`, -1
-   *  for none. The scheduler changes the first too (BUS.md). */
-  private place(entry: Entry): number {
-    return this.rows.findIndex((row) => row.entry !== undefined && same(row.entry, entry));
-  }
-
-  /** The open entry in new rows. A change the scheduler took is in them: the
-   *  entry reads as the change asked, and may be at another place. An entry
-   *  no row lists is open no more. */
-  private follow(): void {
-    if (this.open === null) return;
-    if (this.sent !== null && this.place(this.sent) !== -1) {
-      this.open = this.sent;
-      this.sent = null;
-    } else if (this.place(this.open) === -1) {
-      this.open = null;
-      this.sent = null;
-    }
-  }
-
   /**
-   * A click on a row. On an entry's row it is a tap, which opens the row, and
-   * closes it where it is the open one. It is no tap:
+   * A click on a row. On an entry's row it is a tap, and what it opens or
+   * closes is `tapped`'s answer (`model/timetable.ts`). It is no tap:
    *
    * - on the row's cancel or "arrived", or in its open part;
    * - where the pointer is off the row. A row that is picked up captures the
@@ -341,19 +321,14 @@ export class TcRequests extends LitElement {
     if (entry === undefined) return;
     if ((event.target as Element).closest("button, tc-entry") !== null) return;
     if (!over(event.currentTarget as Element, event)) return;
-    this.sent = null;
-    this.open = this.open !== null && same(this.open, entry) ? null : entry;
+    this.open = tapped(this.open, entry);
     this.taps += 1;
   }
 
-  /** What the open row asked. A deleted entry's row is closed at once, so a
-   *  second Delete is not sent for an entry that reads the same. A changed
-   *  one is kept as asked, to find its row again. The event goes on to the
-   *  view, which sends it. */
+  /** What the open row asked. The event goes on to the view, which sends
+   *  it. */
   private asked(event: CustomEvent<EntryChange>): void {
-    const { now } = event.detail;
-    if (now === null) this.open = null;
-    this.sent = now;
+    this.open = asking(this.open, event.detail.now);
   }
 
   /** A press on a waiting request's row takes hold of it. The row captures

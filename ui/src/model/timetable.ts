@@ -25,8 +25,11 @@
  * An entry's row opens to its time, dwell and description
  * ([#1358](https://github.com/rails49/control/issues/1358)). `edited` is the
  * entry with what a person typed in one of them, and `same` is whether two
- * entries are equal as the scheduler compares them, which is how the open row
- * is found again when its entry moves.
+ * entries are equal as the scheduler compares them. Which row is open is
+ * `Opened`: `tapped` is what a tap makes of it, `asking` what a change the
+ * row asked for makes of it, and `followed` where it is when the scheduler
+ * says new rows. Entries carry no id, so the open row is the first whose
+ * entry reads the same (`placeOf`).
  *
  * `startNotes` is what the roster says about a train that is not where the
  * loaded timetable starts.
@@ -275,6 +278,48 @@ export function same(a: Entry, b: Entry): boolean {
     (a.dwell ?? 0) === (b.dwell ?? 0) &&
     (a.description ?? "") === (b.description ?? "")
   );
+}
+
+/** The entry whose row is open in the list
+ *  ([#1358](https://github.com/rails49/control/issues/1358)). One row is
+ *  open at a time. */
+export interface Opened {
+  /** The entry as the scheduler's row lists it. */
+  entry: Entry;
+  /** The entry as the last change asked of it reads, `null` once the
+   *  scheduler's row lists it so. */
+  sent: Entry | null;
+}
+
+/** The place in `rows` of the first row whose entry reads as `entry`, -1 for
+ *  none. The scheduler changes the first too (BUS.md). */
+export function placeOf(rows: readonly ListRow[], entry: Entry): number {
+  return rows.findIndex((row) => row.entry !== undefined && same(row.entry, entry));
+}
+
+/** What is open after a tap on `entry`'s row: that row, or none where it was
+ *  the open one. */
+export function tapped(open: Opened | null, entry: Entry): Opened | null {
+  return open !== null && same(open.entry, entry) ? null : { entry, sent: null };
+}
+
+/** What is open after the open row asked for its entry to read `now`, `null`
+ *  to delete it. A deleted entry's row is closed at once, so a second Delete
+ *  is not sent for an entry that reads the same. A changed one is kept as
+ *  asked, to find its row again. */
+export function asking(open: Opened | null, now: Entry | null): Opened | null {
+  return open === null || now === null ? null : { ...open, sent: now };
+}
+
+/** What is open in new rows. A change the scheduler took is in them: the
+ *  entry reads as the change asked, and may be at another place. An entry no
+ *  row lists is open no more. */
+export function followed(open: Opened | null, rows: readonly ListRow[]): Opened | null {
+  if (open === null) return null;
+  if (open.sent !== null && placeOf(rows, open.sent) !== -1) {
+    return { entry: open.sent, sent: null };
+  }
+  return placeOf(rows, open.entry) === -1 ? null : open;
 }
 
 /**

@@ -295,8 +295,9 @@ browser moves a field that takes the focus above it. Under a finger a
 field's text is 16px, the size below which Safari zooms the page into a
 focused field.
 
-The rows, what a drag asks, where the list opens and what a typed field makes
-of an entry are worked out in `ui/src/model/timetable.ts`.
+The rows, what a drag asks, where the list opens, which row is open and what
+a typed field makes of an entry are worked out in
+`ui/src/model/timetable.ts`.
 
 **The heading has a menu, the Record switch and Start**
 ([#1357](https://github.com/rails49/control/issues/1357)), drawn by

@@ -126,8 +126,8 @@ src/
     requests.ts  the request list: the requests the dispatcher holds, in
                  serving order, and what a drag of one asks
     timetable.ts the loaded timetable as the scheduler says it, the rows the
-                 run view lists it in with the requests, and the roster's
-                 note about where it starts
+                 run view lists it in with the requests, which row is open,
+                 and the roster's note about where it starts
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
