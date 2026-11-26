@@ -89,6 +89,8 @@ src/
     panel.ts     the run's model: bus payloads in, render state out
     pane.ts      the run view's pane: which side of the drawing it is on, and
                  the size its divider was dragged to, kept in the browser
+    divider.ts   the edit view's two dividers and the stock view's: the size
+                 each was dragged to, held to its limits, kept in the browser
     session.ts   the page's one broker connection: the railroad the row
                  names, the panel model it feeds, the presses, the OFF drain
     throttle.ts  what the throttle draws for each train there is to drive
