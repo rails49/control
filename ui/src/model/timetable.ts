@@ -36,8 +36,8 @@
  * `followed` where it is when the scheduler says new rows. Entries carry no
  * id, so the open row is the first whose entry reads the same (`placeOf`).
  *
- * `startNotes` is what the roster says about a train that is not where the
- * loaded timetable starts. `repeatRefused` is why a length is refused as its
+ * `starts` is each train's start cell in the roster: the block the loaded
+ * timetable starts it in, and whether it is there. `repeatRefused` is why a length is refused as its
  * repeat, and `typedRepeatRefused` why the Repeat dialog sends nothing for
  * what a person typed.
  */
@@ -427,39 +427,48 @@ export function followed(open: Opened | null, rows: readonly ListRow[]): Opened 
   return placeOf(rows, open.entry) === -1 ? null : open;
 }
 
+/** A train's start cell in the roster: the block the loaded timetable starts
+ *  it in, and whether it is there. `met`, it is; `missed`, it is off the
+ *  layout, in another block or crossing a transit; `turned`, it is there
+ *  facing the other way. */
+export interface Start {
+  block: string;
+  is: "met" | "missed" | "turned";
+}
+
 /**
- * What the roster says about each train that is not where the loaded
- * timetable starts, by train
- * ([#1357](https://github.com/rails49/control/issues/1357)): "off the
- * layout", "not at <block>" naming its start block, or "facing the other
- * way" for a train in its start block. A train in place, and a train the
- * timetable does not name, have no note.
+ * Each train's start cell, by train
+ * ([#1357](https://github.com/rails49/control/issues/1357),
+ * [#1392](https://github.com/rails49/control/issues/1392)). A train the
+ * timetable does not name has none.
  *
  * `placed` is each train on the layout and the block it stands in, `null`
  * while it crosses a transit. `noses` is the block end each train points at,
  * `<block>.<end>`, as `tc49/schedule/state/facing` says it. A train with no
- * facing said is not noted for its facing.
+ * facing said is not turned.
  *
  * Only while the phase is `loaded`: a timetable that has started moves its
  * trains out of their start blocks.
  */
-export function startNotes(
+export function starts(
   timetable: Timetable | null,
   placed: readonly { train: string; block: string | null }[],
   noses: ReadonlyMap<string, string>,
-): Map<string, string> {
-  const notes = new Map<string, string>();
-  if (timetable?.phase !== "loaded") return notes;
+): Map<string, Start> {
+  const cells = new Map<string, Start>();
+  if (timetable?.phase !== "loaded") return cells;
   const where = new Map(placed.map(({ train, block }) => [train, block]));
   for (const [train, { at, facing }] of Object.entries(timetable.trains)) {
     const nose = noses.get(train);
-    if (!where.has(train)) notes.set(train, "off the layout");
-    else if (where.get(train) !== at) notes.set(train, `not at ${at}`);
-    else if (nose !== undefined && nose !== `${at}.${facing.split("-to-")[1]}`) {
-      notes.set(train, "facing the other way");
-    }
+    const is =
+      where.get(train) !== at
+        ? "missed"
+        : nose !== undefined && nose !== `${at}.${facing.split("-to-")[1]}`
+          ? "turned"
+          : "met";
+    cells.set(train, { block: at, is });
   }
-  return notes;
+  return cells;
 }
 
 /**

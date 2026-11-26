@@ -20,7 +20,7 @@ import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { RosterRow } from "../src/model/panel.js";
 import { photoUrl } from "../src/model/store.js";
-import { startNotes, type Timetable } from "../src/model/timetable.js";
+import { starts, type Timetable } from "../src/model/timetable.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
@@ -36,11 +36,12 @@ import {
 } from "./support/session.js";
 
 /** The pane, holding the rows it was handed, with a session joined so its
- *  rows can be picked up. */
-async function pane(trains: RosterRow[], live = true): Promise<TcRoster> {
+ *  rows can be picked up, and the Start column drawn where `starting`. */
+async function pane(trains: RosterRow[], live = true, starting = false): Promise<TcRoster> {
   const roster = document.createElement("tc-roster");
   roster.trains = trains;
   roster.live = live;
+  roster.starting = starting;
   document.body.append(roster);
   await roster.updateComplete;
   return roster;
@@ -49,10 +50,17 @@ async function pane(trains: RosterRow[], live = true): Promise<TcRoster> {
 /** What the pane reads, one row at a time: the name, the length and where the
  *  train is. */
 function rows(roster: TcRoster): string[][] {
-  return [...roster.renderRoot.querySelectorAll("li")].map((row) =>
+  return [...roster.renderRoot.querySelectorAll("tbody tr")].map((row) =>
     [".name", ".length", ".where"].map(
       (part) => row.querySelector(part)!.textContent!.trim(),
     ),
+  );
+}
+
+/** The column headings, the photo's empty one first. */
+function headings(roster: TcRoster): string[] {
+  return [...roster.renderRoot.querySelectorAll("thead th")].map((cell) =>
+    cell.textContent!.trim(),
   );
 }
 
@@ -99,9 +107,11 @@ describe("what the pane lists", () => {
 
   /** Safari stops selecting only for the prefixed rule, and a finger resting
    *  on a row would select its text instead of dragging it (#1312). happy-dom
-   *  selects nothing either way, so this reads the rule. */
+   *  selects nothing either way, so this reads the rule. A table row takes no
+   *  `touch-action`, so the rule is on its cells. */
   it("leaves Safari no text to select on a row", () => {
-    const row = /^\s*li \{([^}]*)\}/m.exec(rosterStyles.cssText)![1]!;
+    const row = /^\s*tbody td \{([^}]*)\}/m.exec(rosterStyles.cssText)![1]!;
+    expect(row).toMatch(/touch-action:\s*none/);
     expect(row).toMatch(/-webkit-user-select:\s*none/);
     expect(row).toMatch(/-webkit-touch-callout:\s*none/);
   });
@@ -152,7 +162,7 @@ describe("what the pane lists", () => {
     const roster = await pane([
       { train: "goods", block: "a", length: 400, placed: true, locomotive: "BR 218" },
     ]);
-    const photo = roster.renderRoot.querySelector("li img")!;
+    const photo = roster.renderRoot.querySelector("tbody tr img")!;
     expect(photo.getAttribute("src")).toBe(photoUrl("BR 218"));
     expect(photo.getAttribute("draggable")).toBe("false");
   });
@@ -163,8 +173,8 @@ describe("what the pane lists", () => {
     const roster = await pane([
       { train: "rake", block: "a", length: 300, placed: true, locomotive: null },
     ]);
-    expect(roster.renderRoot.querySelector("li img")).toBeNull();
-    expect(roster.renderRoot.querySelector("li .photo")).not.toBeNull();
+    expect(roster.renderRoot.querySelector("tbody tr img")).toBeNull();
+    expect(roster.renderRoot.querySelector("tbody tr .photo")).not.toBeNull();
   });
 
   /** A photo that does not load is no picture either, not a broken one. */
@@ -172,10 +182,10 @@ describe("what the pane lists", () => {
     const roster = await pane([
       { train: "goods", block: "a", length: 400, placed: true, locomotive: "BR 218" },
     ]);
-    roster.renderRoot.querySelector("li img")!.dispatchEvent(new Event("error"));
+    roster.renderRoot.querySelector("tbody tr img")!.dispatchEvent(new Event("error"));
     await roster.updateComplete;
-    expect(roster.renderRoot.querySelector("li img")).toBeNull();
-    expect(roster.renderRoot.querySelector("li .photo")).not.toBeNull();
+    expect(roster.renderRoot.querySelector("tbody tr img")).toBeNull();
+    expect(roster.renderRoot.querySelector("tbody tr .photo")).not.toBeNull();
   });
 
   /** Why the last placement was refused is said where the train is, which
@@ -199,7 +209,7 @@ describe("what the pane lists", () => {
    *  here: nothing has been named. */
   it("says so when it is handed no trains at all", async () => {
     const roster = await pane([]);
-    expect(roster.renderRoot.querySelectorAll("li")).toHaveLength(0);
+    expect(roster.renderRoot.querySelectorAll("tbody tr")).toHaveLength(0);
     expect(roster.renderRoot.querySelector(".hint")!.textContent!.trim()).toBe(
       "no trains on the roster",
     );
@@ -277,7 +287,7 @@ describe("why a placement was refused", () => {
     expect(where(shell, "shunter")).toBe("not on the roster");
 
     const index = paneOf(shell).trains.findIndex((one) => one.train === "shunter");
-    [...paneOf(shell).renderRoot.querySelectorAll("li")][index]!.dispatchEvent(
+    [...paneOf(shell).renderRoot.querySelectorAll("tbody tr")][index]!.dispatchEvent(
       new PointerEvent("pointerdown", { bubbles: true, composed: true }),
     );
     await settled(shell);
@@ -287,11 +297,11 @@ describe("why a placement was refused", () => {
 });
 
 /**
- * The note about where the loaded timetable starts (#1357). The timetable's
- * `trains` say where each train stood when it was made, and a row says where
- * its train does not agree. The words are `model/timetable.ts`'s.
+ * The Start column (#1357, #1392). The timetable's `trains` say where each
+ * train stood when it was made, and a row's start cell names that block and
+ * whether the train is there. The cells are `model/timetable.ts`'s.
  */
-describe("the note about where the timetable starts", () => {
+describe("the Start column", () => {
   /** `goods` starts in `a` facing `A-to-B`, `express` in `b`, `local` in `c`
    *  and `mail` in `d`. `shunter` is not named. */
   const EVENING: Timetable = {
@@ -324,51 +334,117 @@ describe("the note about where the timetable starts", () => {
     ["shunter", "f.A"],
   ]);
 
-  const notes = startNotes(EVENING, PLACED, NOSES);
+  const cells = starts(EVENING, PLACED, NOSES);
 
-  it("says a train the timetable names and the run does not have is off the layout", () => {
-    expect(notes.get("express")).toBe("off the layout");
+  it("is met for a train in its start block facing as recorded", () => {
+    expect(cells.get("goods")).toEqual({ block: "a", is: "met" });
   });
 
-  it("names the start block of a train standing in another", () => {
-    expect(notes.get("local")).toBe("not at c");
+  it("is met for a train in its start block whose facing is not said", () => {
+    expect(starts(EVENING, PLACED, new Map()).get("mail")).toEqual({ block: "d", is: "met" });
   });
 
-  it("says a train in its start block that points at the other end faces the other way", () => {
-    expect(notes.get("mail")).toBe("facing the other way");
+  it("is missed for a train the timetable names and the run does not have", () => {
+    expect(cells.get("express")).toEqual({ block: "b", is: "missed" });
   });
 
-  it("says nothing about a train in its start block facing as recorded", () => {
-    expect(notes.has("goods")).toBe(false);
+  it("is missed for a train standing in another block", () => {
+    expect(cells.get("local")).toEqual({ block: "c", is: "missed" });
   });
 
-  it("says nothing about a train the timetable does not name", () => {
-    expect(notes.has("shunter")).toBe(false);
+  it("is missed for a train crossing a transit", () => {
+    const crossing = starts(EVENING, [{ train: "goods", block: null }], NOSES);
+    expect(crossing.get("goods")).toEqual({ block: "a", is: "missed" });
   });
 
-  it("says a train crossing a transit is not at its start block", () => {
-    const crossing = startNotes(EVENING, [{ train: "goods", block: null }], NOSES);
-    expect(crossing.get("goods")).toBe("not at a");
+  it("is turned for a train in its start block that points at the other end", () => {
+    expect(cells.get("mail")).toEqual({ block: "d", is: "turned" });
   });
 
-  it("says nothing with no timetable loaded", () => {
-    expect(startNotes(null, PLACED, NOSES).size).toBe(0);
+  it("is not given for a train the timetable does not name", () => {
+    expect(cells.has("shunter")).toBe(false);
+  });
+
+  it("is not given with no timetable loaded", () => {
+    expect(starts(null, PLACED, NOSES).size).toBe(0);
   });
 
   /** A train leaves its start block when the timetable runs. */
-  it("says nothing once the timetable has started", () => {
-    expect(startNotes({ ...EVENING, phase: "running" }, PLACED, NOSES).size).toBe(0);
+  it("is not given once the timetable has started", () => {
+    expect(starts({ ...EVENING, phase: "running" }, PLACED, NOSES).size).toBe(0);
   });
 
-  it("is drawn on the row it is handed with, and on no other", async () => {
-    const roster = await pane([
-      { train: "goods", block: "a", length: 400, placed: true, locomotive: null },
-      { train: "local", block: "e", length: 300, placed: true, locomotive: null, note: "not at c" },
+  /** `goods` met in `a`, `local` missed, `mail` turned, `shunter` not
+   *  named. */
+  const STARTING: RosterRow[] = [
+    { train: "goods", block: "a", length: 400, placed: true, locomotive: null, start: { block: "a", is: "met" } },
+    { train: "local", block: "e", length: 300, placed: true, locomotive: null, start: { block: "c", is: "missed" } },
+    { train: "mail", block: "d", length: 200, placed: true, locomotive: null, start: { block: "d", is: "turned" } },
+    { train: "shunter", block: "f", length: 100, placed: true, locomotive: null },
+  ];
+
+  /** Each row's start cell: its words and its classes. */
+  function started(roster: TcRoster): [string, string][] {
+    return [...roster.renderRoot.querySelectorAll("tbody tr")].map((row) => {
+      const cell = row.querySelector("td.start")!;
+      return [cell.textContent!.trim(), cell.className];
+    });
+  }
+
+  it("is headed Start while the timetable is loaded and not started", async () => {
+    expect(headings(await pane(STARTING, true, true))).toEqual([
+      "",
+      "Train",
+      "Where",
+      "Start",
+      "Length mm",
     ]);
-    const [goods, local] = [...roster.renderRoot.querySelectorAll("li")];
-    expect(goods!.querySelector(".note")).toBeNull();
-    expect(local!.querySelector(".note")!.textContent!.trim()).toBe("not at c");
-    expect(rows(roster)[1]).toEqual(["local", "300", "e"]);
+  });
+
+  it("is not drawn, heading or cells, otherwise", async () => {
+    const roster = await pane(STARTING, true, false);
+    expect(headings(roster)).toEqual(["", "Train", "Where", "Length mm"]);
+    expect(roster.renderRoot.querySelector(".start")).toBeNull();
+  });
+
+  /** Met in the hint colour, missed and turned in red. */
+  it("reads the start block, and turned where the train faces the other way", async () => {
+    expect(started(await pane(STARTING, true, true))).toEqual([
+      ["a", "start met"],
+      ["c", "start missed"],
+      ["d · turned", "start turned"],
+      ["", "start"],
+    ]);
+    const css = rosterStyles.cssText;
+    expect(/^\s*\.start \{([^}]*)\}/m.exec(css)![1]).toMatch(/color:\s*var\(--hint\)/);
+    expect(/^\s*\.start\.missed,\s*\.start\.turned \{([^}]*)\}/m.exec(css)![1]).toMatch(
+      /color:\s*var\(--red\)/,
+    );
+  });
+
+  it("leaves the start cell out of where the train is", async () => {
+    expect(rows(await pane(STARTING, true, true))[1]).toEqual(["local", "300", "e"]);
+  });
+
+  /** Where says off the layout, and Start names the block to put it in. */
+  it("says off the layout once for a train off the layout", async () => {
+    const roster = await pane(
+      [
+        {
+          train: "express",
+          block: null,
+          length: 900,
+          placed: false,
+          locomotive: null,
+          start: { block: "b", is: "missed" },
+        },
+      ],
+      true,
+      true,
+    );
+    const row = roster.renderRoot.querySelector("tbody tr")!.textContent!;
+    expect(row.split("off the layout")).toHaveLength(2);
+    expect(started(roster)).toEqual([["b", "start missed"]]);
   });
 
   describe("in a live session", () => {
@@ -376,11 +452,12 @@ describe("the note about where the timetable starts", () => {
 
     afterEach(unbrokered);
 
-    /** The note on each row, `null` where it has none. */
-    function noted(shell: TcApp): (string | null)[][] {
-      return [...paneOf(shell).renderRoot.querySelectorAll("li")].map((row) => [
+    /** Each row's name and start cell, `null` where the Start column is not
+     *  drawn. */
+    function noted(shell: TcApp): [string, string | null][] {
+      return [...paneOf(shell).renderRoot.querySelectorAll("tbody tr")].map((row) => [
         row.querySelector(".name")!.textContent!.trim(),
-        row.querySelector(".note")?.textContent!.trim() ?? null,
+        row.querySelector(".start")?.className.replace("start", "").trim() ?? null,
       ]);
     }
 
@@ -404,8 +481,8 @@ describe("the note about where the timetable starts", () => {
       const shell = await joined();
       await said(shell, "tc49/schedule/state/timetable", LOADED);
       expect(noted(shell)).toEqual([
-        ["goods", "off the layout"],
-        ["shunter", "off the layout"],
+        ["goods", "missed"],
+        ["shunter", "missed"],
       ]);
 
       await said(shell, "tc49/dispatch/state/allocation", {
@@ -416,14 +493,14 @@ describe("the note about where the timetable starts", () => {
       });
       await said(shell, "tc49/schedule/state/facing", { facing: { goods: "a.B-to-A" } });
       expect(noted(shell)).toEqual([
-        ["goods", "facing the other way"],
-        ["shunter", "off the layout"],
+        ["goods", "turned"],
+        ["shunter", "missed"],
       ]);
 
       await said(shell, "tc49/schedule/state/facing", { facing: { goods: "a.A-to-B" } });
       expect(noted(shell)).toEqual([
-        ["goods", null],
-        ["shunter", "off the layout"],
+        ["goods", "met"],
+        ["shunter", "missed"],
       ]);
 
       await said(shell, "tc49/dispatch/state/allocation", {
@@ -433,13 +510,22 @@ describe("the note about where the timetable starts", () => {
         requests: [],
       });
       expect(noted(shell)).toEqual([
-        ["goods", "not at a"],
-        ["shunter", "off the layout"],
+        ["goods", "missed"],
+        ["shunter", "missed"],
       ]);
     });
 
-    it("has no note with no timetable loaded", async () => {
+    it("is not drawn with no timetable loaded", async () => {
       const shell = await joined();
+      expect(noted(shell)).toEqual([
+        ["goods", null],
+        ["shunter", null],
+      ]);
+    });
+
+    it("is not drawn once the timetable runs", async () => {
+      const shell = await joined();
+      await said(shell, "tc49/schedule/state/timetable", { ...LOADED, phase: "running" });
       expect(noted(shell)).toEqual([
         ["goods", null],
         ["shunter", null],
@@ -546,7 +632,7 @@ describe("its drags", () => {
   /** One row of the pane, by the train it is about. */
   function row(shell: TcApp, train: string): HTMLElement {
     const index = paneOf(shell).trains.findIndex((one) => one.train === train);
-    return [...paneOf(shell).renderRoot.querySelectorAll("li")][index]!;
+    return [...paneOf(shell).renderRoot.querySelectorAll<HTMLElement>("tbody tr")][index]!;
   }
 
   /** A drag of a row, let go at a client point. */
