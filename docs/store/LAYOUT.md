@@ -456,7 +456,8 @@ The document is checked for shape only (`tc49.lib.timetable`). A block or a
 train the railroad does not have is not refused. The store also refuses one
 whose `timetable` or `layout` is not the name or the railroad in its path.
 Copy and delete of a railroad carry its timetables, a copy's with `layout`
-naming the copy.
+naming the copy. The store writes `start` and each `at` in double quotes, and
+text outside ASCII as itself.
 
 ## Scenario schema
 

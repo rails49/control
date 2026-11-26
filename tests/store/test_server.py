@@ -1564,6 +1564,38 @@ def test_a_timetable_is_written_and_read_back(tmp_path: Path, backup: Backup) ->
     assert (tmp_path / "timetables" / "shed" / "evening.timetable.yaml").exists()
 
 
+def test_a_timetables_file_quotes_every_time_and_writes_text_as_itself(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A person edits the file by hand (#1345): a time copied from any line
+    reads as a time, before 10:00 or after, and a name or a description
+    outside ASCII reads as it was typed."""
+    store = AssetStore(tmp_path)
+    doc = {
+        **TIMETABLE,
+        "timetable": "Abend Zürich",
+        "entries": [
+            {
+                "at": "06:02",
+                "train": "freight_1",
+                "to": ["dn_e"],
+                "description": "trifft den Schnellzug in Göschenen",
+            },
+            {"at": "12:30", "train": "freight_1", "turn": True},
+        ],
+    }
+    path = "/timetables/shed/Abend%20Z%C3%BCrich"
+    assert handle(store, backup, "PUT", path, doc)[0] == 200
+    filed = tmp_path / "timetables" / "shed" / "Abend Zürich.timetable.yaml"
+    lines = filed.read_text(encoding="utf-8").splitlines()
+    assert "timetable: Abend Zürich" in lines
+    assert 'start: "06:00"' in lines
+    assert '- at: "06:02"' in lines
+    assert '- at: "12:30"' in lines
+    assert "  description: trifft den Schnellzug in Göschenen" in lines
+    assert handle(store, backup, "GET", path, None) == (200, doc)
+
+
 def test_a_timetable_that_is_not_one_is_refused_and_writes_nothing(
     tmp_path: Path, backup: Backup
 ) -> None:

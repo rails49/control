@@ -134,6 +134,35 @@ _Reader.add_implicit_resolver(  # pyright: ignore[reportUnknownMemberType]
 )
 
 
+class _Time(str):
+    """A timetable's `start` or an entry's `at`, as `_timetable_text` hands
+    it to the dumper."""
+
+
+class _Writer(yaml.SafeDumper):
+    """`yaml.SafeDumper` that writes a `_Time` in double quotes. The plain
+    dumper quotes only a time YAML 1.1 reads as a number: it writes `06:02`
+    bare and `'12:30'` quoted."""
+
+
+def _quoted(dumper: yaml.SafeDumper, time: _Time) -> yaml.ScalarNode:
+    return dumper.represent_scalar(  # pyright: ignore[reportUnknownMemberType]
+        "tag:yaml.org,2002:str", str(time), style='"'
+    )
+
+
+_Writer.add_representer(_Time, _quoted)
+
+
+def _timetable_text(doc: dict[str, Any]) -> str:
+    """A timetable document as the text of its file (#1345): its keys in the
+    document's order, `start` and each entry's `at` in double quotes, and
+    text outside ASCII written as itself. `doc` has passed `read_timetable`."""
+    entries = [{**entry, "at": _Time(entry["at"])} for entry in doc["entries"]]
+    timed = {**doc, "start": _Time(doc["start"]), "entries": entries}
+    return yaml.dump(timed, Dumper=_Writer, sort_keys=False, allow_unicode=True)
+
+
 def _check_values(value: Any, path: Path, field: str = "") -> None:
     """Refuse a value no document can hold, naming the file and the field.
 
@@ -383,12 +412,12 @@ class AssetStore:
 
     def put_timetable(self, doc: dict[str, Any], railroad: str, name: str) -> None:
         """Create or replace timetable `name` of `railroad`, checked as
-        `timetable` checks it before anything is written, and dumped as the
-        clock is. The railroad is not checked for a drawing."""
+        `timetable` checks it before anything is written, and dumped
+        (`_timetable_text`). The railroad is not checked for a drawing."""
         self._timetable(doc, railroad, name)
         path = self._timetable_path(railroad, name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        atomic.write(path, yaml.safe_dump(doc, sort_keys=False))
+        atomic.write(path, _timetable_text(doc))
 
     def delete_timetable(self, railroad: str, name: str) -> None:
         """Delete timetable `name` of `railroad`. One the railroad does not
