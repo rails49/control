@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
 /**
- * A row of the timetable list (`ui/list-row.ts`, #1393): its cells, Time,
- * Train, To, Dwell, Description, State and the action, and the "waits for"
- * line under a refused request. Each test draws one row into a table row of
+ * A row of the timetable list (`ui/requests-row.ts`, #1393): its cells,
+ * Time, Train, To, Dwell, Description, State and the action, and the "waits
+ * for" line under a refused request. Each test draws one row into a table row of
  * its own and reads what a person sees.
  */
 
@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { RequestRow } from "../src/model/requests.js";
 import type { Entry, ListRow } from "../src/model/timetable.js";
-import { cells, note, type RowActions } from "../src/ui/list-row.js";
+import { cells, note, type RowActions } from "../src/ui/requests-row.js";
 
 const LIVE: RowActions = { live: true, arrivable: false, arrived: () => {}, cancel: () => {} };
 
