@@ -26,6 +26,12 @@ four `lib` modules and three deploy names
 changing one files an issue in rails49/dccex and rails49/jmri. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+**control speaks the bus language only.** No command station, station
+protocol or translator is named in its code, docs or ADRs. A translator owns
+its station's protocol and reads an address as a string in its own terms. The
+store keeps a script as text it never reads. Existing mentions stay
+(rails49/.github#83).
+
 ## Landing work
 
 History is linear, and `main` only moves by PR with the `ci` check green — a
