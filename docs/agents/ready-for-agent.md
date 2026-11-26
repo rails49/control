@@ -23,6 +23,14 @@ A cold agent, with no access to the author, can finish the issue and leave
 An issue can be correct, wanted and well written and still fail this. The
 label is about whether it can be worked unattended, not whether it is good.
 
+## Where new code goes
+
+A target may be a file that does not exist yet. Where a ticket's change is
+a concern of its own, or a piece any UI could use
+([CODING_STANDARDS.md](../../CODING_STANDARDS.md)), the ticket names the new
+file, or the rails49/look issue it waits for, rather than an existing file
+to grow.
+
 ## The label is a snapshot, not a warranty
 
 All four can hold and the issue can still be stale by the time it runs. The
