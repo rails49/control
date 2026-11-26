@@ -23,6 +23,8 @@
  * one for each arrangement. It is not on the bus and not in the store.
  */
 
+import { GAP_PX } from "@rails49/look";
+
 import type { Point } from "./geometry.js";
 
 /** Where the pane is: left of the drawing, or above it on a page taller than
@@ -37,9 +39,6 @@ export type Gap = "pane" | "lists";
  *  view's stylesheet lays the pane out by it and the view asks it which
  *  arrangement that is. */
 export const UPRIGHT = "(orientation: portrait)";
-
-/** How far across a gap is, in CSS pixels. */
-export const GAP = 6;
 
 /** The least size of the pane in CSS pixels, where the roster is still
  *  usable. */
@@ -76,7 +75,7 @@ export function sizeAt(gap: Gap, arrangement: Arrangement, view: DOMRect, at: Po
       ? [at.x - view.left, view.width]
       : [at.y - view.top, view.height];
   const [least, beyond] =
-    gap === "pane" ? [LEAST, DRAWING[arrangement]] : [LIST[arrangement], GAP + LIST[arrangement]];
+    gap === "pane" ? [LEAST, DRAWING[arrangement]] : [LIST[arrangement], GAP_PX + LIST[arrangement]];
   return Math.round(Math.max(least, Math.min(wanted, room - beyond)));
 }
 

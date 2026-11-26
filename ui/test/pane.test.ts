@@ -34,7 +34,7 @@ const BOX = {
 type Gap = "pane" | "lists";
 
 function divider(shell: TcApp, gap: Gap): HTMLElement {
-  return running(shell).renderRoot.querySelector<HTMLElement>(`tc-gap.${gap}`)!;
+  return running(shell).renderRoot.querySelector<HTMLElement>(`look-gap.${gap}`)!;
 }
 
 /** The size the view asks its stylesheet for, `""` for the stylesheet's own:

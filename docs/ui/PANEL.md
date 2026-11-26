@@ -50,23 +50,24 @@ is the roster with the list of the timetable and the requests under it. The
 drawing and the pane's two lists are panels on the paper colour, with square
 corners, and the view's background is a darker grey, the palette's `--gap`
 ([#1390](https://github.com/rails49/control/issues/1390)). The divider
-between the pane and the drawing is a 6px gap in that grey. What takes the
-press is wider, and wider again under a finger. On hover and while dragged
-the gap takes the highlight colour, `--chosen`. A person drags it with a
-mouse or a finger
+between the pane and the drawing is a 6px gap in that grey. A person drags
+it with a mouse or a finger
 ([#1344](https://github.com/rails49/control/issues/1344)). The gap is
-`tc-gap`, which takes the press and the drag and leaves the sizes to the
-view. The pane has a least width, where the roster is still usable, and a
-greatest, which leaves the drawing a least width of its own; both are in
-`ui/src/model/pane.ts`. Until the divider is first dragged the pane is as
-wide as the editor's palette, which has no divider.
+look's `look-gap`
+([rails49/look#62](https://github.com/rails49/look/issues/62)), which takes
+the press and the drag and leaves the sizes to the view. It is clear at
+rest, so the view's grey shows through. What takes the press is wider, and
+wider again under a finger. On hover and while dragged the gap takes
+Shoelace's primary colour. The pane has a least width, where the roster is
+still usable, and a greatest, which leaves the drawing a least width of its
+own; both are in `ui/src/model/pane.ts`. Until the divider is first dragged
+the pane is as wide as the editor's palette, which has no divider.
 
 **A second gap, between the two lists, is dragged the same way**
-([#1391](https://github.com/rails49/control/issues/1391)). It is 6px, in
-the same grey, with the same wider press area and the highlight colour on
-hover and while dragged. It sets the roster's height, measured from the
-view's top edge, or on an upright page the roster's width, measured from
-the view's left edge. Each list keeps a least size, in
+([#1391](https://github.com/rails49/control/issues/1391)). It is a second
+`look-gap`. It sets the roster's height, measured from the view's top edge,
+or on an upright page the roster's width, measured from the view's left
+edge. Each list keeps a least size, in
 `ui/src/model/pane.ts`, so neither can be dragged out of sight. Until the
 gap is first dragged the roster is as tall as its rows, up to half the
 pane, and the list takes the rest; on an upright page the two are half and

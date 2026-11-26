@@ -1,6 +1,7 @@
+import { GAP_PX } from "@rails49/look";
 import { css, unsafeCSS } from "lit";
 
-import { DRAWING, GAP, LEAST, LIST, UPRIGHT } from "../model/pane.js";
+import { DRAWING, LEAST, LIST, UPRIGHT } from "../model/pane.js";
 
 /**
  * The run view (`tc-panel`): the chrome round the drawing, laid out inside the
@@ -17,13 +18,15 @@ import { DRAWING, GAP, LEAST, LIST, UPRIGHT } from "../model/pane.js";
  * [#1390](https://github.com/rails49/control/issues/1390)).
  *
  * The drawing and the two lists are panels on the paper colour, with square
- * corners, and the view's background is the gap colour (`--gap`).
+ * corners, and the view's background is the gap colour (`--gap`), which shows
+ * through the gaps between them.
  *
- * The divider between the pane and the drawing is a gap, `tc-gap`. It sets
- * the pane's size. The view hands it over as `--pane-size`, and until a person
- * has dragged the divider the width is the shell's `--pane`, which the
- * editor's palette has. The size is held to the limits a drag is held to
- * (`model/pane.ts`) when the window changes size.
+ * The divider between the pane and the drawing is a gap, `look-gap`
+ * (rails49/look#62), clear at rest. It sets the pane's size. The view hands
+ * it over as `--pane-size`, and until a person has dragged the divider the
+ * width is the shell's `--pane`, which the editor's palette has. The size is
+ * held to the limits a drag is held to (`model/pane.ts`) when the window
+ * changes size.
  *
  * A second gap between the two lists sets the trains list's height, or its
  * width side by side (#1391). The view hands it over as `--lists-size`.
@@ -52,11 +55,13 @@ export const panelStyles = css`
     min-height: 0;
   }
 
-  tc-gap.pane {
+  /* The two look-gaps, by class: only where each sits is set here, and look
+     draws the rest. */
+  .pane {
     grid-area: divider;
   }
 
-  tc-gap.lists {
+  .lists {
     flex: none;
   }
 
@@ -65,7 +70,7 @@ export const panelStyles = css`
      them and take the rest (#895). */
   tc-roster {
     flex: 0 1 var(--lists-size, auto);
-    max-height: min(var(--lists-size, 50%), 100% - ${LIST.left + GAP}px);
+    max-height: min(var(--lists-size, 50%), 100% - ${LIST.left + GAP_PX}px);
     overflow-y: auto;
     background: var(--paper);
   }
@@ -121,9 +126,9 @@ export const panelStyles = css`
     }
 
     tc-roster {
-      flex: 0 1 var(--lists-size, calc(50% - ${GAP / 2}px));
+      flex: 0 1 var(--lists-size, calc(50% - ${GAP_PX / 2}px));
       min-width: 0;
-      max-width: calc(100% - ${LIST.above + GAP}px);
+      max-width: calc(100% - ${LIST.above + GAP_PX}px);
       max-height: none;
     }
 
