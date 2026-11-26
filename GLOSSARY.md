@@ -485,9 +485,8 @@ has no times)
 
 **Repeat**:
 The time from a timetable's start to where it begins again, one day unless a
-person sets another. Every entry's time lies from the start to before the
-start plus the repeat
-([#1363](https://github.com/rails49/control/issues/1363)).
+person sets another
+([LAYOUT.md](docs/store/LAYOUT.md#timetable-schema)).
 _Avoid_: period, cycle, interval
 
 **Round**:
