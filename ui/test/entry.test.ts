@@ -164,12 +164,20 @@ function shown(element: TcEntry): (string | null)[] {
   );
 }
 
+/** `words` typed in a field that is not left: the field has the focus and
+ *  the browser says `input` at each key. */
+function typing(element: TcEntry, name: Field, words: string): HTMLInputElement {
+  const input = field(element, name)!;
+  input.focus();
+  input.value = words;
+  input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+  return input;
+}
+
 /** `words` typed in a field and the field left, or Enter pressed: the
  *  browser says either with `change`. */
 async function typed(element: TcEntry, name: Field, words: string): Promise<void> {
-  const input = field(element, name)!;
-  input.value = words;
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  typing(element, name, words).dispatchEvent(new Event("change", { bubbles: true }));
   await element.updateComplete;
 }
 
@@ -237,6 +245,42 @@ describe("tc-entry", () => {
   it("shows what the entry has after a change, until the entry is another", async () => {
     const element = await opened(GOODS);
     await typed(element, "at", "6:10");
+    expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
+    element.entry = { ...GOODS, at: "06:10" };
+    await element.updateComplete;
+    expect(shown(element)).toEqual(["06:10", "2", "meets the express"]);
+  });
+
+  /** The scheduler says its row at each change of any entry, and each row
+   *  hands this the entry again. */
+  it("keeps the words in a field in use when it is handed the entry again", async () => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    const input = typing(element, "description", "meets the loc");
+    element.entry = { ...GOODS };
+    await element.updateComplete;
+    expect(input.value).toBe("meets the loc");
+    expect(seen).toEqual([]);
+  });
+
+  it("shows a change to another field while one is in use, and asks with it", async () => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    const input = typing(element, "description", "meets the local");
+    const moved = { ...GOODS, at: "06:10" };
+    element.entry = moved;
+    await element.updateComplete;
+    expect(shown(element)).toEqual(["06:10", "2", "meets the local"]);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(seen).toEqual([{ was: moved, now: { ...moved, description: "meets the local" } }]);
+  });
+
+  /** The browser says no `change` for words typed and taken out again. */
+  it("shows what the entry has in a field left with nothing to ask", async () => {
+    const element = await opened(GOODS);
+    const input = typing(element, "at", "6:1");
+    input.blur();
+    await element.updateComplete;
     expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
     element.entry = { ...GOODS, at: "06:10" };
     await element.updateComplete;
@@ -474,6 +518,114 @@ describe("tc-requests with a row tapped", () => {
     expect(open(element)).toEqual([4]);
   });
 
+  /** The open part of the row at `at`, drawn, with `words` typed in its
+   *  description and the field not left. */
+  async function described(
+    element: TcRequests,
+    at: number,
+    words: string,
+  ): Promise<{ part: TcEntry; input: HTMLInputElement }> {
+    await tap(element, at);
+    const part = parts(element)[at]!;
+    await part.updateComplete;
+    return { part, input: typing(part, "description", words) };
+  }
+
+  /** Whether `input` is the field a key would go to. */
+  function focused(part: TcEntry, input: HTMLInputElement): boolean {
+    return (part.renderRoot as ShadowRoot).activeElement === input;
+  }
+
+  /** The scheduler says the row at each change of any entry's state. */
+  it("keeps what a person is typing while the scheduler's row changes another entry", async () => {
+    const element = await list();
+    const seen = asked(element);
+    const { part, input } = await described(element, 4, "meets the exp");
+
+    // The express arrives.
+    element.timetable = loaded(
+      ENTRIES[0]!,
+      { ...ENTRIES[1]!, state: "ended", ended: 130 },
+      ...ENTRIES.slice(2),
+    );
+    await element.updateComplete;
+    await part.updateComplete;
+    expect(open(element)).toEqual([4]);
+    expect(parts(element)[4]).toBe(part);
+    expect(input.value).toBe("meets the exp");
+    expect(focused(part, input)).toBe(true);
+    expect(seen).toEqual([]);
+
+    // The field is left: the change asks with the words typed.
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(seen).toEqual([{ was: LATER, now: { ...LATER, description: "meets the exp" } }]);
+  });
+
+  /** A recorded drag adds an entry, and the open row is one place down. */
+  it("keeps the open row's fields and the words in them when an entry is added above it", async () => {
+    const element = await list();
+    const { part, input } = await described(element, 4, "meets the exp");
+    element.timetable = loaded(
+      ENTRIES[0]!,
+      { entry: { at: "06:01", train: "express", to: ["c.A"] }, state: "ended", request: "e0" },
+      ...ENTRIES.slice(1),
+    );
+    await element.updateComplete;
+    await part.updateComplete;
+    expect(open(element)).toEqual([5]);
+    expect(parts(element)[5]).toBe(part);
+    expect(input.value).toBe("meets the exp");
+    expect(focused(part, input)).toBe(true);
+  });
+
+  /** The entry's row becomes its request's row. */
+  it("keeps the open row's fields and the words in them when its entry goes out", async () => {
+    const element = await list();
+    const { part, input } = await described(element, 4, "meets the exp");
+    element.timetable = loaded(...ENTRIES.slice(0, 4), {
+      entry: LATER,
+      state: "out",
+      request: "l1",
+    });
+    await element.updateComplete;
+    await part.updateComplete;
+    expect(rows(element)[4]!.dataset.id).toBe("l1");
+    expect(open(element)).toEqual([4]);
+    expect(parts(element)[4]).toBe(part);
+    expect(input.value).toBe("meets the exp");
+    expect(focused(part, input)).toBe(true);
+  });
+
+  /** A tap that does not take the focus from the field leaves it in use. */
+  it("opens another row with its entry's values, whatever is typed in the row before", async () => {
+    const element = await list();
+    await described(element, 4, "meets the exp");
+    await tap(element, 3);
+    const part = parts(element)[3]!;
+    await part.updateComplete;
+    expect(shown(part)).toEqual(["06:10", null, ""]);
+  });
+
+  /** Enter in the time field asks for the change and leaves the focus there. */
+  it("keeps the open row's fields when a changed time moves its entry", async () => {
+    const element = await list();
+    await tap(element, 4);
+    const part = parts(element)[4]!;
+    await part.updateComplete;
+    const input = typing(part, "at", "6:00");
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    element.timetable = loaded(
+      { entry: { ...LATER, at: "06:00" }, state: "held" },
+      ...ENTRIES.slice(0, 4),
+    );
+    await element.updateComplete;
+    await part.updateComplete;
+    expect(open(element)).toEqual([0]);
+    expect(parts(element)[0]).toBe(part);
+    expect(input.value).toBe("06:00");
+    expect(focused(part, input)).toBe(true);
+  });
+
   /** A changed time moves the entry in the scheduler's row, and entries carry
    *  no id: the row is found by what the change asked the entry to read. */
   it("has the row open at the entry's new place when a changed time moves it", async () => {
@@ -557,7 +709,9 @@ describe("tc-requests with a row tapped", () => {
         ...ENTRIES.slice(0, 4),
       );
       await element.updateComplete;
-      expect(asked).toEqual([rows(element)[4], rows(element)[0]]);
+      // The open row is the same element, now the first.
+      expect(asked).toHaveLength(2);
+      expect(asked[1]).toBe(rows(element)[0]);
     });
 
     it("is not scrolled while the open row stays where it is", async () => {
@@ -647,6 +801,25 @@ describe("the run view's open row", () => {
     const { element } = await serving();
     await typed(await part(element, 2), name, words);
     expect(written()).toEqual([]);
+  });
+
+  /** `panel.ts` reads each `state/timetable` row into new entries. */
+  it("writes nothing for words being typed when the scheduler's row arrives, and the change when the field is left", async () => {
+    const { shell, element } = await serving();
+    const opened = await part(element, 4);
+    const input = typing(opened, "description", "last train");
+    const [ended, express, ...rest] = RUNNING.entries;
+    await said(shell, "tc49/schedule/state/timetable", {
+      ...RUNNING,
+      entries: [ended, { ...express, state: "ended", ended: 130 }, ...rest],
+    });
+    await opened.updateComplete;
+    expect(input.value).toBe("last train");
+    expect(written()).toEqual([]);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(written()).toEqual([
+      { topic: ENTRY_WANTED, payload: { was: LATER, now: { ...LATER, description: "last train" } } },
+    ]);
   });
 
   it("writes one entry_wanted with now null for Delete", async () => {
