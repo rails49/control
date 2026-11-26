@@ -92,17 +92,22 @@ topic and not in the store. The drawing is fitted again whenever a gap
 moves and whenever the page turns.
 
 **The railroad's roster is listed in the pane**, by `tc-roster`
-([#169](https://github.com/rails49/control/issues/169)). A row is
-the photo of a train's first locomotive, its name, its length, and where the
-run has it — the block it stands in, *crossing a transit* where it stands in
-none (on the layout all the same), or *off the layout*. The photo is the one
-the throttle's train picker shows
-([#1012](https://github.com/rails49/control/issues/1012)); a train with no
-locomotive, or one whose photo does not load, has an empty slot of the same
-size, so the names line up, and a press on the photo picks the train up
-as a press on its name does. A long name wraps onto a second line and is not
-cut short, here and in the request list. Ordered by name, so the list does
-not reshuffle as the railroad moves.
+([#169](https://github.com/rails49/control/issues/169),
+[#1392](https://github.com/rails49/control/issues/1392)). It is a table, one
+row per train, under the column headings: a photo with no heading, then
+*Train*, *Where*, *Start* and *Length mm*. The heading row stays in view under
+the heading bar while the rows scroll. Where is where the run has the train:
+the block it stands in, *crossing a transit* where it stands in none (on the
+layout all the same), or *off the layout*. Start is described below. The photo
+is that of the train's first locomotive, the one the throttle's train picker
+shows ([#1012](https://github.com/rails49/control/issues/1012)); a train with
+no locomotive, or one whose photo does not load, has an empty slot of the same
+size, so the names line up, and a press on the photo picks the train up as a
+press on its name does. A row is as tall as the photo slot. A long name wraps
+inside its cell and is not cut short, here and in the request list. The rows
+are striped, with no rule lines between them; a train off the layout has its
+name dimmed, and the row being dragged is marked over its stripe. Ordered by
+name, so the list does not reshuffle as the railroad moves.
 
 A railroad's **roster** is every train it owns, whether on the layout or off
 it ([ADR-0039](../adr/0039-a-train-may-be-off-the-layout.md)), so the pane is
@@ -132,26 +137,28 @@ back onto the railroad. They do not freeze the drawing: track power does
 ([EDITOR.md](EDITOR.md#track-power-freezes-the-drawing)), and a save with power
 off keeps the trains that still fit.
 
-**A row carries a note where its train is not where the loaded timetable
-starts** ([#1357](https://github.com/rails49/control/issues/1357)), on a line
-under where the train is. The timetable's `trains` name the block each train
-stood in and its facing when the timetable was made
-(`tc49/schedule/state/timetable`, BUS.md). The note is:
+**The Start column names the block the loaded timetable starts each train
+in** ([#1357](https://github.com/rails49/control/issues/1357),
+[#1392](https://github.com/rails49/control/issues/1392)). The timetable's
+`trains` name the block each train stood in and its facing when the timetable
+was made (`tc49/schedule/state/timetable`, BUS.md). The cell reads:
 
-- *off the layout* for a train the timetable names and the run does not have;
-- *not at B7*, naming the start block, for a train in another block or
-  crossing a transit;
-- *facing the other way* for a train in its start block whose facing is not
+- the block, in the hint colour, for a train in it facing as recorded;
+- the block, in red, for a train off the layout, in another block or crossing
+  a transit;
+- *B7 · turned*, in red, for a train in its start block whose facing is not
   the one recorded.
 
-A train in place and a train the timetable does not name have no note. The
-train's block is the one `tc49/dispatch/state/allocation` gives and its
-facing is `tc49/schedule/state/facing`. The note is shown while the
-timetable's phase is `loaded`: once it runs, its trains leave their start
-blocks. The scheduler sends a train to its start block where it can (BUS.md),
-so a note that stays is one a person acts on: place the train, give it a
-request, or turn it round. The page corrects nothing. The note is worked out
-by `startNotes` in `ui/src/model/timetable.ts`.
+A train the timetable does not name has an empty cell. The train's block is
+the one `tc49/dispatch/state/allocation` gives and its facing is
+`tc49/schedule/state/facing`; a train with no facing said is not turned. The
+column, its heading included, is drawn only while the timetable's phase is
+`loaded`: once it runs, its trains leave their start blocks. With no
+timetable loaded there is no Start column. The scheduler sends a train to its
+start block where it can (BUS.md), so a red cell that stays is one a person
+acts on: place the train, give it a request, or turn it round. The page
+corrects nothing. The cell is worked out by `starts` in
+`ui/src/model/timetable.ts`.
 
 **The list under the roster is headed "Timetable"**, in the same pane:
 `tc-requests`, a component of its own. With no timetable loaded, and before
