@@ -5,7 +5,8 @@
  *
  * No DOM. The scheduler says which timetable is loaded and what became of
  * each entry on `tc49/schedule/state/timetable` (BUS.md), and `timetableOf`
- * reads that row.
+ * reads of that row what the page shows. The row's `start` and `positioning`
+ * and an entry's `ended` are not read.
  *
  * `listRows` works out the list from that timetable and the dispatcher's
  * request rows (`model/requests.ts`), top to bottom:
@@ -86,8 +87,6 @@ export interface Scheduled {
   state: EntryState;
   /** The id of the request it went out as, kept after that request ends. */
   request?: string;
-  /** Timetable time in seconds when it ended by arrival. */
-  ended?: number;
 }
 
 /** Where a train stands at a timetable's start: its block and its facing. */
@@ -102,11 +101,7 @@ export interface Timetable {
   phase: Phase;
   /** Whether a drag or a turn-round adds an entry. */
   record: boolean;
-  /** `"HH:MM"`. */
-  start: string;
   trains: Record<string, TrainStart>;
-  /** The ids of the requests to start blocks not yet ended. */
-  positioning: string[];
   /** In timetable order. */
   entries: Scheduled[];
 }
@@ -114,28 +109,25 @@ export interface Timetable {
 /** A `state/timetable` payload read: the loaded timetable, `null` where the
  *  row says none is loaded, and `undefined` where the row cannot be read. */
 export function timetableOf(said: Record<string, unknown>): Timetable | null | undefined {
-  const { timetable, phase, record, start, trains, positioning, entries } = said;
+  const { timetable, phase, record, trains, entries } = said;
   if (timetable === null) return null;
   if (
     typeof timetable !== "string" ||
     typeof phase !== "string" ||
     !PHASES.has(phase) ||
     typeof record !== "boolean" ||
-    typeof start !== "string" ||
     !Array.isArray(entries)
   ) {
     return undefined;
   }
   const starts = startsOf(trains);
   const read = (entries as unknown[]).map(scheduledOf);
-  if (starts === null || !strings(positioning) || read.includes(null)) return undefined;
+  if (starts === null || read.includes(null)) return undefined;
   return {
     name: timetable,
     phase: phase as Phase,
     record,
-    start,
     trains: starts,
-    positioning,
     entries: read as Scheduled[],
   };
 }
@@ -394,7 +386,7 @@ function startsOf(trains: unknown): Record<string, TrainStart> | null {
 
 function scheduledOf(listed: unknown): Scheduled | null {
   if (!mapping(listed)) return null;
-  const { at, train, to, turn, dwell, description, state, request, ended } = listed;
+  const { at, train, to, turn, dwell, description, state, request } = listed;
   if (typeof at !== "string" || typeof train !== "string") return null;
   if (typeof state !== "string" || !STATES.has(state)) return null;
   // A turn-round has no arrival ends.
@@ -403,7 +395,6 @@ function scheduledOf(listed: unknown): Scheduled | null {
   if (dwell !== undefined && typeof dwell !== "number") return null;
   if (description !== undefined && typeof description !== "string") return null;
   if (request !== undefined && typeof request !== "string") return null;
-  if (ended !== undefined && typeof ended !== "number") return null;
   return {
     entry: {
       at,
@@ -414,7 +405,6 @@ function scheduledOf(listed: unknown): Scheduled | null {
     },
     state: state as EntryState,
     ...(request === undefined ? {} : { request }),
-    ...(ended === undefined ? {} : { ended }),
   };
 }
 

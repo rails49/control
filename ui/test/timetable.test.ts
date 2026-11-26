@@ -67,14 +67,14 @@ const SAID = {
 };
 
 describe("the timetable row", () => {
-  it("is read whole, each entry's document fields apart from what became of it", () => {
+  /** The row's `start` and `positioning` and an entry's `ended` are shown
+   *  nowhere, and are not read. */
+  it("is read as what the page shows, each entry's document fields apart from what became of it", () => {
     expect(timetableOf(SAID)).toEqual({
       name: "evening",
       phase: "running",
       record: false,
-      start: "06:00",
       trains: { goods: { at: "a", facing: "A-to-B" } },
-      positioning: ["p1"],
       entries: [
         {
           entry: {
@@ -86,7 +86,6 @@ describe("the timetable row", () => {
           },
           state: "ended",
           request: "g1",
-          ended: 190,
         },
         { entry: { at: "06:10", train: "goods", turn: true }, state: "ended" },
         { entry: { at: "06:12", train: "goods", to: ["c.B"] }, state: "later" },
@@ -126,9 +125,7 @@ function loaded(...entries: Scheduled[]): Timetable {
     name: "evening",
     phase: "running",
     record: false,
-    start: "06:00",
     trains: {},
-    positioning: [],
     entries,
   };
 }
@@ -148,7 +145,7 @@ describe("the list's rows", () => {
 
   it("are one per entry in the row's order, in each of the seven states", () => {
     const entries: Scheduled[] = [
-      { entry: to("06:01", "express", "a.B"), state: "ended", request: "e0", ended: 60 },
+      { entry: to("06:01", "express", "a.B"), state: "ended", request: "e0" },
       { entry: to("06:02", "local", "b.B"), state: "rejected", request: "l0" },
       { entry: to("06:03", "goods", "b.A"), state: "cancelled", request: "g0" },
       { entry: to("06:04", "shunter", "c.A"), state: "skipped" },
