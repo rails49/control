@@ -84,7 +84,10 @@ this module tells the rule what the bus said and does what it answers, in
   where the store has a timetable of that name (#1354).
 - `tc49/schedule/timetable_repeat_wanted` sets the loaded timetable's
   `repeat`, while power reads `off`. Dropped where an entry would fall at
-  or after `start` plus `repeat`. Entries keep their rounds (#1368).
+  or after `start` plus `repeat`. In `running`, every entry's round moves
+  by the clock's round under the new repeat less its round under the old
+  one, and where that would put an entry below round 0, by minus the
+  lowest round. In `loaded` the rounds stay (#1368, #1373).
 - The document is written through the store client at each change to it. A
   change of an entry's state alone is no change to it.
 - The loaded timetable is on `tc49/schedule/state/timetable`, published when

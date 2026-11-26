@@ -892,7 +892,13 @@ A person changes the loaded timetable with three gestures
   three-hour sequence can repeat every three hours. It is taken only while
   power reads `off`, so a round in progress does not change under the
   trains, and is dropped where an entry would fall at or after the start
-  plus the new repeat. Each entry keeps its round.
+  plus the new repeat. In `running`, every entry moves by the same number
+  of rounds: the clock's round under the new repeat less its round under
+  the old one. Where that would put an entry below round 0, the lowest
+  entry goes to round 0 and the others move as far. So each entry keeps its
+  place relative to the clock's round, and a train a round late stays a
+  round late. An entry's state, request and ending stay. In `loaded` the
+  rounds stay.
 
 The scheduler writes the document to the store at each change to it, on a
 thread of its own and in order, so a write to a store that does not answer
