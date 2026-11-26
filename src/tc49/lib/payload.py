@@ -131,8 +131,9 @@ and a reader that subscripted it would be taken down by whatever wrote it.
 because this is where payloads are read — the stamping lives where the
 binding publishes, in `lib.bus`.
 
-The scheduler's **timetable** payloads are read here (#1345, #1352): the two
-gestures a page writes, `wanted_timetable` and `wanted_record`; the clock row
+The scheduler's **timetable** payloads are read here (#1345, #1352): the
+gestures a page writes, `wanted_timetable`, `wanted_record`, `wanted_entry`
+and `wanted_rename` (#1354); the clock row
 it moves the timetable's time by, `said_clock`; and, at a restart, the name
 on its own retained row, `loaded_timetable`, and the requests the
 allocation lists, `listed_requests`.
@@ -172,6 +173,7 @@ from tc49.lib.settings import (
     throttle_silence,
     without_sensors,
 )
+from tc49.lib.timetable import Entry, read_entry
 
 
 @dataclass(frozen=True)
@@ -250,6 +252,49 @@ def wanted_record(payload: object) -> bool | None:
         return None
     record = cast(dict[str, object], payload).get("record")
     return record if isinstance(record, bool) else None
+
+
+@dataclass(frozen=True)
+class EntryWanted:
+    """What a `tc49/schedule/entry_wanted` gesture asks for: the entry that
+    reads `was` changed to `now`, or deleted where `now` is None (#1345,
+    #1354)."""
+
+    was: Entry
+    now: Entry | None
+
+
+def wanted_entry(payload: object) -> EntryWanted | None:
+    """The change a `tc49/schedule/entry_wanted` gesture asks for, or None
+    where it asks for none.
+
+    `was` and `now` are each an entry as `tc49.lib.timetable.read_entry`
+    reads one: the document's fields and no other, so without the `state`,
+    `request` and `ended` the state row lists with an entry. `now` is `null`
+    to delete. A gesture that leaves `now` out is dropped.
+    """
+    if not isinstance(payload, dict):
+        return None
+    fields = cast(dict[str, object], payload)
+    if "now" not in fields:
+        return None
+    try:
+        was = read_entry(fields.get("was"))
+        now = None if fields["now"] is None else read_entry(fields["now"])
+    except (ValueError, TypeError):
+        return None
+    return EntryWanted(was, now)
+
+
+def wanted_rename(payload: object) -> str | None:
+    """The name a `tc49/schedule/timetable_rename_wanted` gesture gives the
+    loaded timetable, or None where it gives none: `to`, text and not empty
+    (#1345, #1354). Whether it is a name a timetable document takes is
+    `tc49.lib.timetable`'s to say."""
+    if not isinstance(payload, dict):
+        return None
+    to = cast(dict[str, object], payload).get("to")
+    return to if isinstance(to, str) and to else None
 
 
 def readable_id(payload: object) -> str | None:
