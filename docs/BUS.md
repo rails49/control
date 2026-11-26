@@ -1105,10 +1105,16 @@ payload is read defensively, and one that fails the read is dropped.
   ([LAYOUT.md](store/LAYOUT.md#timetable-schema)), greater than 0: `03:00`,
   `1d00:00`. Not retained. The scheduler sets the loaded timetable's
   `repeat` and writes the document to the store, and `state/timetable` shows
-  the new `repeat`. Taken in `loaded` and `running`. Each entry keeps its
-  round. Dropped unless `tc49/layout/state/power` reads `off`, where no
-  timetable is loaded, and where an entry would fall at or after `start`
-  plus `repeat` ([#1368](https://github.com/rails49/control/issues/1368)).
+  the new `repeat`. Taken in `loaded` and `running`. In `running`, every
+  entry's `round` moves by the same number, _r_ − _R_: _R_ is the clock's
+  round under the old repeat and _r_ under the new one, each the whole
+  repeats from `start` to the clock, 0 with the clock before `start`. Where
+  that would put an entry below round 0, every entry moves by minus the
+  lowest `round` instead. An entry's `state`, `request` and `ended` stay. In
+  `loaded` the rounds stay. Dropped unless `tc49/layout/state/power` reads
+  `off`, where no timetable is loaded, and where an entry would fall at or
+  after `start` plus `repeat`
+  ([#1368](https://github.com/rails49/control/issues/1368), [#1373](https://github.com/rails49/control/issues/1373)).
 - `tc49/schedule/entry_wanted` — browser-writable — `was`: an entry as
   `state/timetable` lists it, with the document's fields only: `at`, `train`,
   `to` or `turn`, and `dwell` and `description` where it has them. `now`: an
