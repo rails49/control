@@ -483,6 +483,7 @@ export class TcPanel extends LitElement {
         <tc-requests
           .requests=${this.inSession && !grey ? (this.panel?.requestList() ?? []) : []}
           .timetable=${this.inSession && !grey ? (this.panel?.timetable ?? null) : null}
+          .blocks=${[...(this.panel?.blocks().keys() ?? [])]}
           ?live=${this.inSession && !grey}
           ?arrivable=${this.panel?.withoutSensors ?? false}
           @request-cancelled=${this.cancelled}

@@ -1116,6 +1116,23 @@ describe("the run view's open row", () => {
     ]);
   });
 
+  /** The railroad the session is joined to has the blocks `a` and `b`. */
+  it("writes entry_wanted for arrival ends of the railroad's blocks", async () => {
+    const { element } = await serving();
+    await typed(await part(element, 2), "to", "a, b.B");
+    expect(written()).toEqual([
+      { topic: ENTRY_WANTED, payload: { was: GOODS, now: { ...GOODS, to: ["a", "b.B"] } } },
+    ]);
+  });
+
+  it("writes nothing for a block the railroad does not have, and the row names it", async () => {
+    const { element } = await serving();
+    const opened = await part(element, 2);
+    await typed(opened, "to", "a, c.A");
+    expect(written()).toEqual([]);
+    expect(refusal(opened)).toBe("the railroad has no block c");
+  });
+
   it("writes one entry_wanted with now null for Delete", async () => {
     const { element } = await serving();
     const opened = await part(element, 2);

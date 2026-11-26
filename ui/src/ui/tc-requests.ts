@@ -34,8 +34,10 @@
  *
  * A tap on an entry's row opens it
  * ([#1358](https://github.com/rails49/control/issues/1358)): `tc-entry` is
- * drawn under the row's lines, with the entry's time, dwell and description
- * and a Delete. One row is open at a time and a tap on the open row closes
+ * drawn under the row's lines, with the entry's time, arrival ends, dwell
+ * and description and a Delete. The view hands this the railroad's block
+ * names, and this hands them to `tc-entry`, which refuses arrival ends at a
+ * block the railroad does not have. One row is open at a time and a tap on the open row closes
  * it. A request no entry went out as does not open. Which row is open after
  * a tap, after a change and when the scheduler says new rows is
  * `model/timetable.ts`'s answer (`Opened`). The list is scrolled to a row
@@ -100,6 +102,10 @@ export class TcRequests extends LitElement {
 
   /** The loaded timetable, `null` for none. */
   @property({ attribute: false }) timetable: Timetable | null = null;
+
+  /** The names of the railroad's blocks, which an open row's To field takes
+   *  (`tc-entry`). */
+  @property({ attribute: false }) blocks: readonly string[] = [];
 
   /** Whether a press means anything: only a joined session has a dispatcher
    *  to send a cancel or a move to. */
@@ -300,6 +306,7 @@ export class TcRequests extends LitElement {
     return html`<tc-entry
       .entry=${entry}
       .timetable=${this.timetable}
+      .blocks=${this.blocks}
       @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
       @entry-changed=${this.asked}
     ></tc-entry>`;
