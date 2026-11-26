@@ -29,7 +29,9 @@ rather than to an app of its own — a `ui` package could not import
     GET  /settings/<railroad>   the settings that railroad keeps
     PUT  /settings/<railroad>   save them, replacing what was
     GET  /timetables/<railroad> the names of that railroad's timetables
-    GET  /timetables/<railroad>/<name> one timetable, as the document it is
+    GET  /timetables/<railroad>/<name> one timetable, as the document it is,
+                                or as its file's text to an `Accept` that
+                                names `application/yaml`
     PUT  /timetables/<railroad>/<name> save it, replacing what was
     DELETE /timetables/<railroad>/<name> delete it
     POST /railroads/<from>/copy copy that railroad's drawing, roster, script,
@@ -169,10 +171,13 @@ none. A `PUT` creates or replaces one and is a 400 where the body is no
 document, does not pass that module's shape check, or has a `layout` or
 `timetable` that is not the railroad or the name in the path. A `GET` of a
 file that fails either check is a 400 too. A `GET` or a `DELETE` of one that
-is not there is a 404. The railroad is not checked for a drawing, as a
-clock's is not. The scheduler reads, writes and deletes them, and the page
-reads the list and one document and deletes, so `/timetables` is on the proxy
-in front of a page.
+is not there is a 404. A `GET` whose `Accept` names `application/yaml` is
+answered the file's bytes as stored, under that type, once the file passes
+the same checks; its 400 and 404 are the JSON errors any `GET` gets (#1381).
+The railroad is not checked for a drawing, as a clock's is not. The scheduler
+reads, writes and deletes them, and the page reads the list, one document and
+one file's text, and deletes, so `/timetables` is on the proxy in front of a
+page.
 
 `/installation` is the installation's settings, `installation.yaml` at the
 store root, built as `/loaded` is: `{"throttle_silence": <seconds>,
@@ -233,7 +238,10 @@ from tc49.store.store import AssetStore
 Response = tuple[int, dict[str, Any]]
 
 JSON = "application/json"
-"""What every route on this face answers but one."""
+"""What every route on this face answers but two."""
+
+YAML = "application/yaml"
+"""What a timetable is answered as to a client whose `Accept` names it."""
 
 
 class Picture(dict[str, Any]):
@@ -255,15 +263,30 @@ class Picture(dict[str, Any]):
         self.jpeg = jpeg
 
 
+class Yaml(dict[str, Any]):
+    """A reply that is a stored file's text rather than a document: its
+    bytes, sent as they are under `application/yaml`, as a `Picture`'s are
+    under `image/jpeg` (#1381)."""
+
+    def __init__(self, text: bytes) -> None:
+        super().__init__()
+        self.text = text
+
+
 def media_type(payload: dict[str, Any]) -> str:
     """How a reply goes out: `image/jpeg` where the route that produced it
-    answers a picture, and JSON for every document, whatever values it holds.
+    answers a picture, `application/yaml` where it answers a file's text, and
+    JSON for every document, whatever values it holds.
 
     One rule, read by the HTTP face (`on_the_wire`) and askable of a reply the
     in-process `handle` gave back, so a test of what a route answers as needs
     no socket.
     """
-    return "image/jpeg" if isinstance(payload, Picture) else JSON
+    if isinstance(payload, Picture):
+        return "image/jpeg"
+    if isinstance(payload, Yaml):
+        return YAML
+    return JSON
 
 
 def on_the_wire(payload: dict[str, Any]) -> tuple[str, bytes]:
@@ -278,11 +301,18 @@ def on_the_wire(payload: dict[str, Any]) -> tuple[str, bytes]:
     kind = media_type(payload)
     if isinstance(payload, Picture):
         return kind, payload.jpeg
+    if isinstance(payload, Yaml):
+        return kind, payload.text
     return kind, json.dumps(payload).encode()
 
 
 def handle(
-    store: AssetStore, backup: Backup, method: str, path: str, body: Any
+    store: AssetStore,
+    backup: Backup,
+    method: str,
+    path: str,
+    body: Any,
+    accept: str = "",
 ) -> Response:
     """Route one request. A function of what was asked rather than of a socket,
     so the contract is testable without serving anything.
@@ -295,9 +325,12 @@ def handle(
     the 400 a model that does not validate gets, naming the file (#641, #649): a
     stored document's faults become statuses in this one place, so the
     in-process caller and the socket cannot read one differently.
+
+    `accept` is the request's `Accept` header, read by the one route that
+    answers more than one media type (`asks_for_yaml`).
     """
     try:
-        return _route(store, backup, method, path, body)
+        return _route(store, backup, method, path, body, accept)
     except FileNotFoundError as missing:
         return 404, {"error": str(missing)}
     except (ValueError, TypeError, YAMLError) as bad:
@@ -350,8 +383,19 @@ def takes_bytes(path: str) -> bool:
     return photo_of(asked(path)) is not None
 
 
+def asks_for_yaml(accept: str) -> bool:
+    """Whether an `Accept` header names `application/yaml`, whatever its
+    quality or the other types beside it."""
+    return any(part.split(";")[0].strip() == YAML for part in accept.split(","))
+
+
 def _route(
-    store: AssetStore, backup: Backup, method: str, path: str, body: Any
+    store: AssetStore,
+    backup: Backup,
+    method: str,
+    path: str,
+    body: Any,
+    accept: str,
 ) -> Response:
     route = asked(path)
 
@@ -465,6 +509,8 @@ def _route(
         elif "/" not in name:
             if method == "GET":
                 try:
+                    if asks_for_yaml(accept):
+                        return 200, Yaml(store.timetable_text(railroad, name))
                     return 200, store.timetable(railroad, name)
                 except FileNotFoundError:
                     return 404, {"error": f"no timetable '{railroad}/{name}'"}
@@ -987,7 +1033,14 @@ def make_server(
                 self._respond(403, {"error": "cross-origin request refused"})
                 return
             try:
-                status, payload = handle(store, backing, method, self.path, body)
+                status, payload = handle(
+                    store,
+                    backing,
+                    method,
+                    self.path,
+                    body,
+                    self.headers.get("Accept") or "",
+                )
                 reply = on_the_wire(payload)
             except Exception as failure:  # noqa: BLE001 — a reply beats a reset
                 status, reply = 500, on_the_wire({"error": repr(failure)})

@@ -20,7 +20,14 @@ import pytest
 from tc49.lib.layout import Layout
 from tc49.store import AssetStore, Backup
 from tc49.store.backup import Said
-from tc49.store.server import handle, make_server, media_type, takes_bytes
+from tc49.store.server import (
+    YAML,
+    handle,
+    make_server,
+    media_type,
+    on_the_wire,
+    takes_bytes,
+)
 from tests.harness import ASSETS, catalogued
 
 
@@ -1567,6 +1574,81 @@ def test_a_timetable_is_written_and_read_back(tmp_path: Path, backup: Backup) ->
         TIMETABLE,
     )
     assert (tmp_path / "timetables" / "shed" / "evening.timetable.yaml").exists()
+
+
+def test_a_timetable_is_answered_as_its_files_text_to_a_client_asking_for_yaml(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The bytes on disk under `application/yaml` (#1381), and JSON to any
+    other `Accept`."""
+    store = AssetStore(tmp_path)
+    handle(store, backup, "PUT", "/timetables/shed/evening", TIMETABLE)
+    filed = tmp_path / "timetables" / "shed" / "evening.timetable.yaml"
+    for accept in ("application/yaml", "text/html, application/yaml;q=0.9"):
+        status, body = handle(
+            store, backup, "GET", "/timetables/shed/evening", None, accept
+        )
+        assert status == 200, accept
+        assert on_the_wire(body) == ("application/yaml", filed.read_bytes())
+    for accept in ("", "application/json", "*/*"):
+        status, body = handle(
+            store, backup, "GET", "/timetables/shed/evening", None, accept
+        )
+        assert (status, body) == (200, TIMETABLE), accept
+        assert media_type(body) == "application/json"
+
+
+def test_a_timetable_refused_to_a_client_asking_for_yaml_is_refused_as_json(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """A missing file is a 404 and a hand-broken one a 400, as to any client,
+    so one reading of a refusal serves both (#1381)."""
+    store = AssetStore(tmp_path)
+    status, body = handle(store, backup, "GET", "/timetables/shed/evening", None, YAML)
+    assert status == 404
+    assert "shed/evening" in body["error"]
+    assert media_type(body) == "application/json"
+
+    filed = tmp_path / "timetables" / "shed"
+    filed.mkdir(parents=True)
+    (filed / "evening.timetable.yaml").write_text(
+        "timetable: evening\nlayout: shed\nstart: 12:30\nrepeat: 1d00:00\n"
+        "trains: {}\nentries: []\n"
+    )
+    status, body = handle(store, backup, "GET", "/timetables/shed/evening", None, YAML)
+    assert status == 400
+    assert "HH:MM" in body["error"]
+    assert media_type(body) == "application/json"
+
+
+def test_a_timetables_text_is_served_over_http_to_the_accept_header(
+    tmp_path: Path,
+) -> None:
+    """End to end, because the request's header is what picks the answer."""
+    server = make_server(tmp_path, port=0)
+    url = f"http://127.0.0.1:{server.server_port}/timetables/shed/evening"
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        saved = Request(
+            url,
+            data=json.dumps(TIMETABLE).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PUT",
+        )
+        with urlopen(saved):
+            pass
+        filed = tmp_path / "timetables" / "shed" / "evening.timetable.yaml"
+        with urlopen(Request(url, headers={"Accept": YAML})) as served:
+            assert served.headers.get("Content-Type") == YAML
+            assert served.read() == filed.read_bytes()
+        with urlopen(url) as served:
+            assert served.headers.get("Content-Type") == "application/json"
+            assert json.load(served) == TIMETABLE
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_a_timetables_file_quotes_every_time_and_writes_text_as_itself(
