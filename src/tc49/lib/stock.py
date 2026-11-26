@@ -33,9 +33,9 @@ where it is used. Either way the entry is loaded into a `Car`, so nothing
 downstream of the roster reads which shape it was written in.
 """
 
-import re
 from collections.abc import Mapping
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from tc49.lib.layout import as_mapping, check_length, check_name, check_required
 from tc49.lib.roster import (
@@ -139,8 +139,7 @@ def validate_roster(doc: Any, catalogue: Mapping[str, Model]) -> Roster:
                 continue  # a model entry builds its own car (ADR-0061)
             if standing.setdefault(car, name) != name:
                 raise ValueError(
-                    f"{where}: car '{car}' is in trains '{standing[car]}' and"
-                    f" '{name}'"
+                    f"{where}: car '{car}' is in trains '{standing[car]}' and '{name}'"
                 )
     return Roster(railroad, trains, cars)
 
@@ -362,25 +361,52 @@ def _addr(addr: Any, where: str) -> str | None:
     return addr
 
 
-_HOST = re.compile(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?")
-
-
 def _camera(camera: Any, where: str) -> str | None:
-    """Where a car's camera answers on the LAN, absent where it carries none.
+    """The URL of a car's camera's MJPEG stream, absent where it carries none.
 
-    A host name or an IPv4 address and nothing else — letters, digits, dots
-    and hyphens, starting and ending with a letter or digit — so no scheme,
-    port, path or login: how the camera is spoken to is the `camera` app's
-    (ADR-0082). A string, not coerced, for `_addr`'s reason.
+    Scheme `http`, a host, an optional port 1–65535, and an optional path and
+    query; no login, fragment or whitespace. The login is the `camera` app's
+    environment, never the roster (ADR-0082). Carried as written, and a
+    string, not coerced, for `_addr`'s reason.
     """
     if camera is None:
         return None
-    if not isinstance(camera, str) or not _HOST.fullmatch(camera):
+    trouble = _camera_trouble(camera)
+    if trouble is not None:
         raise ValueError(
-            f"{where}: camera must be a bare host name or IPv4 address, as"
-            f' `camera: "192.168.178.58"` — got {camera!r}'
+            f"{where}: camera must be the URL of its MJPEG stream, as"
+            f' `camera: "http://192.168.178.58/media/?action=stream"` —'
+            f" {trouble}, got {camera!r}"
         )
     return camera
+
+
+def _camera_trouble(camera: Any) -> str | None:
+    """What is wrong with a camera's URL, or `None`. The Stock screen says the
+    same in the same order (`ui/src/model/stock.ts`, `streamTrouble`)."""
+    if not isinstance(camera, str):
+        return "it is not a string"
+    if any(char.isspace() for char in camera):
+        return "it holds whitespace"
+    try:
+        url = urlsplit(camera)
+    except ValueError:
+        return "it is not a URL"
+    if url.scheme != "http":
+        return "it must start http://"
+    if "@" in url.netloc:
+        return "leave the login out: the camera app has it"
+    if not url.hostname:
+        return "it names no host"
+    try:
+        port = url.port
+    except ValueError:
+        port = 0
+    if port == 0:
+        return "its port must be 1–65535"
+    if "#" in camera:
+        return "leave out the # and what follows it"
+    return None
 
 
 def _functions(spec: Any, where: str) -> dict[str, Function]:
