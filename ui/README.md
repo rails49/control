@@ -158,6 +158,8 @@ src/
     tc-requests.ts the list in the run view's pane: the loaded timetable's
                    entries and the requests, a cancel on each request, a
                    drag to reorder the waiting ones
+    tc-entry.ts    an entry's open row in that list: its time, dwell and
+                   description, and Delete
     tc-throttle.ts the throttle view: a row of throttles, each a panel with
                    its own id, as many as its width fits; the session stays
                    the app's
