@@ -95,6 +95,7 @@ export const TIMETABLE_WANTED = "tc49/schedule/timetable_wanted";
 export const TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted";
 export const TIMETABLE_RENAME_WANTED = "tc49/schedule/timetable_rename_wanted";
 export const ENTRY_WANTED = "tc49/schedule/entry_wanted";
+export const TIMETABLE_START_WANTED = "tc49/schedule/timetable_start_wanted";
 export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
 export const PLACEMENT_WANTED = "tc49/dispatch/placement_wanted";
 export const CANCEL_WANTED = "tc49/dispatch/cancel_wanted";

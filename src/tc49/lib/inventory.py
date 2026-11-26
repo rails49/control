@@ -201,7 +201,8 @@ TOPICS: dict[str, Topic] = {
     "tc49/schedule/state/exhausted": Topic((AT, "exhausted")),
     "tc49/schedule/state/facing": Topic((AT, "facing")),
     # A person asks for a timetable by name: with `new`, which is `true` or
-    # left out, a new one is made, taken while power reads `off` (#1345,
+    # left out, a new one is made, and without it that one is loaded from
+    # the store (#1353). Both are taken while power reads `off` (#1345,
     # #1352). And a person switches Record, a boolean.
     "tc49/schedule/timetable_wanted": Topic(("timetable", "new"), browser=True),
     "tc49/schedule/timetable_record_wanted": Topic(("record",), browser=True),
@@ -211,6 +212,8 @@ TOPICS: dict[str, Topic] = {
     # delete it (#1345, #1354).
     "tc49/schedule/timetable_rename_wanted": Topic(("to",), browser=True),
     "tc49/schedule/entry_wanted": Topic(("was", "now"), browser=True),
+    # A person starts the loaded timetable. No fields (#1353).
+    "tc49/schedule/timetable_start_wanted": Topic((), browser=True),
     # The loaded timetable, written when it changes: `timetable` is its name,
     # or `null`, and then no other field is present. `phase` is `loaded`,
     # `running` or `over`, `start` is `"HH:MM"`, `trains` maps each train to
@@ -568,9 +571,9 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the page's write surface, and what a broker's
 ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
 the rows' marks rather than off a prefix — a topic names the component that
-responds to it, so the twenty gestures sit under `schedule`, `dispatch` and
-`layout` beside everything else those three answer, and only the mark says a
-page may send them.
+responds to it, so the twenty-one gestures sit under `schedule`, `dispatch`
+and `layout` beside everything else those three answer, and only the mark
+says a page may send them.
 
 Event topics only. A page has concurrent instances — two tabs are two of
 them — and concurrent writers may not write a state topic at all
