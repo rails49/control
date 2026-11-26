@@ -25,23 +25,24 @@
  * entry went out as (`model/timetable.ts`). An entry that is out while the
  * dispatcher lists its request is that request's row with the entry's time
  * before where it goes. Any other entry is its train, its state, its time
- * and where it goes, "turn" for a turn-round. A row that is ended, rejected, cancelled or
- * skipped is dimmed. A row whose entry has a dwell or a description carries
- * them, and the stylesheet shows them where the list is wide. Each time the
- * timetable is handed in, the list is scrolled to its newest entry: one just
- * recorded, or the one that went out last (`newest` in `model/timetable.ts`).
- * It is not scrolled for an entry that ends, or while a row is open.
+ * and where it goes, "turn" for a turn-round. A row that is ended, rejected,
+ * cancelled or skipped is dimmed. A row whose entry has a dwell or a
+ * description carries them, and the stylesheet shows them where the list is
+ * wide. Each time the timetable is handed in, the list is scrolled to its
+ * newest entry: one just recorded, or the one that went out last (`newest` in
+ * `model/timetable.ts`). It is not scrolled for an entry that ends, or while
+ * a row is open.
  *
  * A tap on an entry's row opens it
  * ([#1358](https://github.com/rails49/control/issues/1358)): `tc-entry` is
  * drawn under the row's lines, with the entry's time, arrival ends, dwell
  * and description and a Delete. The view hands this the railroad's block
  * names, and this hands them to `tc-entry`, which refuses arrival ends at a
- * block the railroad does not have. One row is open at a time and a tap on the open row closes
- * it. A request no entry went out as does not open. Which row is open after
- * a tap, after a change and when the scheduler says new rows is
- * `model/timetable.ts`'s answer (`Opened`). The list is scrolled to a row
- * that opens and to an open row that moves. What the open row asks,
+ * block the railroad does not have. One row is open at a time and a tap on
+ * the open row closes it. A request no entry went out as does not open.
+ * Which row is open after a tap, after a change and when the scheduler says
+ * new rows is `model/timetable.ts`'s answer (`Opened`). The list is scrolled
+ * to a row that opens and to an open row that moves. What the open row asks,
  * `entry-changed`, goes on to the view.
  *
  * The open row's elements are the same ones from the tap that opened it until

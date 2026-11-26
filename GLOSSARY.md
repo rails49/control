@@ -330,8 +330,9 @@ _Avoid_: leaving end, origin end, exit
 
 **Arrival end**:
 One acceptable ending for a request: a block and the end the train enters
-through, written `<block>.A` or `<block>.B`. A request names a set of them, all
-equally acceptable ([DISPATCH.md](docs/dispatcher/DISPATCH.md#requests)).
+through, written `<block>.A` or `<block>.B`, or a bare `<block>` for either end.
+A request names a set of them, all equally acceptable
+([DISPATCH.md](docs/dispatcher/DISPATCH.md#requests)).
 _Avoid_: destination (a request has no single one), arrival side, platform
 
 **Route**:

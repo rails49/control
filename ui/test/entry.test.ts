@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 
 /**
- * An entry's row opened in the list under the roster: its time, its dwell,
- * its description and a Delete
+ * An entry's row opened in the list under the roster: its time, its arrival
+ * ends, its dwell, its description and a Delete
  * ([#1345](https://github.com/rails49/control/issues/1345),
- * [#1358](https://github.com/rails49/control/issues/1358)).
+ * [#1358](https://github.com/rails49/control/issues/1358),
+ * [#1386](https://github.com/rails49/control/issues/1386)).
  *
  * Four parts. What a typed field makes of an entry, and which row is open,
  * are `model/timetable.ts`'s. Then `tc-entry`, the open row, which draws the
