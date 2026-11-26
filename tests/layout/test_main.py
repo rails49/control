@@ -531,6 +531,59 @@ def test_a_layout_built_on_a_railroad_takes_the_clock_a_person_sets(
     witness.close()
 
 
+DAY_3_10 = 3 * 86400 + 10 * 3600
+"""3d10:00: ten in the morning of day 3, in seconds since midnight of day 0."""
+
+
+def built_clock(heard: list[tuple[str, Payload]], build: int) -> list[Payload]:
+    """The clock rows said by the `build`th build, the first being 1: the
+    ones heard after its railroad row and before the next."""
+    seen = 0
+    said: list[Payload] = []
+    for topic, payload in heard:
+        if topic == RAILROAD:
+            seen += 1
+        elif topic == CLOCK and seen == build:
+            said.append(payload)
+    return said
+
+
+def test_a_rebuild_keeps_the_fast_clock_and_another_railroad_starts_on_day_0(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """A rebuild under the same name starts the clock where the last build's
+    stood, day included, at its speed-up (#1372). A build of another railroad
+    starts on day 0 at the start that railroad keeps (ADR-0090, decision 4)."""
+    drawn(root, "facing-pair")
+    (root / "layouts" / "facing-pair.clock.yaml").write_text(
+        "start: '03:15'\nspeed_up: 4\n"
+    )
+    store.start()
+    witness, heard = watching(broker)
+    app.start()
+    assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
+    witness.publish(CLOCK_WANTED, {"time": DAY_3_10, "speed_up": 8})
+    assert drained(
+        witness, lambda: any(row["speed_up"] == 8 for row in rows(heard, CLOCK))
+    ), "the clock was never set"
+
+    witness.publish(RAILROAD_WANTED, {"railroad": NAME})
+    assert drained(
+        witness, lambda: len(built_clock(heard, 2)) >= 2
+    ), "the rebuild said no clock"
+    assert {(row["time"], row["speed_up"]) for row in built_clock(heard, 2)} == {
+        (DAY_3_10, 8)
+    }
+
+    witness.publish(RAILROAD_WANTED, {"railroad": "facing-pair"})
+    assert drained(
+        witness, lambda: built_clock(heard, 3) != []
+    ), "the other railroad said no clock"
+    first = built_clock(heard, 3)[0]
+    assert (first["time"], first["speed_up"]) == (3 * 3600 + 15 * 60, 4)
+    witness.close()
+
+
 def test_a_railroad_is_loaded_at_the_settings_it_keeps(
     broker: Broker, store: Store, app: App, root: Path
 ) -> None:
