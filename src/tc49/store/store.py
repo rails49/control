@@ -154,10 +154,16 @@ _Writer.add_representer(_Time, _quoted)
 
 def _timetable_text(doc: dict[str, Any]) -> str:
     """A timetable document as the text of its file (#1345): its keys in the
-    document's order, `start` and each entry's `at` in double quotes, and
-    text outside ASCII written as itself. `doc` has passed `read_timetable`."""
+    document's order, `start`, `repeat` and each entry's `at` in double
+    quotes, and text outside ASCII written as itself. `doc` has passed
+    `read_timetable`."""
     entries = [{**entry, "at": _Time(entry["at"])} for entry in doc["entries"]]
-    timed = {**doc, "start": _Time(doc["start"]), "entries": entries}
+    timed = {
+        **doc,
+        "start": _Time(doc["start"]),
+        "repeat": _Time(doc["repeat"]),
+        "entries": entries,
+    }
     return yaml.dump(timed, Dumper=_Writer, sort_keys=False, allow_unicode=True)
 
 

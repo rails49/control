@@ -10,6 +10,7 @@ from typing import Any
 
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.timetable import Timetable, read_timetable
 from tc49.scheduler import Scheduler
 from tests.scheduler.test_recording import (
@@ -36,16 +37,17 @@ EXPRESS = {"at": "06:05", "train": "express_2", "to": ["dn_w"]}
 
 
 def evening(
-    *listed: dict[str, Any], phase: str = "running"
+    *listed: dict[str, Any], phase: str = "running", repeat: str = "1d00:00"
 ) -> tuple[Store, InProcessBus]:
     """A scheduler that came up with the timetable `evening` loaded, and the
-    store it keeps it in. The timetable starts at 06:00 and has the entries
-    `listed`, none of which has gone out. The clock reads 06:00 and power is
-    off."""
+    store it keeps it in. The timetable starts at 06:00, repeats every
+    `repeat` and has the entries `listed`, none of which has gone out. The
+    clock reads 06:00 and power is off."""
     document: dict[str, Any] = {
         "timetable": "evening",
         "layout": "crossover-yard",
         "start": "06:00",
+        "repeat": repeat,
         "trains": {},
         "entries": list(listed),
     }
@@ -59,6 +61,7 @@ def evening(
         "phase": phase,
         "record": False,
         "start": "06:00",
+        "repeat": repeat,
         "trains": {},
         "positioning": [],
         "entries": [one | {"state": "later"} for one in listed],
@@ -99,6 +102,32 @@ def test_a_changed_time_moves_the_entry_after_the_ones_that_share_its_minute() -
 
     assert written(store) == [EXPRESS, local, now, last]
     assert entries(bus) == [one | {"state": "later"} for one in written(store)]
+
+
+def test_a_changed_time_on_day_1_is_listed_in_the_time_form() -> None:
+    store, bus = evening(FREIGHT, EXPRESS)
+    now = FREIGHT | {"at": "1d05:59"}
+
+    change(bus, FREIGHT, now)
+
+    assert written(store) == [EXPRESS, now]
+    assert [one["at"] for one in entries(bus)] == ["06:05", "1d05:59"]
+
+
+def test_a_restart_takes_the_repeat_from_the_row() -> None:
+    """And writes it, as it does the entries where the document's differ."""
+    store, bus = evening(FREIGHT, repeat="03:00")
+    held = store.document("evening")
+    assert held is not None
+    store.put_timetable(read_timetable(held | {"repeat": "1d00:00"}))
+    rows = bus.last_values
+
+    bus = restarted(store, rows)
+
+    assert row(bus)["repeat"] == "03:00"
+    held = store.document("evening")
+    assert held is not None
+    assert held["repeat"] == "03:00"
 
 
 def recorded(store: Store) -> tuple[InProcessBus, dict[str, Any], dict[str, Any]]:
@@ -328,7 +357,7 @@ def test_after_a_rename_a_drag_is_recorded_under_the_new_name() -> None:
 
 def test_a_rename_to_a_name_the_store_has_is_dropped() -> None:
     """Both documents are as they were."""
-    stored = Timetable("evening", "crossover-yard", at("22:00"), {}, ())
+    stored = Timetable("evening", "crossover-yard", at("22:00"), DAY_S, {}, ())
     store = Logged(stored)
     bus, _, _ = recorded(store)
     before = store.document("untitled")

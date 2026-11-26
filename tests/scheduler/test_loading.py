@@ -15,6 +15,7 @@ and `local_3`, which is off the layout, in `yard_e`.
 
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.timetable import Entry, Timetable, TrainStart
 from tc49.scheduler import Scheduler
 from tests.scheduler.test_edits import change
@@ -60,6 +61,7 @@ def evening(*entries: Entry, trains: dict[str, TrainStart] | None = None) -> Tim
         "evening",
         "crossover-yard",
         at("06:00"),
+        DAY_S,
         TRAINS if trains is None else trains,
         entries,
     )
@@ -108,6 +110,7 @@ def test_a_load_sends_each_train_standing_elsewhere_to_its_start_block() -> None
         "phase": "loaded",
         "record": False,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": {
             "freight_1": {"at": "yard_w", "facing": "A-to-B"},
             "express_2": {"at": "dn_w", "facing": "A-to-B"},
@@ -242,7 +245,7 @@ def test_the_second_request_is_listed_before_the_first_one_ends() -> None:
 
 
 def test_a_request_of_the_timetable_loaded_before_is_not_asked_again() -> None:
-    morning = Timetable("morning", "crossover-yard", at("09:00"), {}, ())
+    morning = Timetable("morning", "crossover-yard", at("09:00"), DAY_S, {}, ())
     bus = standing(Store(evening(), morning))
     load(bus)
     load(bus, "morning")
@@ -333,7 +336,7 @@ def test_a_start_gesture_with_no_timetable_loaded_is_dropped() -> None:
 def test_a_load_replaces_the_loaded_timetable_and_leaves_its_requests_alone() -> None:
     """The request of `evening` to a start block is not cancelled, and is
     not one of `morning`'s."""
-    morning = Timetable("morning", "crossover-yard", at("09:00"), {}, ())
+    morning = Timetable("morning", "crossover-yard", at("09:00"), DAY_S, {}, ())
     bus = standing(Store(evening(), morning))
     load(bus)
     seen = collect(bus, "tc49/dispatch/#")
@@ -348,6 +351,7 @@ def test_a_load_replaces_the_loaded_timetable_and_leaves_its_requests_alone() ->
         "phase": "loaded",
         "record": False,
         "start": "09:00",
+        "repeat": "1d00:00",
         "trains": {},
         "positioning": [],
         "entries": [],
@@ -660,7 +664,7 @@ def test_before_the_start_a_persons_drag_is_a_request_with_no_entry() -> None:
 def test_a_timetable_is_over_24_hours_after_its_start_and_stays_loaded() -> None:
     """Nothing more is released or recorded, and `untitled` is not made in
     its place."""
-    entry = Entry(at("05:59"), "freight_1", ("dn_e",))
+    entry = Entry(at("05:59") + DAY_S, "freight_1", ("dn_e",))
     bus = running(Store(evening(entry, trains=IN_PLACE)))
     say(bus, RECORD_WANTED, {"record": True})
     seen = collect(bus, SUBMITTED)

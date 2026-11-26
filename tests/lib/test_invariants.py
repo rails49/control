@@ -1115,6 +1115,7 @@ def turn_round(
         "phase": phase,
         "record": False,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": {},
         "positioning": [],
         "entries": [{"at": "06:08", "train": train, "turn": True, "state": state}],

@@ -78,6 +78,7 @@ RECORDED: Document = {
     "timetable": "untitled",
     "layout": "crossover-yard",
     "start": "06:00",
+    "repeat": "1d00:00",
     "trains": {
         EXPRESS: {"at": "up_e", "facing": "B-to-A"},
         FREIGHT: {"at": "dn_w", "facing": "A-to-B"},
@@ -233,6 +234,7 @@ def test_a_timetable_is_recorded_and_run_again() -> None:
         "phase": "running",
         "record": True,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": RECORDED["trains"],
         "positioning": [],
         "entries": [],
@@ -281,6 +283,7 @@ def test_a_timetable_is_recorded_and_run_again() -> None:
         "phase": "loaded",
         "record": False,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": RECORDED["trains"],
         "positioning": to_start,
         "entries": [entry | {"state": "later"} for entry in ENTRIES],

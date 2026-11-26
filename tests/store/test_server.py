@@ -1536,6 +1536,7 @@ TIMETABLE = {
     "timetable": "evening",
     "layout": "shed",
     "start": "06:00",
+    "repeat": "1d00:00",
     "trains": {"freight_1": {"at": "yard_w", "facing": "A-to-B"}},
     "entries": [
         {
@@ -1546,10 +1547,11 @@ TIMETABLE = {
             "description": "meets the express",
         },
         {"at": "12:30", "train": "freight_1", "turn": True},
+        {"at": "1d05:59", "train": "freight_1", "to": ["yard_w.B"]},
     ],
 }
 """A railroad's timetable (#1345), with a time YAML 1.1 reads as a number
-unquoted."""
+unquoted and an entry on day 1 (#1365)."""
 
 
 def test_a_timetable_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
@@ -1577,6 +1579,7 @@ def test_a_timetables_file_quotes_every_time_and_writes_text_as_itself(
     doc = {
         **TIMETABLE,
         "timetable": "Abend Zürich",
+        "repeat": "18:00",
         "entries": [
             {
                 "at": "06:02",
@@ -1593,6 +1596,7 @@ def test_a_timetables_file_quotes_every_time_and_writes_text_as_itself(
     lines = filed.read_text(encoding="utf-8").splitlines()
     assert "timetable: Abend Zürich" in lines
     assert 'start: "06:00"' in lines
+    assert 'repeat: "18:00"' in lines
     assert '- at: "06:02"' in lines
     assert '- at: "12:30"' in lines
     assert "  description: trifft den Schnellzug in Göschenen" in lines
@@ -1613,6 +1617,23 @@ def test_a_timetable_that_is_not_one_is_refused_and_writes_nothing(
         status, said = handle(store, backup, "PUT", "/timetables/shed/evening", body)
         assert status == 400, body
         assert said["error"]
+    assert not (tmp_path / "timetables").exists()
+
+
+def test_a_timetable_with_an_entry_outside_its_repeat_is_refused_with_the_reason(
+    tmp_path: Path, backup: Backup
+) -> None:
+    """The reader's reason, which Load shows as it shows any (#1365)."""
+    store = AssetStore(tmp_path)
+    doc = {
+        **TIMETABLE,
+        "entries": [{"at": "05:59", "train": "freight_1", "turn": True}],
+    }
+    status, said = handle(store, backup, "PUT", "/timetables/shed/evening", doc)
+    assert status == 400
+    assert said["error"] == (
+        "timetable 'evening': entry 1: 'at' is 05:59, before the start 06:00"
+    )
     assert not (tmp_path / "timetables").exists()
 
 
@@ -1647,7 +1668,8 @@ def test_a_hand_written_timetable_that_is_not_one_is_a_bad_request(
     filed = tmp_path / "timetables" / "shed"
     filed.mkdir(parents=True)
     (filed / "evening.timetable.yaml").write_text(
-        "timetable: evening\nlayout: shed\nstart: 12:30\ntrains: {}\nentries: []\n"
+        "timetable: evening\nlayout: shed\nstart: 12:30\nrepeat: 1d00:00\n"
+        "trains: {}\nentries: []\n"
     )
     status, body = handle(
         AssetStore(tmp_path), backup, "GET", "/timetables/shed/evening", None

@@ -58,11 +58,11 @@ A position `due` gives is good until the timetable's entries change.
 The rules, in the words of #1345:
 
 - **New.** A new timetable takes the clock's time of day, rounded down to
-  the minute, as `start`. It has no entries, Record is on and it is `running` at
-  once. The scheduler makes `untitled` when power reads `on` and no
-  timetable is loaded (`untitled`). A person asks for one by name, which is
-  dropped unless power reads `off` (`new`). Both wait for a clock row and for
-  the trains on the layout.
+  the minute, as `start`, and repeats every day. It has no entries, Record is
+  on and it is `running` at once. The scheduler makes `untitled` when power
+  reads `on` and no timetable is loaded (`untitled`). A person asks for one
+  by name, which is dropped unless power reads `off` (`new`). Both wait for a
+  clock row and for the trains on the layout.
 - **Record.** While the timetable is `running` and Record is on, a drag adds
   an entry at the clock's time of day to the minute, `out` as the request
   the drag made, and a turn-round adds an entry that has `ended`. A new
@@ -70,8 +70,8 @@ The rules, in the words of #1345:
   Record off, a drag is a request with no entry (`dragged`, `turned_round`).
 - **Edit.** A person changes or deletes an entry by naming it as it reads
   now: the first entry equal to it, and none where no entry is. A changed
-  `at` moves the entry to its place in the order. The entry keeps its state,
-  its request and its ending, and a request that has gone out is left alone.
+  `at` moves the entry to its place in the order. The entry keeps its state, its request and its
+  ending, and a request that has gone out is left alone.
   It is taken in every phase and with Record on or off (`changed`).
 - **Load.** A timetable a person asks for by name is loaded only while power
   reads `off`, and once the trains on the layout were told (`loads`). Its
@@ -89,8 +89,8 @@ The rules, in the words of #1345:
   (`clocked`).
 - **Over.** A `running` timetable is `over` once its time reaches 24
   fast-clock hours. Nothing is released after that.
-- **Due.** An entry is due when timetable time has reached its `at`, counted
-  from `start`. It is `later` until it is due and `held` while it is due and
+- **Due.** An entry is due when timetable time has reached its `at` less
+  `start`. It is `later` until it is due and `held` while it is due and
   waits on its train.
 - **Order.** A train's entries are released in order. An entry is released
   when it is due, the train's previous entry has ended, been rejected, been
@@ -246,7 +246,7 @@ def clocked(state: State, time: int, speed_up: float) -> State:
     if timetable is None or state.phase != RUNNING:
         return state
     if state.time is None:
-        return replace(state, time=timetable.since_start(time))
+        return replace(state, time=(time - timetable.start) % DAY_S)
     ahead = (time - timetable.start - state.time) % DAY_S
     if ahead > 2 * speed_up if state.starting else ahead >= DAY_S // 2:
         return state
@@ -345,10 +345,11 @@ def made(
     `layout`, in place of the one loaded. The scheduler calls it where
     `untitled` or `new` said yes.
 
-    Its `start` is the clock's time of day rounded down to the minute, and
-    `trains` is where each train on the layout stands. It has no entries,
-    Record is on and it is `running` at once. Its time begins at the seconds
-    into that minute. What the state was told of the railroad is kept.
+    Its `start` is the clock's time of day rounded down to the minute, its
+    `repeat` one day, and `trains` is where each train on the layout stands.
+    It has no entries, Record is on and it is `running` at once. Its time
+    begins at the seconds into that minute. What the state was told of the
+    railroad is kept.
 
     A `name` or `layout` the document does not take is a `ValueError`
     (`tc49.lib.timetable.Timetable`).
@@ -356,7 +357,7 @@ def made(
     assert state.clock is not None
     start = start_of(state.clock)
     return State(
-        Timetable(name, layout, start, dict(trains), ()),
+        Timetable(name, layout, start, DAY_S, dict(trains), ()),
         RUNNING,
         True,
         time=state.clock % 60,
@@ -383,8 +384,8 @@ def dragged(state: State, train: str, to: tuple[str, ...], request: str) -> Stat
 
     While the timetable is `running` and Record is on, the drag is added as
     an entry: `at` the clock's time to the minute, after the last entry at or
-    before that time, `out` as `request`. In any other phase, with Record
-    off, with no timetable loaded, and after a restart until the first clock
+    before that time, `out` as `request`. In any other phase, with Record off, with
+    no timetable loaded, and after a restart until the first clock
     row, it is a request with no entry. So is a drag to no arrival end: an
     entry with none is a turn-round.
     """
@@ -585,9 +586,10 @@ def row(state: State) -> dict[str, Any]:
 
     `timetable` is the loaded timetable's name, or None, in which case no
     other field is present. Otherwise `phase`, `record`, `start` as
-    `"HH:MM"`, `trains` as the document has them, `positioning` and
+    `"HH:MM"`, `repeat`, `trains` as the document has them, `positioning` and
     `entries`: each entry's document fields, its `state`, `request` where it
-    went out as a request and `ended` where it ended by arrival.
+    went out as a request and `ended` where it ended by arrival. `repeat`
+    and each entry's `at` are in the time form (`tc49.lib.timetable`).
     """
     if state.timetable is None:
         return {"timetable": None}
@@ -605,6 +607,7 @@ def row(state: State) -> dict[str, Any]:
         "phase": state.phase,
         "record": state.record,
         "start": document["start"],
+        "repeat": document["repeat"],
         "trains": document["trains"],
         "positioning": list(state.positioning),
         "entries": entries,
@@ -618,8 +621,8 @@ def restarted(said: object, document: Timetable) -> State | None:
     names another timetable.
 
     The phase, Record, `positioning` and each entry's state, request and
-    ending are the row's. So are the start time, the trains and the entries
-    where the document's differ. The document gives the railroad's name. A
+    ending are the row's. So are the start time, the repeat, the trains and
+    the entries where the document's differ. The document gives the railroad's name. A
     row whose phase is `over` stays `over`.
 
     The state has been told nothing of the railroad. Its time is None, and
@@ -644,6 +647,7 @@ def _read(said: object, document: Timetable) -> State:
             "timetable": document.name,
             "layout": document.layout,
             "start": fields["start"],
+            "repeat": fields["repeat"],
             "trains": fields["trains"],
             "entries": [],
         }
@@ -666,7 +670,7 @@ def _read(said: object, document: Timetable) -> State:
         listed.append((read_entry(entry), Progress(state, request, arrived)))
     # sorted() is stable, as `Timetable` is, so each progress stays with its
     # entry.
-    listed.sort(key=lambda pair: timetable.since_start(pair[0].at))
+    listed.sort(key=lambda pair: pair[0].at)
     positioning = _list(fields["positioning"])
     if (
         fields["phase"] not in PHASES
@@ -717,7 +721,7 @@ def _ruled(
             waits.add(train)
         if was.state not in (LATER, HELD):
             continue
-        is_due = time is not None and timetable.since_start(entry.at) <= time
+        is_due = time is not None and entry.at - timetable.start <= time
         ruled[index] = replace(was, state=HELD if is_due else LATER)
         if (
             time is not None

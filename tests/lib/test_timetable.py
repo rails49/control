@@ -1,5 +1,6 @@
 """The timetable document: what it reads as, what it refuses, the order its
-entries are held in and the arithmetic on its times (#1345).
+entries are held in and the time form its times are written in (#1345,
+#1365).
 
 At the module and through no store: a parsed document in, the value or the
 refusal out, and the value back to a document.
@@ -16,19 +17,22 @@ from tc49.lib.timetable import (
     Timetable,
     TrainStart,
     read_entry,
+    read_time,
     read_timetable,
+    time_text,
 )
 
 
-def hm(hours: int, minutes: int) -> int:
-    """A time of day in seconds since midnight."""
-    return (hours * 60 + minutes) * 60
+def hm(hours: int, minutes: int, day: int = 0) -> int:
+    """A time in seconds since midnight of day 0."""
+    return day * 86400 + (hours * 60 + minutes) * 60
 
 
 EXAMPLE = """
 timetable: evening
 layout: crossover-yard
 start: "06:00"
+repeat: "1d00:00"
 
 trains:
   freight_1: { at: yard_w, facing: A-to-B }
@@ -61,6 +65,7 @@ def test_a_timetable_is_its_start_its_trains_and_its_entries() -> None:
         name="evening",
         layout="crossover-yard",
         start=hm(6, 0),
+        repeat=hm(0, 0, day=1),
         trains={"freight_1": TrainStart(at="yard_w", facing="A-to-B")},
         entries=(
             Entry(
@@ -124,7 +129,7 @@ def test_a_block_and_a_train_no_railroad_has_are_read() -> None:
 
 
 def less(key: str) -> dict[str, Any]:
-    """The example without one of its five fields."""
+    """The example without one of its six fields."""
     doc = document()
     del doc[key]
     return doc
@@ -150,10 +155,11 @@ TURN = {"at": "06:10", "train": "freight_1", "turn": True}
 @pytest.mark.parametrize(
     ("doc", "field"),
     [
-        # All five fields and nothing else.
+        # All six fields and nothing else.
         (less("timetable"), "timetable"),
         (less("layout"), "layout"),
         (less("start"), "start"),
+        (less("repeat"), "repeat"),
         (less("trains"), "trains"),
         (less("entries"), "entries"),
         (document(speed_up=8), "speed_up"),
@@ -172,8 +178,29 @@ TURN = {"at": "06:10", "train": "freight_1", "turn": True}
         (document(start="24:00"), "start"),
         (document(start="06:60"), "start"),
         (document(start="06:00:30"), "start"),
+        # The start is on day 0.
+        (document(start="0d06:00"), "start"),
+        (document(start="1d06:00"), "start"),
+        # A time and a length are [<day>d]HH:MM, the day without leading
+        # zeros.
         (entry(**RUN | {"at": 750}), "at"),
         (entry(**RUN | {"at": "6:02"}), "at"),
+        (entry(**RUN | {"at": "01d06:02"}), "at"),
+        (entry(**RUN | {"at": "d06:02"}), "at"),
+        (entry(**RUN | {"at": "1 d06:02"}), "at"),
+        (entry(**RUN | {"at": "1d24:00"}), "at"),
+        (entry(**RUN | {"at": "-1d06:02"}), "at"),
+        (document(repeat=10800), "repeat"),
+        (document(repeat="3:00"), "repeat"),
+        (document(repeat="1d"), "repeat"),
+        # A repeat is greater than 0.
+        (document(repeat="00:00"), "repeat"),
+        (document(repeat="0d00:00"), "repeat"),
+        # Every entry lies from the start to before the start plus the
+        # repeat.
+        (entry(**RUN | {"at": "05:59"}), "at"),
+        (entry(**RUN | {"at": "1d06:00"}), "at"),
+        (document(repeat="03:00", entries=[RUN | {"at": "09:00"}]), "at"),
         # A train's start is its block and its facing.
         (document(trains=[]), "trains"),
         (document(trains={"": {"at": "yard_w", "facing": "A-to-B"}}), "trains"),
@@ -262,14 +289,72 @@ def test_a_timetable_takes_no_name_that_is_not_a_path_segment(name: str) -> None
         replace(read, name=name)
 
 
-@pytest.mark.parametrize("time", [hm(6, 0) + 30, -60, hm(24, 0)])
-def test_a_time_that_is_not_a_minute_of_the_day_is_refused(time: int) -> None:
-    """`"HH:MM"` says no seconds, so a value holding some would not be read
-    back as written."""
+@pytest.mark.parametrize("time", [hm(6, 0) + 30, -60])
+def test_a_time_that_is_not_a_whole_minute_is_refused(time: int) -> None:
+    """The time form says no seconds, so a value holding some would not be
+    read back as written."""
     with pytest.raises(ValueError, match="'at'"):
         Entry(at=time, train="freight_1")
     with pytest.raises(ValueError, match="'start'"):
         replace(read_timetable(document()), start=time)
+    with pytest.raises(ValueError, match="'repeat'"):
+        replace(read_timetable(document()), repeat=time)
+
+
+def test_a_start_is_a_time_on_day_0() -> None:
+    with pytest.raises(ValueError, match="'start'"):
+        replace(read_timetable(document(entries=[])), start=hm(6, 0, day=1))
+
+
+def test_a_repeat_of_0_is_refused() -> None:
+    with pytest.raises(ValueError, match="'repeat'"):
+        replace(read_timetable(document()), repeat=0)
+
+
+@pytest.mark.parametrize(
+    ("text", "time"),
+    [
+        ("06:00", hm(6, 0)),
+        ("0d06:00", hm(6, 0)),
+        ("1d06:00", hm(6, 0, day=1)),
+        ("1d00:00", hm(0, 0, day=1)),
+        ("12d23:59", hm(23, 59, day=12)),
+        ("00:00", 0),
+    ],
+)
+def test_a_time_is_read_as_seconds_since_midnight_of_day_0(
+    text: str, time: int
+) -> None:
+    assert read_time(text, "'at'") == time
+
+
+def test_a_time_is_written_without_the_day_on_day_0() -> None:
+    assert [time_text(time) for time in (0, hm(6, 0), hm(6, 0, day=1))] == [
+        "00:00",
+        "06:00",
+        "1d06:00",
+    ]
+    assert time_text(hm(23, 59, day=12)) == "12d23:59"
+
+
+def test_an_entry_on_day_1_reads_and_is_written_back() -> None:
+    doc = document(entries=[run("0d06:02"), run("1d05:59")])
+    read = read_timetable(doc)
+
+    assert [entry.at for entry in read.entries] == [hm(6, 2), hm(5, 59, day=1)]
+    assert times(read) == ["06:02", "1d05:59"]
+    assert read_timetable(read.document()) == read
+
+
+def test_an_entry_outside_the_repeat_is_refused_naming_the_range() -> None:
+    with pytest.raises(
+        ValueError, match="entry 1: 'at' is 05:59, before the start 06:00"
+    ):
+        read_timetable(entry(**RUN | {"at": "05:59"}))
+    with pytest.raises(
+        ValueError, match="entry 1: 'at' is 1d06:00, after the last minute 1d05:59"
+    ):
+        read_timetable(entry(**RUN | {"at": "1d06:00"}))
 
 
 def run(at: str, train: str = "freight_1", **fields: Any) -> dict[str, Any]:
@@ -287,20 +372,23 @@ def trains(timetable: Timetable) -> list[str]:
     return [entry.train for entry in timetable.entries]
 
 
-def test_entries_are_held_in_order_of_time_counted_from_the_start() -> None:
-    """With a start of 22:00, 01:00 is three hours in and comes after
-    23:00."""
+def test_entries_are_held_in_order_of_their_time() -> None:
+    """With a start of 22:00, 1d01:00 comes after 23:00."""
     read = read_timetable(
-        document(start="22:00", entries=[run("01:00"), run("23:00"), run("22:30")])
+        document(start="22:00", entries=[run("1d01:00"), run("23:00"), run("22:30")])
     )
 
-    assert times(read) == ["22:30", "23:00", "01:00"]
+    assert times(read) == ["22:30", "23:00", "1d01:00"]
 
 
-def test_the_day_counted_from_the_start_ends_a_minute_before_it() -> None:
-    read = read_timetable(document(start="22:00", entries=[run("21:59"), run("22:00")]))
+def test_the_last_minute_of_the_repeat_is_listed_last() -> None:
+    """With a start of 06:00 and a repeat of a day, 1d05:59 is the last
+    minute, and 05:59 is before the start."""
+    read = read_timetable(document(entries=[run("1d05:59"), run("06:00")]))
 
-    assert times(read) == ["22:00", "21:59"]
+    assert times(read) == ["06:00", "1d05:59"]
+    with pytest.raises(ValueError, match="'at'"):
+        read_timetable(document(entries=[run("05:59")]))
 
 
 def test_entries_in_one_minute_keep_the_documents_order() -> None:
@@ -318,16 +406,6 @@ def test_entries_in_one_minute_keep_the_documents_order() -> None:
     assert trains(read) == ["local", "freight_1", "branch", "express"]
 
 
-def test_a_time_of_day_is_so_many_seconds_from_the_start_within_the_day() -> None:
-    read = read_timetable(document(start="22:00"))
-
-    assert read.since_start(hm(22, 0)) == 0
-    assert read.since_start(hm(22, 0) + 59) == 59
-    assert read.since_start(hm(23, 30)) == 90 * 60
-    assert read.since_start(hm(1, 0)) == 3 * 3600
-    assert read.since_start(hm(21, 59)) == 24 * 3600 - 60
-
-
 NIGHT = read_timetable(
     document(
         start="22:00",
@@ -335,7 +413,7 @@ NIGHT = read_timetable(
             run("22:30", "local"),
             run("23:00", "express"),
             run("23:00", "freight_1"),
-            run("01:00", "branch"),
+            run("1d01:00", "branch"),
         ],
     )
 )
@@ -355,11 +433,11 @@ def test_a_new_entry_goes_after_the_entries_that_share_its_time() -> None:
 
 
 def test_a_new_entry_goes_after_the_last_entry_before_its_time() -> None:
-    """Counted from the start: 00:30 is after 23:00 and before 01:00."""
-    added = NIGHT.added(new(hm(0, 30)))
+    """1d00:30 is after 23:00 and before 1d01:00."""
+    added = NIGHT.added(new(hm(0, 30, day=1)))
 
     assert trains(added) == ["local", "express", "freight_1", "new", "branch"]
-    assert NIGHT.place(hm(0, 30)) == 3
+    assert NIGHT.place(hm(0, 30, day=1)) == 3
 
 
 def test_a_new_entry_before_every_other_is_first_and_after_every_other_last() -> None:
@@ -370,14 +448,19 @@ def test_a_new_entry_before_every_other_is_first_and_after_every_other_last() ->
         "freight_1",
         "branch",
     ]
-    assert trains(NIGHT.added(new(hm(21, 59)))) == [
+    assert trains(NIGHT.added(new(hm(21, 59, day=1)))) == [
         "local",
         "express",
         "freight_1",
         "branch",
         "new",
     ]
-    assert (NIGHT.place(hm(22, 0)), NIGHT.place(hm(21, 59))) == (0, 4)
+    assert (NIGHT.place(hm(22, 0)), NIGHT.place(hm(21, 59, day=1))) == (0, 4)
+
+
+def test_a_new_entry_outside_the_repeat_is_refused() -> None:
+    with pytest.raises(ValueError, match="'at'"):
+        NIGHT.added(new(hm(22, 0, day=1)))
 
 
 def test_adding_leaves_the_timetable_it_was_added_to_as_it_was() -> None:

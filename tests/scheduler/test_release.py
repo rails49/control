@@ -16,7 +16,7 @@ import pytest
 
 import tc49.scheduler.release
 from tc49.lib.fast_clock import DAY_S
-from tc49.lib.timetable import Entry, Timetable, TrainStart
+from tc49.lib.timetable import Entry, Timetable, TrainStart, read_time
 from tc49.scheduler.release import (
     CANCELLED,
     COMPLETED,
@@ -70,16 +70,16 @@ def test_the_release_rule_imports_only_lib() -> None:
     assert "tc49.lib.bus" not in names
 
 
-def at(hh_mm: str) -> int:
-    """`"HH:MM"` as seconds since midnight."""
-    hours, minutes = hh_mm.split(":")
-    return (int(hours) * 60 + int(minutes)) * 60
+def at(time: str) -> int:
+    """A time in the time form, `HH:MM` or `1d05:58`, as seconds since
+    midnight of day 0."""
+    return read_time(time, "a time")
 
 
 def running(*entries: Entry, start: str = "06:00") -> State:
     """A timetable of `entries` that has just started, with its trains on the
     layout and power on."""
-    timetable = Timetable("evening", "crossover-yard", at(start), {}, entries)
+    timetable = Timetable("evening", "crossover-yard", at(start), DAY_S, {}, entries)
     return State(
         timetable,
         RUNNING,
@@ -347,7 +347,7 @@ def test_a_clock_set_12_hours_or_more_forward_reads_as_a_set_back() -> None:
 
 def test_a_timetable_is_over_24_hours_after_its_start_and_releases_no_more() -> None:
     first = Entry(at("06:02"), "freight", ("dn_e",))
-    last = Entry(at("05:58"), "express", ("up_w",))
+    last = Entry(at("1d05:58"), "express", ("up_w",))
     state = running(first, last)
     for time in (at("17:00"), at("04:00"), at("05:59")):
         state = clocked(state, time, 60)
@@ -445,6 +445,7 @@ def test_a_load_replaces_the_timetable_loaded_with_record_off() -> None:
         "morning",
         "crossover-yard",
         at("09:00"),
+        DAY_S,
         {"freight": TrainStart("yard_w", "A-to-B")},
         (Entry(at("09:00"), "freight", ("up_e",)),),
     )
@@ -456,6 +457,7 @@ def test_a_load_replaces_the_timetable_loaded_with_record_off() -> None:
         "phase": "loaded",
         "record": False,
         "start": "09:00",
+        "repeat": "1d00:00",
         "trains": {"freight": {"at": "yard_w", "facing": "A-to-B"}},
         "positioning": [],
         "entries": [
@@ -538,6 +540,7 @@ def every_state() -> State:
         "evening",
         "crossover-yard",
         at("06:00"),
+        DAY_S,
         {"freight": TrainStart("yard_w", "A-to-B")},
         (
             Entry(at("06:01"), "freight", ("dn_e", "up_e"), 2, "meets the express"),
@@ -582,6 +585,7 @@ def test_the_state_row_has_the_timetable_and_each_entrys_state() -> None:
         "phase": "running",
         "record": True,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": {"freight": {"at": "yard_w", "facing": "A-to-B"}},
         "positioning": ["local-ab-1"],
         "entries": [
@@ -672,7 +676,7 @@ def test_a_restart_releases_nothing_the_row_says_has_gone_out() -> None:
 
 
 def test_a_restart_takes_the_time_from_the_clock_within_the_day() -> None:
-    before = running(Entry(at("05:58"), "freight", ("dn_e",)))
+    before = running(Entry(at("1d05:58"), "freight", ("dn_e",)))
     assert before.timetable is not None
     state = restarted(row(before), before.timetable)
     assert state is not None
@@ -686,7 +690,7 @@ def test_a_restart_keeps_the_rows_entries_where_the_documents_differ() -> None:
     """And the document's railroad, which the row does not say."""
     before = every_state()
     assert before.timetable is not None
-    document = Timetable("evening", "crossover-yard", at("07:00"), {}, ())
+    document = Timetable("evening", "crossover-yard", at("07:00"), DAY_S, {}, ())
 
     state = restarted(row(before), document)
 
@@ -798,6 +802,7 @@ def test_a_new_timetable_starts_at_the_clocks_minute_and_is_running() -> None:
         "phase": "running",
         "record": True,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": {"freight": {"at": "yard_w", "facing": "A-to-B"}},
         "positioning": [],
         "entries": [],
