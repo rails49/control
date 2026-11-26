@@ -127,6 +127,12 @@ class FastClockRow:
         """What the clock reads now, on `tc49/layout/state/clock`."""
         self._bus.publish(CLOCK, self._fast.row(self._monotonic()))
 
+    def stood(self) -> FastClock:
+        """The clock standing at what it reads now, at its speed-up: what
+        this build hands the next one under the same railroad name, which
+        starts there (`loaded`, #1372)."""
+        return self._fast.stood(self._monotonic())
+
     def _powered(self, topic: str, payload: Payload) -> None:
         """What the binding states about its power: the clock stands from
         `off`, at the whole second it reads, and runs on from there at `on`
@@ -177,19 +183,23 @@ def loaded(
     monotonic: Callable[[], float],
     moment: time.struct_time,
     keep: Callable[[KeptClock], None],
+    handed: FastClock | None = None,
 ) -> FastClockRow:
-    """The row a build starts: at the start time the railroad keeps
-    (ADR-0090, decision 4), or, where it keeps none, at `moment`'s time of
-    day, the box's wall clock read once a build, at a speed-up of 1, which is
-    not written until a person sets the clock. It stands at that time until
-    power first reads `on` (`FastClockRow`)."""
+    """The row a build starts. A rebuild under the same railroad name is
+    `handed` the clock the last build stood at (`FastClockRow.stood`) and
+    starts there, day included, at its speed-up (#1372). Any other build
+    starts on day 0 at the start time the railroad keeps (ADR-0090, decision
+    4), or, where it keeps none, at `moment`'s time of day, the box's wall
+    clock read once a build, at a speed-up of 1, which is not written until a
+    person sets the clock. The clock stands at that time until power first
+    reads `on` (`FastClockRow`)."""
     if kept is None:
         now = time_of_day(moment)
         fast = FastClock(now, 1.0, monotonic())
         kept = KeptClock(start_of(now), 1.0)
     else:
         fast = kept.started(monotonic())
-    return FastClockRow(bus, fast, kept, monotonic, keep)
+    return FastClockRow(bus, fast if handed is None else handed, kept, monotonic, keep)
 
 
 def kept_by_installation(

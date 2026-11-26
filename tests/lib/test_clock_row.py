@@ -324,6 +324,46 @@ def test_a_railroad_that_keeps_no_clock_starts_at_the_box_time_of_day() -> None:
     assert keeping == [KeptClock((14 * 60 + 25) * 60, 8.0)]
 
 
+DAY_3_10 = 3 * 86400 + 10 * 3600
+"""3d10:00: ten in the morning of day 3, in seconds since midnight of day 0."""
+
+
+def test_a_rebuild_starts_at_the_clock_the_last_build_handed_over() -> None:
+    """Day included and at its speed-up, not on day 0 at the start the
+    railroad keeps, and standing until power first reads `on` (#1372). A
+    speed-up set after is kept with the start the railroad keeps."""
+    bus = InProcessBus(Clock())
+    monotonic = Monotonic()
+    said: list[Payload] = []
+    bus.subscribe(CLOCK, lambda _topic, payload: said.append(payload))
+    moment = time.strptime("2026-10-24 14:25:07", "%Y-%m-%d %H:%M:%S")
+    keeping: list[KeptClock] = []
+    handed = FastClock(DAY_3_10, 8.0, 7.0, True)
+    row = loaded(bus, KeptClock(SIX, 4.0), monotonic, moment, keeping.append, handed)
+    row.say()
+    monotonic.now += 5
+    row.say()
+    bus.drain()
+    assert [(row["time"], row["speed_up"]) for row in said] == [(DAY_3_10, 8.0)] * 2
+    bus.publish(CLOCK_WANTED, {"speed_up": 2})
+    bus.drain()
+    assert keeping == [KeptClock(SIX, 2.0)]
+
+
+def test_what_a_build_hands_the_next_is_the_time_it_reads_standing() -> None:
+    """Five real seconds on at 4 are twenty: the clock handed over stands
+    at 06:00:20, at a speed-up of 4, whatever the next build's real clock
+    reads (#1372)."""
+    bus, monotonic, _, _, _ = powered("on")
+    row = loaded(
+        bus, KeptClock(SIX, 4.0), monotonic, time.localtime(), lambda _kept: None
+    )
+    bus.drain()
+    monotonic.now += 5
+    handed = row.stood()
+    assert (handed.time(monotonic.now + 100), handed.speed_up) == (SIX + 20, 4.0)
+
+
 def test_a_clock_document_the_store_cannot_read_is_said_and_read_as_none() -> None:
     """A clock is no reason not to build a railroad (ADR-0044)."""
 
