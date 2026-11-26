@@ -1,5 +1,7 @@
 import { css } from "lit";
 
+import { heading } from "./shared.styles.js";
+
 /**
  * The list under the roster (`tc-requests`): the loaded timetable's entries
  * and the requests the dispatcher holds (#829, #1356).
@@ -8,8 +10,9 @@ import { css } from "lit";
  * size is the view's (`tc-panel.styles.ts`). The heading is "Timetable",
  * then the loaded timetable's name, then the controls the run view puts in
  * its slot, on a line of their own where one line does not hold them (#1357).
- * The heading keeps its height and stays in view, and the rows scroll under
- * it in what is left of the list's height.
+ * The heading's first line is the roster's heading's height (#1390). The
+ * heading keeps its height and stays in view, and the rows scroll under it in
+ * what is left of the list's height.
  *
  * A request's row is the train and its state
  * on one line, where the
@@ -41,22 +44,7 @@ export const requestsStyles = css`
     padding: 0.4rem;
   }
 
-  header {
-    flex: none;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.5rem;
-    margin: 0.3rem 0.2rem;
-  }
-
-  h2 {
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--hint);
-    margin: 0;
-  }
+  ${heading}
 
   .name {
     font-size: 0.75rem;

@@ -43,6 +43,7 @@ import { editorStyles } from "../src/ui/tc-editor.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
+import { requestsStyles } from "../src/ui/tc-requests.styles.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
 import { settingsStyles } from "../src/ui/tc-settings.styles.js";
 import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
@@ -61,6 +62,7 @@ const sheets: Record<string, CSSResult> = {
   menuStyles,
   paletteStyles,
   panelStyles,
+  requestsStyles,
   rosterStyles,
   settingsStyles,
   throttleStyles,
@@ -547,6 +549,25 @@ describe("the run view's pane", () => {
       expect(towards).toBeGreaterThan(0);
       expect(towards).toBeLessThan(0.1);
     }
+  });
+
+  /** "Trains" and "Timetable" head bars of one height, so the two line up
+   *  side by side, and read as headings: bold and in the ink colour. The
+   *  timetable's controls wrap under its first line, which keeps that
+   *  height. */
+  it("heads both lists with bars of one height", () => {
+    for (const sheet of [rosterStyles, requestsStyles]) {
+      expect(sheet.cssText).toContain(shared.heading.cssText);
+    }
+    const bar = rule(shared.heading.cssText, "header");
+    const title = rule(shared.heading.cssText, "h2");
+    const height = /min-height:\s*([^;]+);/.exec(bar)![1]!;
+    expect(title).toContain(`line-height: ${height}`);
+    expect(bar).toMatch(/flex-wrap:\s*wrap/);
+    expect(title).toMatch(/font-weight:\s*bold/);
+    expect(title).toMatch(/color:\s*var\(--ink\)/);
+    expect(title).toMatch(/text-transform:\s*uppercase/);
+    expect(title).toMatch(/letter-spacing:/);
   });
 
   it("gives the trains their content's height, up to half, and the timetable the rest", () => {
