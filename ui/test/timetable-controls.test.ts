@@ -328,7 +328,7 @@ function shown(shell: TcApp): string | null {
 describe("View", () => {
   it("shows the loaded timetable's file as the store has it, and publishes nothing", async () => {
     const { shell } = await standing();
-    store.text = (railroad, name) => (railroad === "toy" && name === "evening" ? EVENING : "");
+    store.timetableText = (railroad, name) => (railroad === "toy" && name === "evening" ? EVENING : "");
     await chosen(shell, "View");
     expect(titled(shell)).toBe("View evening");
     expect(shown(shell)).toBe(EVENING);
@@ -338,7 +338,7 @@ describe("View", () => {
 
   it("opens with power on", async () => {
     const { shell } = await standing(row(), "on");
-    store.text = () => EVENING;
+    store.timetableText = () => EVENING;
     await chosen(shell, "View");
     expect(shown(shell)).toBe(EVENING);
   });
@@ -381,9 +381,9 @@ describe("View", () => {
    *  the file meanwhile shows on the next View. */
   it("reads the file again when it is opened again", async () => {
     const { shell } = await standing();
-    store.text = () => "timetable: evening\n";
+    store.timetableText = () => "timetable: evening\n";
     await chosen(shell, "View");
-    store.text = () => EVENING;
+    store.timetableText = () => EVENING;
     expect(shown(shell)).toBe("timetable: evening\n");
 
     await pressed(shell, ".close");
