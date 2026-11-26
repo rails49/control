@@ -31,7 +31,7 @@ import { readFileSync } from "node:fs";
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
-import { DRAWING, LEAST, UPRIGHT } from "../src/model/pane.js";
+import { DRAWING, GAP, LEAST, LIST, UPRIGHT } from "../src/model/pane.js";
 import { COLOURS, DARK } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
@@ -532,6 +532,21 @@ describe("the run view's pane", () => {
     );
   });
 
+  /** Until the gap between the lists is dragged the trains list is as tall
+   *  as its rows up to half the pane, or half the pane's width side by side.
+   *  Once dragged it is the size the view hands over, `--lists-size`, and the
+   *  timetable keeps its least when the window changes size (#1391). */
+  it("sizes the trains list by the gap between the lists", () => {
+    const [left, upright] = panelStyles.cssText.split(`@media ${UPRIGHT}`);
+    const trains = rule(left!, "tc-roster");
+    expect(trains).toMatch(/flex:\s*0 1 var\(--lists-size, auto\)/);
+    expect(trains).toContain(`max-height: min(var(--lists-size, 50%), 100% - ${LIST.left + GAP}px)`);
+    const beside = rule(upright!, "tc-roster");
+    expect(beside).toMatch(/flex:\s*0 1 var\(--lists-size, calc\(50% - 3px\)\)/);
+    expect(beside).toContain(`max-width: calc(100% - ${LIST.above + GAP}px)`);
+    expect(rule(left!, "aside")).not.toMatch(/\bgap:/);
+  });
+
   /** The gap is a solid grey darker than the rule, and the stripe the lists'
    *  rows take (#1392, #1393) a faint shade of ink on the paper, in either
    *  theme. */
@@ -572,10 +587,8 @@ describe("the run view's pane", () => {
     expect(title).toMatch(/letter-spacing:/);
   });
 
-  it("gives the trains their content's height, up to half, and the timetable the rest", () => {
+  it("gives the timetable what the trains leave, each list scrolling on its own", () => {
     const trains = rule(panelStyles.cssText, "tc-roster");
-    expect(trains).toMatch(/flex:\s*0 1 auto/);
-    expect(trains).toMatch(/max-height:\s*50%/);
     expect(trains).toMatch(/overflow-y:\s*auto/);
     const timetable = rule(panelStyles.cssText, "tc-requests");
     expect(timetable).toMatch(/flex:\s*1 1 0/);
