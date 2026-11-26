@@ -7,23 +7,8 @@ import { css } from "lit";
  * as wide as the dialog and at least 40px high. What the store refused
  * with, and why a name will not do, is a red line under the list or the
  * field.
- *
- * View's file is a monospace block that keeps the YAML's lines and
- * indentation, scrolls inside the dialog once it is taller than 60% of the
- * window, and can be selected and copied.
  */
 export const timetableDialogStyles = css`
-  .text {
-    max-height: 60vh;
-    margin: 0;
-    overflow: auto;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.85rem;
-    white-space: pre;
-    -webkit-user-select: text;
-    user-select: text;
-  }
-
   ul {
     margin: 0;
     padding: 0;

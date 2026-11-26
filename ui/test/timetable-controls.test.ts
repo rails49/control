@@ -14,6 +14,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { LookTextDialog } from "@rails49/look";
 
 import "../src/ui/tc-app.js";
 import {
@@ -320,9 +321,26 @@ entries:
 - entry: {at: 06:30, train: freight_1, to: [up_w]}
 `;
 
-/** The text the open dialog shows, `null` for none. */
+/** View's dialog, which draws the file in its own shadow root. */
+function viewing(shell: TcApp): LookTextDialog {
+  return dialog(shell)!.querySelector("look-text-dialog")!;
+}
+
+/** The text View shows, `null` for none. */
 function shown(shell: TcApp): string | null {
-  return dialog(shell)!.querySelector("pre")?.textContent ?? null;
+  return viewing(shell).shadowRoot!.querySelector("pre")?.textContent ?? null;
+}
+
+/** What View shows in place of the text, `null` for nothing. */
+function refused(shell: TcApp): string | null {
+  return viewing(shell).shadowRoot!.querySelector(".error")?.textContent!.trim() ?? null;
+}
+
+/** View's dialog hidden, as its Close, Escape and header close end. Close
+ *  itself is look's to test. */
+async function closed(shell: TcApp): Promise<void> {
+  viewing(shell).dispatchEvent(new Event("sl-after-hide"));
+  await settled(shell);
 }
 
 describe("View", () => {
@@ -330,9 +348,9 @@ describe("View", () => {
     const { shell } = await standing();
     store.timetableText = (railroad, name) => (railroad === "toy" && name === "evening" ? EVENING : "");
     await chosen(shell, "View");
-    expect(titled(shell)).toBe("View evening");
+    expect(viewing(shell).label).toBe("View evening");
     expect(shown(shell)).toBe(EVENING);
-    expect(trouble(shell)).toBeNull();
+    expect(refused(shell)).toBeNull();
     expect(written()).toEqual([]);
   });
 
@@ -350,14 +368,14 @@ describe("View", () => {
         ? { status: 400, error: "timetable 'toy/evening': 'entries' must be a list, got str" }
         : null;
     await chosen(shell, "View");
-    expect(trouble(shell)).toBe("timetable 'toy/evening': 'entries' must be a list, got str");
+    expect(refused(shell)).toBe("timetable 'toy/evening': 'entries' must be a list, got str");
     expect(shown(shell)).toBeNull();
   });
 
   it("shows the store's words for a file it does not have", async () => {
     const { shell } = await standing(row({ timetable: "friday" }));
     await chosen(shell, "View");
-    expect(trouble(shell)).toBe("no timetable 'toy/friday'");
+    expect(refused(shell)).toBe("no timetable 'toy/friday'");
     expect(shown(shell)).toBeNull();
   });
 
@@ -365,14 +383,14 @@ describe("View", () => {
     const { shell } = await standing();
     store.broken = new TypeError("Failed to fetch");
     await chosen(shell, "View");
-    expect(trouble(shell)).toBe("the store is not answering — run `tc49 serve`");
+    expect(refused(shell)).toBe("the store is not answering — run `tc49 serve`");
     expect(shown(shell)).toBeNull();
   });
 
-  it("goes away at Close", async () => {
+  it("goes away once its dialog has hidden", async () => {
     const { shell } = await standing();
     await chosen(shell, "View");
-    await pressed(shell, ".close");
+    await closed(shell);
     expect(asking(shell)).toBe(false);
     expect(written()).toEqual([]);
   });
@@ -386,7 +404,7 @@ describe("View", () => {
     store.timetableText = () => EVENING;
     expect(shown(shell)).toBe("timetable: evening\n");
 
-    await pressed(shell, ".close");
+    await closed(shell);
     await chosen(shell, "View");
     expect(shown(shell)).toBe(EVENING);
   });
