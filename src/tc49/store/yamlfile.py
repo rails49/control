@@ -24,6 +24,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import CommentMark
 from ruamel.yaml.representer import RoundTripRepresenter
+from ruamel.yaml.scalarstring import SingleQuotedScalarString
 from ruamel.yaml.tokens import CommentToken
 
 from tc49.store import atomic
@@ -206,6 +207,11 @@ def _styled(value: Any) -> Any:
         if all(not isinstance(v, dict) for v in pairs.values()):
             _flow(mapping)
         return mapping
+    if isinstance(value, str) and "?" in value:
+        # YAML 1.2 lets a plain scalar on a one-line collection hold `?`, so
+        # ruamel leaves it unquoted; YAML 1.1, which these files are read
+        # back in (`store._Reader`), ends the scalar there (#1360).
+        return SingleQuotedScalarString(value)
     return value
 
 
