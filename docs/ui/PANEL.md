@@ -253,18 +253,18 @@ markup at any width. The width read is the list's own and not the page's,
 since a person sets the pane's width.
 
 **A tap on an entry's row opens it**
-([#1358](https://github.com/rails49/control/issues/1358)). Under the row's
-lines are its time, its dwell and its description, each a field, and a
-Delete: `tc-entry`, a component of its own.
+([#1358](https://github.com/rails49/control/issues/1358),
+[#1386](https://github.com/rails49/control/issues/1386)). Under the row's
+lines are its time, its arrival ends (To), its dwell and its description,
+each a field, and a Delete: `tc-entry`, a component of its own.
 
 - Every entry's row opens, whatever its state, so an entry that already ran
   can be changed for the next run. A row that is done is not dimmed while it
   is open.
-- A turn-round has no dwell field.
+- A turn-round has no To field and no dwell field.
 - A request no entry went out as does not open.
 - One row is open at a time. A tap on another row moves the opening, and a
   tap on the open row closes it.
-- The destination is not edited. A person deletes the entry and drags again.
 - A waiting row is still dragged to reorder it. A press in the open part
   does not pick the row up.
 
@@ -275,11 +275,26 @@ with the one field changed.
 
 - **Time**: `H:MM` or `HH:MM`, sent as `HH:MM`. Text that is no time is not
   sent.
+- **To**: the arrival ends as the document writes them, separated by commas:
+  `dn_e, up_e.B`. Each is a block, meaning either end, or `<block>.A` or
+  `<block>.B`. They are sent in the order typed, without the space round
+  each. A comma with nothing after it adds no end. A change to an entry that
+  is out leaves its request as it is, and runs from the next round.
 - **Dwell**: whole fast-clock minutes in digits, 0 or more. Emptied it is 0,
   and 0 is sent as no `dwell`. Anything else is not sent.
 - **Description**: text, sent without the space round it. Emptied, the entry
   has none.
 - A field left reading what the entry has sends nothing.
+
+**To words that are refused send nothing**, and the row says why in a line
+under the field until the next field is changed:
+
+- no end: "no arrival end";
+- an end other than A or B: "b.C: the end is A or B";
+- a block the railroad does not have: "the railroad has no block z";
+- a block named twice, in any form, `dn_e, dn_e.A` included: "dn_e is named
+  twice". A bare block and its two ends are the same arrival ends to the
+  dispatcher.
 
 **Delete** publishes `entry_wanted` with that `was` and `now: null`. It does
 not ask first, and the row closes. The row's cancel still publishes
