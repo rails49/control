@@ -469,7 +469,7 @@ export class TcPanel extends LitElement {
         <tc-roster
           .trains=${this.roster}
           .live=${this.inSession && !grey}
-          .starting=${this.panel?.timetable?.phase === "loaded"}
+          .startColumn=${this.panel?.startColumn ?? false}
           @roster-picked=${this.picked}
           @roster-dropped=${this.dropped}
         ></tc-roster>
