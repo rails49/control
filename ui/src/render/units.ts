@@ -201,6 +201,10 @@ export const COLOURS: Record<string, string> = {
   "--ink": "#1c1f24",
   "--paper": "#fbfbfa",
   "--rule": "#d9d6d0",
+  // The run view's ground, which shows in the gaps between its panels
+  // (#1390), and the shade every other row of a list takes on the paper.
+  "--gap": "#c3c0b9",
+  "--stripe": "#f2f2f1",
   "--face": "#a8a49b",
   "--track": "#12151a",
   "--body": "#ffffff",
@@ -270,6 +274,8 @@ export const DARK: Record<string, string> = {
   "--ink": "#e6e8ea",
   "--paper": "#14171b",
   "--rule": "#2f343b",
+  "--gap": "#0a0c0f",
+  "--stripe": "#1e2125",
   "--face": "#6b7078",
   "--track": "#dfe3e8",
   "--body": "#1b1f26",

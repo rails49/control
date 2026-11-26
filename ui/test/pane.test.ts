@@ -106,15 +106,15 @@ describe("the run view's divider", () => {
     expect(size(shell)).toBe("744px");
   });
 
-  /** Below the drawing the greatest leaves it 192 px of the view's 700. */
+  /** Above the drawing the greatest leaves it 192 px of the view's 700. */
   it("holds the pane's height to a least and a greatest", async () => {
     const shell = await joined();
     await turned(shell, 768, 1024);
 
-    await drag(shell, { x: 400, y: 730 });
+    await drag(shell, { x: 400, y: 50 });
     expect(size(shell)).toBe("144px");
 
-    await drag(shell, { x: 400, y: 50 });
+    await drag(shell, { x: 400, y: 730 });
     expect(size(shell)).toBe("508px");
   });
 
@@ -124,15 +124,31 @@ describe("the run view's divider", () => {
     expect(size(await reloaded())).toBe("300px");
   });
 
-  /** The pane is below the drawing there, so the divider sets its height,
-   *  measured from the bottom of the view. */
+  it("comes back where it was left after a reload on a page taller than it is wide", async () => {
+    paged(768, 1024);
+    await drag(await joined(), { x: 400, y: 240 });
+
+    expect(size(await reloaded())).toBe("200px");
+  });
+
+  /** The pane is above the drawing there, so the divider sets its height,
+   *  measured from the top of the view. */
   it("sets the pane's height on a page taller than it is wide", async () => {
     const shell = await joined();
     await turned(shell, 768, 1024);
 
-    await drag(shell, { x: 400, y: 540 });
+    await drag(shell, { x: 400, y: 240 });
 
     expect(size(shell)).toBe("200px");
+  });
+
+  /** The size a browser kept for the pane when it was below the drawing is
+   *  not read: the arrangement is above it now. */
+  it("reads no size kept for the pane below the drawing", async () => {
+    localStorage.setItem("tc49.pane.below", "300");
+    paged(768, 1024);
+
+    expect(size(await joined())).toBe("");
   });
 
   it("keeps one position for each arrangement", async () => {
@@ -140,7 +156,7 @@ describe("the run view's divider", () => {
     await drag(shell, { x: 350, y: 300 });
     await turned(shell, 768, 1024);
     expect(size(shell)).toBe("");
-    await drag(shell, { x: 400, y: 540 });
+    await drag(shell, { x: 400, y: 240 });
 
     await turned(shell, 1024, 768);
     expect(size(shell)).toBe("300px");
