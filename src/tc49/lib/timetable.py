@@ -44,7 +44,6 @@ from typing import Any, cast
 from tc49.lib.fast_clock import DAY_S
 from tc49.lib.layout import FACINGS, as_mapping, check_keys
 
-_HH_MM = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])")
 _TIME = re.compile(r"(?:(0|[1-9][0-9]*)d)?([01][0-9]|2[0-3]):([0-5][0-9])")
 _FIELDS = {"timetable", "layout", "start", "repeat", "trains", "entries"}
 
@@ -213,7 +212,7 @@ def read_timetable(doc: object) -> Timetable:
     `entries`, all six and nothing else:
 
     - `timetable` and `layout` are names (see `Timetable`);
-    - `start` is `"HH:MM"` as text, a time on day 0;
+    - `start` is a time in the time form as text, on day 0;
     - `repeat` is a length in the time form as text, greater than 0;
     - `trains` maps each train to its `at`, a block, and its `facing`,
       `A-to-B` or `B-to-A`, both and nothing else. It may be empty;
@@ -258,7 +257,7 @@ def read_timetable(doc: object) -> Timetable:
         read_entry(one, f"{where}: entry {i + 1}")
         for i, one in enumerate(cast(list[object], entries))
     )
-    start = _start(fields["start"], f"{where}: 'start'")
+    start = read_time(fields["start"], f"{where}: 'start'")
     repeat = read_time(fields["repeat"], f"{where}: 'repeat'")
     try:
         return Timetable(
@@ -360,11 +359,3 @@ def _text(value: object, what: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{what} is {value!r}, not non-empty text")
     return value
-
-
-def _start(value: object, what: str) -> int:
-    """`"HH:MM"`, a time on day 0, as seconds since midnight."""
-    matched = _HH_MM.fullmatch(value) if isinstance(value, str) else None
-    if matched is None:
-        raise ValueError(f'{what} is {value!r}, not "HH:MM" quoted')
-    return (int(matched[1]) * 60 + int(matched[2])) * 60

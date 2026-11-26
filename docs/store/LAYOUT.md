@@ -446,7 +446,8 @@ an empty list.
   `00`–`59`. Leaving out `<day>d` means day 0, so `06:00` and `0d06:00` are
   the same time, and `1d06:00` is a day later. The store writes day 0 without
   `0d`.
-- `start` is `"HH:MM"`, a time on day 0.
+- `start` is a time in the time form on day 0, so the store writes it
+  `"HH:MM"`.
 - `repeat` is a length in the time form, greater than 0: the time from
   `start` to where the timetable begins again. A new timetable is written
   with `1d00:00`. A document without it, or with `00:00`, does not read.

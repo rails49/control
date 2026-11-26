@@ -172,14 +172,14 @@ TURN = {"at": "06:10", "train": "freight_1", "turn": True}
         (document(layout=""), "layout"),
         (document(layout="yards/crossover"), "layout"),
         (document(layout=".."), "layout"),
-        # A time is "HH:MM" as text. YAML 1.1 reads a bare 12:30 as 750.
+        # A time is in the time form as text. YAML 1.1 reads a bare 12:30 as
+        # 750.
         (document(start=750), "start"),
         (document(start="6:00"), "start"),
         (document(start="24:00"), "start"),
         (document(start="06:60"), "start"),
         (document(start="06:00:30"), "start"),
         # The start is on day 0.
-        (document(start="0d06:00"), "start"),
         (document(start="1d06:00"), "start"),
         # A time and a length are [<day>d]HH:MM, the day without leading
         # zeros.
@@ -304,6 +304,12 @@ def test_a_time_that_is_not_a_whole_minute_is_refused(time: int) -> None:
 def test_a_start_is_a_time_on_day_0() -> None:
     with pytest.raises(ValueError, match="'start'"):
         replace(read_timetable(document(entries=[])), start=hm(6, 0, day=1))
+
+
+def test_a_start_is_read_in_the_time_form_and_refused_after_day_0() -> None:
+    assert read_timetable(document(start="0d06:00")).start == hm(6, 0)
+    with pytest.raises(ValueError, match="'start' is 1d06:00, not on day 0"):
+        read_timetable(document(start="1d06:00", entries=[]))
 
 
 def test_a_repeat_of_0_is_refused() -> None:
