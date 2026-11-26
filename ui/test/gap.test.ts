@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Point } from "../src/model/geometry.js";
 import "../src/ui/tc-gap.js";
 import type { TcGap } from "../src/ui/tc-gap.js";
+import { gapStyles } from "../src/ui/tc-gap.styles.js";
 
 async function made(axis: "x" | "y" = "x"): Promise<{ gap: TcGap; moved: Point[] }> {
   const gap = document.createElement("tc-gap");
@@ -76,6 +77,23 @@ describe("the gap", () => {
     pointer(gap, "pointermove", 30, 40);
 
     expect(moved).toEqual([]);
+  });
+
+  /** A touch drag captures the pointer, and `:active` does not hold for it
+   *  in every browser, so the gap says it is dragged for its stylesheet. */
+  it("says it is dragged on its element from the press to the release", async () => {
+    const { gap } = await made();
+    expect(gap.hasAttribute("dragging")).toBe(false);
+    pointer(gap, "pointerdown", 10, 20);
+    await gap.updateComplete;
+    expect(gap.hasAttribute("dragging")).toBe(true);
+    pointer(gap, "pointerup", 10, 20);
+    await gap.updateComplete;
+    expect(gap.hasAttribute("dragging")).toBe(false);
+  });
+
+  it("takes the chosen colour while dragged", () => {
+    expect(gapStyles.cssText).toMatch(/:host\(\[dragging\]\)\s*\{[^}]*background:\s*var\(--chosen\)/);
   });
 
   it("names the way it is dragged on its element, for its stylesheet", async () => {
