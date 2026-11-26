@@ -29,6 +29,7 @@ from tc49.lib.payload import (
     TimetableWanted,
     alignment,
     alive_throttle,
+    awaited_turns,
     chosen,
     command,
     commanded_power,
@@ -1674,6 +1675,38 @@ def test_a_timetable_row_names_the_one_loaded_or_none(
     payload: object, name: str | None
 ) -> None:
     assert loaded_timetable(payload) == name
+
+
+def test_a_running_timetable_row_lists_the_trains_with_a_turn_round_to_come() -> None:
+    """One entry at a time: an entry that is no turn-round, was applied or
+    cannot be read is passed over."""
+    row = {
+        "at": 3.0,
+        "timetable": "evening",
+        "phase": "running",
+        "entries": [
+            {"at": "06:02", "train": "freight_1", "to": ["dn_e"], "state": "later"},
+            {"at": "06:04", "train": "freight_1", "turn": True, "state": "later"},
+            {"at": "06:05", "train": "express_2", "turn": True, "state": "held"},
+            {"at": "06:06", "train": "local", "turn": True, "state": "ended"},
+            {"at": "06:07", "train": "shunter", "turn": "yes", "state": "later"},
+            {"at": "06:08", "train": 7, "turn": True, "state": "later"},
+            "06:09",
+        ],
+    }
+    assert awaited_turns(row) == {"freight_1", "express_2"}
+    assert awaited_turns(row | {"phase": "loaded"}) == frozenset()
+    assert awaited_turns(row | {"phase": "over"}) == frozenset()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ["evening", {}, {"timetable": None}, {"phase": "running", "entries": "none"}],
+)
+def test_a_timetable_row_that_cannot_be_read_lists_no_turn_round(
+    payload: object,
+) -> None:
+    assert awaited_turns(payload) == frozenset()
 
 
 def test_a_clock_row_says_the_time_and_the_speed_up() -> None:
