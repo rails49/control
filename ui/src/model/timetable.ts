@@ -36,7 +36,8 @@
  * entry reads the same (`placeOf`).
  *
  * `startNotes` is what the roster says about a train that is not where the
- * loaded timetable starts.
+ * loaded timetable starts. `repeatRefused` is why a length typed for its
+ * repeat is refused.
  */
 
 import { DAY_S, timeOf, written } from "./clock.js";
@@ -401,6 +402,24 @@ export function nameRefused(name: string, taken: readonly string[] = []): string
   if (name.includes("/") || name.startsWith(".")) return `'${name}' cannot name a timetable`;
   if (taken.includes(name)) return `'${name}' is already a timetable`;
   return null;
+}
+
+/** Why `repeat`, a length in fast seconds, is refused as `timetable`'s
+ *  repeat, `null` where the scheduler takes it
+ *  ([#1368](https://github.com/rails49/control/issues/1368)): it is 0, or the
+ *  latest entry falls at or after the start plus `repeat`. The words then
+ *  name that entry's time and the shortest repeat that fits, its offset from
+ *  the start plus one minute. */
+export function repeatRefused(
+  timetable: { start: number; entries: readonly { entry: Pick<Entry, "at"> }[] },
+  repeat: number,
+): string | null {
+  if (repeat === 0) return "a repeat is longer than 00:00";
+  const latest = Math.max(...timetable.entries.map(({ entry }) => timeOf(entry.at) ?? 0));
+  if (latest < timetable.start + repeat) return null;
+  return `the latest entry is at ${written(latest)}, so the shortest repeat is ${written(
+    latest - timetable.start + 60,
+  )}`;
 }
 
 /** Why a new timetable and a load are not asked for, `""` where they are:

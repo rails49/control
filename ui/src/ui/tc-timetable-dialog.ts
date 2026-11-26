@@ -1,5 +1,5 @@
 /**
- * The dialog one of the timetable menu's four rows opens
+ * The dialog one of the timetable menu's five rows opens
  * ([#1357](https://github.com/rails49/control/issues/1357)).
  *
  * - **New** asks for a name and raises `timetable_wanted` with it and
@@ -12,14 +12,20 @@
  *   raises `timetable_wanted` with the name.
  * - **Delete** lists the same names less the loaded one. A press on one asks
  *   "Delete <name>?", and only its Delete sends the store the `DELETE`.
+ * - **Repeat** asks for a length in the time form, filled in with the loaded
+ *   timetable's `repeat`, and raises `timetable_repeat_wanted`
+ *   ([#1368](https://github.com/rails49/control/issues/1368)). A length that
+ *   is no time, 00:00, or too short for the latest entry is refused here
+ *   (`repeatRefused` in `model/timetable.ts`): the scheduler would drop it.
  *
  * A name is checked as the timetable document checks it (`nameRefused` in
- * `model/timetable.ts`), and a name that is refused raises nothing. New and
- * Load raise nothing while track power is on: the scheduler would drop them.
+ * `model/timetable.ts`), and a name that is refused raises nothing. New,
+ * Load and Repeat raise nothing while track power is on: the scheduler would
+ * drop them.
  *
  * `tc-timetable-controls` makes one each time a row is chosen and takes it
- * away at `timetable-dialog-closed`, so each starts with nothing typed and
- * the store's list read again.
+ * away at `timetable-dialog-closed`, so each starts with nothing typed, or
+ * the loaded repeat, and the store's list read again.
  *
  * @fires timetable-wanted - `CustomEvent<Frame>`: the gesture to publish.
  * @fires timetable-dialog-closed - the dialog is done with.
@@ -32,9 +38,11 @@ import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import { deleteTimetable, listTimetables, readTimetable, said } from "../model/store.js";
-import { nameRefused, powered, type Timetable } from "../model/timetable.js";
+import { timeOf, written } from "../model/clock.js";
+import { nameRefused, powered, repeatRefused, type Timetable } from "../model/timetable.js";
 import {
   timetableRenameWanted,
+  timetableRepeatWanted,
   timetableWanted,
   type Frame,
   type Power,
@@ -42,7 +50,7 @@ import {
 import { timetableDialogStyles } from "./tc-timetable-dialog.styles.js";
 
 /** The menu row a dialog is for. */
-export type Asked = "new" | "load" | "rename" | "delete";
+export type Asked = "new" | "load" | "rename" | "delete" | "repeat";
 
 @customElement("tc-timetable-dialog")
 export class TcTimetableDialog extends LitElement {
@@ -60,7 +68,7 @@ export class TcTimetableDialog extends LitElement {
   /** Track power as the layout last said it, `null` before it has. */
   @property({ attribute: false }) power: Power | null = null;
 
-  /** The name typed for New or Rename, as typed. */
+  /** The name typed for New or Rename, or the length for Repeat, as typed. */
   @state() private typed = "";
 
   /** The names the store lists, `null` until it has answered. */
@@ -74,10 +82,12 @@ export class TcTimetableDialog extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    if (this.asked !== "new") void this.list();
+    if (this.asked === "repeat") this.typed = written(this.timetable?.repeat ?? 0);
+    else if (this.asked !== "new") void this.list();
   }
 
   override render() {
+    if (this.asked === "repeat") return this.repeating();
     if (this.asked === "new" || this.asked === "rename") return this.naming(this.asked);
     return this.deleting === null ? this.picking(this.asked) : this.confirming(this.deleting);
   }
@@ -113,6 +123,40 @@ export class TcTimetableDialog extends LitElement {
           @click=${() => this.name(asked, name)}
         >
           ${doing}
+        </sl-button>
+      </look-dialog>
+    `;
+  }
+
+  /** Repeat: a length, checked as it is typed. */
+  private repeating() {
+    const refused = this.repeatRefusal(this.typed);
+    return html`
+      <look-dialog
+        open
+        size="small"
+        label=${`Repeat ${this.timetable?.name ?? ""}`}
+        @sl-after-hide=${this.close}
+      >
+        <sl-input
+          class="length"
+          label="Repeat every"
+          size="small"
+          value=${this.typed}
+          @sl-input=${(event: Event) => {
+            this.typed = (event.target as HTMLInputElement).value;
+          }}
+        ></sl-input>
+        ${this.line(refused)}
+        <sl-button slot="footer" class="cancel" @click=${this.close}>Cancel</sl-button>
+        <sl-button
+          slot="footer"
+          variant="primary"
+          class="confirm"
+          ?disabled=${refused !== null}
+          @click=${this.repeat}
+        >
+          Set
         </sl-button>
       </look-dialog>
     `;
@@ -183,6 +227,21 @@ export class TcTimetableDialog extends LitElement {
     if (asked === "new") return nameRefused(name) ?? (powered(this.power) || null);
     return nameRefused(name, this.names ?? []);
   }
+
+  /** Why Repeat does nothing with `words`, `null` where it goes out. */
+  private repeatRefusal(words: string): string | null {
+    const length = timeOf(words);
+    if (length === null) return `'${words.trim()}' is no length: write [<day>d]HH:MM`;
+    const short = this.timetable === null ? null : repeatRefused(this.timetable, length);
+    return short ?? (powered(this.power) || null);
+  }
+
+  private repeat = (): void => {
+    const length = timeOf(this.typed);
+    if (length === null || this.repeatRefusal(this.typed) !== null) return;
+    this.wanted(timetableRepeatWanted(written(length)));
+    this.close();
+  };
 
   private name(asked: "new" | "rename", name: string): void {
     if (this.refusal(asked, name) !== null) return;

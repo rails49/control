@@ -3,7 +3,9 @@
 /**
  * The controls in the heading of the list under the roster
  * ([#1357](https://github.com/rails49/control/issues/1357)): a menu with New,
- * Load, Rename and Delete, the Record switch, and Start.
+ * Load, Rename, Delete and Repeat
+ * ([#1368](https://github.com/rails49/control/issues/1368)), the Record
+ * switch, and Start.
  *
  * `tc-timetable-controls` draws them in the run view, in the heading of
  * `tc-requests`. Each test stands up a joined session, presses a control as a
@@ -13,7 +15,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
-import { nameRefused, powered } from "../src/model/timetable.js";
+import { nameRefused, powered, repeatRefused } from "../src/model/timetable.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcMenu } from "../src/ui/tc-menu.js";
 import type { TcTimetableControls } from "../src/ui/tc-timetable-controls.js";
@@ -108,9 +110,9 @@ function dialog(shell: TcApp): ParentNode | null {
   );
 }
 
-/** A name typed into the dialog that asks for one. */
+/** A name or a length typed into the dialog that asks for one. */
 async function typed(shell: TcApp, name: string): Promise<void> {
-  const input = dialog(shell)!.querySelector<HTMLInputElement>("sl-input.name")!;
+  const input = dialog(shell)!.querySelector<HTMLInputElement>("sl-input")!;
   input.value = name;
   input.dispatchEvent(new CustomEvent("sl-input"));
   await settled(shell);
@@ -193,6 +195,19 @@ describe("what the model says", () => {
     expect(nameRefused("morning", ["evening", "night"])).toBeNull();
   });
 
+  /** Lengths in fast seconds: a start of 06:00 and entries up to 08:59. */
+  it("refuses a repeat that leaves the latest entry outside, and one of 00:00", () => {
+    const timetable = { start: 6 * 3600, entries: ["06:30", "08:59"].map((at) => ({ entry: { at } })) };
+    expect(repeatRefused(timetable, 3 * 3600)).toBeNull();
+    expect(repeatRefused(timetable, 3 * 3600 - 60)).toBe(
+      "the latest entry is at 08:59, so the shortest repeat is 03:00",
+    );
+    expect(repeatRefused({ start: 6 * 3600, entries: [] }, 60)).toBeNull();
+    expect(repeatRefused({ start: 6 * 3600, entries: [] }, 0)).toBe(
+      "a repeat is longer than 00:00",
+    );
+  });
+
   it("shuts New and Load while power reads on or draining, and not before it is heard", () => {
     expect(powered("on")).toBe("track power is on");
     expect(powered("draining")).toBe("track power is on");
@@ -209,6 +224,7 @@ describe("the menu", () => {
       ["Load", true],
       ["Rename", true],
       ["Delete", true],
+      ["Repeat", true],
     ]);
   });
 
@@ -219,6 +235,7 @@ describe("the menu", () => {
       ["Load", true],
       ["Rename", false],
       ["Delete", true],
+      ["Repeat", false],
     ]);
   });
 
@@ -226,26 +243,28 @@ describe("the menu", () => {
    *  `off`. The reason is shown as the rail shows why a view does not open:
    *  the row's tooltip and its description. */
   for (const power of ["on", "draining"]) {
-    it(`has New and Load disabled, saying why, while power reads ${power}`, async () => {
+    it(`has New, Load and Repeat disabled, saying why, while power reads ${power}`, async () => {
       const { controls } = await standing(row(), power);
       expect(await offered(controls)).toEqual([
         ["New", false],
         ["Load", false],
         ["Rename", true],
         ["Delete", true],
+        ["Repeat", false],
       ]);
-      const [fresh, load, rename] = await rows(controls);
-      for (const shut of [fresh!, load!]) {
+      const [fresh, load, rename, , repeat] = await rows(controls);
+      for (const shut of [fresh!, load!, repeat!]) {
         expect(shut.getAttribute("aria-description")).toBe("track power is on");
         expect(shut.closest("sl-tooltip")!.getAttribute("content")).toBe("track power is on");
       }
       expect(rename!.closest("sl-tooltip")).toBeNull();
     });
 
-    it(`publishes nothing for a press on New or Load while power reads ${power}`, async () => {
+    it(`publishes nothing for a press on New, Load or Repeat while power reads ${power}`, async () => {
       const { shell } = await standing(row(), power);
       await chosen(shell, "New");
       await chosen(shell, "Load");
+      await chosen(shell, "Repeat");
       expect(asking(shell)).toBe(false);
       expect(written()).toEqual([]);
     });
@@ -459,6 +478,79 @@ describe("Delete", () => {
     expect(trouble(shell)).toBe("no timetable 'toy/morning'");
     expect(store.deleted).toEqual([]);
     expect(asking(shell)).toBe(true);
+  });
+});
+
+/** An entry of the state row at `at`, not yet out in round 0. */
+function listedAt(at: string): Record<string, unknown> {
+  return { at, train: "freight_1", to: ["dn_e"], state: "later", round: 0 };
+}
+
+describe("Repeat", () => {
+  it("asks for a length filled in with the loaded repeat", async () => {
+    const { shell } = await standing(row({ repeat: "1d00:00" }));
+    await chosen(shell, "Repeat");
+    expect(titled(shell)).toBe("Repeat evening");
+    expect(dialog(shell)!.querySelector<HTMLInputElement>("sl-input")!.value).toBe("1d00:00");
+    expect(trouble(shell)).toBeNull();
+  });
+
+  it("publishes timetable_repeat_wanted with the length typed", async () => {
+    const { shell } = await standing();
+    await chosen(shell, "Repeat");
+    await typed(shell, "0d03:00");
+    await pressed(shell, ".confirm");
+    expect(written()).toEqual([
+      { topic: "tc49/schedule/timetable_repeat_wanted", payload: { repeat: "03:00" } },
+    ]);
+    expect(asking(shell)).toBe(false);
+  });
+
+  /** The scheduler drops a repeat that puts an entry at or after the start
+   *  plus the repeat. */
+  it("refuses a length too short, naming the latest entry and the shortest that fits", async () => {
+    const { shell } = await standing(
+      row({ entries: [listedAt("06:30"), listedAt("08:59")] }),
+    );
+    await chosen(shell, "Repeat");
+    await typed(shell, "02:00");
+    expect(trouble(shell)).toBe("the latest entry is at 08:59, so the shortest repeat is 03:00");
+    await pressed(shell, ".confirm");
+    expect(written()).toEqual([]);
+    expect(asking(shell)).toBe(true);
+
+    await typed(shell, "03:00");
+    expect(trouble(shell)).toBeNull();
+    await pressed(shell, ".confirm");
+    expect(written()).toEqual([
+      { topic: "tc49/schedule/timetable_repeat_wanted", payload: { repeat: "03:00" } },
+    ]);
+  });
+
+  for (const [length, why] of [
+    ["00:00", "a repeat is longer than 00:00"],
+    ["3:00", "'3:00' is no length: write [<day>d]HH:MM"],
+    ["", "'' is no length: write [<day>d]HH:MM"],
+  ] as const) {
+    it(`refuses the length '${length}' and publishes nothing`, async () => {
+      const { shell } = await standing();
+      await chosen(shell, "Repeat");
+      await typed(shell, length);
+      expect(trouble(shell)).toBe(why);
+      await pressed(shell, ".confirm");
+      expect(written()).toEqual([]);
+    });
+  }
+
+  /** Power came on with the dialog open. */
+  it("publishes nothing once power is on, and says why", async () => {
+    const { shell } = await standing();
+    await chosen(shell, "Repeat");
+    await said(shell, POWER, { power: "on" });
+    await typed(shell, "03:00");
+    expect(trouble(shell)).toBe("track power is on");
+    await pressed(shell, ".confirm");
+    expect(written()).toEqual([]);
   });
 });
 

@@ -2,17 +2,18 @@
  * The controls in the heading of the list under the roster
  * ([#1345](https://github.com/rails49/control/issues/1345),
  * [#1357](https://github.com/rails49/control/issues/1357)): a menu with New,
- * Load, Rename and Delete, the Record switch, and Start while the loaded
- * timetable's phase is `loaded`.
+ * Load, Rename, Delete and Repeat
+ * ([#1368](https://github.com/rails49/control/issues/1368)), the Record
+ * switch, and Start while the loaded timetable's phase is `loaded`.
  *
  * The run view puts it in `tc-requests`'s heading and hands it the timetable
  * the scheduler says is loaded, the railroad and the track power.
  *
  * - **The menu** is `tc-menu`, hung under its button. Each row opens a
- *   dialog (`tc-timetable-dialog`). Rename is disabled with no timetable
- *   loaded. New and Load are disabled while track power is on, and say so as
- *   the rail does for a view that does not open: the scheduler takes them
- *   only with power `off`.
+ *   dialog (`tc-timetable-dialog`). Rename and Repeat are disabled with no
+ *   timetable loaded. New, Load and Repeat are disabled while track power is
+ *   on, and say so as the rail does for a view that does not open: the
+ *   scheduler takes them only with power `off`.
  * - **Record** shows the row's `record`, not the last press. It is disabled
  *   with no timetable loaded.
  * - **Start** is drawn only while the phase is `loaded`.
@@ -120,6 +121,7 @@ export class TcTimetableControls extends LitElement {
       ["Load", "load", shut !== "", shut],
       ["Rename", "rename", this.timetable === null],
       ["Delete", "delete", false],
+      ["Repeat", "repeat", this.timetable === null || shut !== "", shut],
     ];
     return rows.map(([label, action, disabled, reason]) => ({
       label,
