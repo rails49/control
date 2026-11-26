@@ -341,11 +341,13 @@ highest. Empty is lowest.* Anything else is refused and put back: *'0' is not a
 priority. Use a whole number: 1 is highest.*
 
 **Cars**, labelled *← Head* and *Tail*: one tile per entry, head first, in a
-row that scrolls sideways. A tile has the model's photo, mirrored where the
-entry is reversed; the car's name or, for a model entry, the model's; a line
-saying its address, *no address* or *by model*, *camera* where the car carries
-one, and its length. **Forward / Reversed** flips the entry's `orientation`
-(`reverse` written, `forward` the key taken off) and **×** takes the entry out.
+row that scrolls sideways. The row takes the editor's width, and the editor's
+other sections are at most 760 px wide. A tile has the model's photo, mirrored
+where the entry is reversed; the car's name or, for a model entry, the model's;
+a line saying its address, *no address* or *by model*, *camera* where the car
+carries one, and its length. **Forward / Reversed** flips the entry's
+`orientation` (`reverse` written, `forward` the key taken off) and **×** takes
+the entry out.
 A model entry of a model with a decoder — a roster written that way, or a
 model whose decoder was turned on while a train used it — has no address, so
 nothing drives it; its tile has a third button, **Give it an address**
