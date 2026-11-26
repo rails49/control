@@ -1,6 +1,6 @@
 import { css, unsafeCSS } from "lit";
 
-import { DRAWING, LEAST, UPRIGHT } from "../model/pane.js";
+import { DRAWING, GAP, LEAST, LIST, UPRIGHT } from "../model/pane.js";
 
 /**
  * The run view (`tc-panel`): the chrome round the drawing, laid out inside the
@@ -17,14 +17,19 @@ import { DRAWING, LEAST, UPRIGHT } from "../model/pane.js";
  * [#1390](https://github.com/rails49/control/issues/1390)).
  *
  * The drawing and the two lists are panels on the paper colour, with square
- * corners, on a ground of the gap colour (`--gap`). The ground shows between
- * the two lists.
+ * corners, on a ground of the gap colour (`--gap`).
  *
  * The divider between the pane and the drawing is a gap, `tc-gap`. It sets
  * the pane's size. The view hands it over as `--pane-size`, and until a person
  * has dragged the divider the width is the shell's `--pane`, which the
  * editor's palette has. The size is held to the limits a drag is held to
  * (`model/pane.ts`) when the window changes size.
+ *
+ * A second gap between the two lists sets the trains list's height, or its
+ * width side by side (#1391). The view hands it over as `--lists-size`.
+ * Until a person has dragged it the trains list is as tall as its rows up to
+ * half the pane, or half the pane's width side by side. When the window
+ * changes size the timetable list keeps its least.
  */
 export const panelStyles = css`
   :host {
@@ -43,7 +48,6 @@ export const panelStyles = css`
     grid-area: roster;
     display: flex;
     flex-direction: column;
-    gap: 6px;
     min-width: 0;
     min-height: 0;
   }
@@ -52,11 +56,16 @@ export const panelStyles = css`
     grid-area: divider;
   }
 
-  /* The trains are their content's height, capped at half the pane, and the
-     requests sit directly under them and take the rest (#895). */
+  tc-gap.lists {
+    flex: none;
+  }
+
+  /* The trains are the height the gap was dragged to, or until then their
+     content's height capped at half the pane. The requests sit directly under
+     them and take the rest (#895). */
   tc-roster {
-    flex: 0 1 auto;
-    max-height: 50%;
+    flex: 0 1 var(--lists-size, auto);
+    max-height: min(var(--lists-size, 50%), 100% - ${LIST.left + GAP}px);
     overflow-y: auto;
     background: var(--paper);
   }
@@ -105,16 +114,21 @@ export const panelStyles = css`
     }
 
     /* The two lists side by side, each the pane's height and scrolling on its
-       own. */
+       own: the trains as wide as the gap was dragged to, or until then half
+       the pane, and the requests the rest. */
     aside {
       flex-direction: row;
     }
 
-    tc-roster,
-    tc-requests {
-      flex: 1 1 0;
+    tc-roster {
+      flex: 0 1 var(--lists-size, calc(50% - ${GAP / 2}px));
       min-width: 0;
+      max-width: calc(100% - ${LIST.above + GAP}px);
       max-height: none;
+    }
+
+    tc-requests {
+      min-width: 0;
     }
   }
 

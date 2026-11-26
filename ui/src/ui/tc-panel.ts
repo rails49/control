@@ -19,7 +19,7 @@
  * what only the run view has: the overlay it hands the canvas, the machine
  * that says what a drag means (model/drag.ts), the right-click menu, the
  * roster pane, the list of the timetable and the requests in it, and the
- * divider that sizes the pane.
+ * two gaps that size the pane and the lists in it.
  *
  * Everything shown is the panel model's answer (model/panel.ts). It computes
  * nothing: occupancy, aspects, markers, the lit route, arrival ends and
@@ -48,7 +48,7 @@ import {
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
 import type { Point } from "../model/geometry.js";
-import { keep, kept, sizeAt, UPRIGHT, type Arrangement } from "../model/pane.js";
+import { keep, kept, listsAt, sizeAt, UPRIGHT, type Arrangement, type Gap } from "../model/pane.js";
 import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
 import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
@@ -415,36 +415,45 @@ export class TcPanel extends LitElement {
     this.session?.send(event.detail);
   }
 
-  // --- the pane's size ------------------------------------------------------
+  // --- the sizes the gaps set ---------------------------------------------
   //
-  // The divider between the pane and the drawing sets the pane's width, or
-  // its height while the pane is above the drawing. The size is kept in the
-  // browser, one for each arrangement, and the drawing is fitted again
-  // whenever the pane changes size (#1344).
+  // The gap between the pane and the drawing sets the pane's width, or its
+  // height while the pane is above the drawing. The gap between the two lists
+  // sets the trains list's height, or its width while the pane is above the
+  // drawing. Each size is kept in the browser, one for each arrangement, and
+  // the drawing is fitted again whenever a gap moves (#1344, #1391).
 
   private get arrangement(): Arrangement {
     return this.upright.matches ? "above" : "left";
   }
 
-  /** Hand the stylesheet the pane's size, `null` for the stylesheet's own. */
-  private setSize(size: number | null): void {
-    if (size === null) this.style.removeProperty("--pane-size");
-    else this.style.setProperty("--pane-size", `${size}px`);
+  /** Hand the stylesheet a gap's size, `null` for the stylesheet's own. */
+  private setSize(gap: Gap, size: number | null): void {
+    if (size === null) this.style.removeProperty(`--${gap}-size`);
+    else this.style.setProperty(`--${gap}-size`, `${size}px`);
+  }
+
+  /** Hand the stylesheet the sizes kept for the arrangement the page is in. */
+  private setKept(): void {
+    for (const gap of ["pane", "lists"] as const) this.setSize(gap, kept(gap, this.arrangement));
   }
 
   /** The page turned: the pane is on the other side of the drawing, at the
-   *  size last set for it there. The gap is turned with it, which ends a
-   *  drag of it (`tc-gap`). */
+   *  sizes last set for it there. The gaps are turned with it, which ends a
+   *  drag of either (`tc-gap`). */
   private readonly turned = (): void => {
     this.requestUpdate();
-    this.setSize(kept(this.arrangement));
+    this.setKept();
     this.canvas?.fit();
   };
 
-  private resize(event: CustomEvent<Point>): void {
-    const size = sizeAt(this.arrangement, this.getBoundingClientRect(), event.detail);
-    this.setSize(size);
-    keep(this.arrangement, size);
+  /** A gap dragged to a client point: the size that point means, held to
+   *  its limits (`model/pane.ts`). */
+  private moved(gap: Gap, event: CustomEvent<Point>): void {
+    const at = gap === "pane" ? sizeAt : listsAt;
+    const size = at(this.arrangement, this.getBoundingClientRect(), event.detail);
+    this.setSize(gap, size);
+    keep(gap, this.arrangement, size);
     this.canvas?.fit();
   }
 
@@ -465,6 +474,11 @@ export class TcPanel extends LitElement {
           @roster-picked=${this.picked}
           @roster-dropped=${this.dropped}
         ></tc-roster>
+        <tc-gap
+          class="lists"
+          axis=${this.arrangement === "left" ? "y" : "x"}
+          @gap-moved=${(event: CustomEvent<Point>) => this.moved("lists", event)}
+        ></tc-gap>
         <tc-requests
           .requests=${this.inSession && !grey ? (this.panel?.requestList() ?? []) : []}
           .timetable=${this.inSession && !grey ? (this.panel?.timetable ?? null) : null}
@@ -489,7 +503,7 @@ export class TcPanel extends LitElement {
       <tc-gap
         class="pane"
         axis=${this.arrangement === "left" ? "x" : "y"}
-        @gap-moved=${this.resize}
+        @gap-moved=${(event: CustomEvent<Point>) => this.moved("pane", event)}
       ></tc-gap>
 
       ${off.length === 0
@@ -551,7 +565,7 @@ export class TcPanel extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     this.upright.addEventListener("change", this.turned);
-    this.setSize(kept(this.arrangement));
+    this.setKept();
   }
 
   override disconnectedCallback(): void {

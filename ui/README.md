@@ -152,8 +152,8 @@ src/
     tc-backup.ts   the backup dialog: whether the store is kept anywhere,
                    the press that keeps it now, and the backups to come back to
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
-                   the drag, the right-click menu, and the pane with the
-                   divider that sizes it
+                   the drag, the right-click menu, and the pane, with the
+                   sizes its two gaps set
     tc-gap.ts      a gap a person drags: the press and the drag, the
                    pointer's point raised while dragged
     tc-roster.ts   the roster pane: every train the railroad owns, on the

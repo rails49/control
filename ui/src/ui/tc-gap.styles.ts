@@ -1,7 +1,9 @@
 import { css } from "lit";
 
+import { GAP } from "../model/pane.js";
+
 /**
- * `tc-gap`: a gap 6px across in the gap colour, `--chosen` on hover and while
+ * `tc-gap`: a gap `GAP` across (`model/pane.ts`) in the gap colour, `--chosen` on hover and while
  * dragged. What takes the press is wider, and wider again under a finger, and
  * lies over the edges of the parts either side.
  */
@@ -23,12 +25,12 @@ export const gapStyles = css`
   }
 
   :host([axis="x"]) {
-    width: 6px;
+    width: ${GAP}px;
     cursor: col-resize;
   }
 
   :host([axis="y"]) {
-    height: 6px;
+    height: ${GAP}px;
     cursor: row-resize;
   }
 
