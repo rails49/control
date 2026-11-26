@@ -20,9 +20,10 @@ const afterDark = unsafeCSS(
  *
  * The editor and the run view fill the work with a left pane and a surface,
  * and the shell is where that pane's width is declared: the editor's palette
- * has it, and the run view's pane has it until a person drags its divider
+ * and the run view's pane each have it until a person drags its divider
  * ([#169](https://github.com/rails49/control/issues/169),
- * [#1344](https://github.com/rails49/control/issues/1344)).
+ * [#1344](https://github.com/rails49/control/issues/1344),
+ * [#1401](https://github.com/rails49/control/issues/1401)).
  *
  * Every view sits in the work, over the others, and the ones that are not
  * current are hidden rather than taken away. Taking it away would close the
@@ -34,8 +35,8 @@ export const appStyles = css`
   :host {
     ${palette}
 
-    /* The left pane's width: the palette in edit, and the roster in run until
-       its divider is dragged. */
+    /* The left pane's width: the palette in edit and the roster in run, each
+       until its divider is dragged. */
     --pane: 12rem;
 
     display: block;

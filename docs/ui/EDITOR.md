@@ -616,6 +616,24 @@ than half of one: its 6x1 tile is as wide as the pane allows, and halving it
 would draw it smaller than every other symbol when the tiles are all at one
 grid square.
 
+**A divider right of the palette sets its width**
+([#1401](https://github.com/rails49/control/issues/1401)). The palette, the
+drawing and the netlist are panels on the paper colour, and the view's
+background is the gap colour, `--gap`, as the run view's is
+([PANEL.md](PANEL.md)). The divider is a 6px gap in that colour, between the
+palette and the drawing. A person drags it with a mouse or a finger. It is
+look's `look-gap`
+([rails49/look#62](https://github.com/rails49/look/issues/62)): clear at
+rest, and Shoelace's primary colour on hover and while dragged. The width is
+measured from the view's left edge. It has a least, and a greatest that
+leaves the drawing a least width of its own; both are in
+`ui/src/model/divider.ts`, and they hold when the window changes size. Until
+the divider is first dragged the palette is the shell's `--pane` wide. The
+width is kept in the browser's `localStorage`, under `tc49.palette`, and a
+reload brings it back. It is not on the bus and not in the store. The drawing
+follows its new width as it does when the window changes size, and is not
+fitted again.
+
 The placeable symbols, with their semantics defined in
 [DRAWING.md](../store/DRAWING.md#symbols). The images are the tiles themselves,
 all at one grid square, so a symbol's width here is its footprint; the
@@ -1214,6 +1232,15 @@ its column is not declared at all and the drawing has the width, and the item
 is dead while no drawing is open — there is nothing derived to consult then,
 and the key is dead with it (#90). Shutting the pane unlights whatever transit
 was chosen in it, that being the only thing that could unlight one.
+
+**A divider left of the netlist sets its width** while the pane is open
+([#1401](https://github.com/rails49/control/issues/1401)). It is a second
+`look-gap`, dragged as [the palette's](#palette) is. The width is measured
+from the view's right edge. It has a least, and a greatest that leaves the
+drawing a least width; both are in `ui/src/model/divider.ts`. Each of the two
+widths is held against the view's whole width, not against the other. Until
+the divider is first dragged the netlist is 22rem wide. The width is kept
+under `tc49.netlist`.
 
 It stays a panel and not a popup: its whole advantage over `tc49 layout show`
 in a terminal is that clicking a transit lights its way on the drawing, and a
