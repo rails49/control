@@ -375,7 +375,7 @@ def _camera(camera: Any, where: str) -> str | None:
     if trouble is not None:
         raise ValueError(
             f"{where}: camera must be the URL of its MJPEG stream, as"
-            f' `camera: "http://192.168.178.58/media/?action=stream"` —'
+            f' `camera: "http://192.0.2.58/media/?action=stream"` —'
             f" {trouble}, got {camera!r}"
         )
     return camera
@@ -399,10 +399,9 @@ def _camera_trouble(camera: Any) -> str | None:
     if not url.hostname:
         return "it names no host"
     try:
-        port = url.port
+        if url.port == 0:
+            return "its port must be 1–65535"
     except ValueError:
-        port = 0
-    if port == 0:
         return "its port must be 1–65535"
     if "#" in camera:
         return "leave out the # and what follows it"

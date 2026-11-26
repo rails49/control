@@ -133,7 +133,7 @@ class Car:
     product, so a car saying otherwise would be describing a different one.
 
     `camera` is the URL of the MJPEG stream of the camera this car carries
-    (`http://192.168.178.58/media/?action=stream`), absent where it carries
+    (`http://192.0.2.58/media/?action=stream`), absent where it carries
     none. It is the item's and never the model's: two cars of one product, one
     with a camera fitted, are still one product
     ([ADR-0082](../../../docs/adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).

@@ -424,7 +424,7 @@ describe("filling in a camera", () => {
         "krokodil-a": {
           model: "arnold-ce68",
           addr: "3",
-          camera: "http://192.168.178.58/media/?action=stream",
+          camera: "http://192.0.2.58/media/?action=stream",
         },
       },
     });
@@ -438,7 +438,7 @@ describe("filling in a camera", () => {
   /** The rules and words of `lib/stock.py`, which a save would refuse it
    *  with. */
   it.each([
-    "http://192.168.178.58/media/?action=stream",
+    "http://192.0.2.58/media/?action=stream",
     "http://cam:8080/?action=stream",
     "http://cam/",
     "http://[fe80::1]:8080/",
@@ -461,6 +461,11 @@ describe("filling in a camera", () => {
     ["http://cam:x/", "its port must be 1–65535"],
     ["http://cam/#x", "leave out the # and what follows it"],
     ["http://ca m/", "it holds whitespace"],
+    ["http://cam\x1f/", "it holds whitespace"],
+    ["http://[x]/", "it is not a URL"],
+    ["http://ca[m]/", "it is not a URL"],
+    ["http://[]/", "it is not a URL"],
+    ["http://[::1/", "it is not a URL"],
   ])("refuses %j: %s", (typed, why) => {
     const screen = stock();
     expect(screen.carCamera("krokodil-a", typed)).toBe(
