@@ -9,7 +9,8 @@
  *
  * `axis` is the way it is dragged: `x` for a gap between a left and a right
  * part, `y` for one between a top and a bottom part. A gap turned the other
- * way, as a turned page does, ends a drag.
+ * way, as a turned page does, ends a drag. `dragging` is on the element from
+ * the press to the release.
  */
 
 import { LitElement, html, type PropertyValues } from "lit";
@@ -24,8 +25,8 @@ export class TcGap extends LitElement {
 
   @property({ reflect: true }) axis: "x" | "y" = "x";
 
-  /** Whether the gap is being dragged. */
-  private dragging = false;
+  /** Whether the gap is being dragged, on its element for its stylesheet. */
+  @property({ type: Boolean, reflect: true }) dragging = false;
 
   constructor() {
     super();

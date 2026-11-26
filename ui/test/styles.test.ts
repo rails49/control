@@ -515,7 +515,7 @@ describe("the run view's pane", () => {
     expect(rule(sheet, ':host([axis="x"])')).toMatch(/width:\s*6px/);
     expect(rule(sheet, ':host([axis="y"])')).toMatch(/height:\s*6px/);
     expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
-    expect(rule(sheet, ":host(:hover),\n  :host(:active)")).toMatch(
+    expect(rule(sheet, ":host(:hover),\n  :host([dragging])")).toMatch(
       /background:\s*var\(--chosen\)/,
     );
   });
