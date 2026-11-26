@@ -2345,7 +2345,7 @@ describe("the run view and the screen beside it", () => {
     const rows = [
       ...running(shell)
         .renderRoot.querySelector("tc-roster")!
-        .renderRoot.querySelectorAll("li"),
+        .renderRoot.querySelectorAll("tbody tr"),
     ];
     expect(
       rows.map((row) => row.querySelector(".name")!.textContent!.trim()),
@@ -2359,7 +2359,7 @@ describe("the run view and the screen beside it", () => {
     const rows = () =>
       running(shell)
         .renderRoot.querySelector("tc-roster")!
-        .renderRoot.querySelectorAll("li");
+        .renderRoot.querySelectorAll("tbody tr");
     expect(rows()).toHaveLength(0);
 
     await shows(shell, "run");
