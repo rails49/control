@@ -8,6 +8,8 @@ import { css } from "lit";
  * size is the view's (`tc-panel.styles.ts`). The heading is "Timetable",
  * then the loaded timetable's name, then the controls the run view puts in
  * its slot, on a line of their own where one line does not hold them (#1357).
+ * The heading keeps its height and stays in view, and the rows scroll under
+ * it in what is left of the list's height.
  *
  * A request's row is the train and its state
  * on one line, where the
@@ -34,11 +36,13 @@ import { css } from "lit";
 export const requestsStyles = css`
   :host {
     container-type: inline-size;
-    display: block;
+    display: flex;
+    flex-direction: column;
     padding: 0.4rem;
   }
 
   header {
+    flex: none;
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -60,6 +64,8 @@ export const requestsStyles = css`
   }
 
   ul {
+    min-height: 0;
+    overflow-y: auto;
     margin: 0;
     padding: 0;
     list-style: none;

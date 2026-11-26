@@ -599,6 +599,26 @@ describe("tc-requests with a timetable", () => {
       await list(loaded({ entry: gone, state: "ended" }));
       expect(asked).toEqual([]);
     });
+
+    /** The heading has Start, the Record switch and the menu, and a row
+     *  scrolled to the top of what scrolls took it out of view. The rows are
+     *  what scrolls: the list is a column, the heading keeps its height and
+     *  the rows take what is left. */
+    it("scrolls its rows under the heading, which stays in view", async () => {
+      const element = await list(loaded({ entry: gone, state: "ended" }, { entry: next, state: "held" }));
+      const scrolled = element.renderRoot.querySelector("ul")!;
+      expect(scrolled.querySelector("header")).toBeNull();
+      expect(asked.every((row) => scrolled.contains(row))).toBe(true);
+
+      const sheet = requestsStyles.cssText;
+      const host = /:host \{([^}]*)\}/.exec(sheet)![1]!;
+      expect(host).toMatch(/display:\s*flex/);
+      expect(host).toMatch(/flex-direction:\s*column/);
+      const rows = /^\s*ul \{([^}]*)\}/m.exec(sheet)![1]!;
+      expect(rows).toMatch(/overflow-y:\s*auto/);
+      expect(rows).toMatch(/min-height:\s*0/);
+      expect(/^\s*header \{([^}]*)\}/m.exec(sheet)![1]!).toMatch(/flex:\s*none/);
+    });
   });
 
   describe("an entry's dwell and description", () => {
