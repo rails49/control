@@ -352,7 +352,6 @@ describe("the note about where the timetable starts", () => {
   /** A train leaves its start block when the timetable runs. */
   it("says nothing once the timetable has started", () => {
     expect(startNotes({ ...EVENING, phase: "running" }, PLACED, NOSES).size).toBe(0);
-    expect(startNotes({ ...EVENING, phase: "over" }, PLACED, NOSES).size).toBe(0);
   });
 
   it("is drawn on the row it is handed with, and on no other", async () => {

@@ -985,7 +985,7 @@ describe("the timetable", () => {
       repeat: "1d00:00",
       trains: { t1: { at: "a", facing: "A-to-B" } },
       positioning: [],
-      entries: [{ at: "06:02", train: "t1", to: ["b.A"], state }],
+      entries: [{ at: "06:02", train: "t1", to: ["b.A"], state, round: 0 }],
       ...(at === undefined ? {} : { at }),
     };
   }

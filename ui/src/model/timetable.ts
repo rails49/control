@@ -43,8 +43,9 @@ import { DAY_S, timeOf, written } from "./clock.js";
 import { reordering, type RequestRow } from "./requests.js";
 import { trackLive, type Power } from "./trace.js";
 
-/** The three phases of a loaded timetable (BUS.md). */
-export type Phase = "loaded" | "running" | "over";
+/** The two phases of a loaded timetable (BUS.md). A running timetable
+ *  repeats and never ends. */
+export type Phase = "loaded" | "running";
 
 /** What became of an entry (BUS.md): `later`, its time has not come; `held`,
  *  due and waiting on its train; `out`, gone to the dispatcher as a request;
@@ -58,7 +59,7 @@ export type EntryState =
   | "cancelled"
   | "skipped";
 
-const PHASES: ReadonlySet<string> = new Set(["loaded", "running", "over"]);
+const PHASES: ReadonlySet<string> = new Set(["loaded", "running"]);
 
 const STATES: ReadonlySet<string> = new Set([
   "later",
@@ -88,6 +89,9 @@ export interface Entry {
 export interface Scheduled {
   entry: Entry;
   state: EntryState;
+  /** The round `state` is for, from 0
+   *  ([#1367](https://github.com/rails49/control/issues/1367)). */
+  round: number;
   /** The id of the request it went out as, kept after that request ends. */
   request?: string;
 }
@@ -199,7 +203,7 @@ const DONE: ReadonlySet<EntryState | undefined> = new Set([
   "skipped",
 ]);
 
-/** Whether a row's entry is over for this run: ended, rejected, cancelled or
+/** Whether a row's entry is done in its round: ended, rejected, cancelled or
  *  skipped. A request no entry went out as never is. */
 export function done(row: ListRow): boolean {
   return DONE.has(row.state);
@@ -421,9 +425,10 @@ function startsOf(trains: unknown): Record<string, TrainStart> | null {
 
 function scheduledOf(listed: unknown): Scheduled | null {
   if (!mapping(listed)) return null;
-  const { at, train, to, turn, dwell, description, state, request } = listed;
+  const { at, train, to, turn, dwell, description, state, round, request } = listed;
   if (typeof at !== "string" || timeOf(at) === null || typeof train !== "string") return null;
   if (typeof state !== "string" || !STATES.has(state)) return null;
+  if (typeof round !== "number" || !Number.isInteger(round) || round < 0) return null;
   // A turn-round has no arrival ends.
   const ends = to === undefined ? null : strings(to) && to.length > 0 ? to : undefined;
   if (ends === undefined || (ends === null && turn !== true)) return null;
@@ -439,6 +444,7 @@ function scheduledOf(listed: unknown): Scheduled | null {
       ...(description === undefined ? {} : { description }),
     },
     state: state as EntryState,
+    round,
     ...(request === undefined ? {} : { request }),
   };
 }
