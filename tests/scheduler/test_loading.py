@@ -17,6 +17,7 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.timetable import Entry, Timetable, TrainStart
 from tc49.scheduler import Scheduler
+from tests.scheduler.test_edits import change
 from tests.scheduler.test_recording import (
     ALLOCATION,
     RECORD_WANTED,
@@ -435,6 +436,39 @@ def test_an_entry_is_released_at_its_time_as_the_drag_a_person_would_make() -> N
     clock(bus, "06:02", 1)
 
     assert len(seen) == 1
+
+
+def test_an_entry_moved_later_before_it_went_out_is_released_at_the_new_time() -> None:
+    """And not at the old one (#1354). A person moves the 06:02 entry to
+    06:05 while the clock reads 06:01."""
+    was = {"at": "06:02", "train": "freight_1", "to": ["dn_e"]}
+    entry = Entry(at("06:02"), "freight_1", ("dn_e",))
+    store = Store(evening(entry, trains=IN_PLACE))
+    bus = running(store)
+    seen = collect(bus, SUBMITTED)
+    clock(bus, "06:01")
+
+    change(bus, was, was | {"at": "06:05"})
+    clock(bus, "06:02")
+    clock(bus, "06:04", 59)
+
+    assert seen == []
+    assert [(one["at"], one["state"]) for one in entries(bus)] == [("06:05", "later")]
+
+    clock(bus, "06:05")
+
+    assert payloads(seen) == [
+        {
+            "id": f"freight_1-{NONCE}-1",
+            "train": "freight_1",
+            "depart": "yard_w.B",
+            "dest": ["dn_e"],
+        }
+    ]
+    assert [(one["at"], one["state"]) for one in entries(bus)] == [("06:05", "out")]
+    held = store.document("evening")
+    assert held is not None
+    assert held["entries"] == [was | {"at": "06:05"}]
 
 
 def test_an_entry_at_the_start_time_is_released_as_the_timetable_starts() -> None:
