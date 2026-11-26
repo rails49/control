@@ -53,7 +53,7 @@ import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow
 import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
-import { startNotes } from "../model/timetable.js";
+import { starts } from "../model/timetable.js";
 import { widgetPress, widgetTopic } from "../model/widgets.js";
 import {
   arrival,
@@ -471,6 +471,7 @@ export class TcPanel extends LitElement {
         <tc-roster
           .trains=${this.roster}
           .live=${this.inSession && !grey}
+          .starting=${this.panel?.timetable?.phase === "loaded"}
           @roster-picked=${this.picked}
           @roster-dropped=${this.dropped}
         ></tc-roster>
@@ -546,12 +547,12 @@ export class TcPanel extends LitElement {
     const session = this.session;
     if (session === null) return [];
     const standing = session.standing;
-    const notes = startNotes(
+    const cells = starts(
       this.panel?.timetable ?? null,
       standing,
       this.panel?.noses() ?? new Map(),
     );
-    return roster(session.owned, standing, session.refused, notes);
+    return roster(session.owned, standing, session.refused, cells);
   }
 
   override updated(): void {

@@ -271,7 +271,7 @@ describe("the store not answering for the railroad the row names", () => {
     return {
       editor: session(shell).drawing.drawing,
       run: canvas === null ? null : canvas.drawing.drawing,
-      roster: [...pane.querySelectorAll("span.name")].map((one) => one.textContent!.trim()),
+      roster: [...pane.querySelectorAll(".name")].map((one) => one.textContent!.trim()),
       stock: [
         ...stocking(shell).renderRoot.querySelectorAll("button.card.train .name"),
       ].map((one) => one.textContent!.trim()),

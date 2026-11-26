@@ -26,7 +26,7 @@ import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
 import { requestRows, type Refused, type RequestRow } from "./requests.js";
 import type { Explained, Layout, TrainDoc } from "./store.js";
-import { timetableOf, type Timetable } from "./timetable.js";
+import { timetableOf, type Start, type Timetable } from "./timetable.js";
 import {
   Ordering,
   sensorReport,
@@ -130,9 +130,11 @@ export interface RosterRow extends Placed {
   /** Why the dispatcher last refused to place it, in words, said in place of
    *  where it is until it is placed, removed or picked up again (#1011). */
   refused?: string;
-  /** Where the train is not where the loaded timetable starts, in words
-   *  (`startNotes` in `model/timetable.ts`, #1357). */
-  note?: string;
+  /** Where the loaded timetable starts it and whether it is there (`starts`
+   *  in `model/timetable.ts`, #1392). A train the timetable does not name
+   *  has none, and no train has one unless the timetable's phase is
+   *  `loaded`. */
+  start?: Start;
 }
 
 /**
@@ -151,13 +153,13 @@ export function roster(
   stock: Record<string, Pick<TrainDoc, "length" | "locomotive">>,
   placed: readonly Placed[],
   refused: ReadonlyMap<string, string> = new Map(),
-  notes: ReadonlyMap<string, string> = new Map(),
+  starts: ReadonlyMap<string, Start> = new Map(),
 ): RosterRow[] {
   const where = new Map(placed.map((train) => [train.train, train.block]));
   const names = new Set([...Object.keys(stock), ...where.keys()]);
   return [...names].sort().map((train) => {
     const said = refused.get(train);
-    const note = notes.get(train);
+    const start = starts.get(train);
     return {
       train,
       length: stock[train]?.length ?? null,
@@ -165,7 +167,7 @@ export function roster(
       block: where.get(train) ?? null,
       placed: where.has(train),
       ...(said === undefined ? {} : { refused: said }),
-      ...(note === undefined ? {} : { note }),
+      ...(start === undefined ? {} : { start }),
     };
   });
 }

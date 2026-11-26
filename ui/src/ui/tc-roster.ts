@@ -1,8 +1,12 @@
 /**
- * The roster pane: the trains the railroad owns, photo, name, length and
- * where each of them is ([#169](https://github.com/rails49/control/issues/169),
+ * The roster pane: the trains the railroad owns, as a table with one row per
+ * train ([#169](https://github.com/rails49/control/issues/169),
  * [#170](https://github.com/rails49/control/issues/170),
- * [#1012](https://github.com/rails49/control/issues/1012)).
+ * [#1012](https://github.com/rails49/control/issues/1012),
+ * [#1392](https://github.com/rails49/control/issues/1392)). The columns are
+ * a photo with no heading, Train, Where, Start and Length mm. Start is drawn,
+ * its heading included, only while the loaded timetable's phase is `loaded`:
+ * the block the timetable starts the train in, and whether it is there.
  *
  * It is in the run view's pane, left of the drawing or above it
  * (ui/PANEL.md).
@@ -26,6 +30,7 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import type { RosterRow } from "../model/panel.js";
 import { photoUrl } from "../model/store.js";
+import type { Start } from "../model/timetable.js";
 import { rosterStyles } from "./tc-roster.styles.js";
 
 /** A row picked up, and where the pointer was when it was let go. Client
@@ -49,6 +54,10 @@ export class TcRoster extends LitElement {
    *  land on is the view's to judge. */
   @property({ attribute: false }) live = false;
 
+  /** Whether the Start column is drawn: while the loaded timetable's phase
+   *  is `loaded`. */
+  @property({ attribute: false }) starting = false;
+
   /** The row being dragged, so it reads as picked up. Nothing else about the
    *  drag is here: where it lands is the view's. */
   @state() private held: string | null = null;
@@ -68,24 +77,34 @@ export class TcRoster extends LitElement {
       ${this.trains.length === 0
         ? html`<p class="hint">no trains on the roster</p>`
         : html`
-            <ul>
-              ${this.trains.map((train) => this.row(train))}
-            </ul>
+            <table>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Train</th>
+                  <th>Where</th>
+                  ${this.starting ? html`<th>Start</th>` : nothing}
+                  <th class="length">Length mm</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.trains.map((train) => this.row(train))}
+              </tbody>
+            </table>
           `}
     `;
   }
 
-  /** One train: its photo, its name, its length, and where the run has it. A train
-   *  between two blocks stands in none and is on the layout all the same, so
-   *  the cell says what it is doing rather than naming a block it has left,
-   *  beside `off the layout` for a train that is not placed (GLOSSARY.md,
-   *  **Placed** and **Transit**). Why its last placement was refused is said
-   *  in that place instead, while the model has it (#1011). Under that, the
-   *  row's note where the train is not where the loaded timetable starts
-   *  (#1357). */
-  private row({ train, block, length, locomotive, placed, refused, note }: RosterRow) {
+  /** One train: its photo, its name, where the run has it, its start while
+   *  the Start column is drawn, and its length. A train between two blocks
+   *  stands in none and is on the layout all the same, so Where says what it
+   *  is doing rather than naming a block it has left, beside `off the layout`
+   *  for a train that is not placed (GLOSSARY.md, **Placed** and
+   *  **Transit**). Why its last placement was refused is said in that place
+   *  instead, while the model has it (#1011). */
+  private row({ train, block, length, locomotive, placed, refused, start }: RosterRow) {
     return html`
-      <li
+      <tr
         class=${[
           placed ? "" : "off",
           this.held === train ? "held" : "",
@@ -97,17 +116,27 @@ export class TcRoster extends LitElement {
         @pointerup=${(event: PointerEvent) => this.drop(event, train)}
         @pointercancel=${() => (this.held = null)}
       >
-        ${this.photo(locomotive)}
-        <span class="name">${train}</span>
-        <span class="length">${length === null ? nothing : length}</span>
+        <td>${this.photo(locomotive)}</td>
+        <td class="name">${train}</td>
         ${refused === undefined
-          ? html`<span class="where">
+          ? html`<td class="where">
               ${placed ? (block ?? "crossing a transit") : "off the layout"}
-            </span>`
-          : html`<span class="where refused">${refused}</span>`}
-        ${note === undefined ? nothing : html`<span class="note">${note}</span>`}
-      </li>
+            </td>`
+          : html`<td class="where refused">${refused}</td>`}
+        ${this.starting ? this.start(start) : nothing}
+        <td class="length">${length === null ? nothing : length}</td>
+      </tr>
     `;
+  }
+
+  /** The start cell: the block the loaded timetable starts the train in,
+   *  with ` · turned` where it stands there facing the other way, and empty
+   *  for a train the timetable does not name (#1392). */
+  private start(start: Start | undefined) {
+    if (start === undefined) return html`<td class="start"></td>`;
+    return html`<td class="start ${start.is}">
+      ${start.is === "turned" ? `${start.block} · turned` : start.block}
+    </td>`;
   }
 
   /** The photo of the train's first locomotive, as the throttle's picker

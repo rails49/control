@@ -597,6 +597,22 @@ describe("the run view's pane", () => {
 });
 
 /**
+ * The roster's rows (#1392): striped in the stripe shade, with no rule line
+ * between them, and the held row's mark over the stripe.
+ */
+describe("the roster's rows", () => {
+  it("are striped, unruled, with the held mark winning", () => {
+    const sheet = rosterStyles.cssText;
+    expect(rule(sheet, "tbody tr:nth-child(even)")).toMatch(/background:\s*var\(--stripe\)/);
+    expect(rule(sheet, "tbody tr.held")).toMatch(/background:\s*var\(--rule\)/);
+    expect(sheet.indexOf("tbody tr.held {")).toBeGreaterThan(
+      sheet.indexOf("tbody tr:nth-child(even) {"),
+    );
+    expect(sheet).not.toMatch(/border-top:/);
+  });
+});
+
+/**
  * A block's A (#985). `middle` centres the x-height on the A's point, and a
  * capital rises above it: wherever the A's top faced the edge beside it — a
  * horizontal block's A along the top, a vertical one's on the left — it all
