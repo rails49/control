@@ -80,8 +80,10 @@ export class TcRoster extends LitElement {
    *  the cell says what it is doing rather than naming a block it has left,
    *  beside `off the layout` for a train that is not placed (GLOSSARY.md,
    *  **Placed** and **Transit**). Why its last placement was refused is said
-   *  in that place instead, while the model has it (#1011). */
-  private row({ train, block, length, locomotive, placed, refused }: RosterRow) {
+   *  in that place instead, while the model has it (#1011). Under that, the
+   *  row's note where the train is not where the loaded timetable starts
+   *  (#1357). */
+  private row({ train, block, length, locomotive, placed, refused, note }: RosterRow) {
     return html`
       <li
         class=${[
@@ -103,6 +105,7 @@ export class TcRoster extends LitElement {
               ${placed ? (block ?? "crossing a transit") : "off the layout"}
             </span>`
           : html`<span class="where refused">${refused}</span>`}
+        ${note === undefined ? nothing : html`<span class="note">${note}</span>`}
       </li>
     `;
   }

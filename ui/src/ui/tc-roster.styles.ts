@@ -12,7 +12,8 @@ import { css } from "lit";
  * (#1012). A long name wraps onto a second line and is not cut short. The
  * blocks read down the pane rather than sitting wherever the name before them
  * ended. The length is right-aligned and tabular, being
- * the one number.
+ * the one number. A row's note about where the loaded timetable starts is a
+ * line of its own under where the train is.
  *
  * A row is also something to pick up — a drag onto a block places the train
  * ([#170](https://github.com/rails49/control/issues/170)) — so it takes the
@@ -103,6 +104,14 @@ export const rosterStyles = css`
      as a rejected request's reason is on the drawing. */
   .where.refused {
     color: var(--red);
+  }
+
+  /* Where the train is not where the loaded timetable starts, under where it
+     is (#1357). */
+  .note {
+    grid-column: 2 / -1;
+    font-size: 0.7rem;
+    font-style: italic;
   }
 
   .hint {

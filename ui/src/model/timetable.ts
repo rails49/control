@@ -27,6 +27,9 @@
  * entry with what a person typed in one of them, and `same` is whether two
  * entries are equal as the scheduler compares them, which is how the open row
  * is found again when its entry moves.
+ *
+ * `startNotes` is what the roster says about a train that is not where the
+ * loaded timetable starts.
  */
 
 import { hhmm, timeOf } from "./clock.js";
@@ -271,6 +274,41 @@ export function same(a: Entry, b: Entry): boolean {
     (a.dwell ?? 0) === (b.dwell ?? 0) &&
     (a.description ?? "") === (b.description ?? "")
   );
+}
+
+/**
+ * What the roster says about each train that is not where the loaded
+ * timetable starts, by train
+ * ([#1357](https://github.com/rails49/control/issues/1357)): "off the
+ * layout", "not at <block>" naming its start block, or "facing the other
+ * way" for a train in its start block. A train in place, and a train the
+ * timetable does not name, have no note.
+ *
+ * `placed` is each train on the layout and the block it stands in, `null`
+ * while it crosses a transit. `noses` is the block end each train points at,
+ * `<block>.<end>`, as `tc49/schedule/state/facing` says it. A train with no
+ * facing said is not noted for its facing.
+ *
+ * Only while the phase is `loaded`: a timetable that has started moves its
+ * trains out of their start blocks.
+ */
+export function startNotes(
+  timetable: Timetable | null,
+  placed: readonly { train: string; block: string | null }[],
+  noses: ReadonlyMap<string, string>,
+): Map<string, string> {
+  const notes = new Map<string, string>();
+  if (timetable?.phase !== "loaded") return notes;
+  const where = new Map(placed.map(({ train, block }) => [train, block]));
+  for (const [train, { at, facing }] of Object.entries(timetable.trains)) {
+    const nose = noses.get(train);
+    if (!where.has(train)) notes.set(train, "off the layout");
+    else if (where.get(train) !== at) notes.set(train, `not at ${at}`);
+    else if (nose !== undefined && nose !== `${at}.${facing.split("-to-")[1]}`) {
+      notes.set(train, "facing the other way");
+    }
+  }
+  return notes;
 }
 
 function startsOf(trains: unknown): Record<string, TrainStart> | null {

@@ -20,6 +20,7 @@ import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { RosterRow } from "../src/model/panel.js";
 import { photoUrl } from "../src/model/store.js";
+import { startNotes, type Timetable } from "../src/model/timetable.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcRoster } from "../src/ui/tc-roster.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
@@ -276,6 +277,168 @@ describe("why a placement was refused", () => {
     await settled(shell);
 
     expect(where(shell, "shunter")).toBe("off the layout");
+  });
+});
+
+/**
+ * The note about where the loaded timetable starts (#1357). The timetable's
+ * `trains` say where each train stood when it was made, and a row says where
+ * its train does not agree. The words are `model/timetable.ts`'s.
+ */
+describe("the note about where the timetable starts", () => {
+  /** `goods` starts in `a` facing `A-to-B`, `express` in `b`, `local` in `c`
+   *  and `mail` in `d`. `shunter` is not named. */
+  const EVENING: Timetable = {
+    name: "evening",
+    phase: "loaded",
+    record: false,
+    start: "06:00",
+    trains: {
+      express: { at: "b", facing: "B-to-A" },
+      goods: { at: "a", facing: "A-to-B" },
+      local: { at: "c", facing: "A-to-B" },
+      mail: { at: "d", facing: "A-to-B" },
+    },
+    positioning: [],
+    entries: [],
+  };
+
+  /** `goods` is in place, `express` is off the layout, `local` stands in
+   *  `e`, `mail` is in `d` facing the other way. */
+  const PLACED = [
+    { train: "goods", block: "a" },
+    { train: "local", block: "e" },
+    { train: "mail", block: "d" },
+    { train: "shunter", block: "f" },
+  ];
+  const NOSES = new Map([
+    ["goods", "a.B"],
+    ["local", "e.B"],
+    ["mail", "d.A"],
+    ["shunter", "f.A"],
+  ]);
+
+  const notes = startNotes(EVENING, PLACED, NOSES);
+
+  it("says a train the timetable names and the run does not have is off the layout", () => {
+    expect(notes.get("express")).toBe("off the layout");
+  });
+
+  it("names the start block of a train standing in another", () => {
+    expect(notes.get("local")).toBe("not at c");
+  });
+
+  it("says a train in its start block that points at the other end faces the other way", () => {
+    expect(notes.get("mail")).toBe("facing the other way");
+  });
+
+  it("says nothing about a train in its start block facing as recorded", () => {
+    expect(notes.has("goods")).toBe(false);
+  });
+
+  it("says nothing about a train the timetable does not name", () => {
+    expect(notes.has("shunter")).toBe(false);
+  });
+
+  it("says a train crossing a transit is not at its start block", () => {
+    const crossing = startNotes(EVENING, [{ train: "goods", block: null }], NOSES);
+    expect(crossing.get("goods")).toBe("not at a");
+  });
+
+  it("says nothing with no timetable loaded", () => {
+    expect(startNotes(null, PLACED, NOSES).size).toBe(0);
+  });
+
+  /** A train leaves its start block when the timetable runs. */
+  it("says nothing once the timetable has started", () => {
+    expect(startNotes({ ...EVENING, phase: "running" }, PLACED, NOSES).size).toBe(0);
+    expect(startNotes({ ...EVENING, phase: "over" }, PLACED, NOSES).size).toBe(0);
+  });
+
+  it("is drawn on the row it is handed with, and on no other", async () => {
+    const roster = await pane([
+      { train: "goods", block: "a", length: 400, placed: true, locomotive: null },
+      { train: "local", block: "e", length: 300, placed: true, locomotive: null, note: "not at c" },
+    ]);
+    const [goods, local] = [...roster.renderRoot.querySelectorAll("li")];
+    expect(goods!.querySelector(".note")).toBeNull();
+    expect(local!.querySelector(".note")!.textContent!.trim()).toBe("not at c");
+    expect(rows(roster)[1]).toEqual(["local", "300", "e"]);
+  });
+
+  describe("in a live session", () => {
+    beforeEach(brokering);
+
+    afterEach(unbrokered);
+
+    /** The note on each row, `null` where it has none. */
+    function noted(shell: TcApp): (string | null)[][] {
+      return [...paneOf(shell).renderRoot.querySelectorAll("li")].map((row) => [
+        row.querySelector(".name")!.textContent!.trim(),
+        row.querySelector(".note")?.textContent!.trim() ?? null,
+      ]);
+    }
+
+    const LOADED = {
+      timetable: "evening",
+      phase: "loaded",
+      record: false,
+      start: "06:00",
+      trains: {
+        goods: { at: "a", facing: "A-to-B" },
+        shunter: { at: "b", facing: "A-to-B" },
+      },
+      positioning: [],
+      entries: [],
+    };
+
+    /** The block is the dispatcher's allocation and the facing is the
+     *  scheduler's row. */
+    it("reads the loaded timetable against the allocation and the facing", async () => {
+      const shell = await joined();
+      await said(shell, "tc49/schedule/state/timetable", LOADED);
+      expect(noted(shell)).toEqual([
+        ["goods", "off the layout"],
+        ["shunter", "off the layout"],
+      ]);
+
+      await said(shell, "tc49/dispatch/state/allocation", {
+        trains: { goods: "a" },
+        occupied: { goods: ["a"] },
+        locks: { a: "goods" },
+        requests: [],
+      });
+      await said(shell, "tc49/schedule/state/facing", { facing: { goods: "a.B-to-A" } });
+      expect(noted(shell)).toEqual([
+        ["goods", "facing the other way"],
+        ["shunter", "off the layout"],
+      ]);
+
+      await said(shell, "tc49/schedule/state/facing", { facing: { goods: "a.A-to-B" } });
+      expect(noted(shell)).toEqual([
+        ["goods", null],
+        ["shunter", "off the layout"],
+      ]);
+
+      await said(shell, "tc49/dispatch/state/allocation", {
+        trains: { goods: "b" },
+        occupied: { goods: ["b"] },
+        locks: { b: "goods" },
+        requests: [],
+      });
+      expect(noted(shell)).toEqual([
+        ["goods", "not at a"],
+        ["shunter", "off the layout"],
+      ]);
+    });
+
+    it("has no note with no timetable loaded", async () => {
+      const shell = await joined();
+      expect(noted(shell)).toEqual([
+        ["goods", null],
+        ["shunter", null],
+      ]);
+    });
   });
 });
 
