@@ -16,7 +16,8 @@
  * Description, State and an unlabelled action column, the same with a
  * timetable or without. With no rows the headings are drawn, and "no
  * requests" or "no entries" under them. The headings stay at the top of
- * what scrolls. A row's cells and its "waits for" line are `list-row.ts`'s.
+ * what scrolls. A row's cells and its "waits for" line are
+ * `requests-row.ts`'s.
  *
  * With no timetable loaded the rows are the requests, in the order the
  * dispatcher serves them, with Time, Dwell and Description empty. A refused
@@ -82,7 +83,7 @@ import {
   type Opened,
   type Timetable,
 } from "../model/timetable.js";
-import { cells, note, type RowActions } from "./list-row.js";
+import { cells, note, type RowActions } from "./requests-row.js";
 import "./tc-entry.js";
 import type { EntryChange } from "./tc-entry.js";
 import { requestsStyles } from "./tc-requests.styles.js";
@@ -218,7 +219,7 @@ export class TcRequests extends LitElement {
   }
 
   /**
-   * One row: its cells and its "waits for" line (`list-row.ts`).
+   * One row: its cells and its "waits for" line (`requests-row.ts`).
    *
    * - An entry that is not out, or whose request the dispatcher does not
    *   list, is no request, so it has no cancel and is not picked up.
