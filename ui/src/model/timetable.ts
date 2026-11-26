@@ -25,10 +25,12 @@
  * is no request and is not dragged. `newest` is the row the list is scrolled
  * to when the scheduler says a new row.
  *
- * An entry's row opens to its time, dwell and description
- * ([#1358](https://github.com/rails49/control/issues/1358)). `edited` is the
+ * An entry's row opens to its time, arrival ends, dwell and description
+ * ([#1358](https://github.com/rails49/control/issues/1358),
+ * [#1386](https://github.com/rails49/control/issues/1386)). `edited` is the
  * entry with what a person typed in one of them, `outside` why a typed time
- * is not within the timetable's repeat, and `same` is whether two entries
+ * is not within the timetable's repeat, `misnamed` why typed arrival ends
+ * are refused, and `same` is whether two entries
  * are equal as the scheduler compares them. Which row is open is
  * `Opened`: `tapped` is what a tap makes of it, `asking` what a change the
  * row asked for makes of it, and `followed` where it is when the scheduler
@@ -283,7 +285,7 @@ export function moving(
 }
 
 /** The fields of an entry a person types in its open row. */
-export type Field = "at" | "dwell" | "description";
+export type Field = "at" | "to" | "dwell" | "description";
 
 /**
  * `entry` with `words` typed in one field of its open row, `entry_wanted`'s
@@ -292,6 +294,10 @@ export type Field = "at" | "dwell" | "description";
  *
  * - A time is read and said as `model/clock.ts` reads and writes one:
  *   `0d06:10` is said as `06:10`.
+ * - Arrival ends are `<block>`, `<block>.A` or `<block>.B`, separated by
+ *   commas and kept in the order typed, the space round each dropped. Only
+ *   an entry with `to` has them. Words `misnamed` refuses with any block
+ *   known are no value.
  * - A dwell is whole minutes in digits, 0 or more, and only an entry with
  *   `to` has one. Emptied it is 0, and 0 is the key left out.
  * - A description is the words with the space round them dropped. Emptied,
@@ -305,6 +311,9 @@ export function edited(entry: Entry, field: Field, words: string): Entry | null 
     const time = timeOf(typed);
     if (time === null) return null;
     now = { ...entry, at: written(time) };
+  } else if (field === "to") {
+    if (entry.to === undefined || refusal(typed, () => true) !== null) return null;
+    now = { ...entry, to: endsIn(typed) };
   } else if (field === "dwell") {
     if (entry.to === undefined || !/^\d*$/.test(typed)) return null;
     const minutes = Number(typed);
@@ -338,6 +347,43 @@ export function outside(
   if (time < start) return `before the start ${written(start)}`;
   if (time >= start + repeat) return `after the last minute, ${written(start + repeat - 60)}`;
   return null;
+}
+
+/** Why `words` typed as an entry's arrival ends are refused, `null` where
+ *  they are good ends of `blocks`, the railroad's block names. The words
+ *  name what is wrong with the first end that is: "no arrival end" for
+ *  none, "b.C: the end is A or B", "the railroad has no block z", or "b is
+ *  named twice", which `b, b.A` is too. A comma with nothing after it adds
+ *  no end. */
+export function misnamed(blocks: readonly string[], words: string): string | null {
+  return refusal(words, (block) => blocks.includes(block));
+}
+
+/** Why `words` are refused as arrival ends, a block being one where `known`
+ *  says so. */
+function refusal(words: string, known: (block: string) => boolean): string | null {
+  const ends = endsIn(words);
+  if (ends.length === 0) return "no arrival end";
+  const named = new Set<string>();
+  for (const end of ends) {
+    const [block, letter] = end.split(/\.(.*)/);
+    if (letter !== undefined && letter !== "A" && letter !== "B") {
+      return `${end}: the end is A or B`;
+    }
+    if (!known(block!)) return `the railroad has no block ${block}`;
+    if (named.has(block!)) return `${block} is named twice`;
+    named.add(block!);
+  }
+  return null;
+}
+
+/** The arrival ends in `words`: split at commas, the space round each
+ *  dropped, and none for a part that is empty. */
+function endsIn(words: string): string[] {
+  return words
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
 }
 
 /** Whether two entries are equal in every field of the document, a dwell
