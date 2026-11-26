@@ -5,12 +5,13 @@ import threading
 
 from rails49_testing.broker import until
 
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.timetable import Timetable
 from tc49.scheduler.keeping import Kept
 
 
 def timetable(name: str, start: int = 0) -> Timetable:
-    return Timetable(name, "crossover-yard", start, {}, ())
+    return Timetable(name, "crossover-yard", start, DAY_S, {}, ())
 
 
 class Slow:

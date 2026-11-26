@@ -17,7 +17,7 @@ import yaml
 from rails49_testing.ports import free_port
 
 from tc49.lib.documents import Documents, reread_roster
-from tc49.lib.fast_clock import KeptClock
+from tc49.lib.fast_clock import DAY_S, KeptClock
 from tc49.lib.settings import (
     ARRIVAL_ALLOWANCE_S,
     SENSOR_SILENCE_S,
@@ -383,6 +383,7 @@ EVENING = Timetable(
     "evening",
     RAILROAD,
     6 * 3600,
+    DAY_S,
     {"freight_1": TrainStart("yard_w", "A-to-B")},
     (
         Entry((6 * 60 + 2) * 60, "freight_1", ("dn_e", "up_e"), 2, "meets the express"),
@@ -429,7 +430,7 @@ def test_a_timetable_the_store_cannot_read_is_raised(url: str, root: Path) -> No
     filed.mkdir(parents=True)
     (filed / "evening.timetable.yaml").write_text(
         f"timetable: evening\nlayout: {RAILROAD}\nstart: 12:30\n"
-        "trains: {}\nentries: []\n"
+        'repeat: "1d00:00"\ntrains: {}\nentries: []\n'
     )
     with pytest.raises(ValueError, match="HH:MM"):
         client(url).timetable(RAILROAD, "evening")

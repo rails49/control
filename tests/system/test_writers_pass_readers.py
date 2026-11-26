@@ -42,6 +42,7 @@ from tc49.dispatcher.dispatch import submission
 from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload, matches
 from tc49.lib.clock import Clock
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.payload import (
     alignment,
     chosen,
@@ -137,7 +138,7 @@ def _timetable(frame: Frame) -> bool:
     name = loaded_timetable(frame)
     if name is None:
         return set(frame) == {"at", "timetable"} and frame["timetable"] is None
-    state = restarted(frame, Timetable(name, "crossover-yard", 0, {}, ()))
+    state = restarted(frame, Timetable(name, "crossover-yard", 0, DAY_S, {}, ()))
     return state is not None and len(state.progress) == len(frame["entries"])
 
 

@@ -13,6 +13,7 @@ from typing import Any
 
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.timetable import Timetable
 from tc49.scheduler import Scheduler
 from tests.harness import Recording, subscribed_before_publishing
@@ -146,6 +147,7 @@ def test_with_power_on_and_a_clock_row_untitled_is_made_and_written() -> None:
         "phase": "running",
         "record": True,
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": {
             "express_2": {"at": "up_e", "facing": "B-to-A"},
             "freight_1": {"at": "yard_w", "facing": "A-to-B"},
@@ -157,6 +159,7 @@ def test_with_power_on_and_a_clock_row_untitled_is_made_and_written() -> None:
         "timetable": "untitled",
         "layout": "crossover-yard",
         "start": "06:00",
+        "repeat": "1d00:00",
         "trains": {
             "express_2": {"at": "up_e", "facing": "B-to-A"},
             "freight_1": {"at": "yard_w", "facing": "A-to-B"},
@@ -206,7 +209,7 @@ def test_untitled_waits_for_an_allocation_row() -> None:
 
 
 def test_untitled_replaces_the_one_the_store_has() -> None:
-    stored = Timetable("untitled", "crossover-yard", at("22:00"), {}, ())
+    stored = Timetable("untitled", "crossover-yard", at("22:00"), DAY_S, {}, ())
     store = Store(stored)
 
     recording(store)
@@ -373,6 +376,7 @@ def test_a_new_timetable_by_name_is_made_with_power_off() -> None:
         "phase": "running",
         "record": True,
         "start": "07:15",
+        "repeat": "1d00:00",
         "trains": {
             "express_2": {"at": "up_e", "facing": "B-to-A"},
             "freight_1": {"at": "yard_w", "facing": "A-to-B"},
@@ -389,7 +393,7 @@ def test_a_new_timetable_by_name_is_made_with_power_off() -> None:
 
 
 def test_a_new_timetable_replaces_one_of_that_name_loaded_or_stored() -> None:
-    stored = Timetable("evening", "crossover-yard", at("22:00"), {}, ())
+    stored = Timetable("evening", "crossover-yard", at("22:00"), DAY_S, {}, ())
     store = Store(stored)
     bus = recording(store)
     power(bus, "off")
@@ -561,7 +565,7 @@ def test_a_restart_keeps_the_rows_entries_where_the_documents_differ() -> None:
     timetable."""
     store = Store()
     rows = retained(store)
-    edited = Timetable("untitled", "crossover-yard", at("06:00"), {}, ())
+    edited = Timetable("untitled", "crossover-yard", at("06:00"), DAY_S, {}, ())
     store.put_timetable(edited)
 
     bus = restarted(store, rows)

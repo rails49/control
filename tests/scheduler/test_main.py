@@ -401,6 +401,7 @@ def test_it_records_a_drag_and_writes_the_timetable_to_the_store(
         "timetable": "untitled",
         "layout": RAILROAD,
         "start": "06:00",
+        "repeat": "1d00:00",
         # `yard_w` is a terminal block, so a placed train faces its B end.
         "trains": {"freight_1": {"at": "yard_w", "facing": "A-to-B"}},
         "entries": [{"at": "06:00", "train": "freight_1", "to": ["yard_e.A"]}],

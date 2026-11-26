@@ -1,5 +1,6 @@
-"""The timetable document: where a railroad's trains start and a list of
-entries in time order (#1345, GLOSSARY.md).
+"""The timetable document: where a railroad's trains start, how long it
+runs before it begins again, and a list of entries in time order (#1345,
+#1363, GLOSSARY.md).
 
 The store and the scheduler both read a timetable through this module, as
 they read a clock through `tc49.lib.fast_clock`. It has no bus and no file
@@ -11,6 +12,7 @@ and `Entry.document` do the same for one entry.
 timetable: evening
 layout: crossover-yard
 start: "06:00"
+repeat: "1d00:00"
 
 trains:
   freight_1: { at: yard_w, facing: A-to-B }
@@ -25,9 +27,13 @@ The values are frozen. A changed timetable is a new one: `Timetable.added`,
 `removed` and `replaced` for its entries, `dataclasses.replace` for its name,
 and every one of them holds its entries in order.
 
-A time of day is held in seconds since midnight on a whole minute, which is
-what `"HH:MM"` says. `tc49.lib.fast_clock.start_of` rounds a clock's time down
-to one.
+A time is held in seconds since midnight of day 0 on a whole minute, and a
+length (`repeat`) in seconds on a whole minute. Both are written in the time
+form `[<day>d]HH:MM`: `<day>` a whole number without leading zeros, `HH`
+`00`–`23` and `MM` `00`–`59`. Leaving out `<day>d` means day 0, so `06:00` and
+`0d06:00` are the same time and `1d06:00` is a day later. `read_time` reads
+the form and `time_text` writes it, leaving out `0d`.
+`tc49.lib.fast_clock.start_of` rounds a clock's time down to a minute.
 """
 
 import re
@@ -39,7 +45,8 @@ from tc49.lib.fast_clock import DAY_S
 from tc49.lib.layout import FACINGS, as_mapping, check_keys
 
 _HH_MM = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])")
-_FIELDS = {"timetable", "layout", "start", "trains", "entries"}
+_TIME = re.compile(r"(?:(0|[1-9][0-9]*)d)?([01][0-9]|2[0-3]):([0-5][0-9])")
+_FIELDS = {"timetable", "layout", "start", "repeat", "trains", "entries"}
 
 
 @dataclass(frozen=True)
@@ -56,11 +63,11 @@ class TrainStart:
 class Entry:
     """One row of a timetable: at a time, send a train to one of a set of
     arrival ends, or turn it round. It carries no id, so two entries with the
-    same fields are equal. A time that is not a minute of the day is a
+    same fields are equal. An `at` that is not a whole minute from 0 is a
     `ValueError`."""
 
     at: int
-    """The time of day it is due, in seconds since midnight on a whole
+    """The time it is due, in seconds since midnight of day 0 on a whole
     minute."""
     train: str
     to: tuple[str, ...] = ()
@@ -81,10 +88,10 @@ class Entry:
         return not self.to
 
     def document(self) -> dict[str, Any]:
-        """The entry as the document lists it: `at` as `"HH:MM"`, `to` or
+        """The entry as the document lists it: `at` in the time form, `to` or
         `turn: true`, `dwell` left out where 0 and `description` left out
         where empty."""
-        doc: dict[str, Any] = {"at": _hh_mm(self.at), "train": self.train}
+        doc: dict[str, Any] = {"at": time_text(self.at), "train": self.train}
         if self.to:
             doc["to"] = list(self.to)
         else:
@@ -101,8 +108,9 @@ class Timetable:
     """A railroad's timetable.
 
     Made with entries in any order, it holds them in order (see `entries`).
-    A `name` or `layout` that is no path segment, or a `start` that is not a
-    minute of the day, is a `ValueError`."""
+    A `name` or `layout` that is no path segment, a `start` that is not a
+    minute of day 0, a `repeat` that is not a whole minute greater than 0,
+    and an entry outside the repeat are each a `ValueError`."""
 
     name: str
     """Its name, a path segment in the store: not empty, with no `/` and no
@@ -110,38 +118,51 @@ class Timetable:
     layout: str
     """The railroad it belongs to, a path segment as `name` is."""
     start: int
-    """The time of day it starts at, in seconds since midnight on a whole
+    """The time it starts at, on day 0, in seconds since midnight on a whole
     minute."""
+    repeat: int
+    """The time from `start` to where it begins again, in seconds on a whole
+    minute, greater than 0. Every entry's `at` lies from `start` to before
+    `start` plus `repeat`."""
     trains: dict[str, TrainStart]
     """Where each train stands at the start."""
     entries: tuple[Entry, ...]
-    """The entries in order of time counted from `start`, so with a start of
-    22:00 an entry at 01:00 comes after one at 23:00. Entries in the same
-    minute keep the order they were given in."""
+    """The entries in order of `at`, so with a start of 22:00 an entry at
+    1d01:00 comes after one at 23:00. Entries in the same minute keep the
+    order they were given in."""
 
     def __post_init__(self) -> None:
         segment(self.name, "'timetable'")
         segment(self.layout, "'layout'")
         _check_minute(self.start, "a timetable's 'start'")
+        if self.start >= DAY_S:
+            raise ValueError(
+                f"a timetable's 'start' is {time_text(self.start)}, not on day 0"
+            )
+        _check_minute(self.repeat, "a timetable's 'repeat'")
+        if not self.repeat:
+            raise ValueError("a timetable's 'repeat' is 00:00, not greater than 0")
+        last = self.start + self.repeat - 60
+        for number, entry in enumerate(self.entries, 1):
+            if entry.at < self.start:
+                raise ValueError(
+                    f"entry {number}: 'at' is {time_text(entry.at)}, before the"
+                    f" start {time_text(self.start)}"
+                )
+            if entry.at > last:
+                raise ValueError(
+                    f"entry {number}: 'at' is {time_text(entry.at)}, after the last"
+                    f" minute {time_text(last)}"
+                )
         # sorted() is stable, so entries in one minute keep the order given.
-        ordered = sorted(self.entries, key=lambda entry: self.since_start(entry.at))
+        ordered = sorted(self.entries, key=lambda entry: entry.at)
         object.__setattr__(self, "entries", tuple(ordered))
 
-    def since_start(self, time: int) -> int:
-        """Seconds from `start` to the time of day `time`, in seconds since
-        midnight, within the day: `0` to `DAY_S - 1`. With a start of 22:00,
-        01:00 is three hours."""
-        return (time - self.start) % DAY_S
-
     def place(self, at: int) -> int:
-        """The position in `entries` a new entry at the time of day `at`
-        goes in: after the last entry at or before `at`, so after every entry
-        that shares its minute."""
-        return bisect_right(
-            self.entries,
-            self.since_start(at),
-            key=lambda entry: self.since_start(entry.at),
-        )
+        """The position in `entries` a new entry at `at` goes in: after the
+        last entry at or before `at`, so after every entry that shares its
+        minute."""
+        return bisect_right(self.entries, at, key=lambda entry: entry.at)
 
     def added(self, entry: Entry) -> "Timetable":
         """The timetable with `entry` added at `place(entry.at)`."""
@@ -174,7 +195,8 @@ class Timetable:
         return {
             "timetable": self.name,
             "layout": self.layout,
-            "start": _hh_mm(self.start),
+            "start": time_text(self.start),
+            "repeat": time_text(self.repeat),
             "trains": {
                 train: {"at": start.at, "facing": start.facing}
                 for train, start in self.trains.items()
@@ -187,15 +209,17 @@ def read_timetable(doc: object) -> Timetable:
     """The `Timetable` a parsed timetable document says, or `ValueError` or
     `TypeError` naming the field that is wrong.
 
-    The document has `timetable`, `layout`, `start`, `trains` and `entries`,
-    all five and nothing else:
+    The document has `timetable`, `layout`, `start`, `repeat`, `trains` and
+    `entries`, all six and nothing else:
 
     - `timetable` and `layout` are names (see `Timetable`);
-    - `start` is `"HH:MM"` as text;
+    - `start` is `"HH:MM"` as text, a time on day 0;
+    - `repeat` is a length in the time form as text, greater than 0;
     - `trains` maps each train to its `at`, a block, and its `facing`,
       `A-to-B` or `B-to-A`, both and nothing else. It may be empty;
     - `entries` is a list of entries as `read_entry` reads them. It may be
-      empty. One out of order is put in order, not refused.
+      empty. One out of order is put in order, not refused. One whose `at` is
+      before `start`, or at or after `start` plus `repeat`, is refused.
 
     A time is text because YAML 1.1, which the store reads in, takes an
     unquoted `12:30` as the integer 750. Only the shape is checked: the
@@ -230,25 +254,27 @@ def read_timetable(doc: object) -> Timetable:
         raise TypeError(
             f"{where}: 'entries' must be a list, got {type(entries).__name__}"
         )
-    return Timetable(
-        fields["timetable"],
-        fields["layout"],
-        _time(fields["start"], f"{where}: 'start'"),
-        trains,
-        tuple(
-            read_entry(one, f"{where}: entry {i + 1}")
-            for i, one in enumerate(cast(list[object], entries))
-        ),
+    listed = tuple(
+        read_entry(one, f"{where}: entry {i + 1}")
+        for i, one in enumerate(cast(list[object], entries))
     )
+    start = _start(fields["start"], f"{where}: 'start'")
+    repeat = read_time(fields["repeat"], f"{where}: 'repeat'")
+    try:
+        return Timetable(
+            fields["timetable"], fields["layout"], start, repeat, trains, listed
+        )
+    except ValueError as refused:
+        raise ValueError(f"{where}: {refused}") from None
 
 
 def read_entry(doc: object, where: str = "entry") -> Entry:
     """The `Entry` one entry of a timetable document says, or `ValueError` or
     `TypeError` naming the field that is wrong. `where` begins the refusal.
 
-    An entry has `at`, `"HH:MM"` as text, `train`, and one of `to` or
-    `turn: true`, not both. `to` is a non-empty list of arrival ends, each
-    non-empty text. `dwell` is a whole number of minutes, 0 or more, and goes
+    An entry has `at`, a time in the time form as text, `train`, and one of
+    `to` or `turn: true`, not both. `to` is a non-empty list of arrival ends,
+    each non-empty text. `dwell` is a whole number of minutes, 0 or more, and goes
     only with `to`. A bool is no number. `description` is text. `dwell` and
     `description` may be left out, and any other key is refused.
 
@@ -286,7 +312,7 @@ def read_entry(doc: object, where: str = "entry") -> Entry:
     if not isinstance(description, str):
         raise TypeError(f"{where}: 'description' is {description!r}, not text")
     return Entry(
-        _time(fields["at"], f"{where}: 'at'"),
+        read_time(fields["at"], f"{where}: 'at'"),
         _text(fields["train"], f"{where}: 'train'"),
         to,
         dwell,
@@ -305,9 +331,28 @@ def segment(name: str, what: str) -> str:
     return name
 
 
+def read_time(value: object, what: str) -> int:
+    """A time or a length in the time form `[<day>d]HH:MM`, as text, in
+    seconds: `1d06:00` is 108000. Anything else is a `ValueError` that begins
+    with `what`."""
+    matched = _TIME.fullmatch(value) if isinstance(value, str) else None
+    if matched is None:
+        raise ValueError(f'{what} is {value!r}, not "[<day>d]HH:MM" quoted')
+    day = int(matched[1] or 0)
+    return day * DAY_S + (int(matched[2]) * 60 + int(matched[3])) * 60
+
+
+def time_text(time: int) -> str:
+    """A time or a length in seconds on a whole minute, 0 or more, in the
+    time form: `HH:MM` on day 0 and `<day>dHH:MM` on any other."""
+    day, within = divmod(time // 60, DAY_S // 60)
+    hh_mm = f"{within // 60:02d}:{within % 60:02d}"
+    return f"{day}d{hh_mm}" if day else hh_mm
+
+
 def _check_minute(time: int, what: str) -> None:
-    if not 0 <= time < DAY_S or time % 60:
-        raise ValueError(f"{what} of {time} s is not a minute of the day")
+    if time < 0 or time % 60:
+        raise ValueError(f"{what} of {time} s is not a whole minute from 0")
 
 
 def _text(value: object, what: str) -> str:
@@ -317,15 +362,9 @@ def _text(value: object, what: str) -> str:
     return value
 
 
-def _time(value: object, what: str) -> int:
-    """`"HH:MM"` as seconds since midnight."""
+def _start(value: object, what: str) -> int:
+    """`"HH:MM"`, a time on day 0, as seconds since midnight."""
     matched = _HH_MM.fullmatch(value) if isinstance(value, str) else None
     if matched is None:
         raise ValueError(f'{what} is {value!r}, not "HH:MM" quoted')
     return (int(matched[1]) * 60 + int(matched[2])) * 60
-
-
-def _hh_mm(time: int) -> str:
-    """Seconds since midnight on a whole minute as `"HH:MM"`."""
-    minutes = time // 60
-    return f"{minutes // 60:02d}:{minutes % 60:02d}"
