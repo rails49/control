@@ -143,7 +143,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     GET  /settings/<railroad>   the settings that railroad keeps
     PUT  /settings/<railroad>   create or replace them
     GET  /timetables/<railroad> the names of that railroad's timetables
-    GET  /timetables/<railroad>/<name> one timetable, whole
+    GET  /timetables/<railroad>/<name> one timetable, whole, or its file's
+                                text to `Accept: application/yaml`
     PUT  /timetables/<railroad>/<name> create or replace it
     DELETE /timetables/<railroad>/<name> delete it
     POST /railroads/<from>/copy its drawing, roster, script, clock, settings
@@ -212,9 +213,12 @@ The `/timetables` routes are one railroad's timetables
 the document does not pass the shape check, or where its `layout` or
 `timetable` is not the railroad or the name in the path. A `GET` of a file
 that fails either check is a **400** too, and a `GET` or a `DELETE` of one
-that is not there is a **404**. The railroad is not checked for a drawing.
+that is not there is a **404**. A `GET` whose `Accept` names
+`application/yaml` answers the file's bytes as stored, under that type
+([#1381](https://github.com/rails49/control/issues/1381)); its 400 and 404
+are the same JSON errors. The railroad is not checked for a drawing.
 The scheduler reads, writes and deletes a timetable, and the page reads the
-list and one document and deletes. Copying a railroad copies its timetables,
+list, one document and one file's text, and deletes. Copying a railroad copies its timetables,
 each with `layout` naming the copy, and a name that has a timetable already
 is taken. Deleting a railroad deletes its timetables.
 
