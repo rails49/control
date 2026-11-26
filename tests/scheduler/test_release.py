@@ -32,6 +32,7 @@ from tc49.scheduler.release import (
     Release,
     State,
     announced,
+    changed,
     clocked,
     dragged,
     due,
@@ -43,6 +44,7 @@ from tc49.scheduler.release import (
     powered,
     recording,
     released,
+    renamed,
     restarted,
     row,
     started,
@@ -936,3 +938,116 @@ def test_after_a_restart_an_entry_out_whose_request_is_not_listed_has_ended() ->
         },
     ]
     assert state.in_flight == {"express-ab-1": "express", "local-9": "local"}
+
+
+def test_an_entry_moved_to_later_than_the_clock_is_released_at_the_new_time() -> None:
+    """And not at the old one."""
+    entry = Entry(at("06:05"), "freight", ("dn_e",))
+    moved = replace(entry, at=at("06:10"))
+    state = clocked(running(entry), at("06:02"), 1)
+
+    state = changed(state, entry, moved)
+    state = clocked(state, at("06:05"), 1)
+
+    assert due(state) == ()
+    assert states(state) == [LATER]
+
+    state = clocked(state, at("06:09") + 59, 1)
+
+    assert due(state) == ()
+
+    state = clocked(state, at("06:10"), 1)
+
+    assert due(state) == (Release(0, moved),)
+
+
+def test_an_entry_held_for_its_train_is_later_again_once_moved_past_the_clock() -> None:
+    first = Entry(at("06:02"), "freight", ("dn_e",))
+    second = Entry(at("06:03"), "freight", ("yard_w",))
+    state = released(clocked(running(first, second), at("06:04"), 1), 0, "freight-ab-1")
+    assert states(state) == [OUT, HELD]
+
+    state = changed(state, second, replace(second, at=at("06:08")))
+    state = ended(state, "freight-ab-1", COMPLETED)
+
+    assert states(state) == [ENDED, LATER]
+    assert due(state) == ()
+    assert [one.index for one in due(clocked(state, at("06:08"), 1))] == [1]
+
+
+def test_an_entry_moved_to_a_time_the_clock_has_passed_is_due_at_once() -> None:
+    entry = Entry(at("06:30"), "freight", ("dn_e",))
+    moved = replace(entry, at=at("06:01"))
+    state = clocked(running(entry), at("06:02"), 1)
+
+    assert due(changed(state, entry, moved)) == (Release(0, moved),)
+
+
+def test_a_moved_entry_takes_its_state_request_and_ending_with_it() -> None:
+    """Each entry's progress stays with its entry, moved later or earlier."""
+    first = Entry(at("06:02"), "freight", ("dn_e",))
+    second = Entry(at("06:03"), "express", ("up_e",))
+    third = Entry(at("06:20"), "local", ("dn_w",))
+    state = clocked(running(first, second, third), at("06:03"), 1)
+    state = released(released(state, 0, "freight-ab-1"), 1, "express-ab-1")
+    state = ended(clocked(state, at("06:04"), 1), "freight-ab-1", COMPLETED)
+    arrived = Progress(ENDED, "freight-ab-1", 4 * 60)
+
+    later = changed(state, first, replace(first, at=at("06:25")))
+
+    assert later.timetable is not None
+    assert [entry.train for entry in later.timetable.entries] == [
+        "express",
+        "local",
+        "freight",
+    ]
+    assert later.progress == (Progress(OUT, "express-ab-1"), Progress(), arrived)
+
+    earlier = changed(later, third, replace(third, at=at("06:01")))
+
+    assert earlier.progress == (Progress(HELD), Progress(OUT, "express-ab-1"), arrived)
+    assert due(earlier) == (Release(0, replace(third, at=at("06:01"))),)
+
+
+def test_a_deleted_entry_takes_its_progress_and_leaves_its_request_in_flight() -> None:
+    first = Entry(at("06:02"), "freight", ("dn_e",))
+    second = Entry(at("06:05"), "express", ("up_e",))
+    state = released(clocked(running(first, second), at("06:02"), 1), 0, "freight-ab-1")
+
+    state = changed(state, first, None)
+
+    assert state.timetable is not None
+    assert state.timetable.entries == (second,)
+    assert state.progress == (Progress(),)
+    assert state.in_flight == {"freight-ab-1": "freight"}
+
+    state = ended(state, "freight-ab-1", COMPLETED)
+
+    assert state.progress == (Progress(),)
+    assert state.in_flight == {}
+
+
+def test_a_change_names_the_first_entry_equal_to_it_or_none() -> None:
+    entry = Entry(at("06:02"), "freight", ("dn_e",))
+    state = clocked(running(entry, entry), at("06:02"), 1)
+    state = released(state, 0, "freight-ab-1")
+    described = replace(entry, description="the first of two")
+
+    assert changed(state, replace(entry, dwell=1), None) == state
+    assert changed(State(), entry, described) == State()
+
+    state = changed(state, entry, described)
+
+    assert state.timetable is not None
+    assert state.timetable.entries == (described, entry)
+    assert state.progress == (Progress(OUT, "freight-ab-1"), Progress(HELD))
+
+
+def test_a_rename_changes_the_name_and_nothing_else() -> None:
+    state = every_state()
+
+    assert row(renamed(state, "morning")) == row(state) | {"timetable": "morning"}
+    assert renamed(State(), "morning") == State()
+    for name in ("a/b", ".hidden", ""):
+        with pytest.raises(ValueError):
+            renamed(state, name)

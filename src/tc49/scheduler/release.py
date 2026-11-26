@@ -24,6 +24,8 @@ the timetable loaded next.
 | it composed and submitted a `request_wanted` gesture | `dragged(state, train, to, request)` |
 | it applied a `reversal_wanted` gesture | `turned_round(state, train)` |
 | `timetable_record_wanted` | `recording(state, record)` |
+| `entry_wanted` | `changed(state, was, now)` |
+| `timetable_rename_wanted`, where the store has none of that name | `renamed(state, to)` |
 | it makes a new timetable because `untitled` or `new` said so | `made(state, name, layout, trains)` |
 | a retained state row, at a restart | `restarted(said, document)` |
 | the first allocation row after a restart | `listed(state, requests)` |
@@ -63,6 +65,11 @@ The rules, in the words of #1345:
   made, and a turn-round adds an entry that has `ended`. A new entry goes
   after the last entry at or before its time. In any other phase, or with
   Record off, a drag is a request with no entry (`dragged`, `turned_round`).
+- **Edit.** A person changes or deletes an entry by naming it as it reads
+  now: the first entry equal to it, and none where no entry is. A changed
+  `at` moves the entry to its place in the order. The entry keeps its state,
+  its request and its ending, and a request that has gone out is left alone.
+  It is taken in every phase and with Record on or off (`changed`).
 - **Start.** A `loaded` timetable starts when every request to a start block
   has ended, however it ended, and power reads `on`. It also starts when a
   person asks. A timetable with no such request starts when power reads `on`
@@ -416,6 +423,47 @@ def _added(state: State, entry: Entry, progress: Progress) -> State:
             *state.progress[position:],
         ),
     )
+
+
+def changed(state: State, was: Entry, now: Entry | None) -> State:
+    """The state after a person changed the entry equal to `was` to `now`,
+    or deleted it where `now` is None.
+
+    The entry is the first one equal to `was` in every field of the
+    document, a `dwell` left out being 0. Where none is, and with no
+    timetable loaded, the state is as it was. It is taken in every phase and
+    with Record on or off.
+
+    A changed `at` moves the entry to its place in the order, after the last
+    entry at or before its new time. The entry keeps its state, its request
+    and its ending, and so does one that has gone out: its request is left
+    alone, changed or deleted. An entry not yet out is `later` or `held` as
+    its new time says, and is due at that time.
+    """
+    timetable = state.timetable
+    if timetable is None or was not in timetable.entries:
+        return state
+    index = timetable.entries.index(was)
+    rest = timetable.removed(index)
+    progress = [*state.progress[:index], *state.progress[index + 1 :]]
+    if now is None:
+        return replace(state, timetable=rest, progress=tuple(progress))
+    position = index if now.at == was.at else rest.place(now.at)
+    progress.insert(position, state.progress[index])
+    return replace(
+        state, timetable=timetable.replaced(index, now), progress=tuple(progress)
+    )
+
+
+def renamed(state: State, to: str) -> State:
+    """The state with the loaded timetable named `to`, and nothing else
+    changed. With no timetable loaded the state is as it was. A `to` the
+    document does not take is a `ValueError`
+    (`tc49.lib.timetable.Timetable`). Whether the store has a timetable of
+    that name is the scheduler's to ask."""
+    if state.timetable is None:
+        return state
+    return replace(state, timetable=replace(state.timetable, name=to))
 
 
 def listed(state: State, requests: Mapping[str, str]) -> State:
