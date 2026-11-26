@@ -12,11 +12,26 @@
  * run view, which writes one `entry_wanted` for each change.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import "../src/ui/tc-app.js";
 import "../src/ui/tc-entry.js";
-import { edited, same, type Entry, type Field } from "../src/model/timetable.js";
+import "../src/ui/tc-requests.js";
+import { requestRows } from "../src/model/requests.js";
+import {
+  edited,
+  same,
+  type Entry,
+  type Field,
+  type Scheduled,
+  type Timetable,
+} from "../src/model/timetable.js";
+import type { TcApp } from "../src/ui/tc-app.js";
 import type { EntryChange, TcEntry } from "../src/ui/tc-entry.js";
+import type { TcRequests } from "../src/ui/tc-requests.js";
+import { requestsStyles } from "../src/ui/tc-requests.styles.js";
+import { running } from "./support/shell.js";
+import { brokering, joined, said, unbrokered, written } from "./support/session.js";
 
 /** `goods` to `b.A` at 06:02, standing two minutes there. */
 const GOODS: Entry = {
@@ -233,5 +248,432 @@ describe("tc-entry", () => {
     const seen = asked(element);
     element.renderRoot.querySelector<HTMLButtonElement>("button.delete")!.click();
     expect(seen).toEqual([{ was: GOODS, now: null }]);
+  });
+});
+
+/** The dispatcher's list: `express` underway, `goods` waiting, and `local`
+ *  waiting on a request no entry went out as. */
+const SERVED = requestRows([
+  { id: "e1", train: "express", depart: "c.A", dest: ["a.B"], route: ["c", "sw.side", "a"] },
+  { id: "g1", train: "goods", depart: "a.B", dest: ["b.A"] },
+  { id: "l1", train: "local", depart: "d.A", dest: ["b.B", "c.B"] },
+]);
+
+const LATER: Entry = BARE;
+
+/** A timetable named `evening` with these entries. */
+function loaded(...entries: Scheduled[]): Timetable {
+  return {
+    name: "evening",
+    phase: "running",
+    record: false,
+    start: "06:00",
+    trains: {},
+    positioning: [],
+    entries,
+  };
+}
+
+/** The list those requests and this timetable make:
+ *
+ *      0  06:01  local    ended
+ *      1  06:02  express  e1, underway
+ *      2  06:02  goods    g1, waiting
+ *      3  06:10  goods    turn, held
+ *      4  06:30  local    later
+ *      5         local    l1, waiting, no entry
+ */
+const ENTRIES: Scheduled[] = [
+  { entry: { at: "06:01", train: "local", to: ["d.A"] }, state: "ended", request: "l0", ended: 55 },
+  { entry: { at: "06:02", train: "express", to: ["a.B"] }, state: "out", request: "e1" },
+  { entry: GOODS, state: "out", request: "g1" },
+  { entry: TURN, state: "held" },
+  { entry: LATER, state: "later" },
+];
+
+const EVENING = loaded(...ENTRIES);
+
+/** The list, holding that timetable and those requests, live. */
+async function list(timetable: Timetable = EVENING): Promise<TcRequests> {
+  const element = document.createElement("tc-requests");
+  element.timetable = timetable;
+  element.requests = SERVED;
+  element.live = true;
+  document.body.append(element);
+  await element.updateComplete;
+  return element;
+}
+
+function rows(element: TcRequests): HTMLLIElement[] {
+  return [...element.renderRoot.querySelectorAll("li")];
+}
+
+/** A tap on the row at `at`: the click a browser makes of a press and its
+ *  release. The two are left out. happy-dom lays nothing out, so the release
+ *  of a waiting row would read as a drop at the end of the list. */
+async function tap(element: TcRequests, at: number): Promise<void> {
+  rows(element)[at]!.click();
+  await element.updateComplete;
+}
+
+/** The open row of each row of the list, `null` for a row that is not open. */
+function parts(element: TcRequests): (TcEntry | null)[] {
+  return rows(element).map((row) => row.querySelector("tc-entry"));
+}
+
+/** The places of the rows that are open. */
+function open(element: TcRequests): number[] {
+  return parts(element).flatMap((part, at) => (part === null ? [] : [at]));
+}
+
+describe("tc-requests with a row tapped", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("has no row open until one is tapped", async () => {
+    expect(open(await list())).toEqual([]);
+  });
+
+  it("opens the row with the entry's values", async () => {
+    const element = await list();
+    await tap(element, 2);
+    expect(open(element)).toEqual([2]);
+    const part = parts(element)[2]!;
+    await part.updateComplete;
+    expect(part.entry).toEqual(GOODS);
+    expect(shown(part)).toEqual(["06:02", "2", "meets the express"]);
+  });
+
+  it.each([
+    [0, "ended"],
+    [1, "out and underway"],
+    [2, "out and waiting"],
+    [3, "held"],
+    [4, "later"],
+  ])("opens row %i, whose entry is %s", async (at) => {
+    const element = await list();
+    await tap(element, at);
+    expect(open(element)).toEqual([at]);
+  });
+
+  it("closes the open row at a second tap", async () => {
+    const element = await list();
+    await tap(element, 4);
+    await tap(element, 4);
+    expect(open(element)).toEqual([]);
+  });
+
+  it("moves the opening at a tap on another row", async () => {
+    const element = await list();
+    await tap(element, 4);
+    await tap(element, 1);
+    expect(open(element)).toEqual([1]);
+    await tap(element, 2);
+    expect(open(element)).toEqual([2]);
+  });
+
+  it("does not open a request no entry went out as", async () => {
+    const element = await list();
+    await tap(element, 5);
+    expect(open(element)).toEqual([]);
+  });
+
+  /** The cancel is for the request of this run, and leaves the entry. */
+  it.each([
+    [1, "e1"],
+    [2, "g1"],
+  ])("cancels the request of row %i and asks nothing of its entry", async (at, id) => {
+    const element = await list();
+    const cancelled: string[] = [];
+    element.addEventListener("request-cancelled", (event) =>
+      cancelled.push((event as CustomEvent<{ id: string }>).detail.id),
+    );
+    const seen = asked(element);
+    rows(element)[at]!.querySelector<HTMLButtonElement>(".cancel")!.click();
+    await element.updateComplete;
+    expect(cancelled).toEqual([id]);
+    expect(seen).toEqual([]);
+    expect(open(element)).toEqual([]);
+  });
+
+  it("keeps the cancel on an open row", async () => {
+    const element = await list();
+    await tap(element, 1);
+    const cancelled: string[] = [];
+    element.addEventListener("request-cancelled", (event) =>
+      cancelled.push((event as CustomEvent<{ id: string }>).detail.id),
+    );
+    rows(element)[1]!.querySelector<HTMLButtonElement>(".cancel")!.click();
+    await element.updateComplete;
+    expect(cancelled).toEqual(["e1"]);
+    expect(open(element)).toEqual([1]);
+  });
+
+  /** A row picked up captures the pointer, and a browser may send it the
+   *  click that ends the drag. happy-dom lays nothing out: every row's box is
+   *  empty at the origin, so a release 40px down is off the row. */
+  it("does not open a waiting row that is dragged", async () => {
+    const element = await list();
+    const row = rows(element)[2]!;
+    row.dispatchEvent(new PointerEvent("pointerdown", { button: 0, bubbles: true }));
+    row.dispatchEvent(new PointerEvent("pointerup", { clientY: 40, bubbles: true }));
+    row.dispatchEvent(new MouseEvent("click", { clientY: 40, bubbles: true }));
+    await element.updateComplete;
+    expect(open(element)).toEqual([]);
+  });
+
+  /** The tap is the click, on every row. Taken from a waiting row's release,
+   *  with no click heard on that row, it opened the row above too: under a
+   *  finger WebKit sends the click to an element beside it that hears one. */
+  it("opens a row at one click, and a waiting row at no release without one", async () => {
+    const element = await list();
+    const row = rows(element)[2]!;
+    row.dispatchEvent(new PointerEvent("pointerdown", { button: 0, bubbles: true }));
+    row.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    await element.updateComplete;
+    expect(open(element)).toEqual([]);
+    row.click();
+    await element.updateComplete;
+    expect(open(element)).toEqual([2]);
+  });
+
+  it("does not pick a waiting row up by a press in its open part", async () => {
+    const element = await list();
+    await tap(element, 2);
+    parts(element)[2]!.dispatchEvent(
+      new PointerEvent("pointerdown", { button: 0, bubbles: true, composed: true }),
+    );
+    await element.updateComplete;
+    expect(element.renderRoot.querySelectorAll("li.held")).toHaveLength(0);
+  });
+
+  it("does not close the row at a press in its open part", async () => {
+    const element = await list();
+    for (const at of [2, 4]) {
+      await tap(element, at);
+      parts(element)[at]!.click();
+      await element.updateComplete;
+      expect(open(element)).toEqual([at]);
+    }
+  });
+
+  it("passes on what the open row asks", async () => {
+    const element = await list();
+    const seen = asked(element);
+    await tap(element, 4);
+    await typed(parts(element)[4]!, "description", "last train");
+    expect(seen).toEqual([{ was: LATER, now: { ...LATER, description: "last train" } }]);
+  });
+
+  it("keeps the row open while the scheduler's row changes what became of the entry", async () => {
+    const element = await list();
+    await tap(element, 4);
+    element.timetable = loaded(...ENTRIES.slice(0, 4), { entry: LATER, state: "held" });
+    await element.updateComplete;
+    expect(open(element)).toEqual([4]);
+  });
+
+  /** A changed time moves the entry in the scheduler's row, and entries carry
+   *  no id: the row is found by what the change asked the entry to read. */
+  it("has the row open at the entry's new place when a changed time moves it", async () => {
+    const element = await list();
+    await tap(element, 4);
+    await typed(parts(element)[4]!, "at", "6:00");
+    // Nothing has moved: the scheduler has not said so.
+    expect(open(element)).toEqual([4]);
+    expect(shown(parts(element)[4]!)).toEqual(["06:30", "0", ""]);
+
+    const moved = { ...LATER, at: "06:00" };
+    element.timetable = loaded({ entry: moved, state: "held" }, ...ENTRIES.slice(0, 4));
+    await element.updateComplete;
+    expect(open(element)).toEqual([0]);
+    const part = parts(element)[0]!;
+    await part.updateComplete;
+    expect(shown(part)).toEqual(["06:00", "0", ""]);
+
+    // The next change names the entry as the row now lists it.
+    const seen = asked(element);
+    await typed(part, "dwell", "3");
+    expect(seen).toEqual([{ was: moved, now: { ...moved, dwell: 3 } }]);
+  });
+
+  it("closes the row at Delete", async () => {
+    const element = await list();
+    await tap(element, 4);
+    parts(element)[4]!.renderRoot.querySelector<HTMLButtonElement>("button.delete")!.click();
+    await element.updateComplete;
+    expect(open(element)).toEqual([]);
+  });
+
+  /** A row that is done is dimmed, and a dimmed field reads as one that
+   *  cannot be typed in. */
+  it("does not dim a done row while it is open", () => {
+    const sheet = requestsStyles.cssText;
+    const dimmed = /^\s*li\.done \{([^}]*)\}/m.exec(sheet)![1]!;
+    const open = /^\s*li\.done:has\(tc-entry\) \{([^}]*)\}/m.exec(sheet)?.[1] ?? "";
+    expect(dimmed).toMatch(/opacity:\s*0\.\d+/);
+    expect(open).toMatch(/opacity:\s*1;/);
+    expect(sheet.indexOf("li.done:has(tc-entry)")).toBeGreaterThan(sheet.indexOf("li.done {"));
+  });
+
+  it("has no row open once the scheduler's row lists the entry no more", async () => {
+    const element = await list();
+    await tap(element, 4);
+    element.timetable = loaded(...ENTRIES.slice(0, 4));
+    await element.updateComplete;
+    expect(open(element)).toEqual([]);
+    // Nor when an entry that reads the same is listed later.
+    element.timetable = EVENING;
+    await element.updateComplete;
+    expect(open(element)).toEqual([]);
+  });
+
+  describe("in a list that scrolls", () => {
+    let asked: Element[];
+
+    beforeEach(() => {
+      asked = [];
+      vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+        this: Element,
+      ) {
+        asked.push(this);
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("is scrolled to the row that opens, and again where the open row moves", async () => {
+      const element = await list();
+      asked.length = 0;
+      await tap(element, 4);
+      expect(asked).toEqual([rows(element)[4]]);
+
+      await typed(parts(element)[4]!, "at", "6:00");
+      element.timetable = loaded(
+        { entry: { ...LATER, at: "06:00" }, state: "held" },
+        ...ENTRIES.slice(0, 4),
+      );
+      await element.updateComplete;
+      expect(asked).toEqual([rows(element)[4], rows(element)[0]]);
+    });
+
+    it("is not scrolled while the open row stays where it is", async () => {
+      const element = await list();
+      await tap(element, 4);
+      asked.length = 0;
+      element.timetable = loaded(...ENTRIES.slice(0, 4), { entry: LATER, state: "held" });
+      await element.updateComplete;
+      expect(asked).toEqual([]);
+    });
+  });
+});
+
+describe("the run view's open row", () => {
+  beforeEach(brokering);
+
+  afterEach(unbrokered);
+
+  const ENTRY_WANTED = "tc49/schedule/entry_wanted";
+
+  /** `EVENING` as the scheduler says it: each entry's document fields with
+   *  what became of it beside them. */
+  const RUNNING = {
+    timetable: "evening",
+    phase: "running",
+    record: false,
+    start: "06:00",
+    trains: {},
+    positioning: [],
+    entries: ENTRIES.map(({ entry, ...became }) => ({ ...entry, ...became })),
+  };
+
+  const ENDED: Entry = { at: "06:01", train: "local", to: ["d.A"] };
+
+  /** A joined session whose picture holds the three requests and whose
+   *  scheduler has `evening` loaded. */
+  async function serving(): Promise<{ shell: TcApp; element: TcRequests }> {
+    const shell = await joined();
+    await said(shell, "tc49/dispatch/state/allocation", {
+      trains: { goods: "a", express: "c", local: "d" },
+      occupied: { goods: ["a"], express: ["c"], local: ["d"] },
+      locks: { a: "goods" },
+      requests: [
+        { id: "e1", train: "express", depart: "c.A", dest: ["a.B"], route: ["c", "sw.side", "a"] },
+        { id: "g1", train: "goods", depart: "a.B", dest: ["b.A"] },
+        { id: "l1", train: "local", depart: "d.A", dest: ["b.B", "c.B"] },
+      ],
+    });
+    await said(shell, "tc49/schedule/state/timetable", RUNNING);
+    const element = running(shell).renderRoot.querySelector("tc-requests")!;
+    return { shell, element };
+  }
+
+  /** The row at `at` opened, and its open part. */
+  async function part(element: TcRequests, at: number): Promise<TcEntry> {
+    await tap(element, at);
+    const opened = parts(element)[at]!;
+    await opened.updateComplete;
+    return opened;
+  }
+
+  /** `was` is the entry's document fields, with nothing of what became of
+   *  it: the scheduler drops a gesture that carries `state`, `request` or
+   *  `ended`. */
+  it.each([
+    [2, "at", "6:10", GOODS, { ...GOODS, at: "06:10" }],
+    [2, "dwell", "5", GOODS, { ...GOODS, dwell: 5 }],
+    [2, "description", "meets the local", GOODS, { ...GOODS, description: "meets the local" }],
+    [0, "at", "06:03", ENDED, { ...ENDED, at: "06:03" }],
+    [0, "dwell", "1", ENDED, { ...ENDED, dwell: 1 }],
+    [3, "description", "runs round", TURN, { ...TURN, description: "runs round" }],
+  ] as const)(
+    "writes one entry_wanted for row %i with `%s` changed to %j",
+    async (at, name, words, was, now) => {
+      const { element } = await serving();
+      await typed(await part(element, at), name, words);
+      expect(written()).toEqual([{ topic: ENTRY_WANTED, payload: { was, now } }]);
+    },
+  );
+
+  it.each([
+    ["at", "soon"],
+    ["at", "25:00"],
+    ["dwell", "-1"],
+    ["dwell", "1.5"],
+  ] as const)("writes nothing for `%s` typed as %j", async (name, words) => {
+    const { element } = await serving();
+    await typed(await part(element, 2), name, words);
+    expect(written()).toEqual([]);
+  });
+
+  it("writes one entry_wanted with now null for Delete", async () => {
+    const { element } = await serving();
+    const opened = await part(element, 2);
+    opened.renderRoot.querySelector<HTMLButtonElement>("button.delete")!.click();
+    expect(written()).toEqual([{ topic: ENTRY_WANTED, payload: { was: GOODS, now: null } }]);
+  });
+
+  it("writes cancel_wanted and no entry_wanted for the cancel of an out entry's row", async () => {
+    const { element } = await serving();
+    await part(element, 2);
+    rows(element)[2]!.querySelector<HTMLButtonElement>(".cancel")!.click();
+    expect(written()).toEqual([
+      { topic: "tc49/dispatch/cancel_wanted", payload: { id: "g1" } },
+    ]);
+  });
+
+  it("has the row open where the scheduler's row puts the entry", async () => {
+    const { shell, element } = await serving();
+    await typed(await part(element, 4), "at", "6:00");
+    expect(open(element)).toEqual([4]);
+    const [ended, express, goods, turn, later] = RUNNING.entries;
+    await said(shell, "tc49/schedule/state/timetable", {
+      ...RUNNING,
+      entries: [{ ...later, at: "06:00", state: "held" }, ended, express, goods, turn],
+    });
+    expect(open(element)).toEqual([0]);
   });
 });

@@ -57,6 +57,7 @@ import { widgetPress, widgetTopic } from "../model/widgets.js";
 import {
   arrival,
   cancellation,
+  entryWanted,
   gesture,
   placement,
   pointWanted,
@@ -69,6 +70,7 @@ import "./tc-menu.js";
 import "./tc-requests.js";
 import "./tc-roster.js";
 import type { TcCanvas } from "./tc-canvas.js";
+import type { EntryChange } from "./tc-entry.js";
 import type { MenuItem } from "./tc-menu.js";
 import type { RequestPress, RequestReorder } from "./tc-requests.js";
 import type { RosterDrag, TcRoster } from "./tc-roster.js";
@@ -397,6 +399,14 @@ export class TcPanel extends LitElement {
     this.session?.send(reorderWanted(id, before));
   }
 
+  /** A field of an entry's open row changed, or its Delete: one
+   *  `entry_wanted`. The list shows the change when the scheduler's row has
+   *  it, not before (#1358). */
+  private entryChanged(event: CustomEvent<EntryChange>): void {
+    const { was, now } = event.detail;
+    this.session?.send(entryWanted(was, now));
+  }
+
   // --- the pane's size ------------------------------------------------------
   //
   // The divider between the pane and the drawing sets the pane's width, or
@@ -469,6 +479,7 @@ export class TcPanel extends LitElement {
           @request-cancelled=${this.cancelled}
           @request-arrived=${this.arrived}
           @request-reordered=${this.reordered}
+          @entry-changed=${this.entryChanged}
         ></tc-requests>
       </aside>
       <div
