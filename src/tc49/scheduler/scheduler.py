@@ -68,10 +68,8 @@ this module tells the rule what the bus said and does what it answers, in
   taken while power reads `off`.
 - A new timetable starts at the clock's minute of the day, and repeats
   every day. The scheduler publishes `tc49/layout/clock_wanted` with the
-  clock's time of day to the second, on day 0, so the clock and the
-  timetable read the same numbers and the face does not move. Its `trains`
-  are each train the allocation names in a block and the scheduler holds a
-  facing for.
+  clock's time of day to the second, on day 0. Its `trains` are each train
+  the allocation names in a block and the scheduler holds a facing for.
 - While the timetable is `running` and Record is on, a drag composed from a
   gesture is added as an entry that is `out`, and a turn-round applied as one
   that has `ended`. The entry follows its request to `ended`, `rejected` or
