@@ -310,8 +310,16 @@ or asks the store, and what is drawn afterwards is what
 drops with nothing (BUS.md), so the page checks what it can before it
 publishes.
 
-The menu opens under its button and has five rows, each opening a dialog:
+The menu opens under its button and has six rows, each opening a dialog:
 
+- **View** shows the loaded timetable's file as the store has it, the text
+  `GET /timetables/<railroad>/<name>` answers to `Accept: application/yaml`,
+  in a monospace block that scrolls and can be selected, with a Close button
+  ([#1380](https://github.com/rails49/control/issues/1380)). The text is
+  read when the dialog opens and does not follow the row; opening it again
+  reads it again. Where the store refuses the file or does not answer, the
+  dialog shows the store's words and no text. It publishes nothing, is
+  disabled with no timetable loaded, and is open whatever track power reads.
 - **New** asks for a name and publishes `tc49/schedule/timetable_wanted`
   (`{timetable, new: true}`). The scheduler makes a timetable of that name in
   place of the one loaded, and of a stored one of that name.

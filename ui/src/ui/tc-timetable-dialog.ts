@@ -1,7 +1,12 @@
 /**
- * The dialog one of the timetable menu's five rows opens
+ * The dialog one of the timetable menu's six rows opens
  * ([#1357](https://github.com/rails49/control/issues/1357)).
  *
+ * - **View** shows the loaded timetable's file as the store has it, read
+ *   once when the dialog is made, with a Close button
+ *   ([#1380](https://github.com/rails49/control/issues/1380)). It raises
+ *   nothing. Where the store refuses the file or does not answer, the dialog
+ *   says what the store said and shows no text.
  * - **New** asks for a name and raises `timetable_wanted` with it and
  *   `new: true`.
  * - **Rename** asks for a name and raises `timetable_rename_wanted`. A name
@@ -26,7 +31,7 @@
  *
  * `tc-timetable-controls` makes one each time a row is chosen and takes it
  * away at `timetable-dialog-closed`, so each starts with nothing typed, or
- * the loaded repeat, and the store's list read again.
+ * the loaded repeat, and the store's list or file read again.
  *
  * @fires timetable-wanted - `CustomEvent<Frame>`: the gesture to publish.
  * @fires timetable-dialog-closed - the dialog is done with.
@@ -38,7 +43,13 @@ import "@rails49/look";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
-import { deleteTimetable, listTimetables, readTimetable, said } from "../model/store.js";
+import {
+  deleteTimetable,
+  listTimetables,
+  readTimetable,
+  readTimetableText,
+  said,
+} from "../model/store.js";
 import { timeOf, written } from "../model/clock.js";
 import {
   nameRefused,
@@ -56,7 +67,7 @@ import {
 import { timetableDialogStyles } from "./tc-timetable-dialog.styles.js";
 
 /** The menu row a dialog is for. */
-export type Asked = "new" | "load" | "rename" | "delete" | "repeat";
+export type Asked = "view" | "new" | "load" | "rename" | "delete" | "repeat";
 
 @customElement("tc-timetable-dialog")
 export class TcTimetableDialog extends LitElement {
@@ -83,19 +94,41 @@ export class TcTimetableDialog extends LitElement {
   /** The name Delete asks about, `null` until one is pressed. */
   @state() private deleting: string | null = null;
 
+  /** The loaded timetable's file as View read it, `null` until the store has
+   *  answered with it. */
+  @state() private text: string | null = null;
+
   /** What the store last refused with, or why a gesture was not raised. */
   @state() private trouble: string | null = null;
 
   override connectedCallback(): void {
     super.connectedCallback();
     if (this.asked === "repeat") this.typed = written(this.timetable?.repeat ?? 0);
+    else if (this.asked === "view") void this.read();
     else if (this.asked !== "new") void this.list();
   }
 
   override render() {
+    if (this.asked === "view") return this.viewing();
     if (this.asked === "repeat") return this.repeating();
     if (this.asked === "new" || this.asked === "rename") return this.naming(this.asked);
     return this.deleting === null ? this.picking(this.asked) : this.confirming(this.deleting);
+  }
+
+  /** View: the file's text, or what the store said in place of it. */
+  private viewing() {
+    return html`
+      <look-dialog
+        open
+        size="medium"
+        label=${`View ${this.timetable?.name ?? ""}`}
+        @sl-after-hide=${this.close}
+      >
+        ${this.text === null ? nothing : html`<pre class="text">${this.text}</pre>`}
+        ${this.line(this.trouble)}
+        <sl-button slot="footer" class="close" @click=${this.close}>Close</sl-button>
+      </look-dialog>
+    `;
   }
 
   /** New and Rename: a name, checked as it is typed. */
@@ -259,6 +292,16 @@ export class TcTimetableDialog extends LitElement {
   private async list(): Promise<void> {
     try {
       this.names = await listTimetables(this.railroad);
+    } catch (failure) {
+      this.trouble = said(failure);
+    }
+  }
+
+  /** The loaded timetable's file, or what the store said in place of it. */
+  private async read(): Promise<void> {
+    if (this.timetable === null) return;
+    try {
+      this.text = await readTimetableText(this.railroad, this.timetable.name);
     } catch (failure) {
       this.trouble = said(failure);
     }

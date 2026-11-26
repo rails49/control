@@ -2,8 +2,9 @@
 
 /**
  * The controls in the heading of the list under the roster
- * ([#1357](https://github.com/rails49/control/issues/1357)): a menu with New,
- * Load, Rename, Delete and Repeat
+ * ([#1357](https://github.com/rails49/control/issues/1357)): a menu with View
+ * ([#1380](https://github.com/rails49/control/issues/1380)), New, Load,
+ * Rename, Delete and Repeat
  * ([#1368](https://github.com/rails49/control/issues/1368)), the Record
  * switch, and Start.
  *
@@ -235,9 +236,10 @@ describe("what the model says", () => {
 });
 
 describe("the menu", () => {
-  it("offers New, Load, Rename and Delete", async () => {
+  it("offers View, New, Load, Rename, Delete and Repeat", async () => {
     const { controls } = await standing();
     expect(await offered(controls)).toEqual([
+      ["View", true],
       ["New", true],
       ["Load", true],
       ["Rename", true],
@@ -246,9 +248,10 @@ describe("the menu", () => {
     ]);
   });
 
-  it("has Rename disabled with no timetable loaded", async () => {
+  it("has View, Rename and Repeat disabled with no timetable loaded", async () => {
     const { controls } = await standing(null);
     expect(await offered(controls)).toEqual([
+      ["View", false],
       ["New", true],
       ["Load", true],
       ["Rename", false],
@@ -264,17 +267,19 @@ describe("the menu", () => {
     it(`has New, Load and Repeat disabled, saying why, while power reads ${power}`, async () => {
       const { controls } = await standing(row(), power);
       expect(await offered(controls)).toEqual([
+        ["View", true],
         ["New", false],
         ["Load", false],
         ["Rename", true],
         ["Delete", true],
         ["Repeat", false],
       ]);
-      const [fresh, load, rename, , repeat] = await rows(controls);
+      const [view, fresh, load, rename, , repeat] = await rows(controls);
       for (const shut of [fresh!, load!, repeat!]) {
         expect(shut.getAttribute("aria-description")).toBe("track power is on");
         expect(shut.closest("sl-tooltip")!.getAttribute("content")).toBe("track power is on");
       }
+      expect(view!.closest("sl-tooltip")).toBeNull();
       expect(rename!.closest("sl-tooltip")).toBeNull();
     });
 
@@ -301,6 +306,89 @@ describe("the menu", () => {
     const { shell, controls } = await standing();
     await chosen(shell, "New");
     expect(part(controls, "tc-menu menu")).toBeNull();
+  });
+});
+
+/** `evening`'s file, as the store keeps it. */
+const EVENING = `timetable: evening
+layout: toy
+start: 06:00
+repeat: 1d00:00
+trains:
+  freight_1: {at: [dn_e]}
+entries:
+- entry: {at: 06:30, train: freight_1, to: [up_w]}
+`;
+
+/** The text the open dialog shows, `null` for none. */
+function shown(shell: TcApp): string | null {
+  return dialog(shell)!.querySelector("pre")?.textContent ?? null;
+}
+
+describe("View", () => {
+  it("shows the loaded timetable's file as the store has it, and publishes nothing", async () => {
+    const { shell } = await standing();
+    store.text = (railroad, name) => (railroad === "toy" && name === "evening" ? EVENING : "");
+    await chosen(shell, "View");
+    expect(titled(shell)).toBe("View evening");
+    expect(shown(shell)).toBe(EVENING);
+    expect(trouble(shell)).toBeNull();
+    expect(written()).toEqual([]);
+  });
+
+  it("opens with power on", async () => {
+    const { shell } = await standing(row(), "on");
+    store.text = () => EVENING;
+    await chosen(shell, "View");
+    expect(shown(shell)).toBe(EVENING);
+  });
+
+  it("shows what the store says of a file it refuses, and no text", async () => {
+    const { shell } = await standing();
+    store.refuses = (path) =>
+      path === "/timetables/toy/evening"
+        ? { status: 400, error: "timetable 'toy/evening': 'entries' must be a list, got str" }
+        : null;
+    await chosen(shell, "View");
+    expect(trouble(shell)).toBe("timetable 'toy/evening': 'entries' must be a list, got str");
+    expect(shown(shell)).toBeNull();
+  });
+
+  it("shows the store's words for a file it does not have", async () => {
+    const { shell } = await standing(row({ timetable: "friday" }));
+    await chosen(shell, "View");
+    expect(trouble(shell)).toBe("no timetable 'toy/friday'");
+    expect(shown(shell)).toBeNull();
+  });
+
+  it("says the store is not answering where it does not, and shows no text", async () => {
+    const { shell } = await standing();
+    store.broken = new TypeError("Failed to fetch");
+    await chosen(shell, "View");
+    expect(trouble(shell)).toBe("the store is not answering — run `tc49 serve`");
+    expect(shown(shell)).toBeNull();
+  });
+
+  it("goes away at Close", async () => {
+    const { shell } = await standing();
+    await chosen(shell, "View");
+    await pressed(shell, ".close");
+    expect(asking(shell)).toBe(false);
+    expect(written()).toEqual([]);
+  });
+
+  /** The text is read once, when the dialog opens: a recording that changed
+   *  the file meanwhile shows on the next View. */
+  it("reads the file again when it is opened again", async () => {
+    const { shell } = await standing();
+    store.text = () => "timetable: evening\n";
+    await chosen(shell, "View");
+    store.text = () => EVENING;
+    expect(shown(shell)).toBe("timetable: evening\n");
+
+    await pressed(shell, ".close");
+    await chosen(shell, "View");
+    expect(shown(shell)).toBe(EVENING);
   });
 });
 
