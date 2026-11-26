@@ -24,7 +24,9 @@ from tests.scheduler.test_recording import (
     SUBMITTED,
     TIMETABLE,
     TIMETABLE_WANTED,
+    Counting,
     Store,
+    Unreadable,
     allocation,
     at,
     clock,
@@ -171,15 +173,6 @@ def test_a_load_of_a_document_that_does_not_read_leaves_what_was_loaded() -> Non
     assert row(bus)["timetable"] == "evening"
 
 
-class Unreadable(Store):
-    """A store whose document `broken` does not read."""
-
-    def timetable(self, railroad: str, name: str) -> Timetable | None:
-        if name == "broken":
-            raise ValueError("timetable 'broken': 'start' is 360")
-        return super().timetable(railroad, name)
-
-
 def test_a_load_does_not_write_the_document_back() -> None:
     store = Counting(evening())
     bus = standing(store)
@@ -188,16 +181,6 @@ def test_a_load_does_not_write_the_document_back() -> None:
 
     assert row(bus)["timetable"] == "evening"
     assert store.puts == 0
-
-
-class Counting(Store):
-    """A store that counts the documents it was given."""
-
-    puts = 0
-
-    def put_timetable(self, timetable: Timetable) -> None:
-        self.puts += 1
-        super().put_timetable(timetable)
 
 
 def reject(bus: InProcessBus, request: str, reason: str = "unreachable") -> None:
