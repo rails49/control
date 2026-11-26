@@ -847,7 +847,14 @@ While the timetable is `running` and Record is on:
   the clock before the start, and carries the id of the request the drag
   made;
 - a turn-round the scheduler applies adds an entry with `turn: true` that
-  has `ended` in that round. A turn-round it drops adds nothing.
+  has `ended` in that round. A turn-round it drops adds nothing;
+- a train on the layout that the timetable's `trains` does not name is added
+  to `trains`, with the block the last allocation row names and the facing
+  the scheduler holds for it, and the document is written. It is added
+  where another train in `trains` starts in that block too. A turn-round
+  that corrects its facing is recorded as an entry. A train placed while
+  Record was off is added once Record is on again and it is still on the
+  layout ([#1370](https://github.com/rails49/control/issues/1370)).
 
 A new entry goes after the last entry at or before its time. An entry that
 is `out` follows its request: `ended` with the clock's time at
@@ -855,8 +862,9 @@ is `out` follows its request: `ended` with the clock's time at
 `request_cancelled`. A cancel leaves the entry in the document. With Record
 off, or before the timetable has started, a drag is a request with no
 entry. `tc49/schedule/timetable_record_wanted`
-switches Record. Placements, removals and reordering of the request list add
-nothing.
+switches Record. A placement, a removal or a move of a train already in
+`trains` leaves its line as it was. Reordering of the request list adds
+nothing, and a placement adds the train to `trains` and nothing else.
 
 A person changes the loaded timetable with three gestures
 ([#1354](https://github.com/rails49/control/issues/1354),
