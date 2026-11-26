@@ -28,10 +28,11 @@
 
 import { readFileSync } from "node:fs";
 
+import { GAP_PX } from "@rails49/look";
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
-import { DRAWING, GAP, LEAST, LIST, UPRIGHT } from "../src/model/pane.js";
+import { DRAWING, LEAST, LIST, UPRIGHT } from "../src/model/pane.js";
 import { COLOURS, DARK } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
@@ -40,7 +41,6 @@ import { backupStyles } from "../src/ui/tc-backup.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { drivingStyles } from "../src/ui/tc-driving.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
-import { gapStyles } from "../src/ui/tc-gap.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
@@ -509,17 +509,6 @@ describe("the run view's pane", () => {
     expect(sheet).not.toMatch(/border-(top|left):\s*1px solid var\(--rule\)/);
   });
 
-  /** `tc-gap`, the gap a person drags (#1391). */
-  it("is divided from the drawing by a 6px gap, the chosen colour under a pointer", () => {
-    const sheet = gapStyles.cssText;
-    expect(rule(sheet, ':host([axis="x"])')).toMatch(/width:\s*6px/);
-    expect(rule(sheet, ':host([axis="y"])')).toMatch(/height:\s*6px/);
-    expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
-    expect(rule(sheet, ":host(:hover),\n  :host([dragging])")).toMatch(
-      /background:\s*var\(--chosen\)/,
-    );
-  });
-
   /** The limits a drag is held to also hold when the window changes size,
    *  the stylesheet reading the same two numbers. */
   it("is held to the divider's least and greatest by the stylesheet", () => {
@@ -540,10 +529,10 @@ describe("the run view's pane", () => {
     const [left, upright] = panelStyles.cssText.split(`@media ${UPRIGHT}`);
     const trains = rule(left!, "tc-roster");
     expect(trains).toMatch(/flex:\s*0 1 var\(--lists-size, auto\)/);
-    expect(trains).toContain(`max-height: min(var(--lists-size, 50%), 100% - ${LIST.left + GAP}px)`);
+    expect(trains).toContain(`max-height: min(var(--lists-size, 50%), 100% - ${LIST.left + GAP_PX}px)`);
     const beside = rule(upright!, "tc-roster");
     expect(beside).toMatch(/flex:\s*0 1 var\(--lists-size, calc\(50% - 3px\)\)/);
-    expect(beside).toContain(`max-width: calc(100% - ${LIST.above + GAP}px)`);
+    expect(beside).toContain(`max-width: calc(100% - ${LIST.above + GAP_PX}px)`);
     expect(rule(left!, "aside")).not.toMatch(/\bgap:/);
   });
 

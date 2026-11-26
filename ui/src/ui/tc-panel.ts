@@ -36,6 +36,8 @@
  * harness's now, and the broker is the only thing that feeds a picture.
  */
 
+import "@rails49/look";
+import type { LookGapMoveDetail } from "@rails49/look";
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
@@ -68,7 +70,6 @@ import {
 } from "../model/trace.js";
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-canvas.js";
-import "./tc-gap.js";
 import "./tc-menu.js";
 import "./tc-requests.js";
 import "./tc-roster.js";
@@ -439,7 +440,7 @@ export class TcPanel extends LitElement {
 
   /** The page turned: the pane is on the other side of the drawing, at the
    *  sizes last set for it there. The gaps are turned with it, which ends a
-   *  drag of either (`tc-gap`). */
+   *  drag of either (`look-gap`, rails49/look#62). */
   private readonly turned = (): void => {
     this.requestUpdate();
     this.setKept();
@@ -448,7 +449,7 @@ export class TcPanel extends LitElement {
 
   /** A gap dragged to a client point: the size that point means, held to
    *  its limits (`model/pane.ts`). */
-  private moved(gap: Gap, event: CustomEvent<Point>): void {
+  private moved(gap: Gap, event: CustomEvent<LookGapMoveDetail>): void {
     const size = sizeAt(gap, this.arrangement, this.getBoundingClientRect(), event.detail);
     this.setSize(gap, size);
     keep(gap, this.arrangement, size);
@@ -473,11 +474,11 @@ export class TcPanel extends LitElement {
           @roster-picked=${this.picked}
           @roster-dropped=${this.dropped}
         ></tc-roster>
-        <tc-gap
+        <look-gap
           class="lists"
           axis=${axisOf("lists", this.arrangement)}
-          @gap-moved=${(event: CustomEvent<Point>) => this.moved("lists", event)}
-        ></tc-gap>
+          @look-gap-move=${(event: CustomEvent<LookGapMoveDetail>) => this.moved("lists", event)}
+        ></look-gap>
         <tc-requests
           .requests=${this.inSession && !grey ? (this.panel?.requestList() ?? []) : []}
           .timetable=${this.inSession && !grey ? (this.panel?.timetable ?? null) : null}
@@ -499,11 +500,11 @@ export class TcPanel extends LitElement {
           ></tc-timetable-controls>
         </tc-requests>
       </aside>
-      <tc-gap
+      <look-gap
         class="pane"
         axis=${axisOf("pane", this.arrangement)}
-        @gap-moved=${(event: CustomEvent<Point>) => this.moved("pane", event)}
-      ></tc-gap>
+        @look-gap-move=${(event: CustomEvent<LookGapMoveDetail>) => this.moved("pane", event)}
+      ></look-gap>
 
       ${off.length === 0
         ? nothing

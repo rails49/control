@@ -153,9 +153,7 @@ src/
                    the press that keeps it now, and the backups to come back to
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
                    the drag, the right-click menu, and the pane, with the
-                   sizes its two gaps set
-    tc-gap.ts      a gap a person drags: the press and the drag, the
-                   pointer's point raised while dragged
+                   sizes its two gaps set (look's look-gap, rails49/look#62)
     tc-roster.ts   the roster pane: every train the railroad owns, on the
                    layout or off it, a row to drag out of and back to
     tc-requests.ts the list in the run view's pane: the loaded timetable's
