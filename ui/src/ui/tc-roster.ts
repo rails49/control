@@ -64,7 +64,7 @@ export class TcRoster extends LitElement {
 
   override render() {
     return html`
-      <h2>Trains</h2>
+      <header><h2>Trains</h2></header>
       ${this.trains.length === 0
         ? html`<p class="hint">no trains on the roster</p>`
         : html`

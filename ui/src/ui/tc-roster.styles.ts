@@ -1,5 +1,7 @@
 import { css } from "lit";
 
+import { heading } from "./shared.styles.js";
+
 /**
  * The roster pane (`tc-roster`): the trains the run has, one row each.
  *
@@ -27,13 +29,7 @@ export const rosterStyles = css`
     padding: 0.4rem;
   }
 
-  h2 {
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--hint);
-    margin: 0.3rem 0.2rem;
-  }
+  ${heading}
 
   ul {
     margin: 0;
