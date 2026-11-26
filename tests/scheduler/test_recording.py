@@ -602,10 +602,12 @@ def test_a_restart_with_a_document_the_store_cannot_read_loads_no_timetable() ->
 
 
 class Unreadable(Store):
-    """A store whose documents do not read."""
+    """A store where a document it was not made with does not read."""
 
     def timetable(self, railroad: str, name: str) -> Timetable | None:
-        raise ValueError(f"timetable {name!r}: 'start' is 360")
+        if (railroad, name) not in self.held:
+            raise ValueError(f"timetable {name!r}: 'start' is 360")
+        return super().timetable(railroad, name)
 
 
 def test_the_subscriptions_are_live_before_the_timetable_row_goes_out() -> None:
