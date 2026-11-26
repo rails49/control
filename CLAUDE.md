@@ -1,7 +1,7 @@
 # Control Model Railroad Trains
 
 Software for scheduling, dispatching, and driving trains on a model railroad. See
-[README.md](README.md) for the doc map; the research core is deadlock-free,
+[README.md](README.md) for the doc map. The research question is deadlock-free,
 high-throughput dispatch ([docs/dispatcher/DISPATCH.md](docs/dispatcher/DISPATCH.md)).
 
 [docs/GOALS.md](docs/GOALS.md) is the **end state**: the three functions —
@@ -51,28 +51,17 @@ diff.
 
 ## Agent skills
 
-### Issue tracker
+The rules every rails49 repository shares are the organisation's
+[`docs/agents/`](https://github.com/rails49/.github/tree/main/docs/agents):
+`issue-tracker.md`, `triage-labels.md` and `domain.md`.
 
-Issues live as GitHub issues in `rails49/control`, driven by the `gh` CLI.
-Every issue is **implementation** (one component, title `<component>: …`) or
-**communication** (one contract element, title `bus: <topic> …` or
-`rest: <path> …`). See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
-
-What `ready-for-agent` asserts, and why an issue does not carry it: `docs/agents/ready-for-agent.md`.
-
-### Domain docs
-
-Single-context: `GLOSSARY.md` at the root plus `docs/adr/`. See `docs/agents/domain.md`.
-
-What each doc holds, and that an accepted ADR does not change: the
-organisation's
-[ADR-0021](https://github.com/rails49/.github/blob/main/docs/adr/0021-each-fact-has-one-owner-and-the-glossary-is-glossary-md.md).
-
-Before writing an ADR, check whether it would amend or supersede one accepted
-less than a month ago. If it would, the decision was easy to reverse and is not
-an ADR: the new behaviour goes in SYSTEM.md, BUS.md or the module docstring,
-and the earlier ADR gets a superseded line naming the issue.
+- Issue tracker: GitHub Issues on rails49/control, via the `gh` CLI. Every
+  issue is implementation (one component, title `<component>: …`) or
+  communication (one contract element, title `bus: <topic> …` or `rest: <path>
+  …`): `docs/agents/issue-tracker.md`.
+- Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`,
+  `ready-for-human`, `wontfix`. What `ready-for-agent` asserts, and why an
+  issue does not carry it: `docs/agents/ready-for-agent.md`.
+- Domain docs: `GLOSSARY.md` at the root plus `docs/adr/`. What control adds:
+  `docs/agents/domain.md`. What each kind of doc holds: org
+  [ADR-0025](https://github.com/rails49/.github/blob/main/docs/adr/0025-each-fact-has-one-owner-and-an-adr-is-written-after-its-decision-has-run.md).
