@@ -17,7 +17,7 @@ import { DRAWING, GAP, LEAST, LIST, UPRIGHT } from "../model/pane.js";
  * [#1390](https://github.com/rails49/control/issues/1390)).
  *
  * The drawing and the two lists are panels on the paper colour, with square
- * corners, on a ground of the gap colour (`--gap`).
+ * corners, and the view's background is the gap colour (`--gap`).
  *
  * The divider between the pane and the drawing is a gap, `tc-gap`. It sets
  * the pane's size. The view hands it over as `--pane-size`, and until a person
