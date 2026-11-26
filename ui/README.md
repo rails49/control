@@ -155,8 +155,9 @@ src/
                    divider that sizes it
     tc-roster.ts   the roster pane: every train the railroad owns, on the
                    layout or off it, a row to drag out of and back to
-    tc-requests.ts the request list in the run view's pane: a cancel on
-                   each, a drag to reorder the waiting ones
+    tc-requests.ts the list in the run view's pane: the loaded timetable's
+                   entries and the requests, a cancel on each request, a
+                   drag to reorder the waiting ones
     tc-throttle.ts the throttle view: a row of throttles, each a panel with
                    its own id, as many as its width fits; the session stays
                    the app's

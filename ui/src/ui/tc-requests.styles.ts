@@ -1,11 +1,14 @@
 import { css } from "lit";
 
 /**
- * The request list (`tc-requests`): one row per request the dispatcher holds,
- * in the order it serves them (#829).
+ * The list under the roster (`tc-requests`): the loaded timetable's entries
+ * and the requests the dispatcher holds (#829, #1356).
  *
  * It sits in the run view's pane, under the roster or beside it, and its
- * size is the view's (`tc-panel.styles.ts`). A row is the train and its state
+ * size is the view's (`tc-panel.styles.ts`). The heading is one line:
+ * "Timetable", then the loaded timetable's name.
+ *
+ * A request's row is the train and its state
  * on one line, where the
  * request goes from and to under them, which train it waits for under that
  * where the dispatcher refused it one (#1114), and the cancel at the right,
@@ -13,11 +16,29 @@ import { css } from "lit";
  * long train name wraps onto a second line and is not cut short. A waiting
  * row takes the grab cursor, being something to drag into another place; an
  * underway one takes none, having started.
+ *
+ * An entry's row is laid out as a request's is, with no buttons. Its time
+ * starts the second line, before where it goes, so the first line is as wide
+ * as it is without a timetable. A row that is done is dimmed. A row that is
+ * not picked up scrolls the list under a finger.
+ *
+ * An entry's dwell and description are in its row and not shown. Where the
+ * list is 24rem wide or more they are shown, each on a line under where the
+ * entry goes. The width is the list's own, read with a container query, since
+ * a person sets the pane's width (#1344).
  */
 export const requestsStyles = css`
   :host {
+    container-type: inline-size;
     display: block;
     padding: 0.4rem;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0.3rem 0.2rem;
   }
 
   h2 {
@@ -25,7 +46,12 @@ export const requestsStyles = css`
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--hint);
-    margin: 0.3rem 0.2rem;
+    margin: 0;
+  }
+
+  .name {
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
   }
 
   ul {
@@ -34,9 +60,11 @@ export const requestsStyles = css`
     list-style: none;
   }
 
+  /* The time's column is as wide as the time, and only the second line has
+     anything in it: the train's name starts at the row's left edge. */
   li {
     display: grid;
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: [time] auto [train] 1fr [state] auto [arrived] auto [cancel] auto;
     column-gap: 0.5rem;
     align-items: baseline;
     padding: 0.25rem 0.2rem;
@@ -53,17 +81,24 @@ export const requestsStyles = css`
 
   li.still {
     cursor: default;
+    touch-action: auto;
   }
 
   li.held {
     background: var(--rule);
   }
 
+  li.done {
+    opacity: 0.5;
+  }
+
   .train {
+    grid-column: time / state;
     overflow-wrap: anywhere;
   }
 
   .state {
+    grid-column: state;
     font-size: 0.7rem;
     color: var(--hint);
   }
@@ -85,12 +120,12 @@ export const requestsStyles = css`
   }
 
   .arrived {
-    grid-column: 3;
+    grid-column: arrived;
     font-size: 0.7rem;
   }
 
   .cancel {
-    grid-column: 4;
+    grid-column: cancel;
   }
 
   .arrived:hover,
@@ -98,16 +133,45 @@ export const requestsStyles = css`
     color: inherit;
   }
 
-  /* From and to, under the train. */
+  /* An entry's time, at the start of the line under the train. */
+  .time {
+    grid-column: time;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* From and to, under the train, after the time where the row has one. */
   .way {
-    grid-column: 1 / 3;
+    grid-column: time / arrived;
     font-size: 0.7rem;
     color: var(--hint);
   }
 
+  .time + .way {
+    grid-column: train / arrived;
+  }
+
+  /* An entry's dwell and description, under where it goes. Not shown in a
+     narrow list. */
+  .dwell,
+  .description {
+    display: none;
+    grid-column: time / arrived;
+    font-size: 0.7rem;
+    color: var(--hint);
+    overflow-wrap: anywhere;
+  }
+
+  @container (min-width: 24rem) {
+    .dwell,
+    .description {
+      display: block;
+    }
+  }
+
   /* Which train it waits for, a line per sentence, under from and to. */
   .note {
-    grid-column: 1 / 3;
+    grid-column: time / arrived;
     font-size: 0.7rem;
     font-style: italic;
   }
