@@ -26,7 +26,7 @@ import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
 import { requestRows, type Refused, type RequestRow } from "./requests.js";
 import type { Explained, Layout, TrainDoc } from "./store.js";
-import { timetableOf, type Start, type Timetable } from "./timetable.js";
+import { startShown, timetableOf, type Start, type Timetable } from "./timetable.js";
 import {
   Ordering,
   sensorReport,
@@ -1672,6 +1672,12 @@ export class Panel {
    *  `requestList()` (`model/timetable.ts`). */
   get timetable(): Timetable | null {
     return this.timetableRow;
+  }
+
+  /** Whether the roster draws its Start column (`startShown` in
+   *  `model/timetable.ts`, #1392). */
+  get startColumn(): boolean {
+    return startShown(this.timetableRow);
   }
 
   /** The blocks with a sensor not reporting, none while the railroad runs

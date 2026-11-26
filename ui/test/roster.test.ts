@@ -36,12 +36,12 @@ import {
 } from "./support/session.js";
 
 /** The pane, holding the rows it was handed, with a session joined so its
- *  rows can be picked up, and the Start column drawn where `starting`. */
-async function pane(trains: RosterRow[], live = true, starting = false): Promise<TcRoster> {
+ *  rows can be picked up, and the Start column drawn where `startColumn`. */
+async function pane(trains: RosterRow[], live = true, startColumn = false): Promise<TcRoster> {
   const roster = document.createElement("tc-roster");
   roster.trains = trains;
   roster.live = live;
-  roster.starting = starting;
+  roster.startColumn = startColumn;
   document.body.append(roster);
   await roster.updateComplete;
   return roster;
@@ -337,28 +337,28 @@ describe("the Start column", () => {
   const cells = starts(EVENING, PLACED, NOSES);
 
   it("is met for a train in its start block facing as recorded", () => {
-    expect(cells.get("goods")).toEqual({ block: "a", is: "met" });
+    expect(cells.get("goods")).toEqual({ block: "a", state: "met" });
   });
 
   it("is met for a train in its start block whose facing is not said", () => {
-    expect(starts(EVENING, PLACED, new Map()).get("mail")).toEqual({ block: "d", is: "met" });
+    expect(starts(EVENING, PLACED, new Map()).get("mail")).toEqual({ block: "d", state: "met" });
   });
 
   it("is missed for a train the timetable names and the run does not have", () => {
-    expect(cells.get("express")).toEqual({ block: "b", is: "missed" });
+    expect(cells.get("express")).toEqual({ block: "b", state: "missed" });
   });
 
   it("is missed for a train standing in another block", () => {
-    expect(cells.get("local")).toEqual({ block: "c", is: "missed" });
+    expect(cells.get("local")).toEqual({ block: "c", state: "missed" });
   });
 
   it("is missed for a train crossing a transit", () => {
     const crossing = starts(EVENING, [{ train: "goods", block: null }], NOSES);
-    expect(crossing.get("goods")).toEqual({ block: "a", is: "missed" });
+    expect(crossing.get("goods")).toEqual({ block: "a", state: "missed" });
   });
 
   it("is turned for a train in its start block that points at the other end", () => {
-    expect(cells.get("mail")).toEqual({ block: "d", is: "turned" });
+    expect(cells.get("mail")).toEqual({ block: "d", state: "turned" });
   });
 
   it("is not given for a train the timetable does not name", () => {
@@ -377,9 +377,9 @@ describe("the Start column", () => {
   /** `goods` met in `a`, `local` missed, `mail` turned, `shunter` not
    *  named. */
   const STARTING: RosterRow[] = [
-    { train: "goods", block: "a", length: 400, placed: true, locomotive: null, start: { block: "a", is: "met" } },
-    { train: "local", block: "e", length: 300, placed: true, locomotive: null, start: { block: "c", is: "missed" } },
-    { train: "mail", block: "d", length: 200, placed: true, locomotive: null, start: { block: "d", is: "turned" } },
+    { train: "goods", block: "a", length: 400, placed: true, locomotive: null, start: { block: "a", state: "met" } },
+    { train: "local", block: "e", length: 300, placed: true, locomotive: null, start: { block: "c", state: "missed" } },
+    { train: "mail", block: "d", length: 200, placed: true, locomotive: null, start: { block: "d", state: "turned" } },
     { train: "shunter", block: "f", length: 100, placed: true, locomotive: null },
   ];
 
@@ -436,7 +436,7 @@ describe("the Start column", () => {
           length: 900,
           placed: false,
           locomotive: null,
-          start: { block: "b", is: "missed" },
+          start: { block: "b", state: "missed" },
         },
       ],
       true,
