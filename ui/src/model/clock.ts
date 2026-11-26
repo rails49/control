@@ -59,10 +59,15 @@ export function hhmm(time: number): string {
   return `${h}:${m}`;
 }
 
+/** The day a time is on, counted from 0. */
+export function dayOf(time: number): number {
+  return Math.floor(time / DAY_S);
+}
+
 /** A time as `[<day>d]HH:MM`, the seconds dropped and day 0 written without
  *  `0d`. */
 export function written(time: number): string {
-  const day = Math.floor(time / DAY_S);
+  const day = dayOf(time);
   return day === 0 ? hhmm(time) : `${day}d${hhmm(time)}`;
 }
 
@@ -76,6 +81,12 @@ export function timeOf(words: string): number | null {
   const h = Number(parts[2]);
   const m = Number(parts[3]);
   return h < 24 && m < 60 ? day * DAY_S + h * 3600 + m * 60 : null;
+}
+
+/** A day and a time of day typed in two fields, read together as
+ *  `<day>d<time>`; `null` where they are not a time. */
+export function timeOfFields(day: string, time: string): number | null {
+  return timeOf(`${day.trim()}d${time}`);
 }
 
 /** A speed-up as typed, `null` where it is not a number greater than 0. */
