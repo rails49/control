@@ -28,9 +28,18 @@ train with nothing in it, nothing loaded), or the store's. There is no Save butt
 when it is left ([When it saves](#when-it-saves)).
 
 **Two columns below it**: the list, `minmax(300px, 380px)`, and the editor of
-the item chosen in it. Where the view is narrower than 760 px — its own width,
-read with a container query — it is one column: the list, and pressing a card
-stands the editor in its place, with a back button.
+the item chosen in it. The 16px space between the two boxes is a divider a
+person drags with a mouse or a finger to set the list's width
+([#1401](https://github.com/rails49/control/issues/1401)). It is look's
+`look-gap` ([rails49/look#62](https://github.com/rails49/look/issues/62)), 6px
+wide in the middle of the space. Nothing is drawn there at rest, and on hover
+and while dragged the gap takes Shoelace's primary colour. The list has a
+least width, and a greatest that leaves the editor a least width of its own;
+both are in `ui/src/model/divider.ts`, and they hold when the window changes
+size. The width is kept in the browser's `localStorage`, under `tc49.stock`,
+and a reload brings it back. Where the view is narrower than 760 px — its own
+width, read with a container query — it is one column with no divider: the
+list, and pressing a card stands the editor in its place, with a back button.
 
 **The editor's head** says what kind of item it edits — *Model*, *Car* or
 *Train* — with its own press at the right. It does not repeat the item's name:
@@ -672,8 +681,8 @@ to a photo camera the way it proxies the store's prefixes, so the page fetches b
 origin.
 
 The view has no pane of the shell's width. `--pane` is the width of the
-strip beside a drawing surface — the editor's palette, and the run view's
-pane until its divider is dragged
+strip beside a drawing surface — the editor's palette and the run view's
+pane, each until its divider is dragged
 ([#169](https://github.com/rails49/control/issues/169)) — and this view has no
 surface, so it declares its own columns and leaves `--pane` alone. It puts
 no commands on the rail either: `RAIL.stock` is empty, there being no viewport

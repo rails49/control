@@ -181,7 +181,8 @@ src/
     wake.ts        the screen kept awake while any of this page's throttles
                    holds a train
     tc-stock.ts    the stock view: a bar saying what is unsaved, the list of
-                   trains, cars or models, and the editor of the one chosen
+                   trains, cars or models, the editor of the one chosen, and
+                   the divider between the two
     dismissal.ts   the overlay a menu drops over the page, worn by all three
                    menu systems: the press outside that dismisses, and the
                    right-click that is handed on to what is underneath

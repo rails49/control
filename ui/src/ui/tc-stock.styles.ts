@@ -1,5 +1,7 @@
 import { css } from "lit";
 
+import { LIMITS, SPACE } from "../model/divider.js";
+
 /**
  * The stock view (`tc-stock`), as
  * [stock-mockup.html](../../../docs/ui/images/stock-mockup.html) lays it out
@@ -7,9 +9,16 @@ import { css } from "lit";
  * top, and under it the list, `minmax(300px, 380px)`, beside the editor of the
  * item chosen in it.
  *
+ * **The space between the list and the editor is a divider**, `look-gap`
+ * (rails49/look#62), in the middle of the 16px between the two boxes
+ * ([#1401](https://github.com/rails49/control/issues/1401)). Once dragged
+ * it sets the list's width, which the view hands over as `--list-size`. The
+ * width is held to the limits a drag is held to (`model/divider.ts`) when
+ * the window changes size.
+ *
  * **No pane of the shell's width.** `--pane` is the width of the strip
- * beside a drawing surface — the editor's palette, and the run view's pane
- * until its divider is dragged
+ * beside a drawing surface — the editor's palette and the run view's pane,
+ * each until its divider is dragged
  * ([#169](https://github.com/rails49/control/issues/169)) — and this view has
  * no surface, so it declares its own columns and leaves `--pane` alone.
  *
@@ -105,9 +114,16 @@ export const stockStyles = css`
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
-    gap: 16px;
-    padding: 16px;
+    grid-template-columns:
+      minmax(${LIMITS.stock.least}px, min(var(--list-size, 380px), 100% - ${LIMITS.stock.leaves + SPACE}px))
+      ${SPACE}px minmax(0, 1fr);
+    padding: ${SPACE}px;
+  }
+
+  /* The look-gap, by class: only where it sits is set here, and look draws
+     the rest. */
+  .divider {
+    justify-self: center;
   }
 
   section.list,
@@ -138,7 +154,10 @@ export const stockStyles = css`
     .cols {
       grid-template-columns: minmax(0, 1fr);
       padding: 0;
-      gap: 0;
+    }
+
+    .divider {
+      display: none;
     }
 
     section.list,

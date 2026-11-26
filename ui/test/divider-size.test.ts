@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 
 /**
- * The edit view's two dividers
+ * The edit view's two dividers and the stock view's
  * ([#1401](https://github.com/rails49/control/issues/1401)): right of the
- * palette, and left of the netlist while it is open.
+ * palette, left of the netlist while it is open, and between the stock
+ * view's list box and its editor box.
  *
  * happy-dom lays nothing out, so the suite states the view's box and reads
- * the sizes the view hands its stylesheet: `--palette-size` and
- * `--netlist-size`.
+ * the sizes the view hands its stylesheet: `--palette-size`,
+ * `--netlist-size` and `--list-size`.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcCanvas } from "../src/ui/tc-canvas.js";
-import { editing, pressed, running, settled } from "./support/shell.js";
+import { editing, pressed, running, settled, stocking } from "./support/shell.js";
 import { brokering, joined, unbrokered } from "./support/session.js";
 
 /** The view's own box: the work row, beside the rail and under the band. */
@@ -166,5 +167,44 @@ describe("the netlist's divider", () => {
     expect(size(editing(await reloaded()), "--netlist-size")).toBe("350px");
     expect(localStorage.getItem("tc49.netlist")).toBe("350");
     expect(localStorage.getItem("tc49.palette")).toBeNull();
+  });
+});
+
+/**
+ * The stock view's two boxes have 16 px left of the list, between the two
+ * and right of the editor. The divider is the space between them, and the
+ * point it is dragged to is its middle.
+ */
+describe("the stock view's divider", () => {
+  it("leaves the list its own width until it is dragged", async () => {
+    expect(size(stocking(await joined("stock")), "--list-size")).toBe("");
+  });
+
+  it("sets the list box's width to where it was dragged", async () => {
+    const shell = await joined("stock");
+
+    await drag(shell, stocking(shell), "divider", { x: 474, y: 300 });
+
+    expect(size(stocking(shell), "--list-size")).toBe("400px");
+  });
+
+  /** The greatest leaves the editor box 320 px of the view's 1000, less
+   *  the three spaces. */
+  it("holds the list box's width to a least and a greatest", async () => {
+    const shell = await joined("stock");
+
+    await drag(shell, stocking(shell), "divider", { x: 60, y: 300 });
+    expect(size(stocking(shell), "--list-size")).toBe("300px");
+
+    await drag(shell, stocking(shell), "divider", { x: 1040, y: 300 });
+    expect(size(stocking(shell), "--list-size")).toBe("632px");
+  });
+
+  it("comes back where it was left after a reload", async () => {
+    const shell = await joined("stock");
+    await drag(shell, stocking(shell), "divider", { x: 474, y: 300 });
+
+    expect(size(stocking(await reloaded()), "--list-size")).toBe("400px");
+    expect(localStorage.getItem("tc49.stock")).toBe("400");
   });
 });

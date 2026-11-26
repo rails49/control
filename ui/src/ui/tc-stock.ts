@@ -3,6 +3,8 @@
  * [stock-mockup.html](../../../docs/ui/images/stock-mockup.html) lays it out:
  * a bar across the top saying what is unsaved, and below it two columns — the list
  * of trains, cars or models, and the editor of the item chosen in it (#978).
+ * The space between the two is a divider that sets the list's width
+ * (`divider-size.ts`, #1401).
  *
  * The railroad it is editing is not its own: the app holds the loaded railroad
  * and hands it down, exactly as it hands the drawing to the editor
@@ -38,7 +40,7 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { lookTheme } from "@rails49/look";
+import { lookTheme, type LookGapMoveDetail } from "@rails49/look";
 import { live } from "lit/directives/live.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 
@@ -60,6 +62,7 @@ import {
 import type { Railroad } from "../model/railroad.js";
 import { deleteModel, photoUrl, said, takePicture } from "../model/store.js";
 import type { Power } from "../model/trace.js";
+import { moved, setKept } from "./divider-size.js";
 import { stockStyles } from "./tc-stock.styles.js";
 
 /** The three lists, in the order their tabs stand. */
@@ -295,6 +298,11 @@ export class TcStock extends LitElement {
     this.back = null;
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    setKept(this, "stock");
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.timer !== null) clearTimeout(this.timer);
@@ -307,6 +315,12 @@ export class TcStock extends LitElement {
       ${this.bar()}
       <div class=${`cols ${this.editing ? "editing" : ""}`}>
         <section class="list" aria-label="Stock">${this.list()}</section>
+        <look-gap
+          class="divider"
+          axis="x"
+          @look-gap-move=${(event: CustomEvent<LookGapMoveDetail>) =>
+            moved(this, "stock", event.detail)}
+        ></look-gap>
         <section class="editor" aria-label="Editor">${this.editor()}</section>
       </div>
       ${this.deleting()} ${this.chooser()} ${this.picker()} ${this.addressing()}
