@@ -153,6 +153,25 @@ describe("tc-requests", () => {
     ]);
   });
 
+  /** With no rows the headings are drawn all the same, and the hint is under
+   *  them, in what scrolls. */
+  it("heads its columns with no requests, the hint under the headings", async () => {
+    const element = await list([]);
+    const headings = [...element.renderRoot.querySelectorAll(".columns > *")];
+    expect(headings.map((cell) => cell.textContent!.trim())).toEqual([
+      "Time",
+      "Train",
+      "To",
+      "Dwell",
+      "Description",
+      "State",
+      "",
+    ]);
+    const hint = element.renderRoot.querySelector(".table > .hint")!;
+    expect(hint.textContent!.trim()).toBe("no requests");
+    expect(hint.previousElementSibling!.classList.contains("columns")).toBe(true);
+  });
+
   it("leaves Time, Dwell and Description empty on a request's row", async () => {
     const element = await list(ROWS);
     const row = element.renderRoot.querySelector("li")!;

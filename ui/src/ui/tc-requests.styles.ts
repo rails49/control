@@ -214,6 +214,7 @@ export const requestsStyles = css`
   }
 
   .hint {
+    grid-column: 1 / -1;
     margin: 0.8rem 0.2rem 0;
     font-size: 0.7rem;
     line-height: 1.6;

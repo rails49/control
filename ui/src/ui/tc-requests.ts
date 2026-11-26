@@ -14,8 +14,9 @@
  * ([#1393](https://github.com/rails49/control/issues/1393)), one row per
  * entry or request, under the column headings Time, Train, To, Dwell,
  * Description, State and an unlabelled action column, the same with a
- * timetable or without. The headings stay at the top of what scrolls. A row's
- * cells and its "waits for" line are `list-row.ts`'s.
+ * timetable or without. With no rows the headings are drawn, and "no
+ * requests" or "no entries" under them. The headings stay at the top of
+ * what scrolls. A row's cells and its "waits for" line are `list-row.ts`'s.
  *
  * With no timetable loaded the rows are the requests, in the order the
  * dispatcher serves them, with Time, Dwell and Description empty. A refused
@@ -161,26 +162,26 @@ export class TcRequests extends LitElement {
     const after = open === undefined ? [] : rows.slice(this.at + 1);
     return html`
       ${this.heading()}
-      ${rows.length === 0
-        ? html`<p class="hint">${this.timetable === null ? "no requests" : "no entries"}</p>`
-        : html`
-            <div class="table">
-              <div class="columns">
-                <span class="time">Time</span>
-                <span class="train">Train</span>
-                <span class="way">To</span>
-                <span class="dwell">Dwell</span>
-                <span class="description">Description</span>
-                <span class="state">State</span>
-                <span class="action"></span>
-              </div>
+      <div class="table">
+        <div class="columns">
+          <span class="time">Time</span>
+          <span class="train">Train</span>
+          <span class="way">To</span>
+          <span class="dwell">Dwell</span>
+          <span class="description">Description</span>
+          <span class="state">State</span>
+          <span class="action"></span>
+        </div>
+        ${rows.length === 0
+          ? html`<p class="hint">${this.timetable === null ? "no requests" : "no entries"}</p>`
+          : html`
               <ul>
                 ${before.map((row) => this.row(row, false))}
                 ${open === undefined ? nothing : keyed(this.taps, this.row(open, true))}
                 ${after.map((row) => this.row(row, false))}
               </ul>
-            </div>
-          `}
+            `}
+      </div>
     `;
   }
 
