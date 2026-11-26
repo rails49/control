@@ -67,10 +67,10 @@ export function written(time: number): string {
 }
 
 /** `[<day>d]HH:MM` as seconds since midnight of day 0, `null` where it is no
- *  time: a day with a leading zero, an hour past 23 or a minute past 59. The
- *  hour may be typed with one digit. */
+ *  time: a day with a leading zero, an hour not of two digits, an hour past
+ *  23 or a minute past 59. */
 export function timeOf(words: string): number | null {
-  const parts = /^(?:(0|[1-9]\d*)d)?(\d{1,2}):(\d{2})$/.exec(words.trim());
+  const parts = /^(?:(0|[1-9]\d*)d)?(\d{2}):(\d{2})$/.exec(words.trim());
   if (parts === null) return null;
   const day = Number(parts[1] ?? 0);
   const h = Number(parts[2]);

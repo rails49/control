@@ -56,8 +56,9 @@ const BARE: Entry = { at: "06:30", train: "local", to: ["c.B"] };
 const TURN: Entry = { at: "06:10", train: "goods", turn: true };
 
 describe("an entry with a field typed", () => {
-  it("has a time typed as H:MM or HH:MM, said as HH:MM", () => {
-    expect(edited(GOODS, "at", "6:10")).toEqual({ ...GOODS, at: "06:10" });
+  it("has a time typed as HH:MM, day 0 said without its day", () => {
+    expect(edited(GOODS, "at", "06:10")).toEqual({ ...GOODS, at: "06:10" });
+    expect(edited(GOODS, "at", "0d06:10")).toEqual({ ...GOODS, at: "06:10" });
     expect(edited(GOODS, "at", " 23:59 ")).toEqual({ ...GOODS, at: "23:59" });
   });
 
@@ -65,12 +66,12 @@ describe("an entry with a field typed", () => {
     expect(edited(GOODS, "at", "1d06:10")).toEqual({ ...GOODS, at: "1d06:10" });
   });
 
-  it.each(["", "soon", "0610", "24:00", "06:60"])("is not changed by %j, which is no time", (words) => {
+  it.each(["", "soon", "0610", "6:10", "24:00", "06:60"])("is not changed by %j, which is no time", (words) => {
     expect(edited(GOODS, "at", words)).toBeNull();
   });
 
   it("is not changed by the time it has", () => {
-    expect(edited(GOODS, "at", "6:02")).toBeNull();
+    expect(edited(GOODS, "at", "06:02")).toBeNull();
   });
 
   it("has a dwell typed as whole minutes", () => {
@@ -286,7 +287,7 @@ describe("tc-entry", () => {
   });
 
   it.each([
-    ["at", "6:10", { ...GOODS, at: "06:10" }],
+    ["at", "06:10", { ...GOODS, at: "06:10" }],
     ["dwell", "5", { ...GOODS, dwell: 5 }],
     ["description", "meets the local", { ...GOODS, description: "meets the local" }],
   ] as const)("asks for the entry with `%s` changed", async (name, words, now) => {
@@ -322,7 +323,7 @@ describe("tc-entry", () => {
    *  entry reads (ADR-0035). */
   it("shows what the entry has after a change, until the entry is another", async () => {
     const element = await opened(GOODS);
-    await typed(element, "at", "6:10");
+    await typed(element, "at", "06:10");
     expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
     element.entry = { ...GOODS, at: "06:10" };
     await element.updateComplete;
@@ -682,7 +683,7 @@ describe("tc-requests with a row tapped", () => {
     await tap(element, 4);
     const part = parts(element)[4]!;
     await part.updateComplete;
-    const input = typing(part, "at", "6:00");
+    const input = typing(part, "at", "06:00");
     input.dispatchEvent(new Event("change", { bubbles: true }));
     element.timetable = loaded(
       { entry: { ...LATER, at: "06:00" }, state: "held" },
@@ -701,7 +702,7 @@ describe("tc-requests with a row tapped", () => {
   it("has the row open at the entry's new place when a changed time moves it", async () => {
     const element = await list();
     await tap(element, 4);
-    await typed(parts(element)[4]!, "at", "6:00");
+    await typed(parts(element)[4]!, "at", "06:00");
     // Nothing has moved: the scheduler has not said so.
     expect(open(element)).toEqual([4]);
     expect(shown(parts(element)[4]!)).toEqual(["06:30", "0", ""]);
@@ -773,7 +774,7 @@ describe("tc-requests with a row tapped", () => {
       await tap(element, 4);
       expect(asked).toEqual([rows(element)[4]]);
 
-      await typed(parts(element)[4]!, "at", "6:00");
+      await typed(parts(element)[4]!, "at", "06:00");
       element.timetable = loaded(
         { entry: { ...LATER, at: "06:00" }, state: "held" },
         ...ENTRIES.slice(0, 4),
@@ -847,7 +848,7 @@ describe("the run view's open row", () => {
    *  it: the scheduler drops a gesture that carries `state`, `request` or
    *  `ended`. */
   it.each([
-    [2, "at", "6:10", GOODS, { ...GOODS, at: "06:10" }],
+    [2, "at", "06:10", GOODS, { ...GOODS, at: "06:10" }],
     [2, "dwell", "5", GOODS, { ...GOODS, dwell: 5 }],
     [2, "description", "meets the local", GOODS, { ...GOODS, description: "meets the local" }],
     [0, "at", "06:03", ENDED, { ...ENDED, at: "06:03" }],
@@ -910,7 +911,7 @@ describe("the run view's open row", () => {
 
   it("has the row open where the scheduler's row puts the entry", async () => {
     const { shell, element } = await serving();
-    await typed(await part(element, 4), "at", "6:00");
+    await typed(await part(element, 4), "at", "06:00");
     expect(open(element)).toEqual([4]);
     const [ended, express, goods, turn, later] = RUNNING.entries;
     await said(shell, "tc49/schedule/state/timetable", {

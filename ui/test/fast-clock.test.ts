@@ -65,7 +65,6 @@ describe("wording the clock", () => {
 describe("what a person types", () => {
   it("reads HH:MM as seconds since midnight of day 0", () => {
     expect(timeOf("06:30")).toBe(6 * 3600 + 30 * 60);
-    expect(timeOf("6:30")).toBe(6 * 3600 + 30 * 60);
     expect(timeOf("23:59")).toBe(86_340);
   });
 
@@ -82,7 +81,7 @@ describe("what a person types", () => {
   });
 
   it("refuses what is not a time", () => {
-    for (const words of ["24:00", "06:60", "12:60", "01d06:00", "d06:00", "1d", "-1d06:00", "noon", "", "12:5"]) {
+    for (const words of ["24:00", "06:60", "12:60", "01d06:00", "d06:00", "1d", "-1d06:00", "noon", "", "12:5", "6:30", "1d6:30"]) {
       expect(timeOf(words)).toBeNull();
     }
   });

@@ -228,7 +228,7 @@ export type Field = "at" | "dwell" | "description";
  * that field, or the entry reads the same with them.
  *
  * - A time is read and said as `model/clock.ts` reads and writes one:
- *   `6:10` is said as `06:10`.
+ *   `0d06:10` is said as `06:10`.
  * - A dwell is whole minutes in digits, 0 or more, and only an entry with
  *   `to` has one. Emptied it is 0, and 0 is the key left out.
  * - A description is the words with the space round them dropped. Emptied,
