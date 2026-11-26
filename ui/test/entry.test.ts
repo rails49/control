@@ -148,12 +148,15 @@ describe("an entry with a field typed", () => {
     expect(edited({ ...GOODS, to: ["b", "c.A"] }, "to", "b, c.A")).toBeNull();
   });
 
-  it.each(["", " , ", "b.C", "b.", "b, b.A", "c.A, c.B"])(
-    "is not changed by arrival ends typed as %j",
-    (words) => {
-      expect(edited(GOODS, "to", words)).toBeNull();
-    },
-  );
+  /** `misnamed` says why such ends are refused. */
+  it.each([
+    ["", []],
+    [" , ", []],
+    ["b.C", ["b.C"]],
+    ["b, b.A", ["b", "b.A"]],
+  ])("has the arrival ends typed as %j, good or not", (words, to) => {
+    expect(edited(GOODS, "to", words)).toEqual({ ...GOODS, to });
+  });
 
   /** A turn-round has no arrival ends to change. */
   it("is given no arrival ends where it is a turn-round", () => {
@@ -536,6 +539,16 @@ describe("tc-entry", () => {
       const element = await opened(GOODS);
       const seen = asked(element);
       await typed(element, "to", words);
+      expect(seen).toEqual([]);
+      expect(refusal(element)).toBeNull();
+    });
+
+    /** The railroad may no longer have a block the entry names. */
+    it("asks nothing and refuses nothing for the ends the entry has, spaced otherwise", async () => {
+      const entry = { ...GOODS, to: ["z", "b.A"] };
+      const element = await opened(entry);
+      const seen = asked(element);
+      await typed(element, "to", "z,b.A ");
       expect(seen).toEqual([]);
       expect(refusal(element)).toBeNull();
     });

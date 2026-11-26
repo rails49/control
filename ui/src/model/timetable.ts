@@ -293,10 +293,10 @@ export type Field = "at" | "to" | "dwell" | "description";
  *
  * - A time is read and said as `model/clock.ts` reads and writes one:
  *   `0d06:10` is said as `06:10`.
- * - Arrival ends are `<block>`, `<block>.A` or `<block>.B`, separated by
- *   commas and kept in the order typed, the space round each dropped. Only
- *   an entry with `to` has them. Words `misnamed` refuses with any block
- *   known are no value.
+ * - Arrival ends are the words split at commas, in the order typed, the
+ *   space round each dropped and an empty part left out. Only an entry with
+ *   `to` has them. Any words are read as ends here. `misnamed` says why ends
+ *   are refused.
  * - A dwell is whole minutes in digits, 0 or more, and only an entry with
  *   `to` has one. Emptied it is 0, and 0 is the key left out.
  * - A description is the words with the space round them dropped. Emptied,
@@ -311,7 +311,7 @@ export function edited(entry: Entry, field: Field, words: string): Entry | null 
     if (time === null) return null;
     now = { ...entry, at: written(time) };
   } else if (field === "to") {
-    if (entry.to === undefined || refusal(typed, () => true) !== null) return null;
+    if (entry.to === undefined) return null;
     now = { ...entry, to: endsIn(typed) };
   } else if (field === "dwell") {
     if (entry.to === undefined || !/^\d*$/.test(typed)) return null;
@@ -355,23 +355,17 @@ export function outside(
  *  named twice", which `b, b.A` is too. A comma with nothing after it adds
  *  no end. */
 export function misnamed(blocks: readonly string[], words: string): string | null {
-  return refusal(words, (block) => blocks.includes(block));
-}
-
-/** Why `words` are refused as arrival ends, a block being one where `known`
- *  says so. */
-function refusal(words: string, known: (block: string) => boolean): string | null {
   const ends = endsIn(words);
   if (ends.length === 0) return "no arrival end";
   const named = new Set<string>();
   for (const end of ends) {
-    const [block, letter] = end.split(/\.(.*)/);
+    const [block = "", letter] = end.split(/\.(.*)/);
     if (letter !== undefined && letter !== "A" && letter !== "B") {
       return `${end}: the end is A or B`;
     }
-    if (!known(block!)) return `the railroad has no block ${block}`;
-    if (named.has(block!)) return `${block} is named twice`;
-    named.add(block!);
+    if (!blocks.includes(block)) return `the railroad has no block ${block}`;
+    if (named.has(block)) return `${block} is named twice`;
+    named.add(block);
   }
   return null;
 }
