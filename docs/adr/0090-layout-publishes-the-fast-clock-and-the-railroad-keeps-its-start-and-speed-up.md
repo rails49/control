@@ -2,6 +2,8 @@
 
 *Superseded in part by [#1345](https://github.com/rails49/control/issues/1345) and [#1350](https://github.com/rails49/control/issues/1350): decision 5's "It runs whatever track power and the run are doing" goes. The fast clock stands while `tc49/layout/state/power` reads `off` and runs while it reads `on` or `draining`.*
 
+*Superseded in part by [#1363](https://github.com/rails49/control/issues/1363): decision 5's "The clock is a time of day. It wraps at midnight and has no date" goes. The clock counts days from 0, a time is fast-clock seconds since midnight of day 0, and the band shows only the time of day.*
+
 The work is [#987](https://github.com/rails49/control/issues/987),
 [#988](https://github.com/rails49/control/issues/988),
 [#989](https://github.com/rails49/control/issues/989),

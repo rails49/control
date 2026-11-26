@@ -829,7 +829,7 @@ what a drop would cost:
   move and then stands; switching to `automatic`, each train with a move
   outstanding and no throttle is given its grant's speed.
 - `tc49/layout/state/clock` — `time`: integer, fast-clock seconds since
-  midnight, `0` to `86399`; `speed_up`: number greater than 0, fast seconds
+  midnight of day 0, 0 or more, with no upper limit; `speed_up`: number greater than 0, fast seconds
   per real second. `layout` publishes it once a real second, by the monotonic
   clock and at the beat of `alive_confirmed`, while a railroad is loaded, and
   none while it stands, and at once after it takes a `clock_wanted`. The
@@ -838,10 +838,11 @@ what a drop would cost:
   batch run (`bench`) gives it none, so no benchmark run publishes a clock and
   a replay stays byte-identical. Loading a railroad clears it with the other `layout` rows
   ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
-  and starts the clock again at the start time and speed-up the railroad
-  keeps in the store, `layouts/<layout>.clock.yaml`
+  and starts the clock again on day 0 at the start time and speed-up the
+  railroad keeps in the store, `layouts/<layout>.clock.yaml`
   ([LAYOUT.md](store/LAYOUT.md)), or at the box's wall time of day at a
-  speed-up of 1 where it keeps none. It wraps at midnight and has no date.
+  speed-up of 1 where it keeps none. It counts on past midnight
+  ([#1363](https://github.com/rails49/control/issues/1363)).
   **The clock stands while `tc49/layout/state/power` reads `off`** and runs
   while it reads `on` or `draining`. While it stands the row is still
   published once a second and repeats the same `time`. A railroad comes up
@@ -855,8 +856,8 @@ what a drop would cost:
   ([ADR-0044](adr/0044-the-boundary-period-is-real-time-and-the-fast-clock-is-out-of-the-control-path.md),
   [ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 - `tc49/layout/clock_wanted` — browser-writable — at least one of `time`:
-  integer, seconds since midnight, `0` to `86399`, which the clock takes at
-  once; and `speed_up`: number greater than 0, which the clock runs at from
+  integer, seconds since midnight of day 0, 0 or more, with no upper limit,
+  which the clock takes at once; and `speed_up`: number greater than 0, which the clock runs at from
   now. A field left out leaves that part of the clock as it is. A payload with
   neither, or with a value out of range, is dropped whole, as any malformed
   gesture is. It is taken at any power. Taken while the clock stands, a `time`

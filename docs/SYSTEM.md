@@ -830,15 +830,15 @@ It **records** a person's drags as a **timetable**
 row, it makes one named `untitled`, which replaces a stored `untitled`. A
 person makes one under another name with `tc49/schedule/timetable_wanted`
 and `new`, taken while power reads `off`; it replaces a timetable of that
-name, loaded or stored. A new timetable takes the clock's time, rounded down
-to the minute, as its start, and as its `trains` each train the allocation
+name, loaded or stored. A new timetable takes the clock's time of day,
+rounded down to the minute, as its start, and as its `trains` each train the allocation
 names in a block and the scheduler holds a facing for, with that block and
 facing. It has no entries, Record is on and it is `running` at once.
 
 While the timetable is `running` and Record is on:
 
-- a drag the scheduler composes adds an entry at the clock's time to the
-  minute, with the train and `to` as the gesture gave it, a bare block
+- a drag the scheduler composes adds an entry at the clock's time of day
+  to the minute, with the train and `to` as the gesture gave it, a bare block
   still bare. The entry is `out` and carries the id of the request the drag
   made;
 - a turn-round the scheduler applies adds an entry with `turn: true` that
@@ -1608,7 +1608,12 @@ run clock once a second of it, and the clock is no event. A batch run
 (`bench`) gives it none, so it publishes no clock and stops without waiting on
 one
 ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
-In both bindings the fast clock stands while `tc49/layout/state/power` reads
+In both bindings the fast clock counts days from 0: a time is fast-clock
+seconds since midnight of day 0, with no upper limit, and loading the railroad
+starts it on day 0 at its start time. A person's set saves its time of day,
+rounded down to the minute, as the start
+([#1363](https://github.com/rails49/control/issues/1363)).
+It stands while `tc49/layout/state/power` reads
 `off` and runs while it reads `on` or `draining`. A railroad comes up `off`,
 so its clock stands at its start time until power first reads `on`, and after
 a break it runs on from the time it stood at. While it stands the row is

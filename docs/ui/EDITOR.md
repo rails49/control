@@ -70,15 +70,18 @@ the gear, and **Help** last of all
 ([org ADR-0020](https://github.com/rails49/.github/blob/main/docs/adr/0020-the-bands-right-ends-with-the-gear-and-help.md),
 [#873](https://github.com/rails49/control/issues/873)).
 
-**The fast clock is the railroad's time of day**, drawn off
+**The fast clock is the railroad's time**, drawn off
 `tc49/layout/state/clock` and nothing else: a round face about 40 px across
 with hour and minute hands and no second hand, and `×8` beside it where the
-speed-up is not 1. No page reads a
+speed-up is not 1. The face shows the time of day; the clock counts days
+([#1363](https://github.com/rails49/control/issues/1363)). No page reads a
 wall clock for it, so two tablets whose clocks disagree show one time. With
 no railroad loaded or no broker answering the band shows no clock. Pressing
-it opens a dialog with the time (`HH:MM`) and the speed-up (a number greater
+it opens a dialog with the day (a whole number from 0, filled in with the
+day the clock is on), the time (`HH:MM`) and the speed-up (a number greater
 than 0, decimals allowed); Save publishes `tc49/layout/clock_wanted` with
-only the fields the person changed, and what the face then shows is
+only the fields the person changed, a changed day or time as one `time`,
+day × 86400 plus the time of day, and what the face then shows is
 `state/clock` coming back
 ([ADR-0090](../adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 

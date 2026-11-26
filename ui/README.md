@@ -92,8 +92,8 @@ src/
     session.ts   the page's one broker connection: the railroad the row
                  names, the panel model it feeds, the presses, the OFF drain
     throttle.ts  what the throttle draws for each train there is to drive
-    clock.ts     the fast clock: state/clock read, a time of day worded, and
-                 what a person types to set it
+    clock.ts     the fast clock: state/clock read, a time written and read
+                 as [<day>d]HH:MM, and what a person types to set it
     picture.ts   the camera car's live picture: its stream read frame by frame
     stock.ts     the roster and the catalogue being edited, and everything
                  derived from the pair
