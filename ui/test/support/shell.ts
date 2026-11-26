@@ -91,7 +91,7 @@ export interface Answers {
    *  `timetables` has. A name it does not have, and one `refuses` gives, is
    *  the JSON refusal the document's read is (#1380). By default the document
    *  written as JSON, which YAML reads. */
-  text: (railroad: string, name: string) => string;
+  timetableText: (railroad: string, name: string) => string;
   /** Every model the installation knows, which `/catalogue` answers. An
    *  installation that has written none answers an empty map — a fresh box,
    *  and not a fault (#392). */
@@ -211,7 +211,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     rosterOf: () => ({}),
     documentOf: (railroad) => ({ roster: railroad, trains: {} }),
     timetables: () => ({}),
-    text: (railroad, name) => JSON.stringify(store.timetables(railroad)[name], null, 2),
+    timetableText: (railroad, name) => JSON.stringify(store.timetables(railroad)[name], null, 2),
     catalogue: {},
     saved: [],
     deleted: [],
@@ -280,10 +280,10 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     if (between !== null) return Promise.resolve(interposed(between));
     const unread = path.startsWith(TIMETABLES) ? unreadable(store, path) : null;
     if (unread !== null) return Promise.resolve(refused(unread));
-    if (path.startsWith(TIMETABLES) && yaml(init)) {
-      const [railroad, name] = timetableAt(path);
+    const [railroad, name] = path.startsWith(TIMETABLES) ? timetableAt(path) : [];
+    if (name !== undefined && asksForYaml(init)) {
       return Promise.resolve(
-        new Response(store.text(railroad, name!), {
+        new Response(store.timetableText(railroad!, name), {
           headers: { "content-type": "application/yaml" },
         }),
       );
@@ -297,7 +297,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
 }
 
 /** Whether a call asks for YAML in its `Accept`. */
-function yaml(init: RequestInit | undefined): boolean {
+function asksForYaml(init: RequestInit | undefined): boolean {
   return (new Headers(init?.headers).get("accept") ?? "").includes("application/yaml");
 }
 
