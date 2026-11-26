@@ -11,9 +11,16 @@
  * `tc49/schedule/state/timetable`.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { reordering, requestRows, type Listed } from "../src/model/requests.js";
+import "../src/ui/tc-app.js";
+import "../src/ui/tc-requests.js";
+import {
+  reordering,
+  requestRows,
+  type Listed,
+  type RequestRow,
+} from "../src/model/requests.js";
 import {
   done,
   listRows,
@@ -24,6 +31,14 @@ import {
   type Scheduled,
   type Timetable,
 } from "../src/model/timetable.js";
+import type { TcApp } from "../src/ui/tc-app.js";
+import type { RequestReorder, TcRequests } from "../src/ui/tc-requests.js";
+import { requestsStyles } from "../src/ui/tc-requests.styles.js";
+import { running, settled } from "./support/shell.js";
+import { brokering, joined, said, unbrokered, written } from "./support/session.js";
+
+const ALLOCATION = "tc49/dispatch/state/allocation";
+const TIMETABLE = "tc49/schedule/state/timetable";
 
 /** The row as BUS.md gives it: `goods` went to `b` and turned round, and
  *  goes on to `c` once the clock reads 06:12. */
@@ -272,17 +287,16 @@ const SERVED = requestRows([
  *      5  06:30  local    later
  *      6         local    l1, waiting
  */
-const MIXED = listRows(
-  loaded(
-    { entry: to("06:01", "local", "d.A"), state: "ended", request: "l0" },
-    { entry: to("06:02", "express", "a.B"), state: "out", request: "e1" },
-    { entry: to("06:03", "shunter", "c.A"), state: "later" },
-    { entry: to("06:05", "goods", "b.A"), state: "out", request: "g1" },
-    { entry: to("06:06", "goods", "c.B"), state: "out", request: "g2" },
-    { entry: to("06:30", "local", "c.B"), state: "later" },
-  ),
-  SERVED,
+const EVENING = loaded(
+  { entry: to("06:01", "local", "d.A"), state: "ended", request: "l0" },
+  { entry: to("06:02", "express", "a.B"), state: "out", request: "e1" },
+  { entry: to("06:03", "shunter", "c.A"), state: "later" },
+  { entry: to("06:05", "goods", "b.A"), state: "out", request: "g1" },
+  { entry: to("06:06", "goods", "c.B"), state: "out", request: "g2" },
+  { entry: to("06:30", "local", "c.B"), state: "later" },
 );
+
+const MIXED = listRows(EVENING, SERVED);
 
 describe("a drag in a timetable's list", () => {
   it("names the first waiting request from where the row is let go", () => {
@@ -323,3 +337,433 @@ describe("a drag in a timetable's list", () => {
     }
   });
 });
+
+/** The list, holding the timetable and the requests it was handed, live. */
+async function list(
+  timetable: Timetable | null,
+  requests: readonly RequestRow[] = [],
+): Promise<TcRequests> {
+  const element = document.createElement("tc-requests");
+  element.timetable = timetable;
+  element.requests = requests;
+  element.live = true;
+  document.body.append(element);
+  await element.updateComplete;
+  return element;
+}
+
+/** The heading's words: the title, and the name beside it where one is. */
+function heading(element: TcRequests): (string | null)[] {
+  const header = element.renderRoot.querySelector("header")!;
+  return ["h2", ".name"].map((part) => header.querySelector(part)?.textContent!.trim() ?? null);
+}
+
+describe("tc-requests with a timetable", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("is headed Timetable and the loaded timetable's name", async () => {
+    expect(heading(await list(loaded()))).toEqual(["Timetable", "evening"]);
+  });
+
+  it("is headed Timetable alone where none is loaded", async () => {
+    expect(heading(await list(null, SERVED))).toEqual(["Timetable", null]);
+  });
+
+  it("draws each entry's time, train, destination and state, an out one as its request", async () => {
+    const element = await list(EVENING, SERVED);
+    expect(drawn(element)).toEqual([
+      ["06:01", "local", "→ d.A", "ended"],
+      ["06:02", "express", "c.A → a.B", "underway"],
+      ["06:03", "shunter", "→ c.A", "later"],
+      ["06:05", "goods", "a.B → b.A", "waiting"],
+      ["06:06", "goods", "b.A → c.B", "waiting"],
+      ["06:30", "local", "→ c.B", "later"],
+      [null, "local", "d.A → b.B, c.B", "waiting"],
+    ]);
+  });
+
+  it("draws turn for a turn-round's destination", async () => {
+    const turn: Entry = { at: "06:10", train: "goods", turn: true };
+    const element = await list(loaded({ entry: turn, state: "held" }));
+    expect(drawn(element)).toEqual([["06:10", "goods", "turn", "held"]]);
+  });
+
+  it("says no entries for a timetable with none, and no requests", async () => {
+    const element = await list(loaded());
+    expect(element.renderRoot.querySelector(".hint")!.textContent!.trim()).toBe("no entries");
+  });
+
+  it.each(["ended", "rejected", "cancelled", "skipped"] as const)(
+    "dims a row that is %s",
+    async (state) => {
+      const element = await list(
+        loaded(
+          { entry: to("06:01", "local", "d.A"), state },
+          { entry: to("06:02", "local", "c.B"), state: "held" },
+        ),
+      );
+      const rows = [...element.renderRoot.querySelectorAll("li")];
+      expect(rows.map((row) => row.classList.contains("done"))).toEqual([true, false]);
+      expect(rows[0]!.querySelector(".state")!.textContent!.trim()).toBe(state);
+    },
+  );
+
+  it("dims no row that is later, held or out, and no request", async () => {
+    const element = await list(EVENING, SERVED);
+    const rows = [...element.renderRoot.querySelectorAll("li")];
+    expect(rows.map((row) => row.classList.contains("done"))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(rule(requestsStyles.cssText, "li.done")).toMatch(/opacity:\s*0\.\d+/);
+  });
+
+  /** What the row of a request has today (`requests.test.ts`). */
+  describe("an out entry's row", () => {
+    it("has the cancel, and raises it with the request's id", async () => {
+      const element = await list(EVENING, SERVED);
+      const seen: string[] = [];
+      element.addEventListener("request-cancelled", (event) =>
+        seen.push((event as CustomEvent<{ id: string }>).detail.id),
+      );
+      const rows = [...element.renderRoot.querySelectorAll("li")];
+      expect(rows.map((row) => row.querySelector(".cancel") !== null)).toEqual([
+        false,
+        true,
+        false,
+        true,
+        true,
+        false,
+        true,
+      ]);
+      rows[3]!.querySelector<HTMLButtonElement>(".cancel")!.click();
+      expect(seen).toEqual(["g1"]);
+    });
+
+    it("has the line that says which train it waits for", async () => {
+      const waits = { ...SERVED[1]!, note: ["waits for express to pass"] };
+      const element = await list(EVENING, [SERVED[0]!, waits, SERVED[2]!, SERVED[3]!]);
+      const rows = [...element.renderRoot.querySelectorAll("li")];
+      expect(rows.map((row) => row.querySelector(".note")?.textContent!.trim() ?? null)).toEqual([
+        null,
+        null,
+        null,
+        "waits for express to pass",
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    it("has arrived while it is underway and the railroad runs without sensors", async () => {
+      const element = await list(EVENING, SERVED);
+      element.arrivable = true;
+      await element.updateComplete;
+      const seen: string[] = [];
+      element.addEventListener("request-arrived", (event) =>
+        seen.push((event as CustomEvent<{ id: string }>).detail.id),
+      );
+      const buttons = element.renderRoot.querySelectorAll<HTMLButtonElement>(".arrived");
+      expect(buttons).toHaveLength(1);
+      buttons[0]!.click();
+      expect(seen).toEqual(["e1"]);
+    });
+  });
+
+  describe("a drag", () => {
+    /** A press on the row at `at`, and the rows then picked up. */
+    async function pressed(element: TcRequests, at: number): Promise<number> {
+      element.renderRoot
+        .querySelectorAll("li")
+        [at]!.dispatchEvent(new PointerEvent("pointerdown", { button: 0, bubbles: true }));
+      await element.updateComplete;
+      return element.renderRoot.querySelectorAll("li.held").length;
+    }
+
+    it("picks up a waiting request, with an entry or without", async () => {
+      const element = await list(EVENING, SERVED);
+      const rows = [...element.renderRoot.querySelectorAll("li")];
+      expect(rows.map((row) => row.classList.contains("still"))).toEqual([
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        false,
+      ]);
+      expect(await pressed(element, 3)).toBe(1);
+    });
+
+    it("does not pick up an entry that is not out", async () => {
+      const element = await list(EVENING, SERVED);
+      expect(await pressed(element, 2)).toBe(0);
+      expect(await pressed(element, 0)).toBe(0);
+    });
+
+    /** `held` is an entry's state and also the mark of a row picked up. */
+    it("does not draw an entry that is held as picked up", async () => {
+      const element = await list(loaded({ entry: to("06:05", "goods", "b.A"), state: "held" }));
+      expect(element.renderRoot.querySelectorAll("li.held")).toHaveLength(0);
+    });
+
+    it("raises a move by the place in the list, and nothing for a refused one", async () => {
+      const element = await list(EVENING, SERVED);
+      const seen: RequestReorder[] = [];
+      element.addEventListener("request-reordered", (event) =>
+        seen.push((event as CustomEvent<RequestReorder>).detail),
+      );
+      element.move("l1", 3);
+      element.move("g2", 0);
+      element.move("e1", 7);
+      expect(seen).toEqual([{ id: "l1", before: "g1" }]);
+    });
+  });
+
+  /** happy-dom lays nothing out, so these watch which row is asked to scroll
+   *  into view. */
+  describe("where it opens", () => {
+    let asked: Element[];
+
+    beforeEach(() => {
+      asked = [];
+      vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+        this: Element,
+      ) {
+        asked.push(this);
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const gone = to("06:01", "local", "d.A");
+    const next = to("06:05", "goods", "b.A");
+    const last = to("06:30", "local", "c.B");
+
+    /** The time drawn on each row asked to scroll into view. */
+    function times(): (string | null)[] {
+      return asked.map((row) => row.querySelector(".time")?.textContent ?? null);
+    }
+
+    it("is scrolled to the first row that is not done when a timetable is first drawn", async () => {
+      await list(
+        loaded(
+          { entry: gone, state: "ended" },
+          { entry: next, state: "held" },
+          { entry: last, state: "later" },
+        ),
+      );
+      expect(times()).toEqual(["06:05"]);
+    });
+
+    it("is not scrolled again when an entry's state changes", async () => {
+      const element = await list(
+        loaded({ entry: gone, state: "ended" }, { entry: next, state: "held" }),
+      );
+      element.timetable = loaded(
+        { entry: gone, state: "ended" },
+        { entry: next, state: "ended", request: "g1" },
+        { entry: last, state: "later" },
+      );
+      await element.updateComplete;
+      element.requests = SERVED;
+      await element.updateComplete;
+      expect(times()).toEqual(["06:05"]);
+    });
+
+    it("is scrolled for a timetable that arrives after the list was drawn", async () => {
+      const element = await list(null, SERVED);
+      expect(asked).toEqual([]);
+      element.timetable = loaded({ entry: gone, state: "ended" }, { entry: last, state: "later" });
+      await element.updateComplete;
+      expect(times()).toEqual(["06:30"]);
+    });
+
+    it("is scrolled again for another timetable", async () => {
+      const element = await list(loaded({ entry: gone, state: "ended" }, { entry: next, state: "held" }));
+      element.timetable = { ...loaded({ entry: last, state: "later" }), name: "morning" };
+      await element.updateComplete;
+      expect(times()).toEqual(["06:05", "06:30"]);
+    });
+
+    it("is not scrolled where every row is done", async () => {
+      await list(loaded({ entry: gone, state: "ended" }));
+      expect(asked).toEqual([]);
+    });
+  });
+
+  describe("an entry's dwell and description", () => {
+    const meets: Entry = { ...to("06:05", "goods", "b.A"), dwell: 2, description: "meets the express" };
+
+    /** Each row's dwell and description as its markup has them. */
+    function more(element: TcRequests): (string | null)[][] {
+      return [...element.renderRoot.querySelectorAll("li")].map((row) =>
+        [".dwell", ".description"].map(
+          (part) => row.querySelector(part)?.textContent!.trim() ?? null,
+        ),
+      );
+    }
+
+    it("are in the row's markup, out as a request or not", async () => {
+      const element = await list(
+        loaded(
+          { entry: { ...meets, at: "06:01" }, state: "ended" },
+          { entry: meets, state: "out", request: "g1" },
+          { entry: to("06:30", "local", "c.B"), state: "later" },
+        ),
+        SERVED,
+      );
+      expect(more(element).slice(0, 3)).toEqual([
+        ["dwell 2 min", "meets the express"],
+        ["dwell 2 min", "meets the express"],
+        [null, null],
+      ]);
+    });
+
+    it("are shown where the list is 24rem wide or more, and not below that", () => {
+      const sheet = requestsStyles.cssText;
+      expect(rule(sheet, ":host")).toMatch(/container-type:\s*inline-size/);
+      const [narrow, wide] = sheet.split("@container (min-width: 24rem)");
+      expect(narrow).toMatch(/\.dwell,\s*\.description \{[^}]*display:\s*none/);
+      expect(wide).toMatch(/^\s*\{\s*\.dwell,\s*\.description \{[^}]*display:\s*block/);
+    });
+  });
+});
+
+describe("the run view's list", () => {
+  beforeEach(brokering);
+
+  afterEach(unbrokered);
+
+  /** `goods` waits for `express`, as the dispatcher last refused it. */
+  const REFUSED: Listed[] = [
+    LISTED[0]!,
+    {
+      ...LISTED[1]!,
+      refused: { reason: "unsafe", obstacles: [{ resource: "c", holder: "express" }] },
+    },
+    LISTED[2]!,
+  ];
+
+  /** `local` has been and gone, `express` and `goods` are out, and `local`
+   *  goes again at 06:30. Its request `l1` went out as no entry. */
+  const RUNNING = {
+    timetable: "evening",
+    phase: "running",
+    record: false,
+    start: "06:00",
+    trains: { goods: { at: "a", facing: "A-to-B" } },
+    positioning: [],
+    entries: [
+      { at: "06:01", train: "local", to: ["d.A"], state: "ended", request: "l0", ended: 55 },
+      { at: "06:02", train: "express", to: ["a.B"], state: "out", request: "e1" },
+      { at: "06:05", train: "goods", to: ["b.A"], dwell: 2, state: "out", request: "g1" },
+      { at: "06:30", train: "local", to: ["c.B"], state: "later" },
+    ],
+  };
+
+  /** A joined session whose picture holds `REFUSED`. */
+  async function serving(): Promise<{ shell: TcApp; element: TcRequests }> {
+    const shell = await joined();
+    await said(shell, ALLOCATION, {
+      trains: { goods: "a", express: "c", local: "d" },
+      occupied: { goods: ["a"], express: ["c"], local: ["d"] },
+      locks: { a: "goods" },
+      requests: REFUSED,
+    });
+    await settled(shell);
+    const element = running(shell).renderRoot.querySelector("tc-requests")!;
+    return { shell, element };
+  }
+
+  const REQUESTS = [
+    [null, "express", "c.A → a.B", "underway"],
+    [null, "goods", "a.B → b.A", "waiting"],
+    [null, "local", "d.A → b.B, c.B", "waiting"],
+  ];
+
+  it("is headed Timetable alone and lists the requests before the scheduler has said", async () => {
+    const { element } = await serving();
+    expect(heading(element)).toEqual(["Timetable", null]);
+    expect(drawn(element)).toEqual(REQUESTS);
+  });
+
+  it("lists the timetable the scheduler says is loaded, under its name", async () => {
+    const { shell, element } = await serving();
+    await said(shell, TIMETABLE, RUNNING);
+    expect(heading(element)).toEqual(["Timetable", "evening"]);
+    expect(drawn(element)).toEqual([
+      ["06:01", "local", "→ d.A", "ended"],
+      ["06:02", "express", "c.A → a.B", "underway"],
+      ["06:05", "goods", "a.B → b.A", "waiting"],
+      ["06:30", "local", "→ c.B", "later"],
+      [null, "local", "d.A → b.B, c.B", "waiting"],
+    ]);
+  });
+
+  /** The retained rows arrive in no fixed order. */
+  it("lists it where the scheduler's row came before the dispatcher's picture", async () => {
+    const shell = await joined();
+    await said(shell, TIMETABLE, RUNNING);
+    const element = running(shell).renderRoot.querySelector("tc-requests")!;
+    expect(drawn(element).map(([time, , , state]) => [time, state])).toEqual([
+      ["06:01", "ended"],
+      ["06:02", "out"],
+      ["06:05", "out"],
+      ["06:30", "later"],
+    ]);
+  });
+
+  it("keeps the waits-for line and the cancel on an out entry's row", async () => {
+    const { shell, element } = await serving();
+    await said(shell, TIMETABLE, RUNNING);
+    const goods = element.renderRoot.querySelectorAll("li")[2]!;
+    expect(goods.querySelector(".note")!.textContent!.trim()).toBe("waits for express to pass");
+    goods.querySelector<HTMLButtonElement>(".cancel")!.click();
+    expect(written()).toEqual([
+      { topic: "tc49/dispatch/cancel_wanted", payload: { id: "g1" } },
+    ]);
+  });
+
+  it("writes one reorder_wanted for a waiting row let go above an out entry", async () => {
+    const { shell, element } = await serving();
+    await said(shell, TIMETABLE, RUNNING);
+    element.move("l1", 2);
+    expect(written()).toEqual([
+      { topic: "tc49/dispatch/reorder_wanted", payload: { id: "l1", before: "g1" } },
+    ]);
+  });
+
+  it("lists the requests again once the row says no timetable is loaded", async () => {
+    const { shell, element } = await serving();
+    await said(shell, TIMETABLE, RUNNING);
+    await said(shell, TIMETABLE, { timetable: null });
+    expect(heading(element)).toEqual(["Timetable", null]);
+    expect(drawn(element)).toEqual(REQUESTS);
+  });
+});
+
+/** What the list draws, a row at a time: its time, where it has one, its
+ *  train, where it goes and its state. */
+function drawn(element: TcRequests): (string | null)[][] {
+  return [...element.renderRoot.querySelectorAll("li")].map((row) =>
+    [".time", ".train", ".way", ".state"].map(
+      (part) => row.querySelector(part)?.textContent!.trim() ?? null,
+    ),
+  );
+}
+
+/** The declarations of the rule for `selector`, at the start of a line. */
+function rule(sheet: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^\\s*${escaped} \\{([^}]*)\\}`, "m").exec(sheet)![1]!;
+}
