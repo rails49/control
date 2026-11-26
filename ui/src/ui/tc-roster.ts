@@ -4,7 +4,7 @@
  * [#170](https://github.com/rails49/control/issues/170),
  * [#1012](https://github.com/rails49/control/issues/1012)).
  *
- * It is in the run view's pane, left of the drawing or below it
+ * It is in the run view's pane, left of the drawing or above it
  * (ui/PANEL.md).
  *
  * A railroad's roster is every train it owns, whether on the layout or off it
