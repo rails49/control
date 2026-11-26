@@ -13,8 +13,9 @@
  *
  * A field changed and then left, or Enter pressed in it, raises
  * `entry-changed` with the entry as it reads and as it should read
- * (`model/timetable.ts`, `edited`). Words that are no value for the field, or
- * that change nothing, raise nothing. A time outside the timetable's repeat
+ * (`model/timetable.ts`, `edited`). Words that are no value for the field
+ * raise nothing. Words that change nothing raise nothing and are not
+ * refused. A time outside the timetable's repeat
  * raises nothing and the row says why under the time, "before the start
  * 06:00" or "after the last minute, 1d05:59" (`outside`), until the next
  * field is changed. Arrival ends that are none, that have an end other than
@@ -132,16 +133,18 @@ export class TcEntry extends LitElement {
    *  is drawn again with what the entry has. */
   private typed(entry: Entry, field: Field, event: Event): void {
     const words = (event.target as HTMLInputElement).value;
+    const now = edited(entry, field, words);
     const why =
-      field === "at" && this.timetable !== null
-        ? outside(this.timetable, words)
-        : field === "to"
-          ? misnamed(this.blocks, words)
-          : null;
+      now === null
+        ? null
+        : field === "at" && this.timetable !== null
+          ? outside(this.timetable, words)
+          : field === "to"
+            ? misnamed(this.blocks, words)
+            : null;
     this.refused = why === null ? null : { field, why };
-    const now = why === null ? edited(entry, field, words) : null;
     this.left();
-    if (now !== null) this.ask(entry, now);
+    if (now !== null && why === null) this.ask(entry, now);
   }
 
   /** No field is in use, and each is drawn again with what the entry has. */
