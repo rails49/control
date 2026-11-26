@@ -95,6 +95,7 @@ export const REVERSAL_WANTED = "tc49/schedule/reversal_wanted";
 export const TIMETABLE_WANTED = "tc49/schedule/timetable_wanted";
 export const TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted";
 export const TIMETABLE_RENAME_WANTED = "tc49/schedule/timetable_rename_wanted";
+export const TIMETABLE_REPEAT_WANTED = "tc49/schedule/timetable_repeat_wanted";
 export const ENTRY_WANTED = "tc49/schedule/entry_wanted";
 export const TIMETABLE_START_WANTED = "tc49/schedule/timetable_start_wanted";
 export const THROTTLE_WANTED = "tc49/layout/throttle_wanted";
@@ -175,6 +176,14 @@ export function timetableRecordWanted(record: boolean): Frame {
  *  scheduler drops it where the store has a timetable of that name (#1354). */
 export function timetableRenameWanted(to: string): Frame {
   return { topic: TIMETABLE_RENAME_WANTED, payload: { to } };
+}
+
+/** A `timetable_repeat_wanted` frame: set the loaded timetable's repeat to
+ *  `repeat`, a length in the time form greater than 0. The scheduler drops
+ *  it unless power reads `off`, and where an entry would fall at or after
+ *  the start plus the repeat (#1368). */
+export function timetableRepeatWanted(repeat: string): Frame {
+  return { topic: TIMETABLE_REPEAT_WANTED, payload: { repeat } };
 }
 
 /** A `timetable_start_wanted` frame: start the loaded timetable. It has no
