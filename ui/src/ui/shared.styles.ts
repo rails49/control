@@ -53,6 +53,25 @@ export const palette = unsafeCSS(
     .join("\n    "),
 );
 
+/**
+ * Declaration body. A column heading of a list in the run view's pane, in
+ * `tc-roster` and `tc-requests` (#1392, #1393): small, bold and in the hint
+ * colour, one line of 1rem with 0.2rem above and below it, so the two lists'
+ * heading rows are one height. It is on the paper colour, which covers the
+ * rows scrolled under it. Each list makes its heading row stay at the top of
+ * what scrolls, and gives it the space at its sides its rows have.
+ */
+export const columnHeading = css`
+  padding-block: 0.2rem;
+  background: var(--paper);
+  font-size: 0.7rem;
+  font-weight: bold;
+  line-height: 1rem;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--hint);
+`;
+
 // --- Whole rule sets ------------------------------------------------------
 // Interpolated at the top level of a sheet, selectors and all: `${symbols}`.
 

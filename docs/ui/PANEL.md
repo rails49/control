@@ -82,7 +82,9 @@ width is. The shape is the page's (`orientation`), not the view's.
 "Trains" and "Timetable" headings are on one line across the pane. Both are
 bold, in the ink colour, in capitals. The timetable's name and controls
 follow in its bar, and where they do not fit the controls wrap under it; the
-first line keeps the shared height.
+first line keeps the shared height. The two lists' column heading rows are
+one height too, and one look: small, bold, in the hint colour. Each list's
+rows scroll in a box of their own under its heading bar.
 
 **Each gap's position is kept in the browser**, in `localStorage`, under
 its own key, one for each of the two arrangements. A tablet and a desktop

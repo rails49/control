@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { heading } from "./shared.styles.js";
+import { columnHeading, heading } from "./shared.styles.js";
 
 /**
  * The list under the roster (`tc-requests`): the loaded timetable's entries
@@ -61,18 +61,14 @@ export const requestsStyles = css`
   }
 
   .columns {
+    ${columnHeading}
     grid-column: 1 / -1;
     display: grid;
     grid-template-columns: subgrid;
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 0.2rem;
-    background: var(--paper);
-    font-size: 0.7rem;
-    line-height: 1rem;
-    white-space: nowrap;
-    color: var(--hint);
+    padding-inline: 0.2rem;
   }
 
   ul {
