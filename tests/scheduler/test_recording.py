@@ -218,7 +218,8 @@ def test_untitled_replaces_the_one_the_store_has() -> None:
 
 def test_a_drag_is_recorded_at_the_clocks_minute_and_written() -> None:
     """The request is the one a drag gets with no store: the same id,
-    departure end and `dest`."""
+    departure end and `dest`. The entry keeps `to` as the gesture gave it:
+    the bare block goes out as both of its ends and is recorded bare."""
     store = Store()
     bus = recording(store)
     seen = collect(bus, SUBMITTED)
@@ -236,7 +237,7 @@ def test_a_drag_is_recorded_at_the_clocks_minute_and_written() -> None:
             "id": f"freight_1-{NONCE}-1",
             "train": "freight_1",
             "depart": "yard_w.B",
-            "dest": ["dn_e", "up_e.A"],
+            "dest": ["dn_e.A", "dn_e.B", "up_e.A"],
         }
     ]
     assert entries(bus) == [

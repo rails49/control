@@ -725,7 +725,8 @@ rather than a rule: a run an operator drives has no scenario's requests at all
 From one of the scenario's requests the scheduler does one thing: it expands
 the arrival ends, `to: [yard_e]` becoming `yard_e.A, yard_e.B`, which is
 *syntax* and needs no layout. From a **gesture** it supplies the two fields
-the gesture leaves out, the id and the departure end. It makes each request's
+the gesture leaves out, the id and the departure end, and expands a bare block
+in its `dest` the same way. It makes each request's
 **id** from a single counter, in the order of the scenario's requests
 (`<train>-1`, `<train>-2`), which is what a document's own order requires.
 The id means nothing to a consumer and only has to be unique
@@ -834,8 +835,9 @@ facing. It has no entries, Record is on and it is `running` at once.
 While the timetable is `running` and Record is on:
 
 - a drag the scheduler composes adds an entry at the clock's time to the
-  minute, with the train and `to` as the gesture gave it. The entry is `out`
-  and carries the id of the request the drag made;
+  minute, with the train and `to` as the gesture gave it, a bare block
+  still bare. The entry is `out` and carries the id of the request the drag
+  made;
 - a turn-round the scheduler applies adds an entry with `turn: true` that
   has `ended`. A turn-round it drops adds nothing.
 
@@ -912,9 +914,10 @@ It **loads** a timetable and **releases** its entries on the fast clock
   `at`. A train's entries go in order, each after the one before has
   ended, been rejected, cancelled or skipped, and after that one's dwell
   where it ended by arrival. An entry with `to` is composed as a drag of
-  its train to those arrival ends, so it has a drag's id and departure end
-  and chains after the train's latest request in flight, a person's
-  included. A turn-round is the reversal a person's gesture makes, and
+  its train to those arrival ends, so it has a drag's id and departure end,
+  a bare block goes out as both of its ends, and it chains after the
+  train's latest request in flight, a person's included. A turn-round is
+  the reversal a person's gesture makes, and
   waits while its train has a request in flight. An entry for a train off
   the layout is `skipped`. A rejected or cancelled entry is not released
   again.

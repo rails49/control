@@ -1057,7 +1057,8 @@ and the nine under `layout` above — are where rule 4 bites hardest: each
 payload is read defensively, and one that fails the read is dropped.
 
 - `tc49/schedule/request_wanted` — browser-writable — `train`; `dest`: list,
-  each entry a block or a block end, a bare block meaning either end.
+  each entry a block or a block end, a bare block meaning either end. The
+  request the scheduler submits names both ends of a bare block.
 - `tc49/schedule/reversal_wanted` — browser-writable — `train`.
 - `tc49/schedule/state/exhausted` — `exhausted`: boolean, `true` once the
   scenario's requests have all gone out.
