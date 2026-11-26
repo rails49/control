@@ -588,6 +588,8 @@ export class Panel {
 
   /** The layout the store last derived, as `relayout` was last handed it. */
   private layout!: Layout;
+  /** The names of that layout's blocks, the same list until `relayout`. */
+  blockNames: readonly string[] = [];
   /** transit resource → the legs its way takes and the wires it is drawn
    *  over, both the store's — the wires through the rule `inspect.wiresOn`
    *  transcribes from it. Worked out in `relayout`. */
@@ -617,6 +619,7 @@ export class Panel {
    */
   relayout(layout: Layout, explain: Explained, wires: readonly Wire[]): void {
     this.layout = layout;
+    this.blockNames = Object.keys(layout.blocks);
     this.ways.clear();
     this.reportedOn.clear();
     this.reported.clear();
