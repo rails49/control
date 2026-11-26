@@ -13,6 +13,9 @@ Record off, and loads the recording with power off. With power on the trains
 are driven to their start blocks, the clock is set to the start time and each
 entry goes out at its time.
 
+A timetable that repeats every ten minutes runs across midnight and on into
+its second round (#1367).
+
     yard_w.B -+- dn_w.A  dn_w.B -+- dn_e.A  dn_e.B -+- yard_e.A
               +- up_w.A  up_w.B -+- up_e.A  up_e.B -+
 
@@ -32,6 +35,7 @@ from tc49.lib.clock_row import FastClockRow
 from tc49.lib.fast_clock import FastClock, KeptClock
 from tc49.lib.inventory import leaf
 from tc49.lib.scenario import TrainSpec
+from tc49.lib.timetable import Timetable, read_timetable
 from tc49.scheduler import Scheduler
 from tc49.simulator import Simulator
 from tests.harness import load
@@ -74,6 +78,9 @@ TO_DN_W: Document = {"at": "06:09", "train": FREIGHT, "to": ["dn_w.A", "dn_w.B"]
 ENTRIES = [TO_DN_E, TO_YARD_W, TURN, TO_DN_W]
 """The four entries the person records, in the timetable's order."""
 
+ENDED: Document = {"state": "ended", "round": 0}
+"""What the row adds to an entry that ended in round 0."""
+
 RECORDED: Document = {
     "timetable": "untitled",
     "layout": "crossover-yard",
@@ -92,11 +99,12 @@ turn-round."""
 class Railroad:
     """Every app on one bus on crossover-yard, the two trains standing as
     `STANDS` has them and power off. `heard` is every message since, each
-    with the minute the clock row before it read."""
+    with the time of day, to the minute, the clock row before it read."""
 
-    def __init__(self) -> None:
+    def __init__(self, start: int = SIX, *held: Timetable) -> None:
+        """The fast clock starts at `start`, and the store holds `held`."""
         layout, roster, _scenario = load("crossover-yard/meet")
-        self.store = Store()
+        self.store = Store(*held)
         self.clock = Clock()
         self.bus = InProcessBus(self.clock)
         self.reads = ""
@@ -105,7 +113,7 @@ class Railroad:
         stood = placement(STANDS)
         clock = FastClockRow(
             self.bus,
-            FastClock(SIX, SPEED_UP, self.clock.now),
+            FastClock(start, SPEED_UP, self.clock.now),
             KeptClock(SIX, SPEED_UP),
             lambda: self.clock.now,
             lambda kept: None,
@@ -130,7 +138,7 @@ class Railroad:
     def _hear(self, topic: str, payload: Payload) -> None:
         if topic == CLOCK:
             time = payload["time"]
-            self.reads = f"{time // 3600:02d}:{time // 60 % 60:02d}"
+            self.reads = f"{time // 3600 % 24:02d}:{time // 60 % 60:02d}"
         self.heard.append((self.reads, topic, payload))
 
     def press(self, topic: str, payload: Payload) -> None:
@@ -226,9 +234,11 @@ class Railroad:
 def test_a_timetable_is_recorded_and_run_again() -> None:
     railroad = Railroad()
 
-    # 1. Power on, with two trains placed: the scheduler makes `untitled`.
+    # 1. Power on, with two trains placed: the scheduler makes `untitled`
+    # and asks for the clock's time of day, on day 0.
     railroad.press(POWER_WANTED, {"power": "on"})
     railroad.runs_to("06:00")
+    assert railroad.said("clock_wanted") == [{"time": SIX}]
     assert railroad.row() == {
         "timetable": "untitled",
         "phase": "running",
@@ -286,7 +296,7 @@ def test_a_timetable_is_recorded_and_run_again() -> None:
         "repeat": "1d00:00",
         "trains": RECORDED["trains"],
         "positioning": to_start,
-        "entries": [entry | {"state": "later"} for entry in ENTRIES],
+        "entries": [entry | {"state": "later", "round": 0} for entry in ENTRIES],
     }
     railroad.press(POWER_WANTED, {"power": "on"})
 
@@ -304,7 +314,7 @@ def test_a_timetable_is_recorded_and_run_again() -> None:
         "request_completed",
         "clock_wanted",
     ]
-    assert railroad.said("clock_wanted") == [{"time": SIX}]
+    assert railroad.said("clock_wanted", loaded) == [{"time": SIX}]
     assert railroad.reads == "06:00"
     assert (railroad.row()["phase"], railroad.row()["positioning"]) == ("running", [])
     started = len(railroad.heard)
@@ -351,9 +361,53 @@ def test_a_timetable_is_recorded_and_run_again() -> None:
     )
     assert railroad.completed(started) == [first, second, last]
     assert railroad.row()["entries"] == [
-        TO_DN_E | {"state": "ended", "request": first, "ended": 5 * 60},
-        TO_YARD_W | {"state": "ended", "request": second, "ended": 7 * 60},
-        TURN | {"state": "ended"},
-        TO_DN_W | {"state": "ended", "request": last, "ended": 12 * 60},
+        TO_DN_E | ENDED | {"request": first, "ended": SIX + 5 * 60},
+        TO_YARD_W | ENDED | {"request": second, "ended": SIX + 7 * 60},
+        TURN | ENDED,
+        TO_DN_W | ENDED | {"request": last, "ended": SIX + 12 * 60},
     ]
     assert railroad.store.document("untitled") == RECORDED
+
+
+NIGHT = read_timetable(
+    {
+        "timetable": "night",
+        "layout": "crossover-yard",
+        "start": "23:55",
+        "repeat": "00:10",
+        "trains": RECORDED["trains"],
+        "entries": [
+            {"at": "23:57", "train": FREIGHT, "to": ["dn_e.A", "dn_e.B"]},
+            {"at": "23:59", "train": FREIGHT, "turn": True},
+            {"at": "1d00:00", "train": FREIGHT, "to": ["dn_w.A", "dn_w.B"]},
+            {"at": "1d00:04", "train": FREIGHT, "turn": True},
+        ],
+    }
+)
+"""A timetable of ten minutes that crosses midnight: `freight_1` out to
+`dn_e` and back, turned round at each end, so each round leaves it where
+the round before began."""
+
+
+def test_a_timetable_with_a_short_repeat_runs_across_midnight_and_again() -> None:
+    railroad = Railroad(23 * 3600 + 50 * 60, NIGHT)
+    railroad.press(TIMETABLE_WANTED, {"timetable": "night"})
+    assert railroad.row()["phase"] == "loaded"
+    assert railroad.row()["positioning"] == []
+
+    railroad.press(POWER_WANTED, {"power": "on"})
+
+    assert railroad.said("clock_wanted") == [{"time": 23 * 3600 + 55 * 60}]
+    started = len(railroad.heard)
+    railroad.runs(lambda: len(railroad.completed(started)) == 4)
+    assert railroad.submitted(started) == [
+        ("23:57", FREIGHT, "dn_w.B", ["dn_e.A", "dn_e.B"]),
+        ("00:00", FREIGHT, "dn_e.A", ["dn_w.A", "dn_w.B"]),
+        ("00:07", FREIGHT, "dn_w.B", ["dn_e.A", "dn_e.B"]),
+        ("00:10", FREIGHT, "dn_e.A", ["dn_w.A", "dn_w.B"]),
+    ]
+    assert [
+        (entry["state"], entry["round"]) for entry in railroad.row()["entries"]
+    ] == [("ended", 1), ("ended", 1), ("ended", 1), ("later", 1)]
+    assert railroad.row()["phase"] == "running"
+    assert railroad.store.document("night") == NIGHT.document()
