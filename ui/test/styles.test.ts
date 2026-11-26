@@ -587,6 +587,29 @@ describe("the run view's pane", () => {
     expect(title).toMatch(/letter-spacing:/);
   });
 
+  /** The two lists' column heading rows are one look and one height, so
+   *  they line up side by side. */
+  it("heads both lists' columns with one rule", () => {
+    expect(rule(rosterStyles.cssText, "th")).toContain(shared.columnHeading.cssText);
+    expect(rule(requestsStyles.cssText, ".columns")).toContain(shared.columnHeading.cssText);
+  });
+
+  /** Each list's rows scroll in a box of their own under the heading bar, so
+   *  nothing scrolled shows above the bar or between it and the column
+   *  headings. */
+  it("scrolls each list's rows under its heading bar, not the bar with them", () => {
+    expect(rule(rosterStyles.cssText, ".rows")).toMatch(/overflow-y:\s*auto/);
+    expect(rule(requestsStyles.cssText, ".table")).toMatch(/overflow-y:\s*auto/);
+    // The roster's heading row is sticky as a whole and not cell by cell:
+    // WebKit draws the rows' text over a sticky cell.
+    expect(rule(rosterStyles.cssText, "thead")).toMatch(/position:\s*sticky/);
+    expect(rule(rosterStyles.cssText, "th")).not.toMatch(/position:\s*sticky/);
+    expect(rule(requestsStyles.cssText, ".columns")).toMatch(/position:\s*sticky/);
+    for (const sheet of [rosterStyles, requestsStyles]) {
+      expect(rule(sheet.cssText, ":host")).toMatch(/flex-direction:\s*column/);
+    }
+  });
+
   it("gives the timetable what the trains leave, each list scrolling on its own", () => {
     const trains = rule(panelStyles.cssText, "tc-roster");
     expect(trains).toMatch(/overflow-y:\s*auto/);

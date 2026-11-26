@@ -1,15 +1,15 @@
 import { css } from "lit";
 
-import { heading } from "./shared.styles.js";
+import { columnHeading, heading } from "./shared.styles.js";
 
 /**
  * The roster pane (`tc-roster`): the trains the run has, as a table, one row
  * each (#1392).
  *
  * It sits in the run view's pane, whose size is the view's
- * (`tc-panel.styles.ts`) and not declared here. The pane scrolls, and the
- * heading bar and the column heading row under it stay in view while the
- * rows scroll.
+ * (`tc-panel.styles.ts`) and not declared here. The heading bar stays in
+ * view, and the table scrolls under it in what is left of the pane's height,
+ * its column heading row at the top of what scrolls.
  *
  * A row is the photo of the train's first locomotive, its name, where it is,
  * where the loaded timetable starts it, and how long it is. The photo sits in
@@ -28,17 +28,16 @@ import { heading } from "./shared.styles.js";
  */
 export const rosterStyles = css`
   :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     padding: 0.4rem;
   }
 
   ${heading}
 
-  header {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--paper);
+  .rows {
+    min-height: 0;
+    overflow-y: auto;
   }
 
   table {
@@ -46,19 +45,18 @@ export const rosterStyles = css`
     border-collapse: collapse;
   }
 
-  th {
+  thead {
     position: sticky;
-    top: 2rem; /* under the heading bar, whose height is the shared one */
-    padding: 0 0.25rem 0.2rem;
-    background: var(--paper);
-    font-size: 0.7rem;
-    font-weight: bold;
-    text-align: left;
-    color: var(--hint);
+    top: 0;
+    z-index: 1;
+  }
+
+  th {
+    ${columnHeading}
+    padding-inline: 0.25rem;
   }
 
   td {
-    height: 1.8rem;
     padding: 0 0.25rem;
     vertical-align: middle;
   }
@@ -67,7 +65,6 @@ export const rosterStyles = css`
     cursor: grab;
   }
 
-  /* A table row takes no touch-action, so the drag's rules are on its cells. */
   tbody td {
     touch-action: none; /* a drag on a touch screen is a drag, not a scroll */
     -webkit-user-select: none; /* the rule Safari stops selecting for (#1312) */

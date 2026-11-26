@@ -20,6 +20,7 @@ import "../src/ui/tc-requests.js";
 import { reordering, requestRows, type Listed, type RequestRow } from "../src/model/requests.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { RequestReorder, TcRequests } from "../src/ui/tc-requests.js";
+import { columnHeading } from "../src/ui/shared.styles.js";
 import { requestsStyles } from "../src/ui/tc-requests.styles.js";
 import { running, settled } from "./support/shell.js";
 import { brokering, joined, said, unbrokered, written } from "./support/session.js";
@@ -190,13 +191,8 @@ describe("tc-requests", () => {
     expect(scrolled.querySelectorAll("li")).toHaveLength(ROWS.length);
     const sheet = requestsStyles.cssText;
     expect(rule(sheet, ".table")).toMatch(/overflow-y:\s*auto/);
-    const columns = rule(sheet, ".columns");
-    expect(columns).toMatch(/position:\s*sticky/);
-    expect(columns).toMatch(/top:\s*0/);
-    expect(columns).toMatch(/background:\s*var\(--paper\)/);
-    // A line of 1rem and 0.2rem above and below it.
-    expect(columns).toMatch(/line-height:\s*1rem/);
-    expect(columns).toMatch(/padding:\s*0\.2rem;/);
+    expect(rule(sheet, ".columns")).toContain(columnHeading.cssText);
+    // The heading row is a line of 1rem and 0.2rem above and below it.
     expect(rule(sheet, ".table")).toMatch(/scroll-padding-top:\s*1\.4rem/);
   });
 
