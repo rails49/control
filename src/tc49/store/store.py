@@ -396,8 +396,10 @@ class AssetStore:
 
     def timetables(self, railroad: str) -> list[str]:
         """The names of `railroad`'s timetables (#1345), sorted. A railroad
-        with none has an empty list, whether or not it has a drawing."""
-        paths = self._timetable_dir(railroad).glob("*.timetable.yaml")
+        with none has an empty list, whether or not it has a drawing. A file
+        whose name starts with `.` is no timetable: `_segment` refuses that
+        name on every route."""
+        paths = self._timetable_dir(railroad).glob("[!.]*.timetable.yaml")
         return sorted(path.name.removesuffix(".timetable.yaml") for path in paths)
 
     def timetable(self, railroad: str, name: str) -> dict[str, Any]:

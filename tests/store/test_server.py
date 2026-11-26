@@ -2028,6 +2028,33 @@ def _timetabled(store: AssetStore, railroad: str, *names: str) -> None:
         )
 
 
+def test_a_file_whose_name_no_route_takes_is_no_timetable(
+    store: AssetStore, tmp_path: Path, backup: Backup
+) -> None:
+    """A file manager leaves `._evening.timetable.yaml` beside the timetable
+    on some shares. No route reads or deletes a name with a leading `.`, so
+    it is not listed and a copy of the railroad passes it over."""
+    _timetabled(store, "facing-pair", "evening")
+    filed = tmp_path / "timetables" / "facing-pair"
+    (filed / "._evening.timetable.yaml").write_bytes(b"\x00\x05\x16\x07")
+    (filed / ".timetable.yaml").write_text("")
+
+    assert handle(store, backup, "GET", "/timetables/facing-pair", None) == (
+        200,
+        {"timetables": ["evening"]},
+    )
+    assert handle(
+        store, backup, "POST", "/railroads/facing-pair/copy", {"to": "b"}
+    ) == (200, {"copied": "b"})
+    assert handle(store, backup, "GET", "/timetables/b", None) == (
+        200,
+        {"timetables": ["evening"]},
+    )
+    assert [path.name for path in (tmp_path / "timetables" / "b").iterdir()] == [
+        "evening.timetable.yaml"
+    ]
+
+
 def test_a_copied_railroad_has_its_sources_timetables(
     store: AssetStore, tmp_path: Path, backup: Backup
 ) -> None:
