@@ -351,26 +351,47 @@ def test_an_address_is_written_as_a_string() -> None:
         roster({"re460_1": {"model": "sbb-re460", "addr": 460}})
 
 
-def test_a_car_may_say_where_its_camera_answers() -> None:
-    """A host name or an IPv4 address on the LAN, carried as written: the
-    `camera` app reads it to know where to fetch the picture (ADR-0082)."""
+@pytest.mark.parametrize(
+    "camera",
+    [
+        "http://192.168.178.58/media/?action=stream",
+        "http://cam:8080/?action=stream",
+        "http://cam/",
+    ],
+)
+def test_a_car_may_name_its_cameras_stream(camera: str) -> None:
+    """The URL of the camera's MJPEG stream, carried as written: the `camera`
+    app reads the picture there (ADR-0082)."""
     stock = roster(
         {
-            "cam_1": {"model": "sbb-ic2000", "camera": "192.168.178.58"},
+            "cam_1": {"model": "sbb-ic2000", "camera": camera},
             "ic_1": {"model": "sbb-ic2000"},
         }
     )
-    assert stock.cars["cam_1"].camera == "192.168.178.58"
+    assert stock.cars["cam_1"].camera == camera
     assert stock.cars["ic_1"].camera is None
 
 
 @pytest.mark.parametrize(
     "camera",
-    ["", 5, "http://cam", "admin@cam", "cam/media", "cam:8080", "-cam", "a b"],
+    [
+        "",
+        5,
+        "cam",
+        "https://cam/",
+        "rtsp://cam/",
+        "http://admin@cam/",
+        "http://a:b@cam/",
+        "http:///x",
+        "http://cam:0/",
+        "http://cam:99999/",
+        "http://cam/#x",
+        "http://ca m/",
+    ],
 )
-def test_a_camera_is_a_bare_host_and_nothing_else(camera: Any) -> None:
-    """No scheme, port, path or login, and a string not coerced, as `addr`
-    is: how to reach the camera beyond its host is the `camera` app's."""
+def test_a_camera_is_a_plain_http_url(camera: Any) -> None:
+    """Scheme `http`, a host, and no login or fragment; a string not coerced,
+    as `addr` is. The login is the `camera` app's environment."""
     with pytest.raises(ValueError, match="car 'cam_1'"):
         roster({"cam_1": {"model": "sbb-ic2000", "camera": camera}})
 
@@ -380,8 +401,8 @@ def test_two_cars_may_not_name_one_camera() -> None:
     with pytest.raises(ValueError, match="cars 'cam_1' and 'cam_2'"):
         roster(
             {
-                "cam_1": {"model": "sbb-ic2000", "camera": "cam.local"},
-                "cam_2": {"model": "sbb-ic2000", "camera": "cam.local"},
+                "cam_1": {"model": "sbb-ic2000", "camera": "http://cam/"},
+                "cam_2": {"model": "sbb-ic2000", "camera": "http://cam/"},
             }
         )
 
@@ -392,25 +413,25 @@ def test_a_trains_camera_is_its_first_camera_car_head_first() -> None:
     stock = roster(
         {
             "re460_1": {"model": "sbb-re460"},
-            "cam_1": {"model": "sbb-ic2000", "camera": "cam-1"},
-            "cam_2": {"model": "sbb-ic2000", "camera": "cam-2"},
+            "cam_1": {"model": "sbb-ic2000", "camera": "http://cam-1/"},
+            "cam_2": {"model": "sbb-ic2000", "camera": "http://cam-2/"},
         },
         {
             "ic_721": {
                 "cars": [{"car": "re460_1"}, {"car": "cam_2"}, {"car": "cam_1"}]
             },
             "light_1": {"cars": [{"model": "sbb-re460"}]},
-            "ic_722": {"cars": [{"model": "sbb-ic2000", "camera": "cam-3"}]},
+            "ic_722": {"cars": [{"model": "sbb-ic2000", "camera": "http://cam-3/"}]},
         },
     )
-    assert stock.trains["ic_721"].camera == "cam-2"
+    assert stock.trains["ic_721"].camera == "http://cam-2/"
     assert stock.trains["light_1"].camera is None
     assert stock.trains["ic_722"].camera is None
 
 
 def test_a_camera_on_a_model_is_an_unknown_key() -> None:
     """Which car carries a camera is a fact about the item, not the product."""
-    catalogue = models({**IC2000, "camera": "cam-1"})
+    catalogue = models({**IC2000, "camera": "http://cam-1/"})
     stock = validate_roster(
         {
             "roster": "reversing-loops",
