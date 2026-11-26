@@ -871,11 +871,19 @@ class Scheduler:
 
     def _on_clock(self, topic: str, payload: Payload) -> None:
         """A `tc49/layout/state/clock` row: the release rule takes the
-        clock's time from it. One that cannot be read is dropped."""
+        clock's time from it. One that cannot be read is dropped.
+
+        A row that moves a recording's start (#1371) and reads day 1 or later
+        asks for the clock on day 0 at its time of day, on
+        `tc49/layout/clock_wanted` with no `speed_up`, as `_make` does."""
         said = said_clock(payload)
         if said is None:
             return
-        self._state = release.clocked(self._state, *said)
+        time, speed_up = said
+        timetable = self._state.timetable
+        self._state = release.clocked(self._state, time, speed_up)
+        if self._state.timetable is not timetable and self._state.clock != time:
+            self._bus.publish(CLOCK_WANTED, {"time": self._state.clock})
         self._settle()
 
     def _on_power(self, topic: str, payload: Payload) -> None:
@@ -969,11 +977,11 @@ class Scheduler:
     def _settle(self) -> None:
         """What follows every message the scheduler takes, where it was
         given a store: the release rule is told the trains on the layout and
-        where each stands (`release.located`) and asked what to do, the timetable's document is written where it
-        changed, and the state row is published where it changed (#1352).
-        What the rule answers is `untitled` made, the loaded timetable
-        started (`_start`) and its due entries released (`_release`), in
-        that order (#1353).
+        where each stands (`release.located`) and asked what to do, the
+        timetable's document is written where it changed, and the state row
+        is published where it changed (#1352). What the rule answers is
+        `untitled` made, the loaded timetable started (`_start`) and its due
+        entries released (`_release`), in that order (#1353).
 
         The rule is told no trains until an allocation row was read, and
         makes no timetable until then. A change of an entry's state alone is
