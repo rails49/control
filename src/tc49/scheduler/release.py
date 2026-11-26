@@ -16,6 +16,7 @@ the timetable loaded next.
 | a `tc49/layout/state/clock` row | `clocked(state, time, speed_up)` |
 | `tc49/layout/state/power` | `powered(state, reads)` |
 | the trains on the layout | `placed(state, trains)` |
+| where each train on the layout stands | `located(state, trains)` |
 | `request_submitted`, whoever wrote it | `announced(state, request, train)` |
 | `request_completed`, `_rejected`, `_cancelled` | `ended(state, request, how)` |
 | it submitted the request for an entry `due` listed | `released(state, index, request)` |
@@ -72,6 +73,9 @@ The rules, in the words of #1345 and #1363:
   `ended` in that round. A new entry goes after the last entry at or
   before its time. In any other phase, or with Record off, a drag is a
   request with no entry (`dragged`, `turned_round`).
+- **Trains.** Where a drag adds an entry, a train on the layout that the
+  timetable's `trains` does not name is added to `trains` at its block and
+  facing. A train already named keeps its line (`located`).
 - **Edit.** A person changes or deletes an entry by naming it as it reads
   now: the first entry equal to it, and none where no entry is. A change to
   an `at` outside the repeat is dropped. A changed `at` moves the entry to
@@ -430,6 +434,27 @@ def turned_round(state: State, train: str) -> State:
         return state
     done = Progress(ENDED, round=_round(state))
     return _added(state, Entry(_recorded_at(state), train), done)
+
+
+def located(state: State, trains: Mapping[str, TrainStart]) -> State:
+    """The state after the scheduler told where each train on the layout
+    stands: `trains`, each one's block and facing.
+
+    Where `dragged` adds an entry, each train the timetable's `trains` does
+    not name is added to it as it stands. A train already named keeps its
+    line, and a train off the layout is not taken out."""
+    if not _records(state):
+        return state
+    timetable = state.timetable
+    assert timetable is not None
+    added = {
+        train: start for train, start in trains.items() if train not in timetable.trains
+    }
+    if not added:
+        return state
+    return replace(
+        state, timetable=replace(timetable, trains={**timetable.trains, **added})
+    )
 
 
 def _records(state: State) -> bool:

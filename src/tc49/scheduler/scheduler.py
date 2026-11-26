@@ -74,6 +74,8 @@ this module tells the rule what the bus said and does what it answers, in
   gesture is added as an entry that is `out`, and a turn-round applied as one
   that has `ended`. The entry follows its request to `ended`, `rejected` or
   `cancelled`. `tc49/schedule/timetable_record_wanted` switches Record.
+  While a drag adds an entry, a train on the layout that the timetable's
+  `trains` does not name is added to them at its block and facing (#1370).
 - `tc49/schedule/entry_wanted` changes or deletes the first entry equal to
   the one it names, in every phase. The entry keeps its state and its
   request, and a request that has gone out is left alone (#1354).
@@ -964,7 +966,7 @@ class Scheduler:
     def _settle(self) -> None:
         """What follows every message the scheduler takes, where it was
         given a store: the release rule is told the trains on the layout and
-        asked what to do, the timetable's document is written where it
+        where each stands (`release.located`) and asked what to do, the timetable's document is written where it
         changed, and the state row is published where it changed (#1352).
         What the rule answers is `untitled` made, the loaded timetable
         started (`_start`) and its due entries released (`_release`), in
@@ -977,9 +979,11 @@ class Scheduler:
         if self._store is None:
             return
         if self._standing is not None:
-            on_layout = frozenset(self._stands())
+            stands = self._stands()
+            on_layout = frozenset(stands)
             if on_layout != self._state.placed:
                 self._state = release.placed(self._state, on_layout)
+            self._state = release.located(self._state, stands)
         if release.untitled(self._state):
             self._make(release.UNTITLED)
         if release.starts(self._state):

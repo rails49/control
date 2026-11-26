@@ -14,7 +14,7 @@ from typing import Any
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.fast_clock import DAY_S
-from tc49.lib.timetable import Timetable
+from tc49.lib.timetable import Timetable, TrainStart
 from tc49.scheduler import Scheduler
 from tests.harness import Recording, subscribed_before_publishing
 from tests.scheduler.test_scheduler import NONCE, collect, seeded, yard
@@ -411,6 +411,140 @@ def test_a_record_gesture_that_cannot_be_read_is_dropped() -> None:
     say(bus, RECORD_WANTED, {"record": "off"})
 
     assert row(bus)["record"] is True
+
+
+def place(bus: InProcessBus, train: str, block: str) -> None:
+    """A train placed in `block`, as the dispatcher announces it: the fact,
+    then an allocation row with the train in that block beside the two
+    trains where they stand."""
+    say(bus, "tc49/dispatch/train_placed", {"train": train, "block": block})
+    allocation(bus, {**STANDING, train: block})
+
+
+def test_a_train_placed_while_recording_is_added_to_the_trains() -> None:
+    """At its block and the facing the scheduler holds for it, which for a
+    train placed from off the layout is `B-to-A`."""
+    store = Store()
+    bus = recording(store)
+
+    place(bus, "shunter", "up_w")
+
+    assert row(bus)["trains"] == {
+        "express_2": {"at": "up_e", "facing": "B-to-A"},
+        "freight_1": {"at": "yard_w", "facing": "A-to-B"},
+        "shunter": {"at": "up_w", "facing": "B-to-A"},
+    }
+    held = store.document("untitled")
+    assert held is not None
+    assert held["trains"]["shunter"] == {"at": "up_w", "facing": "B-to-A"}
+
+
+def test_a_train_placed_with_record_off_is_added_once_record_is_on() -> None:
+    store = Store()
+    bus = recording(store)
+    say(bus, RECORD_WANTED, {"record": False})
+
+    place(bus, "shunter", "up_w")
+
+    assert "shunter" not in row(bus)["trains"]
+    held = store.document("untitled")
+    assert held is not None
+    assert "shunter" not in held["trains"]
+
+    say(bus, RECORD_WANTED, {"record": True})
+
+    assert row(bus)["trains"]["shunter"] == {"at": "up_w", "facing": "B-to-A"}
+    held = store.document("untitled")
+    assert held is not None
+    assert held["trains"]["shunter"] == {"at": "up_w", "facing": "B-to-A"}
+
+
+def test_a_train_named_and_placed_again_elsewhere_keeps_its_line() -> None:
+    """`freight_1` is taken off and placed in `up_w`."""
+    store = Store()
+    bus = recording(store)
+    say(bus, "tc49/dispatch/train_removed", {"train": "freight_1"})
+    allocation(bus, {"express_2": "up_e"})
+
+    place(bus, "freight_1", "up_w")
+
+    assert row(bus)["trains"]["freight_1"] == {"at": "yard_w", "facing": "A-to-B"}
+    held = store.document("untitled")
+    assert held is not None
+    assert held["trains"]["freight_1"] == {"at": "yard_w", "facing": "A-to-B"}
+
+
+def test_a_removal_leaves_the_trains_as_they_were() -> None:
+    store = Store()
+    bus = recording(store)
+    before = row(bus)["trains"]
+
+    say(bus, "tc49/dispatch/train_removed", {"train": "express_2"})
+    allocation(bus, {"freight_1": "yard_w"})
+
+    assert row(bus)["trains"] == before
+    held = store.document("untitled")
+    assert held is not None
+    assert held["trains"] == before
+
+
+def test_a_train_placed_where_a_named_train_starts_is_added() -> None:
+    """`freight_1` starts in `yard_w`, is taken off, and `shunter` is placed
+    there. `yard_w.A` is a buffer stop, so `shunter` faces `A-to-B`."""
+    bus = recording(Store())
+    say(bus, "tc49/dispatch/train_removed", {"train": "freight_1"})
+    allocation(bus, {"express_2": "up_e"})
+
+    say(bus, "tc49/dispatch/train_placed", {"train": "shunter", "block": "yard_w"})
+    allocation(bus, {"express_2": "up_e", "shunter": "yard_w"})
+
+    assert row(bus)["trains"] == {
+        "express_2": {"at": "up_e", "facing": "B-to-A"},
+        "freight_1": {"at": "yard_w", "facing": "A-to-B"},
+        "shunter": {"at": "yard_w", "facing": "A-to-B"},
+    }
+
+
+def test_a_train_placed_while_a_timetable_is_loaded_is_not_added() -> None:
+    """With Record switched on, as a `loaded` timetable adds no entry for a
+    drag either."""
+    trains = {
+        "freight_1": TrainStart("yard_w", "A-to-B"),
+        "express_2": TrainStart("up_e", "B-to-A"),
+    }
+    store = Store(
+        Timetable("evening", "crossover-yard", at("06:00"), DAY_S, trains, ())
+    )
+    bus = InProcessBus(Clock())
+    Scheduler(bus, yard(), seeded(), nonce=NONCE, store=store)
+    allocation(bus)
+    clock(bus, "05:40")
+    power(bus, "off")
+    say(bus, TIMETABLE_WANTED, {"timetable": "evening"})
+    say(bus, RECORD_WANTED, {"record": True})
+    assert (row(bus)["phase"], row(bus)["record"]) == ("loaded", True)
+
+    place(bus, "shunter", "up_w")
+
+    assert "shunter" not in row(bus)["trains"]
+    held = store.document("evening")
+    assert held is not None
+    assert "shunter" not in held["trains"]
+
+
+def test_a_train_placed_after_a_restart_waits_for_the_first_clock_row() -> None:
+    store = Store()
+    rows = retained(store)
+    del rows[CLOCK]
+    bus = restarted(store, rows)
+
+    place(bus, "shunter", "up_w")
+
+    assert "shunter" not in row(bus)["trains"]
+
+    clock(bus, "06:09")
+
+    assert row(bus)["trains"]["shunter"] == {"at": "up_w", "facing": "B-to-A"}
 
 
 def test_a_new_timetable_by_name_is_made_with_power_off() -> None:
