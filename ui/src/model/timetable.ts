@@ -22,8 +22,8 @@
  *
  * A waiting request's row is dragged to reorder it, as in the request list,
  * and `moving` says what a drag asks the dispatcher. An entry that is not out
- * is no request and is not dragged. `opening` is the row the list is scrolled
- * to when a timetable is first drawn.
+ * is no request and is not dragged. `newest` is the row the list is scrolled
+ * to when the scheduler says a new row.
  *
  * An entry's row opens to its time, dwell and description
  * ([#1358](https://github.com/rails49/control/issues/1358)). `edited` is the
@@ -211,11 +211,51 @@ export function done(row: ListRow): boolean {
   return DONE.has(row.state);
 }
 
-/** The position of the row the list opens at, the first that is not done,
- *  `null` where every row is. */
-export function opening(rows: readonly ListRow[]): number | null {
-  const first = rows.findIndex((row) => !done(row));
-  return first === -1 ? null : first;
+const GONE: ReadonlySet<EntryState> = new Set(["out", "ended", "rejected", "cancelled"]);
+
+/**
+ * The position in the list of the newest entry once the scheduler's row
+ * `was` is followed by `now`, `null` for none: the row the list is scrolled
+ * to ([#1385](https://github.com/rails49/control/issues/1385)). An entry's
+ * place among the entries is its row's place in the list (`listRows`).
+ *
+ * An entry has gone out when it is `out`, `ended`, `rejected` or
+ * `cancelled`. A newest entry has gone out and is one `was` does not list,
+ * or one `was` lists `later` or `held`, or in an earlier round. `was` lists
+ * an entry that reads the same (`same`), or that went out as the same
+ * request: a changed entry keeps its request. Where several are newest, the
+ * last in the list is the row.
+ *
+ * With no `was`, or `was` another timetable by its name, the row is the last
+ * entry gone out in the highest round any entry has gone out in, and none
+ * where no entry has. A request no entry went out as is never the row.
+ */
+export function newest(was: Timetable | null, now: Timetable | null): number | null {
+  if (now === null) return null;
+  const gone = now.entries.map(({ state }) => GONE.has(state));
+  let at = -1;
+  if (was === null || was.name !== now.name) {
+    const top = Math.max(...now.entries.filter((_, i) => gone[i]).map(({ round }) => round));
+    now.entries.forEach(({ round }, i) => {
+      if (gone[i] && round === top) at = i;
+    });
+  } else {
+    now.entries.forEach(({ entry, round, request }, i) => {
+      if (!gone[i]) return;
+      const listed = was.entries.find(
+        (old) => same(old.entry, entry) || (request !== undefined && old.request === request),
+      );
+      if (
+        listed === undefined ||
+        listed.state === "later" ||
+        listed.state === "held" ||
+        listed.round < round
+      ) {
+        at = i;
+      }
+    });
+  }
+  return at === -1 ? null : at;
 }
 
 /**

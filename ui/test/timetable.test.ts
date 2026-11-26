@@ -25,7 +25,7 @@ import {
   done,
   listRows,
   moving,
-  opening,
+  newest,
   timetableOf,
   type Entry,
   type Scheduled,
@@ -274,28 +274,121 @@ describe("the list's rows", () => {
   });
 });
 
-describe("where the list opens", () => {
-  const entry = to("06:05", "goods", "b.A");
+describe("where the list scrolls", () => {
+  const goods = to("06:05", "goods", "b.A");
+  const local = to("06:30", "local", "c.B");
+  const turn: Entry = { at: "06:10", train: "goods", turn: true };
 
-  it("is the first row that is not done", () => {
+  it("is an entry a drag recorded, out at once", () => {
+    const was = loaded({ entry: local, state: "later", round: 0 });
+    const now = loaded(
+      { entry: goods, state: "out", round: 0, request: "g1" },
+      { entry: local, state: "later", round: 0 },
+    );
+    expect(newest(was, now)).toBe(0);
+  });
+
+  it("is a turn-round recorded, ended at once", () => {
+    const was = loaded({ entry: goods, state: "ended", round: 0, request: "g1" });
+    const now = loaded(
+      { entry: goods, state: "ended", round: 0, request: "g1" },
+      { entry: turn, state: "ended", round: 0 },
+    );
+    expect(newest(was, now)).toBe(1);
+  });
+
+  it.each(["later", "held"] as const)("is an entry that was %s and went out", (state) => {
+    const was = loaded({ entry: goods, state, round: 0 }, { entry: turn, state, round: 0 });
     expect(
-      opening([
-        { entry, state: "ended" },
-        { entry, state: "skipped" },
-        { entry, state: "held" },
-        { entry, state: "cancelled" },
-        { entry, state: "later" },
-      ]),
-    ).toBe(2);
+      newest(was, loaded({ entry: goods, state: "out", round: 0, request: "g1" }, { entry: turn, state, round: 0 })),
+    ).toBe(0);
+    expect(
+      newest(was, loaded({ entry: goods, state, round: 0 }, { entry: turn, state: "ended", round: 0 })),
+    ).toBe(1);
   });
 
-  it("is a request no entry went out as where every entry is done", () => {
-    expect(opening([{ entry, state: "ended" }, { request: GOODS! }])).toBe(1);
+  it("is an entry that went out in a later round", () => {
+    const ended = loaded({ entry: goods, state: "ended", round: 0, request: "g1" });
+    const again = loaded({ entry: goods, state: "later", round: 1, request: "g1" });
+    const out = loaded({ entry: goods, state: "out", round: 1, request: "g2" });
+    expect(newest(ended, again)).toBeNull();
+    expect(newest(again, out)).toBe(0);
+    // The round began and the entry went out between two of the scheduler's rows.
+    expect(newest(ended, out)).toBe(0);
   });
 
-  it("is nowhere where every row is done, or there is none", () => {
-    expect(opening([{ entry, state: "ended" }])).toBeNull();
-    expect(opening([])).toBeNull();
+  it("is the later in the list of two entries that went out in one row", () => {
+    const was = loaded({ entry: goods, state: "held", round: 0 }, { entry: local, state: "later", round: 0 });
+    const now = loaded(
+      { entry: goods, state: "out", round: 0, request: "g1" },
+      { entry: local, state: "out", round: 0, request: "l1" },
+    );
+    expect(newest(was, now)).toBe(1);
+  });
+
+  it.each(["ended", "rejected", "cancelled"] as const)("is none for an entry that is %s", (state) => {
+    const was = loaded({ entry: goods, state: "out", round: 0, request: "g1" });
+    expect(newest(was, loaded({ entry: goods, state, round: 0, request: "g1" }))).toBeNull();
+  });
+
+  /** A drag with Record off is a request no entry went out as: the row the
+   *  scheduler says next lists the same entries. */
+  it("is none for a request no entry went out as", () => {
+    const was = loaded({ entry: goods, state: "ended", round: 0, request: "g1" });
+    expect(newest(was, loaded({ entry: goods, state: "ended", round: 0, request: "g1" }))).toBeNull();
+  });
+
+  it("is none for an entry changed or deleted", () => {
+    const was = loaded(
+      { entry: goods, state: "out", round: 0, request: "g1" },
+      { entry: turn, state: "ended", round: 0 },
+      { entry: local, state: "later", round: 0 },
+    );
+    const moved = { ...goods, at: "06:20", description: "meets the express" };
+    expect(
+      newest(
+        was,
+        loaded(
+          { entry: turn, state: "ended", round: 0 },
+          { entry: moved, state: "out", round: 0, request: "g1" },
+          { entry: { ...local, dwell: 2 }, state: "later", round: 0 },
+        ),
+      ),
+    ).toBeNull();
+    expect(newest(was, loaded({ entry: turn, state: "ended", round: 0 }))).toBeNull();
+  });
+
+  /** An entry out since the round before is passed over for the entries of
+   *  this round that went out before it in the list. */
+  it("is the last entry gone out in the highest round when the list is first drawn", () => {
+    const now = loaded(
+      { entry: to("06:01", "local", "d.A"), state: "ended", round: 1, request: "l1" },
+      { entry: goods, state: "out", round: 1, request: "g1" },
+      { entry: to("06:20", "express", "a.B"), state: "out", round: 0, request: "e0" },
+      { entry: local, state: "later", round: 1 },
+    );
+    expect(newest(null, now)).toBe(1);
+  });
+
+  it("is none when the list is first drawn with no entry gone out", () => {
+    const now = loaded(
+      { entry: goods, state: "skipped", round: 0 },
+      { entry: turn, state: "held", round: 0 },
+      { entry: local, state: "later", round: 0 },
+    );
+    expect(newest(null, now)).toBeNull();
+    expect(newest(null, loaded())).toBeNull();
+    expect(newest(loaded(), null)).toBeNull();
+  });
+
+  /** The two may list the same entries: what the other timetable's row says
+   *  is not compared with this one's. */
+  it("is as when first drawn for another timetable loaded", () => {
+    const entries: Scheduled[] = [
+      { entry: goods, state: "ended", round: 0, request: "g1" },
+      { entry: local, state: "ended", round: 0, request: "l1" },
+    ];
+    expect(newest(loaded(...entries), { ...loaded(...entries), name: "morning" })).toBe(1);
   });
 });
 
@@ -561,7 +654,7 @@ describe("tc-requests with a timetable", () => {
 
   /** happy-dom lays nothing out, so these watch which row is asked to scroll
    *  into view. */
-  describe("where it opens", () => {
+  describe("where it scrolls", () => {
     let asked: Element[];
 
     beforeEach(() => {
@@ -586,49 +679,87 @@ describe("tc-requests with a timetable", () => {
       return asked.map((row) => row.querySelector(".time")?.textContent ?? null);
     }
 
-    it("is scrolled to the first row that is not done when a timetable is first drawn", async () => {
+    it("is scrolled to the entry that went out last when it is first drawn", async () => {
       await list(
         loaded(
-          { entry: gone, state: "ended", round: 0 },
-          { entry: next, state: "held", round: 0 },
+          { entry: gone, state: "ended", round: 0, request: "l0" },
+          { entry: next, state: "out", round: 0, request: "g1" },
           { entry: last, state: "later", round: 0 },
         ),
       );
       expect(times()).toEqual(["06:05"]);
     });
 
-    it("is not scrolled again when an entry's state changes", async () => {
+    it("is not scrolled when it is first drawn with no entry gone out", async () => {
+      await list(loaded({ entry: next, state: "held", round: 0 }, { entry: last, state: "later", round: 0 }));
+      expect(asked).toEqual([]);
+    });
+
+    it("is scrolled to each entry that goes out, and not for one that ends", async () => {
       const element = await list(
-        loaded({ entry: gone, state: "ended", round: 0 }, { entry: next, state: "held", round: 0 }),
+        loaded({ entry: gone, state: "ended", round: 0, request: "l0" }, { entry: next, state: "held", round: 0 }),
       );
       element.timetable = loaded(
-        { entry: gone, state: "ended", round: 0 },
+        { entry: gone, state: "ended", round: 0, request: "l0" },
+        { entry: next, state: "out", round: 0, request: "g1" },
+      );
+      await element.updateComplete;
+      element.timetable = loaded(
+        { entry: gone, state: "ended", round: 0, request: "l0" },
         { entry: next, state: "ended", round: 0, request: "g1" },
-        { entry: last, state: "later", round: 0 },
       );
       await element.updateComplete;
       element.requests = SERVED;
       await element.updateComplete;
-      expect(times()).toEqual(["06:05"]);
+      expect(times()).toEqual(["06:01", "06:05"]);
+    });
+
+    it("is scrolled to an entry a drag recorded", async () => {
+      const element = await list(loaded({ entry: next, state: "later", round: 0 }));
+      element.timetable = loaded(
+        { entry: next, state: "later", round: 0 },
+        { entry: last, state: "out", round: 0, request: "l1" },
+      );
+      await element.updateComplete;
+      expect(times()).toEqual(["06:30"]);
     });
 
     it("is scrolled for a timetable that arrives after the list was drawn", async () => {
       const element = await list(null, SERVED);
       expect(asked).toEqual([]);
-      element.timetable = loaded({ entry: gone, state: "ended", round: 0 }, { entry: last, state: "later", round: 0 });
+      element.timetable = loaded({ entry: gone, state: "ended", round: 0 }, { entry: last, state: "ended", round: 0 });
       await element.updateComplete;
       expect(times()).toEqual(["06:30"]);
     });
 
     it("is scrolled again for another timetable", async () => {
       const element = await list(loaded({ entry: gone, state: "ended", round: 0 }, { entry: next, state: "held", round: 0 }));
-      element.timetable = { ...loaded({ entry: last, state: "later", round: 0 }), name: "morning" };
+      expect(times()).toEqual(["06:01"]);
+      asked.length = 0;
+      element.timetable = { ...loaded({ entry: last, state: "ended", round: 0 }), name: "morning" };
       await element.updateComplete;
-      expect(times()).toEqual(["06:05", "06:30"]);
+      expect(times()).toEqual(["06:30"]);
     });
 
-    it("is not scrolled where every row is done", async () => {
-      await list(loaded({ entry: gone, state: "ended", round: 0 }));
+    it("is not scrolled to an entry that goes out while a row is open", async () => {
+      const element = await list(loaded({ entry: next, state: "held", round: 0 }, { entry: last, state: "later", round: 0 }));
+      element.renderRoot.querySelectorAll("li")[1]!.click();
+      await element.updateComplete;
+      asked.length = 0;
+      element.timetable = loaded(
+        { entry: next, state: "out", round: 0, request: "g1" },
+        { entry: last, state: "later", round: 0 },
+      );
+      await element.updateComplete;
+      expect(asked).toEqual([]);
+      // Nor once it closes: the entry went out while it was open.
+      element.renderRoot.querySelectorAll("li")[1]!.click();
+      await element.updateComplete;
+      element.timetable = loaded(
+        { entry: next, state: "out", round: 0, request: "g1" },
+        { entry: last, state: "later", round: 0 },
+      );
+      await element.updateComplete;
       expect(asked).toEqual([]);
     });
 
