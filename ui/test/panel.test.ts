@@ -968,6 +968,69 @@ describe("facing", () => {
 });
 
 /**
+ * The loaded timetable is the scheduler's too, on
+ * `tc49/schedule/state/timetable`: the model keeps the row as it keeps
+ * facing, whole and last-value, and the list in the pane is drawn from it
+ * ([#1356](https://github.com/rails49/control/issues/1356)).
+ */
+describe("the timetable", () => {
+  /** The row with one entry, `t1` to `b`, in `state`. */
+  function timetable(state: string, at?: number): Partial<TraceEvent> {
+    return {
+      event: "timetable",
+      timetable: "evening",
+      phase: "running",
+      record: true,
+      start: "06:00",
+      trains: { t1: { at: "a", facing: "A-to-B" } },
+      positioning: [],
+      entries: [{ at: "06:02", train: "t1", to: ["b.A"], state }],
+      ...(at === undefined ? {} : { at }),
+    };
+  }
+
+  it("is none before the scheduler has said", () => {
+    expect(panel().timetable).toBeNull();
+  });
+
+  it("is the row the scheduler last said", () => {
+    const model = panel();
+    feed(model, timetable("later"), timetable("held"));
+    expect(model.timetable).toMatchObject({
+      name: "evening",
+      entries: [{ entry: { at: "06:02", train: "t1", to: ["b.A"] }, state: "held" }],
+    });
+  });
+
+  it("is none once the row says none is loaded", () => {
+    const model = panel();
+    feed(model, timetable("later"), { event: "timetable", timetable: null });
+    expect(model.timetable).toBeNull();
+  });
+
+  /** BUS.md: a row with an unreadable payload is dropped and the last value
+   *  stands. */
+  it("stands where the next row cannot be read", () => {
+    const model = panel();
+    feed(model, timetable("later"), timetable("lost"));
+    expect(model.timetable?.entries[0]?.state).toBe("later");
+  });
+
+  it("keeps the later of two rows that arrive backwards", () => {
+    const model = panel();
+    feed(model, timetable("held", 20), timetable("later", 10));
+    expect(model.timetable?.entries[0]?.state).toBe("held");
+  });
+
+  it("is forgotten on reset, as everything else is", () => {
+    const model = panel();
+    feed(model, timetable("later"));
+    model.reset();
+    expect(model.timetable).toBeNull();
+  });
+});
+
+/**
  * What a drag puts on the bus (ADR-0036). A gesture is not a request: it
  * names a train and where to put it, and the scheduler adds the id it mints
  * and the departure end it holds. The panel keeps neither, so there is
