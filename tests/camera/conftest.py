@@ -4,9 +4,10 @@ waits shortened."""
 
 import http.client
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from http.server import HTTPServer
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -41,15 +42,15 @@ class Railroad:
         (root / "layouts").mkdir()
 
     def roster(self, trains: Mapping[str, str | None]) -> None:
-        """A roster whose trains each carry the camera named, or none. No two
-        trains name one camera: a camera is one car's, and a car stands in one
-        train (`lib/stock.py`)."""
+        """A roster whose trains each carry a camera at the URL given, or
+        none. No two trains name one URL: a camera is one car's, and a car
+        stands in one train (`lib/stock.py`)."""
         cars: dict[str, dict[str, str]] = {}
         made: dict[str, list[dict[str, str]]] = {}
-        for train, camera in trains.items():
+        for number, (train, camera) in enumerate(trains.items()):
             made[train] = [{"model": "arnold-ce68"}]
             if camera is not None:
-                car = f"car-{camera}"
+                car = f"car-{number}"
                 cars[car] = {"model": "bench-600", "camera": camera}
                 made[train].append({"car": car})
         doc = {
@@ -78,18 +79,9 @@ class Served:
         self._thread.join(timeout=5)
 
 
-class Lens:
-    """Where each camera host name a roster may hold is reached: the suite's
-    cameras listen on loopback ports, which a bare host name cannot carry."""
-
-    def __init__(self) -> None:
-        self.cameras: dict[str, Camera] = {}
-        self.away: dict[str, str] = {}
-
-    def url(self, camera: str) -> str:
-        if camera in self.cameras:
-            return self.cameras[camera].url
-        return self.away.setdefault(camera, f"http://127.0.0.1:{free_port()}{PATH}")
+def away() -> str:
+    """The URL of a camera nothing answers at."""
+    return f"http://127.0.0.1:{free_port()}{PATH}"
 
 
 @pytest.fixture
@@ -98,10 +90,17 @@ def railroad(tmp_path: Path) -> Iterator[Railroad]:
 
 
 @pytest.fixture
-def lens() -> Iterator[Lens]:
-    found = Lens()
-    yield found
-    for camera in found.cameras.values():
+def fake() -> Iterator[Callable[..., Camera]]:
+    """Starts a fake camera, stopped with the test."""
+    started: list[Camera] = []
+
+    def start(answer: str = "stream", **options: Any) -> Camera:
+        camera = Camera(answer, **options)
+        started.append(camera)
+        return camera
+
+    yield start
+    for camera in started:
         camera.stop()
 
 
@@ -114,10 +113,8 @@ def store(railroad: Railroad) -> Iterator[str]:
 
 
 @pytest.fixture
-def cameras(lens: Lens) -> Iterator[Cameras]:
-    opened = Cameras(
-        AUTHORIZATION, url=lens.url, silence_s=SILENCE_S, linger_s=LINGER_S
-    )
+def cameras() -> Iterator[Cameras]:
+    opened = Cameras(AUTHORIZATION, silence_s=SILENCE_S, linger_s=LINGER_S)
     yield opened
     opened.close()
 
