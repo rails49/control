@@ -218,6 +218,8 @@ describe("what the band says", () => {
 describe("the fast clock", () => {
   /** 10:08:30 by the railroad's clock. */
   const TEN_PAST = 10 * 3600 + 8 * 60 + 30;
+  /** Seconds in a day. */
+  const DAY = 86_400;
 
   function face(shell: TcApp): HTMLButtonElement | null {
     return bandClock(shell).renderRoot.querySelector<HTMLButtonElement>("button.face");
@@ -261,6 +263,11 @@ describe("the fast clock", () => {
     expect(hands.time).toBe(TEN_PAST);
   });
 
+  it("labels the face with the time of day alone on a later day", async () => {
+    const shell = await ticking(2 * DAY + 6 * 3600);
+    expect(face(shell)!.getAttribute("aria-label")).toBe("fast clock 06:00");
+  });
+
   it("says the speed-up beside the face where it is not 1", async () => {
     expect(face(await ticking())!.textContent!.trim()).toBe("");
     unbrokered();
@@ -293,13 +300,52 @@ describe("the fast clock", () => {
     expect(face(shell)).toBeNull();
   });
 
-  it("opens a dialog with the time and the speed-up", async () => {
+  it("opens a dialog with the day, the time and the speed-up", async () => {
     const clock = await opened(await ticking(TEN_PAST, 8));
     expect(clock.renderRoot.querySelector("look-dialog")).not.toBeNull();
     const field = (name: string) =>
       clock.renderRoot.querySelector<HTMLInputElement>(`sl-input.${name}`)!.value;
+    expect(field("day")).toBe("0");
     expect(field("time")).toBe("10:08");
     expect(field("speed-up")).toBe("8");
+  });
+
+  it("fills in the day the clock is on", async () => {
+    const clock = await opened(await ticking(2 * DAY + TEN_PAST));
+    const field = (name: string) =>
+      clock.renderRoot.querySelector<HTMLInputElement>(`sl-input.${name}`)!.value;
+    expect(field("day")).toBe("2");
+    expect(field("time")).toBe("10:08");
+  });
+
+  /** Setting 01:00 at 23:30 can mean tomorrow. */
+  it("publishes the day and the time of day as one time", async () => {
+    const shell = await ticking(23 * 3600 + 30 * 60);
+    const clock = await opened(shell);
+    await typed(clock, "day", "1");
+    await typed(clock, "time", "01:00");
+    saveButton(clock).click();
+    await settled(shell);
+    expect(written()).toEqual([{ topic: CLOCK_WANTED, payload: { time: 90_000 } }]);
+  });
+
+  it("publishes a time typed on a later day on that day", async () => {
+    const shell = await ticking(DAY + TEN_PAST);
+    const clock = await opened(shell);
+    await typed(clock, "time", "06:30");
+    saveButton(clock).click();
+    await settled(shell);
+    expect(written()).toEqual([
+      { topic: CLOCK_WANTED, payload: { time: DAY + 6 * 3600 + 30 * 60 } },
+    ]);
+  });
+
+  it("will not save a day that is not a whole number from 0", async () => {
+    const clock = await opened(await ticking());
+    for (const day of ["-1", "1.5", "", "01"]) {
+      await typed(clock, "day", day);
+      expect(saveButton(clock).disabled).toBe(true);
+    }
   });
 
   it("publishes only the speed-up where only it was changed", async () => {

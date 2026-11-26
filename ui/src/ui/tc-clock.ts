@@ -28,7 +28,8 @@ const C = 50;
 export class TcClock extends LitElement {
   static override styles = clockStyles;
 
-  /** The time drawn, fast seconds since midnight, `null` for none. */
+  /** The time drawn, fast seconds since midnight of day 0, `null` for none.
+   *  The face shows its time of day. */
   @property({ type: Number }) time: number | null = null;
 
   override render() {
