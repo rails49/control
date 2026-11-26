@@ -140,9 +140,7 @@ class _Time(str):
 
 
 class _Writer(yaml.SafeDumper):
-    """`yaml.SafeDumper` that writes a `_Time` in double quotes. The plain
-    dumper quotes only a time YAML 1.1 reads as a number: it writes `06:02`
-    bare and `'12:30'` quoted."""
+    """`yaml.SafeDumper` that writes a `_Time` in double quotes."""
 
 
 def _quoted(dumper: yaml.SafeDumper, time: _Time) -> yaml.ScalarNode:
@@ -751,9 +749,9 @@ class AssetStore:
         return self._root / "layouts" / f"{name}.settings.yaml"
 
     def _timetable_dir(self, railroad: str) -> Path:
-        """Where `railroad`'s timetables are. The railroad is a directory
-        here, so one that is no path segment is a `ValueError`: `..` would
-        name the store's root."""
+        """Where `railroad`'s timetables are, a directory named after it. A
+        railroad that is no path segment, `..` among them, is a `ValueError`
+        (`tc49.lib.timetable.segment`)."""
         return self._root / "timetables" / segment(railroad, "the railroad")
 
     def _timetable_path(self, railroad: str, name: str) -> Path:

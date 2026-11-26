@@ -200,8 +200,8 @@ class Simulator:
         `fast`: makes the fast clock, read off `clock`, said once each
         `CLOCK_S` of it from the run's start (ADR-0090), standing while this
         binding states power `off` (#1350). It is called once this binding
-        has stated `off`, as `layout` makes its clock, so the row hears no
-        power row a process before this one left on a broker. A run given
+        has stated `off`, as `layout` makes its clock, so the row is handed
+        no power row a process before this one left on a broker. A run given
         none says none, which is the research harness's: its traces are what
         they were.
 

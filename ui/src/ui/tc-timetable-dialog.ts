@@ -67,7 +67,7 @@ export class TcTimetableDialog extends LitElement {
   @state() private names: readonly string[] | null = null;
 
   /** The name Delete asks about, `null` until one is pressed. */
-  @state() private doomed: string | null = null;
+  @state() private deleting: string | null = null;
 
   /** What the store last refused with, or why a gesture was not raised. */
   @state() private trouble: string | null = null;
@@ -79,7 +79,7 @@ export class TcTimetableDialog extends LitElement {
 
   override render() {
     if (this.asked === "new" || this.asked === "rename") return this.naming(this.asked);
-    return this.doomed === null ? this.picking(this.asked) : this.confirming(this.doomed);
+    return this.deleting === null ? this.picking(this.asked) : this.confirming(this.deleting);
   }
 
   /** New and Rename: a name, checked as it is typed. */
@@ -193,7 +193,7 @@ export class TcTimetableDialog extends LitElement {
   private pick(asked: "load" | "delete", name: string): void {
     this.trouble = null;
     if (asked === "load") void this.load(name);
-    else this.doomed = name;
+    else this.deleting = name;
   }
 
   /** The store's names for the railroad, or what it said in place of them. */

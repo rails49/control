@@ -116,8 +116,7 @@ It **loads** a timetable and **releases** its entries on the fast clock
   stays loaded until another is loaded or made.
 - A restart adopts a `loaded` phase and the row's `positioning`. An id the
   first allocation row read does not list has ended. One rejected as
-  `unreachable` after a restart gets no second request: which requests
-  were first ones is not on the row.
+  `unreachable` after a restart gets no second request.
 """
 
 import secrets

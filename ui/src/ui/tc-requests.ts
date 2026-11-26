@@ -313,9 +313,8 @@ export class TcRequests extends LitElement {
    * - where the pointer is off the row. A row that is picked up captures the
    *   pointer, and a browser may send it the click that ends a drag.
    *
-   * Every row hears the click, a request's with no entry too. Under a finger
-   * WebKit sends the click of a tap on an element that hears none to one
-   * beside it that does, which opened the row above the one tapped.
+   * Every row has this listener, a request's with no entry too, where it
+   * opens nothing.
    */
   private tapped(event: MouseEvent, entry: Entry | undefined): void {
     if (entry === undefined) return;

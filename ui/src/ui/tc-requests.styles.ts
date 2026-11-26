@@ -103,7 +103,7 @@ export const requestsStyles = css`
     opacity: 0.5;
   }
 
-  /* Not while it is open: a dimmed field reads as one that takes no typing. */
+  /* An open row is not dimmed. */
   li.done:has(tc-entry) {
     opacity: 1;
   }

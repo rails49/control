@@ -620,9 +620,8 @@ def restarted(said: object, document: Timetable) -> State | None:
 
     The phase, Record, `positioning` and each entry's state, request and
     ending are the row's. So are the start time, the trains and the entries
-    where the document's differ: the scheduler is the one writer of a loaded
-    timetable. The document gives the railroad's name. A row whose phase is
-    `over` stays `over`.
+    where the document's differ. The document gives the railroad's name. A
+    row whose phase is `over` stays `over`.
 
     The state has been told nothing of the railroad. Its time is None, and
     the first clock row gives it (`clocked`).

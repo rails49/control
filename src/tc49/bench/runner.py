@@ -214,13 +214,13 @@ def assemble_live(
     *,
     make_bus: Callable[[Clock], InProcessBus] = InProcessBus,
 ) -> Assembly:
-    """The live wiring (#71): **a railroad and its roster**, and no scenario's
-    requests. That is the whole of what a run an operator drives is built from
-    (#171) — a drawing, the trains the railroad owns, and a person who places
-    them.
+    """The live wiring (#71): **a railroad and its roster**, and no requests
+    from a scenario. That is the whole of what a run an operator drives is
+    built from (#171) — a drawing, the trains the railroad owns, and a person
+    who places them.
 
     Which sources a run has is configuration rather than a rule (ADR-0036), and
-    a live run is given no scenario's requests at all: a scenario is the
+    a live run is given no requests from a scenario at all: a scenario is the
     harness's file format, and `bench/replay.py` replays one as gestures instead.
 
     `trains` stands them before anything runs instead, and is the harness's

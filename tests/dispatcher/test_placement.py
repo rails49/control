@@ -42,7 +42,7 @@ neither yard block (1400mm), so the fit rule has something to refuse."""
 
 
 def two_trains() -> dict[str, TrainSpec]:
-    """`crossover-yard` with no scenario's requests at all: a railroad standing
+    """`crossover-yard` with no requests from a scenario at all: a railroad standing
     still, which is what a person correcting a placement is looking at.
 
     `leviathan` stands in `dn_e`, so the occupancy rule has something to
