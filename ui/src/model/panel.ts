@@ -26,6 +26,7 @@ import type { Wire } from "./drawing.js";
 import { WHOLE, wiresOn } from "./inspect.js";
 import { requestRows, type Refused, type RequestRow } from "./requests.js";
 import type { Explained, Layout, TrainDoc } from "./store.js";
+import { timetableOf, type Timetable } from "./timetable.js";
 import {
   Ordering,
   sensorReport,
@@ -499,6 +500,10 @@ export class Panel {
    *  the scheduler last said. Read, never derived: facing is scheduler state
    *  (ADR-0019), and the topic carries it whole. */
   private heading = new Map<string, { block: string; toward: string }>();
+  /** The loaded timetable, as the scheduler last said on `state/timetable`,
+   *  `null` where it said none is loaded or has said nothing. Read, never
+   *  derived, as facing is. */
+  private timetableRow: Timetable | null = null;
   /** The trains and the blocks the detectors dispute, as the dispatcher last
    *  said (#153). Read and never derived: which blocks the layout has
    *  reported on at all is knowledge only the dispatcher holds, and a panel
@@ -642,6 +647,7 @@ export class Panel {
     this.occupied.clear();
     this.stood.clear();
     this.heading.clear();
+    this.timetableRow = null;
     this.disputed = new Set();
     this.unfitRows = [];
     this.brokenRules = [];
@@ -969,6 +975,13 @@ export class Panel {
             { block: blockOf(run), toward: noseOf(run) },
           ]),
         );
+        return;
+      }
+      case "timetable": {
+        // The scheduler's whole answer, last-value-wins. A row that cannot be
+        // read is dropped and the last value stands (BUS.md).
+        const read = timetableOf(event);
+        if (read !== undefined) this.timetableRow = read;
         return;
       }
       case "placement_refused": {
@@ -1640,6 +1653,14 @@ export class Panel {
         resource in this.layout.blocks ? resource : (this.stood.get(holder) ?? resource),
       this.unknownBlocks(),
     );
+  }
+
+  /** The loaded timetable as `tc49/schedule/state/timetable` last said it,
+   *  `null` where it said none is loaded or has said nothing (#1356). The
+   *  same object until the next row. The pane's list is `listRows` of it and
+   *  `requestList()` (`model/timetable.ts`). */
+  get timetable(): Timetable | null {
+    return this.timetableRow;
   }
 
   /** The blocks with a sensor not reporting, none while the railroad runs

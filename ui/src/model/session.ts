@@ -525,7 +525,10 @@ export class Session {
    * railroad read them off the store — what stock there is to place, which no
    * topic carries (ADR-0039, #758). Everything else comes off the bus:
    * placement, locks and live requests off the dispatcher's retained picture,
-   * facing off the scheduler's (ADR-0032, ADR-0036).
+   * facing and the loaded timetable off the scheduler's rows (ADR-0032,
+   * ADR-0036, #1356). The panel model keeps them, so both are held while the
+   * documents are read, kept through a rebuild under the same name, and gone
+   * with the model when the row names another railroad.
    */
   private named(railroad: string): void {
     if (railroad === "") {
