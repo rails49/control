@@ -86,6 +86,12 @@ export interface Answers {
    *  the names. A name it does not have is a 404 in the store's words, and
    *  `refuses` gives a document the store has and will not read (#1349). */
   timetables: (railroad: string) => Record<string, unknown>;
+  /** The file's text `/timetables/<railroad>/<name>` answers to
+   *  `Accept: application/yaml`, under `application/yaml`, for a name
+   *  `timetables` has. A name it does not have, and one `refuses` gives, is
+   *  the JSON refusal the document's read is (#1380). By default the document
+   *  written as JSON, which YAML reads. */
+  text: (railroad: string, name: string) => string;
   /** Every model the installation knows, which `/catalogue` answers. An
    *  installation that has written none answers an empty map — a fresh box,
    *  and not a fault (#392). */
@@ -205,6 +211,7 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     rosterOf: () => ({}),
     documentOf: (railroad) => ({ roster: railroad, trains: {} }),
     timetables: () => ({}),
+    text: (railroad, name) => JSON.stringify(store.timetables(railroad)[name], null, 2),
     catalogue: {},
     saved: [],
     deleted: [],
@@ -273,12 +280,25 @@ export function serving(answers: Partial<Answers> = {}): Answers {
     if (between !== null) return Promise.resolve(interposed(between));
     const unread = path.startsWith(TIMETABLES) ? unreadable(store, path) : null;
     if (unread !== null) return Promise.resolve(refused(unread));
+    if (path.startsWith(TIMETABLES) && yaml(init)) {
+      const [railroad, name] = timetableAt(path);
+      return Promise.resolve(
+        new Response(store.text(railroad, name!), {
+          headers: { "content-type": "application/yaml" },
+        }),
+      );
+    }
     return answered(store, path).then(
       (body) =>
         ({ ok: true, json: () => Promise.resolve(body) }) as unknown as Response,
     );
   }) as unknown as typeof fetch;
   return store;
+}
+
+/** Whether a call asks for YAML in its `Accept`. */
+function yaml(init: RequestInit | undefined): boolean {
+  return (new Headers(init?.headers).get("accept") ?? "").includes("application/yaml");
 }
 
 /** What a `PUT` carried, as the route takes it: a photo's own bytes, which is

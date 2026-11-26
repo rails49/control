@@ -374,6 +374,19 @@ export async function readTimetable(railroad: string, name: string): Promise<unk
   return await ask<unknown>("GET", timetablePath(railroad, name));
 }
 
+/** One timetable's file as the store keeps it: the same path as
+ *  `readTimetable`, asked for under `Accept: application/yaml`, and the
+ *  answer read as text. Refused as `readTimetable` is, in the store's JSON
+ *  words; an answer that is not YAML is not the store's (#1380). */
+export async function readTimetableText(railroad: string, name: string): Promise<string> {
+  const path = timetablePath(railroad, name);
+  const response = await reached("GET", path, { headers: { Accept: "application/yaml" } });
+  if (!response.ok) throw await failed("GET", path, response);
+  const kind = response.headers?.get("content-type") ?? "";
+  if (!kind.includes("yaml")) throw new Unanswered(answered("GET", path, response));
+  return await response.text();
+}
+
 /** Delete one timetable. Refused where the railroad has none of that name. */
 export async function deleteTimetable(railroad: string, name: string): Promise<void> {
   await ask("DELETE", timetablePath(railroad, name));
@@ -729,23 +742,36 @@ async function called<T>(
   path: string,
   sent: Pick<RequestInit, "headers" | "body" | "keepalive">,
 ): Promise<T> {
-  let response: Response;
+  const response = await reached(method, path, sent);
+  if (!response.ok) throw await failed(method, path, response);
+  const payload = await parsed<T>(response);
+  if (payload === null) throw new Unanswered(answered(method, path, response));
+  return payload;
+}
+
+/** The call made, or `NOT_ANSWERING` where `fetch` itself rejects. */
+async function reached(
+  method: string,
+  path: string,
+  sent: Pick<RequestInit, "headers" | "body" | "keepalive">,
+): Promise<Response> {
   try {
-    response = await fetch(path, { method, ...sent });
+    return await fetch(path, { method, ...sent });
   } catch {
     throw new Unanswered(NOT_ANSWERING);
   }
-  const payload = await parsed<T>(response);
-  if (payload === null) throw new Unanswered(answered(method, path, response));
-  if (!response.ok) {
-    // A status without the store's own words is no more the store's answer
-    // than an unparseable body is: an empty 500 names the request instead.
-    if (payload.error === undefined) {
-      throw new Unanswered(answered(method, path, response));
-    }
-    throw new Error(payload.error);
+}
+
+/** What a status that is not ok says: the store's words where its JSON body
+ *  carries `error`, and what was asked and what came back otherwise. A status
+ *  without the store's own words is no more the store's answer than an
+ *  unparseable body is: an empty 500 names the request instead. */
+async function failed(method: string, path: string, response: Response): Promise<Error> {
+  const payload = await parsed<unknown>(response);
+  if (payload === null || payload.error === undefined) {
+    return new Unanswered(answered(method, path, response));
   }
-  return payload;
+  return new Error(payload.error);
 }
 
 /** The answer read as the store's, or `null` where it is not one: a content
