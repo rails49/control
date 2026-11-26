@@ -364,10 +364,12 @@ def test_a_driving_gesture_that_cannot_be_read_is_dropped() -> None:
 
 
 def test_a_clock_gesture_reads_as_the_time_and_speed_up_it_asks_for() -> None:
-    """A time of day, a speed-up, or both (ADR-0090, decision 2); a field
-    left out leaves that part of the clock as it is."""
+    """A time, a speed-up, or both (ADR-0090, decision 2); a field left out
+    leaves that part of the clock as it is. A time has no upper limit."""
     assert wanted_clock({"time": 0}) == ClockSet(time=0, speed_up=None)
     assert wanted_clock({"time": 86399}) == ClockSet(time=86399, speed_up=None)
+    assert wanted_clock({"time": 86400}) == ClockSet(time=86400, speed_up=None)
+    assert wanted_clock({"time": 90000}) == ClockSet(time=90000, speed_up=None)
     assert wanted_clock({"speed_up": 8}) == ClockSet(time=None, speed_up=8.0)
     assert wanted_clock({"speed_up": 0.5}) == ClockSet(time=None, speed_up=0.5)
     assert wanted_clock({"time": 3600, "speed_up": 4}) == ClockSet(3600, 4.0)
@@ -380,8 +382,7 @@ def test_a_clock_gesture_that_cannot_be_read_is_dropped() -> None:
         "08:00",  # not an object at all
         {},  # neither field
         {"time": None},
-        {"time": -1},  # before midnight
-        {"time": 86400},  # midnight again, which is 0
+        {"time": -1},  # before midnight of day 0
         {"time": 3600.5},  # not whole seconds
         {"time": "3600"},  # not a number
         {"time": True},  # a bool is not an integer here
@@ -392,7 +393,7 @@ def test_a_clock_gesture_that_cannot_be_read_is_dropped() -> None:
         {"speed_up": "8"},
         {"speed_up": True},
         {"time": 3600, "speed_up": 0},  # one bad field fails both
-        {"time": 86400, "speed_up": 8},
+        {"time": -1, "speed_up": 8},
     ]
     for payload in refused:
         assert wanted_clock(payload) is None, payload
@@ -1711,6 +1712,10 @@ def test_a_timetable_row_that_cannot_be_read_lists_no_turn_round(
 
 def test_a_clock_row_says_the_time_and_the_speed_up() -> None:
     assert said_clock({"at": 12.5, "time": 21630, "speed_up": 8}) == (21630, 8.0)
+    assert said_clock({"time": 2 * 86400 + 21630, "speed_up": 8}) == (
+        2 * 86400 + 21630,
+        8.0,
+    )
 
 
 @pytest.mark.parametrize(
@@ -1720,7 +1725,7 @@ def test_a_clock_row_says_the_time_and_the_speed_up() -> None:
         {},
         {"time": 21630},
         {"speed_up": 8.0},
-        {"time": 86400, "speed_up": 8.0},
+        {"time": -1, "speed_up": 8.0},
         {"time": 21630, "speed_up": 0},
         {"time": True, "speed_up": 8.0},
     ],

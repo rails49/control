@@ -1,7 +1,8 @@
-"""The fast clock: the railroad's operating time of day (ADR-0090).
+"""The fast clock: the railroad's operating time (ADR-0090).
 
-It runs at its **speed-up** from a start time, wraps at midnight and has no
-date. It stands while track power is off and runs on from the time it stood
+It runs at its **speed-up** from a start time and counts days from 0: a time
+is fast-clock seconds since midnight of day 0, with no upper limit (#1363). It
+stands while track power is off and runs on from the time it stood
 at when power is on again (#1350); when it stands and runs is
 `lib.clock_row`'s to say. `layout` holds one per build and publishes it on
 `tc49/layout/state/clock` once a real second, so every page draws the same
@@ -27,13 +28,13 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 DAY_S = 24 * 60 * 60
-"""Seconds in a day: where the fast clock wraps."""
+"""Seconds in a day: the length of a fast-clock day."""
 
 
 @dataclass(frozen=True)
 class FastClock:
     """The fast clock as it was started: `start` fast-clock seconds since
-    midnight at `since`, a reading of the real clock in seconds, running
+    midnight of day 0 at `since`, a reading of the real clock in seconds, running
     `speed_up` fast seconds per real second from there. One that `stands`
     reads `start` at every reading, and `speed_up` is the rate it runs at
     once it runs."""
@@ -49,11 +50,11 @@ class FastClock:
             raise ValueError(f"a speed-up of {self.speed_up} is not greater than 0")
 
     def time(self, now: float) -> int:
-        """The time of day at the real clock's reading `now`, in whole
-        fast-clock seconds since midnight, `0` to `DAY_S - 1`."""
+        """The time at the real clock's reading `now`, in whole fast-clock
+        seconds since midnight of day 0."""
         if self.stands:
             return self.start
-        return int(self.start + (now - self.since) * self.speed_up) % DAY_S
+        return int(self.start + (now - self.since) * self.speed_up)
 
     def stood(self, now: float) -> "FastClock":
         """The clock standing from the real clock's reading `now`, at the
@@ -85,7 +86,7 @@ class FastClock:
             return FastClock(self.start, rate, now, True)
         stands = self.start + (now - self.since) * self.speed_up
         whole = math.floor(stands)
-        return FastClock(whole % DAY_S, rate, now - (stands - whole) / rate)
+        return FastClock(whole, rate, now - (stands - whole) / rate)
 
     def row(self, now: float) -> dict[str, int | float]:
         """The payload of `tc49/layout/state/clock` at `now`, less the stamp
@@ -107,7 +108,7 @@ _HH_MM = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])")
 class KeptClock:
     """What a railroad keeps of its fast clock (ADR-0090, decision 3): the
     time of day it starts at when loaded, in seconds since midnight on a whole
-    minute, and its speed-up."""
+    minute, and its speed-up. Loaded, the clock starts on day 0 at it."""
 
     start: int
     speed_up: float
@@ -121,7 +122,7 @@ class KeptClock:
 
     def started(self, now: float) -> FastClock:
         """The clock as the railroad is loaded at the real clock's reading
-        `now`: at its start time (ADR-0090, decision 4)."""
+        `now`: on day 0 at its start time (ADR-0090, decision 4)."""
         return FastClock(self.start, self.speed_up, now)
 
     def document(self) -> dict[str, str | float]:
@@ -134,9 +135,10 @@ class KeptClock:
 
 
 def start_of(time: int) -> int:
-    """`time`, in seconds since midnight, as a start time: rounded down to the
-    minute, which is all `"HH:MM"` says (ADR-0090, decision 3)."""
-    return time - time % 60
+    """`time`, in seconds since midnight of day 0, as a start time: its time
+    of day rounded down to the minute, which is all `"HH:MM"` says (ADR-0090,
+    decision 3). A set on day 1 at 06:30:40 starts at 06:30."""
+    return time % DAY_S - time % 60
 
 
 def kept_clock(doc: object) -> KeptClock:

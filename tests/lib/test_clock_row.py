@@ -97,6 +97,17 @@ def test_a_new_time_is_kept_as_the_start_rounded_down_to_the_minute() -> None:
     assert kept == [KeptClock(9 * 3600, 1.0)]
 
 
+def test_a_time_on_a_later_day_is_said_whole_and_kept_as_its_time_of_day() -> None:
+    """A set on day 1 at 06:30:40 reads on day 1 and saves `start: "06:30"`."""
+    kept: list[KeptClock] = []
+    bus, _, _, said = clocked(kept)
+    day_1 = 86400 + 6 * 3600 + 30 * 60 + 40
+    bus.publish(CLOCK_WANTED, {"time": day_1})
+    bus.drain()
+    assert said[-1]["time"] == day_1
+    assert [one.document()["start"] for one in kept] == ["06:30"]
+
+
 def test_a_new_speed_up_is_kept_with_the_start_it_had() -> None:
     """Where the clock stands is not kept, only what a person set: the
     railroad still starts at 07:00, now at 8."""
@@ -125,7 +136,7 @@ def test_a_clock_gesture_that_cannot_be_read_says_nothing() -> None:
     runs on as it was."""
     kept: list[KeptClock] = []
     bus, _, _, said = clocked(kept)
-    for payload in ({}, {"time": 86400}, {"speed_up": 0}, {"time": 1, "speed_up": -1}):
+    for payload in ({}, {"time": -1}, {"speed_up": 0}, {"time": 1, "speed_up": -1}):
         bus.publish(CLOCK_WANTED, payload)
     bus.drain()
     assert len(said) == 1
