@@ -163,8 +163,8 @@ src/
                    description, and Delete
     tc-timetable-controls.ts  the controls in that list's heading: the menu,
                    the Record switch and Start
-    tc-timetable-dialog.ts  the dialog a row of that menu opens: New, Load,
-                   Rename or Delete
+    tc-timetable-dialog.ts  the dialog a row of that menu opens: View, New,
+                   Load, Rename, Delete or Repeat
     tc-throttle.ts the throttle view: a row of throttles, each a panel with
                    its own id, as many as its width fits; the session stays
                    the app's
