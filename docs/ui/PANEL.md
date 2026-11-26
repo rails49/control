@@ -310,7 +310,7 @@ or asks the store, and what is drawn afterwards is what
 drops with nothing (BUS.md), so the page checks what it can before it
 publishes.
 
-The menu opens under its button and has four rows, each opening a dialog:
+The menu opens under its button and has five rows, each opening a dialog:
 
 - **New** asks for a name and publishes `tc49/schedule/timetable_wanted`
   (`{timetable, new: true}`). The scheduler makes a timetable of that name in
@@ -325,9 +325,18 @@ The menu opens under its button and has four rows, each opening a dialog:
 - **Delete** lists the same names less the loaded one. A press on one asks
   "Delete <name>?", and its Delete sends `DELETE /timetables/<railroad>/<name>`.
   Nothing is published: the loaded timetable is not offered.
+- **Repeat** asks for a length in the time form, filled in with the loaded
+  timetable's `repeat`, and publishes
+  `tc49/schedule/timetable_repeat_wanted` (`{repeat}`)
+  ([#1368](https://github.com/rails49/control/issues/1368)). It is disabled
+  with no timetable loaded. A length that is no time and `00:00` are refused
+  in the dialog. So is a length too short for the latest entry, with a line
+  naming that entry and the shortest repeat that fits, its offset from the
+  start plus one minute: with a start of 06:00 and a latest entry at 08:59,
+  *the latest entry is at 08:59, so the shortest repeat is 03:00*.
 
-New and Load are disabled while track power reads `on` or `draining`, since
-the scheduler takes them only with power `off`. The row says *track power is
+New, Load and Repeat are disabled while track power reads `on` or
+`draining`, since the scheduler takes them only with power `off`. The row says *track power is
 on* in its tooltip, as the rail does for a view that does not open. A dialog
 left open while power comes on publishes nothing and says the same.
 

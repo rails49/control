@@ -344,6 +344,7 @@ control writes the text row ([ADR-0087](adr/0087-a-widget-is-on-the-drawing-and-
 | `tc49/schedule/timetable_wanted` | event | any (browser) | load the timetable of this name, or make a new one ([#1345](https://github.com/rails49/control/issues/1345)) |
 | `tc49/schedule/timetable_record_wanted` | event | any (browser) | switch Record on or off ([#1345](https://github.com/rails49/control/issues/1345)) |
 | `tc49/schedule/timetable_rename_wanted` | event | any (browser) | rename the loaded timetable ([#1354](https://github.com/rails49/control/issues/1354)) |
+| `tc49/schedule/timetable_repeat_wanted` | event | any (browser) | set the loaded timetable's repeat ([#1368](https://github.com/rails49/control/issues/1368)) |
 | `tc49/schedule/entry_wanted` | event | any (browser) | change or delete one entry of the loaded timetable ([#1354](https://github.com/rails49/control/issues/1354)) |
 | `tc49/schedule/timetable_start_wanted` | event | any (browser) | start the loaded timetable ([#1353](https://github.com/rails49/control/issues/1353)) |
 | `tc49/schedule/state/timetable` | state | scheduler | the loaded timetable: its phase, Record and each entry's state ([#1345](https://github.com/rails49/control/issues/1345)) |
@@ -1099,6 +1100,15 @@ payload is read defensively, and one that fails the read is dropped.
   where the name is one the timetable document does not take, and where the
   store has a timetable of that name, the loaded one's own name included
   ([#1345](https://github.com/rails49/control/issues/1345), [#1354](https://github.com/rails49/control/issues/1354)).
+- `tc49/schedule/timetable_repeat_wanted` — browser-writable — `repeat`:
+  text, a length in the time form
+  ([LAYOUT.md](store/LAYOUT.md#timetable-schema)), greater than 0: `03:00`,
+  `1d00:00`. Not retained. The scheduler sets the loaded timetable's
+  `repeat` and writes the document to the store, and `state/timetable` shows
+  the new `repeat`. Taken in `loaded` and `running`. Each entry keeps its
+  round. Dropped unless `tc49/layout/state/power` reads `off`, where no
+  timetable is loaded, and where an entry would fall at or after `start`
+  plus `repeat` ([#1368](https://github.com/rails49/control/issues/1368)).
 - `tc49/schedule/entry_wanted` — browser-writable — `was`: an entry as
   `state/timetable` lists it, with the document's fields only: `at`, `train`,
   `to` or `turn`, and `dwell` and `description` where it has them. `now`: an
