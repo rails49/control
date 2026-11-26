@@ -162,4 +162,31 @@ describe("an item that does not apply just now", () => {
     expect(busy!.disabled).toBe(true);
     expect(free!.disabled).toBe(false);
   });
+
+  /** A disabled button takes no hover and no focus, so a row that says why
+   *  is aria-disabled and sits in its tooltip, as a press on the rail does
+   *  (#1357). */
+  it("says why in a tooltip where it is given a reason, and chooses nothing", async () => {
+    const [shut] = await drawn({ x: 10, y: 10 }, [
+      { label: "New", action: "new", disabled: true, reason: "track power is on" },
+    ]);
+    const menu = document.querySelector("tc-menu:last-of-type")!;
+    let chose = 0;
+    menu.addEventListener("menu-action", () => (chose += 1));
+
+    expect(shut!.disabled).toBe(false);
+    expect(shut!.getAttribute("aria-disabled")).toBe("true");
+    expect(shut!.getAttribute("aria-description")).toBe("track power is on");
+    expect(shut!.closest("sl-tooltip")!.getAttribute("content")).toBe("track power is on");
+    shut!.click();
+    expect(chose).toBe(0);
+  });
+
+  it("keeps a reason to itself while the item can be chosen", async () => {
+    const [open] = await drawn({ x: 10, y: 10 }, [
+      { label: "New", action: "new", reason: "track power is on" },
+    ]);
+    expect(open!.closest("sl-tooltip")).toBeNull();
+    expect(open!.hasAttribute("aria-disabled")).toBe(false);
+  });
 });

@@ -64,13 +64,13 @@ const dismiss = css`
  * about to be chosen.
  */
 const menuRowChosen = css`
-  li button:hover:not(:disabled) {
+  li button:hover:not(:disabled, [aria-disabled="true"]) {
     background: var(--chosen);
     color: #fff;
   }
 
   /* The key set beside the label goes with it. */
-  li button:hover:not(:disabled) kbd {
+  li button:hover:not(:disabled, [aria-disabled="true"]) kbd {
     color: inherit;
     opacity: 0.75;
   }
@@ -104,8 +104,11 @@ export const menuStyles = css`
   ${menuRowChosen}
 
   /* Offered and not choosable: greyed says *this does not apply just now*,
-     where leaving the item out says nothing at all. */
-  button:disabled {
+     where leaving the item out says nothing at all. A row that says why in a
+     tooltip is aria-disabled, so it still takes the hover and the focus that
+     open one. */
+  button:disabled,
+  button[aria-disabled="true"] {
     color: var(--hint);
     cursor: default;
   }

@@ -1,9 +1,10 @@
 /**
- * A right-click menu: the items it is given, at the point it is given.
+ * A right-click menu: the items it is given, at the point it is given. The
+ * timetable's heading hangs one under a button (`tc-timetable-controls`).
  *
  * Items are data — a label, the action choosing one sends, an optional key
- * printed beside it, and whether it is greyed. What applies to whatever was
- * clicked is the page's question and not the menu's: the editor works out
+ * printed beside it, whether it is greyed, and optionally why. What applies
+ * to whatever was clicked is the page's question and not the menu's: the editor works out
  * what a symbol or a wire offers, the panel what a train does. What is shared
  * is the fiddly half — dismissal on a press outside, positioning at the
  * pointer, and the keycap column.
@@ -13,6 +14,7 @@
 
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import "@shoelace-style/shoelace/dist/components/tooltip/tooltip.js";
 
 import { dismissal } from "./dismissal.js";
 import { menuStyles } from "./tc-menu.styles.js";
@@ -25,6 +27,9 @@ export interface MenuItem {
   action: string;
   key?: string;
   disabled?: boolean;
+  /** Why a disabled row cannot be chosen. It is the row's tooltip and its
+   *  description, as the rail's is for a view that does not open. */
+  reason?: string;
 }
 
 @customElement("tc-menu")
@@ -50,6 +55,20 @@ export class TcMenu extends LitElement {
    *  transforms off the header this is where they are learnt, a menu being
    *  where a shortcut is conventionally read (EDITOR.md#editing). */
   private row(item: MenuItem) {
+    const why = item.disabled ? (item.reason ?? "") : "";
+    if (why !== "") {
+      // Not `disabled`: a disabled button takes no focus and no hover, so its
+      // tooltip would never open.
+      return html`
+        <li>
+          <sl-tooltip content=${why} hoist>
+            <button aria-disabled="true" aria-description=${why}>
+              <span>${item.label}</span>
+            </button>
+          </sl-tooltip>
+        </li>
+      `;
+    }
     return html`
       <li>
         <button
