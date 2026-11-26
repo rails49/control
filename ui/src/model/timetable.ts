@@ -36,8 +36,9 @@
  * entry reads the same (`placeOf`).
  *
  * `startNotes` is what the roster says about a train that is not where the
- * loaded timetable starts. `repeatRefused` is why a length typed for its
- * repeat is refused.
+ * loaded timetable starts. `repeatRefused` is why a length is refused as its
+ * repeat, and `typedRepeatRefused` why the Repeat dialog sends nothing for
+ * what a person typed.
  */
 
 import { DAY_S, timeOf, written } from "./clock.js";
@@ -420,6 +421,21 @@ export function repeatRefused(
   return `the latest entry is at ${written(latest)}, so the shortest repeat is ${written(
     latest - timetable.start + 60,
   )}`;
+}
+
+/** Why the Repeat dialog sends nothing for `words` typed as `timetable`'s
+ *  repeat, `null` where it sends them: they are no length, `repeatRefused`
+ *  refuses the length, or track power is on (`powered`). With no timetable
+ *  loaded only the words and the power are checked. */
+export function typedRepeatRefused(
+  timetable: Parameters<typeof repeatRefused>[0] | null,
+  words: string,
+  power: Power | null,
+): string | null {
+  const length = timeOf(words);
+  if (length === null) return `'${words.trim()}' is no length: write [<day>d]HH:MM`;
+  const short = timetable === null ? null : repeatRefused(timetable, length);
+  return short ?? (powered(power) || null);
 }
 
 /** Why a new timetable and a load are not asked for, `""` where they are:
