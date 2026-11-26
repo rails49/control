@@ -837,7 +837,12 @@ facing for, with that block and facing. It has no entries, Record is on and
 it is `running` at once. The scheduler publishes `tc49/layout/clock_wanted`
 with the clock's time of day to the second, on day 0, so the clock and the
 timetable read the same numbers and the face does not move
-([#1367](https://github.com/rails49/control/issues/1367)).
+([#1367](https://github.com/rails49/control/issues/1367)). While it records
+and has no entries, a clock row that reads before the clock, or more than two
+beats (2 × `speed_up` seconds) after it, moves the start to that row's time of
+day rounded down to the minute, the clock to that time of day on day 0, and
+the document is written
+([#1371](https://github.com/rails49/control/issues/1371)).
 
 While the timetable is `running` and Record is on:
 
