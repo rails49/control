@@ -145,7 +145,6 @@ import math
 from dataclasses import dataclass, field
 from typing import cast
 
-from tc49.lib.fast_clock import DAY_S
 from tc49.lib.inventory import (
     AT,
     CLEAR,
@@ -565,8 +564,8 @@ def wanted_driving(payload: object) -> str | None:
 
 @dataclass(frozen=True)
 class ClockSet:
-    """What a person sets the fast clock to (ADR-0090, decision 2): a time of
-    day in whole seconds since midnight, a speed-up, or both. None leaves
+    """What a person sets the fast clock to (ADR-0090, decision 2): a time
+    in whole seconds since midnight of day 0, a speed-up, or both. None leaves
     that part of the clock as it is."""
 
     time: int | None
@@ -579,7 +578,7 @@ def wanted_clock(payload: object) -> ClockSet | None:
 
     At least one of the two fields, and each one given in range, or the
     gesture is dropped whole: a good time beside a bad speed-up is not half
-    taken. `time` is an integer, `0` to `DAY_S - 1`, and `speed_up` a finite
+    taken. `time` is an integer, 0 or more, and `speed_up` a finite
     number greater than 0. A bool is neither, though Python counts it an
     integer.
     """
@@ -593,7 +592,7 @@ def wanted_clock(payload: object) -> ClockSet | None:
         stated = fields["time"]
         if isinstance(stated, bool) or not isinstance(stated, int):
             return None
-        if not 0 <= stated < DAY_S:
+        if stated < 0:
             return None
         time = stated
     speed_up: float | None = None
@@ -608,10 +607,9 @@ def wanted_clock(payload: object) -> ClockSet | None:
 
 
 def said_clock(payload: object) -> tuple[int, float] | None:
-    """The time of day and the speed-up a `tc49/layout/state/clock` row
-    says, or None where it does not say both. Each is read as `wanted_clock`
-    reads it. The scheduler moves the loaded timetable's time by it
-    (#1345)."""
+    """The time and the speed-up a `tc49/layout/state/clock` row says, or
+    None where it does not say both. Each is read as `wanted_clock` reads it.
+    The scheduler moves the loaded timetable's time by it (#1345)."""
     said = wanted_clock(payload)
     if said is None or said.time is None or said.speed_up is None:
         return None

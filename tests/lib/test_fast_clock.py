@@ -31,10 +31,16 @@ def test_it_reads_whole_seconds() -> None:
     assert clock.time(1.0) == 1
 
 
-def test_it_wraps_at_midnight_and_has_no_date() -> None:
+def test_it_counts_on_past_midnight() -> None:
+    """Started at 23:59 and run two fast minutes, it reads 00:01 on day 1."""
+    clock = FastClock(start=DAY_S - 60, speed_up=8.0, since=0.0)
+    assert clock.time(15.0) == DAY_S + 60
+    assert clock.time(15.0 + 3 * DAY_S / 8) == 4 * DAY_S + 60
+
+
+def test_a_speed_up_set_past_midnight_keeps_the_day() -> None:
     clock = FastClock(start=DAY_S - 10, speed_up=1.0, since=0.0)
-    assert clock.time(15.0) == 5
-    assert clock.time(15.0 + 3 * DAY_S) == 5
+    assert clock.changed(20.0, speed_up=8.0).time(21.0) == DAY_S + 18
 
 
 def test_its_row_is_the_time_and_the_speed_up() -> None:
@@ -133,3 +139,8 @@ def test_a_kept_clock_that_is_not_one_is_refused(doc: object) -> None:
 def test_a_new_time_is_kept_as_a_start_rounded_down_to_the_minute() -> None:
     assert start_of(8 * 3600 + 59) == 8 * 3600
     assert start_of(8 * 3600) == 8 * 3600
+
+
+def test_a_start_is_the_time_of_day_whatever_the_day() -> None:
+    """A set on day 1 at 06:30:40 is kept as a start of 06:30."""
+    assert start_of(DAY_S + 6 * 3600 + 30 * 60 + 40) == 6 * 3600 + 30 * 60

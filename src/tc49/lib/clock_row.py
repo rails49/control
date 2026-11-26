@@ -29,8 +29,8 @@ CLOCK = "tc49/layout/state/clock"
 """The fast clock, said at the beat `alive_confirmed` is (ADR-0090)."""
 
 CLOCK_WANTED = "tc49/layout/clock_wanted"
-"""A person setting the fast clock: a time of day, a speed-up, or both
-(ADR-0090, decision 2)."""
+"""A person setting the fast clock: a time, a speed-up, or both (ADR-0090,
+decision 2)."""
 
 POWER = "tc49/layout/state/power"
 """Whether the rails have power, as the binding holding the clock states it:
@@ -100,9 +100,9 @@ class FastClockRow:
     this one rule.
 
     `kept` is the start time and speed-up the railroad keeps, or would keep:
-    each setting is handed to `keep` with what it changed, a new time as the
-    start rounded down to the minute and a new speed-up as it is (ADR-0090,
-    decision 3). The clock as it runs is never kept.
+    each setting is handed to `keep` with what it changed, a new time's time
+    of day as the start, rounded down to the minute, and a new speed-up as it
+    is (ADR-0090, decision 3). The clock as it runs is never kept.
 
     It subscribes as it is made, at each build: a reload forgets every
     subscription with the railroad it leaves."""
