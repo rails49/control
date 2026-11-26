@@ -27,13 +27,14 @@ standing: a field's, the save's own (an edit that waits for power off, a
 train with nothing in it, nothing loaded), or the store's. There is no Save button: the view saves
 when it is left ([When it saves](#when-it-saves)).
 
-**Two columns below it**: the list, `minmax(300px, 380px)`, and the editor of
-the item chosen in it. The 16px space between the two boxes is a divider a
-person drags with a mouse or a finger to set the list's width
+**Two columns below it**: the list, `minmax(300px, 380px)` until its divider
+is dragged, and the editor of the item chosen in it. The 16px space between
+the two boxes holds a divider a person drags with a mouse or a finger to set
+the list's width
 ([#1401](https://github.com/rails49/control/issues/1401)). It is look's
-`look-gap` ([rails49/look#62](https://github.com/rails49/look/issues/62)), 6px
-wide in the middle of the space. Nothing is drawn there at rest, and on hover
-and while dragged the gap takes Shoelace's primary colour. The list has a
+`look-gap` ([rails49/look#62](https://github.com/rails49/look/issues/62)), in
+the middle of the space. Nothing is drawn there at rest, and under the pointer
+and while dragged the divider takes look's hover colour. The list has a
 least width, and a greatest that leaves the editor a least width of its own;
 both are in `ui/src/model/divider.ts`, and they hold when the window changes
 size. The width is kept in the browser's `localStorage`, under `tc49.stock`,
