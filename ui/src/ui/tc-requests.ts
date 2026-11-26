@@ -41,6 +41,11 @@
  * list is scrolled to a row that opens and to an open row that moves. What
  * the open row asks, `entry-changed`, goes on to the view.
  *
+ * The open row's elements are the same ones from the tap that opened it until
+ * it closes or another row is tapped, wherever the scheduler's rows put its
+ * entry and whether it is the entry's row or its request's. A field in it
+ * keeps the focus and the words typed in it while the rows round it change.
+ *
  * It works nothing out. The requests and the timetable arrive as data
  * (`Panel.requestList`, `Panel.timetable`), the rows are `model/timetable.ts`'s
  * answer and so is what a drag asks: this says which row was
@@ -50,6 +55,8 @@
 
 import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { ifDefined } from "lit/directives/if-defined.js";
+import { keyed } from "lit/directives/keyed.js";
 
 import type { RequestRow } from "../model/requests.js";
 import {
@@ -115,29 +122,42 @@ export class TcRequests extends LitElement {
    *  scheduler's row lists it so. */
   private sent: Entry | null = null;
 
-  /** The open row as last drawn, `null` for none. */
-  private shown: Element | null = null;
+  /** The open row's place in `rows`, -1 for none. */
+  private at = -1;
+
+  /** How many taps have opened a row. */
+  private taps = 0;
+
+  /** The tap that opened the row last scrolled to and the place it had,
+   *  `null` for none. */
+  private shown: string | null = null;
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has("requests") || changed.has("timetable")) {
       this.rows = listRows(this.timetable, this.requests);
       this.follow();
     }
+    this.at = this.open === null ? -1 : this.place(this.open);
   }
 
+  /** The open row is drawn apart from the rows before and after it, and all
+   *  rows with one template: its `li` and its `tc-entry` are kept while rows
+   *  are added, taken away or changed round it, and made again only for
+   *  another tap. */
   override render() {
-    const open = this.open === null ? -1 : this.place(this.open);
+    const rows = this.rows;
+    const open = rows[this.at];
+    const before = open === undefined ? rows : rows.slice(0, this.at);
+    const after = open === undefined ? [] : rows.slice(this.at + 1);
     return html`
       ${this.heading()}
-      ${this.rows.length === 0
+      ${rows.length === 0
         ? html`<p class="hint">${this.timetable === null ? "no requests" : "no entries"}</p>`
         : html`
             <ul>
-              ${this.rows.map(({ entry, state, request }, at) =>
-                request === undefined
-                  ? this.entryRow(entry!, state!, at === open)
-                  : this.requestRow(request, entry, at === open),
-              )}
+              ${before.map((row) => this.row(row, false))}
+              ${open === undefined ? nothing : keyed(this.taps, this.row(open, true))}
+              ${after.map((row) => this.row(row, false))}
             </ul>
           `}
     `;
@@ -147,10 +167,12 @@ export class TcRequests extends LitElement {
    *  list. A timetable drawn for the first time opens at its first row that
    *  is not done. */
   protected override updated(): void {
-    const shown = this.renderRoot.querySelector("tc-entry")?.parentElement ?? null;
+    const shown = this.at === -1 ? null : `${this.taps}/${this.at}`;
     if (shown !== this.shown) {
       this.shown = shown;
-      shown?.scrollIntoView({ block: "nearest" });
+      this.renderRoot.querySelector("tc-entry")?.parentElement?.scrollIntoView({
+        block: "nearest",
+      });
     }
     const name = this.timetable?.name ?? null;
     if (name === this.opened) return;
@@ -174,72 +196,93 @@ export class TcRequests extends LitElement {
     `;
   }
 
-  /** An entry that is not out, or whose request the dispatcher does not
-   *  list: its time, its train, where it goes and its state. It is no
-   *  request, so it has no cancel and is not picked up. */
-  private entryRow(entry: Entry, state: EntryState, open: boolean) {
+  /**
+   * One row.
+   *
+   * - An entry that is not out, or whose request the dispatcher does not
+   *   list: its train, its state, its time and where it goes. It is no
+   *   request, so it has no cancel and is not picked up.
+   * - A request, with the time of the entry it went out as where there is
+   *   one. A waiting row can be picked up; an underway one cannot, having
+   *   started. Both can be cancelled, once. An underway one can be said to
+   *   have arrived where the list is `arrivable`.
+   *
+   * `open` draws the entry's fields under the row's lines.
+   */
+  private row(row: ListRow, open: boolean) {
+    const { entry, state, request } = row;
+    const pickable = this.live && request?.state === "waiting";
+    const classes =
+      request === undefined
+        ? ["still", done(row) ? "done" : ""]
+        : [request.state, this.held === request.id ? "held" : "", pickable ? "" : "still"];
     return html`
       <li
-        class=${done({ entry, state }) ? "still done" : "still"}
+        data-id=${ifDefined(request?.id)}
+        class=${classes.filter(Boolean).join(" ")}
+        @pointerdown=${(event: PointerEvent) => this.pick(event, request)}
+        @pointerup=${(event: PointerEvent) => this.drop(event, request?.id)}
+        @pointercancel=${() => (this.held = null)}
         @click=${(event: MouseEvent) => this.tapped(event, entry)}
       >
-        <span class="train">${entry.train}</span>
-        <span class="state">${state}</span>
-        <span class="time">${entry.at}</span>
-        <span class="way">${entry.to === undefined ? "turn" : `→ ${ends(entry.to)}`}</span>
-        ${this.more(entry)} ${open ? this.fields(entry) : nothing}
+        ${request === undefined ? this.entryLines(entry!, state!) : this.requestLines(request, entry)}
+        ${entry !== undefined && open ? this.fields(entry) : nothing}
+        ${request === undefined ? nothing : this.buttons(request)}
       </li>
     `;
   }
 
-  /** One request, with the time of the entry it went out as where there is
-   *  one. A waiting row can be picked up; an underway one cannot,
-   *  having started. Both can be cancelled, once. An underway one can be
-   *  said to have arrived where the list is `arrivable`. */
-  private requestRow(request: RequestRow, entry: Entry | undefined, open: boolean) {
-    const { id, train, from, to, state, note, cancelling } = request;
-    const pickable = this.live && state === "waiting";
+  /** The lines of an entry's row: its train, its state, its time and where
+   *  it goes, "turn" for a turn-round. */
+  private entryLines(entry: Entry, state: EntryState) {
+    return html`
+      <span class="train">${entry.train}</span>
+      <span class="state">${state}</span>
+      <span class="time">${entry.at}</span>
+      <span class="way">${entry.to === undefined ? "turn" : `→ ${ends(entry.to)}`}</span>
+      ${this.more(entry)}
+    `;
+  }
+
+  /** The lines of a request's row: its train, its state, the time of the
+   *  entry it went out as, where it goes from and to, and what it waits for. */
+  private requestLines(request: RequestRow, entry: Entry | undefined) {
+    const { train, from, to, state, note, cancelling } = request;
     const said = cancelling === undefined ? state : `cancelling — stops in ${cancelling}`;
     return html`
-      <li
-        data-id=${id}
-        class=${[state, this.held === id ? "held" : "", pickable ? "" : "still"]
-          .filter(Boolean)
-          .join(" ")}
-        @pointerdown=${(event: PointerEvent) => this.pick(event, request)}
-        @pointerup=${(event: PointerEvent) => this.drop(event, id)}
-        @pointercancel=${() => (this.held = null)}
-        @click=${(event: MouseEvent) => this.tapped(event, entry)}
-      >
-        <span class="train">${train}</span>
-        <span class="state">${said}</span>
-        ${entry === undefined ? nothing : html`<span class="time">${entry.at}</span>`}
-        <span class="way">${ends(from)} → ${ends(to)}</span>
-        ${entry === undefined ? nothing : this.more(entry)}
-        ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
-        ${entry !== undefined && open ? this.fields(entry) : nothing}
-        ${this.live && this.arrivable && state === "underway"
-          ? html`<button
-              class="arrived"
-              aria-label="Train has arrived"
-              @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
-              @click=${() => this.arrived(id)}
-            >
-              arrived
-            </button>`
-          : nothing}
-        ${this.live
-          ? html`<button
-              class="cancel"
-              aria-label=${cancelling === undefined ? "Cancel request" : "already cancelling"}
-              ?disabled=${cancelling !== undefined}
-              @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
-              @click=${() => this.cancel(id)}
-            >
-              ×
-            </button>`
-          : nothing}
-      </li>
+      <span class="train">${train}</span>
+      <span class="state">${said}</span>
+      ${entry === undefined ? nothing : html`<span class="time">${entry.at}</span>`}
+      <span class="way">${ends(from)} → ${ends(to)}</span>
+      ${entry === undefined ? nothing : this.more(entry)}
+      ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
+    `;
+  }
+
+  /** A request's "arrived" and cancel, where a press means anything. */
+  private buttons({ id, state, cancelling }: RequestRow) {
+    return html`
+      ${this.live && this.arrivable && state === "underway"
+        ? html`<button
+            class="arrived"
+            aria-label="Train has arrived"
+            @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
+            @click=${() => this.arrived(id)}
+          >
+            arrived
+          </button>`
+        : nothing}
+      ${this.live
+        ? html`<button
+            class="cancel"
+            aria-label=${cancelling === undefined ? "Cancel request" : "already cancelling"}
+            ?disabled=${cancelling !== undefined}
+            @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
+            @click=${() => this.cancel(id)}
+          >
+            ×
+          </button>`
+        : nothing}
     `;
   }
 
@@ -300,6 +343,7 @@ export class TcRequests extends LitElement {
     if (!over(event.currentTarget as Element, event)) return;
     this.sent = null;
     this.open = this.open !== null && same(this.open, entry) ? null : entry;
+    this.taps += 1;
   }
 
   /** What the open row asked. A deleted entry's row is closed at once, so a
@@ -312,18 +356,18 @@ export class TcRequests extends LitElement {
     this.sent = now;
   }
 
-  /** A press on a waiting row takes hold of it. The row captures the pointer,
-   *  so the release lands here wherever it happens. */
-  private pick(event: PointerEvent, request: RequestRow): void {
-    if (event.button !== 0 || !this.live || request.state !== "waiting") return;
+  /** A press on a waiting request's row takes hold of it. The row captures
+   *  the pointer, so the release lands here wherever it happens. */
+  private pick(event: PointerEvent, request: RequestRow | undefined): void {
+    if (event.button !== 0 || !this.live || request?.state !== "waiting") return;
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     this.held = request.id;
   }
 
   /** The release: the row lands in front of the first row whose middle is
    *  below the pointer, or at the end below them all. */
-  private drop(event: PointerEvent, id: string): void {
-    if (this.held !== id) return;
+  private drop(event: PointerEvent, id: string | undefined): void {
+    if (id === undefined || this.held !== id) return;
     this.held = null;
     const boxes = [...this.renderRoot.querySelectorAll("li")].map((row) =>
       row.getBoundingClientRect(),

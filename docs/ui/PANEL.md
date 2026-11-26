@@ -274,15 +274,19 @@ not ask first, and the row closes. The row's cancel still publishes
 
 **The page changes nothing by itself.** A field shows what the state row
 says: it goes back to the entry's value when it is left, and shows the change
-when the scheduler's row has it. The scheduler answers nothing where it drops
-a change, and the field then stays as it was.
+when the scheduler's row has it. A field a person has typed in keeps their
+words until it is left or Enter is pressed, whatever the state row says
+meanwhile. The scheduler answers nothing where it drops a change, and the
+field then stays as it was.
 
 **The open row stays open when its entry moves.** A changed time moves the
 row when the scheduler's row arrives. Entries carry no id, so the open row is
 the first one that reads as the change asked, and the list is scrolled to it.
 Where two entries read the same in every field the first is the open one,
 which is the one the scheduler changes. A row whose entry the state row no
-longer lists is closed.
+longer lists is closed. While a row is open its fields are the same elements,
+wherever the state row puts its entry and when the entry goes out, so a field
+keeps the focus.
 
 **The fields are in the pane, which is below the drawing on an upright
 page.** The page does nothing of its own about the on-screen keyboard: the
