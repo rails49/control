@@ -53,6 +53,7 @@ import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow
 import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
+import { startNotes } from "../model/timetable.js";
 import { widgetPress, widgetTopic } from "../model/widgets.js";
 import {
   arrival,
@@ -528,9 +529,14 @@ export class TcPanel extends LitElement {
    *  (ADR-0010) — and the pane is handed the answer rather than either. */
   private get roster(): RosterRow[] {
     const session = this.session;
-    return session === null
-      ? []
-      : roster(session.owned, session.standing, session.refused);
+    if (session === null) return [];
+    const standing = session.standing;
+    const notes = startNotes(
+      this.panel?.timetable ?? null,
+      standing,
+      this.panel?.noses() ?? new Map(),
+    );
+    return roster(session.owned, standing, session.refused, notes);
   }
 
   override updated(): void {

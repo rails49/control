@@ -130,6 +130,9 @@ export interface RosterRow extends Placed {
   /** Why the dispatcher last refused to place it, in words, said in place of
    *  where it is until it is placed, removed or picked up again (#1011). */
   refused?: string;
+  /** Where the train is not where the loaded timetable starts, in words
+   *  (`startNotes` in `model/timetable.ts`, #1357). */
+  note?: string;
 }
 
 /**
@@ -148,11 +151,13 @@ export function roster(
   stock: Record<string, Pick<TrainDoc, "length" | "locomotive">>,
   placed: readonly Placed[],
   refused: ReadonlyMap<string, string> = new Map(),
+  notes: ReadonlyMap<string, string> = new Map(),
 ): RosterRow[] {
   const where = new Map(placed.map((train) => [train.train, train.block]));
   const names = new Set([...Object.keys(stock), ...where.keys()]);
   return [...names].sort().map((train) => {
     const said = refused.get(train);
+    const note = notes.get(train);
     return {
       train,
       length: stock[train]?.length ?? null,
@@ -160,6 +165,7 @@ export function roster(
       block: where.get(train) ?? null,
       placed: where.has(train),
       ...(said === undefined ? {} : { refused: said }),
+      ...(note === undefined ? {} : { note }),
     };
   });
 }
