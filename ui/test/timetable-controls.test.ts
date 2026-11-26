@@ -42,6 +42,7 @@ function row(over: Record<string, unknown> = {}): Record<string, unknown> {
     phase: "running",
     record: false,
     start: "06:00",
+    repeat: "1d00:00",
     trains: {},
     positioning: [],
     entries: [],

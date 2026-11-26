@@ -982,6 +982,7 @@ describe("the timetable", () => {
       phase: "running",
       record: true,
       start: "06:00",
+      repeat: "1d00:00",
       trains: { t1: { at: "a", facing: "A-to-B" } },
       positioning: [],
       entries: [{ at: "06:02", train: "t1", to: ["b.A"], state }],

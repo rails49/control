@@ -47,6 +47,7 @@ const SAID = {
   phase: "running",
   record: false,
   start: "06:00",
+  repeat: "1d00:00",
   trains: { goods: { at: "a", facing: "A-to-B" } },
   positioning: ["p1"],
   entries: [
@@ -67,13 +68,15 @@ const SAID = {
 };
 
 describe("the timetable row", () => {
-  /** The row's `start` and `positioning` and an entry's `ended` are shown
-   *  nowhere, and are not read. */
+  /** The row's `positioning` and an entry's `ended` are shown nowhere, and
+   *  are not read. */
   it("is read as what the page shows, each entry's document fields apart from what became of it", () => {
     expect(timetableOf(SAID)).toEqual({
       name: "evening",
       phase: "running",
       record: false,
+      start: 6 * 3600,
+      repeat: 86_400,
       trains: { goods: { at: "a", facing: "A-to-B" } },
       entries: [
         {
@@ -93,6 +96,15 @@ describe("the timetable row", () => {
     });
   });
 
+  it("reads an entry after midnight in the time form, and a repeat of a day", () => {
+    const late = { at: "1d01:00", train: "goods", to: ["c.B"], state: "later" };
+    expect(timetableOf({ ...SAID, entries: [late] })).toMatchObject({
+      start: 6 * 3600,
+      repeat: 86_400,
+      entries: [{ entry: { at: "1d01:00", train: "goods", to: ["c.B"] }, state: "later" }],
+    });
+  });
+
   it("reads null where no timetable is loaded", () => {
     expect(timetableOf({ timetable: null, at: 3 })).toBeNull();
   });
@@ -104,6 +116,14 @@ describe("the timetable row", () => {
     ["an entry in no known state", { ...SAID, entries: [{ ...SAID.entries[2], state: "lost" }] }],
     ["an entry with neither to nor turn", { ...SAID, entries: [{ at: "06:02", train: "goods", state: "later" }] }],
     ["an entry with no train", { ...SAID, entries: [{ at: "06:02", to: ["b.A"], state: "later" }] }],
+    ["an entry at a time with a one-digit hour", { ...SAID, entries: [{ ...SAID.entries[2], at: "6:12" }] }],
+    ["an entry at no time", { ...SAID, entries: [{ ...SAID.entries[2], at: "soon" }] }],
+    ["an entry at a time as a number", { ...SAID, entries: [{ ...SAID.entries[2], at: 22_320 }] }],
+    ["no start", { ...SAID, start: undefined }],
+    ["a start after day 0", { ...SAID, start: "1d06:00" }],
+    ["no repeat", { ...SAID, repeat: undefined }],
+    ["a repeat of 0", { ...SAID, repeat: "00:00" }],
+    ["a repeat that is no length", { ...SAID, repeat: "a day" }],
   ])("is not read with %s", (_, said) => {
     expect(timetableOf(said)).toBeUndefined();
   });
@@ -125,6 +145,8 @@ function loaded(...entries: Scheduled[]): Timetable {
     name: "evening",
     phase: "running",
     record: false,
+    start: 6 * 3600,
+    repeat: 86_400,
     trains: {},
     entries,
   };
@@ -678,6 +700,7 @@ describe("the run view's list", () => {
     phase: "running",
     record: false,
     start: "06:00",
+    repeat: "1d00:00",
     trains: { goods: { at: "a", facing: "A-to-B" } },
     positioning: [],
     entries: [
@@ -724,6 +747,16 @@ describe("the run view's list", () => {
       ["06:05", "goods", "a.B → b.A", "waiting"],
       ["06:30", "local", "→ c.B", "later"],
       [null, "local", "d.A → b.B, c.B", "waiting"],
+    ]);
+  });
+
+  it("lists an entry after midnight at its time in the time form", async () => {
+    const { shell, element } = await serving();
+    const late = { at: "1d01:00", train: "local", to: ["c.B"], state: "later" };
+    await said(shell, TIMETABLE, { ...RUNNING, entries: [...RUNNING.entries, late] });
+    expect(drawn(element).slice(3, 5)).toEqual([
+      ["06:30", "local", "→ c.B", "later"],
+      ["1d01:00", "local", "→ c.B", "later"],
     ]);
   });
 

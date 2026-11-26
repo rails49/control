@@ -5,8 +5,10 @@
  *
  * No DOM. The scheduler says which timetable is loaded and what became of
  * each entry on `tc49/schedule/state/timetable` (BUS.md), and `timetableOf`
- * reads of that row what the page shows. The row's `start` and `positioning`
- * and an entry's `ended` are not read.
+ * reads of that row what the page shows. The row's `positioning` and an
+ * entry's `ended` are not read. Its `start`, its `repeat` and each entry's
+ * `at` are in the time form `model/clock.ts` reads, `[<day>d]HH:MM`
+ * ([#1363](https://github.com/rails49/control/issues/1363)).
  *
  * `listRows` works out the list from that timetable and the dispatcher's
  * request rows (`model/requests.ts`), top to bottom:
@@ -36,7 +38,7 @@
  * loaded timetable starts.
  */
 
-import { timeOf, written } from "./clock.js";
+import { DAY_S, timeOf, written } from "./clock.js";
 import { reordering, type RequestRow } from "./requests.js";
 import { trackLive, type Power } from "./trace.js";
 
@@ -68,7 +70,7 @@ const STATES: ReadonlySet<string> = new Set([
 ]);
 
 /** An entry as the timetable document lists it (docs/store/LAYOUT.md): its
- *  time as `"HH:MM"`, its train, and `to`, the arrival ends, or `turn` on a
+ *  time in the time form, `"06:00"` or `"1d01:00"`, its train, and `to`, the arrival ends, or `turn` on a
  *  turn-round. `dwell`, whole fast-clock minutes, and `description` are left
  *  out where the document leaves them out. */
 export interface Entry {
@@ -101,6 +103,12 @@ export interface Timetable {
   phase: Phase;
   /** Whether a drag or a turn-round adds an entry. */
   record: boolean;
+  /** Its start, a time on day 0, in fast seconds. */
+  start: number;
+  /** The time from its start to where it begins again, in fast seconds,
+   *  greater than 0. Each entry's time is from `start` to before `start`
+   *  plus `repeat`. */
+  repeat: number;
   trains: Record<string, TrainStart>;
   /** In timetable order. */
   entries: Scheduled[];
@@ -109,13 +117,19 @@ export interface Timetable {
 /** A `state/timetable` payload read: the loaded timetable, `null` where the
  *  row says none is loaded, and `undefined` where the row cannot be read. */
 export function timetableOf(said: Record<string, unknown>): Timetable | null | undefined {
-  const { timetable, phase, record, trains, entries } = said;
+  const { timetable, phase, record, start, repeat, trains, entries } = said;
   if (timetable === null) return null;
+  const begins = typeof start === "string" ? timeOf(start) : null;
+  const length = typeof repeat === "string" ? timeOf(repeat) : null;
   if (
     typeof timetable !== "string" ||
     typeof phase !== "string" ||
     !PHASES.has(phase) ||
     typeof record !== "boolean" ||
+    begins === null ||
+    begins >= DAY_S ||
+    length === null ||
+    length === 0 ||
     !Array.isArray(entries)
   ) {
     return undefined;
@@ -127,6 +141,8 @@ export function timetableOf(said: Record<string, unknown>): Timetable | null | u
     name: timetable,
     phase: phase as Phase,
     record,
+    start: begins,
+    repeat: length,
     trains: starts,
     entries: read as Scheduled[],
   };
@@ -388,7 +404,7 @@ function startsOf(trains: unknown): Record<string, TrainStart> | null {
 function scheduledOf(listed: unknown): Scheduled | null {
   if (!mapping(listed)) return null;
   const { at, train, to, turn, dwell, description, state, request } = listed;
-  if (typeof at !== "string" || typeof train !== "string") return null;
+  if (typeof at !== "string" || timeOf(at) === null || typeof train !== "string") return null;
   if (typeof state !== "string" || !STATES.has(state)) return null;
   // A turn-round has no arrival ends.
   const ends = to === undefined ? null : strings(to) && to.length > 0 ? to : undefined;
