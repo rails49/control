@@ -407,16 +407,16 @@ def dragged(state: State, train: str, to: tuple[str, ...], request: str) -> Stat
     the train.
 
     While the timetable is `running` and Record is on, the drag is added as
-    an entry: `at` the time `_now` gives, after the last entry at or before
-    that time, `out` as `request` in the round `_round` gives. In any other phase, with Record off, with
-    no timetable loaded, and after a restart until the first clock
-    row, it is a request with no entry. So is a drag to no arrival end: an
-    entry with none is a turn-round.
+    an entry: `at` the time `_recorded_at` gives, after the last entry at or
+    before that time, `out` as `request` in the round `_round` gives. In any
+    other phase, with Record off, with no timetable loaded, and after a
+    restart until the first clock row, it is a request with no entry. So is
+    a drag to no arrival end: an entry with none is a turn-round.
     """
     flying = {**state.in_flight, request: train}
     if not to or not _records(state):
         return replace(state, in_flight=flying)
-    entry = Entry(_now(state), train, to)
+    entry = Entry(_recorded_at(state), train, to)
     out = Progress(OUT, request, round=_round(state))
     return _added(replace(state, in_flight=flying), entry, out)
 
@@ -429,7 +429,7 @@ def turned_round(state: State, train: str) -> State:
     if not _records(state):
         return state
     done = Progress(ENDED, round=_round(state))
-    return _added(state, Entry(_now(state), train), done)
+    return _added(state, Entry(_recorded_at(state), train), done)
 
 
 def _records(state: State) -> bool:
@@ -442,7 +442,7 @@ def _records(state: State) -> bool:
     )
 
 
-def _now(state: State) -> int:
+def _recorded_at(state: State) -> int:
     """The `at` a drag or a turn-round is recorded at: `start` plus the
     clock's time since `start` within the repeat, rounded down to the
     minute. With a start of 23:58, the clock at 00:01 gives 1d00:01."""
@@ -724,20 +724,20 @@ def _read(said: object, document: Timetable) -> State:
             raise TypeError(f"the entry {one!r} is no mapping")
         entry = dict(cast(dict[str, Any], one))
         state = entry.pop("state")
-        number = entry.pop("round")
+        round_ = entry.pop("round")
         request = entry.pop("request", None)
         arrived = entry.pop("ended", None)
         if (
             state not in STATES
-            or isinstance(number, bool)
-            or not isinstance(number, int)
-            or number < 0
+            or isinstance(round_, bool)
+            or not isinstance(round_, int)
+            or round_ < 0
             or not isinstance(request, str | None)
             or isinstance(arrived, bool)
             or not isinstance(arrived, int | None)
         ):
             raise ValueError("an entry's state, round, request or ending does not read")
-        progress = Progress(state, request, arrived, number)
+        progress = Progress(state, request, arrived, round_)
         listed.append((read_entry(entry), progress))
     # sorted() is stable, as `Timetable` is, so each progress stays with its
     # entry.
