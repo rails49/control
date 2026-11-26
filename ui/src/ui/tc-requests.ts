@@ -27,9 +27,10 @@
  * before where it goes. Any other entry is its train, its state, its time
  * and where it goes, "turn" for a turn-round. A row that is ended, rejected, cancelled or
  * skipped is dimmed. A row whose entry has a dwell or a description carries
- * them, and the stylesheet shows them where the list is wide. When a
- * timetable is first drawn the list is scrolled to its first row that is not
- * done, and it is not scrolled again while that timetable stays loaded.
+ * them, and the stylesheet shows them where the list is wide. Each time the
+ * timetable is handed in, the list is scrolled to its newest entry: one just
+ * recorded, or the one that went out last (`newest` in `model/timetable.ts`).
+ * It is not scrolled for an entry that ends, or while a row is open.
  *
  * A tap on an entry's row opens it
  * ([#1358](https://github.com/rails49/control/issues/1358)): `tc-entry` is
@@ -66,7 +67,7 @@ import {
   followed,
   listRows,
   moving,
-  opening,
+  newest,
   placeOf,
   tapped,
   type Entry,
@@ -115,9 +116,8 @@ export class TcRequests extends LitElement {
   /** The rows drawn, top to bottom. */
   private rows: ListRow[] = [];
 
-  /** The name of the timetable the list was last scrolled for, `null` for
-   *  none. */
-  private opened: string | null = null;
+  /** The timetable last handed in, `null` for none. */
+  private was: Timetable | null = null;
 
   /** The entry whose row is open, `null` for none. */
   @state() private open: Opened | null = null;
@@ -164,9 +164,9 @@ export class TcRequests extends LitElement {
   }
 
   /** A row that opens, and an open row that moves, is scrolled into the
-   *  list. A timetable drawn for the first time opens at its first row that
-   *  is not done. */
-  protected override updated(): void {
+   *  list. Each timetable handed in scrolls the list to its newest entry
+   *  (`newest`), unless a row is open. */
+  protected override updated(changed: PropertyValues<this>): void {
     const shown = this.at === -1 ? null : `${this.taps}/${this.at}`;
     if (shown !== this.shown) {
       this.shown = shown;
@@ -174,11 +174,10 @@ export class TcRequests extends LitElement {
         block: "nearest",
       });
     }
-    const name = this.timetable?.name ?? null;
-    if (name === this.opened) return;
-    this.opened = name;
-    const at = name === null ? null : opening(this.rows);
-    if (at === null) return;
+    if (!changed.has("timetable")) return;
+    const at = newest(this.was, this.timetable);
+    this.was = this.timetable;
+    if (at === null || this.open !== null) return;
     this.renderRoot.querySelectorAll("li")[at]?.scrollIntoView({ block: "start" });
   }
 
