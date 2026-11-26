@@ -342,6 +342,10 @@ class Scheduler:
         the train would make across its block, so the departure end is the
         end that run comes out at, said as an end (#241).
 
+        `arrivals` are block ends or bare blocks, as a gesture's `dest` and
+        an entry's `to` write them. The request's `dest` is block ends only,
+        so a bare block is submitted as both of its ends (`_expand`).
+
         The id carries this process's nonce, `<train>-<nonce>-<n>`, where the
         id of one of the scenario's requests is `<train>-<n>`: nothing a person
         drags is reproducible,
@@ -379,7 +383,7 @@ class Scheduler:
         }
         latest = self._latest_in_flight(train)
         event["depart"] = facing_ends(facing)[1] if latest is None else None
-        event["dest"] = list(arrivals)
+        event["dest"] = _expand(arrivals)
         if latest is not None:
             event["after"] = latest
         self._submit(event)

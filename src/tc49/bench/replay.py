@@ -53,10 +53,9 @@ def arrival_ends(arrivals: tuple[str, ...]) -> list[str]:
     """A scenario's arrival list as the ends a gesture names: a bare block
     means both of its ends.
 
-    A page computes its ends from where the drop landed, so a gesture always
-    carries them and nothing downstream expands one. The scenario file is
-    allowed to write a block, so the expansion happens here — where the
-    browser's own would.
+    A page computes its ends from where the drop landed, so a page's gesture
+    always carries them. The scenario file is allowed to write a block, so
+    the expansion happens here — where the browser's own would.
     """
     ends: list[str] = []
     for entry in arrivals:

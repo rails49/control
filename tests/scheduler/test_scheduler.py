@@ -802,6 +802,18 @@ def test_a_gesture_is_composed_into_the_request_it_asks_for() -> None:
     ]
 
 
+def test_a_gesture_naming_a_bare_block_submits_both_of_its_ends() -> None:
+    """A bare block in a gesture's `dest` means either end (BUS.md), and a
+    request's `dest` is arrival ends only: the dispatcher rejected the bare
+    block as `no_entry` (#1353). Each entry is expanded in its place."""
+    bus = InProcessBus(Clock())
+    seen = collect(bus, "tc49/dispatch/request_submitted")
+    Scheduler(bus, yard(), seeded(), nonce=NONCE)
+
+    gesture(bus, {"train": "freight_1", "dest": ["dn_e", "up_e.A"]})
+    assert [p["dest"] for _, p in seen] == [["dn_e.A", "dn_e.B", "up_e.A"]]
+
+
 def test_a_drag_out_of_a_terminal_block_departs_by_its_connected_end() -> None:
     """What the whole fix is for: the drag names no departure end, so a train
     facing a wall composed a request rejected `unreachable`, over and over for

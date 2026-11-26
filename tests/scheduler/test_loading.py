@@ -420,7 +420,7 @@ def test_an_entry_is_released_at_its_time_as_the_drag_a_person_would_make() -> N
             "id": f"freight_1-{NONCE}-1",
             "train": "freight_1",
             "depart": "yard_w.B",
-            "dest": ["dn_e", "up_e.A"],
+            "dest": ["dn_e.A", "dn_e.B", "up_e.A"],
         }
     ]
     assert entries(bus) == [
@@ -462,7 +462,7 @@ def test_an_entry_moved_later_before_it_went_out_is_released_at_the_new_time() -
             "id": f"freight_1-{NONCE}-1",
             "train": "freight_1",
             "depart": "yard_w.B",
-            "dest": ["dn_e"],
+            "dest": ["dn_e.A", "dn_e.B"],
         }
     ]
     assert [(one["at"], one["state"]) for one in entries(bus)] == [("06:05", "out")]
@@ -564,7 +564,7 @@ def test_an_entry_for_a_train_with_a_persons_request_in_flight_chains_after_it()
             "id": f"freight_1-{NONCE}-2",
             "train": "freight_1",
             "depart": None,
-            "dest": ["up_e"],
+            "dest": ["up_e.A", "up_e.B"],
             "after": f"freight_1-{NONCE}-1",
         }
     ]
@@ -588,7 +588,7 @@ def test_a_dwell_holds_back_the_next_entry_and_not_a_persons_drag() -> None:
     drag(bus, "freight_1", "yard_e")
 
     assert [(one["id"], one["dest"]) for one in payloads(seen)] == [
-        (f"freight_1-{NONCE}-2", ["yard_e"])
+        (f"freight_1-{NONCE}-2", ["yard_e.A", "yard_e.B"])
     ]
     assert states(bus) == ["ended", "held"]
 
@@ -599,7 +599,7 @@ def test_a_dwell_holds_back_the_next_entry_and_not_a_persons_drag() -> None:
     clock(bus, "06:09")
 
     assert [(one["id"], one["dest"]) for one in payloads(seen)][1:] == [
-        (f"freight_1-{NONCE}-3", ["up_e"])
+        (f"freight_1-{NONCE}-3", ["up_e.A", "up_e.B"])
     ]
     assert states(bus) == ["ended", "out"]
 
