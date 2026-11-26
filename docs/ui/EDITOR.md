@@ -1237,10 +1237,16 @@ was chosen in it, that being the only thing that could unlight one.
 ([#1401](https://github.com/rails49/control/issues/1401)). It is a second
 `look-gap`, dragged as [the palette's](#palette) is. The width is measured
 from the view's right edge. It has a least, and a greatest that leaves the
-drawing a least width; both are in `ui/src/model/divider.ts`. Each of the two
-widths is held against the view's whole width, not against the other. Until
-the divider is first dragged the netlist is 22rem wide. The width is kept
-under `tc49.netlist`.
+drawing a least width; both are in `ui/src/model/divider.ts`. Until the
+divider is first dragged the netlist is 22rem wide. The width is kept under
+`tc49.netlist`.
+
+**With the netlist open the drawing keeps its least width.** The netlist
+gives way first, down to its least, and then the palette. In a view too
+small for all three the leasts hold. The view's stylesheet holds the two
+widths against each other, on a drag and when the window changes size. The
+width a drag keeps is held against the view's whole width, so a palette or a
+netlist that gave way comes back when there is room again.
 
 It stays a panel and not a popup: its whole advantage over `tc49 layout show`
 in a terminal is that clicking a transit lights its way on the drawing, and a

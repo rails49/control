@@ -38,7 +38,9 @@ describe("the netlist's divider", () => {
     expect(sizeAt("netlist", BOX, { x: 700, y: 300 })).toBe(350);
   });
 
-  it("holds it to 192 px and to what leaves the drawing 256 px", () => {
+  /** Against the view's whole width. The stylesheet holds the netlist
+   *  against the palette as well. */
+  it("holds it to 192 px and to 256 px short of the view's width", () => {
     expect(sizeAt("netlist", BOX, { x: 1040, y: 300 })).toBe(192);
     expect(sizeAt("netlist", BOX, { x: 60, y: 300 })).toBe(744);
   });

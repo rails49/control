@@ -1,9 +1,16 @@
+import { GAP_PX } from "@rails49/look";
 import { css } from "lit";
 
 import { LIMITS } from "../model/divider.js";
 
-/** The palette's column, with the netlist shut or open. */
-const palette = css`clamp(${LIMITS.palette.least}px, var(--palette-size, var(--pane)), 100% - ${LIMITS.palette.leaves}px)`;
+const { palette, netlist } = LIMITS;
+
+/** The palette's column with the netlist shut. */
+const alone = css`clamp(${palette.least}px, var(--palette-size, var(--pane)), 100% - ${palette.leaves}px)`;
+
+/** The palette's column with the netlist open. Its greatest leaves the
+ *  drawing its least width, the netlist its least and the two dividers. */
+const beside = css`clamp(${palette.least}px, var(--palette-size, var(--pane)), 100% - ${palette.leaves + netlist.least + 2 * GAP_PX}px)`;
 
 /** The editing view (`tc-editor`): the panes it lays out inside the app's work
  *  row.
@@ -18,20 +25,27 @@ const palette = css`clamp(${LIMITS.palette.least}px, var(--palette-size, var(--p
  * The palette, the drawing and the netlist are panels on the paper colour,
  * and the view's background is the gap colour (`--gap`), which shows through
  * the dividers between them
- * ([#1401](https://github.com/rails49/control/issues/1401)).
+ * ([#1401](https://github.com/rails49/control/issues/1401)). The palette's
+ * paper is a box behind it and not its own background, so a frozen drawing
+ * fades the tiles and leaves the paper as it is.
  *
- * Each divider is a gap, `look-gap` (rails49/look#62), clear at rest. The one
+ * Each divider is a `look-gap` (rails49/look#62), clear at rest. The one
  * right of the palette sets the palette's width. The view hands it over as
  * `--palette-size`, and until a person has dragged the divider the width is
  * the shell's `--pane` (#169). The one left of the netlist sets the
  * netlist's width. The view hands it over as `--netlist-size`, and until a
- * person has dragged the divider the width is 22rem. Each size is held to the
- * limits a drag is held to (`model/divider.ts`) when the window changes
- * size. */
+ * person has dragged the divider the width is 22rem.
+ *
+ * The sizes handed over are each held against the view's whole width
+ * (`model/divider.ts`). The columns hold them to the same leasts, and against
+ * each other: the drawing keeps its least width, on a drag and when the
+ * window changes size. With the netlist open the netlist gives way first,
+ * down to its least, and then the palette. In a view too small for all three
+ * the leasts hold. */
 export const editorStyles = css`
   :host {
     display: grid;
-    grid-template-columns: ${palette} auto 1fr;
+    grid-template-columns: ${alone} auto 1fr;
     /* The panels' row is the view's height. The menu and the dialogs are in
        rows after it, which are empty. */
     grid-template-rows: 1fr;
@@ -41,15 +55,21 @@ export const editorStyles = css`
 
   :host([netlist]) {
     grid-template-columns:
-      ${palette} auto 1fr auto
-      clamp(${LIMITS.netlist.least}px, var(--netlist-size, 22rem), 100% - ${LIMITS.netlist.leaves}px);
+      ${beside} auto 1fr auto
+      clamp(${netlist.least}px, var(--netlist-size, 22rem), 100% - ${netlist.leaves + 2 * GAP_PX}px - ${beside});
     grid-template-areas: "palette palette-divider canvas netlist-divider side";
+  }
+
+  /* The paper behind the palette. */
+  :host::before {
+    content: "";
+    grid-area: palette;
+    background: var(--paper);
   }
 
   tc-palette {
     grid-area: palette;
     overflow-y: auto;
-    background: var(--paper);
   }
 
   /* The two look-gaps, by class: only where each sits is set here, and look

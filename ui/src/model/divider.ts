@@ -14,7 +14,9 @@
  *
  * Each size is held to a least, and to a greatest that leaves the part on
  * the divider's other side a least of its own (`LIMITS`). The edit view's
- * two are each held against the view's whole width.
+ * two are each held against the view's whole width here. With the netlist
+ * open the view's stylesheet holds the two against each other, so the
+ * drawing keeps its least width (`ui/tc-editor.styles.ts`).
  *
  * Each size is kept in the browser's `localStorage` under its own key. It is
  * not on the bus and not in the store.
