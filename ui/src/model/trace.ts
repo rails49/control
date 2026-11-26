@@ -157,6 +157,32 @@ export function entryWanted(was: Entry, now: Entry | null): Frame {
   return { topic: ENTRY_WANTED, payload: { was, now } };
 }
 
+/** A `timetable_wanted` frame: load the timetable of this name from the
+ *  store, or with `fresh` make a new one of this name, which the payload
+ *  says as `new: true`. The scheduler drops either unless power reads `off`
+ *  (BUS.md, #1345). */
+export function timetableWanted(timetable: string, fresh = false): Frame {
+  return { topic: TIMETABLE_WANTED, payload: fresh ? { timetable, new: true } : { timetable } };
+}
+
+/** A `timetable_record_wanted` frame: switch Record of the loaded timetable
+ *  on or off. */
+export function timetableRecordWanted(record: boolean): Frame {
+  return { topic: TIMETABLE_RECORD_WANTED, payload: { record } };
+}
+
+/** A `timetable_rename_wanted` frame: rename the loaded timetable. The
+ *  scheduler drops it where the store has a timetable of that name (#1354). */
+export function timetableRenameWanted(to: string): Frame {
+  return { topic: TIMETABLE_RENAME_WANTED, payload: { to } };
+}
+
+/** A `timetable_start_wanted` frame: start the loaded timetable. It has no
+ *  fields (#1353). */
+export function timetableStartWanted(): Frame {
+  return { topic: TIMETABLE_START_WANTED, payload: {} };
+}
+
 /** A `placement_wanted` frame: where a train actually is, said by the person
  *  who can see it. `null` is off the layout — one gesture in two directions,
  *  because putting a locomotive on the track and lifting it off are the same
