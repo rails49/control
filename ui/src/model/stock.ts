@@ -384,7 +384,7 @@ export interface CarRow {
   model: string;
   modelName: string;
   addr: string | null;
-  /** Where the camera it carries answers, `null` where it carries none. */
+  /** The URL of the stream of the camera it carries, `null` where it carries none. */
   camera: string | null;
   /** Merged, so `null` only where the catalogue has no such model. */
   length: number | null;
@@ -1121,9 +1121,9 @@ export class Stock {
     });
   }
 
-  /** Where the camera a car carries answers. Empty takes it off and keeps the
-   *  car. Checked here as `lib/stock.py` checks it, so the words name the
-   *  value or the other car rather than arriving on a save. */
+  /** The URL of the stream of the camera a car carries. Empty takes it off
+   *  and keeps the car. Checked here as `lib/stock.py` checks it, so the
+   *  words name the value or the other car rather than arriving on a save. */
   carCamera(name: string, camera: string): string | null {
     const car = this.doc.cars?.[name];
     if (car === undefined) return null;
@@ -1715,11 +1715,12 @@ export class Stock {
   }
 
   /** Why a camera may not be written on a car, said as a refusal, or `null`
-   *  where it may: not a bare host name or IPv4 address, or carried by
-   *  another car already. */
+   *  where it may: not the URL of an MJPEG stream as `streamTrouble` reads
+   *  it, or carried by another car already. */
   private cameraTrouble(camera: string, but: string | null): string | null {
-    if (!HOST.test(camera)) {
-      return `'${camera}' is not a camera address — write the camera's host name or IP address`;
+    const why = streamTrouble(camera);
+    if (why !== null) {
+      return `'${camera}' is not the URL of a camera's stream — ${why}`;
     }
     for (const [name, car] of Object.entries(this.doc.cars ?? {})) {
       if (name !== but && car.camera === camera) {
@@ -1730,11 +1731,27 @@ export class Stock {
   }
 }
 
-/** A camera's address as `tc49.lib.stock._camera` takes it: letters, digits,
- *  dots and hyphens, starting and ending with a letter or digit — so no
- *  scheme, port, path or login, how the camera is spoken to being the
- *  `camera` app's (ADR-0082). */
-const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
+/** What is wrong with a camera's stream URL, or `null`: the rules and words
+ *  of `tc49.lib.stock._camera_trouble`, in its order. Scheme `http`, a host,
+ *  an optional port 1–65535, an optional path and query; no login, fragment
+ *  or whitespace. The login is the `camera` app's (ADR-0082). Split as RFC
+ *  3986 splits a URL, not with `URL`, which rewrites what it reads. */
+function streamTrouble(camera: string): string | null {
+  if (/\s/.test(camera)) return "it holds whitespace";
+  const [, scheme, netloc] = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?/.exec(camera)!;
+  if (scheme?.toLowerCase() !== "http") return "it must start http://";
+  if (netloc?.includes("@")) return "leave the login out: the camera app has it";
+  const [, host, port] = /^(\[[^\]]*\]|[^:]*)(?::(.*))?$/.exec(netloc ?? "") ?? [];
+  if (host === undefined) return "it is not a URL";
+  if (host === "" || host === "[]") return "it names no host";
+  if (port !== undefined && port !== "") {
+    if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+      return "its port must be 1–65535";
+    }
+  }
+  if (camera.includes("#")) return "leave out the # and what follows it";
+  return null;
+}
 
 /** What a held edit answers (`Stock.guarded`): the words, nothing made, or
  *  nothing at all. */

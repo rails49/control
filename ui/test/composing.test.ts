@@ -408,11 +408,11 @@ describe("a model put in a train", () => {
 describe("filling in a camera", () => {
   it("sets a car's camera, trimmed", () => {
     const screen = stock();
-    expect(screen.carCamera("krokodil-a", " cam-1.local ")).toBeNull();
+    expect(screen.carCamera("krokodil-a", " http://cam-1/media/?action=stream ")).toBeNull();
     expect(screen.roster.cars!["krokodil-a"]).toEqual({
       model: "arnold-ce68",
       addr: "3",
-      camera: "cam-1.local",
+      camera: "http://cam-1/media/?action=stream",
     });
     expect(screen.edits).toBe(true);
   });
@@ -424,7 +424,7 @@ describe("filling in a camera", () => {
         "krokodil-a": {
           model: "arnold-ce68",
           addr: "3",
-          camera: "192.168.178.58",
+          camera: "http://192.168.178.58/media/?action=stream",
         },
       },
     });
@@ -435,20 +435,36 @@ describe("filling in a camera", () => {
     });
   });
 
-  /** How the camera is spoken to is the `camera` app's (ADR-0082): the
-   *  roster holds where it answers and nothing else, as `lib/stock.py` has. */
+  /** The rules and words of `lib/stock.py`, which a save would refuse it
+   *  with. */
   it.each([
-    "http://cam",
-    "cam:8080",
-    "cam/stream",
-    "admin@cam",
-    "-cam",
-    "cam.",
-    "two words",
-  ])("refuses %j, which is not a camera address", (typed) => {
+    "http://192.168.178.58/media/?action=stream",
+    "http://cam:8080/?action=stream",
+    "http://cam/",
+    "http://[fe80::1]:8080/",
+  ])("takes %j as written", (typed) => {
+    const screen = stock();
+    expect(screen.carCamera("krokodil-a", typed)).toBeNull();
+    expect(screen.roster.cars!["krokodil-a"]!.camera).toBe(typed);
+  });
+
+  it.each([
+    ["cam", "it must start http://"],
+    ["cam.local:8080", "it must start http://"],
+    ["https://cam/", "it must start http://"],
+    ["rtsp://cam/", "it must start http://"],
+    ["http://admin@cam/", "leave the login out: the camera app has it"],
+    ["http://a:b@cam/", "leave the login out: the camera app has it"],
+    ["http:///x", "it names no host"],
+    ["http://cam:0/", "its port must be 1–65535"],
+    ["http://cam:99999/", "its port must be 1–65535"],
+    ["http://cam:x/", "its port must be 1–65535"],
+    ["http://cam/#x", "leave out the # and what follows it"],
+    ["http://ca m/", "it holds whitespace"],
+  ])("refuses %j: %s", (typed, why) => {
     const screen = stock();
     expect(screen.carCamera("krokodil-a", typed)).toBe(
-      `'${typed}' is not a camera address — write the camera's host name or IP address`,
+      `'${typed}' is not the URL of a camera's stream — ${why}`,
     );
     expect(screen.roster.cars!["krokodil-a"]).toEqual({
       model: "arnold-ce68",
@@ -463,15 +479,15 @@ describe("filling in a camera", () => {
     const screen = stock({
       ...OVAL,
       cars: {
-        "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "cam-1" },
+        "krokodil-a": { model: "arnold-ce68", addr: "3", camera: "http://cam-1/media/?action=stream" },
         "van-1": { model: "van" },
       },
     });
-    expect(screen.carCamera("van-1", "cam-1")).toBe(
-      "car 'krokodil-a' already carries camera 'cam-1'",
+    expect(screen.carCamera("van-1", "http://cam-1/media/?action=stream")).toBe(
+      "car 'krokodil-a' already carries camera 'http://cam-1/media/?action=stream'",
     );
     expect(screen.roster.cars!["van-1"]).toEqual({ model: "van" });
-    expect(screen.carCamera("krokodil-a", "cam-1")).toBeNull();
+    expect(screen.carCamera("krokodil-a", "http://cam-1/media/?action=stream")).toBeNull();
   });
 });
 
@@ -916,7 +932,7 @@ describe("edits that wait for power off", () => {
     screen.modelKind("coach", "special");
     screen.modelNotes("coach", "green");
     screen.carNotes("van-1", "dented");
-    expect(screen.carCamera("van-1", "cam-1")).toBeNull();
+    expect(screen.carCamera("van-1", "http://cam-1/")).toBeNull();
     screen.setPhoto("coach", { jpeg: new Uint8Array([1]), shown: "data:," });
     expect(screen.edits).toBe(true);
     expect(screen.rebuildEdits).toBe(false);
@@ -997,7 +1013,7 @@ describe("a rebuild edit in the roster", () => {
 
   it("is not recorded by an edit that writes nothing, or by a refused one", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     expect(screen.carLength("krokodil-a", 0)).toMatch(
       "positive whole number",
     );
@@ -1030,13 +1046,13 @@ describe("a rebuild edit in the roster", () => {
 
   it("holds nothing for another edit with the row not heard", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     expect(screen.waitsForPower(null, false)).toBeNull();
   });
 
   it("holds nothing for another edit with power on", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     expect(screen.waitsForPower("on")).toBeNull();
   });
 });
@@ -1050,9 +1066,9 @@ describe("an edit made during a Save", () => {
 
   it("leaves the roster holding edits", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     const written = screen.roster;
-    screen.carCamera("krokodil-a", "cam-2");
+    screen.carCamera("krokodil-a", "http://cam-2/");
     screen.kept(written);
     expect(screen.edits).toBe(true);
     expect(screen.rebuildEdits).toBe(false);
@@ -1060,14 +1076,14 @@ describe("an edit made during a Save", () => {
 
   it("is nothing to clear when there was none", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     screen.kept(screen.roster);
     expect(screen.edits).toBe(false);
   });
 
   it("keeps a car's length waiting for power off", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     const written = screen.roster;
     expect(screen.carLength("krokodil-a", 130)).toBeNull();
     screen.kept(written);
@@ -1079,7 +1095,7 @@ describe("an edit made during a Save", () => {
     const screen = stock();
     screen.carLength("krokodil-a", 130);
     const written = screen.roster;
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     screen.kept(written);
     expect(screen.edits).toBe(true);
     expect(screen.rebuildEdits).toBe(false);
@@ -1100,7 +1116,7 @@ describe("an edit made during a Save", () => {
 
   it("keeps a model corrected while only the roster is written", () => {
     const screen = stock();
-    screen.carCamera("krokodil-a", "cam-1");
+    screen.carCamera("krokodil-a", "http://cam-1/");
     const written = screen.roster;
     screen.modelLength("coach", 50);
     screen.kept(written);

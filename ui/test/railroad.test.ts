@@ -538,7 +538,7 @@ describe("the roster's save", () => {
     const { railroad, store, names } = made();
     railroad.named("toy");
     await flushed();
-    railroad.stock!.carCamera("hopper-1", "cam-1");
+    railroad.stock!.carCamera("hopper-1", "http://cam-1/");
 
     expect(await railroad.save("off")).toBe("landed");
     expect(store.saved).toEqual(["/rosters/toy"]);
@@ -829,7 +829,7 @@ describe("what ON saves first", () => {
 
   it("answers landed for a roster edit that changed no field the apps built from", async () => {
     const { railroad, store, names } = await loaded();
-    railroad.stock!.carCamera("hopper-1", "cam-1");
+    railroad.stock!.carCamera("hopper-1", "http://cam-1/");
 
     expect(await railroad.beforeOn("off", true, false)).toBe("landed");
 
