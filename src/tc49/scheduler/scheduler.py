@@ -71,6 +71,12 @@ this module tells the rule what the bus said and does what it answers, in
   gesture is added as an entry that is `out`, and a turn-round applied as one
   that has `ended`. The entry follows its request to `ended`, `rejected` or
   `cancelled`. `tc49/schedule/timetable_record_wanted` switches Record.
+- `tc49/schedule/entry_wanted` changes or deletes the first entry equal to
+  the one it names, in every phase. The entry keeps its state and its
+  request, and a request that has gone out is left alone (#1354).
+- `tc49/schedule/timetable_rename_wanted` renames the loaded timetable: the
+  document is written under the new name and the old one deleted. Dropped
+  where the store has a timetable of that name (#1354).
 - The document is written through the store client at each change to it. A
   change of an entry's state alone is no change to it.
 - The loaded timetable is on `tc49/schedule/state/timetable`, published when
@@ -112,7 +118,9 @@ from tc49.lib.payload import (
     power,
     readable_id,
     said_clock,
+    wanted_entry,
     wanted_record,
+    wanted_rename,
     wanted_timetable,
 )
 from tc49.lib.scenario import RequestSpec
@@ -233,7 +241,7 @@ class Scheduler:
     # -- gestures ----------------------------------------------------------
 
     def _on_gesture(self, topic: str, payload: Payload) -> None:
-        """A person's action on a page: which of the four leaves it came on.
+        """A person's action on a page: which of the six leaves it came on.
 
         The filter is the whole of `tc49/schedule`, as rule 3 asks, so the
         scheduler's own state topics come back through here and are
@@ -260,6 +268,12 @@ class Scheduler:
             record = wanted_record(payload)
             if record is not None:
                 self._state = release.recording(self._state, record)
+        elif leaf == "entry_wanted":
+            change = wanted_entry(payload)
+            if change is not None:
+                self._state = release.changed(self._state, change.was, change.now)
+        elif leaf == "timetable_rename_wanted":
+            self._rename(payload)
         # a throttle is one more leaf under this role, later
         self._settle()
 
@@ -362,6 +376,31 @@ class Scheduler:
             )
         except ValueError:  # no name a timetable document takes
             return
+
+    def _rename(self, payload: Payload) -> None:
+        """A `timetable_rename_wanted` gesture: the loaded timetable takes
+        the name `to`. Its document is written under the new name, then the
+        one under the old name is deleted, and the state row names the new
+        one (#1354).
+
+        Dropped where no timetable is loaded, where `to` is no name a
+        timetable document takes, and where the store has a timetable of
+        that name, one it cannot read included. The name the timetable has
+        is such a name.
+        """
+        to = wanted_rename(payload)
+        loaded = self._state.timetable
+        if to is None or self._store is None or loaded is None:
+            return
+        try:
+            renamed = release.renamed(self._state, to)
+            if self._store.timetable(self._layout.name, to) is not None:
+                return
+        except (ValueError, TypeError):
+            return
+        self._state = renamed
+        self._settle()  # the write of the new document, ahead of the delete
+        self._store.delete_timetable(self._layout.name, loaded.name)
 
     def _turn(self, train: str) -> bool:
         """Turning a train around at rest: the little arrow in the block it
