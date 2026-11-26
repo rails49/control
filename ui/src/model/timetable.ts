@@ -222,10 +222,10 @@ const GONE: ReadonlySet<EntryState> = new Set(["out", "ended", "rejected", "canc
  *
  * An entry has gone out when it is `out`, `ended`, `rejected` or
  * `cancelled`. A newest entry has gone out and is one `was` does not list,
- * or one `was` lists `later` or `held`, or in an earlier round. `was` lists
- * an entry that reads the same (`same`), or that went out as the same
- * request: a changed entry keeps its request. Where several are newest, the
- * last in the list is the row.
+ * or lists as not gone out, or in an earlier round. `was` lists an entry
+ * that reads the same (`same`), or that went out as the same request: a
+ * changed entry keeps its request. Where several are newest, the last in the
+ * list is the row.
  *
  * With no `was`, or `was` another timetable by its name, the row is the last
  * entry gone out in the highest round any entry has gone out in, and none
@@ -246,14 +246,7 @@ export function newest(was: Timetable | null, now: Timetable | null): number | n
       const listed = was.entries.find(
         (old) => same(old.entry, entry) || (request !== undefined && old.request === request),
       );
-      if (
-        listed === undefined ||
-        listed.state === "later" ||
-        listed.state === "held" ||
-        listed.round < round
-      ) {
-        at = i;
-      }
+      if (listed === undefined || !GONE.has(listed.state) || listed.round < round) at = i;
     });
   }
   return at === -1 ? null : at;
