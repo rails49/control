@@ -54,11 +54,23 @@ between the pane and the drawing is a 6px gap in that grey. What takes the
 press is wider, and wider again under a finger. On hover and while dragged
 the gap takes the highlight colour, `--chosen`. A person drags it with a
 mouse or a finger
-([#1344](https://github.com/rails49/control/issues/1344)). The pane has a
-least width, where the roster is still usable, and a greatest, which leaves
-the drawing a least width of its own; both are in `ui/src/model/pane.ts`.
-Until the divider is first dragged the pane is as wide as the editor's
-palette, which has no divider.
+([#1344](https://github.com/rails49/control/issues/1344)). The gap is
+`tc-gap`, which takes the press and the drag and leaves the sizes to the
+view. The pane has a least width, where the roster is still usable, and a
+greatest, which leaves the drawing a least width of its own; both are in
+`ui/src/model/pane.ts`. Until the divider is first dragged the pane is as
+wide as the editor's palette, which has no divider.
+
+**A second gap, between the two lists, is dragged the same way**
+([#1391](https://github.com/rails49/control/issues/1391)). It is 6px, in
+the same grey, with the same wider press area and the highlight colour on
+hover and while dragged. It sets the roster's height, measured from the
+view's top edge, or on an upright page the roster's width, measured from
+the view's left edge. Each list keeps a least size, in
+`ui/src/model/pane.ts`, so neither can be dragged out of sight. Until the
+gap is first dragged the roster is as tall as its rows, up to half the
+pane, and the list takes the rest; on an upright page the two are half and
+half.
 
 **On a page taller than it is wide the pane is above the drawing**: a tablet
 held upright, a phone. The roster and the list stand side by side in
@@ -72,11 +84,12 @@ bold, in the ink colour, in capitals. The timetable's name and controls
 follow in its bar, and where they do not fit the controls wrap under it; the
 first line keeps the shared height.
 
-**The divider's position is kept in the browser**, in `localStorage`, one for
-each of the two arrangements. A tablet and a desktop each keep their own, and
-turning a tablet brings back the position last set for the arrangement it
-turns to. The position is on no topic and not in the store. The drawing is
-fitted again whenever the divider moves and whenever the page turns.
+**Each gap's position is kept in the browser**, in `localStorage`, under
+its own key, one for each of the two arrangements. A tablet and a desktop
+each keep their own, and turning a tablet ends a drag and brings back the
+positions last set for the arrangement it turns to. The positions are on no
+topic and not in the store. The drawing is fitted again whenever a gap
+moves and whenever the page turns.
 
 **The railroad's roster is listed in the pane**, by `tc-roster`
 ([#169](https://github.com/rails49/control/issues/169)). A row is
@@ -147,11 +160,10 @@ the scheduler has said whether one is, it is the request list, read from
 ([#829](https://github.com/rails49/control/issues/829),
 [ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
 With one loaded it shows the timetable, described after the request rows.
-The roster is as tall as its rows, up to half the pane, and the list sits
-directly under it and takes the rest of the pane's height. Each scrolls on
-its own ([#895](https://github.com/rails49/control/issues/895)). Where the
-pane is above the drawing the two lists are side by side, each as tall as
-the pane. The ground shows in a 6px gap between the two lists.
+The list sits directly under the roster and takes the rest of the pane's
+height, the gap between them setting where. Each scrolls on its own
+([#895](https://github.com/rails49/control/issues/895)). Where the pane is
+above the drawing the two lists are side by side, each as tall as the pane.
 One row per request, in list order — the order the dispatcher serves them, so
 what the list shows is what the dispatcher does next. A row is the train,
 where the request starts, where it ends, and *waiting* or *underway*, a
