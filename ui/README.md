@@ -159,8 +159,9 @@ src/
     tc-roster.ts   the roster pane: every train the railroad owns, on the
                    layout or off it, a row to drag out of and back to
     tc-requests.ts the list in the run view's pane: the loaded timetable's
-                   entries and the requests, a cancel on each request, a
-                   drag to reorder the waiting ones
+                   entries and the requests as a table, a cancel on each
+                   request, a drag to reorder the waiting ones
+    list-row.ts    a row of that list: its cells and its "waits for" line
     tc-entry.ts    an entry's open row in that list: its time, arrival
                    ends, dwell and description, and Delete
     tc-timetable-controls.ts  the controls in that list's heading: the menu,
