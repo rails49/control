@@ -12,9 +12,9 @@
  *
  * - **The menu** is `tc-menu`, hung under its button. Each row opens a
  *   dialog (`tc-timetable-dialog`). View, Rename and Repeat are disabled
- *   with no timetable loaded. New, Load and Repeat are disabled while track power is
- *   on, and say so as the rail does for a view that does not open: the
- *   scheduler takes them only with power `off`.
+ *   with no timetable loaded. New, Load and Repeat are disabled while track
+ *   power is on, and say so as the rail does for a view that does not open:
+ *   the scheduler takes them only with power `off`.
  * - **Record** shows the row's `record`, not the last press. It is disabled
  *   with no timetable loaded.
  * - **Start** is drawn only while the phase is `loaded`.
