@@ -23,6 +23,7 @@ import {
   asking,
   edited,
   followed,
+  misnamed,
   placeOf,
   same,
   tapped,
@@ -127,6 +128,69 @@ describe("an entry with a field typed", () => {
   it("is not changed by the description it has, or by none where it has none", () => {
     expect(edited(GOODS, "description", "meets the express")).toBeNull();
     expect(edited(BARE, "description", "")).toBeNull();
+  });
+
+  it("has its arrival ends typed: a block, or a block with an end", () => {
+    expect(edited(GOODS, "to", "c")).toEqual({ ...GOODS, to: ["c"] });
+    expect(edited(GOODS, "to", "c.B")).toEqual({ ...GOODS, to: ["c.B"] });
+  });
+
+  it("has several arrival ends in the order typed, the space round each dropped", () => {
+    expect(edited(GOODS, "to", " dn_e ,up_e.B,  c.A ")).toEqual({
+      ...GOODS,
+      to: ["dn_e", "up_e.B", "c.A"],
+    });
+  });
+
+  it("is not changed by the arrival ends it has", () => {
+    expect(edited(GOODS, "to", "b.A")).toBeNull();
+    expect(edited({ ...GOODS, to: ["b", "c.A"] }, "to", "b, c.A")).toBeNull();
+  });
+
+  it.each(["", " , ", "b.C", "b.", "b, b.A", "c.A, c.B"])(
+    "is not changed by arrival ends typed as %j",
+    (words) => {
+      expect(edited(GOODS, "to", words)).toBeNull();
+    },
+  );
+
+  /** A turn-round has no arrival ends to change. */
+  it("is given no arrival ends where it is a turn-round", () => {
+    expect(edited(TURN, "to", "b")).toBeNull();
+  });
+});
+
+describe("arrival ends typed", () => {
+  const BLOCKS = ["a", "b", "dn_e", "up_e"];
+
+  it.each(["a", "b.A", "dn_e, up_e.B", " a.B ,b ", "a, b,"])("are good as %j", (words) => {
+    expect(misnamed(BLOCKS, words)).toBeNull();
+  });
+
+  it.each(["", "  ", " , "])("are refused as none for %j", (words) => {
+    expect(misnamed(BLOCKS, words)).toBe("no arrival end");
+  });
+
+  it.each([
+    ["b.C", "b.C: the end is A or B"],
+    ["a, b.", "b.: the end is A or B"],
+    ["a.a", "a.a: the end is A or B"],
+  ])("are refused for an end other than A or B in %j", (words, why) => {
+    expect(misnamed(BLOCKS, words)).toBe(why);
+  });
+
+  it("are refused for a block the railroad does not have, named", () => {
+    expect(misnamed(BLOCKS, "a, dn_w.A")).toBe("the railroad has no block dn_w");
+    expect(misnamed([], "a")).toBe("the railroad has no block a");
+  });
+
+  it.each([
+    ["dn_e, dn_e", "dn_e"],
+    ["dn_e, dn_e.A", "dn_e"],
+    ["up_e.A, a, up_e.B", "up_e"],
+    ["b.B, b", "b"],
+  ])("are refused for a block named twice in %j, named", (words, block) => {
+    expect(misnamed(BLOCKS, words)).toBe(`${block} is named twice`);
   });
 });
 
