@@ -68,7 +68,7 @@ export class TcEntry extends LitElement {
             />
             <span>min</span>
           </label>`}
-      <label>
+      <label class="under">
         <span>Description</span>
         <input
           class="description"
