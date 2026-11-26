@@ -526,6 +526,7 @@ def test_the_loaded_timetable_is_the_schedulers_state_and_two_gestures_ask() -> 
         "phase",
         "record",
         "start",
+        "repeat",
         "trains",
         "positioning",
         "entries",

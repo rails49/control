@@ -216,11 +216,11 @@ TOPICS: dict[str, Topic] = {
     "tc49/schedule/timetable_start_wanted": Topic((), browser=True),
     # The loaded timetable, written when it changes: `timetable` is its name,
     # or `null`, and then no other field is present. `phase` is `loaded` or
-    # `running`, `start` is `"HH:MM"`, `trains` maps each train to
-    # `{at, facing}`, `positioning` lists request ids, and `entries` is each
-    # entry's document fields with its `state`, the `round` it is for, its
-    # `request` where it went out as one and `ended` where it ended by
-    # arrival (#1345, #1367).
+    # `running`, `start` is `"HH:MM"`, `repeat` is a length in the time
+    # form, `trains` maps each train to `{at, facing}`, `positioning` lists
+    # request ids, and `entries` is each entry's document fields with its
+    # `state`, the `round` it is for, its `request` where it went out as one
+    # and `ended` where it ended by arrival (#1345, #1365, #1367).
     "tc49/schedule/state/timetable": Topic(
         (
             AT,
@@ -228,6 +228,7 @@ TOPICS: dict[str, Topic] = {
             "phase",
             "record",
             "start",
+            "repeat",
             "trains",
             "positioning",
             "entries",
