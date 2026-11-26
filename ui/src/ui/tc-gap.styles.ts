@@ -3,9 +3,10 @@ import { css } from "lit";
 import { GAP } from "../model/pane.js";
 
 /**
- * `tc-gap`: a gap `GAP` across (`model/pane.ts`) in the gap colour, `--chosen` on hover and while
- * dragged. What takes the press is wider, and wider again under a finger, and
- * lies over the edges of the parts either side.
+ * `tc-gap`: a gap `GAP` across (`model/pane.ts`) in the gap colour,
+ * `--chosen` on hover and while dragged. What takes the press is wider, and
+ * wider again under a finger, and lies over the edges of the parts either
+ * side.
  */
 export const gapStyles = css`
   :host {
@@ -47,7 +48,7 @@ export const gapStyles = css`
   }
 
   :host(:hover),
-  :host(:active) {
+  :host([dragging]) {
     background: var(--chosen);
   }
 `;
