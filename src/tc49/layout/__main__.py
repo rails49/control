@@ -285,14 +285,14 @@ class _Binding:
         otherwise on day 0 at the start time the railroad keeps (ADR-0090,
         decision 4), or, where it keeps none, at the box's time of day at a
         speed-up of 1, which is not written until a person sets the clock. It
-        stands there until power first reads `on` (#1350). The interface can read the railroad's
-        roster again, once, for a placement or a take naming a train it was
-        not built with (ADR-0092, decision 2). It starts at the settings
-        the railroad keeps, the defaults where it keeps none, and a person's
-        change to them is kept with the railroad (#1126). A throttle silence,
-        a sensor silence or an arrival allowance a person sets is kept with
-        the installation and is the one every later build starts at (#1132,
-        #1149, #1188)."""
+        stands there until power first reads `on` (#1350). The interface
+        can read the railroad's roster again, once, for a placement or a take
+        naming a train it was not built with (ADR-0092, decision 2). It
+        starts at the settings the railroad keeps, the defaults where it keeps
+        none, and a person's change to them is kept with the railroad (#1126).
+        A throttle silence, a sensor silence or an arrival allowance a person
+        sets is kept with the installation and is the one every later build
+        starts at (#1132, #1149, #1188)."""
         retained(self._bus, self._stop)
         layout, roster, kept, settings = read
         clock = Clock()
