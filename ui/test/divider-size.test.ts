@@ -82,7 +82,8 @@ describe("the palette's divider", () => {
     expect(size(editing(shell), "--palette-size")).toBe("300px");
   });
 
-  /** The greatest leaves the drawing 256 px of the view's 1000. */
+  /** The greatest leaves the drawing 256 px of the view's 1000, with the
+   *  netlist shut. */
   it("holds the palette's width to a least and a greatest", async () => {
     const shell = await joined("edit");
 
@@ -147,7 +148,8 @@ describe("the netlist's divider", () => {
     expect(size(editing(shell), "--palette-size")).toBe("");
   });
 
-  /** The greatest leaves the drawing 256 px of the view's 1000. */
+  /** The greatest the view hands over is 256 px short of the view's 1000.
+   *  The stylesheet holds it against the palette as well. */
   it("holds the netlist's width to a least and a greatest", async () => {
     const shell = await joined("edit");
     await pressed(shell, "netlist");

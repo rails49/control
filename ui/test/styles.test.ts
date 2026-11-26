@@ -617,14 +617,22 @@ describe("the run view's pane", () => {
  * `--netlist-size`.
  */
 describe("the edit view's dividers", () => {
-  const palette = "clamp(144px, var(--palette-size, var(--pane)), 100% - 256px)";
-
   it("show the gap colour between panels on the paper colour", () => {
     const sheet = editorStyles.cssText;
     expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
-    for (const panel of ["tc-palette", "tc-canvas", "tc-netlist"]) {
+    for (const panel of [":host::before", "tc-canvas", "tc-netlist"]) {
       expect(rule(sheet, panel)).toMatch(/background:\s*var\(--paper\)/);
     }
+  });
+
+  /** A frozen drawing fades the palette to 0.4. The paper is behind the
+   *  palette and not its own, so the fade does not blend the paper into the
+   *  view's gap colour. */
+  it("leave the frozen palette its paper colour", () => {
+    const sheet = editorStyles.cssText;
+    expect(rule(sheet, ":host([frozen]) tc-palette")).toMatch(/opacity:\s*0\.4/);
+    expect(rule(sheet, "tc-palette")).not.toMatch(/background/);
+    expect(rule(sheet, ":host::before")).toMatch(/grid-area:\s*palette;/);
   });
 
   /** The menu and the dialogs are in rows after the panels'. Those rows are
@@ -648,15 +656,27 @@ describe("the edit view's dividers", () => {
   /** The palette is the shell's `--pane` wide until its divider is dragged,
    *  and the limits a drag is held to hold when the window changes size. */
   it("size the palette, held to its least and greatest by the stylesheet", () => {
-    const sheet = editorStyles.cssText;
-    expect(rule(sheet, ":host")).toContain(palette);
-    expect(rule(sheet, ":host([netlist])")).toContain(palette);
+    expect(rule(editorStyles.cssText, ":host")).toContain(
+      "clamp(144px, var(--palette-size, var(--pane)), 100% - 256px)",
+    );
   });
 
-  /** The netlist is 22rem wide until its divider is dragged. */
-  it("size the netlist, held to its least and greatest by the stylesheet", () => {
-    expect(rule(editorStyles.cssText, ":host([netlist])")).toContain(
-      "clamp(192px, var(--netlist-size, 22rem), 100% - 256px)",
+  /**
+   * With the netlist open the drawing keeps 256px. The palette's greatest
+   * leaves the drawing that, the netlist its least of 192px and the two
+   * dividers, each look's `GAP_PX` wide. The netlist is 22rem wide until its
+   * divider is dragged, and its greatest leaves the drawing's 256px, the
+   * dividers and the palette as wide as it then is. So the netlist gives way
+   * first, then the palette, and in a view too small for all three the
+   * leasts hold.
+   */
+  it("leave the drawing its least width with the netlist open", () => {
+    const dividers = 2 * GAP_PX;
+    const palette = `clamp(144px, var(--palette-size, var(--pane)), 100% - ${256 + 192 + dividers}px)`;
+    const columns = rule(editorStyles.cssText, ":host([netlist])");
+    expect(columns).toContain(`${palette} auto 1fr auto`);
+    expect(columns).toContain(
+      `clamp(192px, var(--netlist-size, 22rem), 100% - ${256 + dividers}px - ${palette})`,
     );
   });
 });
