@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 import tc49.scheduler.release
+from tc49.lib.fast_clock import DAY_S
 from tc49.lib.timetable import Entry, Timetable, TrainStart
 from tc49.scheduler.release import (
     CANCELLED,
@@ -806,6 +807,16 @@ def test_a_new_timetable_starts_at_the_clocks_minute_and_is_running() -> None:
     assert state.time == 30
     assert (state.clock, state.power) == (before.clock, "on")
     assert (state.placed, state.in_flight) == (before.placed, before.in_flight)
+
+
+def test_a_new_timetable_made_on_day_1_starts_at_the_clocks_time_of_day() -> None:
+    """The clock counts days (#1364); the timetable still takes the time of
+    day, and runs, until the release rule changes in #1367."""
+    state = made(told(DAY_S + at("06:00") + 30), "untitled", "crossover-yard", YARD)
+
+    assert row(state)["start"] == "06:00"
+    assert row(state)["phase"] == "running"
+    assert state.time == 30
 
 
 def test_a_new_timetable_replaces_the_one_loaded() -> None:
