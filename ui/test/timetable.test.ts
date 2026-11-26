@@ -496,6 +496,20 @@ describe("tc-requests with a timetable", () => {
     expect(heading(await list(null, SERVED))).toEqual(["Timetable", null]);
   });
 
+  it("heads its columns as the request list does (#1393)", async () => {
+    const element = await list(EVENING, SERVED);
+    const headings = [...element.renderRoot.querySelectorAll(".columns > *")];
+    expect(headings.map((cell) => cell.textContent!.trim())).toEqual([
+      "Time",
+      "Train",
+      "To",
+      "Dwell",
+      "Description",
+      "State",
+      "",
+    ]);
+  });
+
   it("draws each entry's time, train, destination and state, an out one as its request", async () => {
     const element = await list(EVENING, SERVED);
     expect(drawn(element)).toEqual([
@@ -505,7 +519,7 @@ describe("tc-requests with a timetable", () => {
       ["06:05", "goods", "a.B → b.A", "waiting"],
       ["06:06", "goods", "b.A → c.B", "waiting"],
       ["06:30", "local", "→ c.B", "later"],
-      [null, "local", "d.A → b.B, c.B", "waiting"],
+      ["", "local", "d.A → b.B, c.B", "waiting"],
     ]);
   });
 
@@ -769,7 +783,7 @@ describe("tc-requests with a timetable", () => {
      *  the rows take what is left. */
     it("scrolls its rows under the heading, which stays in view", async () => {
       const element = await list(loaded({ entry: gone, state: "ended", round: 0 }, { entry: next, state: "held", round: 0 }));
-      const scrolled = element.renderRoot.querySelector("ul")!;
+      const scrolled = element.renderRoot.querySelector(".table")!;
       expect(scrolled.querySelector("header")).toBeNull();
       expect(asked.every((row) => scrolled.contains(row))).toBe(true);
 
@@ -777,7 +791,7 @@ describe("tc-requests with a timetable", () => {
       const host = /:host \{([^}]*)\}/.exec(sheet)![1]!;
       expect(host).toMatch(/display:\s*flex/);
       expect(host).toMatch(/flex-direction:\s*column/);
-      const rows = /^\s*ul \{([^}]*)\}/m.exec(sheet)![1]!;
+      const rows = rule(sheet, ".table");
       expect(rows).toMatch(/overflow-y:\s*auto/);
       expect(rows).toMatch(/min-height:\s*0/);
       expect(/^\s*header \{([^}]*)\}/m.exec(sheet)![1]!).toMatch(/flex:\s*none/);
@@ -806,18 +820,23 @@ describe("tc-requests with a timetable", () => {
         SERVED,
       );
       expect(more(element).slice(0, 3)).toEqual([
-        ["dwell 2 min", "meets the express"],
-        ["dwell 2 min", "meets the express"],
-        [null, null],
+        ["2 min", "meets the express"],
+        ["2 min", "meets the express"],
+        ["", ""],
       ]);
     });
 
-    it("are shown where the list is 24rem wide or more, and not below that", () => {
+    /** Their headings with them, and the table has their columns only
+     *  there (#1393). */
+    it("are shown where the list is 34rem wide or more, and not below that", () => {
       const sheet = requestsStyles.cssText;
       expect(rule(sheet, ":host")).toMatch(/container-type:\s*inline-size/);
-      const [narrow, wide] = sheet.split("@container (min-width: 24rem)");
+      expect(sheet).not.toContain("24rem");
+      const [narrow, wide] = sheet.split("@container (min-width: 34rem)");
       expect(narrow).toMatch(/\.dwell,\s*\.description \{[^}]*display:\s*none/);
-      expect(wide).toMatch(/^\s*\{\s*\.dwell,\s*\.description \{[^}]*display:\s*block/);
+      expect(rule(narrow!, ".table")).not.toMatch(/\[dwell\]|\[description\]/);
+      expect(wide).toMatch(/\.dwell,\s*\.description \{[^}]*display:\s*block/);
+      expect(rule(wide!, ".table")).toMatch(/\[dwell\][^;]*\[description\]/);
     });
   });
 });
@@ -870,9 +889,9 @@ describe("the run view's list", () => {
   }
 
   const REQUESTS = [
-    [null, "express", "c.A → a.B", "underway"],
-    [null, "goods", "a.B → b.A", "waiting"],
-    [null, "local", "d.A → b.B, c.B", "waiting"],
+    ["", "express", "c.A → a.B", "underway"],
+    ["", "goods", "a.B → b.A", "waiting"],
+    ["", "local", "d.A → b.B, c.B", "waiting"],
   ];
 
   it("is headed Timetable alone and lists the requests before the scheduler has said", async () => {
@@ -890,7 +909,7 @@ describe("the run view's list", () => {
       ["06:02", "express", "c.A → a.B", "underway"],
       ["06:05", "goods", "a.B → b.A", "waiting"],
       ["06:30", "local", "→ c.B", "later"],
-      [null, "local", "d.A → b.B, c.B", "waiting"],
+      ["", "local", "d.A → b.B, c.B", "waiting"],
     ]);
   });
 

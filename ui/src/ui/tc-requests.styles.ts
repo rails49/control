@@ -11,30 +11,28 @@ import { heading } from "./shared.styles.js";
  * then the loaded timetable's name, then the controls the run view puts in
  * its slot, on a line of their own where one line does not hold them (#1357).
  * The heading's first line is the roster's heading's height (#1390). The
- * heading keeps its height and stays in view, and the rows scroll under it in
- * what is left of the list's height.
+ * heading keeps its height and stays in view, and the table scrolls under it
+ * in what is left of the list's height.
  *
- * A request's row is the train and its state
- * on one line, where the
- * request goes from and to under them, which train it waits for under that
- * where the dispatcher refused it one (#1114), and the cancel at the right,
- * with "arrived" before it on an underway row without sensors (#1323). A
- * long train name wraps onto a second line and is not cut short. A waiting
- * row takes the grab cursor, being something to drag into another place; an
- * underway one takes none, having started.
+ * The rows are a table (#1393): columns Time, Train, To, Dwell, Description,
+ * State and the action, under a row of column headings that stays at the top
+ * of what scrolls. Every row takes the table's columns (CSS subgrid), so the
+ * cells line up with the headings. A row is one line. A long train name wraps
+ * in its cell and is not cut short. A refused request's "waits for" line is
+ * under its row, from the Train column to the right edge. An entry's open row
+ * (`tc-entry`, #1358) is under its row, across the table.
  *
- * An entry's row is laid out as a request's is, with no buttons. Its time
- * starts the second line, before where it goes, so the first line is as wide
- * as it is without a timetable. A row that is done is dimmed. A row that is
- * not picked up scrolls the list under a finger.
+ * Every other row takes the stripe shade, with its "waits for" line and its
+ * open row, and no line divides two rows. A row that is done is dimmed. A row
+ * picked up is marked, over its stripe. A done row is not dimmed while it is
+ * open. A waiting row takes the grab cursor, being something to drag into
+ * another place; any other row takes none. A row that is not picked up
+ * scrolls the list under a finger.
  *
- * An entry's dwell and description are in its row and not shown. Where the
- * list is 24rem wide or more they are shown, each on a line under where the
- * entry goes. The width is the list's own, read with a container query, since
- * a person sets the pane's width (#1344).
- *
- * An entry's open row (`tc-entry`, #1358) is the last thing in its row and as
- * wide as the row. A done row is not dimmed while it is open.
+ * Dwell and Description, headings and cells, are in the markup at any width
+ * and shown where the list is 34rem wide or more, the table having their
+ * columns only there. The width is the list's own, read with a container
+ * query, since a person sets the pane's width (#1344).
  */
 export const requestsStyles = css`
   :host {
@@ -51,20 +49,41 @@ export const requestsStyles = css`
     overflow-wrap: anywhere;
   }
 
-  ul {
+  .table {
     min-height: 0;
     overflow-y: auto;
+    display: grid;
+    grid-template-columns: [time] auto [train] auto [way] 1fr [state] auto [action] auto;
+    align-content: start;
+    column-gap: 0.5rem;
+  }
+
+  .columns {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.2rem;
+    background: var(--paper);
+    font-size: 0.7rem;
+    color: var(--hint);
+  }
+
+  ul {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  /* The time's column is as wide as the time, and only the second line has
-     anything in it: the train's name starts at the row's left edge. */
   li {
+    grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: [time] auto [train] 1fr [state] auto [arrived] auto [cancel] auto;
-    column-gap: 0.5rem;
+    grid-template-columns: subgrid;
     align-items: baseline;
     padding: 0.25rem 0.2rem;
     cursor: grab;
@@ -74,8 +93,8 @@ export const requestsStyles = css`
     -webkit-touch-callout: none;
   }
 
-  li + li {
-    border-top: 1px solid var(--rule);
+  li:nth-child(even) {
+    background: var(--stripe);
   }
 
   li.still {
@@ -96,9 +115,20 @@ export const requestsStyles = css`
     opacity: 1;
   }
 
+  .time {
+    grid-column: time;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+
   .train {
-    grid-column: time / state;
+    grid-column: train;
     overflow-wrap: anywhere;
+  }
+
+  .way {
+    grid-column: way;
+    font-size: 0.7rem;
   }
 
   .state {
@@ -111,10 +141,14 @@ export const requestsStyles = css`
     color: inherit;
   }
 
+  .action {
+    grid-column: action;
+    align-self: center;
+    display: flex;
+  }
+
   .arrived,
   .cancel {
-    grid-row: 1 / span 2;
-    align-self: center;
     border: none;
     background: none;
     color: var(--hint);
@@ -124,12 +158,7 @@ export const requestsStyles = css`
   }
 
   .arrived {
-    grid-column: arrived;
     font-size: 0.7rem;
-  }
-
-  .cancel {
-    grid-column: cancel;
   }
 
   .arrived:hover,
@@ -137,45 +166,40 @@ export const requestsStyles = css`
     color: inherit;
   }
 
-  /* An entry's time, at the start of the line under the train. */
-  .time {
-    grid-column: time;
-    font-size: 0.7rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* From and to, under the train, after the time where the row has one. */
-  .way {
-    grid-column: time / arrived;
-    font-size: 0.7rem;
-    color: var(--hint);
-  }
-
-  .time + .way {
-    grid-column: train / arrived;
-  }
-
-  /* An entry's dwell and description, under where it goes. Not shown in a
-     narrow list. */
+  /* Not shown in a narrow list. */
   .dwell,
   .description {
     display: none;
-    grid-column: time / arrived;
     font-size: 0.7rem;
     color: var(--hint);
     overflow-wrap: anywhere;
   }
 
-  @container (min-width: 24rem) {
+  .dwell {
+    grid-column: dwell;
+  }
+
+  .description {
+    grid-column: description;
+  }
+
+  @container (min-width: 34rem) {
+    .table {
+      grid-template-columns:
+        [time] auto [train] auto [way] 1fr [dwell] auto [description] 1fr
+        [state] auto [action] auto;
+    }
+
     .dwell,
     .description {
       display: block;
     }
   }
 
-  /* Which train it waits for, a line per sentence, under from and to. */
+  /* Which train it waits for, a line per sentence, under the row from the
+     Train column on. */
   .note {
-    grid-column: time / arrived;
+    grid-column: train / -1;
     font-size: 0.7rem;
     font-style: italic;
   }
