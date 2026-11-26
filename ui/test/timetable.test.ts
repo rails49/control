@@ -58,11 +58,12 @@ const SAID = {
       dwell: 2,
       description: "meets the express",
       state: "ended",
+      round: 0,
       request: "g1",
-      ended: 190,
+      ended: 21_790,
     },
-    { at: "06:10", train: "goods", turn: true, state: "ended" },
-    { at: "06:12", train: "goods", to: ["c.B"], state: "later" },
+    { at: "06:10", train: "goods", turn: true, state: "ended", round: 0 },
+    { at: "06:12", train: "goods", to: ["c.B"], state: "later", round: 0 },
   ],
   at: 12.5,
 };
@@ -88,16 +89,24 @@ describe("the timetable row", () => {
             description: "meets the express",
           },
           state: "ended",
+          round: 0,
           request: "g1",
         },
-        { entry: { at: "06:10", train: "goods", turn: true }, state: "ended" },
-        { entry: { at: "06:12", train: "goods", to: ["c.B"] }, state: "later" },
+        { entry: { at: "06:10", train: "goods", turn: true }, state: "ended", round: 0 },
+        { entry: { at: "06:12", train: "goods", to: ["c.B"] }, state: "later", round: 0 },
       ],
     });
   });
 
+  it("reads the round each entry's state is for", () => {
+    const again = { ...SAID.entries[2], round: 2 };
+    expect(timetableOf({ ...SAID, entries: [again] })).toMatchObject({
+      entries: [{ state: "later", round: 2 }],
+    });
+  });
+
   it("reads an entry after midnight in the time form, and a repeat of a day", () => {
-    const late = { at: "1d01:00", train: "goods", to: ["c.B"], state: "later" };
+    const late = { at: "1d01:00", train: "goods", to: ["c.B"], state: "later", round: 0 };
     expect(timetableOf({ ...SAID, entries: [late] })).toMatchObject({
       start: 6 * 3600,
       repeat: 86_400,
@@ -111,11 +120,15 @@ describe("the timetable row", () => {
 
   it.each([
     ["no name", { ...SAID, timetable: 7 }],
-    ["a phase outside the three", { ...SAID, phase: "paused" }],
+    ["a phase outside the two", { ...SAID, phase: "paused" }],
+    ["the phase over, which is gone", { ...SAID, phase: "over" }],
     ["no entries", { ...SAID, entries: undefined }],
     ["an entry in no known state", { ...SAID, entries: [{ ...SAID.entries[2], state: "lost" }] }],
-    ["an entry with neither to nor turn", { ...SAID, entries: [{ at: "06:02", train: "goods", state: "later" }] }],
-    ["an entry with no train", { ...SAID, entries: [{ at: "06:02", to: ["b.A"], state: "later" }] }],
+    ["an entry with no round", { ...SAID, entries: [{ ...SAID.entries[2], round: undefined }] }],
+    ["an entry in a round before 0", { ...SAID, entries: [{ ...SAID.entries[2], round: -1 }] }],
+    ["an entry in a round that is no whole number", { ...SAID, entries: [{ ...SAID.entries[2], round: 1.5 }] }],
+    ["an entry with neither to nor turn", { ...SAID, entries: [{ at: "06:02", train: "goods", state: "later", round: 0 }] }],
+    ["an entry with no train", { ...SAID, entries: [{ at: "06:02", to: ["b.A"], state: "later", round: 0 }] }],
     ["an entry at a time with a one-digit hour", { ...SAID, entries: [{ ...SAID.entries[2], at: "6:12" }] }],
     ["an entry at no time", { ...SAID, entries: [{ ...SAID.entries[2], at: "soon" }] }],
     ["an entry at a time as a number", { ...SAID, entries: [{ ...SAID.entries[2], at: 22_320 }] }],
@@ -167,13 +180,13 @@ describe("the list's rows", () => {
 
   it("are one per entry in the row's order, in each of the seven states", () => {
     const entries: Scheduled[] = [
-      { entry: to("06:01", "express", "a.B"), state: "ended", request: "e0" },
-      { entry: to("06:02", "local", "b.B"), state: "rejected", request: "l0" },
-      { entry: to("06:03", "goods", "b.A"), state: "cancelled", request: "g0" },
-      { entry: to("06:04", "shunter", "c.A"), state: "skipped" },
-      { entry: to("06:05", "goods", "b.A"), state: "out", request: "g1" },
-      { entry: to("06:06", "express", "d.A"), state: "held" },
-      { entry: to("06:30", "local", "c.B"), state: "later" },
+      { entry: to("06:01", "express", "a.B"), state: "ended", round: 0, request: "e0" },
+      { entry: to("06:02", "local", "b.B"), state: "rejected", round: 0, request: "l0" },
+      { entry: to("06:03", "goods", "b.A"), state: "cancelled", round: 0, request: "g0" },
+      { entry: to("06:04", "shunter", "c.A"), state: "skipped", round: 0 },
+      { entry: to("06:05", "goods", "b.A"), state: "out", round: 0, request: "g1" },
+      { entry: to("06:06", "express", "d.A"), state: "held", round: 0 },
+      { entry: to("06:30", "local", "c.B"), state: "later", round: 0 },
     ];
     expect(listRows(loaded(...entries), [GOODS!])).toEqual([
       { entry: entries[0]!.entry, state: "ended" },
@@ -190,7 +203,7 @@ describe("the list's rows", () => {
    *  row, and before the dispatcher has listed a request just submitted. */
   it("give an out entry whose request is not listed no request row", () => {
     const entry = to("06:05", "goods", "b.A");
-    expect(listRows(loaded({ entry, state: "out", request: "g1" }), [])).toEqual([
+    expect(listRows(loaded({ entry, state: "out", round: 0, request: "g1" }), [])).toEqual([
       { entry, state: "out" },
     ]);
   });
@@ -199,7 +212,7 @@ describe("the list's rows", () => {
     const out = to("06:05", "goods", "b.A");
     const later = to("06:30", "goods", "c.B");
     const rows = listRows(
-      loaded({ entry: out, state: "out", request: "g1" }, { entry: later, state: "later" }),
+      loaded({ entry: out, state: "out", round: 0, request: "g1" }, { entry: later, state: "later", round: 0 }),
       [EXPRESS!, GOODS!, LOCAL!],
     );
     expect(rows).toEqual([
@@ -215,14 +228,14 @@ describe("the list's rows", () => {
    *  not listed a second time under the entries. */
   it("list a request an ended entry went out as once, as the entry", () => {
     const entry = to("06:05", "goods", "b.A");
-    expect(listRows(loaded({ entry, state: "ended", request: "g1" }), [GOODS!])).toEqual([
+    expect(listRows(loaded({ entry, state: "ended", round: 0, request: "g1" }), [GOODS!])).toEqual([
       { entry, state: "ended" },
     ]);
   });
 
   it("keep a turn-round as the document has it", () => {
     const turn: Entry = { at: "06:10", train: "goods", turn: true };
-    expect(listRows(loaded({ entry: turn, state: "held" }), [])).toEqual([
+    expect(listRows(loaded({ entry: turn, state: "held", round: 0 }), [])).toEqual([
       { entry: turn, state: "held" },
     ]);
   });
@@ -235,9 +248,9 @@ describe("the list's rows", () => {
     const express = to("06:07", "express", "a.B");
     const rows = listRows(
       loaded(
-        { entry: goods, state: "out", request: "g1" },
-        { entry: held, state: "held" },
-        { entry: express, state: "out", request: "e1" },
+        { entry: goods, state: "out", round: 0, request: "g1" },
+        { entry: held, state: "held", round: 0 },
+        { entry: express, state: "out", round: 0, request: "e1" },
       ),
       [EXPRESS!, GOODS!],
     );
@@ -307,12 +320,12 @@ const SERVED = requestRows([
  *      6         local    l1, waiting
  */
 const EVENING = loaded(
-  { entry: to("06:01", "local", "d.A"), state: "ended", request: "l0" },
-  { entry: to("06:02", "express", "a.B"), state: "out", request: "e1" },
-  { entry: to("06:03", "shunter", "c.A"), state: "later" },
-  { entry: to("06:05", "goods", "b.A"), state: "out", request: "g1" },
-  { entry: to("06:06", "goods", "c.B"), state: "out", request: "g2" },
-  { entry: to("06:30", "local", "c.B"), state: "later" },
+  { entry: to("06:01", "local", "d.A"), state: "ended", round: 0, request: "l0" },
+  { entry: to("06:02", "express", "a.B"), state: "out", round: 0, request: "e1" },
+  { entry: to("06:03", "shunter", "c.A"), state: "later", round: 0 },
+  { entry: to("06:05", "goods", "b.A"), state: "out", round: 0, request: "g1" },
+  { entry: to("06:06", "goods", "c.B"), state: "out", round: 0, request: "g2" },
+  { entry: to("06:30", "local", "c.B"), state: "later", round: 0 },
 );
 
 const MIXED = listRows(EVENING, SERVED);
@@ -405,7 +418,7 @@ describe("tc-requests with a timetable", () => {
 
   it("draws turn for a turn-round's destination", async () => {
     const turn: Entry = { at: "06:10", train: "goods", turn: true };
-    const element = await list(loaded({ entry: turn, state: "held" }));
+    const element = await list(loaded({ entry: turn, state: "held", round: 0 }));
     expect(drawn(element)).toEqual([["06:10", "goods", "turn", "held"]]);
   });
 
@@ -419,8 +432,8 @@ describe("tc-requests with a timetable", () => {
     async (state) => {
       const element = await list(
         loaded(
-          { entry: to("06:01", "local", "d.A"), state },
-          { entry: to("06:02", "local", "c.B"), state: "held" },
+          { entry: to("06:01", "local", "d.A"), state, round: 0 },
+          { entry: to("06:02", "local", "c.B"), state: "held", round: 0 },
         ),
       );
       const rows = [...element.renderRoot.querySelectorAll("li")];
@@ -529,7 +542,7 @@ describe("tc-requests with a timetable", () => {
 
     /** `held` is an entry's state and also the mark of a row picked up. */
     it("does not draw an entry that is held as picked up", async () => {
-      const element = await list(loaded({ entry: to("06:05", "goods", "b.A"), state: "held" }));
+      const element = await list(loaded({ entry: to("06:05", "goods", "b.A"), state: "held", round: 0 }));
       expect(element.renderRoot.querySelectorAll("li.held")).toHaveLength(0);
     });
 
@@ -576,9 +589,9 @@ describe("tc-requests with a timetable", () => {
     it("is scrolled to the first row that is not done when a timetable is first drawn", async () => {
       await list(
         loaded(
-          { entry: gone, state: "ended" },
-          { entry: next, state: "held" },
-          { entry: last, state: "later" },
+          { entry: gone, state: "ended", round: 0 },
+          { entry: next, state: "held", round: 0 },
+          { entry: last, state: "later", round: 0 },
         ),
       );
       expect(times()).toEqual(["06:05"]);
@@ -586,12 +599,12 @@ describe("tc-requests with a timetable", () => {
 
     it("is not scrolled again when an entry's state changes", async () => {
       const element = await list(
-        loaded({ entry: gone, state: "ended" }, { entry: next, state: "held" }),
+        loaded({ entry: gone, state: "ended", round: 0 }, { entry: next, state: "held", round: 0 }),
       );
       element.timetable = loaded(
-        { entry: gone, state: "ended" },
-        { entry: next, state: "ended", request: "g1" },
-        { entry: last, state: "later" },
+        { entry: gone, state: "ended", round: 0 },
+        { entry: next, state: "ended", round: 0, request: "g1" },
+        { entry: last, state: "later", round: 0 },
       );
       await element.updateComplete;
       element.requests = SERVED;
@@ -602,20 +615,20 @@ describe("tc-requests with a timetable", () => {
     it("is scrolled for a timetable that arrives after the list was drawn", async () => {
       const element = await list(null, SERVED);
       expect(asked).toEqual([]);
-      element.timetable = loaded({ entry: gone, state: "ended" }, { entry: last, state: "later" });
+      element.timetable = loaded({ entry: gone, state: "ended", round: 0 }, { entry: last, state: "later", round: 0 });
       await element.updateComplete;
       expect(times()).toEqual(["06:30"]);
     });
 
     it("is scrolled again for another timetable", async () => {
-      const element = await list(loaded({ entry: gone, state: "ended" }, { entry: next, state: "held" }));
-      element.timetable = { ...loaded({ entry: last, state: "later" }), name: "morning" };
+      const element = await list(loaded({ entry: gone, state: "ended", round: 0 }, { entry: next, state: "held", round: 0 }));
+      element.timetable = { ...loaded({ entry: last, state: "later", round: 0 }), name: "morning" };
       await element.updateComplete;
       expect(times()).toEqual(["06:05", "06:30"]);
     });
 
     it("is not scrolled where every row is done", async () => {
-      await list(loaded({ entry: gone, state: "ended" }));
+      await list(loaded({ entry: gone, state: "ended", round: 0 }));
       expect(asked).toEqual([]);
     });
 
@@ -624,7 +637,7 @@ describe("tc-requests with a timetable", () => {
      *  what scrolls: the list is a column, the heading keeps its height and
      *  the rows take what is left. */
     it("scrolls its rows under the heading, which stays in view", async () => {
-      const element = await list(loaded({ entry: gone, state: "ended" }, { entry: next, state: "held" }));
+      const element = await list(loaded({ entry: gone, state: "ended", round: 0 }, { entry: next, state: "held", round: 0 }));
       const scrolled = element.renderRoot.querySelector("ul")!;
       expect(scrolled.querySelector("header")).toBeNull();
       expect(asked.every((row) => scrolled.contains(row))).toBe(true);
@@ -655,9 +668,9 @@ describe("tc-requests with a timetable", () => {
     it("are in the row's markup, out as a request or not", async () => {
       const element = await list(
         loaded(
-          { entry: { ...meets, at: "06:01" }, state: "ended" },
-          { entry: meets, state: "out", request: "g1" },
-          { entry: to("06:30", "local", "c.B"), state: "later" },
+          { entry: { ...meets, at: "06:01" }, state: "ended", round: 0 },
+          { entry: meets, state: "out", round: 0, request: "g1" },
+          { entry: to("06:30", "local", "c.B"), state: "later", round: 0 },
         ),
         SERVED,
       );
@@ -704,10 +717,10 @@ describe("the run view's list", () => {
     trains: { goods: { at: "a", facing: "A-to-B" } },
     positioning: [],
     entries: [
-      { at: "06:01", train: "local", to: ["d.A"], state: "ended", request: "l0", ended: 55 },
-      { at: "06:02", train: "express", to: ["a.B"], state: "out", request: "e1" },
-      { at: "06:05", train: "goods", to: ["b.A"], dwell: 2, state: "out", request: "g1" },
-      { at: "06:30", train: "local", to: ["c.B"], state: "later" },
+      { at: "06:01", train: "local", to: ["d.A"], state: "ended", round: 0, request: "l0", ended: 21_655 },
+      { at: "06:02", train: "express", to: ["a.B"], state: "out", round: 0, request: "e1" },
+      { at: "06:05", train: "goods", to: ["b.A"], dwell: 2, state: "out", round: 0, request: "g1" },
+      { at: "06:30", train: "local", to: ["c.B"], state: "later", round: 0 },
     ],
   };
 
@@ -752,7 +765,7 @@ describe("the run view's list", () => {
 
   it("lists an entry after midnight at its time in the time form", async () => {
     const { shell, element } = await serving();
-    const late = { at: "1d01:00", train: "local", to: ["c.B"], state: "later" };
+    const late = { at: "1d01:00", train: "local", to: ["c.B"], state: "later", round: 0 };
     await said(shell, TIMETABLE, { ...RUNNING, entries: [...RUNNING.entries, late] });
     expect(drawn(element).slice(3, 5)).toEqual([
       ["06:30", "local", "→ c.B", "later"],

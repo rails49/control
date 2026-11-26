@@ -14,7 +14,7 @@
  *   the rail does for a view that does not open: the scheduler takes them
  *   only with power `off`.
  * - **Record** shows the row's `record`, not the last press. It is disabled
- *   with no timetable loaded and once the phase is `over`.
+ *   with no timetable loaded.
  * - **Start** is drawn only while the phase is `loaded`.
  *
  * It changes nothing by itself. A press raises `timetable-wanted` with the
@@ -80,7 +80,7 @@ export class TcTimetableControls extends LitElement {
         class="record"
         role="switch"
         aria-checked=${record ? "true" : "false"}
-        ?disabled=${timetable === null || timetable.phase === "over"}
+        ?disabled=${timetable === null}
         @click=${() => this.wanted(timetableRecordWanted(!record))}
       >
         <i></i>Record

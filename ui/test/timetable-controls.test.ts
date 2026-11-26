@@ -470,9 +470,6 @@ describe("Start", () => {
     await said(shell, TIMETABLE, row({ phase: "running" }));
     expect(part(controls, ".start")).toBeNull();
 
-    await said(shell, TIMETABLE, row({ phase: "over" }));
-    expect(part(controls, ".start")).toBeNull();
-
     await said(shell, TIMETABLE, { timetable: null });
     expect(part(controls, ".start")).toBeNull();
   });
@@ -519,14 +516,15 @@ describe("the Record switch", () => {
     expect(part(controls, ".record")!.getAttribute("aria-checked")).toBe("false");
   });
 
-  it("is disabled with no timetable loaded and once the timetable is over", async () => {
+  /** A running timetable repeats and never ends, so Record stays open. */
+  it("is disabled only with no timetable loaded", async () => {
     const { shell, controls } = await standing(null);
     expect(part(controls, ".record")!.disabled).toBe(true);
 
     await said(shell, TIMETABLE, row({ phase: "loaded" }));
     expect(part(controls, ".record")!.disabled).toBe(false);
 
-    await said(shell, TIMETABLE, row({ phase: "over" }));
-    expect(part(controls, ".record")!.disabled).toBe(true);
+    await said(shell, TIMETABLE, row({ phase: "running" }));
+    expect(part(controls, ".record")!.disabled).toBe(false);
   });
 });

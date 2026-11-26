@@ -468,11 +468,11 @@ function loaded(...entries: Scheduled[]): Timetable {
  *      5         local    l1, waiting, no entry
  */
 const ENTRIES: Scheduled[] = [
-  { entry: { at: "06:01", train: "local", to: ["d.A"] }, state: "ended", request: "l0" },
-  { entry: { at: "06:02", train: "express", to: ["a.B"] }, state: "out", request: "e1" },
-  { entry: GOODS, state: "out", request: "g1" },
-  { entry: TURN, state: "held" },
-  { entry: LATER, state: "later" },
+  { entry: { at: "06:01", train: "local", to: ["d.A"] }, state: "ended", round: 0, request: "l0" },
+  { entry: { at: "06:02", train: "express", to: ["a.B"] }, state: "out", round: 0, request: "e1" },
+  { entry: GOODS, state: "out", round: 0, request: "g1" },
+  { entry: TURN, state: "held", round: 0 },
+  { entry: LATER, state: "later", round: 0 },
 ];
 
 const EVENING = loaded(...ENTRIES);
@@ -647,7 +647,7 @@ describe("tc-requests with a row tapped", () => {
   it("keeps the row open while the scheduler's row changes what became of the entry", async () => {
     const element = await list();
     await tap(element, 4);
-    element.timetable = loaded(...ENTRIES.slice(0, 4), { entry: LATER, state: "held" });
+    element.timetable = loaded(...ENTRIES.slice(0, 4), { entry: LATER, state: "held", round: 0 });
     await element.updateComplete;
     expect(open(element)).toEqual([4]);
   });
@@ -701,7 +701,7 @@ describe("tc-requests with a row tapped", () => {
     const { part, input } = await described(element, 4, "meets the exp");
     element.timetable = loaded(
       ENTRIES[0]!,
-      { entry: { at: "06:01", train: "express", to: ["c.A"] }, state: "ended", request: "e0" },
+      { entry: { at: "06:01", train: "express", to: ["c.A"] }, state: "ended", round: 0, request: "e0" },
       ...ENTRIES.slice(1),
     );
     await element.updateComplete;
@@ -719,6 +719,7 @@ describe("tc-requests with a row tapped", () => {
     element.timetable = loaded(...ENTRIES.slice(0, 4), {
       entry: LATER,
       state: "out",
+      round: 0,
       request: "l1",
     });
     await element.updateComplete;
@@ -749,7 +750,7 @@ describe("tc-requests with a row tapped", () => {
     const input = typing(part, "at", "06:00");
     input.dispatchEvent(new Event("change", { bubbles: true }));
     element.timetable = loaded(
-      { entry: { ...LATER, at: "06:00" }, state: "held" },
+      { entry: { ...LATER, at: "06:00" }, state: "held", round: 0 },
       ...ENTRIES.slice(0, 4),
     );
     await element.updateComplete;
@@ -771,7 +772,7 @@ describe("tc-requests with a row tapped", () => {
     expect(shown(parts(element)[4]!)).toEqual(["06:30", "0", ""]);
 
     const moved = { ...LATER, at: "06:00" };
-    element.timetable = loaded({ entry: moved, state: "held" }, ...ENTRIES.slice(0, 4));
+    element.timetable = loaded({ entry: moved, state: "held", round: 0 }, ...ENTRIES.slice(0, 4));
     await element.updateComplete;
     expect(open(element)).toEqual([0]);
     const part = parts(element)[0]!;
@@ -839,7 +840,7 @@ describe("tc-requests with a row tapped", () => {
 
       await typed(parts(element)[4]!, "at", "06:00");
       element.timetable = loaded(
-        { entry: { ...LATER, at: "06:00" }, state: "held" },
+        { entry: { ...LATER, at: "06:00" }, state: "held", round: 0 },
         ...ENTRIES.slice(0, 4),
       );
       await element.updateComplete;
@@ -852,7 +853,7 @@ describe("tc-requests with a row tapped", () => {
       const element = await list();
       await tap(element, 4);
       asked.length = 0;
-      element.timetable = loaded(...ENTRIES.slice(0, 4), { entry: LATER, state: "held" });
+      element.timetable = loaded(...ENTRIES.slice(0, 4), { entry: LATER, state: "held", round: 0 });
       await element.updateComplete;
       expect(asked).toEqual([]);
     });
