@@ -53,33 +53,31 @@ export const DRAWING: Record<Arrangement, number> = { left: 256, above: 192 };
  *  with the pane on the left, its width with the pane above. */
 export const LIST: Record<Arrangement, number> = { left: 96, above: 144 };
 
-/**
- * The pane's size in CSS pixels with the gap at a client point: its width
- * from the view's left edge, or its height from the view's top edge, held
- * to `LEAST` and to what `DRAWING` leaves of the view. In a view too small for
- * both, `LEAST` holds.
- */
-export function sizeAt(arrangement: Arrangement, view: DOMRect, at: Point): number {
-  const [wanted, room] =
-    arrangement === "left"
-      ? [at.x - view.left, view.width]
-      : [at.y - view.top, view.height];
-  return Math.round(Math.max(LEAST, Math.min(wanted, room - DRAWING[arrangement])));
+/** The way a gap is dragged: `x` for a gap between a left and a right
+ *  part, `y` for one between a top and a bottom part. */
+export type Axis = "x" | "y";
+
+/** The way a gap is dragged in an arrangement. The lists lie the other way
+ *  from the pane and the drawing: one above the other with the pane on the
+ *  left, side by side with the pane above. */
+export function axisOf(gap: Gap, arrangement: Arrangement): Axis {
+  return (gap === "pane") === (arrangement === "left") ? "x" : "y";
 }
 
 /**
- * The trains list's size in CSS pixels with the gap between the lists at a
- * client point: its height from the view's top edge with the pane on the
- * left, its width from the view's left edge with the pane above. Each list
- * is held to `LIST`; in a view too small for both, the trains list's holds.
+ * The size in CSS pixels a gap at a client point sets, along its axis from
+ * the view's left or top edge: the pane's, or the trains list's. The pane is
+ * held to `LEAST` and to what `DRAWING` leaves of the view; each list is held
+ * to `LIST`. In a view too small for both sides, the size's own least holds.
  */
-export function listsAt(arrangement: Arrangement, view: DOMRect, at: Point): number {
+export function sizeAt(gap: Gap, arrangement: Arrangement, view: DOMRect, at: Point): number {
   const [wanted, room] =
-    arrangement === "left"
-      ? [at.y - view.top, view.height]
-      : [at.x - view.left, view.width];
-  const least = LIST[arrangement];
-  return Math.round(Math.max(least, Math.min(wanted, room - GAP - least)));
+    axisOf(gap, arrangement) === "x"
+      ? [at.x - view.left, view.width]
+      : [at.y - view.top, view.height];
+  const [least, beyond] =
+    gap === "pane" ? [LEAST, DRAWING[arrangement]] : [LIST[arrangement], GAP + LIST[arrangement]];
+  return Math.round(Math.max(least, Math.min(wanted, room - beyond)));
 }
 
 function key(gap: Gap, arrangement: Arrangement): string {

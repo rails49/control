@@ -48,7 +48,7 @@ import {
 } from "../model/drag.js";
 import type { Drawing } from "../model/drawing.js";
 import type { Point } from "../model/geometry.js";
-import { keep, kept, listsAt, sizeAt, UPRIGHT, type Arrangement, type Gap } from "../model/pane.js";
+import { axisOf, keep, kept, sizeAt, UPRIGHT, type Arrangement, type Gap } from "../model/pane.js";
 import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
 import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
@@ -417,11 +417,10 @@ export class TcPanel extends LitElement {
 
   // --- the sizes the gaps set ---------------------------------------------
   //
-  // The gap between the pane and the drawing sets the pane's width, or its
-  // height while the pane is above the drawing. The gap between the two lists
-  // sets the trains list's height, or its width while the pane is above the
-  // drawing. Each size is kept in the browser, one for each arrangement, and
-  // the drawing is fitted again whenever a gap moves (#1344, #1391).
+  // Which way each gap is dragged and what size a point means are
+  // `model/pane.ts`'s. Each size is kept in the browser, one for each
+  // arrangement, and the drawing is fitted again whenever a gap moves (#1344,
+  // #1391).
 
   private get arrangement(): Arrangement {
     return this.upright.matches ? "above" : "left";
@@ -450,8 +449,7 @@ export class TcPanel extends LitElement {
   /** A gap dragged to a client point: the size that point means, held to
    *  its limits (`model/pane.ts`). */
   private moved(gap: Gap, event: CustomEvent<Point>): void {
-    const at = gap === "pane" ? sizeAt : listsAt;
-    const size = at(this.arrangement, this.getBoundingClientRect(), event.detail);
+    const size = sizeAt(gap, this.arrangement, this.getBoundingClientRect(), event.detail);
     this.setSize(gap, size);
     keep(gap, this.arrangement, size);
     this.canvas?.fit();
@@ -477,7 +475,7 @@ export class TcPanel extends LitElement {
         ></tc-roster>
         <tc-gap
           class="lists"
-          axis=${this.arrangement === "left" ? "y" : "x"}
+          axis=${axisOf("lists", this.arrangement)}
           @gap-moved=${(event: CustomEvent<Point>) => this.moved("lists", event)}
         ></tc-gap>
         <tc-requests
@@ -503,7 +501,7 @@ export class TcPanel extends LitElement {
       </aside>
       <tc-gap
         class="pane"
-        axis=${this.arrangement === "left" ? "x" : "y"}
+        axis=${axisOf("pane", this.arrangement)}
         @gap-moved=${(event: CustomEvent<Point>) => this.moved("pane", event)}
       ></tc-gap>
 
