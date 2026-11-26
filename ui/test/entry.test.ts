@@ -222,10 +222,15 @@ describe("the open row", () => {
   });
 });
 
-/** The open row of `entry`. */
-async function opened(entry: Entry): Promise<TcEntry> {
+/** The open row of `entry`, in a timetable that starts at 06:00 and repeats
+ *  each day, or as `repeating` says. */
+async function opened(
+  entry: Entry,
+  repeating: { start: number; repeat: number } = { start: 6 * 3600, repeat: 86_400 },
+): Promise<TcEntry> {
   const element = document.createElement("tc-entry");
   element.entry = entry;
+  element.timetable = repeating;
   document.body.append(element);
   await element.updateComplete;
   return element;
@@ -258,6 +263,11 @@ function typing(element: TcEntry, name: Field, words: string): HTMLInputElement 
 async function typed(element: TcEntry, name: Field, words: string): Promise<void> {
   typing(element, name, words).dispatchEvent(new Event("change", { bubbles: true }));
   await element.updateComplete;
+}
+
+/** Why the open row refused what was typed, `null` where it says nothing. */
+function refusal(element: TcEntry): string | null {
+  return element.renderRoot.querySelector(".refused")?.textContent?.trim() ?? null;
 }
 
 /** What an open row, or the list round it, has asked since this was called. */
@@ -308,6 +318,57 @@ describe("tc-entry", () => {
     await typed(element, name, words);
     expect(seen).toEqual([]);
     expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
+  });
+
+  it("asks for a time after midnight within the repeat", async () => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    await typed(element, "at", "1d01:00");
+    expect(seen).toEqual([{ was: GOODS, now: { ...GOODS, at: "1d01:00" } }]);
+    expect(refusal(element)).toBeNull();
+  });
+
+  /** The scheduler drops an entry outside the repeat (BUS.md). */
+  it.each([
+    ["05:00", "before the start 06:00"],
+    ["1d06:00", "after the last minute, 1d05:59"],
+    ["2d07:00", "after the last minute, 1d05:59"],
+  ])("asks nothing for %s, outside the repeat, and says %j", async (words, why) => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    await typed(element, "at", words);
+    expect(seen).toEqual([]);
+    expect(refusal(element)).toBe(why);
+    expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
+  });
+
+  it("asks for the first and the last minute of the repeat", async () => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    await typed(element, "at", "06:00");
+    await typed(element, "at", "1d05:59");
+    expect(seen.map(({ now }) => now?.at)).toEqual(["06:00", "1d05:59"]);
+  });
+
+  it("names the start and the last minute of the timetable it is in", async () => {
+    const element = await opened({ ...GOODS, at: "08:00" }, { start: 7.5 * 3600, repeat: 3 * 3600 });
+    await typed(element, "at", "07:00");
+    expect(refusal(element)).toBe("before the start 07:30");
+    await typed(element, "at", "10:30");
+    expect(refusal(element)).toBe("after the last minute, 10:29");
+  });
+
+  it("says nothing once a change is asked after a refusal", async () => {
+    const element = await opened(GOODS);
+    await typed(element, "at", "05:00");
+    await typed(element, "at", "06:10");
+    expect(refusal(element)).toBeNull();
+  });
+
+  it("says nothing for words that are no time", async () => {
+    const element = await opened(GOODS);
+    await typed(element, "at", "soon");
+    expect(refusal(element)).toBeNull();
   });
 
   it("asks nothing for a field left as it was", async () => {
@@ -875,6 +936,25 @@ describe("the run view's open row", () => {
     const { element } = await serving();
     await typed(await part(element, 2), name, words);
     expect(written()).toEqual([]);
+  });
+
+  it("writes entry_wanted for a time after midnight within the repeat", async () => {
+    const { element } = await serving();
+    await typed(await part(element, 2), "at", "1d01:00");
+    expect(written()).toEqual([
+      { topic: ENTRY_WANTED, payload: { was: GOODS, now: { ...GOODS, at: "1d01:00" } } },
+    ]);
+  });
+
+  it.each([
+    ["05:00", "before the start 06:00"],
+    ["1d06:00", "after the last minute, 1d05:59"],
+  ])("writes nothing for %s, outside the repeat, and the row says %j", async (words, why) => {
+    const { element } = await serving();
+    const opened = await part(element, 2);
+    await typed(opened, "at", words);
+    expect(written()).toEqual([]);
+    expect(refusal(opened)).toBe(why);
   });
 
   /** `panel.ts` reads each `state/timetable` row into new entries. */

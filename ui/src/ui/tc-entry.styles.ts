@@ -2,7 +2,8 @@ import { css } from "lit";
 
 /**
  * An entry's open row (`tc-entry`): its time, its dwell and its description,
- * and Delete under them at the right (#1358).
+ * and Delete under them at the right (#1358). Why a typed time was refused
+ * is a line under the time, in red as a refused placement is in the roster.
  *
  * It is drawn inside the row of `tc-requests`, across the row's width. The
  * time and the dwell are a line each, the field's name and then the field,
@@ -65,6 +66,12 @@ export const entryStyles = css`
   .at {
     width: 4.5em;
     font-variant-numeric: tabular-nums;
+  }
+
+  .refused {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--red);
   }
 
   .dwell {

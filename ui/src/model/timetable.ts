@@ -27,8 +27,9 @@
  *
  * An entry's row opens to its time, dwell and description
  * ([#1358](https://github.com/rails49/control/issues/1358)). `edited` is the
- * entry with what a person typed in one of them, and `same` is whether two
- * entries are equal as the scheduler compares them. Which row is open is
+ * entry with what a person typed in one of them, `outside` why a typed time
+ * is not within the timetable's repeat, and `same` is whether two entries
+ * are equal as the scheduler compares them. Which row is open is
  * `Opened`: `tapped` is what a tap makes of it, `asking` what a change the
  * row asked for makes of it, and `followed` where it is when the scheduler
  * says new rows. Entries carry no id, so the open row is the first whose
@@ -274,6 +275,23 @@ export function edited(entry: Entry, field: Field, words: string): Entry | null 
     };
   }
   return same(entry, now) ? null : now;
+}
+
+/** Why `words` typed as an entry's time are refused, `null` where they are
+ *  no time (`edited` asks nothing for them) or a time within `timetable`'s
+ *  repeat, from its start to before its start plus its repeat. The scheduler
+ *  drops an entry outside (BUS.md). The words name the range: "before the
+ *  start 06:00", or "after the last minute, 1d05:59", the start plus the
+ *  repeat less one minute. */
+export function outside(
+  { start, repeat }: Pick<Timetable, "start" | "repeat">,
+  words: string,
+): string | null {
+  const time = timeOf(words);
+  if (time === null) return null;
+  if (time < start) return `before the start ${written(start)}`;
+  if (time >= start + repeat) return `after the last minute, ${written(start + repeat - 60)}`;
+  return null;
 }
 
 /** Whether two entries are equal in every field of the document, a dwell
