@@ -10,7 +10,7 @@ against its reader directly, and one pair met in no test at all: the
 So the apps are run, everything they publish is recorded, and each recorded
 frame is handed to its topic's reader twice: as published, and after a JSON
 round trip, which is what a reader on the other side of a broker is handed.
-Two kinds of run between them cover every writer in the table:
+Four kinds of run between them cover every writer in the table:
 
 1. every bench scenario, assembled as the bench assembles it and run to
    quiescence — the dispatcher, scheduler, driver and simulator — and one
@@ -22,7 +22,9 @@ Two kinds of run between them cover every writer in the table:
    among them, since `desired_function` is read only in `rails49/dccex`
    (#1092);
 3. one scheduler given a store, recording a drag as a timetable (#1352): a
-   bench run's scheduler is given none and writes no timetable row.
+   bench run's scheduler is given none and writes no timetable row;
+4. one scheduler given a store that loads a timetable, starts it and
+   releases an entry (#1353): the scheduler's `clock_wanted`.
 
 A frame the test publishes itself is not checked: it is not an app's.
 """
@@ -65,8 +67,9 @@ from tc49.lib.payload import (
     shown_aspects,
     taken,
     unknown_sensors,
+    wanted_clock,
 )
-from tc49.lib.timetable import Timetable
+from tc49.lib.timetable import Entry, Timetable
 from tc49.scheduler.release import restarted
 from tests.harness import ASSETS, load
 from tests.layout.railroad import (
@@ -93,7 +96,7 @@ from tests.layout.railroad import (
     switches_function,
     takes,
 )
-from tests.scheduler import test_recording
+from tests.scheduler import test_loading, test_recording
 
 Frame = dict[str, Any]
 
@@ -194,6 +197,13 @@ TABLE: tuple[Rule, ...] = (
         lambda f: _keeps(f, "facing", kept_facing(f)),
     ),
     Rule("tc49/schedule/state/timetable", "loaded_timetable, restarted", _timetable),
+    Rule(
+        "tc49/layout/clock_wanted",
+        "wanted_clock",
+        lambda f: (read := wanted_clock(f)) is not None
+        and read.time == f.get("time")
+        and read.speed_up == f.get("speed_up"),
+    ),
     Rule("tc49/layout/state/power", "power", lambda f: power(f) == f.get("power")),
     Rule(
         "tc49/layout/state/driving",
@@ -360,12 +370,39 @@ def recording_run() -> Recorded:
     return [(topic, payload) for topic, payload in seen if topic not in ours]
 
 
+def loading_run() -> Recorded:
+    """A scheduler given a store, as `tests/scheduler/test_loading.py`
+    builds one: `evening` loaded with `express_2` standing elsewhere, the
+    request to its start block completed, power on, and the entry at
+    06:02 released. Every topic the test writes is left out, so what is
+    left is the scheduler's."""
+    entry = Entry(test_recording.at("06:02"), "freight_1", ("dn_e",))
+    bus = test_loading.standing(test_recording.Store(test_loading.evening(entry)))
+    seen = recording(bus)
+    test_loading.load(bus)
+    test_recording.say(
+        bus, "tc49/dispatch/request_completed", {"id": test_loading.TO_START}
+    )
+    test_recording.power(bus, "on")
+    test_recording.clock(bus, "06:00")
+    test_recording.clock(bus, "06:02")
+    ours = {
+        test_recording.ALLOCATION,
+        test_recording.CLOCK,
+        test_recording.POWER,
+        test_recording.TIMETABLE_WANTED,
+        "tc49/dispatch/request_completed",
+    }
+    return [(topic, payload) for topic, payload in seen if topic not in ours]
+
+
 @pytest.fixture(scope="module")
 def runs() -> dict[str, Recorded]:
     recorded = {scenario: bench_run(scenario) for scenario in scenario_ids()}
     recorded[f"{REPLAYED}, replayed"] = replayed_run(REPLAYED)
     recorded["layout"] = layout_run()
     recorded["recording"] = recording_run()
+    recorded["loading"] = loading_run()
     return recorded
 
 
