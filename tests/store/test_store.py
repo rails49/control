@@ -404,7 +404,7 @@ def test_a_saved_query_string_reads_back_in_a_one_line_mapping(
     1.2 allows; YAML 1.1 ends a plain scalar at `?` on such a line, so the
     roster could no longer be read (#1360)."""
     doc = scratch_store.roster_document("crossover-yard")
-    url = "http://192.168.178.58/media/?action=stream"
+    url = "http://192.0.2.58/media/?action=stream"
     car = {"model": "arnold-ce68", "camera": url}
     cars = {**doc["cars"], "cam_1": car}
     scratch_store.put_roster({**doc, "cars": cars}, "crossover-yard")

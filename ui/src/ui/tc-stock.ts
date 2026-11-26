@@ -1206,7 +1206,7 @@ export class TcStock extends LitElement {
             <input
               class="camera"
               .value=${this.putting(`car:${name}:camera`, car.camera ?? "")}
-              placeholder="http://192.168.1.40/media/?action=stream"
+              placeholder="http://192.0.2.40/media/?action=stream"
               @change=${(event: Event) =>
                 this.did(
                   this.stock?.carCamera(name, value(event)),

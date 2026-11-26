@@ -263,7 +263,7 @@ cars:
   ic_1:    { model: sbb-ic2000 }
   ic_2:    { model: sbb-ic2000, length: 285 }   # an override
   ic_3:    { model: sbb-ic2000, notes: "chipped buffer" }
-  cam_1:   { model: sbb-ic2000, camera: "http://192.168.178.58/media/?action=stream" }
+  cam_1:   { model: sbb-ic2000, camera: "http://192.0.2.58/media/?action=stream" }
 
 trains:
   ic_721:
@@ -298,7 +298,7 @@ trains:
   `"460"` cannot be one address spelled two ways.
 - **`camera` is the URL of the MJPEG stream of the camera a car carries**:
   scheme `http`, a host, an optional port and an optional path and query, as
-  `http://192.168.178.58/media/?action=stream` or
+  `http://192.0.2.58/media/?action=stream` or
   `http://cam:8080/?action=stream`, and absent where the car carries none —
   what makes it a **camera car**
   ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
