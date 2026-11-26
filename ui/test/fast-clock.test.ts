@@ -6,7 +6,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import { clockOf, faster, hhmm, speedUpOf, timeOf, written } from "../src/model/clock.js";
+import {
+  clockOf,
+  dayOf,
+  faster,
+  hhmm,
+  speedUpOf,
+  timeOf,
+  timeOfFields,
+  written,
+} from "../src/model/clock.js";
 
 describe("reading state/clock", () => {
   it("reads the time of day and the speed-up", () => {
@@ -49,6 +58,13 @@ describe("wording the clock", () => {
     expect(hhmm(2 * 86_400 + 21_600)).toBe("06:00");
   });
 
+  it("counts the day a time is on from 0", () => {
+    expect(dayOf(0)).toBe(0);
+    expect(dayOf(86_399)).toBe(0);
+    expect(dayOf(86_400)).toBe(1);
+    expect(dayOf(12 * 86_400 + 21_600)).toBe(12);
+  });
+
   it("writes a time as its day and time of day, day 0 without 0d", () => {
     expect(written(21_600)).toBe("06:00");
     expect(written(86_400 + 21_600 + 59)).toBe("1d06:00");
@@ -83,6 +99,14 @@ describe("what a person types", () => {
   it("refuses what is not a time", () => {
     for (const words of ["24:00", "06:60", "12:60", "01d06:00", "d06:00", "1d", "-1d06:00", "noon", "", "12:5", "6:30", "1d6:30"]) {
       expect(timeOf(words)).toBeNull();
+    }
+  });
+
+  it("reads a day and a time of day typed in two fields as one time", () => {
+    expect(timeOfFields("0", "06:00")).toBe(21_600);
+    expect(timeOfFields(" 2 ", "06:30")).toBe(2 * 86_400 + 6 * 3600 + 30 * 60);
+    for (const [day, time] of [["", "06:00"], ["01", "06:00"], ["-1", "06:00"], ["1", ""], ["1", "24:00"]]) {
+      expect(timeOfFields(day, time)).toBeNull();
     }
   });
 

@@ -27,11 +27,11 @@ import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import {
-  DAY_S,
+  dayOf,
   faster,
   hhmm,
   speedUpOf,
-  timeOf,
+  timeOfFields,
   type ClockChange,
   type FastClock,
 } from "../model/clock.js";
@@ -117,12 +117,11 @@ export class TcBandClock extends LitElement {
   }
 
   /** What the fields ask for, the fields left as they opened left out;
-   *  `null` where one changed is not a day, a time of day or a speed-up.
-   *  The day and the time are read together as `<day>d<time>`. */
+   *  `null` where one changed is not a day, a time of day or a speed-up. */
   private change(typed: Typed): ClockChange | null {
     const change: ClockChange = {};
     if (typed.day !== this.opened.day || typed.time !== this.opened.time) {
-      const time = timeOf(`${typed.day.trim()}d${typed.time}`);
+      const time = timeOfFields(typed.day, typed.time);
       if (time === null) return null;
       change.time = time;
     }
@@ -137,7 +136,7 @@ export class TcBandClock extends LitElement {
   private open = (): void => {
     if (this.clock === null) return;
     this.opened = {
-      day: String(Math.floor(this.clock.time / DAY_S)),
+      day: String(dayOf(this.clock.time)),
       time: hhmm(this.clock.time),
       speedUp: String(this.clock.speedUp),
     };
