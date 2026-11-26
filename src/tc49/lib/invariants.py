@@ -86,6 +86,7 @@ from tc49.lib.payload import (
     Command,
     Grant,
     alignment,
+    awaited_turns,
     chosen,
     command,
     commanded_power,
@@ -138,6 +139,7 @@ CANCEL_WANTED = "tc49/dispatch/cancel_wanted"
 PLACEMENT_WANTED = "tc49/dispatch/placement_wanted"
 PLACEMENT_REFUSED = "tc49/dispatch/placement_refused"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
+TIMETABLE = "tc49/schedule/state/timetable"
 POWER_WANTED = "tc49/layout/power_wanted"
 ALIGN = "tc49/layout/align"
 MOVE = "tc49/layout/move"
@@ -1737,15 +1739,27 @@ def adr_0019_facing_turns_on_a_move(
 ) -> list[str]:
     """A train's facing changes only when it makes a move, is turned at rest
     or is placed, never when a route is chosen
-    ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md))."""
+    ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md)).
+
+    A train is turned at rest by a `reversal_wanted` gesture or by a
+    turn-round entry of the loaded timetable. The scheduler applies such an
+    entry with no gesture (#1353). So a facing change is also allowed for a
+    train where the last `tc49/schedule/state/timetable` row reads `running`
+    and lists a turn-round entry for that train as `later` or `held`. The
+    facing row is published before the row that lists the entry as `ended`.
+    While such an entry waits, any change of that train's facing is allowed.
+    """
     if topic != FACING:
         return []
     old = kept_facing(record.rows.get(FACING)) or {}
     new = kept_facing(payload) or {}
+    turning = awaited_turns(record.rows.get(TIMETABLE))
     return [
         f"{train} turned from {old[train]} to {new[train]} with no move"
         for train in sorted(old.keys() & new.keys())
-        if old[train] != new[train] and record.turns[train] == 0
+        if old[train] != new[train]
+        and record.turns[train] == 0
+        and train not in turning
     ]
 
 
@@ -2444,7 +2458,14 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "0019",
         "A train's facing changes only when it makes a move, is turned at rest"
         " or is placed, never when a route is chosen.",
-        (FACING, MOVE_GRANTED, REVERSAL_WANTED, ROUTE_CHOSEN, TRAIN_PLACED),
+        (
+            FACING,
+            MOVE_GRANTED,
+            REVERSAL_WANTED,
+            ROUTE_CHOSEN,
+            TIMETABLE,
+            TRAIN_PLACED,
+        ),
         adr_0019_facing_turns_on_a_move,
     ),
     HistoryInvariant(

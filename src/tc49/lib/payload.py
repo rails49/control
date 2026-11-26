@@ -1492,6 +1492,36 @@ def loaded_timetable(payload: object) -> str | None:
     return name if isinstance(name, str) and name else None
 
 
+def awaited_turns(payload: object) -> frozenset[str]:
+    """The trains a `tc49/schedule/state/timetable` value lists a turn-round
+    entry for that the scheduler has not applied yet: the row's `phase` is
+    `running`, and the entry has `turn: true` and a `state` of `later` or
+    `held` (#1345).
+
+    Empty where the row says no timetable is loaded, reads another phase or
+    cannot be read. An entry that cannot be read is passed over.
+    """
+    if not isinstance(payload, dict):
+        return frozenset()
+    fields = cast(dict[str, object], payload)
+    entries = fields.get("entries")
+    if fields.get("phase") != "running" or not isinstance(entries, list):
+        return frozenset()
+    trains: set[str] = set()
+    for entry in cast(list[object], entries):
+        if not isinstance(entry, dict):
+            continue
+        listed = cast(dict[str, object], entry)
+        train = listed.get("train")
+        if (
+            isinstance(train, str)
+            and listed.get("turn") is True
+            and listed.get("state") in ("later", "held")
+        ):
+            trains.add(train)
+    return frozenset(trains)
+
+
 @dataclass(frozen=True)
 class KeptAllocation:
     """The two maps a retained `tc49/dispatch/state/allocation` value states

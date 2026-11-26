@@ -39,6 +39,7 @@ from tc49.lib.invariants import (
     ROUTE_CHOSEN,
     SETTINGS,
     TAKEN,
+    TIMETABLE,
     TRAIN_PLACED,
     TRAIN_REMOVED,
     UNFIT,
@@ -1098,6 +1099,84 @@ def test_a_released_train_stopped_overdue_is_not_reported() -> None:
     assert breaches_over(adr_0081_release_in_automatic, BENCH, held, stopped) == [
         "single released mid-move and stopped"
     ]
+
+
+FACES: Rows = {FACING: {"facing": {"t1": "west_1.A-to-B"}}}
+TURNED: tuple[str, Payload] = (FACING, {"facing": {"t1": "west_1.B-to-A"}})
+WITH_NO_MOVE = ["t1 turned from west_1.A-to-B to west_1.B-to-A with no move"]
+
+
+def turn_round(
+    train: str = "t1", state: str = "later", phase: str = "running"
+) -> Payload:
+    """A timetable row whose one entry is a turn-round of `train`."""
+    return {
+        "timetable": "evening",
+        "phase": phase,
+        "record": False,
+        "start": "06:00",
+        "trains": {},
+        "positioning": [],
+        "entries": [{"at": "06:08", "train": train, "turn": True, "state": state}],
+    }
+
+
+@pytest.mark.parametrize("state", ["later", "held"])
+def test_a_train_a_running_timetable_has_a_turn_round_for_may_be_turned(
+    state: str,
+) -> None:
+    """The scheduler applies a timetable's turn-round with no gesture, so the
+    row that lists the entry as not yet applied is what allows the facing to
+    change (#1353). The row is read as a retained value and as a message."""
+    row = turn_round(state=state)
+    retained = FACES | {TIMETABLE: row}
+    assert (
+        breaches_over(adr_0019_facing_turns_on_a_move, MEET, retained, [TURNED]) == []
+    )
+    said: Messages = [(TIMETABLE, row), TURNED]
+    assert breaches_over(adr_0019_facing_turns_on_a_move, MEET, FACES, said) == []
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"timetable": None},
+        turn_round(train="t2"),
+        turn_round(state="ended"),
+        turn_round(phase="loaded"),
+        turn_round(phase="over"),
+        turn_round()
+        | {
+            "entries": [
+                {"at": "06:08", "train": "t1", "to": ["e_main"], "state": "later"}
+            ]
+        },
+    ],
+    ids=[
+        "no timetable loaded",
+        "the turn-round is another train's",
+        "the turn-round was applied",
+        "the timetable is loaded and not started",
+        "the timetable is over",
+        "the entry is no turn-round",
+    ],
+)
+def test_a_turn_no_turn_round_entry_allows_is_reported(row: Payload) -> None:
+    retained = FACES | {TIMETABLE: row}
+    found = breaches_over(adr_0019_facing_turns_on_a_move, MEET, retained, [TURNED])
+    assert found == WITH_NO_MOVE
+
+
+def test_the_facing_invariant_reads_state_timetable() -> None:
+    """It allows a turn the timetable row lists, so it names the topic among
+    its reads. The scheduler writes it, so the classification is unchanged
+    (#1353)."""
+    by_name = {
+        invariant.breaches.__name__: invariant for invariant in HISTORY_INVARIANTS
+    }
+    facing = by_name["adr_0019_facing_turns_on_a_move"]
+    assert TIMETABLE in facing.reads
+    assert cross_app(facing)
 
 
 def test_a_reading_crossing_a_grant_counts_for_its_move() -> None:
