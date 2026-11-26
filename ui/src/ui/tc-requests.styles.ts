@@ -19,9 +19,11 @@ import { columnHeading, heading } from "./shared.styles.js";
  * of what scrolls. Every row takes the table's columns (CSS subgrid), so the
  * cells line up with the headings. A row is one line. The Train column is at
  * most 30% of the table's width; a longer train name wraps in its cell and is
- * not cut short. A row the list scrolls to stops under the headings. A refused request's "waits for" line is
- * under its row, from the Train column to the right edge. An entry's open row
- * (`tc-entry`, #1358) is under its row, across the table.
+ * not cut short. A row the list scrolls to stops under the headings. A
+ * refused request's "waits for" line is under its row, from the Train column
+ * to the right edge. An entry's open row (`tc-entry`, #1358) is under its
+ * row, across the table. With no rows, "no requests" or "no entries" is
+ * under the headings.
  *
  * Every other row takes the stripe shade, with its "waits for" line and its
  * open row, and no line divides two rows. A row that is done is dimmed. A row
