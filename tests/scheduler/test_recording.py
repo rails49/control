@@ -259,6 +259,25 @@ def test_a_drag_is_recorded_at_the_clocks_minute_and_written() -> None:
     ]
 
 
+def test_a_drag_after_midnight_is_recorded_on_day_1() -> None:
+    """Started at 23:58, the clock reads 00:01 three minutes later, and the
+    entry is at its start plus the time since its start (#1365)."""
+    store = Store()
+    bus = recording(store, "23:58", 0)
+    clock(bus, "00:01", 20)
+
+    drag(bus, "freight_1", "dn_e")
+
+    assert [one["at"] for one in entries(bus)] == ["1d00:01"]
+    assert [one["at"] for one in written_entries(store)] == ["1d00:01"]
+
+
+def written_entries(store: Store) -> list[dict[str, Any]]:
+    held = store.document("untitled")
+    assert held is not None
+    return held["entries"]
+
+
 def test_a_drag_of_a_train_the_scheduler_cannot_compose_adds_no_entry() -> None:
     bus = recording(Store())
     seen = collect(bus, SUBMITTED)

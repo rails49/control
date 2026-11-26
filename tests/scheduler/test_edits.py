@@ -114,6 +114,18 @@ def test_a_changed_time_on_day_1_is_listed_in_the_time_form() -> None:
     assert [one["at"] for one in entries(bus)] == ["06:05", "1d05:59"]
 
 
+def test_a_change_to_a_time_outside_the_repeat_changes_nothing() -> None:
+    """Before the start, or at the start plus the repeat or after (#1365)."""
+    store, bus = evening(FREIGHT, EXPRESS, repeat="03:00")
+    before = row(bus)
+
+    for outside in ("05:59", "09:00", "1d06:02"):
+        change(bus, FREIGHT, FREIGHT | {"at": outside})
+
+    assert row(bus) == before
+    assert written(store) == [FREIGHT, EXPRESS]
+
+
 def test_a_restart_takes_the_repeat_from_the_row() -> None:
     """And writes it, as it does the entries where the document's differ."""
     store, bus = evening(FREIGHT, repeat="03:00")

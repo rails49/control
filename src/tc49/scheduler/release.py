@@ -64,15 +64,17 @@ The rules, in the words of #1345:
   by name, which is dropped unless power reads `off` (`new`). Both wait for a
   clock row and for the trains on the layout.
 - **Record.** While the timetable is `running` and Record is on, a drag adds
-  an entry at the clock's time of day to the minute, `out` as the request
-  the drag made, and a turn-round adds an entry that has `ended`. A new
-  entry goes after the last entry at or before its time. In any other phase, or with
+  an entry at `start` plus the clock's time since `start` within the repeat,
+  rounded down to the minute, `out` as the request the drag made, and a
+  turn-round adds an entry that has `ended`. A new entry goes after the last
+  entry at or before its time. In any other phase, or with
   Record off, a drag is a request with no entry (`dragged`, `turned_round`).
 - **Edit.** A person changes or deletes an entry by naming it as it reads
-  now: the first entry equal to it, and none where no entry is. A changed
-  `at` moves the entry to its place in the order. The entry keeps its state, its request and its
-  ending, and a request that has gone out is left alone.
-  It is taken in every phase and with Record on or off (`changed`).
+  now: the first entry equal to it, and none where no entry is. A change to
+  an `at` outside the repeat is dropped. A changed `at` moves the entry to
+  its place in the order. The entry keeps its state, its request and its
+  ending, and a request that has gone out is left alone. It is taken in
+  every phase and with Record on or off (`changed`).
 - **Load.** A timetable a person asks for by name is loaded only while power
   reads `off`, and once the trains on the layout were told (`loads`). Its
   phase is `loaded` and Record is off. The requests the scheduler submits to
@@ -383,8 +385,8 @@ def dragged(state: State, train: str, to: tuple[str, ...], request: str) -> Stat
     the train.
 
     While the timetable is `running` and Record is on, the drag is added as
-    an entry: `at` the clock's time to the minute, after the last entry at or
-    before that time, `out` as `request`. In any other phase, with Record off, with
+    an entry: `at` the time `_now` gives, after the last entry at or before
+    that time, `out` as `request`. In any other phase, with Record off, with
     no timetable loaded, and after a restart until the first clock
     row, it is a request with no entry. So is a drag to no arrival end: an
     entry with none is a turn-round.
@@ -392,8 +394,7 @@ def dragged(state: State, train: str, to: tuple[str, ...], request: str) -> Stat
     flying = {**state.in_flight, request: train}
     if not to or not _records(state):
         return replace(state, in_flight=flying)
-    assert state.clock is not None
-    entry = Entry(start_of(state.clock), train, to)
+    entry = Entry(_now(state), train, to)
     return _added(replace(state, in_flight=flying), entry, Progress(OUT, request))
 
 
@@ -403,8 +404,7 @@ def turned_round(state: State, train: str) -> State:
     has `ended`. A turn-round the scheduler dropped is not told."""
     if not _records(state):
         return state
-    assert state.clock is not None
-    return _added(state, Entry(start_of(state.clock), train), Progress(ENDED))
+    return _added(state, Entry(_now(state), train), Progress(ENDED))
 
 
 def _records(state: State) -> bool:
@@ -415,6 +415,16 @@ def _records(state: State) -> bool:
         and state.record
         and state.clock is not None
     )
+
+
+def _now(state: State) -> int:
+    """The `at` a drag or a turn-round is recorded at: `start` plus the
+    clock's time since `start` within the repeat, rounded down to the
+    minute. With a start of 23:58, the clock at 00:01 gives 1d00:01."""
+    timetable = state.timetable
+    assert timetable is not None and state.clock is not None
+    within = (state.clock - timetable.start) % timetable.repeat
+    return timetable.start + within - within % 60
 
 
 def _added(state: State, entry: Entry, progress: Progress) -> State:
@@ -440,8 +450,9 @@ def changed(state: State, was: Entry, now: Entry | None) -> State:
 
     The entry is the first one equal to `was` in every field of the
     document, a `dwell` left out being 0. Where none is, and with no
-    timetable loaded, the state is as it was. It is taken in every phase and
-    with Record on or off.
+    timetable loaded, the state is as it was. So it is where `now` is before
+    `start`, or at or after `start` plus `repeat`. It is taken in every phase
+    and with Record on or off.
 
     A changed `at` moves the entry to its place in the order, after the last
     entry at or before its new time. The entry keeps its state, its request
@@ -451,6 +462,10 @@ def changed(state: State, was: Entry, now: Entry | None) -> State:
     """
     timetable = state.timetable
     if timetable is None or was not in timetable.entries:
+        return state
+    if now is not None and not (
+        timetable.start <= now.at < timetable.start + timetable.repeat
+    ):
         return state
     index = timetable.entries.index(was)
     rest = timetable.removed(index)
