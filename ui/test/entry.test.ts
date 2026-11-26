@@ -12,9 +12,11 @@
  * run view, which writes one `entry_wanted` for each change.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { edited, same, type Entry } from "../src/model/timetable.js";
+import "../src/ui/tc-entry.js";
+import { edited, same, type Entry, type Field } from "../src/model/timetable.js";
+import type { EntryChange, TcEntry } from "../src/ui/tc-entry.js";
 
 /** `goods` to `b.A` at 06:02, standing two minutes there. */
 const GOODS: Entry = {
@@ -123,5 +125,113 @@ describe("two entries", () => {
 
   it("are not the same where one is a turn-round", () => {
     expect(same(TURN, { at: "06:10", train: "goods", to: ["b.A"] })).toBe(false);
+  });
+});
+
+/** The open row of `entry`. */
+async function opened(entry: Entry): Promise<TcEntry> {
+  const element = document.createElement("tc-entry");
+  element.entry = entry;
+  document.body.append(element);
+  await element.updateComplete;
+  return element;
+}
+
+/** The field of an open row, `null` where the row has none. */
+function field(element: TcEntry, name: Field): HTMLInputElement | null {
+  return element.renderRoot.querySelector<HTMLInputElement>(`input.${name}`);
+}
+
+/** What each field of an open row shows, `null` for a field it has not. */
+function shown(element: TcEntry): (string | null)[] {
+  return (["at", "dwell", "description"] as const).map(
+    (name) => field(element, name)?.value ?? null,
+  );
+}
+
+/** `words` typed in a field and the field left, or Enter pressed: the
+ *  browser says either with `change`. */
+async function typed(element: TcEntry, name: Field, words: string): Promise<void> {
+  const input = field(element, name)!;
+  input.value = words;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  await element.updateComplete;
+}
+
+/** What an open row, or the list round it, has asked since this was called. */
+function asked(element: Element): EntryChange[] {
+  const seen: EntryChange[] = [];
+  element.addEventListener("entry-changed", (event) =>
+    seen.push((event as CustomEvent<EntryChange>).detail),
+  );
+  return seen;
+}
+
+describe("tc-entry", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("shows the entry's time, dwell and description", async () => {
+    expect(shown(await opened(GOODS))).toEqual(["06:02", "2", "meets the express"]);
+  });
+
+  it("shows a dwell of 0 and no description where the entry has neither", async () => {
+    expect(shown(await opened(BARE))).toEqual(["06:30", "0", ""]);
+  });
+
+  it("has no dwell field on a turn-round", async () => {
+    expect(shown(await opened(TURN))).toEqual(["06:10", null, ""]);
+  });
+
+  it.each([
+    ["at", "6:10", { ...GOODS, at: "06:10" }],
+    ["dwell", "5", { ...GOODS, dwell: 5 }],
+    ["description", "meets the local", { ...GOODS, description: "meets the local" }],
+  ] as const)("asks for the entry with `%s` changed", async (name, words, now) => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    await typed(element, name, words);
+    expect(seen).toEqual([{ was: GOODS, now }]);
+  });
+
+  it.each([
+    ["at", "soon"],
+    ["at", ""],
+    ["dwell", "-1"],
+    ["dwell", "1.5"],
+  ] as const)("asks nothing for `%s` typed as %j, and shows what the entry has", async (name, words) => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    await typed(element, name, words);
+    expect(seen).toEqual([]);
+    expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
+  });
+
+  it("asks nothing for a field left as it was", async () => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    await typed(element, "at", "06:02");
+    await typed(element, "dwell", "2");
+    await typed(element, "description", "meets the express");
+    expect(seen).toEqual([]);
+  });
+
+  /** The page changes nothing by itself: the scheduler's row says what the
+   *  entry reads (ADR-0035). */
+  it("shows what the entry has after a change, until the entry is another", async () => {
+    const element = await opened(GOODS);
+    await typed(element, "at", "6:10");
+    expect(shown(element)).toEqual(["06:02", "2", "meets the express"]);
+    element.entry = { ...GOODS, at: "06:10" };
+    await element.updateComplete;
+    expect(shown(element)).toEqual(["06:10", "2", "meets the express"]);
+  });
+
+  it("asks for the entry to be deleted, without asking the person first", async () => {
+    const element = await opened(GOODS);
+    const seen = asked(element);
+    element.renderRoot.querySelector<HTMLButtonElement>("button.delete")!.click();
+    expect(seen).toEqual([{ was: GOODS, now: null }]);
   });
 });
