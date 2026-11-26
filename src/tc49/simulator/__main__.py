@@ -93,7 +93,13 @@ import time
 from collections.abc import Callable, Sequence
 
 from tc49.lib.clock import Clock
-from tc49.lib.clock_row import Keeping, kept_by, kept_by_installation, loaded
+from tc49.lib.clock_row import (
+    FastClockRow,
+    Keeping,
+    kept_by,
+    kept_by_installation,
+    loaded,
+)
 from tc49.lib.documents import Documents
 from tc49.lib.fast_clock import KeptClock
 from tc49.lib.layout import Layout
@@ -276,7 +282,9 @@ class _Binding:
                 self._installation = changed
             self._keeping.keep(layout.name, changed)
 
-        fast = loaded(self._bus, kept, lambda: clock.now, time.localtime(), keep)
+        def fast() -> FastClockRow:
+            return loaded(self._bus, kept, lambda: clock.now, time.localtime(), keep)
+
         simulator = Simulator(
             self._bus,
             layout,

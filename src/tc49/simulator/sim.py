@@ -169,7 +169,7 @@ class Simulator:
         transit_s: float = 30.0,
         clear_s: float = 30.0,
         built: bool = True,
-        fast: FastClockRow | None = None,
+        fast: Callable[[], FastClockRow] | None = None,
         settings: KeptSettings | None = None,
         throttle_silence_s: float = THROTTLE_SILENCE_S,
         keep: Callable[[KeptSettings | KeptInstallation], None] | None = None,
@@ -197,10 +197,13 @@ class Simulator:
         said on `tc49/layout/state/railroad` as the layout interface says it
         (ADR-0085, decision 4).
 
-        `fast`: the fast clock, read off `clock`, said once each `CLOCK_S` of
-        it from the run's start (ADR-0090), standing while this binding
-        states power `off` (#1350). A run given none says none, which is the
-        research harness's: its traces are what they were.
+        `fast`: makes the fast clock, read off `clock`, said once each
+        `CLOCK_S` of it from the run's start (ADR-0090), standing while this
+        binding states power `off` (#1350). It is called once this binding
+        has stated `off`, as `layout` makes its clock, so the row hears no
+        power row a process before this one left on a broker. A run given
+        none says none, which is the research harness's: its traces are what
+        they were.
 
         `settings`: the railroad's settings, said on
         `tc49/layout/state/settings` as the layout interface says them, so
@@ -238,7 +241,6 @@ class Simulator:
         self._clear_s = clear_s
         self._position = dict(position or {})
         self._events: list[_Event] = []
-        self._fast = fast
         # The run clock's next reading at which the fast clock is said.
         self._beat = clock.now
         self._seq = 0
@@ -296,6 +298,7 @@ class Simulator:
         # comes up: a person presses ON, and the bench harness publishes
         # `power_wanted: on` before a run (ADR-0070, decision 2).
         bus.publish("tc49/layout/state/power", {"power": OFF})
+        self._fast = None if fast is None else fast()
         # The railroad's settings, stated from the constructor as `layout`
         # states them on each build: the driver prices no grant until it has
         # heard the speeds (#1133).

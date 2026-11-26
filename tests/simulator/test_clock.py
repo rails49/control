@@ -56,7 +56,7 @@ def build(
             placement(scenario.trains),
             transit_s=TRANSIT_S,
             clear_s=CLEAR_S,
-            fast=row,
+            fast=lambda: row,
         ),
     )
     said: Said = []
@@ -164,7 +164,7 @@ def test_the_clock_stands_while_the_simulator_states_power_off() -> None:
         lambda: clock.now,
         kept.append,
     )
-    simulator = Simulator(bus, layout, clock, fast=row)
+    simulator = Simulator(bus, layout, clock, fast=lambda: row)
     said: list[tuple[float, int]] = []
     bus.subscribe(
         CLOCK, lambda _topic, payload: said.append((clock.now, payload["time"]))
