@@ -8,6 +8,7 @@
  */
 
 import type { SettingsChange } from "./settings.js";
+import type { Entry } from "./timetable.js";
 import type { Position } from "../symbols.generated.js";
 
 /** One bus event as the model reads it: the topic leaf, and the payload's
@@ -144,6 +145,16 @@ export function gesture(wanted: Gesture): Frame {
  *  ([ADR-0019](../../../docs/adr/0019-facing-is-scheduler-state.md)). */
 export function reversal(train: string): Frame {
   return { topic: REVERSAL_WANTED, payload: { train } };
+}
+
+/** An `entry_wanted` frame: change one entry of the loaded timetable, or
+ *  delete it where `now` is `null`. Entries carry no id, so `was` is the entry
+ *  as `state/timetable` lists it, with the document's fields only. The key
+ *  `now` is always written: a frame without it is dropped, and is not a
+ *  delete. The scheduler answers nothing, and the next `state/timetable` row
+ *  has the change where it was taken (BUS.md, #1354). */
+export function entryWanted(was: Entry, now: Entry | null): Frame {
+  return { topic: ENTRY_WANTED, payload: { was, now } };
 }
 
 /** A `placement_wanted` frame: where a train actually is, said by the person

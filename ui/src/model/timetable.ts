@@ -21,8 +21,15 @@
  * and `moving` says what a drag asks the dispatcher. An entry that is not out
  * is no request and is not dragged. `opening` is the row the list is scrolled
  * to when a timetable is first drawn.
+ *
+ * An entry's row opens to its time, dwell and description
+ * ([#1358](https://github.com/rails49/control/issues/1358)). `edited` is the
+ * entry with what a person typed in one of them, and `same` is whether two
+ * entries are equal as the scheduler compares them, which is how the open row
+ * is found again when its entry moves.
  */
 
+import { hhmm, timeOf } from "./clock.js";
 import { reordering, type RequestRow } from "./requests.js";
 
 /** The three phases of a loaded timetable (BUS.md). */
@@ -211,6 +218,59 @@ export function moving(
     .find(({ request }) => request?.state === "waiting" && request.id !== id)?.request;
   const place = requests.findIndex((request) => request.id === next?.id);
   return reordering(requests, id, place === -1 ? requests.length : place);
+}
+
+/** The fields of an entry a person types in its open row. */
+export type Field = "at" | "dwell" | "description";
+
+/**
+ * `entry` with `words` typed in one field of its open row, `entry_wanted`'s
+ * `now`, or `null` where nothing is to be sent: the words are no value for
+ * that field, or the entry reads the same with them.
+ *
+ * - A time is `H:MM` or `HH:MM` and is said as `HH:MM`.
+ * - A dwell is whole minutes in digits, 0 or more, and only an entry with
+ *   `to` has one. Emptied it is 0, and 0 is the key left out.
+ * - A description is the words with the space round them dropped. Emptied,
+ *   the key is left out.
+ */
+export function edited(entry: Entry, field: Field, words: string): Entry | null {
+  const typed = words.trim();
+  const { dwell, description, ...rest } = entry;
+  let now: Entry;
+  if (field === "at") {
+    const time = timeOf(typed);
+    if (time === null) return null;
+    now = { ...entry, at: hhmm(time) };
+  } else if (field === "dwell") {
+    if (entry.to === undefined || !/^\d*$/.test(typed)) return null;
+    const minutes = Number(typed);
+    now = {
+      ...rest,
+      ...(minutes === 0 ? {} : { dwell: minutes }),
+      ...(description === undefined ? {} : { description }),
+    };
+  } else {
+    now = {
+      ...rest,
+      ...(dwell === undefined ? {} : { dwell }),
+      ...(typed === "" ? {} : { description: typed }),
+    };
+  }
+  return same(entry, now) ? null : now;
+}
+
+/** Whether two entries are equal in every field of the document, a dwell
+ *  left out being 0 and a description left out being empty: the scheduler's
+ *  rule for the entry `entry_wanted` names (BUS.md). */
+export function same(a: Entry, b: Entry): boolean {
+  return (
+    a.at === b.at &&
+    a.train === b.train &&
+    JSON.stringify(a.to) === JSON.stringify(b.to) &&
+    (a.dwell ?? 0) === (b.dwell ?? 0) &&
+    (a.description ?? "") === (b.description ?? "")
+  );
 }
 
 function startsOf(trains: unknown): Record<string, TrainStart> | null {

@@ -15,6 +15,8 @@ import {
   CLOCK_WANTED,
   clockWanted,
   drivingWanted,
+  ENTRY_WANTED,
+  entryWanted,
   FUNCTION_WANTED,
   functionWanted,
   gesture,
@@ -138,6 +140,26 @@ describe("reversal", () => {
       payload: { train: "t1" },
     });
     expect(REVERSAL_WANTED).toBe("tc49/schedule/reversal_wanted");
+  });
+});
+
+/** An entry of the loaded timetable changed or deleted in the list (#1358).
+ *  Entries carry no id, so the entry is named by what it reads now. */
+describe("entryWanted", () => {
+  const was = { at: "06:02", train: "t1", to: ["b.A"], dwell: 2 };
+
+  it("names the entry as it reads and as it should read", () => {
+    const now = { ...was, at: "06:10" };
+    expect(entryWanted(was, now)).toEqual({
+      topic: "tc49/schedule/entry_wanted",
+      payload: { was, now },
+    });
+    expect(ENTRY_WANTED).toBe("tc49/schedule/entry_wanted");
+  });
+
+  /** A frame without `now` is dropped, and is not a delete (BUS.md). */
+  it("writes an explicit null to delete it", () => {
+    expect(entryWanted(was, null).payload).toEqual({ was, now: null });
   });
 });
 
