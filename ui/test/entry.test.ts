@@ -286,8 +286,11 @@ describe("the open row", () => {
   });
 });
 
+/** The blocks of the railroad an open row is on. */
+const RAILROAD = ["a", "b", "c"];
+
 /** The open row of `entry`, in a timetable that starts at 06:00 and repeats
- *  each day, or as `repeating` says. */
+ *  each day, or as `repeating` says, on a railroad of `RAILROAD`'s blocks. */
 async function opened(
   entry: Entry,
   repeating: { start: number; repeat: number } = { start: 6 * 3600, repeat: 86_400 },
@@ -295,6 +298,7 @@ async function opened(
   const element = document.createElement("tc-entry");
   element.entry = entry;
   element.timetable = repeating;
+  element.blocks = RAILROAD;
   document.body.append(element);
   await element.updateComplete;
   return element;
@@ -496,6 +500,77 @@ describe("tc-entry", () => {
     const seen = asked(element);
     element.renderRoot.querySelector<HTMLButtonElement>("button.delete")!.click();
     expect(seen).toEqual([{ was: GOODS, now: null }]);
+  });
+
+  describe("its To field", () => {
+    it("shows the entry's arrival ends, joined by a comma and a space", async () => {
+      expect(field(await opened(GOODS), "to")!.value).toBe("b.A");
+      expect(field(await opened({ ...GOODS, to: ["b", "c.A"] }), "to")!.value).toBe("b, c.A");
+    });
+
+    it("is drawn after the time and before the dwell", async () => {
+      const inputs = (await opened(GOODS)).renderRoot.querySelectorAll("input");
+      expect([...inputs].map((input) => input.className)).toEqual([
+        "at",
+        "to",
+        "dwell",
+        "description",
+      ]);
+    });
+
+    it("is not drawn on a turn-round", async () => {
+      expect(field(await opened(TURN), "to")).toBeNull();
+    });
+
+    /** The browser says `change` for a field left and for Enter in it. */
+    it("asks for the entry with the arrival ends in the order typed", async () => {
+      const element = await opened(GOODS);
+      const seen = asked(element);
+      await typed(element, "to", " c.B, a ,b");
+      expect(seen).toEqual([{ was: GOODS, now: { ...GOODS, to: ["c.B", "a", "b"] } }]);
+      expect(refusal(element)).toBeNull();
+    });
+
+    it.each(["b.A", " b.A "])("asks nothing for %j, the ends the entry has", async (words) => {
+      const element = await opened(GOODS);
+      const seen = asked(element);
+      await typed(element, "to", words);
+      expect(seen).toEqual([]);
+      expect(refusal(element)).toBeNull();
+    });
+
+    it.each([
+      ["", "no arrival end"],
+      ["b.C", "b.C: the end is A or B"],
+      ["a, z.A", "the railroad has no block z"],
+      ["c, c.A", "c is named twice"],
+    ])("asks nothing for %j, says %j under the field, and shows the ends", async (words, why) => {
+      const element = await opened(GOODS);
+      const seen = asked(element);
+      await typed(element, "to", words);
+      expect(seen).toEqual([]);
+      expect(refusal(element)).toBe(why);
+      const line = element.renderRoot.querySelector(".refused")!;
+      expect(line.previousElementSibling!.querySelector("input")).toBe(field(element, "to"));
+      expect(field(element, "to")!.value).toBe("b.A");
+    });
+
+    it("says nothing once the next field is changed", async () => {
+      const element = await opened(GOODS);
+      await typed(element, "to", "z");
+      await typed(element, "description", "meets the local");
+      expect(refusal(element)).toBeNull();
+    });
+
+    it("keeps the words typed in it when it is handed another entry", async () => {
+      const element = await opened(GOODS);
+      const seen = asked(element);
+      const input = typing(element, "to", "c, a");
+      element.entry = { ...GOODS, at: "06:10" };
+      await element.updateComplete;
+      expect(input.value).toBe("c, a");
+      expect(seen).toEqual([]);
+    });
   });
 });
 

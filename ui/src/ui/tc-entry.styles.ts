@@ -1,13 +1,15 @@
 import { css } from "lit";
 
 /**
- * An entry's open row (`tc-entry`): its time, its dwell and its description,
- * and Delete under them at the right (#1358). Why a typed time was refused
- * is a line under the time, in red as a refused placement is in the roster.
+ * An entry's open row (`tc-entry`): its time, its arrival ends, its dwell
+ * and its description, and Delete under them at the right (#1358, #1386).
+ * Why typed words were refused is a line under their field, in red as a
+ * refused placement is in the roster.
  *
  * It is drawn inside the row of `tc-requests`, across the row's width. The
- * time and the dwell are a line each, the field's name and then the field,
- * as wide as what it holds. The description's field is under its name and as
+ * time, the arrival ends and the dwell are a line each, the field's name and
+ * then the field. The time and the dwell are as wide as what they hold, the
+ * arrival ends as wide as the rest of the line. The description's field is under its name and as
  * wide as the row, so it has room in the pane at its least width.
  *
  * The row round it is something to drag and lets no text be selected
@@ -66,6 +68,10 @@ export const entryStyles = css`
   .at {
     width: 4.5em;
     font-variant-numeric: tabular-nums;
+  }
+
+  .to {
+    flex: 1;
   }
 
   .refused {
