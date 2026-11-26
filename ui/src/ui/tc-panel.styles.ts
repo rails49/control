@@ -20,8 +20,8 @@ import { DRAWING, LEAST, UPRIGHT } from "../model/pane.js";
  * corners, on a ground of the gap colour (`--gap`). The ground shows between
  * the two lists.
  *
- * The divider between the pane and the drawing is a 6px gap. It sets the
- * pane's size. The view hands it over as `--pane-size`, and until a person
+ * The divider between the pane and the drawing is a gap, `tc-gap`. It sets
+ * the pane's size. The view hands it over as `--pane-size`, and until a person
  * has dragged the divider the width is the shell's `--pane`, which the
  * editor's palette has. The size is held to the limits a drag is held to
  * (`model/pane.ts`) when the window changes size.
@@ -48,35 +48,8 @@ export const panelStyles = css`
     min-height: 0;
   }
 
-  /* A gap 6px wide. What takes the press is wider, and wider again under a
-     finger, and lies over the edges of the pane and the drawing. */
-  .divider {
-    --reach: 0.3rem;
-
+  tc-gap.pane {
     grid-area: divider;
-    position: relative;
-    z-index: 1;
-    width: 6px;
-    background: var(--gap);
-    cursor: col-resize;
-    touch-action: none; /* a drag on a touch screen is a drag, not a scroll */
-  }
-
-  @media (pointer: coarse) {
-    .divider {
-      --reach: 0.7rem;
-    }
-  }
-
-  .divider::before {
-    content: "";
-    position: absolute;
-    inset: 0 calc(-1 * var(--reach));
-  }
-
-  .divider:hover,
-  .divider:active {
-    background: var(--chosen);
   }
 
   /* The trains are their content's height, capped at half the pane, and the
@@ -142,16 +115,6 @@ export const panelStyles = css`
       flex: 1 1 0;
       min-width: 0;
       max-height: none;
-    }
-
-    .divider {
-      width: auto;
-      height: 6px;
-      cursor: row-resize;
-    }
-
-    .divider::before {
-      inset: calc(-1 * var(--reach)) 0;
     }
   }
 
