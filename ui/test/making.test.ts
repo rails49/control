@@ -1436,6 +1436,29 @@ describe("making up a train", () => {
     ]);
   });
 
+  /** The Cars section takes the editor's width. Every other part of the
+   *  train editor, and the model and car editors, are at most 760px wide
+   *  (#1402). */
+  it("caps the editor's content at 760px, all but a train's cars", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const cap = (one: Element) => getComputedStyle(one).maxWidth;
+
+    await tab(shell, "trains");
+    const body = part(shell, ".body.train-editor");
+    const cars = part(shell, ".body.train-editor > section.sec.cars");
+    for (const box of [cars, body, part(shell, "section.editor")]) {
+      expect(["", "none"]).toContain(cap(box));
+    }
+    const rest = [...body.children].filter((one) => one !== cars);
+    expect(rest.map(cap)).toEqual(["760px", "760px", "760px"]);
+
+    await tab(shell, "cars");
+    expect(cap(part(shell, ".body.car-editor"))).toBe("760px");
+    await tab(shell, "models");
+    expect(cap(part(shell, ".body.model-editor"))).toBe("760px");
+  });
+
   /** The functions follow from the cars, a momentary one saying *hold*. */
   it("shows the functions the cars have, a momentary one saying hold", async () => {
     store.catalogue = {

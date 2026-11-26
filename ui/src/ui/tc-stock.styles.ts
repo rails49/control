@@ -803,6 +803,15 @@ export const stockStyles = css`
 
   /* --- the train editor: the cars as a strip of tiles, head first --- */
 
+  /* The Cars section takes the editor's width. */
+  .body.train-editor {
+    max-width: none;
+  }
+
+  .body.train-editor > :not(.cars) {
+    max-width: 760px;
+  }
+
   .ends {
     display: flex;
     justify-content: space-between;
