@@ -125,8 +125,9 @@ src/
                  answers for it
     requests.ts  the request list: the requests the dispatcher holds, in
                  serving order, and what a drag of one asks
-    timetable.ts the loaded timetable as the scheduler says it, and the
-                 rows the run view lists it in with the requests
+    timetable.ts the loaded timetable as the scheduler says it, the rows the
+                 run view lists it in with the requests, and the roster's
+                 note about where it starts
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
@@ -145,7 +146,7 @@ src/
                    run together
     tc-properties.ts  the properties dialog
     tc-widget-properties.ts  a widget's properties dialog, its topic shown
-    tc-menu.ts     the right-click menu
+    tc-menu.ts     the right-click menu, and the timetable heading's
     tc-settings.ts the settings dialog behind the band's gear: which railroad
                    is loaded, New and Copy loaded as…, and the way into backup
     tc-backup.ts   the backup dialog: whether the store is kept anywhere,
@@ -160,6 +161,10 @@ src/
                    drag to reorder the waiting ones
     tc-entry.ts    an entry's open row in that list: its time, dwell and
                    description, and Delete
+    tc-timetable-controls.ts  the controls in that list's heading: the menu,
+                   the Record switch and Start
+    tc-timetable-dialog.ts  the dialog a row of that menu opens: New, Load,
+                   Rename or Delete
     tc-throttle.ts the throttle view: a row of throttles, each a panel with
                    its own id, as many as its width fits; the session stays
                    the app's

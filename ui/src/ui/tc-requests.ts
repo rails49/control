@@ -160,7 +160,8 @@ export class TcRequests extends LitElement {
     this.renderRoot.querySelectorAll("li")[at]?.scrollIntoView({ block: "start" });
   }
 
-  /** "Timetable", and the loaded timetable's name beside it. */
+  /** "Timetable", and the loaded timetable's name beside it. The run view
+   *  puts the heading's controls in the slot (`tc-timetable-controls`). */
   private heading() {
     return html`
       <header>
@@ -168,6 +169,7 @@ export class TcRequests extends LitElement {
         ${this.timetable === null
           ? nothing
           : html`<span class="name">${this.timetable.name}</span>`}
+        <slot name="controls"></slot>
       </header>
     `;
   }
