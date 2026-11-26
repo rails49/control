@@ -838,8 +838,12 @@ what a drop would cost:
   off its run clock once a second of that run clock: a real second live. A
   batch run (`bench`) gives it none, so no benchmark run publishes a clock and
   a replay stays byte-identical. Loading a railroad clears it with the other `layout` rows
-  ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md))
-  and starts the clock again on day 0 at the start time and speed-up the
+  ([ADR-0060](adr/0060-the-railroad-is-chosen-while-the-apps-run-not-at-startup.md)).
+  A rebuild under the same name starts the new build's clock at the time the
+  last build's read, day included, at its speed-up
+  ([#1372](https://github.com/rails49/control/issues/1372)). A start of
+  `layout` or the simulator, and a load of another railroad, start the clock
+  on day 0 at the start time and speed-up the
   railroad keeps in the store, `layouts/<layout>.clock.yaml`
   ([LAYOUT.md](store/LAYOUT.md)), or at the box's wall time of day at a
   speed-up of 1 where it keeps none. It counts on past midnight
@@ -847,7 +851,7 @@ what a drop would cost:
   **The clock stands while `tc49/layout/state/power` reads `off`** and runs
   while it reads `on` or `draining`. While it stands the row is still
   published once a second and repeats the same `time`. A railroad comes up
-  `off`, so a loaded railroad's clock stands at its start time until power
+  `off`, so a loaded railroad's clock stands where it starts until power
   first reads `on`. When power reads `on` again the clock runs on from the
   time it stood at. Both bindings take the rule from `lib/clock_row.py`
   ([#1350](https://github.com/rails49/control/issues/1350)). The page reads it, the

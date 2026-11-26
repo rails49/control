@@ -4,6 +4,8 @@
 
 *Superseded in part by [#1363](https://github.com/rails49/control/issues/1363): decision 5's "The clock is a time of day. It wraps at midnight and has no date" goes. The clock counts days from 0, a time is fast-clock seconds since midnight of day 0, and the band shows only the time of day.*
 
+*Superseded in part by [#1372](https://github.com/rails49/control/issues/1372): decision 4's "Loading the railroad starts the clock at its start time" no longer covers a rebuild under the same name. That build starts the clock where the last build's stood, day included, at its speed-up. A cold start and a build of another railroad start it at the start time, as before.*
+
 The work is [#987](https://github.com/rails49/control/issues/987),
 [#988](https://github.com/rails49/control/issues/988),
 [#989](https://github.com/rails49/control/issues/989),

@@ -917,7 +917,12 @@ timetable loaded. A request can end while the scheduler is down, so an entry
 that is `out` whose request the first allocation row does not list becomes
 `ended`. Loading another railroad leaves no timetable loaded. A rebuild
 under the same railroad name keeps the loaded one, as it keeps facing
-([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
+([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)),
+and the fast clock keeps its time, day included, so the entries not yet
+out are due as they were before it
+([#1372](https://github.com/rails49/control/issues/1372)). After a restart of
+`layout` or the simulator the clock starts on day 0, and an entry in a later
+round waits until the clock reaches that round.
 
 It **loads** a timetable and **releases** its entries on the fast clock
 ([#1353](https://github.com/rails49/control/issues/1353)).
@@ -1645,13 +1650,18 @@ run clock once a second of it, and the clock is no event. A batch run
 one
 ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 In both bindings the fast clock counts days from 0: a time is fast-clock
-seconds since midnight of day 0, with no upper limit, and loading the railroad
-starts it on day 0 at its start time. A person's set saves its time of day,
-rounded down to the minute, as the start
+seconds since midnight of day 0, with no upper limit. A start of the binding
+and a load of another railroad start it on day 0 at the railroad's start time.
+A person's set saves its time of day, rounded down to the minute, as the start
 ([#1363](https://github.com/rails49/control/issues/1363)).
+A rebuild under the same railroad name starts the new build's clock at the
+time the last build's read, day included, at its speed-up. The old build hands
+it to the new one as it hands over where the trains stand, and nothing more is
+written to the store
+([#1372](https://github.com/rails49/control/issues/1372)).
 It stands while `tc49/layout/state/power` reads
 `off` and runs while it reads `on` or `draining`. A railroad comes up `off`,
-so its clock stands at its start time until power first reads `on`, and after
+so its clock stands where it starts until power first reads `on`, and after
 a break it runs on from the time it stood at. While it stands the row is
 still said once a second with the same time, and a `clock_wanted` taken then
 sets the time it stands at and the speed-up it runs at once it runs. The rule
