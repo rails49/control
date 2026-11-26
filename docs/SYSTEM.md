@@ -713,13 +713,15 @@ come back past it ignored — and `tc49/layout/state/clock` and
 `request_submitted` on the dispatcher's topic, and the `state/exhausted`,
 `state/facing` and `state/timetable` last-value topics.
 
-The scheduler is the **one writer of requests**. It has three sources: the
-scenario's requests, submitted whole at the start of a run in the file's
-order; a person gesturing on the panel; and, later, a generator inventing
-traffic. Those are three sources inside one scheduler, not three publishers
-([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md),
-[GOALS.md](GOALS.md#scheduling)). Which of them a run has is configuration
-rather than a rule: a run an operator drives has no scenario's requests at all
+The scheduler is the **one writer of requests**. Its sources are the three
+[GOALS.md](GOALS.md#scheduling) lists: the loaded timetable, each entry
+released when it is due; a person gesturing on the panel; and, later, a
+generator inventing traffic. A run of the harness has one more, the
+scenario's requests, submitted whole at the start of the run in the file's
+order. They are sources inside one scheduler, not several publishers
+([ADR-0028](adr/0028-the-scheduler-knows-where-trains-stand.md)). Which of
+them a run has is configuration rather than a rule: a run an operator drives
+has no requests from a scenario at all
 ([ADR-0036](adr/0036-the-scheduler-is-an-app-the-panel-is-a-view.md)).
 
 From one of the scenario's requests the scheduler does one thing: it expands
@@ -868,8 +870,11 @@ A person tunes the loaded timetable with two gestures
   `untitled` keeps it from being replaced by the next recording.
 
 The scheduler writes the document to the store at each change to it, on a
-thread of its own and in order, so a store that does not answer holds up no
-gesture. A change of an entry's state alone is no change to the document. It
+thread of its own and in order, so a write to a store that does not answer
+holds up no gesture. A load, a rename and a restart read the store on the
+loop's thread, after the writes asked for before them, and wait for its
+answer: until the store answers, the scheduler takes no gesture and releases
+no entry. A change of an entry's state alone is no change to the document. It
 is the one writer of a loaded timetable: a hand edit of that file is lost at
 the next write. It publishes the loaded timetable on
 `tc49/schedule/state/timetable` when it changes.
@@ -909,8 +914,21 @@ It **loads** a timetable and **releases** its entries on the fast clock
   `tc49/schedule/timetable_start_wanted`. The scheduler publishes
   `tc49/layout/clock_wanted` with the start time, and the phase is
   `running`. The binding keeps that time as the railroad's clock start.
-- **Release.** Timetable time is the fast-clock seconds since the start,
-  moved on by each clock row. An entry is due when it reaches the entry's
+- **Timetable time** is how far the timetable has run, in fast-clock
+  seconds since the start. Each clock row moves it.
+  - A row less than 12 hours ahead of where the timetable has run to moves
+    it forward by the difference. So a clock set forward makes the entries
+    passed over due, in order.
+  - Any other row is read as the clock set back and moves nothing. The
+    timetable goes on once the clock passes where it had been, and nothing
+    is released twice. A clock set forward by 12 hours or more is read the
+    same way.
+  - After a start, a row said before the clock took the start time can
+    still arrive. Rows are passed over until one reads the start time or
+    up to two beats past it, twice the speed-up in seconds.
+  - After a restart the first clock row gives the time: its time less the
+    start, within the day.
+- **Release.** An entry is due when timetable time reaches the entry's
   `at`. A train's entries go in order, each after the one before has
   ended, been rejected, cancelled or skipped, and after that one's dwell
   where it ended by arrival. An entry with `to` is composed as a drag of

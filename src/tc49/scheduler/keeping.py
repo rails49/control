@@ -4,8 +4,8 @@ writes off the loop's thread (#1345, #1352).
 `Timetables` is the three calls the scheduler makes, which
 `tc49.lib.documents.Documents` has. `Kept` is those calls with the writes
 done on a thread of its own, as `tc49.lib.clock_row.Keeping` writes the
-clock. `python -m tc49.scheduler` hands the scheduler a `Kept`; a test hands
-it a store of its own.
+clock, and the read on the caller's. `python -m tc49.scheduler` hands the
+scheduler a `Kept`; a test hands it a store of its own.
 """
 
 import queue
@@ -48,7 +48,11 @@ class Kept:
     waiting when the app stops is lost.
 
     `timetable` reads on the caller's thread, after every write asked for
-    before it is done, so a read sees what was written.
+    before it is done, so a read sees what was written. It waits for those
+    writes and for the store's answer. The scheduler calls it at a load, a
+    rename and a restart, on the thread its loop runs on: while the store
+    does not answer one of them, the scheduler takes no gesture and says no
+    `alive_confirmed`.
     """
 
     def __init__(self, store: Timetables, log: Callable[[str], None]) -> None:
