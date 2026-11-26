@@ -40,6 +40,7 @@ import { backupStyles } from "../src/ui/tc-backup.styles.js";
 import { canvasStyles, exportStyles } from "../src/ui/tc-canvas.styles.js";
 import { drivingStyles } from "../src/ui/tc-driving.styles.js";
 import { editorStyles } from "../src/ui/tc-editor.styles.js";
+import { gapStyles } from "../src/ui/tc-gap.styles.js";
 import { menuStyles } from "../src/ui/tc-menu.styles.js";
 import { paletteStyles } from "../src/ui/tc-palette.styles.js";
 import { panelStyles } from "../src/ui/tc-panel.styles.js";
@@ -70,7 +71,7 @@ const sheets: Record<string, CSSResult> = {
 
 /** The block of a rule, by its selector, out of a sheet's text. */
 function rule(sheet: string, selector: string): string {
-  const escaped = selector.replace(/[.]/g, "\\.");
+  const escaped = selector.replace(/[.()[\]]/g, "\\$&");
   const found = sheet.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
   expect(found, `no rule for ${selector}`).not.toBeNull();
   return found![1]!;
@@ -508,12 +509,13 @@ describe("the run view's pane", () => {
     expect(sheet).not.toMatch(/border-(top|left):\s*1px solid var\(--rule\)/);
   });
 
+  /** `tc-gap`, the gap a person drags (#1391). */
   it("is divided from the drawing by a 6px gap, the chosen colour under a pointer", () => {
-    const [left, upright] = panelStyles.cssText.split(`@media ${UPRIGHT}`);
-    expect(rule(left!, ".divider")).toMatch(/width:\s*6px/);
-    expect(rule(left!, ".divider")).toMatch(/background:\s*var\(--gap\)/);
-    expect(rule(upright!, ".divider")).toMatch(/height:\s*6px/);
-    expect(rule(left!, ".divider:hover,\n  .divider:active")).toMatch(
+    const sheet = gapStyles.cssText;
+    expect(rule(sheet, ':host([axis="x"])')).toMatch(/width:\s*6px/);
+    expect(rule(sheet, ':host([axis="y"])')).toMatch(/height:\s*6px/);
+    expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
+    expect(rule(sheet, ":host(:hover),\n  :host(:active)")).toMatch(
       /background:\s*var\(--chosen\)/,
     );
   });

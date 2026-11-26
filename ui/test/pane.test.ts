@@ -28,7 +28,7 @@ const BOX = {
 } as DOMRect;
 
 function divider(shell: TcApp): HTMLElement {
-  return running(shell).renderRoot.querySelector<HTMLElement>(".divider")!;
+  return running(shell).renderRoot.querySelector<HTMLElement>("tc-gap.pane")!;
 }
 
 /** The size the view asks its stylesheet for, `""` for the stylesheet's own. */
