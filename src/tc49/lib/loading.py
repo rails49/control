@@ -42,6 +42,7 @@ from typing import Protocol
 
 from tc49.lib.bus import Bus, Payload, matches
 from tc49.lib.documents import Documents
+from tc49.lib.fast_clock import FastClock
 from tc49.lib.inventory import AT, OFF, POWERS
 from tc49.lib.layout import Layout
 
@@ -346,6 +347,12 @@ class Running(Protocol):
         carries into the next build (ADR-0071)."""
         ...
 
+    @property
+    def fast_clock(self) -> FastClock:
+        """The fast clock standing at what it reads now, which a rebuild
+        under the same name starts the next build's at (#1372)."""
+        ...
+
     def run(self, until: Callable[[], bool]) -> None:
         """The binding's inner loop, returning once `until()` is true."""
         ...
@@ -376,11 +383,18 @@ class LayoutBinding[Read](Protocol):
         """The `Layout` inside what `read` gave."""
         ...
 
-    def build(self, read: Read, position: dict[str, str], built: bool) -> Running:
+    def build(
+        self,
+        read: Read,
+        position: dict[str, str],
+        built: bool,
+        fast_clock: FastClock | None,
+    ) -> Running:
         """The app built on `read`, with its own `Clock`, ready to run: the
-        trains standing at `position`, and `built` false where nothing was
-        built from the drawing. A step only this binding needs before it is
-        constructed happens here (ADR-0086, decision 2)."""
+        trains standing at `position`, the fast clock at `fast_clock`, or
+        where it is None at the start the railroad keeps, and `built` false
+        where nothing was built from the drawing. A step only this binding
+        needs before it is constructed happens here (ADR-0086, decision 2)."""
         ...
 
 
@@ -620,8 +634,10 @@ def rebuilding[Read](
     a stop returns. A pick whose drawing is not a valid drawing is named and
     this build goes on running, its rows kept (`_answered`, ADR-0085,
     decision 4). One that builds takes the trains with it **under the same
-    name**, less any whose block the new drawing lacks (ADR-0071), and none
-    under another; then the rows the binding owns go (`dropped`).
+    name**, less any whose block the new drawing lacks (ADR-0071), and the
+    fast clock where it stood (#1372), and neither under another; then the
+    rows the binding owns go (`dropped`). A cold start is handed no train
+    and no clock.
     """
     loaded = Answering.recorded(documents, railroad, log)
     reading = _drawn(binding.read, binding.nothing, log)
@@ -631,10 +647,11 @@ def rebuilding[Read](
     read, derived = came
     log(f"'{loaded.name}': {len(binding.layout(read).blocks)} blocks")
     position: dict[str, str] = {}
+    fast_clock: FastClock | None = None
     while not stop.is_set():
         loaded.follow(bus)
         documents.put_loaded(loaded.name)
-        running = binding.build(read, position, derived)
+        running = binding.build(read, position, derived, fast_clock)
         built = loaded.name
         log(f"up on {named(built)}")
         picked: tuple[Read, bool] | None = None
@@ -646,11 +663,11 @@ def rebuilding[Read](
                 bus, documents, loaded, built, (read, derived), log, reading
             )
         read, derived = picked
+        same = loaded.name == built
         position = (
-            _still_standing(running.position, binding.layout(read))
-            if loaded.name == built
-            else {}
+            _still_standing(running.position, binding.layout(read)) if same else {}
         )
+        fast_clock = running.fast_clock if same else None
         gone = dropped(bus, binding.owned, stop, retained_s)
         log(f"loading '{loaded.name}': {len(gone)} rows of '{built}' cleared")
 

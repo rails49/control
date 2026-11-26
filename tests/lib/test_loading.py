@@ -26,6 +26,7 @@ import pytest
 from tc49.lib.bus import InProcessBus
 from tc49.lib.clock import Clock
 from tc49.lib.documents import Documents
+from tc49.lib.fast_clock import FastClock
 from tc49.lib.inventory import AT
 from tc49.lib.layout import Layout
 from tc49.lib.loading import (
@@ -798,10 +799,12 @@ def idle() -> None:
 
 class Run:
     """A binding built on a railroad: it drains between two waits until it is
-    told to stop, with a position a step can put trains in."""
+    told to stop, with a position a step can put trains in and a fast clock
+    a step can set."""
 
     def __init__(self, bus: InProcessBus, stop: Scripted) -> None:
         self.position: dict[str, str] = {}
+        self.fast_clock = FastClock(6 * 3600, 1.0, 0.0, True)
         self._bus = bus
         self._stop = stop
 
@@ -815,7 +818,8 @@ class Binding:
     """A layout binding reading the fixture drawings, as `rebuilding` sees
     one. Each build publishes the opening rows a constructor does — the
     railroad, `built` on it, and the power `off` — and is noted, with what it
-    was handed."""
+    was handed: the read, the position and `built` in `builds`, the fast
+    clock in `clocks`."""
 
     owned: Sequence[str] = (RAILROAD, POWER)
 
@@ -824,6 +828,7 @@ class Binding:
         self.drawings = {WAS: layout, NOW: replace(layout, name=NOW)}
         self.broken: set[str] = set()
         self.builds: list[tuple[Layout, dict[str, str], bool]] = []
+        self.clocks: list[FastClock | None] = []
         self.runs: list[Run] = []
         self.during_build: Callable[[], None] = lambda: None
         self._bus = bus
@@ -843,9 +848,16 @@ class Binding:
     def layout(self, read: Layout) -> Layout:
         return read
 
-    def build(self, read: Layout, position: dict[str, str], built: bool) -> Running:
+    def build(
+        self,
+        read: Layout,
+        position: dict[str, str],
+        built: bool,
+        fast_clock: FastClock | None,
+    ) -> Running:
         self._journal.append(f"built {read.name}")
         self.builds.append((read, position, built))
+        self.clocks.append(fast_clock)
         self._bus.publish(RAILROAD, {"name": read.name, BUILT: built})
         self._bus.publish(POWER, {"power": "off"})
         self.during_build()
@@ -974,6 +986,47 @@ def test_a_rebuild_under_another_name_carries_no_train() -> None:
     rebuilt.go()
 
     assert binding.builds[1][1] == {}
+
+
+DAY_3_10 = 3 * 86400 + 10 * 3600
+"""3d10:00: ten in the morning of day 3, in seconds since midnight of day 0."""
+
+
+def test_a_rebuild_under_the_same_name_is_handed_the_fast_clock_it_stood_at() -> None:
+    """The clock keeps its time through a rebuild under the same name, day
+    included, at its speed-up, as the trains keep their blocks (#1372)."""
+    rebuilt = Rebuilding(WAS)
+    binding = rebuilt.binding
+    stood = FastClock(DAY_3_10, 8.0, 0.0, True)
+
+    def save() -> None:
+        binding.runs[-1].fast_clock = stood
+        picking(rebuilt.bus, WAS)
+
+    rebuilt.stop.steps = [save, idle]
+
+    rebuilt.go()
+
+    assert rebuilt.built() == [WAS, WAS]
+    assert binding.clocks == [None, stood]
+
+
+def test_a_cold_start_and_a_build_under_another_name_are_handed_no_clock() -> None:
+    """Both start the clock on day 0 at the start the railroad keeps
+    (ADR-0090, decision 4)."""
+    rebuilt = Rebuilding(WAS)
+    binding = rebuilt.binding
+
+    def pick() -> None:
+        binding.runs[-1].fast_clock = FastClock(DAY_3_10, 8.0, 0.0, True)
+        picking(rebuilt.bus, NOW)
+
+    rebuilt.stop.steps = [pick, idle]
+
+    rebuilt.go()
+
+    assert rebuilt.built() == [WAS, NOW]
+    assert binding.clocks == [None, None]
 
 
 def test_a_pick_whose_drawing_is_not_valid_is_named_and_the_build_runs_on() -> None:

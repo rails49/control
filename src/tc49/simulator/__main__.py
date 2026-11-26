@@ -101,7 +101,7 @@ from tc49.lib.clock_row import (
     loaded,
 )
 from tc49.lib.documents import Documents
-from tc49.lib.fast_clock import KeptClock
+from tc49.lib.fast_clock import FastClock, KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, dropped, rebuilding
 from tc49.lib.mqtt import MqttBus, address
@@ -255,17 +255,24 @@ class _Binding:
     def layout(self, read: _Read) -> Layout:
         return read[0]
 
-    def build(self, read: _Read, position: dict[str, str], built: bool) -> Running:
+    def build(
+        self,
+        read: _Read,
+        position: dict[str, str],
+        built: bool,
+        fast_clock: FastClock | None,
+    ) -> Running:
         """The simulator on its own clock, starting at zero, which `run_live`
         is the only thing to advance. The steel stands where it stood under
         the same name, a train longer than its block included: that is where
         the steel has it (ADR-0071).
 
-        The fast clock is started as `layout` starts it, at the start time and
-        speed-up the railroad keeps or at the box's time of day at 1, and run
-        on the run clock from there while power is not `off` (#1350); what a
-        person sets is kept with the railroad as `layout` keeps it
-        (ADR-0090).
+        The fast clock is started as `layout` starts it: at `fast_clock`,
+        where the last build under the same name stood, day included (#1372),
+        and otherwise on day 0 at the start time and speed-up the railroad
+        keeps or at the box's time of day at 1. It runs on the run clock from
+        there while power is not `off` (#1350); what a person sets is kept
+        with the railroad as `layout` keeps it (ADR-0090).
 
         The settings are taken on `settings_wanted` and kept as `layout`
         keeps them, the railroad's with the railroad and the two silences and
@@ -282,8 +289,14 @@ class _Binding:
                 self._installation = changed
             self._keeping.keep(layout.name, changed)
 
+        rows: list[FastClockRow] = []
+
         def fast() -> FastClockRow:
-            return loaded(self._bus, kept, lambda: clock.now, time.localtime(), keep)
+            row = loaded(
+                self._bus, kept, lambda: clock.now, time.localtime(), keep, fast_clock
+            )
+            rows.append(row)
+            return row
 
         simulator = Simulator(
             self._bus,
@@ -300,7 +313,7 @@ class _Binding:
             sensor_silence_s=self._installation.sensor_silence,
             arrival_allowance_s=self._installation.arrival_allowance,
         )
-        return _Running(simulator, self._alive, self._stop, self._period_s)
+        return _Running(simulator, rows[0], self._alive, self._stop, self._period_s)
 
 
 class _Running:
@@ -311,11 +324,13 @@ class _Running:
     def __init__(
         self,
         simulator: Simulator,
+        fast: FastClockRow,
         alive: Alive,
         stop: threading.Event,
         period_s: float,
     ) -> None:
         self._simulator = simulator
+        self._fast = fast
         self._alive = alive
         self._stop = stop
         self._period_s = period_s
@@ -323,6 +338,10 @@ class _Running:
     @property
     def position(self) -> dict[str, str]:
         return self._simulator.position
+
+    @property
+    def fast_clock(self) -> FastClock:
+        return self._fast.stood()
 
     def run(self, until: Callable[[], bool]) -> None:
         self._simulator.run_live(

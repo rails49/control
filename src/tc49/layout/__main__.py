@@ -50,7 +50,9 @@ box can cut track power when the box goes silent (#716). Standing and
 reloading are outside it and say nothing. The fast clock goes out at the same
 beat, `tc49/layout/state/clock`, started at each build at the start time and
 speed-up the railroad keeps, `layouts/<layout>.clock.yaml`, and run on the
-monotonic clock from there (ADR-0090). It stands while `state/power` reads
+monotonic clock from there (ADR-0090). A rebuild under the same name starts
+it instead where the last build's stood, day included, at its speed-up
+(#1372). It stands while `state/power` reads
 `off`, so from each build until power first reads `on`, and runs while it
 reads `on` or `draining`; the row is said at every beat either way
 (`lib/clock_row.py`, #1350). A railroad that keeps none starts at
@@ -99,7 +101,7 @@ from tc49.lib.clock_row import (
     loaded,
 )
 from tc49.lib.documents import Documents, reread_roster
-from tc49.lib.fast_clock import KeptClock
+from tc49.lib.fast_clock import FastClock, KeptClock
 from tc49.lib.layout import Layout
 from tc49.lib.loading import NO_RAILROAD, Running, cleared, rebuilding
 from tc49.lib.mqtt import MqttBus, address
@@ -270,13 +272,20 @@ class _Binding:
     def layout(self, read: _Read) -> Layout:
         return read[0]
 
-    def build(self, read: _Read, position: dict[str, str], built: bool) -> Running:
+    def build(
+        self,
+        read: _Read,
+        position: dict[str, str],
+        built: bool,
+        fast_clock: FastClock | None,
+    ) -> Running:
         """The traction rows seen, then the interface built on its own clock,
-        starting at zero, and the fast clock started: at the start time the
-        railroad keeps (ADR-0090, decision 4), or, where it keeps none, at
-        the box's time of day at a speed-up of 1, which is not written until
-        a person sets the clock. It stands there until power first reads
-        `on` (#1350). The interface can read the railroad's
+        starting at zero, and the fast clock started: at `fast_clock`, where
+        the last build under the same name stood, day included (#1372), and
+        otherwise on day 0 at the start time the railroad keeps (ADR-0090,
+        decision 4), or, where it keeps none, at the box's time of day at a
+        speed-up of 1, which is not written until a person sets the clock. It
+        stands there until power first reads `on` (#1350). The interface can read the railroad's
         roster again, once, for a placement or a take naming a train it was
         not built with (ADR-0092, decision 2). It starts at the settings
         the railroad keeps, the defaults where it keeps none, and a person's
@@ -314,7 +323,9 @@ class _Binding:
         def keep(changed: KeptClock) -> None:
             self._keeping.keep(layout.name, changed)
 
-        row = loaded(self._bus, kept, time.monotonic, time.localtime(), keep)
+        row = loaded(
+            self._bus, kept, time.monotonic, time.localtime(), keep, fast_clock
+        )
         return _Running(self._bus, app, clock, row, self._stop, self._period_s)
 
 
@@ -347,6 +358,10 @@ class _Running:
     @property
     def position(self) -> dict[str, str]:
         return self._app.position
+
+    @property
+    def fast_clock(self) -> FastClock:
+        return self._fast.stood()
 
     def run(self, until: Callable[[], bool]) -> None:
         while not until():
