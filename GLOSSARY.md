@@ -473,6 +473,12 @@ railroad's day takes 7.5 minutes
 ([ADR-0090](docs/adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 _Avoid_: multiplier, rate, scale
 
+**Time form**:
+How a fast-clock time or length is written as text: `[<day>d]HH:MM`, with day
+0 written without `0d`, so `06:00` and `1d06:00` are a day apart
+([LAYOUT.md](docs/store/LAYOUT.md#timetable-schema)).
+_Avoid_: time format
+
 ### Timetable
 
 **Timetable**:
