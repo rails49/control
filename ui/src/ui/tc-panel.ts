@@ -64,12 +64,14 @@ import {
   pointWanted,
   reorderWanted,
   reversal,
+  type Frame,
 } from "../model/trace.js";
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-canvas.js";
 import "./tc-menu.js";
 import "./tc-requests.js";
 import "./tc-roster.js";
+import "./tc-timetable-controls.js";
 import type { TcCanvas } from "./tc-canvas.js";
 import type { EntryChange } from "./tc-entry.js";
 import type { MenuItem } from "./tc-menu.js";
@@ -408,6 +410,12 @@ export class TcPanel extends LitElement {
     this.session?.send(entryWanted(was, now));
   }
 
+  /** A control in the list's heading pressed: the frame it raised, published
+   *  as it is (`tc-timetable-controls`, #1357). */
+  private wanted(event: CustomEvent<Frame>): void {
+    this.session?.send(event.detail);
+  }
+
   // --- the pane's size ------------------------------------------------------
   //
   // The divider between the pane and the drawing sets the pane's width, or
@@ -481,7 +489,16 @@ export class TcPanel extends LitElement {
           @request-arrived=${this.arrived}
           @request-reordered=${this.reordered}
           @entry-changed=${this.entryChanged}
-        ></tc-requests>
+        >
+          <tc-timetable-controls
+            slot="controls"
+            .timetable=${this.inSession && !grey ? (this.panel?.timetable ?? null) : null}
+            .railroad=${this.session?.status.railroad ?? ""}
+            .power=${this.session?.status.power ?? null}
+            ?live=${this.inSession && !grey}
+            @timetable-wanted=${this.wanted}
+          ></tc-timetable-controls>
+        </tc-requests>
       </aside>
       <div
         class="divider"

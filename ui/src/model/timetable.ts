@@ -34,6 +34,7 @@
 
 import { hhmm, timeOf } from "./clock.js";
 import { reordering, type RequestRow } from "./requests.js";
+import { trackLive, type Power } from "./trace.js";
 
 /** The three phases of a loaded timetable (BUS.md). */
 export type Phase = "loaded" | "running" | "over";
@@ -309,6 +310,29 @@ export function startNotes(
     }
   }
   return notes;
+}
+
+/**
+ * Why a name cannot name a timetable, `null` for one that can
+ * ([#1357](https://github.com/rails49/control/issues/1357)). The timetable
+ * document takes a name that is not empty, has no `/` and does not start
+ * with `.` (docs/store/LAYOUT.md), and the scheduler drops a gesture with any
+ * other. `taken` is the names a rename may not use: the scheduler drops a
+ * rename to a name the store has.
+ */
+export function nameRefused(name: string, taken: readonly string[] = []): string | null {
+  if (name === "") return "a timetable needs a name";
+  if (name.includes("/") || name.startsWith(".")) return `'${name}' cannot name a timetable`;
+  if (taken.includes(name)) return `'${name}' is already a timetable`;
+  return null;
+}
+
+/** Why a new timetable and a load are not asked for, `""` where they are:
+ *  the scheduler takes either only while track power reads `off` (BUS.md). A
+ *  supply not yet heard shuts neither, as it shuts no view (`shut` in
+ *  `model/views.ts`). */
+export function powered(power: Power | null): string {
+  return trackLive(power) ? "track power is on" : "";
 }
 
 function startsOf(trains: unknown): Record<string, TrainStart> | null {

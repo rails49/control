@@ -5,8 +5,9 @@ import { css } from "lit";
  * and the requests the dispatcher holds (#829, #1356).
  *
  * It sits in the run view's pane, under the roster or beside it, and its
- * size is the view's (`tc-panel.styles.ts`). The heading is one line:
- * "Timetable", then the loaded timetable's name.
+ * size is the view's (`tc-panel.styles.ts`). The heading is "Timetable",
+ * then the loaded timetable's name, then the controls the run view puts in
+ * its slot, on a line of their own where one line does not hold them (#1357).
  *
  * A request's row is the train and its state
  * on one line, where the
@@ -39,6 +40,7 @@ export const requestsStyles = css`
 
   header {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     gap: 0.5rem;
     margin: 0.3rem 0.2rem;
