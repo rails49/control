@@ -48,7 +48,7 @@ decision 4, [#886](https://github.com/rails49/control/issues/886)).
 **The pane is left of the drawing, and a divider sets its width.** The pane
 is the roster with the list of the timetable and the requests under it. The
 drawing and the pane's two lists are panels on the paper colour, with square
-corners, on a ground of a darker grey, the palette's `--gap`
+corners, and the view's background is a darker grey, the palette's `--gap`
 ([#1390](https://github.com/rails49/control/issues/1390)). The divider
 between the pane and the drawing is a 6px gap in that grey. What takes the
 press is wider, and wider again under a finger. On hover and while dragged

@@ -489,8 +489,8 @@ describe("the note on a block naming a train overdue", () => {
  * than between the two lists. On a page taller than it is wide the pane is
  * above the drawing and the two lists are side by side (#1344, #1390).
  *
- * The lists and the drawing are panels on the paper colour, on a ground of
- * the gap colour, and the divider between the pane and the drawing is a 6px
+ * The lists and the drawing are panels on the paper colour, on a background
+ * of the gap colour, and the divider between the pane and the drawing is a 6px
  * gap (#1390).
  */
 describe("the run view's pane", () => {
@@ -500,7 +500,7 @@ describe("the run view's pane", () => {
     expect(rule(upright, "aside")).toMatch(/flex-direction:\s*row/);
   });
 
-  it("is panels on the paper colour on a ground of the gap colour", () => {
+  it("is panels on the paper colour on a background of the gap colour", () => {
     const sheet = panelStyles.cssText;
     expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
     for (const panel of ["tc-roster", "tc-requests", "main"]) {

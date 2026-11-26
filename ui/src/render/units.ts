@@ -201,7 +201,7 @@ export const COLOURS: Record<string, string> = {
   "--ink": "#1c1f24",
   "--paper": "#fbfbfa",
   "--rule": "#d9d6d0",
-  // The run view's ground, which shows in the gaps between its panels
+  // The run view's background, which shows in the gaps between its panels
   // (#1390), and the shade every other row of a list takes on the paper.
   "--gap": "#c3c0b9",
   "--stripe": "#f2f2f1",
