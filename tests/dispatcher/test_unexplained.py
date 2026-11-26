@@ -10,8 +10,8 @@ nothing, since a short train stands between its block's two sensors (#1164). It
 does not raise: the frame is well formed, and a handler that raised would take
 the app off the bus for an ordinary act of a person's hand (BUS.md, rule 4).
 
-Driven at the bus, on a railroad standing still with no scenario's requests at
-all — which is exactly the railroad a hand reaches onto.
+Driven at the bus, on a railroad standing still with no requests from a
+scenario at all — which is exactly the railroad a hand reaches onto.
 """
 
 import pytest

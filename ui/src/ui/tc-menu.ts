@@ -57,8 +57,8 @@ export class TcMenu extends LitElement {
   private row(item: MenuItem) {
     const why = item.disabled ? (item.reason ?? "") : "";
     if (why !== "") {
-      // Not `disabled`: a disabled button takes no focus and no hover, so its
-      // tooltip would never open.
+      // `aria-disabled`, not `disabled`: the button takes the focus and the
+      // hover, and its tooltip opens.
       return html`
         <li>
           <sl-tooltip content=${why} hoist>

@@ -852,7 +852,7 @@ drag is a request with no entry. `tc49/schedule/timetable_record_wanted`
 switches Record. Placements, removals and reordering of the request list add
 nothing.
 
-A person tunes the loaded timetable with two gestures
+A person changes the loaded timetable with two gestures
 ([#1354](https://github.com/rails49/control/issues/1354)):
 
 - `tc49/schedule/entry_wanted` changes one entry, or deletes it. Entries

@@ -4,9 +4,9 @@ import { css } from "lit";
  * The timetable menu's dialogs (`tc-timetable-dialog`, #1357).
  *
  * Load and Delete list the store's names one under the other, each a button
- * as wide as the dialog and at least 40px high, a thumb's target. What the
- * store refused with, and why a name will not do, is a red line under the
- * list or the field.
+ * as wide as the dialog and at least 40px high. What the store refused
+ * with, and why a name will not do, is a red line under the list or the
+ * field.
  */
 export const timetableDialogStyles = css`
   ul {
