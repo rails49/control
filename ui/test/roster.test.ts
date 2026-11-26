@@ -292,14 +292,12 @@ describe("the note about where the timetable starts", () => {
     name: "evening",
     phase: "loaded",
     record: false,
-    start: "06:00",
     trains: {
       express: { at: "b", facing: "B-to-A" },
       goods: { at: "a", facing: "A-to-B" },
       local: { at: "c", facing: "A-to-B" },
       mail: { at: "d", facing: "A-to-B" },
     },
-    positioning: [],
     entries: [],
   };
 

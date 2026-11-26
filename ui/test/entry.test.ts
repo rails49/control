@@ -385,9 +385,7 @@ function loaded(...entries: Scheduled[]): Timetable {
     name: "evening",
     phase: "running",
     record: false,
-    start: "06:00",
     trains: {},
-    positioning: [],
     entries,
   };
 }
@@ -402,7 +400,7 @@ function loaded(...entries: Scheduled[]): Timetable {
  *      5         local    l1, waiting, no entry
  */
 const ENTRIES: Scheduled[] = [
-  { entry: { at: "06:01", train: "local", to: ["d.A"] }, state: "ended", request: "l0", ended: 55 },
+  { entry: { at: "06:01", train: "local", to: ["d.A"] }, state: "ended", request: "l0" },
   { entry: { at: "06:02", train: "express", to: ["a.B"] }, state: "out", request: "e1" },
   { entry: GOODS, state: "out", request: "g1" },
   { entry: TURN, state: "held" },
@@ -613,7 +611,7 @@ describe("tc-requests with a row tapped", () => {
     // The express arrives.
     element.timetable = loaded(
       ENTRIES[0]!,
-      { ...ENTRIES[1]!, state: "ended", ended: 130 },
+      { ...ENTRIES[1]!, state: "ended" },
       ...ENTRIES.slice(2),
     );
     await element.updateComplete;
