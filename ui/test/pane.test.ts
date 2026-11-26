@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 
 /**
- * The run view's pane and the divider a person drags
- * ([#1344](https://github.com/rails49/control/issues/1344)).
+ * The run view's pane and the two gaps a person drags: between the pane and
+ * the drawing ([#1344](https://github.com/rails49/control/issues/1344)), and
+ * between the trains and the timetable
+ * ([#1391](https://github.com/rails49/control/issues/1391)).
  *
  * happy-dom lays nothing out, so the suite states the view's box and reads
- * the size the view hands its stylesheet, `--pane-size`.
+ * the sizes the view hands its stylesheet, `--pane-size` and `--lists-size`.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -27,20 +29,25 @@ const BOX = {
   height: 700,
 } as DOMRect;
 
-function divider(shell: TcApp): HTMLElement {
-  return running(shell).renderRoot.querySelector<HTMLElement>("tc-gap.pane")!;
+/** The view's two gaps: between the pane and the drawing, and between the
+ *  trains and the timetable. */
+type Gap = "pane" | "lists";
+
+function divider(shell: TcApp, gap: Gap): HTMLElement {
+  return running(shell).renderRoot.querySelector<HTMLElement>(`tc-gap.${gap}`)!;
 }
 
-/** The size the view asks its stylesheet for, `""` for the stylesheet's own. */
-function size(shell: TcApp): string {
-  return running(shell).style.getPropertyValue("--pane-size");
+/** The size the view asks its stylesheet for, `""` for the stylesheet's own:
+ *  the pane's, or the trains list's. */
+function size(shell: TcApp, gap: Gap = "pane"): string {
+  return running(shell).style.getPropertyValue(`--${gap}-size`);
 }
 
-/** A drag of the divider from where it is to a client point. */
-async function drag(shell: TcApp, to: Point): Promise<void> {
+/** A drag of a gap from where it is to a client point. */
+async function drag(shell: TcApp, to: Point, gap: Gap = "pane"): Promise<void> {
   running(shell).getBoundingClientRect = () => BOX;
   for (const name of ["pointerdown", "pointermove", "pointerup"] as const) {
-    divider(shell).dispatchEvent(
+    divider(shell, gap).dispatchEvent(
       new PointerEvent(name, { button: 0, bubbles: true, clientX: to.x, clientY: to.y }),
     );
   }
@@ -180,5 +187,117 @@ describe("the run view's divider", () => {
     laid(400, 800);
     await turned(shell, 768, 1024);
     expect(shape(shell)).toBeCloseTo(2);
+  });
+});
+
+/**
+ * The gap between the trains and the timetable (#1391). With the pane left
+ * of the drawing the lists are one above the other and the gap sets the
+ * trains list's height; with the pane above it they are side by side and it
+ * sets the trains list's width. The pane spans the view's height in the one
+ * arrangement and its width in the other, so the view's box is the lists'
+ * box along the way the gap is dragged.
+ */
+describe("the gap between the trains and the timetable", () => {
+  beforeEach(() => {
+    brokering();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    unbrokered();
+    paged(1024, 768);
+  });
+
+  it("leaves the trains list its own size until it is dragged", async () => {
+    expect(size(await joined(), "lists")).toBe("");
+    paged(768, 1024);
+    expect(size(await reloaded(), "lists")).toBe("");
+  });
+
+  it("sets the trains list's height to where it was dragged", async () => {
+    const shell = await joined();
+
+    await drag(shell, { x: 200, y: 340 }, "lists");
+
+    expect(size(shell, "lists")).toBe("300px");
+    expect(size(shell)).toBe("");
+  });
+
+  /** Each list keeps 96 px of the view's 700, less the 6 px gap. */
+  it("holds the trains list's height so that each list keeps its least", async () => {
+    const shell = await joined();
+
+    await drag(shell, { x: 200, y: 50 }, "lists");
+    expect(size(shell, "lists")).toBe("96px");
+
+    await drag(shell, { x: 200, y: 730 }, "lists");
+    expect(size(shell, "lists")).toBe("598px");
+  });
+
+  it("sets the trains list's width on a page taller than it is wide", async () => {
+    const shell = await joined();
+    await turned(shell, 768, 1024);
+
+    await drag(shell, { x: 350, y: 100 }, "lists");
+
+    expect(size(shell, "lists")).toBe("300px");
+  });
+
+  /** Side by side each list keeps 144 px of the view's 1000, less the gap. */
+  it("holds the trains list's width so that each list keeps its least", async () => {
+    const shell = await joined();
+    await turned(shell, 768, 1024);
+
+    await drag(shell, { x: 60, y: 100 }, "lists");
+    expect(size(shell, "lists")).toBe("144px");
+
+    await drag(shell, { x: 1040, y: 100 }, "lists");
+    expect(size(shell, "lists")).toBe("850px");
+  });
+
+  it("keeps one position for each arrangement, and a reload brings it back", async () => {
+    const shell = await joined();
+    await drag(shell, { x: 200, y: 340 }, "lists");
+    await turned(shell, 768, 1024);
+    expect(size(shell, "lists")).toBe("");
+    await drag(shell, { x: 450, y: 100 }, "lists");
+
+    await turned(shell, 1024, 768);
+    expect(size(shell, "lists")).toBe("300px");
+    expect(size(await reloaded(), "lists")).toBe("300px");
+    paged(768, 1024);
+    expect(size(await reloaded(), "lists")).toBe("400px");
+  });
+
+  it("is kept under a key of its own", async () => {
+    await drag(await joined(), { x: 200, y: 340 }, "lists");
+
+    expect(localStorage.getItem("tc49.lists.left")).toBe("300");
+    expect(localStorage.getItem("tc49.pane.left")).toBeNull();
+  });
+
+  it("fits the drawing again when it moves", async () => {
+    const shell = await joined();
+    const canvas = running(shell).renderRoot.querySelector<TcCanvas>("tc-canvas")!;
+    canvas.getBoundingClientRect = () => ({ width: 400, height: 800 }) as DOMRect;
+
+    await drag(shell, { x: 200, y: 340 }, "lists");
+
+    expect(shape(shell)).toBeCloseTo(2);
+  });
+
+  /** Turning the page under a drag ends it: a move after the turn sets
+   *  nothing. */
+  it("is let go when the page turns", async () => {
+    const shell = await joined();
+    running(shell).getBoundingClientRect = () => BOX;
+    const gap = divider(shell, "lists");
+    gap.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 200, clientY: 340 }));
+    await turned(shell, 768, 1024);
+    gap.dispatchEvent(new PointerEvent("pointermove", { clientX: 350, clientY: 100 }));
+    await settled(shell);
+
+    expect(size(shell, "lists")).toBe("");
   });
 });
