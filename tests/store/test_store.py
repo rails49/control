@@ -395,6 +395,23 @@ def test_a_saved_toggle_reads_back_with_its_on_and_off(
     assert scratch_store.drawing("crossover-yard")["widgets"]["toggle1"] == toggle
 
 
+def test_a_saved_query_string_reads_back_in_a_one_line_mapping(
+    scratch_store: AssetStore,
+) -> None:
+    """A camera's stream URL, `?` and all, through a save and back.
+
+    The writer puts a car on one line and wrote the URL unquoted, which YAML
+    1.2 allows; YAML 1.1 ends a plain scalar at `?` on such a line, so the
+    roster could no longer be read (#1360)."""
+    doc = scratch_store.roster_document("crossover-yard")
+    url = "http://192.168.178.58/media/?action=stream"
+    car = {"model": "arnold-ce68", "camera": url}
+    cars = {**doc["cars"], "cam_1": car}
+    scratch_store.put_roster({**doc, "cars": cars}, "crossover-yard")
+
+    assert scratch_store.roster_document("crossover-yard")["cars"]["cam_1"] == car
+
+
 def test_true_and_false_read_as_booleans(
     scratch_store: AssetStore, tmp_path: Path
 ) -> None:
