@@ -561,7 +561,7 @@ def test_a_rebuild_keeps_the_fast_clock_and_another_railroad_starts_on_day_0(
     store.start()
     witness, heard = watching(broker)
     app.start()
-    assert drained(witness, lambda: rows(heard, POWER) != []), "no power"
+    assert drained(witness, lambda: rows(heard, CLOCK) != []), "no clock came"
     witness.publish(CLOCK_WANTED, {"time": DAY_3_10, "speed_up": 8})
     assert drained(
         witness, lambda: any(row["speed_up"] == 8 for row in rows(heard, CLOCK))
