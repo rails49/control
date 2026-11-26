@@ -1091,7 +1091,7 @@ def test_a_recorded_entry_whose_request_is_refused_stays_in_the_timetable(
 def test_a_recorded_entry_goes_after_the_last_entry_at_or_before_its_time() -> None:
     """The clock set back to 06:03 puts the third drag before the two made
     at 06:05, which keep the order they were made in."""
-    state = clocked(recording_from("06:00"), at("06:05"), 1)
+    state = replace(recording_from("06:00"), clock=at("06:05"))
     state = dragged(state, "freight", ("dn_e",), "freight-ab-1")
     state = dragged(state, "express", ("up_e",), "express-ab-1")
     state = clocked(state, at("06:03") + 59, 1)
@@ -1150,8 +1150,9 @@ def test_record_is_no_ones_to_switch_with_no_timetable_loaded() -> None:
 
 
 def test_a_drag_in_round_1_is_stored_within_the_repeat_and_is_out_in_round_1() -> None:
-    state = replace(running(start="06:00", repeat="03:00"), record=True)
-    state = clocked(placed(state, frozenset({"freight"})), at("09:20") + 30, 1)
+    state = running(start="06:00", repeat="03:00")
+    state = replace(state, record=True, clock=at("09:20") + 30)
+    state = placed(state, frozenset({"freight"}))
 
     state = dragged(state, "freight", ("dn_e",), "freight-ab-1")
     state = turned_round(state, "freight")
@@ -1194,6 +1195,96 @@ def test_nothing_is_recorded_after_a_restart_until_a_clock_row() -> None:
 
     assert row(state)["entries"] == []
     assert state.in_flight == {"freight-ab-1": "freight"}
+
+
+def released_on_load(state: State) -> tuple[Release, ...]:
+    """What is due once the timetable `state` recorded is loaded from its
+    document and started, with `freight` on the layout and power on."""
+    assert state.timetable is not None
+    told = placed(powered(State(), "on"), frozenset({"freight"}))
+    return due(started(release_loaded(told, state.timetable)))
+
+
+def test_a_clock_set_back_before_the_first_entry_moves_the_start() -> None:
+    """Made with the clock at 18:51, then set to 10:00."""
+    state = clocked(recording_from("18:51"), at("10:00") + 20, 1)
+
+    assert row(state)["start"] == "10:00"
+    assert state.clock == at("10:00") + 20
+
+    state = dragged(clocked(state, at("10:00") + 21, 1), "freight", ("dn_e",), "f-1")
+
+    assert row(state)["entries"][0]["at"] == "10:00"
+    assert released_on_load(state) == (
+        Release(0, Entry(at("10:00"), "freight", ("dn_e",))),
+    )
+
+
+def test_a_clock_set_forward_before_the_first_entry_moves_the_start() -> None:
+    state = clocked(recording_from("06:00"), at("1d09:30") + 15, 60)
+
+    assert row(state)["start"] == "09:30"
+    assert state.clock == at("09:30") + 15
+
+    state = dragged(state, "freight", ("dn_e",), "f-1")
+
+    first = row(state)["entries"][0]
+    assert (first["at"], first["round"]) == ("09:30", 0)
+    assert released_on_load(state) == (
+        Release(0, Entry(at("09:30"), "freight", ("dn_e",))),
+    )
+
+
+@pytest.mark.parametrize("ahead", [0, 60, 120])
+def test_rows_up_to_two_beats_apart_leave_the_start(ahead: int) -> None:
+    """The clock running at 60, from 06:00:30."""
+    state = made(told(at("06:00") + 30), "untitled", "crossover-yard", YARD)
+
+    state = clocked(state, at("06:00") + 30 + ahead, 60)
+
+    assert row(state)["start"] == "06:00"
+    assert state.clock == at("06:00") + 30 + ahead
+
+
+def test_rows_of_the_clock_running_on_leave_the_start() -> None:
+    state = made(told(at("06:00") + 30), "untitled", "crossover-yard", YARD)
+
+    for beat in range(1, 4):
+        state = clocked(state, at("06:00") + 30 + 60 * beat, 60)
+
+    assert row(state)["start"] == "06:00"
+    assert state.clock == at("06:03") + 30
+
+
+@pytest.mark.parametrize("time", [at("05:00"), at("09:00")])
+def test_a_clock_set_after_the_first_entry_leaves_the_start(time: int) -> None:
+    state = dragged(recording_from("06:00"), "freight", ("dn_e",), "f-1")
+
+    state = clocked(state, time, 1)
+
+    assert row(state)["start"] == "06:00"
+    assert state.clock == time
+
+
+@pytest.mark.parametrize("time", [at("05:00"), at("09:00")])
+def test_a_clock_set_with_record_off_or_loaded_leaves_the_start(time: int) -> None:
+    off = clocked(recording(recording_from("06:00"), False), time, 1)
+    waiting = clocked(replace(loaded(), record=True, clock=at("06:00")), time, 1)
+
+    assert (row(off)["start"], off.clock) == ("06:00", time)
+    assert (row(waiting)["start"], waiting.clock) == ("06:00", time)
+
+
+def test_the_first_row_after_a_restart_leaves_the_start() -> None:
+    before = recording_from("06:00")
+    assert before.timetable is not None
+    state = restarted(row(before), before.timetable)
+    assert state is not None
+
+    state = clocked(state, at("10:00"), 1)
+
+    assert row(state)["start"] == "06:00"
+    assert state.clock == at("10:00")
 
 
 def test_after_a_restart_an_entry_out_whose_request_is_not_listed_has_ended() -> None:

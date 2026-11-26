@@ -287,11 +287,12 @@ def test_a_drag_is_recorded_at_the_clocks_minute_and_written() -> None:
 
 
 def test_a_drag_after_midnight_is_recorded_on_day_1() -> None:
-    """Started at 23:58, the clock reads 1d00:01 three minutes later, and the
-    entry is at its start plus the time since its start (#1365)."""
+    """Started at 23:58, the clock running at 100 reads 1d00:01 two beats
+    later, and the entry is at its start plus the time since its start
+    (#1365)."""
     store = Store()
     bus = recording(store, "23:58", 0)
-    clock(bus, "24:01", 20)
+    say(bus, CLOCK, {"time": at("24:01", 20), "speed_up": 100.0})
 
     drag(bus, "freight_1", "dn_e")
 
