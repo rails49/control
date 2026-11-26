@@ -136,7 +136,9 @@ gestures a page writes, `wanted_timetable`, `wanted_record`, `wanted_entry`
 and `wanted_rename` (#1354); the clock row
 it moves the timetable's time by, `said_clock`; and, at a restart, the name
 on its own retained row, `loaded_timetable`, and the requests the
-allocation lists, `listed_requests`.
+allocation lists, `listed_requests`. One more gesture, `wanted_start`,
+starts the loaded timetable, and `rejected_for` reads why a request to a
+start block was rejected (#1353).
 """
 
 import math
@@ -162,6 +164,7 @@ from tc49.lib.inventory import (
     is_state_topic,
 )
 from tc49.lib.layout import Point
+from tc49.lib.rejection import Reason
 from tc49.lib.settings import (
     SPEEDS,
     arrival_allowance,
@@ -295,6 +298,25 @@ def wanted_rename(payload: object) -> str | None:
         return None
     to = cast(dict[str, object], payload).get("to")
     return to if isinstance(to, str) and to else None
+
+
+def wanted_start(payload: object) -> bool:
+    """Whether a `tc49/schedule/timetable_start_wanted` payload is the
+    gesture: a mapping. It has no fields, and one given any is read the
+    same (#1353)."""
+    return isinstance(payload, dict)
+
+
+def rejected_for(payload: object) -> Reason | None:
+    """Why a `tc49/dispatch/request_rejected` says the request was
+    rejected, or None where it names none of the dispatcher's reasons
+    (`tc49.lib.rejection.Reason`)."""
+    if not isinstance(payload, dict):
+        return None
+    why = cast(dict[str, object], payload).get("reason")
+    if not isinstance(why, str) or why not in set(Reason):
+        return None
+    return Reason(why)
 
 
 def readable_id(payload: object) -> str | None:

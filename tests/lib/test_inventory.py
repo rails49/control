@@ -24,6 +24,7 @@ TIMETABLE_WANTED = "tc49/schedule/timetable_wanted"
 TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted"
 TIMETABLE_RENAME_WANTED = "tc49/schedule/timetable_rename_wanted"
 ENTRY_WANTED = "tc49/schedule/entry_wanted"
+TIMETABLE_START_WANTED = "tc49/schedule/timetable_start_wanted"
 TIMETABLE = "tc49/schedule/state/timetable"
 RUN_WANTED = "tc49/dispatch/run_wanted"
 RUN = "tc49/dispatch/state/run"
@@ -300,6 +301,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         TIMETABLE_RECORD_WANTED,
         TIMETABLE_RENAME_WANTED,
         ENTRY_WANTED,
+        TIMETABLE_START_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
         ARRIVAL_WANTED,
@@ -537,3 +539,9 @@ def test_a_page_changes_an_entry_and_renames_the_loaded_timetable() -> None:
     assert TOPICS[ENTRY_WANTED].fields == ("was", "now")
     assert TOPICS[TIMETABLE_RENAME_WANTED].fields == ("to",)
     assert {ENTRY_WANTED, TIMETABLE_RENAME_WANTED} <= INBOUND
+
+
+def test_a_person_starts_a_loaded_timetable_from_any_page() -> None:
+    """A gesture with no fields (#1345, #1353)."""
+    assert TOPICS[TIMETABLE_START_WANTED].fields == ()
+    assert TIMETABLE_START_WANTED in INBOUND

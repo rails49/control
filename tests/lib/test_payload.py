@@ -52,6 +52,7 @@ from tc49.lib.payload import (
     overdue,
     placement,
     power,
+    rejected_for,
     reported_reason,
     reported_sensor,
     said_clock,
@@ -73,10 +74,12 @@ from tc49.lib.payload import (
     wanted_rename,
     wanted_reorder,
     wanted_settings,
+    wanted_start,
     wanted_take,
     wanted_throttle,
     wanted_timetable,
 )
+from tc49.lib.rejection import Reason
 from tc49.lib.timetable import Entry
 
 
@@ -1627,6 +1630,33 @@ def test_a_rename_gesture_gives_a_name_or_is_dropped(
     """Whether the name is one a timetable document takes is not asked
     here."""
     assert wanted_rename(payload) == to
+
+
+@pytest.mark.parametrize(
+    ("payload", "start"),
+    [({}, True), ({"at": 3}, True), (None, False), ("start", False), ([], False)],
+)
+def test_a_start_gesture_is_any_mapping(payload: object, start: bool) -> None:
+    """It has no fields (#1353)."""
+    assert wanted_start(payload) is start
+
+
+@pytest.mark.parametrize(
+    ("payload", "reason"),
+    [
+        ({"id": "freight_1-1", "reason": "unreachable"}, Reason.UNREACHABLE),
+        ({"id": "freight_1-1", "reason": "no_fit"}, Reason.NO_FIT),
+        ({"id": "freight_1-1", "reason": "tired"}, None),
+        ({"id": "freight_1-1", "reason": 7}, None),
+        ({"id": "freight_1-1"}, None),
+        ("unreachable", None),
+    ],
+)
+def test_a_rejection_names_one_of_the_dispatchers_reasons_or_none(
+    payload: object, reason: Reason | None
+) -> None:
+    """The scheduler reads `unreachable` off it (#1353)."""
+    assert rejected_for(payload) == reason
 
 
 @pytest.mark.parametrize(
