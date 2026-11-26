@@ -3,7 +3,7 @@
  * ([#1357](https://github.com/rails49/control/issues/1357)).
  *
  * - **View** shows the loaded timetable's file as the store has it, read
- *   once when the dialog is made, with a Close button
+ *   once when the dialog is made, in look's `look-text-dialog`
  *   ([#1380](https://github.com/rails49/control/issues/1380)). It raises
  *   nothing. Where the store refuses the file or does not answer, the dialog
  *   says what the store said and shows no text.
@@ -94,9 +94,9 @@ export class TcTimetableDialog extends LitElement {
   /** The name Delete asks about, `null` until one is pressed. */
   @state() private deleting: string | null = null;
 
-  /** The loaded timetable's file as View read it, `null` until the store has
+  /** The loaded timetable's file as View read it, empty until the store has
    *  answered with it. */
-  @state() private text: string | null = null;
+  @state() private text = "";
 
   /** What the store last refused with, or why a gesture was not raised. */
   @state() private trouble: string | null = null;
@@ -118,16 +118,13 @@ export class TcTimetableDialog extends LitElement {
   /** View: the file's text, or what the store said in place of it. */
   private viewing() {
     return html`
-      <look-dialog
+      <look-text-dialog
         open
-        size="medium"
         label=${`View ${this.timetable?.name ?? ""}`}
+        .text=${this.text}
+        .error=${this.trouble ?? ""}
         @sl-after-hide=${this.close}
-      >
-        ${this.text === null ? nothing : html`<pre class="text">${this.text}</pre>`}
-        ${this.line(this.trouble)}
-        <sl-button slot="footer" class="close" @click=${this.close}>Close</sl-button>
-      </look-dialog>
+      ></look-text-dialog>
     `;
   }
 
