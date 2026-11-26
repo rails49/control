@@ -164,17 +164,37 @@ The list sits directly under the roster and takes the rest of the pane's
 height, the gap between them setting where. Each scrolls on its own
 ([#895](https://github.com/rails49/control/issues/895)). Where the pane is
 above the drawing the two lists are side by side, each as tall as the pane.
+
+**The list is a table**
+([#1393](https://github.com/rails49/control/issues/1393)), with or without a
+timetable: one row per entry or request, under the column headings Time,
+Train, To, Dwell, Description and State, and an unlabelled action column at
+the right. The headings stay at the top of the list while the rows scroll
+under them. Every other row is shaded with the stripe colour, and no line
+divides two rows. A row's "waits for" line and its open row are shaded with
+it.
+
+- **To** is `→ A1.A, A1.B` for an entry, its arrival ends, *turn* for a
+  turn-round, and `from → to` for a request. A request chained `after` an
+  earlier one whose earlier one is no longer listed reads `→ to`.
+- **State** is the row's word, or "cancelling — stops in B7" while a cancel
+  is held (below).
+- **The action** column has *arrived*, where the row has one, then the
+  cancel.
+
 One row per request, in list order — the order the dispatcher serves them, so
 what the list shows is what the dispatcher does next. A row is the train,
-where the request starts, where it ends, and *waiting* or *underway*, a
-request with a `route` being underway. A request chained `after` an earlier
-one has no departure end of its own: its start is the earlier request's
-arrival ends, which is where that one leaves the train. A request only
-submitted is not listed until the dispatcher's picture has it, and a rejected
-one never is; its reason is on the drawing.
+where the request starts and where it ends in To, and *waiting* or
+*underway*, a request with a `route` being underway. Time, Dwell and
+Description are empty. A request chained `after` an earlier one has no
+departure end of its own: its start is the earlier request's arrival ends,
+which is where that one leaves the train. A request only submitted is not
+listed until the dispatcher's picture has it, and a rejected one never is;
+its reason is on the drawing.
 
-**A row the dispatcher refused says which train it waits for**, on a line
-under it, waiting and underway alike, for as long as the request carries
+**A row the dispatcher refused says which train it waits for**, on a second
+line under it starting under Train, a line per sentence, waiting and underway
+alike, for as long as the request carries
 `refused` in the picture
 ([#1114](https://github.com/rails49/control/issues/1114)). A refusal means
 the train stands: the move two blocks ahead is never refused, the train runs
@@ -215,7 +235,8 @@ A **waiting** row can be dragged to another place in the list, which publishes
 request the row lands in front of, `null` for the end. An **underway** row
 cannot be dragged, having started, and a drag that would put a train's chained
 request above the one it follows — moving it up, or the one it follows down —
-is refused; the row goes back where it was and nothing is sent. Those are the
+is refused; the row goes back where it was and nothing is sent. The row held
+is marked, over its stripe. Those are the
 moves the dispatcher would drop. The list moves when the picture does, not on
 the drop. The rows and what a drag asks are worked out in
 `ui/src/model/requests.ts`; the component draws them and reports where a row
@@ -232,12 +253,12 @@ top to bottom:
 - **Each entry**, in the row's order, which is time order. An entry that is
   `out` while the dispatcher lists its request is that request's row as
   above: *waiting* or *underway*, its cancel, its "waits for" line, and
-  *arrived* without sensors. The entry's time starts the line under the
-  train, before where the request goes from and to.
-- **Any other entry** is its train, its state, and under them its time and
-  where it goes, *turn* for a turn-round. The state is the row's word:
+  *arrived* without sensors, with the entry's time, dwell and description.
+- **Any other entry** is its time, its train, where it goes, its dwell and
+  description, and its state. The state is the row's word:
   `later`, `held`, `out`, `ended`, `rejected`, `cancelled` or `skipped`. A row
-  that is `ended`, `rejected`, `cancelled` or `skipped` is dimmed. An entry
+  that is `ended`, `rejected`, `cancelled` or `skipped` is dimmed, its
+  stripe with it. An entry
   reads `out` with no request row while the dispatcher's picture does not
   list its request.
 - **Then each request no entry went out as**, a row as above with no time: a
@@ -270,16 +291,17 @@ are newest, the list scrolls to the later of them in the list.
 
 The rows scroll under the heading, which stays in view with its controls.
 
-**Where the list is 24rem wide or more, a row also shows its entry's dwell
-and description**, each on a line under where it goes. Both are in the row's
-markup at any width. The width read is the list's own and not the page's,
-since a person sets the pane's width.
+**The Dwell and Description columns are drawn only where the list is 34rem
+wide or more**, their headings with them. Both are in the row's markup at any
+width. The width read is the list's own and not the page's, since a person
+sets the pane's width.
 
 **A tap on an entry's row opens it**
 ([#1358](https://github.com/rails49/control/issues/1358),
-[#1386](https://github.com/rails49/control/issues/1386)). Under the row's
-lines are its time, its arrival ends (To), its dwell and its description,
-each a field, and a Delete: `tc-entry`, a component of its own.
+[#1386](https://github.com/rails49/control/issues/1386)). Under the row,
+across the full width of the list, are its time, its arrival ends (To), its
+dwell and its description, each a field, and a Delete: `tc-entry`, a
+component of its own.
 
 - Every entry's row opens, whatever its state, so an entry that already ran
   can be changed for the next run. A row that is done is not dimmed while it
