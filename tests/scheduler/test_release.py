@@ -47,6 +47,7 @@ from tc49.scheduler.release import (
     recording,
     released,
     renamed,
+    repeated,
     restarted,
     row,
     started,
@@ -1445,6 +1446,104 @@ def test_a_change_to_a_time_outside_the_repeat_is_not_taken() -> None:
     for outside in ("05:59", "09:00", "1d06:02"):
         assert changed(state, entry, replace(entry, at=at(outside))) == state
     assert changed(state, entry, replace(entry, at=at("08:59"))) != state
+
+
+EARLY = Entry(at("06:02"), "freight", ("dn_e",))
+EXPRESS = Entry(at("06:05"), "express", ("up_e",))
+LATE = Entry(at("08:00"), "freight", ("dn_w",))
+
+
+def stopped(state: State, time: str, *progress: Progress) -> State:
+    """`state` with power off, the clock at `time` and each entry's
+    `progress`."""
+    return replace(state, power="off", clock=at(time), progress=progress)
+
+
+def test_a_shorter_repeat_moves_every_entry_to_the_clocks_round() -> None:
+    """The clock at 1d07:00 is in round 1 of a day and round 8 of 3 hours.
+    Only the entries of round 8 whose time has passed go out (#1373)."""
+    state = running(EARLY, EXPRESS, LATE)
+    state = stopped(state, "1d07:00", *(Progress(round=1),) * 3)
+
+    state = repeated(state, at("03:00"))
+
+    assert rounds(state) == [(HELD, 8), (HELD, 8), (LATER, 8)]
+    state = powered(state, "on")
+    assert due(state) == (Release(0, EARLY), Release(1, EXPRESS))
+
+
+def test_a_longer_repeat_moves_every_entry_to_the_clocks_round() -> None:
+    """The clock at 1d07:00 is in round 8 of 3 hours and round 1 of a day.
+    An entry whose time in round 1 has passed goes out (#1373)."""
+    state = running(EARLY, EXPRESS, LATE, repeat="03:00")
+    state = stopped(state, "1d07:00", *(Progress(round=8),) * 3)
+
+    state = repeated(state, DAY_S)
+
+    assert rounds(state) == [(HELD, 1), (HELD, 1), (LATER, 1)]
+    state = powered(state, "on")
+    assert due(state) == (Release(0, EARLY), Release(1, EXPRESS))
+
+
+def test_a_train_a_round_behind_stays_a_round_behind() -> None:
+    """The freight is still out in round 0 when the clock is in round 1, and
+    its 08:00 entry waits for it in round 7 of 3 hours as it did in round 0
+    of a day (#1373)."""
+    state = running(EARLY, EXPRESS, LATE)
+    state = stopped(
+        state, "1d07:00", Progress(OUT, "f-1"), Progress(round=1), Progress()
+    )
+
+    state = repeated(state, at("03:00"))
+
+    assert rounds(state) == [(OUT, 7), (HELD, 8), (HELD, 7)]
+    state = powered(state, "on")
+    assert due(state) == (Release(1, EXPRESS),)
+    state = released(state, 1, "e-1")
+    assert due(ended(state, "f-1", COMPLETED)) == (Release(2, LATE),)
+
+
+def test_a_shift_below_round_0_puts_the_lowest_entry_in_round_0() -> None:
+    """From round 8 of 3 hours to round 1 of a day is 7 rounds back, which
+    would put the freight, 2 rounds behind, in round -1. Every entry moves 6
+    rounds back instead, and the freight's 08:00 entry still waits for its
+    06:02 one (#1373)."""
+    state = running(EARLY, EXPRESS, LATE, repeat="03:00")
+    state = stopped(
+        state,
+        "1d07:00",
+        Progress(OUT, "f-1", round=6),
+        Progress(ENDED, "e-1", round=8),
+        Progress(round=6),
+    )
+
+    state = repeated(state, DAY_S)
+
+    assert rounds(state) == [(OUT, 0), (ENDED, 2), (HELD, 0)]
+    state = powered(state, "on")
+    assert due(state) == ()
+    assert due(ended(state, "f-1", COMPLETED)) == (Release(2, LATE),)
+
+
+def test_in_loaded_a_repeat_leaves_every_round_as_it_was() -> None:
+    state = replace(running(EARLY, EXPRESS, LATE), phase=LOADED)
+    state = stopped(state, "1d07:00", *(Progress(round=1),) * 3)
+
+    state = repeated(state, at("03:00"))
+
+    assert state.timetable is not None
+    assert state.timetable.repeat == at("03:00")
+    assert rounds(state) == [(LATER, 1)] * 3
+
+
+def test_with_no_clock_told_a_repeat_leaves_every_round_as_it_was() -> None:
+    """As after a restart, until the first clock row."""
+    state = running(EARLY, EXPRESS, LATE)
+    state = replace(state, power="off", clock=None, progress=(Progress(round=1),) * 3)
+
+    state = repeated(state, at("03:00"))
+
+    assert rounds(state) == [(LATER, 1)] * 3
 
 
 def test_a_rename_changes_the_name_and_nothing_else() -> None:

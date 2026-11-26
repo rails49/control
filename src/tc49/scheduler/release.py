@@ -87,8 +87,13 @@ The rules, in the words of #1345 and #1363:
   It is taken in every phase and with Record on or off (`changed`).
 - **Repeat.** A person sets the loaded timetable's `repeat` while power
   reads `off`, in `loaded` and `running`. It is dropped where an entry would
-  fall at or after `start` plus `repeat`. Entries keep their rounds
-  (`repeated`).
+  fall at or after `start` plus `repeat`. In `running`, every entry's round
+  moves by the same number, r − R, where R is the clock's round under the
+  old repeat and r under the new one, each the whole repeats from `start`
+  to the clock and 0 with the clock before `start`. Where that would put
+  an entry below round 0, every entry moves by minus the lowest round
+  instead. An entry's state, request and ending stay. In `loaded`, and in
+  `running` before the first clock row, the rounds stay (`repeated`).
 - **Load.** A timetable a person asks for by name is loaded only while power
   reads `off`, and once the trains on the layout were told (`loads`). Its
   phase is `loaded` and Record is off. The requests the scheduler submits to
@@ -495,8 +500,9 @@ def _recorded_at(state: State) -> int:
 
 
 def _round(state: State) -> int:
-    """The round a drag or a turn-round is recorded in: the whole repeats
-    from `start` to the clock, and 0 with the clock before `start`."""
+    """The clock's round, which a drag or a turn-round is recorded in: the
+    whole repeats from `start` to the clock, and 0 with the clock before
+    `start`."""
     timetable = state.timetable
     assert timetable is not None and state.clock is not None
     return max(0, (state.clock - timetable.start) // timetable.repeat)
@@ -566,16 +572,30 @@ def renamed(state: State, to: str) -> State:
 
 def repeated(state: State, repeat: int) -> State:
     """The state with the loaded timetable repeating every `repeat` seconds,
-    greater than 0, and each entry in the round it was in. The state is as
-    it was unless power reads `off` and a timetable is loaded, and where an
-    entry would fall at or after `start` plus `repeat`."""
+    greater than 0. The state is as it was unless power reads `off` and a
+    timetable is loaded, and where an entry would fall at or after `start`
+    plus `repeat`.
+
+    In `running`, every entry's round moves by the same number: the clock's
+    round under the new repeat less its round under the old one, each as
+    `_round` counts it. Where that would put an entry below round 0, every
+    entry moves by minus the lowest round instead. So the entries keep
+    their rounds relative to each other, and a train late by a round stays
+    late by a round. An entry's state, request and ending stay. In `loaded`,
+    and where no clock was told, the rounds stay.
+    """
     if state.timetable is None or state.power != OFF:
         return state
     try:
         timetable = replace(state.timetable, repeat=repeat)
     except ValueError:  # an entry outside the repeat
         return state
-    return replace(state, timetable=timetable)
+    shift = 0
+    if state.phase == RUNNING and state.clock is not None:
+        shift = _round(replace(state, timetable=timetable)) - _round(state)
+        shift = max(shift, -min((one.round for one in state.progress), default=0))
+    progress = tuple(replace(one, round=one.round + shift) for one in state.progress)
+    return replace(state, timetable=timetable, progress=progress)
 
 
 def listed(state: State, requests: Mapping[str, str]) -> State:
