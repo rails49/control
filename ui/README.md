@@ -125,6 +125,8 @@ src/
                  answers for it
     requests.ts  the request list: the requests the dispatcher holds, in
                  serving order, and what a drag of one asks
+    timetable.ts the loaded timetable as the scheduler says it, and the
+                 rows the run view lists it in with the requests
   render/
     artwork.ts   what each symbol looks like, hand-written against the
                  generated pin names
