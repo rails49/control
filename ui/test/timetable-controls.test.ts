@@ -15,7 +15,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../src/ui/tc-app.js";
-import { nameRefused, powered, repeatRefused } from "../src/model/timetable.js";
+import {
+  nameRefused,
+  powered,
+  repeatRefused,
+  typedRepeatRefused,
+} from "../src/model/timetable.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcMenu } from "../src/ui/tc-menu.js";
 import type { TcTimetableControls } from "../src/ui/tc-timetable-controls.js";
@@ -206,6 +211,19 @@ describe("what the model says", () => {
     expect(repeatRefused({ start: 6 * 3600, entries: [] }, 0)).toBe(
       "a repeat is longer than 00:00",
     );
+  });
+
+  it("says why the Repeat dialog sends nothing for what was typed", () => {
+    const timetable = { start: 6 * 3600, entries: [{ entry: { at: "08:59" } }] };
+    expect(typedRepeatRefused(timetable, " 3:00 ", "off")).toBe(
+      "'3:00' is no length: write [<day>d]HH:MM",
+    );
+    expect(typedRepeatRefused(timetable, "02:59", "on")).toBe(
+      "the latest entry is at 08:59, so the shortest repeat is 03:00",
+    );
+    expect(typedRepeatRefused(timetable, "03:00", "on")).toBe("track power is on");
+    expect(typedRepeatRefused(timetable, "03:00", "off")).toBeNull();
+    expect(typedRepeatRefused(null, "01:00", null)).toBeNull();
   });
 
   it("shuts New and Load while power reads on or draining, and not before it is heard", () => {

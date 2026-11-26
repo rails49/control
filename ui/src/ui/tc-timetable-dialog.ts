@@ -16,7 +16,8 @@
  *   timetable's `repeat`, and raises `timetable_repeat_wanted`
  *   ([#1368](https://github.com/rails49/control/issues/1368)). A length that
  *   is no time, 00:00, or too short for the latest entry is refused here
- *   (`repeatRefused` in `model/timetable.ts`): the scheduler would drop it.
+ *   (`typedRepeatRefused` in `model/timetable.ts`): the scheduler would drop
+ *   it.
  *
  * A name is checked as the timetable document checks it (`nameRefused` in
  * `model/timetable.ts`), and a name that is refused raises nothing. New,
@@ -39,7 +40,12 @@ import "@shoelace-style/shoelace/dist/components/input/input.js";
 
 import { deleteTimetable, listTimetables, readTimetable, said } from "../model/store.js";
 import { timeOf, written } from "../model/clock.js";
-import { nameRefused, powered, repeatRefused, type Timetable } from "../model/timetable.js";
+import {
+  nameRefused,
+  powered,
+  typedRepeatRefused,
+  type Timetable,
+} from "../model/timetable.js";
 import {
   timetableRenameWanted,
   timetableRepeatWanted,
@@ -130,7 +136,7 @@ export class TcTimetableDialog extends LitElement {
 
   /** Repeat: a length, checked as it is typed. */
   private repeating() {
-    const refused = this.repeatRefusal(this.typed);
+    const refused = typedRepeatRefused(this.timetable, this.typed, this.power);
     return html`
       <look-dialog
         open
@@ -228,17 +234,11 @@ export class TcTimetableDialog extends LitElement {
     return nameRefused(name, this.names ?? []);
   }
 
-  /** Why Repeat does nothing with `words`, `null` where it goes out. */
-  private repeatRefusal(words: string): string | null {
-    const length = timeOf(words);
-    if (length === null) return `'${words.trim()}' is no length: write [<day>d]HH:MM`;
-    const short = this.timetable === null ? null : repeatRefused(this.timetable, length);
-    return short ?? (powered(this.power) || null);
-  }
-
   private repeat = (): void => {
     const length = timeOf(this.typed);
-    if (length === null || this.repeatRefusal(this.typed) !== null) return;
+    if (length === null || typedRepeatRefused(this.timetable, this.typed, this.power) !== null) {
+      return;
+    }
     this.wanted(timetableRepeatWanted(written(length)));
     this.close();
   };
