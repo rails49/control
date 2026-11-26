@@ -74,6 +74,7 @@ from tc49.lib.payload import (
     wanted_record,
     wanted_rename,
     wanted_reorder,
+    wanted_repeat,
     wanted_settings,
     wanted_start,
     wanted_take,
@@ -1632,6 +1633,28 @@ def test_a_rename_gesture_gives_a_name_or_is_dropped(
     """Whether the name is one a timetable document takes is not asked
     here."""
     assert wanted_rename(payload) == to
+
+
+@pytest.mark.parametrize(
+    ("payload", "repeat"),
+    [
+        ({"repeat": "03:00"}, 3 * 3600),
+        ({"at": 3.0, "repeat": "1d00:00"}, 86400),
+        ({"repeat": "00:00"}, None),
+        ({"repeat": "0d00:00"}, None),
+        ({"repeat": "3:00"}, None),
+        ({"repeat": "03:60"}, None),
+        ({"repeat": 10800}, None),
+        ({"repeat": None}, None),
+        ({}, None),
+        ("03:00", None),
+    ],
+)
+def test_a_repeat_gesture_gives_a_length_greater_than_0_or_is_dropped(
+    payload: object, repeat: int | None
+) -> None:
+    """A length in the time form, in seconds (#1368)."""
+    assert wanted_repeat(payload) == repeat
 
 
 @pytest.mark.parametrize(

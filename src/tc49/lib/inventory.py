@@ -211,6 +211,9 @@ TOPICS: dict[str, Topic] = {
     # document's fields only, and `now` is what it becomes, or `null` to
     # delete it (#1345, #1354).
     "tc49/schedule/timetable_rename_wanted": Topic(("to",), browser=True),
+    # A person sets the loaded timetable's `repeat`, a length in the time
+    # form greater than 0 (#1368).
+    "tc49/schedule/timetable_repeat_wanted": Topic(("repeat",), browser=True),
     "tc49/schedule/entry_wanted": Topic(("was", "now"), browser=True),
     # A person starts the loaded timetable. No fields (#1353).
     "tc49/schedule/timetable_start_wanted": Topic((), browser=True),
