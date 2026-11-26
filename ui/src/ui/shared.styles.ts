@@ -93,6 +93,35 @@ export const sections = css`
 `;
 
 /**
+ * Whole rule set. The heading bar of a list in the run view's pane, in
+ * `tc-roster` and `tc-requests` (#1390): one height for both, so the two
+ * headings line up side by side. The heading is bold and in the ink colour.
+ * What follows it in the bar wraps under it, and the first line keeps the
+ * height.
+ */
+export const heading = css`
+  header {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.5rem;
+    min-height: 2rem;
+    margin: 0 0.2rem;
+  }
+
+  h2 {
+    margin: 0;
+    line-height: 2rem;
+    font-size: 0.75rem;
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+`;
+
+/**
  * Whole rule sets. The symbols themselves, drawn the same on the canvas and
  * on a palette tile: both are the symbol's own coordinates, one grid square to
  * one user unit, so one set of rules serves both and a tile shows what will be

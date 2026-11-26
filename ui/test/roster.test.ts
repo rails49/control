@@ -66,6 +66,12 @@ afterEach(() => {
 });
 
 describe("what the pane lists", () => {
+  /** In a heading bar, as the timetable's heading is (#1390). */
+  it("is headed Trains", async () => {
+    const roster = await pane([]);
+    expect(roster.renderRoot.querySelector("header > h2")?.textContent).toBe("Trains");
+  });
+
   it("gives each train its name, its length and the block it stands in", async () => {
     const roster = await pane([
       { train: "goods", block: "a", length: 400, placed: true, locomotive: null },
