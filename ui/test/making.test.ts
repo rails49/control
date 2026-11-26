@@ -780,17 +780,17 @@ describe("the car editor", () => {
     expect((await car(shell, "name")).value).toBe("Re 460");
   });
 
-  it("sets a camera address, refuses one, and empties it", async () => {
+  it("sets a camera's stream URL, refuses a bare host, and empties it", async () => {
     owned();
     const shell = await opened();
+    await typed(shell, await car(shell, "camera"), "http://cam-1/media/?action=stream");
     await typed(shell, await car(shell, "camera"), "cam-1.local");
-    await typed(shell, await car(shell, "camera"), "http://cam-1");
     expect(trouble(shell)).toBe(
-      "'http://cam-1' is not a camera address — write the camera's host name or IP address",
+      "'cam-1.local' is not the URL of a camera's stream — it must start http://",
     );
-    expect((await car(shell, "camera")).value).toBe("cam-1.local");
+    expect((await car(shell, "camera")).value).toBe("http://cam-1/media/?action=stream");
     await saved(shell);
-    expect(written()!.cars!["Re 460 001"]!.camera).toBe("cam-1.local");
+    expect(written()!.cars!["Re 460 001"]!.camera).toBe("http://cam-1/media/?action=stream");
 
     await typed(shell, await car(shell, "camera"), "");
     await saved(shell);
@@ -1516,10 +1516,10 @@ describe("a car's camera", () => {
   it("is taken off a car cleared on its row, and the car stays", async () => {
     const shell = await opened();
     await ore(shell);
-    await typed(shell, await car(shell, "camera"), "cam-1");
+    await typed(shell, await car(shell, "camera"), "http://cam-1/media/?action=stream");
     await saved(shell);
     expect(written()!.cars).toEqual({
-      "arnold-ce68": { model: "arnold-ce68", addr: "3", camera: "cam-1" },
+      "arnold-ce68": { model: "arnold-ce68", addr: "3", camera: "http://cam-1/media/?action=stream" },
     });
 
     await typed(shell, await car(shell, "camera"), "");
@@ -1532,16 +1532,16 @@ describe("a car's camera", () => {
   it("puts a malformed camera back to the roster's, says why, and saves none", async () => {
     const shell = await opened();
     await ore(shell);
-    await typed(shell, await car(shell, "camera"), "cam-1");
+    await typed(shell, await car(shell, "camera"), "http://cam-1/media/?action=stream");
 
-    await typed(shell, await car(shell, "camera"), "http://cam-1:8080/");
+    await typed(shell, await car(shell, "camera"), "http://admin@cam-1:8080/");
 
     expect(trouble(shell)).toBe(
-      "'http://cam-1:8080/' is not a camera address — write the camera's host name or IP address",
+      "'http://admin@cam-1:8080/' is not the URL of a camera's stream — leave the login out: the camera app has it",
     );
-    expect((await car(shell, "camera")).value).toBe("cam-1");
+    expect((await car(shell, "camera")).value).toBe("http://cam-1/media/?action=stream");
     await saved(shell);
-    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("cam-1");
+    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("http://cam-1/media/?action=stream");
   });
 });
 
@@ -1825,11 +1825,11 @@ describe("the roster's save with a length corrected", () => {
   it("writes an edit no app built from while power is on", async () => {
     const shell = await opened();
     await placed(shell, "on");
-    await typed(shell, await car(shell, "camera"), "cam-1");
+    await typed(shell, await car(shell, "camera"), "http://cam-1/");
 
     await saved(shell);
 
-    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("cam-1");
+    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("http://cam-1/");
     expect(wants()).toEqual([]);
   });
 
@@ -2079,7 +2079,7 @@ describe("the roster's save with an edit the apps built from", () => {
     const shell = await opened();
     await placed(shell, "on");
     store.saved.length = 0;
-    await typed(shell, await car(shell, "camera"), "cam-1");
+    await typed(shell, await car(shell, "camera"), "http://cam-1/");
     await typed(shell, await car(shell, "notes"), "dented");
     await typed(shell, await car(shell, "name"), "krokodil");
     await chosen(shell, "hopper");
@@ -2088,7 +2088,7 @@ describe("the roster's save with an edit the apps built from", () => {
     await saved(shell);
 
     expect(written()!.cars!["krokodil"]).toMatchObject({
-      camera: "cam-1",
+      camera: "http://cam-1/",
       notes: "dented",
     });
     expect(wants()).toEqual([]);
@@ -2307,11 +2307,11 @@ describe("when the roster is saved", () => {
   it("writes any other edit on ON, sends on at once, and says Saved", async () => {
     const shell = await opened();
     await placed(shell, "off");
-    await typed(shell, await car(shell, "camera"), "cam-1");
+    await typed(shell, await car(shell, "camera"), "http://cam-1/");
 
     await on(shell);
 
-    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("cam-1");
+    expect(written()!.cars!["arnold-ce68"]!.camera).toBe("http://cam-1/");
     expect(wants()).toEqual([]);
     expect(powers()).toEqual([{ topic: POWER_WANTED, payload: { power: "on" } }]);
     expect(bar(shell)).toBe("Saved");
