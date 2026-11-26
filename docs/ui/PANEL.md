@@ -46,20 +46,31 @@ fixed
 decision 4, [#886](https://github.com/rails49/control/issues/886)).
 
 **The pane is left of the drawing, and a divider sets its width.** The pane
-is the roster with the list of the timetable and the requests under it. A
-person drags the divider
-between the pane and the drawing with a mouse or a finger
+is the roster with the list of the timetable and the requests under it. The
+drawing and the pane's two lists are panels on the paper colour, with square
+corners, on a ground of a darker grey, the palette's `--gap`
+([#1390](https://github.com/rails49/control/issues/1390)). The divider
+between the pane and the drawing is a 6px gap in that grey. What takes the
+press is wider, and wider again under a finger. On hover and while dragged
+the gap takes the highlight colour, `--chosen`. A person drags it with a
+mouse or a finger
 ([#1344](https://github.com/rails49/control/issues/1344)). The pane has a
 least width, where the roster is still usable, and a greatest, which leaves
 the drawing a least width of its own; both are in `ui/src/model/pane.ts`.
 Until the divider is first dragged the pane is as wide as the editor's
 palette, which has no divider.
 
-**On a page taller than it is wide the pane is below the drawing**: a tablet
+**On a page taller than it is wide the pane is above the drawing**: a tablet
 held upright, a phone. The roster and the list stand side by side in
-it, each scrolling on its own, and the divider sets the pane's height, held
-to a least and a greatest as its width is. The shape is the page's
-(`orientation`), not the view's.
+it, each scrolling on its own, and the divider sets the pane's height,
+measured from the view's top edge and held to a least and a greatest as its
+width is. The shape is the page's (`orientation`), not the view's.
+
+**The two lists' heading bars are one height**, so on an upright page the
+"Trains" and "Timetable" headings are on one line across the pane. Both are
+bold, in the ink colour, in capitals. The timetable's name and controls
+follow in its bar, and where they do not fit the controls wrap under it; the
+first line keeps the shared height.
 
 **The divider's position is kept in the browser**, in `localStorage`, one for
 each of the two arrangements. A tablet and a desktop each keep their own, and
@@ -136,11 +147,11 @@ the scheduler has said whether one is, it is the request list, read from
 ([#829](https://github.com/rails49/control/issues/829),
 [ADR-0080](../adr/0080-the-waiting-requests-are-a-list-a-person-orders.md)).
 With one loaded it shows the timetable, described after the request rows.
-Each list is as tall as its rows, up to half the pane, and scrolls on its own
-past that, so the requests sit directly under the trains and the space left
-over is below them
-([#895](https://github.com/rails49/control/issues/895)). Where the pane is
-below the drawing the two lists are side by side, each as tall as the pane.
+The roster is as tall as its rows, up to half the pane, and the list sits
+directly under it and takes the rest of the pane's height. Each scrolls on
+its own ([#895](https://github.com/rails49/control/issues/895)). Where the
+pane is above the drawing the two lists are side by side, each as tall as
+the pane. The ground shows in a 6px gap between the two lists.
 One row per request, in list order — the order the dispatcher serves them, so
 what the list shows is what the dispatcher does next. A row is the train,
 where the request starts, where it ends, and *waiting* or *underway*, a
@@ -316,7 +327,7 @@ longer lists is closed. While a row is open its fields are the same elements,
 wherever the state row puts its entry and when the entry goes out, so a field
 keeps the focus.
 
-**The fields are in the pane, which is below the drawing on an upright
+**The fields are in the pane, which is above the drawing on an upright
 page.** The page does nothing of its own about the on-screen keyboard: the
 browser moves a field that takes the focus above it. Under a finger a
 field's text is 16px, the size below which Safari zooms the page into a
