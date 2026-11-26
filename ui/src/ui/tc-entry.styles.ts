@@ -9,8 +9,9 @@ import { css } from "lit";
  * It is drawn inside the row of `tc-requests`, across the row's width. The
  * time, the arrival ends and the dwell are a line each, the field's name and
  * then the field. The time and the dwell are as wide as what they hold, the
- * arrival ends as wide as the rest of the line. The description's field is under its name and as
- * wide as the row, so it has room in the pane at its least width.
+ * arrival ends as wide as the rest of the line. The description's field is
+ * under its name and as wide as the row, so it has room in the pane at its
+ * least width.
  *
  * The row round it is something to drag and lets no text be selected
  * (`tc-requests.styles.ts`). Here text is typed and selected, and the cursor

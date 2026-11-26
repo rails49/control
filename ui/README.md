@@ -159,8 +159,8 @@ src/
     tc-requests.ts the list in the run view's pane: the loaded timetable's
                    entries and the requests, a cancel on each request, a
                    drag to reorder the waiting ones
-    tc-entry.ts    an entry's open row in that list: its time, dwell and
-                   description, and Delete
+    tc-entry.ts    an entry's open row in that list: its time, arrival
+                   ends, dwell and description, and Delete
     tc-timetable-controls.ts  the controls in that list's heading: the menu,
                    the Record switch and Start
     tc-timetable-dialog.ts  the dialog a row of that menu opens: View, New,

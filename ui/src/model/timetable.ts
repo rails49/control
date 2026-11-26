@@ -30,12 +30,11 @@
  * [#1386](https://github.com/rails49/control/issues/1386)). `edited` is the
  * entry with what a person typed in one of them, `outside` why a typed time
  * is not within the timetable's repeat, `misnamed` why typed arrival ends
- * are refused, and `same` is whether two entries
- * are equal as the scheduler compares them. Which row is open is
- * `Opened`: `tapped` is what a tap makes of it, `asking` what a change the
- * row asked for makes of it, and `followed` where it is when the scheduler
- * says new rows. Entries carry no id, so the open row is the first whose
- * entry reads the same (`placeOf`).
+ * are refused, and `same` is whether two entries are equal as the scheduler
+ * compares them. Which row is open is `Opened`: `tapped` is what a tap makes
+ * of it, `asking` what a change the row asked for makes of it, and
+ * `followed` where it is when the scheduler says new rows. Entries carry no
+ * id, so the open row is the first whose entry reads the same (`placeOf`).
  *
  * `startNotes` is what the roster says about a train that is not where the
  * loaded timetable starts. `repeatRefused` is why a length is refused as its
