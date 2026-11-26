@@ -82,6 +82,9 @@ this module tells the rule what the bus said and does what it answers, in
 - `tc49/schedule/timetable_rename_wanted` renames the loaded timetable: the
   document is written under the new name and the old one deleted. Dropped
   where the store has a timetable of that name (#1354).
+- `tc49/schedule/timetable_repeat_wanted` sets the loaded timetable's
+  `repeat`, while power reads `off`. Dropped where an entry would fall at
+  or after `start` plus `repeat`. Entries keep their rounds (#1368).
 - The document is written through the store client at each change to it. A
   change of an entry's state alone is no change to it.
 - The loaded timetable is on `tc49/schedule/state/timetable`, published when
@@ -158,6 +161,7 @@ from tc49.lib.payload import (
     wanted_entry,
     wanted_record,
     wanted_rename,
+    wanted_repeat,
     wanted_start,
     wanted_timetable,
 )
@@ -317,6 +321,10 @@ class Scheduler:
                 self._state = release.changed(self._state, change.was, change.now)
         elif leaf == "timetable_rename_wanted":
             self._rename(payload)
+        elif leaf == "timetable_repeat_wanted":
+            repeat = wanted_repeat(payload)
+            if repeat is not None:
+                self._state = release.repeated(self._state, repeat)
         elif leaf == "timetable_start_wanted":
             self._start_wanted(payload)
         # a throttle is one more leaf under this role, later

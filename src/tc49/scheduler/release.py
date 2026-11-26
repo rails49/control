@@ -26,6 +26,7 @@ the timetable loaded next.
 | `timetable_record_wanted` | `recording(state, record)` |
 | `entry_wanted` | `changed(state, was, now)` |
 | `timetable_rename_wanted`, where the store has none of that name | `renamed(state, to)` |
+| `timetable_repeat_wanted` | `repeated(state, repeat)` |
 | it makes a new timetable because `untitled` or `new` said so | `made(state, name, layout, trains)` |
 | it read a timetable from the store because `loads` said so | `loaded(state, timetable)` |
 | it submitted a request to a start block | `positioned(state, request)` |
@@ -77,6 +78,10 @@ The rules, in the words of #1345 and #1363:
   its place in the order. The entry keeps its round, its state, its
   request and its ending, and a request that has gone out is left alone.
   It is taken in every phase and with Record on or off (`changed`).
+- **Repeat.** A person sets the loaded timetable's `repeat` while power
+  reads `off`, in `loaded` and `running`. It is dropped where an entry would
+  fall at or after `start` plus `repeat`. Entries keep their rounds
+  (`repeated`).
 - **Load.** A timetable a person asks for by name is loaded only while power
   reads `off`, and once the trains on the layout were told (`loads`). Its
   phase is `loaded` and Record is off. The requests the scheduler submits to
@@ -517,6 +522,20 @@ def renamed(state: State, to: str) -> State:
     if state.timetable is None:
         return state
     return replace(state, timetable=replace(state.timetable, name=to))
+
+
+def repeated(state: State, repeat: int) -> State:
+    """The state with the loaded timetable repeating every `repeat` seconds,
+    greater than 0, and each entry in the round it was in. The state is as
+    it was unless power reads `off` and a timetable is loaded, and where an
+    entry would fall at or after `start` plus `repeat`."""
+    if state.timetable is None or state.power != OFF:
+        return state
+    try:
+        timetable = replace(state.timetable, repeat=repeat)
+    except ValueError:  # an entry outside the repeat
+        return state
+    return replace(state, timetable=timetable)
 
 
 def listed(state: State, requests: Mapping[str, str]) -> State:
