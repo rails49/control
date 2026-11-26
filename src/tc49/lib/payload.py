@@ -132,8 +132,8 @@ because this is where payloads are read — the stamping lives where the
 binding publishes, in `lib.bus`.
 
 The scheduler's **timetable** payloads are read here (#1345, #1352): the
-gestures a page writes, `wanted_timetable`, `wanted_record`, `wanted_entry`
-and `wanted_rename` (#1354); the clock row
+gestures a page writes, `wanted_timetable`, `wanted_record`, `wanted_entry`,
+`wanted_rename` (#1354) and `wanted_repeat` (#1368); the clock row
 it moves the timetable's time by, `said_clock`; and, at a restart, the name
 on its own retained row, `loaded_timetable`, and the requests the
 allocation lists, `listed_requests`. One more gesture, `wanted_start`,
@@ -175,7 +175,7 @@ from tc49.lib.settings import (
     throttle_silence,
     without_sensors,
 )
-from tc49.lib.timetable import Entry, read_entry
+from tc49.lib.timetable import Entry, read_entry, read_time
 
 
 @dataclass(frozen=True)
@@ -297,6 +297,19 @@ def wanted_rename(payload: object) -> str | None:
         return None
     to = cast(dict[str, object], payload).get("to")
     return to if isinstance(to, str) and to else None
+
+
+def wanted_repeat(payload: object) -> int | None:
+    """The length in seconds a `tc49/schedule/timetable_repeat_wanted`
+    gesture gives the loaded timetable's repeat, or None where it gives
+    none: `repeat`, a length in the time form greater than 0 (#1368)."""
+    if not isinstance(payload, dict):
+        return None
+    try:
+        repeat = read_time(cast(dict[str, object], payload).get("repeat"), "repeat")
+    except ValueError:
+        return None
+    return repeat or None
 
 
 def wanted_start(payload: object) -> bool:

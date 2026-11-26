@@ -23,6 +23,7 @@ REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 TIMETABLE_WANTED = "tc49/schedule/timetable_wanted"
 TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted"
 TIMETABLE_RENAME_WANTED = "tc49/schedule/timetable_rename_wanted"
+TIMETABLE_REPEAT_WANTED = "tc49/schedule/timetable_repeat_wanted"
 ENTRY_WANTED = "tc49/schedule/entry_wanted"
 TIMETABLE_START_WANTED = "tc49/schedule/timetable_start_wanted"
 TIMETABLE = "tc49/schedule/state/timetable"
@@ -300,6 +301,7 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         TIMETABLE_WANTED,
         TIMETABLE_RECORD_WANTED,
         TIMETABLE_RENAME_WANTED,
+        TIMETABLE_REPEAT_WANTED,
         ENTRY_WANTED,
         TIMETABLE_START_WANTED,
         PLACEMENT_WANTED,
@@ -540,6 +542,13 @@ def test_a_page_changes_an_entry_and_renames_the_loaded_timetable() -> None:
     assert TOPICS[ENTRY_WANTED].fields == ("was", "now")
     assert TOPICS[TIMETABLE_RENAME_WANTED].fields == ("to",)
     assert {ENTRY_WANTED, TIMETABLE_RENAME_WANTED} <= INBOUND
+
+
+def test_a_page_sets_the_loaded_timetables_repeat() -> None:
+    """A gesture the scheduler answers (#1368)."""
+    assert TOPICS[TIMETABLE_REPEAT_WANTED].fields == ("repeat",)
+    assert TIMETABLE_REPEAT_WANTED in INBOUND
+    assert not is_state_topic(TIMETABLE_REPEAT_WANTED)
 
 
 def test_a_person_starts_a_loaded_timetable_from_any_page() -> None:
