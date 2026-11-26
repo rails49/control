@@ -264,7 +264,7 @@ cars:
   ic_1:    { model: sbb-ic2000 }
   ic_2:    { model: sbb-ic2000, length: 285 }   # an override
   ic_3:    { model: sbb-ic2000, notes: "chipped buffer" }
-  cam_1:   { model: sbb-ic2000, camera: "192.168.178.58" }
+  cam_1:   { model: sbb-ic2000, camera: "http://192.168.178.58/media/?action=stream" }
 
 trains:
   ic_721:
@@ -297,18 +297,23 @@ trains:
   Two cars on one railroad sharing one are refused: both answer the same
   packet and no run can tell them apart. Written as a string, so `460` and
   `"460"` cannot be one address spelled two ways.
-- **`camera` is where the camera a car carries answers on the LAN**: its host
-  name or IPv4 address, with no scheme, port, path or login, and absent where
-  the car carries none — what makes it a **camera car**
+- **`camera` is the URL of the MJPEG stream of the camera a car carries**:
+  scheme `http`, a host, an optional port and an optional path and query, as
+  `http://192.168.178.58/media/?action=stream` or
+  `http://cam:8080/?action=stream`, and absent where the car carries none —
+  what makes it a **camera car**
   ([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
-  A string, not coerced, as `addr` is; valid means letters, digits, dots and
-  hyphens only, starting and ending with a letter or digit, and anything else
-  is refused with the car named. Two cars naming one camera are refused,
-  naming both, as two cars on one address are. It is the item's, never the
-  product's: `camera` on a model or on a train's entry is an unknown key and
-  is ignored, so an entry naming a model carries no camera. A train's camera
-  is its first camera car's, head first, and `GET /rosters/<name>/trains`
-  says only whether it has one — never where it answers.
+  A string, not coerced, as `addr` is, and kept as written. Refused with the
+  car named: any scheme but `http`, no host, a login (`user@` or
+  `user:password@`), a fragment, whitespace, and a port outside 1–65535. The
+  login is the camera app's environment (`TC49_CAMERA_USER`,
+  `TC49_CAMERA_PASSWORD`), never the store. Two cars naming one URL are
+  refused, naming both, as two cars on one address are; URLs are compared as
+  written. It is the item's, never the product's: `camera` on a model or on a
+  train's entry is an unknown key and is ignored, so an entry naming a model
+  carries no camera. A train's camera is its first camera car's, head first,
+  and `GET /rosters/<name>/trains` says only whether it has one — never its
+  URL.
 - **`notes` on a car are the item's own**, a string, and not an override of
   the model's: both are kept, and the merge replaces neither with the other.
 - **`cars:` holds identified stock**, and a train's entry names **either a car

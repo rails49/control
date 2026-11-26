@@ -105,13 +105,17 @@ percent-encodes the train. An empty name is refused: *A car needs a name.*,
 an address (*Fitted one to this car?*), and none is assumed from what the
 model is.
 
-**A car's camera sits under its address**, in the car editor: where the camera riding in that car answers on the LAN, a host name or an
-IPv4 address with no scheme, port, path or login — how the camera is spoken to
-is the `camera` app's
-([ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
-Emptying the field takes the camera off and keeps the car. Anything else is refused with *'cam:8080' is
-not a camera address — write the camera's host name or IP address*, and a
-camera another car carries with *car 'van-1' already carries camera 'cam-1'*:
+**A car's camera sits under its address**, in the car editor: the URL of
+the MJPEG stream of the camera riding in that car, as
+`http://192.168.178.58/media/?action=stream`, checked by the rules
+`lib/stock.py` checks it by ([LAYOUT.md](../store/LAYOUT.md#roster-schema),
+[ADR-0082](../adr/0082-the-camera-cars-picture-is-relayed-by-the-camera-app.md)).
+Emptying the field takes the camera off and keeps the car. A URL those rules
+refuse is refused with why, as *'cam-1.local' is not the URL of a camera's
+stream — it must start http://* or *'http://admin@cam/' is not the URL of a
+camera's stream — leave the login out: the camera app has it*, and a camera
+another car carries with *car 'van-1' already carries camera
+'http://cam-1/'*:
 one camera in two cars would put one picture on two trains, which the store
 refuses as well (`lib/stock.py`). It reaches the store with the next save, in the whole
 `PUT /rosters/<railroad>`, and it does not wait for power off: it moves
@@ -490,7 +494,7 @@ A length lives on the **model** as well as on the **car** — `stock._car` takes
 changes every item of that product, including the one under a train the
 dispatcher is fitting into blocks right now. No app drives by any other field:
 names, kind, manufacturer, scale, description, notes and photos. The camera
-app reads the store on every request, so a car's camera address is read
+app reads the store on every request, so a car's camera URL is read
 fresh.
 
 So **every edit to one of these fields is disabled while track power is on or
@@ -705,8 +709,8 @@ function rows reaching the document with `mode`, a duplicate function number
 refusing the save, Delete disabled while the model is used, asking and sending
 `DELETE` where it is not, and the store's refusal under it; the car editor —
 a second car of a decoder model asked for its address and refusing the first
-car's, an address refused and put back, a camera address set, refused and
-emptied, a length override written and removed by emptying it, the car's own
+car's, an address refused and put back, a camera URL set, a bare host
+refused and the URL emptied, a length override written and removed by emptying it, the car's own
 functions written and removed, its notes reaching the roster document, Remove
 disabled while a train holds the car, and its links to its model and its trains;
 the train editor — New train and New train (2) with the picker open, a name
