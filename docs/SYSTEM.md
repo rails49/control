@@ -881,10 +881,58 @@ that is `out` whose request the first allocation row does not list becomes
 under the same railroad name keeps the loaded one, as it keeps facing
 ([ADR-0071](adr/0071-a-rebuild-under-the-same-name-keeps-the-placements.md)).
 
+It **loads** a timetable and **releases** its entries on the fast clock
+([#1353](https://github.com/rails49/control/issues/1353)).
+
+- **Load.** `tc49/schedule/timetable_wanted` without `new` loads the
+  timetable of that name from the store, in place of the one loaded. It is
+  taken while power reads `off` and once an allocation row was read. A
+  name the store has no document for, and a document that does not read,
+  leave what was loaded. The phase is `loaded` and Record is off. A load
+  cancels no request.
+- **To the start blocks.** The app never places a train, so the start is
+  reached by driving. For each train in the timetable's `trains` that
+  stands in another block, the scheduler submits one request to its start
+  block, composed as a drag is. Its `dest` is the one arrival end that
+  leaves a train run in nose-first facing as recorded: `<block>.A` for
+  `A-to-B` and `<block>.B` for `B-to-A`. Where the dispatcher rejects that
+  as `unreachable`, the scheduler submits one more to both ends of the
+  block. A train in its start block, whatever its facing, a train off the
+  layout and a train the timetable does not name get none. These requests
+  wait in the dispatcher's list until power is on, as any request does.
+  They are not entries, and the row lists their ids in `positioning`
+  until each ends.
+- **Start.** The timetable starts when the last of them has ended, however
+  it ended, and power reads `on`, or when a person asks on
+  `tc49/schedule/timetable_start_wanted`. The scheduler publishes
+  `tc49/layout/clock_wanted` with the start time, and the phase is
+  `running`. The binding keeps that time as the railroad's clock start.
+- **Release.** Timetable time is the fast-clock seconds since the start,
+  moved on by each clock row. An entry is due when it reaches the entry's
+  `at`. A train's entries go in order, each after the one before has
+  ended, been rejected, cancelled or skipped, and after that one's dwell
+  where it ended by arrival. An entry with `to` is composed as a drag of
+  its train to those arrival ends, so it has a drag's id and departure end
+  and chains after the train's latest request in flight, a person's
+  included. A turn-round is the reversal a person's gesture makes, and
+  waits while its train has a request in flight. An entry for a train off
+  the layout is `skipped`. A rejected or cancelled entry is not released
+  again.
+- A person's own drag during a run is composed at once, whatever dwell an
+  entry stated. With Record off, as a load leaves it, it adds no entry.
+- **Over.** 24 fast-clock hours after its start the phase is `over` and
+  nothing more is released or recorded. The timetable stays loaded until
+  another is loaded or made.
+- **A restart** adopts a `loaded` phase and the row's `positioning`. An id
+  the first allocation row does not list has ended. A `running` timetable
+  takes its time from the first clock row and goes on. A request to a
+  start block rejected as `unreachable` after a restart gets no second
+  one.
+
 The rule and its state are `src/tc49/scheduler/release.py`, which has no
 bus. `scheduler.py` tells it what the bus said. A scheduler given no store
-client, as by the test harness and the bench, makes no timetable and
-publishes no timetable row.
+client, as by the test harness and the bench, makes and loads no timetable
+and publishes no timetable row.
 
 ### Dispatcher
 
