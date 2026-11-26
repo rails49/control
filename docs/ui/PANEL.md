@@ -228,12 +228,24 @@ entries that are not out are passed over. An entry that is not out is not
 dragged: it is in time order. A row that is not dragged scrolls the list
 under a finger.
 
-**The list opens at the first row that is not done.** When a timetable is
-first drawn, the page opened during a run or another timetable loaded, the
-list is scrolled to its first row that is not `ended`, `rejected`,
-`cancelled` or `skipped`. It is not scrolled again while that timetable stays
-loaded. The rows scroll under the heading, which stays in view with its
-controls.
+**The list scrolls to the newest entry**
+([#1385](https://github.com/rails49/control/issues/1385)): the one a person
+just recorded, a drag's entry or a turn-round, or the one that went out last
+while a timetable runs, in any round. An entry has gone out when it is
+`out`, `ended`, `rejected` or `cancelled`. Each time the scheduler says a
+new row, an entry is newest where it has gone out and the row before did not
+list it, or listed it `later` or `held` or in an earlier round. Where two
+are newest, the list scrolls to the later of them in the list.
+
+- When the list is first drawn, the page opened during a run or another
+  timetable loaded, it scrolls to the last entry that went out in the
+  highest round any entry went out in. Where none has, it is at the top.
+- An entry that ends, is rejected or is cancelled does not scroll it, nor
+  does a request no entry went out as, nor an entry that is changed or
+  deleted.
+- While a row is open the list does not scroll to the newest entry.
+
+The rows scroll under the heading, which stays in view with its controls.
 
 **Where the list is 24rem wide or more, a row also shows its entry's dwell
 and description**, each on a line under where it goes. Both are in the row's
