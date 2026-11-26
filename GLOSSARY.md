@@ -495,6 +495,19 @@ before its next entry is released. It defaults to 0
 ([GOALS.md](docs/GOALS.md#scheduling)).
 _Avoid_: stop (the aspect), wait, layover
 
+**Start block**:
+The block a timetable says a train stands in at the start. Loading the
+timetable sends each train that stands in another block there by a request
+([SYSTEM.md](docs/SYSTEM.md#scheduler)).
+_Avoid_: home, origin, start position
+
+**Timetable time**:
+How far a running timetable has run, in fast-clock seconds since its start.
+Each row of the fast clock moves it, and an entry is due when it reaches the
+entry's time. A clock set back does not move it back
+([SYSTEM.md](docs/SYSTEM.md#scheduler)).
+_Avoid_: elapsed time, run time, run clock (the trace's elapsed seconds)
+
 ### Bus
 
 **Topic**:

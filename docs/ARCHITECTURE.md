@@ -103,6 +103,9 @@ src/tc49/
                   records as loaded, read and recorded (`/loaded`, ADR-0072)
     scenario.py   Scenario, TrainSpec, RequestSpec — the harness's own
                   document, which no app reads (#171)
+    timetable.py  Timetable, TrainStart, Entry — a railroad's timetable
+                  document, its shape check and its order by time from the
+                  start, read by the store and the scheduler (#1345)
     inventory.py  the event inventory's leaf fields
     following.py  follow() — what one sensor reading says about a move
                   whose readings are still expected: tail out, head in,
@@ -138,7 +141,14 @@ src/tc49/
                               and submits the scenario's requests whole at
                               the start of a run, mechanical arrival-end
                               expansion, deterministic ids, exhausted state
-                              topic
+                              topic; records, loads and starts a timetable
+                              and releases its entries as `release.py` says
+                release.py    the timetable's release rule — the loaded
+                              timetable's state, a value, and what is due
+                              next; no bus, no store and no clock (#1351)
+                keeping.py    Timetables, Kept — the store client the
+                              scheduler keeps timetables through, its writes
+                              on a thread of their own (#1352)
                 __main__.py   `python -m tc49.scheduler --broker … --store
                               …`, the command line a container runs: the
                               railroad's documents off the store,
@@ -327,8 +337,10 @@ tests/
   harness.py  interleaving.py  invariants.py  brokers.py  apps.py
   generate.py  test_interleaving  test_invariants_check
   lib/         test_layout  test_bus  test_trace  test_invariants
+               test_timetable
   store/       test_store  test_drawing  test_server  test_symbols
-  scheduler/   test_scheduler  test_main
+  scheduler/   test_scheduler  test_main  test_release  test_recording
+               test_loading  test_edits  test_keeping
   dispatcher/  test_routing  test_safety  test_incremental
                test_request_list  test_main
   bench/       test_metrics  test_sweep  test_cli  test_benchmarks
@@ -343,6 +355,7 @@ tests/
   system/      test_skeleton  test_properties  test_gestures_and_readings
                test_layout_stateful
                test_safety_conditions  test_app_boundaries  test_cold_start  test_reload
+               test_timetable_on_one_bus
                test_compose
 ```
 
