@@ -216,11 +216,12 @@ that fails either check is a **400** too, and a `GET` or a `DELETE` of one
 that is not there is a **404**. A `GET` whose `Accept` names
 `application/yaml` answers the file's bytes as stored, under that type
 ([#1381](https://github.com/rails49/control/issues/1381)); its 400 and 404
-are the same JSON errors. The railroad is not checked for a drawing.
-The scheduler reads, writes and deletes a timetable, and the page reads the
-list, one document and one file's text, and deletes. Copying a railroad copies its timetables,
-each with `layout` naming the copy, and a name that has a timetable already
-is taken. Deleting a railroad deletes its timetables.
+are the same JSON errors. The railroad is not checked for a drawing. The
+scheduler reads, writes and deletes a timetable, and the page reads the
+list, one document and one file's text, and deletes. Copying a railroad
+copies its timetables, each with `layout` naming the copy, and a name that
+has a timetable already is taken. Deleting a railroad deletes its
+timetables.
 
 `/layouts/<name>` is the derivation **the apps** read. Each of the scheduler,
 the dispatcher and the layout interface takes a `Layout` at construction, and
