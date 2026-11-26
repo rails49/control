@@ -1,5 +1,5 @@
-"""A person changes and deletes a timetable's entries and renames the loaded
-timetable (#1345, #1354).
+"""A person changes and deletes a timetable's entries, renames the loaded
+timetable and sets its repeat (#1345, #1354, #1368).
 
 Built as `tests/scheduler/test_recording.py` is, with its helpers: gestures
 are published at a `Scheduler` on the in-process bus, and the test reads the
@@ -31,6 +31,7 @@ from tests.scheduler.test_scheduler import NONCE, seeded, yard
 
 ENTRY_WANTED = "tc49/schedule/entry_wanted"
 RENAME_WANTED = "tc49/schedule/timetable_rename_wanted"
+REPEAT_WANTED = "tc49/schedule/timetable_repeat_wanted"
 
 FREIGHT = {"at": "06:02", "train": "freight_1", "to": ["dn_e", "up_e"]}
 EXPRESS = {"at": "06:05", "train": "express_2", "to": ["dn_w"]}
@@ -432,3 +433,94 @@ class Unread(Logged):
         if name == "evening":
             raise ValueError("timetable 'evening': 'start' is 360")
         return super().timetable(railroad, name)
+
+
+def test_with_power_off_a_repeat_changes_the_row_and_the_document() -> None:
+    """In `loaded` and in `running` (#1368)."""
+    for phase in ("loaded", "running"):
+        store, bus = evening(FREIGHT, EXPRESS, phase=phase)
+
+        say(bus, REPEAT_WANTED, {"repeat": "03:00"})
+
+        assert row(bus)["repeat"] == "03:00"
+        assert entries(bus) == [FREIGHT | LATER, EXPRESS | LATER]
+        held = store.document("evening")
+        assert held is not None
+        assert held["repeat"] == "03:00"
+        assert held["entries"] == [FREIGHT, EXPRESS]
+
+
+def test_a_repeat_leaves_each_entry_in_its_round() -> None:
+    """Both entries are in round 1 and not yet due when the repeat goes from
+    one day to three hours. Each stays in round 1, due at its `at` plus
+    3 hours (#1368)."""
+    store, bus = evening(FREIGHT, EXPRESS)
+    rows = bus.last_values
+    said = rows[TIMETABLE]
+    rows[TIMETABLE] = said | {
+        "entries": [one | {"round": 1} for one in said["entries"]]
+    }
+    bus = restarted(store, rows)
+    in_round_1 = [FREIGHT | LATER | {"round": 1}, EXPRESS | LATER | {"round": 1}]
+    assert entries(bus) == in_round_1
+
+    say(bus, REPEAT_WANTED, {"repeat": "03:00"})
+
+    assert row(bus)["repeat"] == "03:00"
+    assert entries(bus) == in_round_1
+
+
+def test_a_repeat_with_power_on_changes_nothing() -> None:
+    store, bus = evening(FREIGHT, EXPRESS)
+    power(bus, "on")
+    before = row(bus)
+
+    say(bus, REPEAT_WANTED, {"repeat": "03:00"})
+
+    assert row(bus) == before
+    held = store.document("evening")
+    assert held is not None
+    assert held["repeat"] == "1d00:00"
+
+
+def test_a_repeat_with_no_timetable_loaded_is_dropped() -> None:
+    store = Logged()
+    bus = InProcessBus(Clock())
+    Scheduler(bus, yard(), seeded(), nonce=NONCE, store=store)
+    power(bus, "off")
+
+    say(bus, REPEAT_WANTED, {"repeat": "03:00"})
+
+    assert row(bus) == {"timetable": None}
+    assert store.asked == []
+
+
+def test_a_repeat_that_puts_an_entry_outside_changes_nothing() -> None:
+    """The latest entry is at 06:05 from a start of 06:00, so 00:05 puts it
+    at the start plus the repeat. 00:06 is the shortest that fits."""
+    store, bus = evening(FREIGHT, EXPRESS)
+    before = row(bus)
+
+    say(bus, REPEAT_WANTED, {"repeat": "00:05"})
+
+    assert row(bus) == before
+    held = store.document("evening")
+    assert held is not None
+    assert held["repeat"] == "1d00:00"
+
+    say(bus, REPEAT_WANTED, {"repeat": "00:06"})
+
+    assert row(bus)["repeat"] == "00:06"
+
+
+def test_a_repeat_gesture_that_cannot_be_read_changes_nothing() -> None:
+    store, bus = evening(FREIGHT, EXPRESS)
+    before = row(bus)
+
+    for payload in ({"repeat": "00:00"}, {"repeat": "3:00"}, {"repeat": 10800}, {}):
+        say(bus, REPEAT_WANTED, payload)
+
+    assert row(bus) == before
+    held = store.document("evening")
+    assert held is not None
+    assert held["repeat"] == "1d00:00"
