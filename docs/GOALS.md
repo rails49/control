@@ -140,6 +140,18 @@ off and on. Every change is written to the store at once. Cancelling a
 request leaves its entry in the timetable. Placing a train, removing one and
 reordering the request list are not recorded.
 
+A person loads a timetable with power off. The app moves a train only by a
+request, so each train that stands elsewhere is driven to its start block,
+to arrive facing as recorded where a route allows. When they are in place
+and power is on, or when the person says so, the clock is set to the
+timetable's start time, and each entry goes to the dispatcher as an
+ordinary request when the clock reaches its time. A train's entries go in
+order, so a train that arrives late leaves late, and a dwell is the least
+time it stands before the next. A train off the layout is left out, and an
+entry the dispatcher rejects does not stop the ones after it. A person's
+own drag still goes to the dispatcher at once. Loading leaves recording
+off ([#1353](https://github.com/rails49/control/issues/1353)).
+
 To invent traffic that can succeed, the scheduler has to know which trains are
 idle and where they stand, so it reads the layout and follows the dispatcher's
 events. It judges nothing: whether a request is possible is the dispatcher's
