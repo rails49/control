@@ -114,6 +114,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
 from tc49.lib.fast_clock import DAY_S, start_of
+from tc49.lib.inventory import OFF, ON
 from tc49.lib.timetable import (
     Entry,
     Timetable,
@@ -202,7 +203,7 @@ class State:
     clock: int | None = None
     """The time of day the last clock row read, in seconds since midnight.
     None where none was told."""
-    power: str = "off"
+    power: str = OFF
     """What `tc49/layout/state/power` last read."""
     placed: frozenset[str] | None = None
     """The trains on the layout. None until they were told, and nothing is
@@ -321,14 +322,14 @@ def untitled(state: State) -> bool:
     """Whether to make the timetable named `untitled`, which the scheduler
     does with `made`: power reads `on`, no timetable is loaded, a clock row
     was told and the trains on the layout were told."""
-    return state.timetable is None and state.power == "on" and _makes(state)
+    return state.timetable is None and state.power == ON and _makes(state)
 
 
 def new(state: State) -> bool:
     """Whether a new timetable a person asks for by name is made: power reads
     `off`, a clock row was told and the trains on the layout were told. It
     replaces the timetable loaded."""
-    return state.power == "off" and _makes(state)
+    return state.power == OFF and _makes(state)
 
 
 def _makes(state: State) -> bool:
@@ -504,7 +505,7 @@ def loads(state: State) -> bool:
     """Whether a timetable a person asks for by name is loaded, which the
     scheduler does with `loaded`: power reads `off` and the trains on the
     layout were told."""
-    return state.power == "off" and state.placed is not None
+    return state.power == OFF and state.placed is not None
 
 
 def loaded(state: State, timetable: Timetable) -> State:
@@ -544,7 +545,7 @@ def starts(state: State, asked: bool = False) -> bool:
     return (
         state.timetable is not None
         and state.phase == LOADED
-        and (asked or (not state.positioning and state.power == "on"))
+        and (asked or (not state.positioning and state.power == ON))
     )
 
 
