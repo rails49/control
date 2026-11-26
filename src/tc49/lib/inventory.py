@@ -205,6 +205,12 @@ TOPICS: dict[str, Topic] = {
     # #1352). And a person switches Record, a boolean.
     "tc49/schedule/timetable_wanted": Topic(("timetable", "new"), browser=True),
     "tc49/schedule/timetable_record_wanted": Topic(("record",), browser=True),
+    # A person renames the loaded timetable `to` a name, and changes one of
+    # its entries: `was` is the entry as the timetable row lists it, with the
+    # document's fields only, and `now` is what it becomes, or `null` to
+    # delete it (#1345, #1354).
+    "tc49/schedule/timetable_rename_wanted": Topic(("to",), browser=True),
+    "tc49/schedule/entry_wanted": Topic(("was", "now"), browser=True),
     # The loaded timetable, written when it changes: `timetable` is its name,
     # or `null`, and then no other field is present. `phase` is `loaded`,
     # `running` or `over`, `start` is `"HH:MM"`, `trains` maps each train to
@@ -562,7 +568,7 @@ INBOUND = frozenset(topic for topic, row in TOPICS.items() if row.browser)
 """The topics a client writes: the page's write surface, and what a broker's
 ACL would grant it were one built (ADR-0034, ADR-0059 decision 4). Read off
 the rows' marks rather than off a prefix — a topic names the component that
-responds to it, so the eighteen gestures sit under `schedule`, `dispatch` and
+responds to it, so the twenty gestures sit under `schedule`, `dispatch` and
 `layout` beside everything else those three answer, and only the mark says a
 page may send them.
 

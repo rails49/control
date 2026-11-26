@@ -15,6 +15,7 @@ from tc49.lib.payload import (
     Chosen,
     ClockSet,
     Command,
+    EntryWanted,
     Gesture,
     Grant,
     KeptAllocation,
@@ -65,15 +66,18 @@ from tc49.lib.payload import (
     unknown_sensors,
     wanted_clock,
     wanted_driving,
+    wanted_entry,
     wanted_function,
     wanted_power,
     wanted_record,
+    wanted_rename,
     wanted_reorder,
     wanted_settings,
     wanted_take,
     wanted_throttle,
     wanted_timetable,
 )
+from tc49.lib.timetable import Entry
 
 
 def test_a_well_formed_payload_reads_as_the_gesture_it_names() -> None:
@@ -1552,6 +1556,77 @@ def test_a_record_gesture_is_a_boolean_or_dropped(
     payload: object, record: bool | None
 ) -> None:
     assert wanted_record(payload) is record
+
+
+FREIGHT = {"at": "06:02", "train": "freight_1", "to": ["dn_e", "up_e"]}
+
+
+def test_an_entry_gesture_names_an_entry_and_what_it_becomes() -> None:
+    """`was` and `now` are entries of the timetable document, and `now` is
+    `null` to delete (#1354). A `dwell` of 0 reads as one left out."""
+    was = Entry(6 * 3600 + 120, "freight_1", ("dn_e", "up_e"))
+    now = {
+        "at": "06:10",
+        "train": "freight_1",
+        "turn": True,
+        "description": "runs round",
+    }
+
+    assert wanted_entry({"was": FREIGHT | {"dwell": 0}, "now": now}) == EntryWanted(
+        was, Entry(6 * 3600 + 600, "freight_1", description="runs round")
+    )
+    assert wanted_entry({"at": 3.0, "was": FREIGHT, "now": None}) == EntryWanted(
+        was, None
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "freight_1",
+        {},
+        {"was": FREIGHT},
+        {"now": FREIGHT},
+        {"was": None, "now": None},
+        {"was": FREIGHT | {"state": "later"}, "now": None},
+        {"was": FREIGHT | {"request": "freight_1-ab-1"}, "now": None},
+        {"was": FREIGHT, "now": FREIGHT | {"ended": 240}},
+        {"was": FREIGHT, "now": FREIGHT | {"at": "6:02"}},
+        {"was": FREIGHT, "now": FREIGHT | {"at": 21720}},
+        {"was": FREIGHT, "now": FREIGHT | {"dwell": -1}},
+        {"was": FREIGHT, "now": FREIGHT | {"dwell": True}},
+        {"was": FREIGHT, "now": FREIGHT | {"to": []}},
+        {"was": FREIGHT, "now": FREIGHT | {"to": "dn_e"}},
+        {"was": FREIGHT, "now": FREIGHT | {"turn": True}},
+        {"was": FREIGHT, "now": {"at": "06:02", "train": "freight_1"}},
+        {"was": FREIGHT, "now": [FREIGHT]},
+        {"was": FREIGHT, "now": False},
+    ],
+)
+def test_an_entry_gesture_that_cannot_be_read_is_dropped(payload: object) -> None:
+    """One with no `now` among them: a delete is asked for with `null`."""
+    assert wanted_entry(payload) is None
+
+
+@pytest.mark.parametrize(
+    ("payload", "to"),
+    [
+        ({"to": "evening"}, "evening"),
+        ({"at": 3.0, "to": "a/b"}, "a/b"),
+        ({"to": ""}, None),
+        ({"to": 7}, None),
+        ({"to": None}, None),
+        ({"timetable": "evening"}, None),
+        ({}, None),
+        ("evening", None),
+    ],
+)
+def test_a_rename_gesture_gives_a_name_or_is_dropped(
+    payload: object, to: str | None
+) -> None:
+    """Whether the name is one a timetable document takes is not asked
+    here."""
+    assert wanted_rename(payload) == to
 
 
 @pytest.mark.parametrize(

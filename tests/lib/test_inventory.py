@@ -22,6 +22,8 @@ REQUEST_WANTED = "tc49/schedule/request_wanted"
 REVERSAL_WANTED = "tc49/schedule/reversal_wanted"
 TIMETABLE_WANTED = "tc49/schedule/timetable_wanted"
 TIMETABLE_RECORD_WANTED = "tc49/schedule/timetable_record_wanted"
+TIMETABLE_RENAME_WANTED = "tc49/schedule/timetable_rename_wanted"
+ENTRY_WANTED = "tc49/schedule/entry_wanted"
 TIMETABLE = "tc49/schedule/state/timetable"
 RUN_WANTED = "tc49/dispatch/run_wanted"
 RUN = "tc49/dispatch/state/run"
@@ -296,6 +298,8 @@ def test_the_inbound_topics_are_the_inventorys_marked_rows() -> None:
         REVERSAL_WANTED,
         TIMETABLE_WANTED,
         TIMETABLE_RECORD_WANTED,
+        TIMETABLE_RENAME_WANTED,
+        ENTRY_WANTED,
         PLACEMENT_WANTED,
         CANCEL_WANTED,
         ARRIVAL_WANTED,
@@ -526,3 +530,10 @@ def test_the_loaded_timetable_is_the_schedulers_state_and_two_gestures_ask() -> 
     )
     assert is_state_topic(TIMETABLE)
     assert TIMETABLE not in INBOUND
+
+
+def test_a_page_changes_an_entry_and_renames_the_loaded_timetable() -> None:
+    """Two gestures the scheduler answers (#1345, #1354)."""
+    assert TOPICS[ENTRY_WANTED].fields == ("was", "now")
+    assert TOPICS[TIMETABLE_RENAME_WANTED].fields == ("to",)
+    assert {ENTRY_WANTED, TIMETABLE_RENAME_WANTED} <= INBOUND
