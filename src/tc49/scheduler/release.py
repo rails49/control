@@ -57,16 +57,16 @@ A position `due` gives is good until the timetable's entries change.
 
 The rules, in the words of #1345:
 
-- **New.** A new timetable takes the clock's time, rounded down to the
-  minute, as `start`. It has no entries, Record is on and it is `running` at
+- **New.** A new timetable takes the clock's time of day, rounded down to
+  the minute, as `start`. It has no entries, Record is on and it is `running` at
   once. The scheduler makes `untitled` when power reads `on` and no
   timetable is loaded (`untitled`). A person asks for one by name, which is
   dropped unless power reads `off` (`new`). Both wait for a clock row and for
   the trains on the layout.
 - **Record.** While the timetable is `running` and Record is on, a drag adds
-  an entry at the clock's time to the minute, `out` as the request the drag
-  made, and a turn-round adds an entry that has `ended`. A new entry goes
-  after the last entry at or before its time. In any other phase, or with
+  an entry at the clock's time of day to the minute, `out` as the request
+  the drag made, and a turn-round adds an entry that has `ended`. A new
+  entry goes after the last entry at or before its time. In any other phase, or with
   Record off, a drag is a request with no entry (`dragged`, `turned_round`).
 - **Edit.** A person changes or deletes an entry by naming it as it reads
   now: the first entry equal to it, and none where no entry is. A changed
@@ -201,7 +201,7 @@ class State:
     progress: tuple[Progress, ...] = ()
     """One for each entry of `timetable.entries`, in their order."""
     clock: int | None = None
-    """The time of day the last clock row read, in seconds since midnight.
+    """The time the last clock row read, in seconds since midnight of day 0.
     None where none was told."""
     power: str = OFF
     """What `tc49/layout/state/power` last read."""
@@ -345,11 +345,10 @@ def made(
     `layout`, in place of the one loaded. The scheduler calls it where
     `untitled` or `new` said yes.
 
-    Its `start` is the clock's time rounded down to the minute, and `trains`
-    is where each train on the layout stands. It has no entries, Record is on
-    and it is `running` at once. Its time begins at the clock's time less
-    `start`, the seconds into that minute. What the state was told of the
-    railroad is kept.
+    Its `start` is the clock's time of day rounded down to the minute, and
+    `trains` is where each train on the layout stands. It has no entries,
+    Record is on and it is `running` at once. Its time begins at the seconds
+    into that minute. What the state was told of the railroad is kept.
 
     A `name` or `layout` the document does not take is a `ValueError`
     (`tc49.lib.timetable.Timetable`).
@@ -360,7 +359,7 @@ def made(
         Timetable(name, layout, start, dict(trains), ()),
         RUNNING,
         True,
-        time=state.clock - start,
+        time=state.clock % 60,
         clock=state.clock,
         power=state.power,
         placed=state.placed,
