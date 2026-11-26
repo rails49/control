@@ -14,6 +14,7 @@ from tc49.lib.fast_clock import DAY_S
 from tc49.lib.timetable import Timetable, read_timetable
 from tc49.scheduler import Scheduler
 from tests.scheduler.test_recording import (
+    SUBMITTED,
     TIMETABLE,
     Store,
     allocation,
@@ -27,11 +28,12 @@ from tests.scheduler.test_recording import (
     row,
     say,
 )
-from tests.scheduler.test_scheduler import NONCE, seeded, yard
+from tests.scheduler.test_scheduler import NONCE, collect, seeded, yard
 
 ENTRY_WANTED = "tc49/schedule/entry_wanted"
 RENAME_WANTED = "tc49/schedule/timetable_rename_wanted"
 REPEAT_WANTED = "tc49/schedule/timetable_repeat_wanted"
+FACING = "tc49/schedule/state/facing"
 
 FREIGHT = {"at": "06:02", "train": "freight_1", "to": ["dn_e", "up_e"]}
 EXPRESS = {"at": "06:05", "train": "express_2", "to": ["dn_w"]}
@@ -450,24 +452,39 @@ def test_with_power_off_a_repeat_changes_the_row_and_the_document() -> None:
         assert held["entries"] == [FREIGHT, EXPRESS]
 
 
-def test_a_repeat_leaves_each_entry_in_its_round() -> None:
-    """Both entries are in round 1 and not yet due when the repeat goes from
-    one day to three hours. Each stays in round 1, due at its `at` plus
-    3 hours (#1368)."""
-    store, bus = evening(FREIGHT, EXPRESS)
+def test_a_shorter_repeat_puts_the_entries_in_the_clocks_round() -> None:
+    """The clock is at 1d07:00, in round 1 of a day. The entries at 06:02 and
+    06:05 have ended in round 1 and the one at 08:00 is not yet due. A
+    repeat of three hours puts all three in round 8, the clock's round.
+    Nothing of rounds 1 to 7 goes out, and the 08:00 entry goes out at
+    1d08:00, its time in round 8 (#1373)."""
+    late = {"at": "08:00", "train": "freight_1", "to": ["up_e"]}
+    store, bus = evening(FREIGHT, EXPRESS, late)
     rows = bus.last_values
     said = rows[TIMETABLE]
+    ran = {"state": "ended", "round": 1}
     rows[TIMETABLE] = said | {
-        "entries": [one | {"round": 1} for one in said["entries"]]
+        "entries": [FREIGHT | ran, EXPRESS | ran, late | LATER | {"round": 1}]
     }
+    rows[FACING] = {"facing": seeded()}
     bus = restarted(store, rows)
-    in_round_1 = [FREIGHT | LATER | {"round": 1}, EXPRESS | LATER | {"round": 1}]
-    assert entries(bus) == in_round_1
+    clock(bus, "31:00")
+    seen = collect(bus, SUBMITTED)
 
     say(bus, REPEAT_WANTED, {"repeat": "03:00"})
+    power(bus, "on")
 
-    assert row(bus)["repeat"] == "03:00"
-    assert entries(bus) == in_round_1
+    assert [(one["state"], one["round"]) for one in entries(bus)] == [
+        ("ended", 8),
+        ("ended", 8),
+        ("later", 8),
+    ]
+    assert seen == []
+
+    clock(bus, "32:00")
+
+    assert [payload["train"] for _, payload in seen] == ["freight_1"]
+    assert [one["state"] for one in entries(bus)] == ["ended", "ended", "out"]
 
 
 def test_a_repeat_with_power_on_changes_nothing() -> None:
