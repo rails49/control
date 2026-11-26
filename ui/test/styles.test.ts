@@ -47,6 +47,7 @@ import { panelStyles } from "../src/ui/tc-panel.styles.js";
 import { requestsStyles } from "../src/ui/tc-requests.styles.js";
 import { rosterStyles } from "../src/ui/tc-roster.styles.js";
 import { settingsStyles } from "../src/ui/tc-settings.styles.js";
+import { stockStyles } from "../src/ui/tc-stock.styles.js";
 import { throttleStyles } from "../src/ui/tc-throttle.styles.js";
 
 /**
@@ -657,6 +658,35 @@ describe("the edit view's dividers", () => {
     expect(rule(editorStyles.cssText, ":host([netlist])")).toContain(
       "clamp(192px, var(--netlist-size, 22rem), 100% - 256px)",
     );
+  });
+});
+
+/**
+ * The stock view's divider (#1401): the 16px space between the list box and
+ * the editor box. It sets the list box's width, which the view hands over as
+ * `--list-size`.
+ */
+describe("the stock view's divider", () => {
+  const [wide, narrow] = stockStyles.cssText.split("@container (max-width: 759px)");
+
+  /** The list is `minmax(300px, 380px)` until the divider is dragged. The
+   *  greatest leaves the editor box 320px beside the space. */
+  it("sizes the list box, held to its least and greatest by the stylesheet", () => {
+    const cols = rule(wide!, ".cols");
+    expect(cols).toContain("minmax(300px, min(var(--list-size, 380px), 100% - 336px))");
+    expect(cols).toMatch(/\)\)\s+16px minmax\(0, 1fr\)/);
+    expect(cols).toMatch(/padding:\s*16px/);
+    expect(cols).not.toMatch(/\bgap:/);
+  });
+
+  it("leaves the two boxes their borders and rounded corners", () => {
+    const boxes = rule(wide!, "section.editor");
+    expect(boxes).toMatch(/border:\s*1px solid var\(--rule\)/);
+    expect(boxes).toMatch(/border-radius:\s*20px/);
+  });
+
+  it("is not there where the view is one column", () => {
+    expect(rule(narrow!, ".divider")).toMatch(/display:\s*none/);
   });
 });
 
