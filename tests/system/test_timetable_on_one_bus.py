@@ -110,7 +110,13 @@ class Railroad:
             lambda kept: None,
         )
         self.simulator = Simulator(
-            self.bus, layout, self.clock, stood, transit_s=1.0, clear_s=1.0, fast=clock
+            self.bus,
+            layout,
+            self.clock,
+            stood,
+            transit_s=1.0,
+            clear_s=1.0,
+            fast=lambda: clock,
         )
         Scheduler(
             self.bus, layout, facing(layout, STANDS), nonce=NONCE, store=self.store

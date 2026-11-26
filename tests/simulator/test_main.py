@@ -349,6 +349,27 @@ def test_it_starts_the_clock_at_the_start_time_the_railroad_keeps(
     witness.close()
 
 
+def test_a_power_row_a_dead_process_left_does_not_run_the_clock(
+    broker: Broker, store: Store, app: App, root: Path
+) -> None:
+    """The broker still holds `state/power: on` from a process that died.
+    The clock stands at its start while this process states `off`, as
+    `layout`'s does (#1350). At this speed-up one turn of the loop is 36
+    seconds of fast clock."""
+    (root / "layouts" / f"{RAILROAD_NAME}.clock.yaml").write_text(
+        "start: '03:15'\nspeed_up: 3600\n"
+    )
+    store.start()
+    witness, heard = watching(broker)
+    witness.publish(POWER, {"power": "on"})
+    assert drained(witness, lambda: rows(heard, POWER) != []), "no row was left"
+    app.start()
+    assert drained(witness, lambda: len(rows(heard, CLOCK)) >= 2), "no clock came"
+    assert rows(heard, POWER)[-1]["power"] == "off"
+    assert {row["time"] for row in rows(heard, CLOCK)} == {3 * 3600 + 15 * 60}
+    witness.close()
+
+
 def test_it_takes_the_clock_a_person_sets_and_keeps_it(
     broker: Broker, store: Store, app: App, root: Path
 ) -> None:
