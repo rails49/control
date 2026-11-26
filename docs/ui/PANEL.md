@@ -218,8 +218,59 @@ and description**, each on a line under where it goes. Both are in the row's
 markup at any width. The width read is the list's own and not the page's,
 since a person sets the pane's width.
 
-The rows, what a drag asks and where the list opens are worked out in
-`ui/src/model/timetable.ts`.
+**A tap on an entry's row opens it**
+([#1358](https://github.com/rails49/control/issues/1358)). Under the row's
+lines are its time, its dwell and its description, each a field, and a
+Delete: `tc-entry`, a component of its own.
+
+- Every entry's row opens, whatever its state, so an entry that already ran
+  can be changed for the next run. A row that is done is not dimmed while it
+  is open.
+- A turn-round has no dwell field.
+- A request no entry went out as does not open.
+- One row is open at a time. A tap on another row moves the opening, and a
+  tap on the open row closes it.
+- The destination is not edited. A person deletes the entry and drags again.
+- A waiting row is still dragged to reorder it. A press in the open part
+  does not pick the row up.
+
+**A changed field publishes `tc49/schedule/entry_wanted`** (`{was, now}`,
+BUS.md) when the field is left or Enter is pressed. `was` is the entry as the
+state row lists it, with the document's fields only. `now` is the same entry
+with the one field changed.
+
+- **Time**: `H:MM` or `HH:MM`, sent as `HH:MM`. Text that is no time is not
+  sent.
+- **Dwell**: whole fast-clock minutes in digits, 0 or more. Emptied it is 0,
+  and 0 is sent as no `dwell`. Anything else is not sent.
+- **Description**: text, sent without the space round it. Emptied, the entry
+  has none.
+- A field left reading what the entry has sends nothing.
+
+**Delete** publishes `entry_wanted` with that `was` and `now: null`. It does
+not ask first, and the row closes. The row's cancel still publishes
+`cancel_wanted` for the request of this run and leaves the entry.
+
+**The page changes nothing by itself.** A field shows what the state row
+says: it goes back to the entry's value when it is left, and shows the change
+when the scheduler's row has it. The scheduler answers nothing where it drops
+a change, and the field then stays as it was.
+
+**The open row stays open when its entry moves.** A changed time moves the
+row when the scheduler's row arrives. Entries carry no id, so the open row is
+the first one that reads as the change asked, and the list is scrolled to it.
+Where two entries read the same in every field the first is the open one,
+which is the one the scheduler changes. A row whose entry the state row no
+longer lists is closed.
+
+**The fields are in the pane, which is below the drawing on an upright
+page.** The page does nothing of its own about the on-screen keyboard: the
+browser moves a field that takes the focus above it. Under a finger a
+field's text is 16px, the size below which Safari zooms the page into a
+focused field.
+
+The rows, what a drag asks, where the list opens and what a typed field makes
+of an entry are worked out in `ui/src/model/timetable.ts`.
 
 **A train's name is drawn in each block it occupies**, whatever the block's
 colour: every block on its list in the picture's `occupied`. A train passing
