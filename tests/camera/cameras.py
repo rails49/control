@@ -1,6 +1,6 @@
 """A camera car's camera, faked: a standard-library HTTP server on loopback
-serving `multipart/x-mixed-replace` JPEG parts behind Basic auth, as the real
-one does at `/media/?action=stream`.
+serving `multipart/x-mixed-replace` JPEG parts behind Basic auth at the path
+it is given, as a Pnzeo W3 does at `/media/?action=stream`.
 
 It counts the connections it is given and the ones it has seen go, and keeps
 the `Authorization` each was made with, which are what the suite asserts on
@@ -35,7 +35,7 @@ class Camera:
     `answer` is what it does with a request: `"stream"` sends a frame every
     `period_s` — `end_after` of them and then ends the body, or forever where
     that is `None` — `"refuse"` answers 401, and `"silent"` answers 200 and
-    then sends nothing.
+    then sends nothing. Any path but `path` is 404.
     """
 
     def __init__(
@@ -45,8 +45,10 @@ class Camera:
         period_s: float = 0.02,
         size: int = 1024,
         end_after: int | None = None,
+        path: str = PATH,
     ) -> None:
         self.answer = answer
+        self.path = path
         self.period_s = period_s
         self.size = size
         self.end_after = end_after
@@ -64,7 +66,7 @@ class Camera:
 
     @property
     def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}{PATH}"
+        return f"http://127.0.0.1:{self.port}{self.path}"
 
     @property
     def connections(self) -> int:
@@ -98,6 +100,11 @@ class _Handler(BaseHTTPRequestHandler):
         camera = cast(_Server, self.server).camera
         camera.authorizations.append(self.headers.get("Authorization"))
         camera.paths.append(self.path)
+        if self.path != camera.path:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if camera.answer == "refuse" or self.headers.get("Authorization") != (
             AUTHORIZATION
         ):
