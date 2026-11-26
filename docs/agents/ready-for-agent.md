@@ -1,8 +1,8 @@
 # Reaching `ready-for-agent`
 
 What the label asserts, and the reasons an open issue does not carry it.
-Label strings are in [triage-labels.md](triage-labels.md); the `gh` commands
-are in [issue-tracker.md](issue-tracker.md).
+Label strings are in [triage-labels.md](https://github.com/rails49/.github/blob/main/docs/agents/triage-labels.md); the `gh` commands
+are in [issue-tracker.md](https://github.com/rails49/.github/blob/main/docs/agents/issue-tracker.md).
 
 ## What the label asserts
 
@@ -51,7 +51,7 @@ spec the tickets point to says the ruling too.
 
 `/implement-spec` starts a ticket only once its blockers are done, so a
 blocked issue may keep the label. Record the edge as a native GitHub
-dependency (see [issue-tracker.md](issue-tracker.md#wayfinding-operations)).
+dependency (see [issue-tracker.md](https://github.com/rails49/.github/blob/main/docs/agents/issue-tracker.md#wayfinding-operations)).
 
 Withholding the label instead loses information twice: the reason lives in a
 comment that the next reader has to find, and nothing states what the issue is
