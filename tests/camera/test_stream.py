@@ -3,7 +3,7 @@ camera is asked with (#851)."""
 
 import io
 
-from tc49.camera.stream import credentials, frames, stream_url
+from tc49.camera.stream import credentials, frames
 
 
 def body(*parts: bytes) -> io.BytesIO:
@@ -83,7 +83,3 @@ def test_the_login_is_admin_with_no_password_unless_set() -> None:
         credentials({"TC49_CAMERA_USER": "viewer", "TC49_CAMERA_PASSWORD": "pw"})
         == "Basic dmlld2VyOnB3"
     )  # viewer:pw
-
-
-def test_a_camera_is_asked_at_its_stream() -> None:
-    assert stream_url("192.168.178.58") == "http://192.168.178.58/media/?action=stream"

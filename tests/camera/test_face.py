@@ -10,6 +10,7 @@ The app's 5 s and 10 s are shortened to `SILENCE_S` and `LINGER_S`.
 import http.client
 import threading
 import time
+from collections.abc import Callable
 from itertools import pairwise
 from urllib.parse import quote
 
@@ -21,27 +22,24 @@ from tests.camera.conftest import (
     LINGER_S,
     RAILROAD,
     SILENCE_S,
-    Lens,
     Railroad,
     asked,
+    away,
     parts,
 )
+
+Fake = Callable[..., Camera]
 
 
 def picture(train: str, railroad: str = RAILROAD) -> str:
     return f"/picture/{quote(railroad, safe='')}/{quote(train, safe='')}"
 
 
-def watching(lens: Lens, name: str, camera: Camera) -> Camera:
-    lens.cameras[name] = camera
-    return camera
-
-
 def test_two_readers_of_one_train_share_one_connection_and_its_bytes(
-    railroad: Railroad, lens: Lens, face: int
+    railroad: Railroad, fake: Fake, face: int
 ) -> None:
-    camera = watching(lens, "cam-a", Camera())
-    railroad.roster({"ore": "cam-a"})
+    camera = fake()
+    railroad.roster({"ore": camera.url})
     one, two = asked(face, picture("ore")), asked(face, picture("ore"))
     for answer in (one, two):
         assert answer.status == 200
@@ -57,13 +55,44 @@ def test_two_readers_of_one_train_share_one_connection_and_its_bytes(
     assert camera.paths == [PATH]
 
 
+@pytest.mark.parametrize(
+    ("served", "written"),
+    [("/?action=stream", "/?action=stream"), ("/", "")],
+    ids=["path", "none"],
+)
+def test_a_camera_is_read_at_the_port_and_path_its_url_names(
+    railroad: Railroad, fake: Fake, face: int, served: str, written: str
+) -> None:
+    """mjpg-streamer's path rather than the Pnzeo W3's, and a URL with no
+    path at all, which is asked at `/`."""
+    camera = fake(path=served)
+    railroad.roster({"ore": f"http://127.0.0.1:{camera.port}{written}"})
+    answer = asked(face, picture("ore"))
+    assert answer.status == 200
+    _, frame = next(parts(answer))
+    assert frame in camera.sent
+    assert camera.paths == [served]
+
+
+def test_two_trains_with_two_cameras_get_a_connection_each(
+    railroad: Railroad, fake: Fake, face: int
+) -> None:
+    ore, coal = fake(), fake()
+    railroad.roster({"ore": ore.url, "coal": coal.url})
+    for train, camera in (("ore", ore), ("coal", coal)):
+        answer = asked(face, picture(train))
+        _, frame = next(parts(answer))
+        assert frame in camera.sent
+    assert (ore.connections, coal.connections) == (1, 1)
+
+
 def test_a_reader_that_stops_reading_holds_up_no_other(
-    railroad: Railroad, lens: Lens, face: int
+    railroad: Railroad, fake: Fake, face: int
 ) -> None:
     """Frames big and fast enough that a reader taking none fills every
     buffer between it and the app within the test."""
-    camera = watching(lens, "cam-a", Camera(size=256 * 1024, period_s=0.01))
-    railroad.roster({"ore": "cam-a"})
+    camera = fake(size=256 * 1024, period_s=0.01)
+    railroad.roster({"ore": camera.url})
     stalled = asked(face, picture("ore"))
     next(parts(stalled))
     reading = asked(face, picture("ore"))
@@ -78,10 +107,10 @@ def test_a_reader_that_stops_reading_holds_up_no_other(
 
 
 def test_the_connection_outlives_its_last_reader_by_the_wait(
-    railroad: Railroad, lens: Lens, face: int
+    railroad: Railroad, fake: Fake, face: int
 ) -> None:
-    camera = watching(lens, "cam-a", Camera())
-    railroad.roster({"ore": "cam-a"})
+    camera = fake()
+    railroad.roster({"ore": camera.url})
     first = asked(face, picture("ore"))
     next(parts(first))
     first.close()
@@ -98,14 +127,14 @@ def test_the_connection_outlives_its_last_reader_by_the_wait(
 
 
 @pytest.mark.parametrize(
-    ("trains", "path"),
+    ("carries", "path"),
     [
-        ({"ore": "cam-a"}, picture("ore", railroad="nowhere")),
-        ({"ore": "cam-a"}, picture("coal")),
-        ({"ore": None}, picture("ore")),
-        ({"ore": "cam-a"}, f"/picture/{RAILROAD}"),
-        ({"ore": "cam-a"}, f"/picture/{RAILROAD}/ore/more"),
-        ({"ore": "cam-a"}, "/rosters/oval"),
+        (True, picture("ore", railroad="nowhere")),
+        (True, picture("coal")),
+        (False, picture("ore")),
+        (True, f"/picture/{RAILROAD}"),
+        (True, f"/picture/{RAILROAD}/ore/more"),
+        (True, "/rosters/oval"),
     ],
     ids=[
         "no-railroad",
@@ -118,13 +147,13 @@ def test_the_connection_outlives_its_last_reader_by_the_wait(
 )
 def test_nothing_to_relay_is_404_with_no_body(
     railroad: Railroad,
-    lens: Lens,
+    fake: Fake,
     face: int,
-    trains: dict[str, str | None],
+    carries: bool,
     path: str,
 ) -> None:
-    camera = watching(lens, "cam-a", Camera())
-    railroad.roster(trains)
+    camera = fake()
+    railroad.roster({"ore": camera.url if carries else None})
     answer = asked(face, path)
     assert answer.status == 404
     assert answer.read() == b""
@@ -133,22 +162,26 @@ def test_nothing_to_relay_is_404_with_no_body(
 
 @pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "HEAD", "OPTIONS"])
 def test_any_other_method_is_404(
-    railroad: Railroad, lens: Lens, face: int, method: str
+    railroad: Railroad, fake: Fake, face: int, method: str
 ) -> None:
-    watching(lens, "cam-a", Camera())
-    railroad.roster({"ore": "cam-a"})
+    railroad.roster({"ore": fake().url})
     answer = asked(face, picture("ore"), method=method)
     assert answer.status == 404
     assert not [name for name in answer.headers if name.startswith("Access-Control")]
 
 
-@pytest.mark.parametrize("answer", ["away", "refuse", "silent"])
+@pytest.mark.parametrize("answer", ["away", "refuse", "silent", "elsewhere"])
 def test_a_camera_that_sends_no_first_frame_is_502_in_time(
-    railroad: Railroad, lens: Lens, face: int, answer: str
+    railroad: Railroad, fake: Fake, face: int, answer: str
 ) -> None:
-    if answer != "away":
-        watching(lens, "cam-a", Camera(answer))
-    railroad.roster({"ore": "cam-a"})
+    """`elsewhere` is a camera asked at a path it does not serve."""
+    if answer == "away":
+        url = away()
+    elif answer == "elsewhere":
+        url = f"http://127.0.0.1:{fake().port}/other"
+    else:
+        url = fake(answer).url
+    railroad.roster({"ore": url})
     began = time.monotonic()
     said = asked(face, picture("ore"))
     assert said.status == 502
@@ -157,10 +190,9 @@ def test_a_camera_that_sends_no_first_frame_is_502_in_time(
 
 
 def test_a_stream_that_ends_ends_every_reader(
-    railroad: Railroad, lens: Lens, face: int
+    railroad: Railroad, fake: Fake, face: int
 ) -> None:
-    watching(lens, "cam-a", Camera(period_s=0.1, end_after=10))
-    railroad.roster({"ore": "cam-a"})
+    railroad.roster({"ore": fake(period_s=0.1, end_after=10).url})
     readers = [asked(face, picture("ore")) for _ in range(2)]
     read: list[int] = []
 
@@ -176,9 +208,9 @@ def test_a_stream_that_ends_ends_every_reader(
     assert len(read) == 2 and all(read)
 
 
-def test_a_query_string_is_ignored(railroad: Railroad, lens: Lens, face: int) -> None:
-    camera = watching(lens, "cam-a", Camera())
-    railroad.roster({"ore": "cam-a"})
+def test_a_query_string_is_ignored(railroad: Railroad, fake: Fake, face: int) -> None:
+    camera = fake()
+    railroad.roster({"ore": camera.url})
     answer = asked(face, picture("ore") + "?t=12345")
     assert answer.status == 200
     _, frame = next(parts(answer))
@@ -187,15 +219,14 @@ def test_a_query_string_is_ignored(railroad: Railroad, lens: Lens, face: int) ->
 
 
 def test_the_camera_is_read_from_the_store_on_every_request(
-    railroad: Railroad, lens: Lens, face: int
+    railroad: Railroad, fake: Fake, face: int
 ) -> None:
-    before = watching(lens, "cam-a", Camera())
-    after = watching(lens, "cam-b", Camera())
-    railroad.roster({"ore": "cam-a"})
+    before, after = fake(), fake()
+    railroad.roster({"ore": before.url})
     answer = asked(face, picture("ore"))
     next(parts(answer))
     answer.close()
-    railroad.roster({"ore": "cam-b"})
+    railroad.roster({"ore": after.url})
     answer = asked(face, picture("ore"))
     _, frame = next(parts(answer))
     assert frame in after.sent
@@ -203,11 +234,10 @@ def test_the_camera_is_read_from_the_store_on_every_request(
 
 
 def test_a_railroad_and_a_train_are_one_level_each(
-    railroad: Railroad, lens: Lens, face: int
+    railroad: Railroad, fake: Fake, face: int
 ) -> None:
     """A name with a slash in it is escaped, and is a name rather than two
     levels."""
-    watching(lens, "cam-a", Camera())
-    railroad.roster({"ore/coal": "cam-a"})
+    railroad.roster({"ore/coal": fake().url})
     answer = asked(face, picture("ore/coal"))
     assert answer.status == 200

@@ -1,18 +1,19 @@
 """The camera side: one connection per camera, read a part at a time, and
 the newest frame handed to whoever is reading it (ADR-0082, decision 3).
 
-A camera car's camera speaks plain HTTP with Basic auth and sends MJPEG — a
+A camera car's camera is read at the URL of its MJPEG stream, as the roster
+holds it (`lib/stock.py`): plain HTTP with Basic auth, answered with a
 `multipart/x-mixed-replace` body, one JPEG per part. Modelled on
 [iot49/pnzeo](https://github.com/iot49/pnzeo)'s `Camera.frames()` and not
 importing it: a part is read by its `Content-Length`, as pnzeo's
 `_content_length` and `_read_exact` read it, and a part without one ends the
 stream rather than being searched for its boundary.
 
-**One connection per camera address**, however many pages are watching it.
-A camera on the LAN is a small device that serves few clients and serves each
-of them the same picture; a second connection to it buys nothing but load. So
-every reader of one address reads one `Stream`, and `Cameras` is what keeps it
-one.
+**One connection per camera URL**, however many pages are watching it. A
+camera on the LAN is a small device that serves few clients and serves each of
+them the same picture; a second connection to it buys nothing but load. So
+every reader of one URL reads one `Stream`, and `Cameras` is what keeps it
+one. URLs are compared as written, as the roster compares them.
 
 **Each reader is handed the newest frame.** A reader that cannot keep up — a
 page on a slow link, a tab gone to the background — skips the frames it was
@@ -52,12 +53,6 @@ the camera's own default, which no box changes today (docs/DEPLOY.md)."""
 MAX_LINE = 1024
 """The longest header line read. A camera's are a few dozen bytes; a longer
 one is not a camera speaking MJPEG, and ends the stream."""
-
-
-def stream_url(camera: str) -> str:
-    """Where a camera at `camera` — a bare host name or IPv4 address, as the
-    roster holds it (`lib/stock.py`) — serves its MJPEG."""
-    return f"http://{camera}/media/?action=stream"
 
 
 def credentials(environ: Mapping[str, str]) -> str:
@@ -140,7 +135,6 @@ class Stream:
     def __init__(
         self,
         camera: str,
-        url: str,
         authorization: str,
         silence_s: float,
         ended: Callable[["Stream"], None],
@@ -152,7 +146,6 @@ class Stream:
         self.left = 0
         """How many times the last reader has left, so a wait that a reader
         joining and leaving again has overtaken closes nothing."""
-        self._url = url
         self._authorization = authorization
         self._silence_s = silence_s
         self._ended_with = ended
@@ -199,7 +192,7 @@ class Stream:
             self._ended_with(self)
 
     def _stream(self) -> None:
-        where = urlsplit(self._url)
+        where = urlsplit(self.camera)
         held = socket.create_connection(
             (where.hostname or "", where.port or 80), timeout=self._silence_s
         )
@@ -209,7 +202,7 @@ class Stream:
                 held.close()
                 return
         with held, held.makefile("rb") as body:
-            path = where.path + (f"?{where.query}" if where.query else "")
+            path = (where.path or "/") + (f"?{where.query}" if where.query else "")
             held.sendall(
                 f"GET {path} HTTP/1.0\r\nHost: {where.netloc}\r\n"
                 f"Authorization: {self._authorization}\r\n\r\n".encode("latin-1")
@@ -240,30 +233,24 @@ def _answered_ok(body: BinaryIO) -> bool:
 
 
 class Cameras:
-    """The open connections, one per camera address, and how many requests
-    are reading each.
+    """The open connections, one per camera URL, and how many requests are
+    reading each.
 
     `join` hands a reader the open connection to its camera, or opens one;
     `leave` counts it out, and a connection with no reader left is closed
     `linger_s` later unless somebody joins in between. A connection that ends
     by itself is forgotten at once, so the next reader opens another.
-
-    `url` says where a camera address is read from. The camera's own path
-    everywhere but the suite, which serves its cameras on loopback ports a
-    roster's bare host name cannot carry.
     """
 
     def __init__(
         self,
         authorization: str,
         *,
-        url: Callable[[str], str] = stream_url,
         silence_s: float = SILENCE_S,
         linger_s: float = LINGER_S,
     ) -> None:
         self.silence_s = silence_s
         self._authorization = authorization
-        self._url = url
         self._linger_s = linger_s
         self._lock = threading.Lock()
         self._open: dict[str, Stream] = {}
@@ -274,7 +261,6 @@ class Cameras:
             if stream is None:
                 stream = Stream(
                     camera,
-                    self._url(camera),
                     self._authorization,
                     self.silence_s,
                     self._forget,

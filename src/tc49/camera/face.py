@@ -6,9 +6,10 @@ and its own app's face, and an HTTPS page cannot embed an HTTP stream
 (ADR-0082). So this answers for the camera, and the store never does.
 
 **Which camera is asked on every request.** The roster is read from the store
-each time (`Documents.roster`) and the train's `camera` taken
-(`lib/roster.py`), so a camera car coupled to another train, or given another
-address on the Stock screen, is what the next request reads.
+each time (`Documents.roster`) and the train's `camera`, the URL of its
+camera's stream, taken (`lib/roster.py`), so a camera car coupled to another
+train, or given another URL on the Stock screen, is what the next request
+reads.
 
 The answers, each with no body but the picture:
 
