@@ -61,7 +61,9 @@ wider again under a finger. On hover and while dragged the gap takes
 Shoelace's primary colour. The pane has a least width, where the roster is
 still usable, and a greatest, which leaves the drawing a least width of its
 own; both are in `ui/src/model/pane.ts`. Until the divider is first dragged
-the pane is as wide as the editor's palette, which has no divider.
+the pane is the shell's `--pane` wide, as the editor's palette is until its
+own divider is dragged ([EDITOR.md](EDITOR.md#palette)). A drag of either
+divider leaves the other part where it is.
 
 **A second gap, between the two lists, is dragged the same way**
 ([#1391](https://github.com/rails49/control/issues/1391)). It is a second

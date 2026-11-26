@@ -140,7 +140,8 @@ src/
   ui/
     tc-app.ts      the app: the loaded railroad, the views, the keys, and the
                    band and the rail, drawn from @rails49/look
-    tc-editor.ts   the editing view: palette, canvas, netlist, dialogs
+    tc-editor.ts   the editing view: palette, canvas, netlist, dialogs, and
+                   the dividers right of the palette and left of the netlist
     tc-palette.ts  one tile per placeable kind
     tc-canvas.ts   the one drawing surface, in either of its two modes: the
                    viewport, the artwork, and what only edit or only run draws
@@ -184,6 +185,8 @@ src/
     dismissal.ts   the overlay a menu drops over the page, worn by all three
                    menu systems: the press outside that dismisses, and the
                    right-click that is handed on to what is underneath
+    divider-size.ts  a divider's size in the edit view or the stock view,
+                   handed to the view's stylesheet as a custom property
     <component>.styles.ts  a component's styles, beside it
     shared.styles.ts   what more than one of them wears: the palette and the
                    symbol rules

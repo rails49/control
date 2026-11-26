@@ -118,9 +118,9 @@ describe("the palette", () => {
 });
 
 /**
- * The left pane's width is declared on the page: the palette in edit has it,
- * and the roster in run has it until a person drags its divider (#169, #291,
- * #1344). The throttle has no pane: its picker and its cab are full width
+ * The left pane's width is declared on the page: the palette in edit and the
+ * roster in run each have it until a person drags its divider (#169, #291,
+ * #1344, #1401). The throttle has no pane: its picker and its cab are full width
  * (#853).
  */
 describe("the left pane's width", () => {
@@ -605,6 +605,58 @@ describe("the run view's pane", () => {
     const timetable = rule(panelStyles.cssText, "tc-requests");
     expect(timetable).toMatch(/flex:\s*1 1 0/);
     expect(timetable).toMatch(/overflow-y:\s*auto/);
+  });
+});
+
+/**
+ * The edit view's palette, drawing and netlist (#1401): panels on the paper
+ * colour on a background of the gap colour, as the run view's are. A divider
+ * right of the palette sets its width and one left of the netlist sets the
+ * netlist's, and the view hands the two over as `--palette-size` and
+ * `--netlist-size`.
+ */
+describe("the edit view's dividers", () => {
+  const palette = "clamp(144px, var(--palette-size, var(--pane)), 100% - 256px)";
+
+  it("show the gap colour between panels on the paper colour", () => {
+    const sheet = editorStyles.cssText;
+    expect(rule(sheet, ":host")).toMatch(/background:\s*var\(--gap\)/);
+    for (const panel of ["tc-palette", "tc-canvas", "tc-netlist"]) {
+      expect(rule(sheet, panel)).toMatch(/background:\s*var\(--paper\)/);
+    }
+  });
+
+  /** The menu and the dialogs are in rows after the panels'. Those rows are
+   *  empty and take none of the view's height, so no strip of the gap colour
+   *  shows under the panels. */
+  it("leave the panels the view's whole height", () => {
+    expect(rule(editorStyles.cssText, ":host")).toMatch(/grid-template-rows:\s*1fr;/);
+  });
+
+  it("stand where the lines beside the palette and the netlist were", () => {
+    const sheet = editorStyles.cssText;
+    expect(sheet).not.toMatch(/border-(left|right)/);
+    expect(rule(sheet, ":host")).toMatch(/"palette palette-divider canvas"/);
+    expect(rule(sheet, ":host([netlist])")).toMatch(
+      /"palette palette-divider canvas netlist-divider side"/,
+    );
+    expect(rule(sheet, ".palette")).toMatch(/grid-area:\s*palette-divider/);
+    expect(rule(sheet, ".netlist")).toMatch(/grid-area:\s*netlist-divider/);
+  });
+
+  /** The palette is the shell's `--pane` wide until its divider is dragged,
+   *  and the limits a drag is held to hold when the window changes size. */
+  it("size the palette, held to its least and greatest by the stylesheet", () => {
+    const sheet = editorStyles.cssText;
+    expect(rule(sheet, ":host")).toContain(palette);
+    expect(rule(sheet, ":host([netlist])")).toContain(palette);
+  });
+
+  /** The netlist is 22rem wide until its divider is dragged. */
+  it("size the netlist, held to its least and greatest by the stylesheet", () => {
+    expect(rule(editorStyles.cssText, ":host([netlist])")).toContain(
+      "clamp(192px, var(--netlist-size, 22rem), 100% - 256px)",
+    );
   });
 });
 

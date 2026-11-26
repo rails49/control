@@ -6,7 +6,8 @@
  * the `Editor` and the review
  * ([ADR-0038](../../../docs/adr/0038-the-ui-is-one-app-with-views-of-one-railroad.md)).
  * What is this view's is what only editing has: the selection's dialogs, the
- * right-click menu, and which transit the netlist pane has lit. An edit goes
+ * right-click menu, which transit the netlist pane has lit, and the two
+ * dividers that size the palette and the netlist. An edit goes
  * up as an `edit` event, and the app asks the store what the drawing now
  * means.
  *
@@ -21,6 +22,8 @@
  * keeps any of it.
  */
 
+import "@rails49/look";
+import type { LookGapMoveDetail } from "@rails49/look";
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
@@ -37,6 +40,7 @@ import type { Chosen } from "../model/inspect.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
 import type { Under } from "../model/under.js";
 import { widgetOf } from "../model/widgets.js";
+import { moved, setKept } from "./divider-size.js";
 import { editorStyles } from "./tc-editor.styles.js";
 import "./tc-canvas.js";
 import "./tc-menu.js";
@@ -139,6 +143,12 @@ export class TcEditor extends LitElement {
   @state() private widget: { name: string; spec: WidgetSpec } | null = null;
   @state() private chosen: Chosen | null = null;
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    setKept(this, "palette");
+    setKept(this, "netlist");
+  }
+
   override willUpdate(changed: Map<string, unknown>): void {
     // Shutting the pane unlights whatever transit was chosen in it: the pane
     // is the only thing that lights a way and the only thing that could
@@ -167,6 +177,12 @@ export class TcEditor extends LitElement {
   override render() {
     return html`
       <tc-palette @take=${this.take}></tc-palette>
+      <look-gap
+        class="palette"
+        axis="x"
+        @look-gap-move=${(event: CustomEvent<LookGapMoveDetail>) =>
+          moved(this, "palette", event.detail)}
+      ></look-gap>
 
       <tc-canvas
         mode="edit"
@@ -181,6 +197,12 @@ export class TcEditor extends LitElement {
 
       ${this.netlist
         ? html`
+            <look-gap
+              class="netlist"
+              axis="x"
+              @look-gap-move=${(event: CustomEvent<LookGapMoveDetail>) =>
+                moved(this, "netlist", event.detail)}
+            ></look-gap>
             <tc-netlist
               .review=${this.review}
               .chosen=${this.chosen}
