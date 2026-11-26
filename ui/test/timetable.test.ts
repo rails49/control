@@ -531,7 +531,10 @@ describe("tc-requests with a timetable", () => {
 
   it("says no entries for a timetable with none, and no requests", async () => {
     const element = await list(loaded());
-    expect(element.renderRoot.querySelector(".hint")!.textContent!.trim()).toBe("no entries");
+    expect(element.renderRoot.querySelector(".table > .hint")!.textContent!.trim()).toBe(
+      "no entries",
+    );
+    expect(element.renderRoot.querySelectorAll(".columns > *")).toHaveLength(7);
   });
 
   it.each(["ended", "rejected", "cancelled", "skipped"] as const)(

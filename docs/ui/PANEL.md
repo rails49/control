@@ -177,7 +177,8 @@ above the drawing the two lists are side by side, each as tall as the pane.
 timetable: one row per entry or request, under the column headings Time,
 Train, To, Dwell, Description and State, and an unlabelled action column at
 the right. The headings stay at the top of the list while the rows scroll
-under them. Every other row is shaded with the stripe colour, and no line
+under them. With no rows the headings are drawn all the same, with *no
+requests*, or *no entries* with a timetable loaded, under them. Every other row is shaded with the stripe colour, and no line
 divides two rows. A row's "waits for" line and its open row are shaded with
 it.
 
