@@ -106,6 +106,12 @@ function drawn(element: TcRequests): string[][] {
   );
 }
 
+/** The declarations of the rule for `selector`, at the start of a line. */
+function rule(sheet: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^\\s*${escaped} \\{([^}]*)\\}`, "m").exec(sheet)![1]!;
+}
+
 /** The moves the list raised while `act` ran. */
 function reorders(element: TcRequests, act: () => void): RequestReorder[] {
   const seen: RequestReorder[] = [];
@@ -129,6 +135,69 @@ describe("tc-requests", () => {
       ["goods", "b.A → c.B", "waiting"],
       ["local", "d.A → b.B, c.B", "waiting"],
     ]);
+  });
+
+  /** The list is a table (#1393): the same columns with a timetable or
+   *  without, the action's unlabelled. */
+  it("heads its columns Time, Train, To, Dwell, Description and State", async () => {
+    const element = await list(ROWS);
+    const headings = [...element.renderRoot.querySelectorAll(".columns > *")];
+    expect(headings.map((cell) => cell.textContent!.trim())).toEqual([
+      "Time",
+      "Train",
+      "To",
+      "Dwell",
+      "Description",
+      "State",
+      "",
+    ]);
+  });
+
+  it("leaves Time, Dwell and Description empty on a request's row", async () => {
+    const element = await list(ROWS);
+    const row = element.renderRoot.querySelector("li")!;
+    expect(
+      [".time", ".dwell", ".description"].map((cell) => row.querySelector(cell)!.textContent!.trim()),
+    ).toEqual(["", "", ""]);
+  });
+
+  /** The headings stay in view at the top of what scrolls, over the rows
+   *  scrolled under them. */
+  it("keeps its column headings at the top of what scrolls", async () => {
+    const element = await list(ROWS);
+    const scrolled = element.renderRoot.querySelector(".table")!;
+    expect(scrolled.firstElementChild!.classList.contains("columns")).toBe(true);
+    expect(scrolled.querySelectorAll("li")).toHaveLength(ROWS.length);
+    const sheet = requestsStyles.cssText;
+    expect(rule(sheet, ".table")).toMatch(/overflow-y:\s*auto/);
+    const columns = rule(sheet, ".columns");
+    expect(columns).toMatch(/position:\s*sticky/);
+    expect(columns).toMatch(/top:\s*0/);
+    expect(columns).toMatch(/background:\s*var\(--paper\)/);
+  });
+
+  /** Every other row takes the stripe shade, and no line divides two rows.
+   *  The note line and the open row are inside their row's `li`, so they
+   *  share its stripe. A row picked up is marked over its stripe, and a done
+   *  row is dimmed with it. */
+  it("stripes every other row and rules no line between rows", () => {
+    const sheet = requestsStyles.cssText;
+    expect(rule(sheet, "li:nth-child(even)")).toMatch(/background:\s*var\(--stripe\)/);
+    expect(sheet).not.toContain("li + li");
+    expect(sheet).not.toMatch(/border-top/);
+    expect(rule(sheet, "li.held")).toMatch(/background:\s*var\(--rule\)/);
+    expect(sheet.indexOf("li.held {")).toBeGreaterThan(sheet.indexOf("li:nth-child(even) {"));
+  });
+
+  /** Each row lines its cells up with the headings' columns: the rows take
+   *  the table's columns. */
+  it("lines every row's cells up with the headings", () => {
+    const sheet = requestsStyles.cssText;
+    for (const part of ["ul", "li", ".columns"]) {
+      expect(rule(sheet, part)).toMatch(/grid-template-columns:\s*subgrid/);
+    }
+    expect(rule(sheet, ".note")).toMatch(/grid-column:\s*train\s*\/\s*-1/);
+    expect(rule(sheet, "tc-entry")).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
   /** The name's rule wraps it at any character and sets no ellipsis (#1305). */

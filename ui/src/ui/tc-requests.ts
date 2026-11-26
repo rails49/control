@@ -8,26 +8,29 @@
  *
  * It sits in the run view's pane, under the roster, or beside it where the
  * pane is above the drawing. Its heading is "Timetable" and the loaded
- * timetable's name, and it stays in view: the rows scroll under it.
+ * timetable's name, and it stays in view: the table scrolls under it.
+ *
+ * The rows are a table
+ * ([#1393](https://github.com/rails49/control/issues/1393)), one row per
+ * entry or request, under the column headings Time, Train, To, Dwell,
+ * Description, State and an unlabelled action column, the same with a
+ * timetable or without. The headings stay at the top of what scrolls. A row's
+ * cells and its "waits for" line are `list-row.ts`'s.
  *
  * With no timetable loaded the rows are the requests, in the order the
- * dispatcher serves them. A request's row is the train,
- * where the request starts, where it ends, and `waiting` or `underway`, and,
- * under them, which train it waits for where the dispatcher refused it a
- * launch or a move (#1114). An underway row whose cancel the dispatcher holds
- * says where the train stops in place of `underway`, and its cancel is off
- * until the row goes (#1115): the train runs on into that block first.
- * While the railroad runs without sensors an underway row also has "arrived"
- * before its cancel, for the person to say the train is in its destination
- * block (#1323).
+ * dispatcher serves them, with Time, Dwell and Description empty. A refused
+ * request has a line under its row that says which train it waits for
+ * (#1114). An underway row whose cancel the dispatcher holds says where the
+ * train stops in place of `underway`, and its cancel is off until the row
+ * goes (#1115): the train runs on into that block first. While the railroad
+ * runs without sensors an underway row also has "arrived" before its cancel,
+ * for the person to say the train is in its destination block (#1323).
  *
  * With a timetable loaded the rows are its entries, then the requests no
  * entry went out as (`model/timetable.ts`). An entry that is out while the
- * dispatcher lists its request is that request's row with the entry's time
- * before where it goes. Any other entry is its train, its state, its time
- * and where it goes, "turn" for a turn-round. A row that is ended, rejected,
- * cancelled or skipped is dimmed. A row whose entry has a dwell or a
- * description carries them, and the stylesheet shows them where the list is
+ * dispatcher lists its request is that request's row with the entry's time,
+ * dwell and description. A row that is ended, rejected, cancelled or skipped
+ * is dimmed. The stylesheet shows Dwell and Description where the list is
  * wide. Each time the timetable is handed in, the list is scrolled to its
  * newest entry: one just recorded, or the one that went out last (`newest` in
  * `model/timetable.ts`). It is not scrolled for an entry that ends, or while
@@ -35,7 +38,7 @@
  *
  * A tap on an entry's row opens it
  * ([#1358](https://github.com/rails49/control/issues/1358)): `tc-entry` is
- * drawn under the row's lines, with the entry's time, arrival ends, dwell
+ * drawn under the row's line, with the entry's time, arrival ends, dwell
  * and description and a Delete. The view hands this the railroad's block
  * names, and this hands them to `tc-entry`, which refuses arrival ends at a
  * block the railroad does not have. One row is open at a time and a tap on
@@ -74,11 +77,11 @@ import {
   placeOf,
   tapped,
   type Entry,
-  type EntryState,
   type ListRow,
   type Opened,
   type Timetable,
 } from "../model/timetable.js";
+import { cells, note, type RowActions } from "./list-row.js";
 import "./tc-entry.js";
 import type { EntryChange } from "./tc-entry.js";
 import { requestsStyles } from "./tc-requests.styles.js";
@@ -161,11 +164,22 @@ export class TcRequests extends LitElement {
       ${rows.length === 0
         ? html`<p class="hint">${this.timetable === null ? "no requests" : "no entries"}</p>`
         : html`
-            <ul>
-              ${before.map((row) => this.row(row, false))}
-              ${open === undefined ? nothing : keyed(this.taps, this.row(open, true))}
-              ${after.map((row) => this.row(row, false))}
-            </ul>
+            <div class="table">
+              <div class="columns">
+                <span class="time">Time</span>
+                <span class="train">Train</span>
+                <span class="way">To</span>
+                <span class="dwell">Dwell</span>
+                <span class="description">Description</span>
+                <span class="state">State</span>
+                <span class="action"></span>
+              </div>
+              <ul>
+                ${before.map((row) => this.row(row, false))}
+                ${open === undefined ? nothing : keyed(this.taps, this.row(open, true))}
+                ${after.map((row) => this.row(row, false))}
+              </ul>
+            </div>
           `}
     `;
   }
@@ -203,20 +217,17 @@ export class TcRequests extends LitElement {
   }
 
   /**
-   * One row.
+   * One row: its cells and its "waits for" line (`list-row.ts`).
    *
    * - An entry that is not out, or whose request the dispatcher does not
-   *   list: its train, its state, its time and where it goes. It is no
-   *   request, so it has no cancel and is not picked up.
-   * - A request, with the time of the entry it went out as where there is
-   *   one. A waiting row can be picked up; an underway one cannot, having
-   *   started. Both can be cancelled, once. An underway one can be said to
-   *   have arrived where the list is `arrivable`.
+   *   list, is no request, so it has no cancel and is not picked up.
+   * - A waiting request can be picked up; an underway one cannot, having
+   *   started.
    *
-   * `open` draws the entry's fields under the row's lines.
+   * `open` draws the entry's fields under the row's line.
    */
   private row(row: ListRow, open: boolean) {
-    const { entry, state, request } = row;
+    const { entry, request } = row;
     const pickable = this.live && request?.state === "waiting";
     const classes =
       request === undefined
@@ -231,74 +242,21 @@ export class TcRequests extends LitElement {
         @pointercancel=${() => (this.held = null)}
         @click=${(event: MouseEvent) => this.tapped(event, entry)}
       >
-        ${request === undefined ? this.entryLines(entry!, state!) : this.requestLines(request, entry)}
+        ${cells(row, this.actions())} ${note(row)}
         ${entry !== undefined && open ? this.fields(entry) : nothing}
-        ${request === undefined ? nothing : this.buttons(request)}
       </li>
     `;
   }
 
-  /** The lines of an entry's row: its train, its state, its time and where
-   *  it goes, "turn" for a turn-round. */
-  private entryLines(entry: Entry, state: EntryState) {
-    return html`
-      <span class="train">${entry.train}</span>
-      <span class="state">${state}</span>
-      <span class="time">${entry.at}</span>
-      <span class="way">${entry.to === undefined ? "turn" : `→ ${ends(entry.to)}`}</span>
-      ${this.more(entry)}
-    `;
-  }
-
-  /** The lines of a request's row: its train, its state, the time of the
-   *  entry it went out as, where it goes from and to, and what it waits for. */
-  private requestLines(request: RequestRow, entry: Entry | undefined) {
-    const { train, from, to, state, note, cancelling } = request;
-    const said = cancelling === undefined ? state : `cancelling — stops in ${cancelling}`;
-    return html`
-      <span class="train">${train}</span>
-      <span class="state">${said}</span>
-      ${entry === undefined ? nothing : html`<span class="time">${entry.at}</span>`}
-      <span class="way">${ends(from)} → ${ends(to)}</span>
-      ${entry === undefined ? nothing : this.more(entry)}
-      ${(note ?? []).map((sentence) => html`<span class="note">${sentence}</span>`)}
-    `;
-  }
-
-  /** A request's "arrived" and cancel, where a press means anything. */
-  private buttons({ id, state, cancelling }: RequestRow) {
-    return html`
-      ${this.live && this.arrivable && state === "underway"
-        ? html`<button
-            class="arrived"
-            aria-label="Train has arrived"
-            @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
-            @click=${() => this.arrived(id)}
-          >
-            arrived
-          </button>`
-        : nothing}
-      ${this.live
-        ? html`<button
-            class="cancel"
-            aria-label=${cancelling === undefined ? "Cancel request" : "already cancelling"}
-            ?disabled=${cancelling !== undefined}
-            @pointerdown=${(event: PointerEvent) => event.stopPropagation()}
-            @click=${() => this.cancel(id)}
-          >
-            ×
-          </button>`
-        : nothing}
-    `;
-  }
-
-  /** An entry's dwell and description, where it has them. The stylesheet
-   *  shows them only where the list is wide. */
-  private more({ dwell, description }: Entry) {
-    return html`
-      ${dwell ? html`<span class="dwell">dwell ${dwell} min</span>` : nothing}
-      ${description ? html`<span class="description">${description}</span>` : nothing}
-    `;
+  /** What a row's buttons need: whether a press means anything, and what
+   *  each press raises. */
+  private actions(): RowActions {
+    return {
+      live: this.live,
+      arrivable: this.arrivable,
+      arrived: (id) => this.arrived(id),
+      cancel: (id) => this.cancel(id),
+    };
   }
 
   /** The open part of an entry's row (`tc-entry`). A press in it does not
@@ -392,12 +350,6 @@ export class TcRequests extends LitElement {
       }),
     );
   }
-}
-
-/** A set of block ends in words: one end as itself, several joined, and none
- *  as a dash — a chained request whose earlier one is no longer listed. */
-function ends(at: readonly string[]): string {
-  return at.length === 0 ? "—" : at.join(", ");
 }
 
 /** Whether the pointer is over `row`. */
