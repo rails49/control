@@ -1102,6 +1102,8 @@ payload is read defensively, and one that fails the read is dropped.
   names the entry by what it reads now.
   - The scheduler changes the first entry equal to `was` in every field, a
     `dwell` left out being 0 and a `description` left out being empty.
+  - `at` in `was` and `now` is text in the time form
+    ([LAYOUT.md](store/LAYOUT.md#timetable-schema)).
   - A changed `at` moves the entry to its place in the order, after the last
     entry at or before its new time.
   - The entry keeps its `state`, `request` and `ended`. An entry that has
@@ -1112,9 +1114,10 @@ payload is read defensively, and one that fails the read is dropped.
     value. A changed `to` or `train` is not refused.
   - Dropped where no entry equals `was`, where `was` or `now` is no entry the
     timetable document takes ([LAYOUT.md](store/LAYOUT.md#timetable-schema)),
-    which a `state`, `request` or `ended` field makes it, and where `now` is
-    left out
-    ([#1345](https://github.com/rails49/control/issues/1345), [#1354](https://github.com/rails49/control/issues/1354)).
+    which a `state`, `request` or `ended` field makes it, where `now` is
+    left out, and where the `at` of `now` is outside the repeat: before
+    `start`, or at or after `start` plus `repeat`
+    ([#1345](https://github.com/rails49/control/issues/1345), [#1354](https://github.com/rails49/control/issues/1354), [#1365](https://github.com/rails49/control/issues/1365)).
 - `tc49/schedule/timetable_start_wanted` — browser-writable — no fields.
   Starts the loaded timetable while its phase is `loaded`, whatever power
   reads and whether or not a request to a start block is still out: the
@@ -1133,8 +1136,12 @@ payload is read defensively, and one that fails the read is dropped.
     start, and stays loaded until another is loaded or made.
   - `record`: boolean, whether a drag or a turn-round adds an entry. Off
     after a load.
-  - `start`: `"HH:MM"`, the clock's time when the timetable was made, rounded
-    down to the minute.
+  - `start`: `"HH:MM"`, a time on day 0: the clock's time when the timetable
+    was made, rounded down to the minute.
+  - `repeat`: text, a length in the time form
+    ([LAYOUT.md](store/LAYOUT.md#timetable-schema)), greater than 0: the time
+    from `start` to where the timetable begins again. A new timetable has
+    `1d00:00`. A restart takes it from the row.
   - `trains`: map of train to `{at, facing}`, the block each train stood in
     when the timetable was made and `A-to-B` or `B-to-A`. A train off the
     layout is left out.
@@ -1147,16 +1154,18 @@ payload is read defensively, and one that fails the read is dropped.
     ends of the block, and nothing after a second rejection. A train in
     its start block, whatever its facing, and a train off the layout get
     none. An id leaves the list when its request ends, however it ends.
-  - `entries`: the entries in order of time counted from `start`, each with
-    the document's fields ([LAYOUT.md](store/LAYOUT.md#timetable-schema)):
-    `at`, `train`, `to` or `turn`, and `dwell` and `description` where it has
-    them. Each also has
+  - `entries`: the entries in order of `at`, each with the document's fields
+    ([LAYOUT.md](store/LAYOUT.md#timetable-schema)): `at`, text in the time
+    form, `train`, `to` or `turn`, and `dwell` and `description` where it has
+    them. A recorded drag is at `start` plus the clock's time since `start`
+    within the repeat, rounded down to the minute: `1d00:01` with a start of
+    23:58 and the clock at 00:01. Each also has
     - `state`: `later`, `held`, `out`, `ended`, `rejected`, `cancelled` or
       `skipped`. A recorded drag is `out` and follows its request: `ended`
       at `request_completed`, `rejected` at `request_rejected`, `cancelled`
       at `request_cancelled`. A recorded turn-round is `ended`. In a
       `running` timetable an entry is `later` until timetable time reaches
-      its `at`, and `held` while it is due and waits on its train's entry
+      its `at` less `start`, and `held` while it is due and waits on its train's entry
       before it, that entry's dwell, or, for a turn-round, a request in
       flight. Released, an entry with `to` is `out` as an ordinary
       `request_submitted`, chained `after` the train's latest request in

@@ -419,12 +419,13 @@ log and treated as none. Copy and delete carry it with the clock.
 
 A railroad's timetables are one document each, at
 `timetables/<railroad>/<name>.timetable.yaml` in the store
-([#1345](https://github.com/rails49/control/issues/1345)):
+([#1345](https://github.com/rails49/control/issues/1345), [#1365](https://github.com/rails49/control/issues/1365)):
 
 ```yaml
 timetable: evening       # the name in the path
 layout: crossover-yard   # the railroad in the path
 start: "06:00"           # "HH:MM", quoted: YAML reads a bare 12:30 as a number
+repeat: "1d00:00"        # from the start to where it begins again
 
 trains:                  # where each train stands at the start
   freight_1: { at: yard_w, facing: A-to-B }
@@ -435,13 +436,23 @@ entries:
   - { at: "06:12", train: freight_1, to: [yard_w.B] }
 ```
 
-All five fields, and nothing else. `trains` may be an empty map and `entries`
+All six fields, and nothing else. `trains` may be an empty map and `entries`
 an empty list.
 
 - `timetable` and `layout` are text, not empty, with no `/` and no leading
   `.`.
-- `start` and each `at` are a time of day on the fast clock, `"HH:MM"` as
-  text.
+- A time and a length are written in the time form `[<day>d]HH:MM`, as text:
+  `<day>` a whole number without leading zeros, `HH` `00`–`23`, `MM`
+  `00`–`59`. Leaving out `<day>d` means day 0, so `06:00` and `0d06:00` are
+  the same time, and `1d06:00` is a day later. The store writes day 0 without
+  `0d`.
+- `start` is `"HH:MM"`, a time on day 0.
+- `repeat` is a length in the time form, greater than 0: the time from
+  `start` to where the timetable begins again. A new timetable is written
+  with `1d00:00`. A document without it, or with `00:00`, does not read.
+- Each entry's `at` is a time in the time form, from `start` to before
+  `start` plus `repeat`. With a start of 06:00 and a repeat of `1d00:00`, the
+  last minute is `1d05:59`, and `05:59` does not read.
 - `trains` maps a train to `at`, the block it stands in, and `facing`,
   `A-to-B` or `B-to-A`. Both fields, and nothing else.
 - An entry has `at`, `train` and one of `to` or `turn: true`, not both.
@@ -453,16 +464,18 @@ an empty list.
   - `description` is text and may be left out.
   - Any other key is refused.
 
-Entries are in order of time counted from `start`, so with a start of 22:00 an
-entry at 01:00 comes after one at 23:00. Entries in the same minute keep the
-file's order. A file out of order is sorted when read, not refused.
+Entries are in order of `at`, so with a start of 22:00 an entry at `1d01:00`
+comes after one at 23:00. Entries in the same minute keep the file's order. A
+file out of order is sorted when read, not refused. A file with an entry
+outside the repeat is refused, and so is a `PUT` of one, with the reason:
+`entry 1: 'at' is 05:59, before the start 06:00`.
 
 The document is checked for shape only (`tc49.lib.timetable`). A block or a
 train the railroad does not have is not refused. The store also refuses one
 whose `timetable` or `layout` is not the name or the railroad in its path.
 Copy and delete of a railroad carry its timetables, a copy's with `layout`
-naming the copy. The store writes `start` and each `at` in double quotes, and
-text outside ASCII as itself.
+naming the copy. The store writes `start`, `repeat` and each `at` in double
+quotes, and text outside ASCII as itself.
 
 ## Scenario schema
 
