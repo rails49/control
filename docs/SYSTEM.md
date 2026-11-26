@@ -831,25 +831,30 @@ row, it makes one named `untitled`, which replaces a stored `untitled`. A
 person makes one under another name with `tc49/schedule/timetable_wanted`
 and `new`, taken while power reads `off`; it replaces a timetable of that
 name, loaded or stored. A new timetable takes the clock's time of day,
-rounded down to the minute, as its start, and as its `trains` each train the allocation
-names in a block and the scheduler holds a facing for, with that block and
-facing. It has no entries, Record is on and it is `running` at once.
+rounded down to the minute, as its start, a `repeat` of one day, and as its
+`trains` each train the allocation names in a block and the scheduler holds a
+facing for, with that block and facing. It has no entries, Record is on and
+it is `running` at once. The scheduler publishes `tc49/layout/clock_wanted`
+with the clock's time of day to the second, on day 0, so the clock and the
+timetable read the same numbers and the face does not move
+([#1367](https://github.com/rails49/control/issues/1367)).
 
 While the timetable is `running` and Record is on:
 
-- a drag the scheduler composes adds an entry at the clock's time of day
-  to the minute, with the train and `to` as the gesture gave it, a bare block
-  still bare. The entry is `out` and carries the id of the request the drag
+- a drag the scheduler composes at clock time _c_ adds an entry at the
+  start plus ((_c_ − start) mod repeat), rounded down to the minute, with the train and `to` as the gesture gave it, a bare block
+  still bare. The entry is `out` in round ⌊(_c_ − start) / repeat⌋, 0 with
+  the clock before the start, and carries the id of the request the drag
   made;
 - a turn-round the scheduler applies adds an entry with `turn: true` that
-  has `ended`. A turn-round it drops adds nothing.
+  has `ended` in that round. A turn-round it drops adds nothing.
 
 A new entry goes after the last entry at or before its time. An entry that
-is `out` follows its request: `ended` with the timetable's time at
+is `out` follows its request: `ended` with the clock's time at
 `request_completed`, `rejected` at `request_rejected`, `cancelled` at
 `request_cancelled`. A cancel leaves the entry in the document. With Record
-off, or once the timetable is `over`, 24 fast-clock hours after its start, a
-drag is a request with no entry. `tc49/schedule/timetable_record_wanted`
+off, or before the timetable has started, a drag is a request with no
+entry. `tc49/schedule/timetable_record_wanted`
 switches Record. Placements, removals and reordering of the request list add
 nothing.
 
@@ -861,7 +866,7 @@ A person changes the loaded timetable with two gestures
   scheduler changes the first entry equal to it. Where none is equal the
   gesture is dropped. A changed time moves the entry to its place in the
   order, after the last entry at or before the new time. The entry keeps its
-  state, its request and its ending. Changing or deleting an entry that has
+  round, its state, its request and its ending. Changing or deleting an entry that has
   gone out changes the timetable and leaves the request alone. The gesture
   is taken in every phase, with Record on or off and at any power value, so
   an entry that ran tonight can be changed for the next run.
@@ -913,41 +918,47 @@ It **loads** a timetable and **releases** its entries on the fast clock
 - **Start.** The timetable starts when the last of them has ended, however
   it ended, and power reads `on`, or when a person asks on
   `tc49/schedule/timetable_start_wanted`. The scheduler publishes
-  `tc49/layout/clock_wanted` with the start time, and the phase is
+  `tc49/layout/clock_wanted` with the start time on day 0, and the phase is
   `running`. The binding keeps that time as the railroad's clock start.
-- **Timetable time** is how far the timetable has run, in fast-clock
-  seconds since the start. Each clock row moves it.
-  - A row less than 12 hours ahead of where the timetable has run to moves
-    it forward by the difference. So a clock set forward makes the entries
-    passed over due, in order.
-  - Any other row is read as the clock set back and moves nothing. The
-    timetable goes on once the clock passes where it had been, and nothing
-    is released twice. A clock set forward by 12 hours or more is read the
-    same way.
-  - After a start, a row said before the clock took the start time can
-    still arrive. Rows are passed over until one reads the start time or
-    up to two beats past it, twice the speed-up in seconds.
-  - After a restart the first clock row gives the time: its time less the
-    start, within the day.
-- **Release.** An entry is due when timetable time reaches the entry's
-  `at`. A train's entries go in order, each after the one before has
-  ended, been rejected, cancelled or skipped, and after that one's dwell
-  where it ended by arrival. An entry with `to` is composed as a drag of
+  After a start, a row said before the clock took the start time can still
+  arrive. Rows are passed over until one reads from the start time to two
+  beats past it, twice the speed-up in seconds.
+- **Time.** A clock row's time is the clock's, fast-clock seconds since
+  midnight of day 0 with no upper limit, and an entry's `at` is on the same
+  scale. So an entry at `1d01:00` is due on day 1, not at 01:00 on day 0.
+- **Rounds** ([#1367](https://github.com/rails49/control/issues/1367)). A
+  timetable repeats every `repeat` and never ends. In round _n_ an entry is
+  due at its `at` plus _n_ × repeat. An entry that has ended, been
+  rejected, cancelled or skipped moves to the next round, `later`, once the
+  clock reaches the start of that round, the start plus (_n_ + 1) × repeat.
+  One that is not done stays in its round until it is, and moves at once if
+  the next round has begun. A train still late when the next round begins
+  runs late into it, and nothing is dropped. The row gives each entry's
+  `round`.
+- **Set forward, set back.** A clock set forward makes the entries passed
+  over due, in order. A clock set back makes the entries not yet out
+  `later` again. No entry moves back a round, so nothing is released twice.
+- **Release.** A train's entries go in order, round after round: each
+  after every entry of its train before it in (round, position) order has
+  ended, been rejected, cancelled or skipped, so its first entry of a round
+  waits for its last of the round before. Each waits for the dwell of the
+  train's entry before it where that one ended by arrival. The dwell runs
+  on the clock from the arrival, across midnight too. An entry with `to` is composed as a drag of
   its train to those arrival ends, so it has a drag's id and departure end,
   a bare block goes out as both of its ends, and it chains after the
   train's latest request in flight, a person's included. A turn-round is
   the reversal a person's gesture makes, and
   waits while its train has a request in flight. An entry for a train off
-  the layout is `skipped`. A rejected or cancelled entry is not released
-  again.
+  the layout is `skipped` in that round only, and runs in the next round
+  once the train is placed. A rejected or cancelled entry is not released
+  again in its round.
 - A person's own drag during a run is composed at once, whatever dwell an
   entry stated. With Record off, as a load leaves it, it adds no entry.
-- **Over.** 24 fast-clock hours after its start the phase is `over` and
-  nothing more is released or recorded. The timetable stays loaded until
-  another is loaded or made.
-- **A restart** adopts a `loaded` phase and the row's `positioning`. An id
-  the first allocation row does not list has ended. A `running` timetable
-  takes its time from the first clock row and goes on. A request to a
+- The timetable stays loaded until another is loaded or made.
+- **A restart** adopts the phase, the row's `positioning` and each entry's
+  round and state. An id the first allocation row does not list has ended.
+  A `running` timetable takes the clock's time from the first clock row and
+  goes on. A request to a
   start block rejected as `unreachable` after a restart gets no second
   one.
 

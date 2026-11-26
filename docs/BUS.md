@@ -866,9 +866,12 @@ what a drop would cost:
   the simulator in its place, answers it, publishes `state/clock` at once and
   keeps the setting with the railroad: a new `time` as its start, rounded down
   to the minute, and the speed-up the clock now runs at. The scheduler
-  writes it too, with `time` and no `speed_up`, to start a timetable at its
-  start time, so that time is kept as the railroad's clock start
-  ([#1353](https://github.com/rails49/control/issues/1353))
+  writes it too, with `time` and no `speed_up`, so the clock reads on day 0
+  as the timetable does: at a timetable's start time on day 0 when it
+  starts one, so that time is kept as the railroad's clock start
+  ([#1353](https://github.com/rails49/control/issues/1353)), and at the
+  clock's time of day to the second on day 0 when it makes one
+  ([#1367](https://github.com/rails49/control/issues/1367))
   ([ADR-0090](adr/0090-layout-publishes-the-fast-clock-and-the-railroad-keeps-its-start-and-speed-up.md)).
 - `tc49/layout/take_wanted` — browser-writable — `train`; `throttle`: a
   non-empty string, the id the throttle's page minted when it opened, or
@@ -1075,7 +1078,8 @@ payload is read defensively, and one that fails the read is dropped.
 - `tc49/schedule/timetable_wanted` — browser-writable — `timetable`: a name,
   text and not empty; `new`: `true`, or left out. With `new` the scheduler
   makes a new timetable of that name, in place of the one loaded and of a
-  stored one of that name. It is dropped unless `tc49/layout/state/power`
+  stored one of that name, and publishes `tc49/layout/clock_wanted` with the
+  clock's time of day on day 0. It is dropped unless `tc49/layout/state/power`
   reads `off`, and until the scheduler has read a clock row and an
   allocation row. A name the timetable document does not take, one with a
   `/` or a leading `.`, is dropped. Without `new` the scheduler loads the
@@ -1122,18 +1126,18 @@ payload is read defensively, and one that fails the read is dropped.
   Starts the loaded timetable while its phase is `loaded`, whatever power
   reads and whether or not a request to a start block is still out: the
   scheduler publishes `tc49/layout/clock_wanted` with the timetable's start
-  time and the phase is `running`. Dropped in any other phase and where
+  time on day 0 and the phase is `running`. Dropped in any other phase and where
   none is loaded ([#1353](https://github.com/rails49/control/issues/1353)).
 - `tc49/schedule/state/timetable` — the loaded timetable. The scheduler
   publishes it when it changes, not each second, and only where it keeps
   timetables: a run of the test harness or the bench has no such row.
   - `timetable`: the loaded timetable's name, or `null`, in which case no
     other field is present.
-  - `phase`: `loaded`, `running` or `over`. A new timetable is `running` at
-    once. A timetable a person loads is `loaded` until it starts: when
+  - `phase`: `loaded` or `running`. A new timetable is `running` at once. A
+    timetable a person loads is `loaded` until it starts: when
     `positioning` is empty and power reads `on`, or at
-    `timetable_start_wanted`. It is `over` 24 fast-clock hours after its
-    start, and stays loaded until another is loaded or made.
+    `timetable_start_wanted`. A running timetable repeats every `repeat`
+    and never ends. It stays loaded until another is loaded or made.
   - `record`: boolean, whether a drag or a turn-round adds an entry. Off
     after a load.
   - `start`: `"HH:MM"`, a time on day 0: the clock's time when the timetable
@@ -1157,30 +1161,42 @@ payload is read defensively, and one that fails the read is dropped.
   - `entries`: the entries in order of `at`, each with the document's fields
     ([LAYOUT.md](store/LAYOUT.md#timetable-schema)): `at`, text in the time
     form, `train`, `to` or `turn`, and `dwell` and `description` where it has
-    them. A recorded drag is at `start` plus the clock's time since `start`
-    within the repeat, rounded down to the minute: `1d00:01` with a start of
-    23:58 and the clock at 00:01. Each also has
+    them. A recorded drag at clock time _c_ is at `start` plus
+    ((_c_ − `start`) mod `repeat`), rounded down to the minute: `1d00:01`
+    with a start of 23:58 and the clock at 00:01. Each also has
     - `state`: `later`, `held`, `out`, `ended`, `rejected`, `cancelled` or
       `skipped`. A recorded drag is `out` and follows its request: `ended`
       at `request_completed`, `rejected` at `request_rejected`, `cancelled`
       at `request_cancelled`. A recorded turn-round is `ended`. In a
-      `running` timetable an entry is `later` until timetable time reaches
-      its `at` less `start`, and `held` while it is due and waits on its train's entry
-      before it, that entry's dwell, or, for a turn-round, a request in
-      flight. Released, an entry with `to` is `out` as an ordinary
-      `request_submitted`, chained `after` the train's latest request in
-      flight where it has one, and a turn-round is `ended`. An entry for a
-      train off the layout is `skipped`.
+      `running` timetable an entry is `later` while the clock has not
+      reached its due time in its round, `at` plus `round` × `repeat`, and
+      `held` while it is due and waits on an entry of its train before it
+      in (round, position) order, the dwell of the train's entry before it,
+      or, for a turn-round, a request in flight. Released, an entry with
+      `to` is `out` as an ordinary `request_submitted`, chained `after` the
+      train's latest request in flight where it has one, and a turn-round
+      is `ended`. An entry for a train off the layout is `skipped`.
+    - `round`: integer from 0, the round its `state` is for
+      ([#1367](https://github.com/rails49/control/issues/1367)). An entry
+      that has `ended`, `rejected`, `cancelled` or `skipped` is `later` in
+      the next round once the clock reaches the start of that round,
+      `start` plus (`round` + 1) × `repeat`. One in another state stays in
+      its round until it is in one of those, and moves at once where the
+      next round has begun. A recorded drag is `out` in round
+      ⌊(_c_ − `start`) / `repeat`⌋, 0 with the clock before `start`.
     - `request`: the id of the request it went out as, on an entry with `to`
       that has gone out.
-    - `ended`: timetable time in seconds, counted from `start`, when it ended
-      by arrival.
+    - `ended`: the clock's time at the arrival, in seconds since midnight
+      of day 0, where it ended by arrival. It is kept when the entry moves
+      to its next round, until it goes out again, as the dwell before the
+      train's next entry runs from it.
 
   Kept through a rebuild under the same railroad name, and cleared when
   another railroad is loaded, as `state/facing` is. After a restart the
   scheduler adopts the row and reads the document from the store. Where the
-  two differ the row's entries are kept. A row it cannot read, or a name the
-  store has no document for, leaves no timetable loaded. An entry that is
+  two differ the row's entries are kept, each with its round and state. A
+  row it cannot read, or a name the store has no document for, leaves no
+  timetable loaded. An entry that is
   `out` whose request the first `tc49/dispatch/state/allocation` row does
   not list in `requests` becomes `ended`, with no `ended` time, and an id
   in `positioning` that row does not list is dropped from it
@@ -1472,7 +1488,8 @@ reads `off`, repeating the same time each second, and runs on from there when
 power reads `on` again
 ([#1350](https://github.com/rails49/control/issues/1350)). A person sets it from any page with
 `tc49/layout/clock_wanted`, and every page is told at once. The scheduler
-sets it the same way to a timetable's start time when the timetable starts. The railroad keeps
+sets it the same way to a timetable's start time on day 0 when the timetable
+starts, and to the time of day on day 0 when it makes one. The railroad keeps
 the start time and speed-up it is loaded at, saved when a person sets them and
 never as the clock runs. Every page draws the time it is sent and reads no wall
 clock of its own, so two tablets whose clocks disagree still show one time

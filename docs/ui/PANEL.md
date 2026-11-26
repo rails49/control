@@ -339,7 +339,7 @@ published.
 **The Record switch** shows the row's `record` and publishes
 `tc49/schedule/timetable_record_wanted` (`{record}`) with the other value. It
 moves when the row does, not at the press. It is disabled with no timetable
-loaded and once the phase is `over`.
+loaded.
 
 **Start** is drawn only while the phase is `loaded`. It publishes
 `tc49/schedule/timetable_start_wanted` (`{}`), which starts the timetable
