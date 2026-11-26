@@ -232,7 +232,8 @@ under a finger.
 first drawn, the page opened during a run or another timetable loaded, the
 list is scrolled to its first row that is not `ended`, `rejected`,
 `cancelled` or `skipped`. It is not scrolled again while that timetable stays
-loaded.
+loaded. The rows scroll under the heading, which stays in view with its
+controls.
 
 **Where the list is 24rem wide or more, a row also shows its entry's dwell
 and description**, each on a line under where it goes. Both are in the row's

@@ -8,7 +8,7 @@
  *
  * It sits in the run view's pane, under the roster, or beside it where the
  * pane is below the drawing. Its heading is "Timetable" and the loaded
- * timetable's name.
+ * timetable's name, and it stays in view: the rows scroll under it.
  *
  * With no timetable loaded the rows are the requests, in the order the
  * dispatcher serves them. A request's row is the train,
