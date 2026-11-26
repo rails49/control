@@ -68,6 +68,7 @@ import {
 } from "../model/trace.js";
 import { panelStyles } from "./tc-panel.styles.js";
 import "./tc-canvas.js";
+import "./tc-gap.js";
 import "./tc-menu.js";
 import "./tc-requests.js";
 import "./tc-roster.js";
@@ -137,8 +138,6 @@ export class TcPanel extends LitElement {
   /** Whether the page is taller than it is wide, which puts the pane above
    *  the drawing. */
   private readonly upright = matchMedia(UPRIGHT);
-  /** Whether the divider is being dragged. */
-  private resizing = false;
   private readonly drag = new Drag();
   /** What a press on the canvas means here (model/drag.ts), bound to what is
    *  on screen. It answers quiet while there is no session to submit to,
@@ -434,33 +433,19 @@ export class TcPanel extends LitElement {
   }
 
   /** The page turned: the pane is on the other side of the drawing, at the
-   *  size last set for it there. A drag of the divider ends. */
+   *  size last set for it there. The gap is turned with it, which ends a
+   *  drag of it (`tc-gap`). */
   private readonly turned = (): void => {
-    this.resizing = false;
+    this.requestUpdate();
     this.setSize(kept(this.arrangement));
     this.canvas?.fit();
   };
 
-  private grab(event: PointerEvent): void {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-    this.resizing = true;
-  }
-
-  private resize(event: PointerEvent): void {
-    if (!this.resizing) return;
-    const size = sizeAt(this.arrangement, this.getBoundingClientRect(), {
-      x: event.clientX,
-      y: event.clientY,
-    });
+  private resize(event: CustomEvent<Point>): void {
+    const size = sizeAt(this.arrangement, this.getBoundingClientRect(), event.detail);
     this.setSize(size);
     keep(this.arrangement, size);
     this.canvas?.fit();
-  }
-
-  private release(): void {
-    this.resizing = false;
   }
 
   // --- painting -------------------------------------------------------------
@@ -501,13 +486,11 @@ export class TcPanel extends LitElement {
           ></tc-timetable-controls>
         </tc-requests>
       </aside>
-      <div
-        class="divider"
-        @pointerdown=${this.grab}
-        @pointermove=${this.resize}
-        @pointerup=${this.release}
-        @pointercancel=${this.release}
-      ></div>
+      <tc-gap
+        class="pane"
+        axis=${this.arrangement === "left" ? "x" : "y"}
+        @gap-moved=${this.resize}
+      ></tc-gap>
 
       ${off.length === 0
         ? nothing

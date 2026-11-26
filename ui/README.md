@@ -154,6 +154,8 @@ src/
     tc-panel.ts    the run view: the overlay it hands the canvas to paint,
                    the drag, the right-click menu, and the pane with the
                    divider that sizes it
+    tc-gap.ts      a gap a person drags: the press and the drag, the
+                   pointer's point raised while dragged
     tc-roster.ts   the roster pane: every train the railroad owns, on the
                    layout or off it, a row to drag out of and back to
     tc-requests.ts the list in the run view's pane: the loaded timetable's
