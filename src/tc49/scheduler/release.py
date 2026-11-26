@@ -66,6 +66,9 @@ The rules, in the words of #1345 and #1363:
   reads `on` and no timetable is loaded (`untitled`). A person asks for one
   by name, which is dropped unless power reads `off` (`new`). Both wait for a
   clock row and for the trains on the layout.
+- **Clock set.** While Record adds entries and the timetable has none, a
+  clock row before the clock, or more than two beats after it, moves `start`
+  and the clock as `made` sets them (`clocked`, #1371).
 - **Record.** While the timetable is `running` and Record is on, a drag at
   clock time c adds an entry at `start` plus ((c − `start`) mod `repeat`),
   rounded down to the minute, `out` as the request the drag made in round
@@ -270,12 +273,26 @@ def clocked(state: State, time: int, speed_up: float) -> State:
     After a start (`started`) a row said before the clock was set may still
     arrive. Rows are ignored until one reads from `start` to two beats past
     it, 2 × `speed_up` seconds.
+
+    While a drag adds an entry and the timetable has none, a row that reads
+    before the clock, or more than two beats after it, is a clock set. It
+    moves `start` to the row's time of day rounded down to the minute, and
+    the clock to the row's time of day on day 0, as `made` sets them.
     """
     timetable = state.timetable
     if state.starting and timetable is not None:
         if not timetable.start <= time <= timetable.start + 2 * speed_up:
             return state
         return replace(state, clock=time, starting=False)
+    if (
+        _records(state)
+        and timetable is not None
+        and not timetable.entries
+        and state.clock is not None
+        and not state.clock <= time <= state.clock + 2 * speed_up
+    ):
+        start = replace(timetable, start=start_of(time))
+        return replace(state, timetable=start, clock=time % DAY_S)
     return replace(state, clock=time)
 
 
