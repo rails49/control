@@ -129,7 +129,8 @@ Authoring tools and the panel reach the same store over HTTP — `tc49 serve`,
     PUT  /rosters/<name>        create or replace it
     GET  /rosters/<name>/trains its trains, each with its length, functions
                                 (name and mode), whether it carries a
-                                camera and its first locomotive's model
+                                camera, its first locomotive's model,
+                                its cars' addresses and its colour
     GET  /catalogue             the models the installation knows, by key
     GET  /catalogue/<name>      one model, whole
     PUT  /catalogue/<name>      create or replace it
