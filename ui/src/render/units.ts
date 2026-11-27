@@ -196,8 +196,7 @@ export const NOTE = 0.22;
 
 /**
  * One value for each train colour (LAYOUT.md#roster-schema), as the palette
- * entry `--train-<name>`. Keyed by the generated union, so a name without a
- * value does not compile.
+ * entry `--train-<name>`, keyed by the generated union `TrainColour`.
  *
  * Each shows against the paper and against the track at 3:1 or more, and is
  * at least 0.1 apart in OKLab from the other nine and from `--wrong`,
