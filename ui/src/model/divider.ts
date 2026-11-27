@@ -18,9 +18,12 @@
  * open the view's stylesheet holds the two against each other, so the
  * drawing keeps its least width (`ui/tc-editor.styles.ts`).
  *
- * Each size is kept in the browser's `localStorage` under its own key. It is
- * not on the bus and not in the store.
+ * Each size is kept in the browser under its own key. It is not on the bus
+ * and not in the store. The size line and the store are look's
+ * (`dividerSizeAt`, `keptDivider`, `keepDivider`).
  */
+
+import { dividerSizeAt, keepDivider, keptDivider } from "@rails49/look";
 
 import type { Point } from "./geometry.js";
 import { DRAWING, LEAST } from "./pane.js";
@@ -40,19 +43,20 @@ export const LIMITS: Record<Divider, { least: number; leaves: number }> = {
  *  two boxes, and right of its editor box. */
 export const SPACE = 16;
 
-/**
- * The size in CSS pixels a divider at a client point sets, held to its
- * limits. In a view too small for both sides, the size's own least holds.
- */
+/** The size in CSS pixels a divider at a client point sets, held to its
+ *  limits. */
 export function sizeAt(divider: Divider, view: DOMRect, at: Point): number {
-  const [wanted, room] =
-    divider === "palette"
-      ? [at.x - view.left, view.width]
-      : divider === "netlist"
-        ? [view.right - at.x, view.width]
-        : [at.x - view.left - 1.5 * SPACE, view.width - 3 * SPACE];
-  const { least, leaves } = LIMITS[divider];
-  return Math.round(Math.max(least, Math.min(wanted, room - leaves)));
+  if (divider === "palette") return dividerSizeAt(view, at, "left", LIMITS.palette);
+  if (divider === "netlist") return dividerSizeAt(view, at, "right", LIMITS.netlist);
+  const list = {
+    left: view.left + 1.5 * SPACE,
+    right: view.right - 1.5 * SPACE,
+    top: view.top,
+    bottom: view.bottom,
+    width: view.width - 3 * SPACE,
+    height: view.height,
+  };
+  return dividerSizeAt(list, at, "left", LIMITS.stock);
 }
 
 function key(divider: Divider): string {
@@ -61,10 +65,9 @@ function key(divider: Divider): string {
 
 /** The size this browser keeps for a divider, `null` for none. */
 export function kept(divider: Divider): number | null {
-  const size = localStorage.getItem(key(divider));
-  return size === null ? null : Number(size);
+  return keptDivider(key(divider));
 }
 
 export function keep(divider: Divider, size: number): void {
-  localStorage.setItem(key(divider), String(size));
+  keepDivider(key(divider), size);
 }

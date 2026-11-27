@@ -10,7 +10,7 @@
  * the sizes the view hands its stylesheet, `--pane-size` and `--lists-size`.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
 import type { Point } from "../src/model/geometry.js";
@@ -187,6 +187,34 @@ describe("the run view's divider", () => {
     laid(400, 800);
     await turned(shell, 768, 1024);
     expect(shape(shell)).toBeCloseTo(2);
+  });
+});
+
+/** A browser that refuses the store throws on every read and write of it
+ *  (#1414). */
+describe("the run view's divider in a browser that refuses the store", () => {
+  beforeEach(() => {
+    brokering();
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("refused", "SecurityError");
+    });
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("refused", "SecurityError");
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    unbrokered();
+  });
+
+  it("comes onto the page and sets the pane's size when dragged", async () => {
+    const shell = await joined();
+    expect(running(shell)).not.toBeNull();
+
+    await drag(shell, { x: 350, y: 300 });
+
+    expect(size(shell)).toBe("300px");
   });
 });
 
