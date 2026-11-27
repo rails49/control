@@ -1101,7 +1101,7 @@ describe("making up a train", () => {
     ]);
     expect(
       options.map((one) =>
-        one.querySelector<HTMLElement>(".swatch")!.style.getPropertyValue("--train"),
+        one.querySelector<HTMLElement>(".dot")!.style.getPropertyValue("--train"),
       ),
     ).toEqual(TRAIN_COLOURS.map((one) => `var(--train-${one})`));
 

@@ -1,6 +1,7 @@
 import { css } from "lit";
 
 import { LIMITS, SPACE } from "../model/divider.js";
+import { dot } from "./shared.styles.js";
 
 /**
  * The stock view (`tc-stock`), as
@@ -317,20 +318,7 @@ export const stockStyles = css`
     text-overflow: ellipsis;
   }
 
-  /* A train's colour, from --train on the element (#1411). */
-  .dot,
-  .swatch {
-    display: inline-block;
-    flex-shrink: 0;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--train);
-  }
-
-  .dot {
-    margin-right: 6px;
-  }
+  ${dot}
 
   .facts {
     display: flex;
