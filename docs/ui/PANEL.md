@@ -746,7 +746,7 @@ they are kept whichever railroad is joined, and dropped only when the page
 connects again, its retained rows then coming back with the rest. A drawing
 drawn grey still shows its widgets, each as it would with no row.
 
-![A live session mid-run: two committed routes, green where the dispatcher holds the lock and cyan where it does not, and a drag from `resident` to C6's middle third](images/live-drag.png)
+![A live session mid-run: two committed routes, each in its train's colour, drawn wide where the dispatcher holds the lock and as a thin line along the track where it does not, and a drag from `resident` to C6's middle third](images/live-drag.png)
 
 ## What it does
 
