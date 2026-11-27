@@ -199,36 +199,37 @@ export const NOTE = 0.22;
  * entry `--train-<name>`. Keyed by the generated union, so a name without a
  * value does not compile.
  *
- * Each shows against the paper at 3:1 or more, and is at least 0.1 apart in
- * OKLab from the other nine and from `--wrong`, `--green`, `--chosen`,
- * `--unfinished`, `--hint` and `--track` in its theme (`test/styles.test.ts`).
+ * Each shows against the paper and against the track at 3:1 or more, and is
+ * at least 0.1 apart in OKLab from the other nine and from `--wrong`,
+ * `--green`, `--chosen`, `--unfinished`, `--hint`, `--track` and `--amber` in
+ * its theme (`test/styles.test.ts`).
  */
 type TrainEntries = Record<`--train-${TrainColour}`, string>;
 
 const TRAIN: TrainEntries = {
-  "--train-orange": "#e0620a",
-  "--train-purple": "#7438b0",
-  "--train-brown": "#8b4513",
-  "--train-pink": "#de3c8c",
-  "--train-olive": "#5f6e14",
-  "--train-teal": "#00857a",
-  "--train-navy": "#1f2f78",
-  "--train-magenta": "#a8189a",
-  "--train-gold": "#b07f00",
-  "--train-maroon": "#7a1530",
+  "--train-orange": "#e1630f",
+  "--train-purple": "#7b48b7",
+  "--train-brown": "#994e18",
+  "--train-pink": "#de3c8d",
+  "--train-olive": "#606f15",
+  "--train-teal": "#038478",
+  "--train-navy": "#2a63a8",
+  "--train-magenta": "#ab219f",
+  "--train-gold": "#ae7e00",
+  "--train-maroon": "#9c4566",
 };
 
 const TRAIN_DARK: TrainEntries = {
-  "--train-orange": "#f5862a",
-  "--train-purple": "#b072e6",
-  "--train-brown": "#b5814f",
-  "--train-pink": "#f78fbb",
-  "--train-olive": "#a3a33a",
-  "--train-teal": "#2ec4b6",
-  "--train-navy": "#6468b8",
-  "--train-magenta": "#e04ccc",
-  "--train-gold": "#ebc94a",
-  "--train-maroon": "#c24660",
+  "--train-orange": "#d26000",
+  "--train-purple": "#a560e4",
+  "--train-brown": "#906f63",
+  "--train-pink": "#b169a2",
+  "--train-olive": "#549015",
+  "--train-teal": "#279087",
+  "--train-navy": "#6369b7",
+  "--train-magenta": "#d83fc3",
+  "--train-gold": "#9c7e00",
+  "--train-maroon": "#c34560",
 };
 
 /**
