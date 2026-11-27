@@ -41,7 +41,6 @@ import type { LookGapMoveDetail } from "@rails49/look";
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import type { TrainColour } from "../colour.generated.js";
 import {
   blockAt,
   Drag,
@@ -474,12 +473,12 @@ export class TcPanel extends LitElement {
     const live = this.overlay;
     const grey = this.unbuilt;
     const off = this.inSession && !grey ? takenOff(this.panel?.unfit() ?? []) : [];
-    const colours = this.colours;
+    const trainColours = colours(this.session?.owned ?? {});
     return html`
       <aside>
         <tc-roster
           .trains=${this.roster}
-          .colours=${colours}
+          .colours=${trainColours}
           .live=${this.inSession && !grey}
           .startColumn=${this.panel?.startColumn ?? false}
           @roster-picked=${this.picked}
@@ -494,7 +493,7 @@ export class TcPanel extends LitElement {
           .requests=${this.inSession && !grey ? (this.panel?.requestList() ?? []) : []}
           .timetable=${this.inSession && !grey ? (this.panel?.timetable ?? null) : null}
           .blocks=${this.panel?.blockNames ?? []}
-          .colours=${colours}
+          .colours=${trainColours}
           ?live=${this.inSession && !grey}
           ?arrivable=${this.panel?.withoutSensors ?? false}
           @request-cancelled=${this.cancelled}
@@ -564,13 +563,6 @@ export class TcPanel extends LitElement {
       this.panel?.noses() ?? new Map(),
     );
     return roster(session.owned, standing, session.refused, cells);
-  }
-
-  /** Each train's colour, from the trains read, for the dot the roster and
-   *  the request list put before its name (#1410). */
-  private get colours(): Map<string, TrainColour> {
-    const owned = this.session?.owned ?? {};
-    return new Map(Object.entries(owned).map(([train, { colour }]) => [train, colour]));
   }
 
   override updated(): void {

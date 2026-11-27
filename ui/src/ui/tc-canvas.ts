@@ -52,7 +52,7 @@ import {
 } from "../model/inspect.js";
 import type { Machine, Outcome } from "../model/machine.js";
 import {
-  CLAIMS,
+  strength,
   type Aspect,
   type Held,
   type Marker,
@@ -412,10 +412,7 @@ export class TcCanvas extends LitElement {
    *  wire sits outside every symbol's group, so a lit wire on a way a refusal
    *  is about wears `offending` itself. */
   private wires(strokes: readonly Stroke[], refused: boolean): unknown {
-    const alight = ({ lit }: Stroke) => {
-      if (lit === undefined) return 0;
-      return lit.claim === undefined ? 1 : 1 + CLAIMS.length - CLAIMS.indexOf(lit.claim);
-    };
+    const alight = ({ lit }: Stroke) => (lit === undefined ? 0 : 1 + strength(lit.claim));
     const drawn = strokes.flatMap((stroke) =>
       stroke.lit?.claim === "committed" ? [{ ...stroke, lit: undefined }, stroke] : [stroke],
     );
