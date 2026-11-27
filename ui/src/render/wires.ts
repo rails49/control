@@ -19,16 +19,8 @@ import {
 import { legOf, localOf, unit, type Point } from "../model/geometry.js";
 import { CLAIMS } from "../model/panel.js";
 import { pointOf, type Shift } from "../model/under.js";
-import { n, straightAt, type Cut } from "./artwork.js";
+import { n, straightAt, type Cut, type Lighting } from "./artwork.js";
 import { CURVE } from "./units.js";
-
-/** What a lit wire wears: the classes beyond `wire`, and on a run the colour
- *  of the train holding it, as a CSS value set on it as `--train`, where the
- *  roster has that train. */
-export interface Worn {
-  classes: string;
-  colour?: string;
-}
 
 /** One stroke of the wires' drawing. */
 export interface Stroke {
@@ -36,8 +28,8 @@ export interface Stroke {
   to: Point;
   /** The control point of a curve. Undefined on a wire's straight part. */
   round: Point | undefined;
-  /** What the stroke wears. Undefined where it is not lit. */
-  worn: Worn | undefined;
+  /** How the stroke is lit. Undefined where it is not. */
+  lit: Lighting | undefined;
 }
 
 export interface Wiring {
@@ -55,7 +47,7 @@ interface Laid {
   length: number;
   /** How far short of each pin its straight part stops. */
   short: [number, number];
-  worn: Worn | undefined;
+  lit: Lighting | undefined;
 }
 
 /** One end of a laid wire. */
@@ -73,8 +65,8 @@ interface Meeting {
   ends: End[];
   /** The wires of no length joining its pins. */
   joins: Laid[];
-  /** What the most strongly lit wire there wears. */
-  worn: Worn | undefined;
+  /** How the most strongly lit wire there is lit. */
+  lit: Lighting | undefined;
 }
 
 /** One of the tracks meeting at a place. */
@@ -101,14 +93,14 @@ const NOTHING = 1e-6;
  * them. A track is a wire, or a symbol's own at one of its wired pins
  * (`legOf`). A wire's part of the curve is a stroke here; a symbol's is its
  * half, which the symbol draws itself from the entry in `cuts`. A curve
- * between two wires is one stroke, wearing what the more strongly lit wears.
+ * between two wires is one stroke, lit as the more strongly lit one is.
  *
- * `worn` is what each lit wire wears, by `wireKey`, and `shift` is how far a
+ * `lit` is how each lit wire is lit, by `wireKey`, and `shift` is how far a
  * drag in flight has moved each symbol.
  */
 export function wiring(
   drawing: Drawing,
-  worn: ReadonlyMap<string, Worn>,
+  lit: ReadonlyMap<string, Lighting>,
   shift?: Shift,
 ): Wiring {
   const laid: Laid[] = [];
@@ -123,7 +115,7 @@ export function wiring(
       at: [from, to],
       length: Math.hypot(to.x - from.x, to.y - from.y),
       short: [0, 0],
-      worn: worn.get(wireKey(wire)),
+      lit: lit.get(wireKey(wire)),
     };
     laid.push(one);
     pins.forEach((pin, index) => {
@@ -134,10 +126,10 @@ export function wiring(
         pins: new Set(),
         ends: [],
         joins: [],
-        worn: undefined,
+        lit: undefined,
       };
       met.pins.add(pin);
-      met.worn = stronger(met.worn, one.worn);
+      met.lit = stronger(met.lit, one.lit);
       if (one.length >= NOTHING) met.ends.push({ wire: one, end });
       else if (end === 0) met.joins.push(one);
       meetings.set(place, met);
@@ -177,7 +169,7 @@ export function wiring(
     // Two wires share one curve. With a symbol's track on either side the
     // curve is split at its middle, and each side has its own half.
     const split = one.pin !== undefined || two.pin !== undefined;
-    if (!split) curves.push({ from, round: met.at, to, worn: met.worn });
+    if (!split) curves.push({ from, round: met.at, to, lit: met.lit });
     const halves: [Side, number, Point][] = [
       [one, a, from],
       [two, b, to],
@@ -188,7 +180,7 @@ export function wiring(
         cut(side.pin, { by, mid: own(side.pin, mid) });
       } else if (split) {
         const round = { x: (met.at.x + stop.x) / 2, y: (met.at.y + stop.y) / 2 };
-        curves.push({ from: mid, round, to: stop, worn: met.worn });
+        curves.push({ from: mid, round, to: stop, lit: met.lit });
       }
     }
     for (const pin of met.pins) {
@@ -201,13 +193,13 @@ export function wiring(
 
   const lines = laid
     .filter((wire) => !passed.has(wire) && !usedUp(wire))
-    .map(({ at: [from, to], length, short, worn }): Stroke => {
+    .map(({ at: [from, to], length, short, lit }): Stroke => {
       const run = length < NOTHING ? { x: 0, y: 0 } : unit(from, to);
       return {
         from: along(from, run, short[0]),
         to: along(to, run, -short[1]),
         round: undefined,
-        worn,
+        lit,
       };
     });
   return { strokes: [...lines, ...curves], cuts };
@@ -266,16 +258,14 @@ function along(from: Point, toward: Point, by: number): Point {
   return { x: from.x + toward.x * by, y: from.y + toward.y * by };
 }
 
-/** What the more strongly lit of two wires wears: the lit one of a lit and an
+/** How the more strongly lit of two wires is lit: the lit one of a lit and an
  *  unlit, and of two a run lights, the one whose claim `CLAIMS` puts first. */
 function stronger(
-  one: Worn | undefined,
-  two: Worn | undefined,
-): Worn | undefined {
+  one: Lighting | undefined,
+  two: Lighting | undefined,
+): Lighting | undefined {
   if (one === undefined || two === undefined) return one ?? two;
-  const rank = ({ classes }: Worn) => {
-    const at = CLAIMS.findIndex((claim) => classes.split(" ").includes(claim));
-    return at < 0 ? CLAIMS.length : at;
-  };
+  const rank = ({ claim }: Lighting) =>
+    claim === undefined ? CLAIMS.length : CLAIMS.indexOf(claim);
   return rank(two) < rank(one) ? two : one;
 }

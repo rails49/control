@@ -66,7 +66,7 @@ import {
   widgetSample,
   type Lighting,
 } from "../render/artwork.js";
-import { wiring, type Stroke, type Wiring, type Worn } from "../render/wires.js";
+import { wiring, type Stroke, type Wiring } from "../render/wires.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
@@ -80,7 +80,7 @@ const NAMED_FOR = 3000;
 
 /**
  * What the canvas lights, worked out once a render: the legs of the symbols on
- * a way and how each is drawn, and what each lit wire wears.
+ * a way and the wires under it, and how each is drawn.
  *
  * Both modes light a way, and one rule emits it. The editor lights the transit
  * chosen in the netlist pane, or the way a refusal is about, in the red that
@@ -98,9 +98,9 @@ const NAMED_FOR = 3000;
 interface LitWay {
   /** symbol → leg → how it is drawn. */
   legs: Map<string, ReadonlyMap<string, Lighting>>;
-  /** Wire, as `wireKey` names it → what it wears. A wire that is not lit is
-   *  absent. */
-  wires: Map<string, Worn>;
+  /** Wire, as `wireKey` names it → how it is drawn. A wire that is not lit
+   *  is absent. */
+  wires: Map<string, Lighting>;
   /** Whether the way is one a refusal is about rather than one chosen. */
   refused: boolean;
 }
@@ -239,7 +239,7 @@ export class TcCanvas extends LitElement {
           ${DEFS}
         </defs>
         <rect class="sheet" x=${x} y=${y} width=${w} height=${h} />
-        ${this.faces()} ${this.wires(strokes)} ${this.symbols(lighting, cuts)}
+        ${this.faces()} ${this.wires(strokes, lighting.refused)} ${this.symbols(lighting, cuts)}
         ${this.widgets()} ${this.pins()} ${this.stacked()} ${this.arrows()}
         ${this.disputes()} ${this.overdue()} ${this.stuck()} ${this.markers()} ${this.wireline()} ${this.reach()}
         ${this.rubberBand()} ${this.ghost()}
@@ -349,7 +349,7 @@ export class TcCanvas extends LitElement {
 
   /**
    * The way lit on the drawing, as the legs of the symbols it crosses and the
-   * classes the wires under it wear.
+   * wires under it.
    *
    * In edit mode it is the transit chosen in the netlist pane, or the way a
    * refusal is about. Naming the frog that makes two transits exclusive is a
@@ -379,10 +379,7 @@ export class TcCanvas extends LitElement {
           ]),
         ),
         wires: new Map(
-          [...live.lit.wires].map(([key, { claim, train }]) => [
-            key,
-            { classes: `lit ${claim}`, ...tint(train) },
-          ]),
+          [...live.lit.wires].map(([key, { claim, train }]) => [key, { claim, ...tint(train) }]),
         ),
         refused: false,
       };
@@ -390,9 +387,6 @@ export class TcCanvas extends LitElement {
     const review = this.review ?? UNREVIEWED;
     const refused = review.offending.length > 0;
     const ways = refused ? review.offending : chosenWay(review, this.chosen);
-    // A wire sits outside every symbol's group, so a refusal is marked on the
-    // line itself rather than inherited from one.
-    const marked = refused ? "lit offending" : "lit";
     return {
       legs: new Map(
         [...lit(ways)].map(([symbol, legs]) => [
@@ -401,7 +395,7 @@ export class TcCanvas extends LitElement {
         ]),
       ),
       wires: new Map(
-        [...litWires(ways, this.document.wires)].map((key) => [key, { classes: marked }]),
+        [...litWires(ways, this.document.wires)].map((key) => [key, {}]),
       ),
       refused,
     };
@@ -412,21 +406,25 @@ export class TcCanvas extends LitElement {
    *  them in: the unlit, then the lit, and on a run from the weakest claim to
    *  the strongest, so a wider line is always over a thinner one. A committed
    *  stroke is a thin line along the middle of the wire, so it is also drawn
-   *  plain among the unlit ones, where no plain end can cover a thin line. */
-  private wires(strokes: readonly Stroke[]): unknown {
-    const alight = ({ worn }: Stroke) => {
-      if (worn === undefined) return 0;
-      const at = CLAIMS.findIndex((claim) => worn.classes.split(" ").includes(claim));
-      return at < 0 ? 1 : 1 + CLAIMS.length - at;
+   *  plain among the unlit ones, where no plain end can cover a thin line. A
+   *  wire sits outside every symbol's group, so a lit wire on a way a refusal
+   *  is about wears `offending` itself. */
+  private wires(strokes: readonly Stroke[], refused: boolean): unknown {
+    const alight = ({ lit }: Stroke) => {
+      if (lit === undefined) return 0;
+      return lit.claim === undefined ? 1 : 1 + CLAIMS.length - CLAIMS.indexOf(lit.claim);
     };
     const drawn = strokes.flatMap((stroke) =>
-      stroke.worn?.classes.split(" ").includes("committed") === true
-        ? [{ ...stroke, worn: undefined }, stroke]
-        : [stroke],
+      stroke.lit?.claim === "committed" ? [{ ...stroke, lit: undefined }, stroke] : [stroke],
     );
-    return litLast(drawn, alight).map(({ from, to, round, worn }) => {
-      const wears = worn === undefined ? "wire" : `wire ${worn.classes}`;
-      const style = worn?.colour === undefined ? nothing : `--train: ${worn.colour}`;
+    return litLast(drawn, alight).map(({ from, to, round, lit }) => {
+      const wears =
+        lit === undefined
+          ? "wire"
+          : ["wire lit", lit.claim, refused ? "offending" : undefined]
+              .filter((one) => one !== undefined)
+              .join(" ");
+      const style = lit?.colour === undefined ? nothing : `--train: ${lit.colour}`;
       return round === undefined
         ? svg`<line class=${wears} style=${style} x1=${n(from.x)} y1=${n(from.y)}
                     x2=${n(to.x)} y2=${n(to.y)} />`

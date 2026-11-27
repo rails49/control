@@ -47,9 +47,9 @@ import {
 } from "../model/widgets.js";
 import { BEND, BLOCK, CURVE, PORTAL, TERMINAL, W, WIDGET } from "./units.js";
 
-/** How a lit leg is drawn. On a run, the claim on it and the colour of the
- *  train holding it, as a CSS value set on its strokes as `--train`, where
- *  the roster has that train; in edit mode neither. */
+/** How a lit leg or wire is drawn. On a run, the claim on it and the colour
+ *  of the train holding it, as a CSS value set on its strokes as `--train`,
+ *  where the roster has that train; in edit mode neither. */
 export interface Lighting {
   claim?: Claim;
   colour?: string;
