@@ -27,6 +27,7 @@ import {
   trainLength,
 } from "../src/model/stock.js";
 import type { CarDoc, ModelDoc, RosterDoc } from "../src/model/store.js";
+import { TRAIN_COLOURS, type TrainColour } from "../src/colour.generated.js";
 
 const CATALOGUE: Record<string, ModelDoc> = {
   "arnold-ce68": {
@@ -52,6 +53,7 @@ const OVAL: RosterDoc = {
   cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
   trains: {
     ore: {
+      colour: "orange",
       cars: [
         { car: "krokodil-a" },
         { model: "hopper" },
@@ -77,7 +79,7 @@ describe("what a train derives to", () => {
   it("has no length where an entry names something the documents have not", () => {
     const roster: RosterDoc = {
       roster: "oval",
-      trains: { ore: { cars: [{ model: "flat" }] } },
+      trains: { ore: { colour: "orange", cars: [{ model: "flat" }] } },
     };
     expect(trainLength(roster.trains.ore!, roster, CATALOGUE)).toBeNull();
   });
@@ -91,13 +93,13 @@ describe("what a train derives to", () => {
   it("is mixed where it hauls more than one sort", () => {
     const roster: RosterDoc = {
       roster: "oval",
-      trains: { mail: { cars: [{ model: "hopper" }, { model: "coach" }] } },
+      trains: { mail: { colour: "orange", cars: [{ model: "hopper" }, { model: "coach" }] } },
     };
     expect(trainKind(roster.trains.mail!, roster, CATALOGUE)).toBe(MIXED);
   });
 
   it("has no kind where it names nothing at all", () => {
-    const bare: RosterDoc = { roster: "oval", trains: { new: { cars: [] } } };
+    const bare: RosterDoc = { roster: "oval", trains: { new: { colour: "orange", cars: [] } } };
     expect(trainKind(bare.trains.new!, bare, CATALOGUE)).toBeNull();
   });
 
@@ -105,7 +107,7 @@ describe("what a train derives to", () => {
     const roster: RosterDoc = {
       roster: "oval",
       cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
-      trains: { light: { cars: [{ car: "krokodil-a" }] } },
+      trains: { light: { colour: "orange", cars: [{ car: "krokodil-a" }] } },
     };
     expect(trainKind(roster.trains.light!, roster, CATALOGUE)).toBe(
       LIGHT_ENGINE,
@@ -122,7 +124,7 @@ describe("what a train derives to", () => {
         b: { model: "arnold-ce68", addr: "4" },
       },
       trains: {
-        topped: { cars: [{ car: "a" }, { model: "van" }, { car: "b" }] },
+        topped: { colour: "orange", cars: [{ car: "a" }, { model: "van" }, { car: "b" }] },
       },
     };
     expect(trainFunctions(roster.trains.topped!, roster, CATALOGUE)).toEqual([
@@ -136,7 +138,7 @@ describe("making up a train", () => {
   it("starts with a name and nothing in it", () => {
     const screen = stock(EMPTY);
     expect(screen.addTrain("ore")).toBeNull();
-    expect(screen.roster.trains.ore).toEqual({ cars: [] });
+    expect(screen.roster.trains.ore).toEqual({ colour: "orange", cars: [] });
     expect(screen.edits).toBe(true);
   });
 
@@ -158,7 +160,10 @@ describe("making up a train", () => {
     const screen = stock(EMPTY);
     expect(screen.newTrain()).toBe("New train");
     expect(screen.newTrain()).toBe("New train (2)");
-    expect(screen.roster.trains["New train (2)"]).toEqual({ cars: [] });
+    expect(screen.roster.trains["New train (2)"]).toEqual({
+      colour: "purple",
+      cars: [],
+    });
   });
 
   /** A train New train named takes its first locomotive's name as that
@@ -272,11 +277,11 @@ describe("making up a train", () => {
   it("stops the save for a train naming no cars", () => {
     const words =
       "train 'goods' has nothing in it — press Add to put a car or a model in it, or unmake it";
-    expect(stock({ roster: "oval", trains: { goods: {} } }).stopsSaving()).toBe(
+    expect(stock({ roster: "oval", trains: { goods: { colour: "orange" } } }).stopsSaving()).toBe(
       words,
     );
     expect(
-      stock({ roster: "oval", trains: { goods: { cars: [] } } }).stopsSaving(),
+      stock({ roster: "oval", trains: { goods: { colour: "orange", cars: [] } } }).stopsSaving(),
     ).toBe(words);
   });
 
@@ -292,6 +297,64 @@ describe("making up a train", () => {
     expect(screen.roster.cars).toEqual({
       "krokodil-a": { model: "arnold-ce68", addr: "3" },
     });
+  });
+});
+
+/** A train's colour is what its route wears on the panel: one of a fixed
+ *  list, and New train gives the one the fewest trains have (#1411). */
+describe("a train's colour", () => {
+  /** A roster of one train in each colour given, named after it. */
+  function wearing(...colours: TrainColour[]): RosterDoc {
+    return {
+      roster: "oval",
+      trains: Object.fromEntries(
+        colours.map((colour) => [colour, { colour, cars: [{ model: "hopper" }] }]),
+      ),
+    };
+  }
+
+  function made(screen: Stock): TrainColour {
+    const name = screen.newTrain();
+    return screen.roster.trains[name]!.colour;
+  }
+
+  it("is orange for New train in an empty roster", () => {
+    expect(made(stock(EMPTY))).toBe("orange");
+  });
+
+  it("is the one colour no train has", () => {
+    const others = TRAIN_COLOURS.filter((colour) => colour !== "teal");
+    expect(made(stock(wearing(...others)))).toBe("teal");
+  });
+
+  it("is the first in the list where every colour is used once", () => {
+    expect(made(stock(wearing(...TRAIN_COLOURS)))).toBe("orange");
+  });
+
+  it("is the first of those the fewest trains have", () => {
+    expect(made(stock(wearing("orange", "orange", "purple")))).toBe("brown");
+  });
+
+  it("is on the train's row", () => {
+    const screen = stock(wearing("navy"));
+    expect(screen.trains().map((row) => row.colour)).toEqual(["navy"]);
+  });
+
+  it("is changed to another on the list", () => {
+    const screen = stock(wearing("navy"));
+    expect(screen.trainColour("navy", "gold")).toBeNull();
+    expect(screen.roster.trains.navy!.colour).toBe("gold");
+    expect(screen.edits).toBe(true);
+  });
+
+  it("refuses a name off the list, and changes nothing", () => {
+    const screen = stock(wearing("navy"));
+    expect(screen.trainColour("navy", "red")).toBe(
+      "'red' is not a train colour. Use one of orange, purple, brown, pink," +
+        " olive, teal, navy, magenta, gold, maroon.",
+    );
+    expect(screen.roster.trains.navy!.colour).toBe("navy");
+    expect(screen.edits).toBe(false);
   });
 });
 
@@ -743,6 +806,7 @@ describe("edits that wait for power off", () => {
     },
     trains: {
       ore: {
+        colour: "orange",
         cars: [
           { car: "krokodil-a" },
           { model: "hopper" },
@@ -875,6 +939,7 @@ describe("edits that wait for power off", () => {
     expect(screen.carAddress(made, "12")).toBeNull();
     expect(screen.carLength(made, 210)).toBeNull();
     expect(screen.roster.trains[train]).toEqual({
+      colour: "purple",
       cars: [{ model: "hopper" }, { car: made }],
       priority: 3,
     });
@@ -927,6 +992,18 @@ describe("edits that wait for power off", () => {
       "5",
     ]);
     expect(screen.rebuildEdits).toBe(false);
+  });
+
+  /** No running program reads a train's colour, so it is written with power
+   *  on, where a priority is held (#1411). */
+  it("writes a train's colour with power on, and it is no rebuild edit", () => {
+    const screen = held("on");
+    expect(screen.trainPriority("ore", "1")).toBe(WORDS);
+    expect(screen.trainColour("ore", "teal")).toBeNull();
+    expect(screen.roster.trains.ore!.colour).toBe("teal");
+    expect(screen.edits).toBe(true);
+    expect(screen.rebuildEdits).toBe(false);
+    expect(screen.waitsForPower("on")).toBeNull();
   });
 
   /** Nothing an app drives by: names, kinds, notes, photos and cameras. */
@@ -1403,12 +1480,12 @@ describe("what the lists draw", () => {
       roster: "oval",
       cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
       trains: {
-        empty: { cars: [] },
-        shunt: { cars: [{ car: "krokodil-a" }] },
-        pick: { cars: [{ model: "coach" }, { model: "hopper" }] },
-        Ore: { cars: [{ model: "hopper" }] },
-        goods: { cars: [{ model: "van" }] },
-        local: { cars: [{ model: "coach" }] },
+        empty: { colour: "orange", cars: [] },
+        shunt: { colour: "orange", cars: [{ car: "krokodil-a" }] },
+        pick: { colour: "orange", cars: [{ model: "coach" }, { model: "hopper" }] },
+        Ore: { colour: "orange", cars: [{ model: "hopper" }] },
+        goods: { colour: "orange", cars: [{ model: "van" }] },
+        local: { colour: "orange", cars: [{ model: "coach" }] },
       },
     });
     expect(screen.trains().map((one) => one.train)).toEqual([
@@ -1448,6 +1525,7 @@ describe("a decoder model's entry given an address", () => {
     cars: { "krokodil-a": { model: "arnold-ce68", addr: "3" } },
     trains: {
       ore: {
+        colour: "orange",
         cars: [
           { car: "krokodil-a" },
           { model: "arnold-ce68", orientation: "reverse" },
@@ -1474,7 +1552,7 @@ describe("a decoder model's entry given an address", () => {
   it("states no orientation where the entry stated none", () => {
     const screen = stock({
       roster: "oval",
-      trains: { light: { cars: [{ model: "arnold-ce68" }] } },
+      trains: { light: { colour: "orange", cars: [{ model: "arnold-ce68" }] } },
     });
     expect(screen.carFor("light", 0)).toBe("arnold-ce68");
     expect(screen.roster.trains.light!.cars).toEqual([{ car: "arnold-ce68" }]);

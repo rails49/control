@@ -26,6 +26,7 @@
  * plain values.
  */
 
+import { TRAIN_COLOURS, type TrainColour } from "../colour.generated.js";
 import { lengthTrouble } from "./rules.js";
 import { trackLive, type Power } from "./trace.js";
 import type {
@@ -450,6 +451,7 @@ export interface TrainRow {
    *  train's on its card; `null` where it has none. */
   locomotive: string | null;
   priority: number | null;
+  colour: TrainColour;
   placed: boolean;
   /** Why its entries and priority may not be changed (`powerHeld`). */
   held: string | null;
@@ -741,6 +743,7 @@ export class Stock {
         functions: trainFunctions(made, this.doc, this.models),
         locomotive: this.locomotive(made),
         priority: made.priority ?? null,
+        colour: made.colour,
         placed: onLayout.has(train),
         held: this.holds(this.trainCovered(train)),
       }))
@@ -780,13 +783,14 @@ export class Stock {
 
   // --- trains ---------------------------------------------------------------
 
-  /** Make up a train: a name and nothing in it yet, which is what composing
-   *  right from left starts with. */
+  /** Make up a train: a name, the colour the fewest trains have, and nothing
+   *  in it yet, which is what composing right from left starts with. */
   addTrain(name: string): string | null {
     if (name.trim() === "") return "A train needs a name.";
     if (this.doc.trains[name] !== undefined)
       return `There is already a train '${name}'.`;
-    this.write({ trains: { ...this.doc.trains, [name]: { cars: [] } } });
+    const colour = fewest(Object.values(this.doc.trains));
+    this.write({ trains: { ...this.doc.trains, [name]: { colour, cars: [] } } });
     this.freshTrains.add(name);
     return null;
   }
@@ -875,6 +879,20 @@ export class Stock {
       });
       return null;
     });
+  }
+
+  /** A train's colour, one of `TRAIN_COLOURS`; any other name is refused. No
+   *  running program reads it, so it does not wait for power off. */
+  trainColour(train: string, name: string): string | null {
+    const made = this.doc.trains[train];
+    if (made === undefined) return null;
+    const colour = TRAIN_COLOURS.find((one) => one === name);
+    if (colour === undefined) {
+      return `'${name}' is not a train colour. Use one of ${TRAIN_COLOURS.join(", ")}.`;
+    }
+    if (made.colour === colour) return null;
+    this.write({ trains: { ...this.doc.trains, [train]: { ...made, colour } } });
+    return null;
   }
 
   /** Unmake a rake. The cars it was made of stay on the roster: composing a
@@ -1761,6 +1779,18 @@ function streamTrouble(camera: string): string | null {
 
 /** What a held edit answers (`Stock.guarded`): the words, nothing made, or
  *  nothing at all. */
+/** The colour the fewest of `trains` wear, the first in `TRAIN_COLOURS` of
+ *  those where several do. */
+function fewest(trains: RosterTrain[]): TrainColour {
+  const worn = new Map<TrainColour, number>();
+  for (const train of trains)
+    worn.set(train.colour, (worn.get(train.colour) ?? 0) + 1);
+  let least = TRAIN_COLOURS[0]!;
+  for (const colour of TRAIN_COLOURS)
+    if ((worn.get(colour) ?? 0) < (worn.get(least) ?? 0)) least = colour;
+  return least;
+}
+
 const refuse = (words: string): string | null => words;
 const nothingMade = (): string | null => null;
 const unchanged = (): void => {};

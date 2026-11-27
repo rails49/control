@@ -25,9 +25,10 @@ const OVAL: RosterDoc = {
   },
   trains: {
     ore: {
+      colour: "orange",
       cars: [{ car: "krokodil-a" }, { model: "hopper" }, { model: "hopper" }],
     },
-    shunt: { cars: [{ car: "krokodil-b", orientation: "reverse" }] },
+    shunt: { colour: "orange", cars: [{ car: "krokodil-b", orientation: "reverse" }] },
   },
 };
 

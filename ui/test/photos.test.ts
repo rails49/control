@@ -50,7 +50,7 @@ function roster(): RosterDoc {
   return {
     roster: "toy",
     cars: { "krokodil-a": { model: "sbb-re460", addr: "3" } },
-    trains: { ic: { cars: [{ car: "krokodil-a" }] } },
+    trains: { ic: { colour: "orange", cars: [{ car: "krokodil-a" }] } },
   };
 }
 

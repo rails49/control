@@ -688,7 +688,7 @@ describe("the car editor", () => {
     store.documentOf = () => ({
       roster: "toy",
       cars: { "Re 460 001": { model: "re460", addr: "460" } },
-      trains: { IC: { cars: [{ car: "Re 460 001" }, { model: "coach" }] } },
+      trains: { IC: { colour: "orange", cars: [{ car: "Re 460 001" }, { model: "coach" }] } },
     });
   }
 
@@ -1002,6 +1002,7 @@ describe("making up a train", () => {
       cars: { "arnold-ce68": { model: "arnold-ce68", addr: "3" } },
       trains: {
         ore: {
+          colour: "orange",
           cars: [
             { car: "arnold-ce68" },
             { model: "hopper" },
@@ -1223,7 +1224,7 @@ describe("making up a train", () => {
     };
     store.documentOf = (railroad) => ({
       roster: railroad,
-      trains: { IC: { cars: [{ model: "hopper" }, { model: "re-460" }] } },
+      trains: { IC: { colour: "orange", cars: [{ model: "hopper" }, { model: "re-460" }] } },
     });
     const shell = await opened();
     await pressed(shell, "button.card.train");
@@ -1477,7 +1478,7 @@ describe("making up a train", () => {
     store.documentOf = () => ({
       roster: "toy",
       cars: { "Re 460 001": { model: "re460", addr: "460" } },
-      trains: { IC: { cars: [{ car: "Re 460 001" }] } },
+      trains: { IC: { colour: "orange", cars: [{ car: "Re 460 001" }] } },
     });
     const shell = await opened();
     await tab(shell, "trains");
