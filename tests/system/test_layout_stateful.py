@@ -238,11 +238,11 @@ def test_a_run_without_sensors_ended_by_arrived() -> None:
 
 
 def test_on_ending_a_drain_by_running_without_sensors() -> None:
-    """`single` is released mid-move during a drain, and the setting turns
-    on. That ends its run, nothing is moving, and the drain ends with a cut:
-    `layout` writes 0 on every car before `state/power: off`. The invariants
-    read that 0 as a train released mid-move and stopped (#1413). Found by the
-    state machine below.
+    """`single` is released mid-move during a drain, and `without_sensors`
+    turns on. That ends its run, nothing is moving, and the drain ends with a
+    cut: `layout` writes 0 on every car before `state/power: off`. The
+    invariants had read that 0 as a train released mid-move and stopped, and
+    now read it as dead rails (#1413). Found by the state machine below.
     """
     bus, _app, _clock = assembled()
     press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
@@ -258,6 +258,29 @@ def test_on_ending_a_drain_by_running_without_sensors() -> None:
     press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
     press(bus, TAKE_WANTED, {"train": "single", "throttle": None})
     press(bus, SETTINGS_WANTED, {"without_sensors": True})
+
+
+def test_on_pressing_draining_with_nothing_moving() -> None:
+    """`single` is released mid-move on live rails, and `without_sensors`
+    turns on, which ends its run. `draining` pressed with nothing moving
+    applies as `off` at once, so `state/power` never reads `draining`, and
+    `layout` writes 0 on every car while it reads `on`. The invariants had
+    read that 0 as a train released mid-move and stopped (#1413).
+    """
+    bus, _app, _clock = assembled()
+    press(bus, DRIVING_WANTED, {"driving": AUTOMATIC})
+    press(
+        bus, "tc49/dispatch/placement_wanted", {"train": "freight_1", "block": "dn_e"}
+    )
+    press(bus, "tc49/dispatch/placement_wanted", {"train": "single", "block": "up_w"})
+    press(bus, POWER_WANTED, {"power": "on"})
+    press(bus, DEVICE_TRACK, {"power": "on"})
+    press(bus, "tc49/schedule/request_wanted", {"train": "single", "dest": ["up_e.A"]})
+    press(bus, f"{DEVICE_POINT}/12", {"addr": "12", "position": "closed"})
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": "t-1"})
+    press(bus, TAKE_WANTED, {"train": "single", "throttle": None})
+    press(bus, SETTINGS_WANTED, {"without_sensors": True})
+    press(bus, POWER_WANTED, {"power": "draining"})
 
 
 @settings(deadline=None, stateful_step_count=40, max_examples=1500)
