@@ -14,8 +14,8 @@ rather than to an app of its own — a `ui` package could not import
     GET  /rosters/<name>/trains its trains, each with its length, the
                                 functions its cars declare with each
                                 one's mode, whether one carries a
-                                camera, its first locomotive's model and
-                                its cars' addresses
+                                camera, its first locomotive's model,
+                                its cars' addresses and its colour
     GET  /catalogue             every model the installation knows, by key
     GET  /catalogue/<name>      one model, as the document it is
     PUT  /catalogue/<name>      save it, keeping what the file says
@@ -648,8 +648,9 @@ def _put(store: AssetStore, backup: Backup, name: str, body: Any) -> Response:
 def _trains(roster: Roster) -> dict[str, Any]:
     """What the run views read a roster for: each train's length, what a
     person driving it can switch, whether it carries a camera, the model of
-    its first locomotive, which the throttle draws it as, and its cars'
-    addresses, which the throttle shows.
+    its first locomotive, which the throttle draws it as, its cars'
+    addresses, which the throttle shows, and its colour, which the run view
+    draws its route in.
 
     Derived rather than written down, which is why it is a path of its own
     below the document: `/rosters/<name>` is the roster as the file has it and
@@ -678,6 +679,7 @@ def _trains(roster: Roster) -> dict[str, Any]:
                 "camera": train.camera is not None,
                 "locomotive": train.locomotive,
                 "addresses": list(train.addresses),
+                "colour": str(train.colour),
             }
             for name, train in sorted(roster.trains.items())
         },
