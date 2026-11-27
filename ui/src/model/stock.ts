@@ -1777,8 +1777,6 @@ function streamTrouble(camera: string): string | null {
   return null;
 }
 
-/** What a held edit answers (`Stock.guarded`): the words, nothing made, or
- *  nothing at all. */
 /** The colour the fewest of `trains` wear, the first in `TRAIN_COLOURS` of
  *  those where several do. */
 function fewest(trains: RosterTrain[]): TrainColour {
@@ -1791,6 +1789,8 @@ function fewest(trains: RosterTrain[]): TrainColour {
   return least;
 }
 
+/** What a held edit answers (`Stock.guarded`): the words, nothing made, or
+ *  nothing at all. */
 const refuse = (words: string): string | null => words;
 const nothingMade = (): string | null => null;
 const unchanged = (): void => {};
