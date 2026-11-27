@@ -238,9 +238,9 @@ describe("the road in front", () => {
     expect(drive(model)[0]).toMatchObject({ ahead: [] });
   });
 
-  /** The two words the picture lights a route in: green where the dispatcher
-   *  holds the lock and the train may move, cyan where it does not
-   *  (ui/PANEL.md). */
+  /** Two of the words the picture lights a route in: locked where the
+   *  dispatcher holds the lock and the train may move, committed where it
+   *  does not (ui/PANEL.md). */
   it("lists the route's blocks past the one the train stands in", () => {
     const model = panel();
     standing(model);

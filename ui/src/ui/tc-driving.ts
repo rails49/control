@@ -417,8 +417,8 @@ export class TcDriving extends LitElement {
   /**
    * Where the train is and where it is going: *at* the block it stands in,
    * *next* the first block of the road ahead and *to* the last, the two
-   * coloured as the run view lights a route — green where the lock is held,
-   * cyan where the route is chosen, the colour's word in the block's
+   * outlined as the run view outlines a block — solid where the lock is held,
+   * dashed where the route is chosen, the claim's word in the block's
    * `aria-label`. A train crossing a transit stands in no block, and says so;
    * with no road ahead, *next* and *to* read *—*.
    */

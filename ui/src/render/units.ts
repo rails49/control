@@ -264,22 +264,6 @@ export const COLOURS: Record<string, string> = {
   "--amber": "#e8a021",
   "--lit": "#a55b12",
   "--lit-body": "#f4e3cd",
-  // The two colours a committed route wears on a run (ui/PANEL.md): green
-  // where the dispatcher holds a lock and the train may move, cyan where the
-  // route is chosen and the claim has not been made yet.
-  //
-  // Both were picked around a collision. The obvious green is the signal lamp
-  // green above, on a panel that draws signal lamps, so this one stays in the
-  // same family — the aspect and the route say the same thing and should look
-  // it — and sits a step yellower and lighter, which a thick stroke can carry
-  // and a lamp the size of a full stop cannot. The obvious cyan sits on top of
-  // `--chosen`, which marks request endpoints and the drag reach, so this one
-  // is pulled well round towards green, away from that blue.
-  //
-  // The pale ground a block body wears is mixed from these in the stylesheet
-  // rather than named here, so a colour and its wash cannot drift apart.
-  "--locked": "#3f9c35",
-  "--committed": "#0d9bb8",
   // A way lit because derivation refused over it wears the red every other
   // stopping fault wears, and a block on it takes the pale ground of that red
   // as a chosen transit takes the pale ground of `--lit`.
@@ -300,8 +284,8 @@ export const COLOURS: Record<string, string> = {
  * `test/styles.test.ts` asserts every colour has a value here.
  *
  * The values are not inversions. Track and ink swap ends, because the paper
- * does; a signal lamp, a route's green and cyan, a train colour, and the two
- * weights a fault is marked in keep their hue and are lifted until they carry on the dark ground,
+ * does; a signal lamp, a train colour, and the two weights a fault is marked
+ * in keep their hue and are lifted until they carry on the dark ground,
  * since what each colour *means* is the same page of look's `docs/LOOK.md` in
  * either theme. A pale ground — a lit block body, a red one — becomes a dark
  * ground of the same hue rather than a pale one on a dark page.
@@ -329,8 +313,6 @@ export const DARK: Record<string, string> = {
   "--amber": "#f0ad35",
   "--lit": "#e09a4a",
   "--lit-body": "#3a2e1d",
-  "--locked": "#4fb844",
-  "--committed": "#1cb6d4",
   "--wrong-body": "#3d2125",
   "--tint-1": "#2fb99a",
   "--tint-2": "#e09a4a",

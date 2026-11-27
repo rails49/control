@@ -34,7 +34,7 @@ import { describe, expect, it } from "vitest";
 
 import { TRAIN_COLOURS } from "../src/colour.generated.js";
 import { DRAWING, LEAST, LIST, UPRIGHT } from "../src/model/pane.js";
-import { COLOURS, DARK } from "../src/render/units.js";
+import { COLOURS, DARK, W } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
 import { palette, symbols } from "../src/ui/shared.styles.js";
 import { appStyles } from "../src/ui/tc-app.styles.js";
@@ -245,76 +245,100 @@ describe("what a pane paints its ground with", () => {
 });
 
 /**
- * The two colours a committed route wears on the panel (#143).
- *
- * Green where the dispatcher holds the lock and the train may move, cyan
- * where the route is chosen and the claim has not been made yet. Both are
- * palette entries, so the owner moves either in one place, and every rule
- * that paints part of a route asks for the entry rather than for a hex that
- * happens to match — a stroke left behind is a route that reads as two.
+ * A route on the run view (#1409): drawn in its train's colour, the claim on
+ * each part of it read in the line's width. The colour arrives on the element
+ * as `--train`, so there is one rule per claim and none per colour, and a part
+ * whose train the roster lacks has no `--train` and is drawn in `--hint`.
  */
-describe("the two colours a route's state is read in", () => {
-  /** The canvas's rules without the palette an export carries, so that the
-   *  entries' own declarations are not mistaken for a rule hardcoding one. */
-  const panel = canvasStyles.cssText.replace(palette.cssText, "");
+describe("the widths a route's claim is read in", () => {
+  /** Each rule of the canvas, by the selectors it lists. */
+  const rules = [
+    ...canvasStyles.cssText
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .matchAll(/([^{}]*)\{([^{}]*)\}/g),
+  ].map(([, selectors, declared]) => ({
+    selectors: selectors!.split(",").map((one) => one.trim()),
+    declared: declared!,
+  }));
+  const declared = (selector: string): string => {
+    const found = rules.find(({ selectors }) => selectors.includes(selector));
+    expect(found, `no rule for ${selector}`).toBeDefined();
+    return found!.declared;
+  };
+  const train = "var(--train, var(--hint))";
 
-  it("are two named entries, and neither is the signal lamp's green", () => {
-    expect(COLOURS["--locked"]).toBeDefined();
-    expect(COLOURS["--committed"]).toBeDefined();
-    expect(COLOURS["--locked"]).not.toBe(COLOURS["--green"]);
-    expect(COLOURS["--committed"]).not.toBe(COLOURS["--chosen"]);
-  });
-
-  it("are never written as a hex in a rule", () => {
-    for (const entry of ["--locked", "--committed"] as const) {
-      expect(panel).not.toContain(COLOURS[entry]!);
-    }
-  });
-
-  it("paint the block body, the track, the bend and the wire", () => {
-    for (const state of ["locked", "committed"]) {
-      for (const selector of [
-        `.symbol.${state} .block-body`,
-        `.symbol.${state} .track.lit`,
-        `.symbol.${state} .bend.lit`,
-        `.wire.lit.${state}`,
-      ]) {
-        expect(panel, `no rule for ${selector}`).toContain(selector);
+  it("are 2.2 W occupied, 1.6 W locked and 0.5 W committed, in the train's colour", () => {
+    for (const [claim, width] of [
+      ["occupied", 2.2 * W],
+      ["locked", 1.6 * W],
+      ["committed", 0.5 * W],
+    ] as const) {
+      for (const selector of [`.symbol .track.lit.${claim}`, `.wire.lit.${claim}`]) {
+        const rule = declared(selector);
+        expect(rule, selector).toContain(`stroke-width: ${width};`);
+        expect(rule, selector).toContain(`stroke: ${train};`);
       }
-      expect(panel).toContain(`var(--${state})`);
+      expect(declared(`.symbol .bend.lit.${claim}`)).toContain(`fill: ${train};`);
     }
   });
 
-  /** One value moves a colour and its wash together, so the two cannot end up
-   *  disagreeing about which state a block is in. */
-  it("derive a block's pale fill from its own stroke", () => {
-    for (const state of ["locked", "committed"]) {
-      const body = panel.slice(panel.indexOf(`.symbol.${state} .block-body`));
-      const fill = body.slice(body.indexOf("fill:"), body.indexOf(";"));
-      expect(fill).toContain("color-mix");
-      expect(fill).toContain(`var(--${state})`);
+  it("leave the plain track W wide", () => {
+    expect(declared(".track")).toContain(`stroke-width: ${W};`);
+    expect(declared(".wire")).toContain(`stroke-width: ${W};`);
+  });
+
+  /** A symbol is drawn over the wires, so a round end on its plain track
+   *  would cover the end of a thin committed line on the wire beyond. On a
+   *  run the wire's own round end fills the joint; in the editor a pin may
+   *  have no wire, and its track keeps the round end. */
+  it("stop a symbol's plain track square at its pins on a run", () => {
+    expect(declared(`:host([mode="run"]) .symbol .track:not(.lit)`)).toContain(
+      "stroke-linecap: butt;",
+    );
+  });
+
+  it("never dash track or a wire", () => {
+    const strokes = rules.filter(({ selectors }) =>
+      selectors.some((one) => /\.(track|wire)(?![\w-])/.test(one)),
+    );
+    expect(strokes.length).toBeGreaterThan(0);
+    for (const { selectors, declared } of strokes) {
+      expect(declared, selectors.join(", ")).not.toContain("dasharray");
     }
   });
 
   /** The channel that is not hue, which is what survives red-green colour
-   *  deficiency: whether the train may move here. Track and wires stay solid,
-   *  a dash's spacing varying with a wire's angle. */
-  it("dash a committed block body and leave a locked one solid", () => {
-    const locked = panel.slice(panel.indexOf(".symbol.locked .block-body"));
-    expect(locked.slice(0, locked.indexOf("}"))).not.toContain("dasharray");
-    const committed = panel.slice(panel.indexOf(".symbol.committed .block-body"));
-    expect(committed.slice(0, committed.indexOf("}"))).toContain("dasharray");
-    const wire = panel.slice(panel.indexOf(".wire.lit.locked"));
-    expect(wire.slice(0, wire.indexOf("}"))).not.toContain("dasharray");
+   *  deficiency: whether the train may move here. */
+  it("wash an occupied block, outline a locked one and dash a committed one", () => {
+    const occupied = declared(".symbol.occupied .block-body");
+    expect(occupied).toContain(`fill: color-mix(in srgb, ${train} 18%, var(--body));`);
+    expect(occupied).toContain(`stroke: ${train};`);
+    expect(occupied).not.toContain("var(--wrong)");
+    const locked = declared(".symbol.locked .block-body");
+    expect(locked).toContain("fill: var(--body);");
+    expect(locked).toContain(`stroke: ${train};`);
+    expect(locked).not.toContain("dasharray");
+    const committed = declared(".symbol.committed .block-body");
+    expect(committed).toContain("fill: var(--body);");
+    expect(committed).toContain(`stroke: ${train};`);
+    expect(committed).toContain("dasharray");
   });
 
-  /** Edit mode is not in this: only a run gets two colours, and a way chosen
-   *  in the netlist pane keeps the one it has. The two modes' rules are
-   *  declared apart, and an exported file is of the edit mode's sheet, so what
-   *  a run paints is the one place to look for it. */
+  it("leave no colour a claim alone is drawn in", () => {
+    for (const colours of [COLOURS, DARK]) {
+      expect(colours["--locked"]).toBeUndefined();
+      expect(colours["--committed"]).toBeUndefined();
+    }
+    for (const [name, sheet] of Object.entries(sheets)) {
+      expect(sheet.cssText, name).not.toMatch(/var\(--(locked|committed)\)/);
+    }
+  });
+
+  /** Edit mode is not in this: a way chosen in the netlist pane keeps the
+   *  colour it has. An exported file is of the edit mode's sheet, so what a
+   *  run paints is the one place to look for it. */
   it("leave the editor's chosen way and refused way as they were", () => {
-    expect(exportStyles.cssText).not.toContain("var(--locked)");
-    expect(exportStyles.cssText).not.toContain("var(--committed)");
+    expect(exportStyles.cssText).not.toContain("var(--train");
   });
 });
 
@@ -433,8 +457,7 @@ describe("a signal's lamps", () => {
  * `TRAIN_COLOURS`, in each theme.
  *
  * Contrast is WCAG's ratio of relative luminance, and 3:1 is its floor for a
- * line or a shape, which both colours a route's state is read in meet today.
- * The step between two colours is their distance in OKLab. Each train colour
+ * line or a shape. The step between two colours is their distance in OKLab. Each train colour
  * is at least 0.1 from the other nine, since a person watching tells the
  * trains apart by colour, and from every colour that already means something
  * on the panel.
@@ -805,6 +828,23 @@ describe("the stock view's divider", () => {
 
   it("is not there where the view is one column", () => {
     expect(rule(narrow!, ".divider")).toMatch(/display:\s*none/);
+  });
+});
+
+/**
+ * The driving view's *next* and *to* (#1409): outlined solid where the
+ * dispatcher holds the lock and dashed where the route is only chosen, as the
+ * run view outlines a block, and in ink, the train colour being the run
+ * view's alone.
+ */
+describe("the blocks ahead in the driving view", () => {
+  it("are outlined solid where locked and dashed where committed, in ink", () => {
+    const locked = rule(drivingStyles.cssText, ".block.locked");
+    expect(locked).toContain("border-color: var(--ink);");
+    expect(locked).not.toContain("dashed");
+    const committed = rule(drivingStyles.cssText, ".block.committed");
+    expect(committed).toContain("border-color: var(--ink);");
+    expect(committed).toContain("border-style: dashed;");
   });
 });
 
