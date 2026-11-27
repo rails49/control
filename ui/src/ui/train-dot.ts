@@ -1,16 +1,17 @@
 /**
- * The dot in a train's colour that the run view's roster and request list
- * put before a train's name, so a person can match a row to the train's
- * route (#1410). The colour is set on the dot as `--train`, `--train-<name>`
- * for a train in the trains read and `--hint` for one missing from it; the
- * stylesheet's one `.dot` rule paints it (`shared.styles.ts`).
+ * The dot in a train's colour: before a train's name in the run view's roster
+ * and request list (#1410) and on a stock card, and beside each name in the
+ * stock view's Colour field (#1411). The colour is set on the dot as
+ * `--train`, `--train-<name>` for a train in the trains read and `--hint` for
+ * one missing from it; the stylesheet's one `.dot` rule paints it
+ * (`shared.styles.ts`). `slot` places it in a Shoelace control's slot.
  */
 
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 
 import type { TrainColour } from "../colour.generated.js";
 
-export function dot(colour: TrainColour | undefined): TemplateResult {
+export function dot(colour: TrainColour | undefined, slot?: string): TemplateResult {
   const value = colour === undefined ? "var(--hint)" : `var(--train-${colour})`;
-  return html`<span class="dot" style=${`--train: ${value}`}></span>`;
+  return html`<span class="dot" slot=${slot ?? nothing} style=${`--train: ${value}`}></span>`;
 }

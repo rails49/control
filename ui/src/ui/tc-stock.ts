@@ -42,12 +42,11 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { lookTheme, type LookGapMoveDetail } from "@rails49/look";
 import { live } from "lit/directives/live.js";
-import { styleMap } from "lit/directives/style-map.js";
 import "@shoelace-style/shoelace/dist/components/button/button.js";
 import "@shoelace-style/shoelace/dist/components/option/option.js";
 import "@shoelace-style/shoelace/dist/components/select/select.js";
 
-import { TRAIN_COLOURS, type TrainColour } from "../colour.generated.js";
+import { TRAIN_COLOURS } from "../colour.generated.js";
 import { isPicture, NOT_A_PICTURE, toJpeg } from "../model/photo.js";
 import {
   hasDecoder,
@@ -68,6 +67,7 @@ import { deleteModel, photoUrl, said, takePicture } from "../model/store.js";
 import type { Power } from "../model/trace.js";
 import { moved, setKept } from "./divider-size.js";
 import { stockStyles } from "./tc-stock.styles.js";
+import { dot } from "./train-dot.js";
 
 /** The three lists, in the order their tabs stand. */
 type Tab = "trains" | "cars" | "models";
@@ -531,7 +531,7 @@ export class TcStock extends LitElement {
     return this.card(
       "train",
       train.locomotive,
-      html`${dot("dot", train.colour)}${train.train}`,
+      html`${dot(train.colour)}${train.train}`,
       html`<span>${count} ${count === 1 ? "car" : "cars"}</span
         ><span>${train.length === null ? "—" : `${train.length} mm`}</span
         ><span>${train.kind ?? "—"}</span>${
@@ -1576,11 +1576,11 @@ export class TcStock extends LitElement {
               @sl-change=${(event: Event) =>
                 this.did(this.stock?.trainColour(name, value(event)))}
             >
-              ${dot("swatch", train.colour, "prefix")}
+              ${dot(train.colour, "prefix")}
               ${TRAIN_COLOURS.map(
                 (colour) =>
                   html`<sl-option value=${colour}
-                    >${dot("swatch", colour, "prefix")}${colour}</sl-option
+                    >${dot(colour, "prefix")}${colour}</sl-option
                   >`,
               )}
             </sl-select>
@@ -2105,16 +2105,6 @@ export class TcStock extends LitElement {
   private putting(field: string, held: string) {
     return this.back === field ? live(held) : held;
   }
-}
-
-/** A round mark in a train colour, which the stylesheet paints from
- *  `--train`. */
-function dot(kind: "dot" | "swatch", colour: TrainColour, slot?: string) {
-  return html`<span
-    class=${kind}
-    slot=${slot ?? nothing}
-    style=${styleMap({ "--train": `var(--train-${colour})` })}
-  ></span>`;
 }
 
 /** Why a control is dead, said beside it, or nothing where it is not. */

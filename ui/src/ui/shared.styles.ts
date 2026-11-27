@@ -141,9 +141,10 @@ export const heading = css`
 `;
 
 /**
- * Whole rule set. The dot before a train's name in `tc-roster` and
- * `tc-requests` (#1410): round, a little smaller than the text, and in the
- * colour its element sets as `--train` (`train-dot.ts`).
+ * Whole rule set. The dot in a train's colour, before its name in `tc-roster`,
+ * `tc-requests` and a `tc-stock` card and beside each name in the stock
+ * view's Colour field (#1410, #1411): round, a little smaller than the text,
+ * and in the colour its element sets as `--train` (`train-dot.ts`).
  */
 export const dot = css`
   .dot {

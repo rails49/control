@@ -137,15 +137,19 @@ describe("the left pane's width", () => {
   });
 });
 
-/** The dot before a train's name in the roster and the request list
- *  (#1410): one rule, painted in the `--train` its element carries. */
+/** The dot in a train's colour: before its name in the roster, the request
+ *  list and a stock card, and beside each name in the stock view's Colour
+ *  field (#1410, #1411). One rule, painted in the `--train` its element
+ *  carries. */
 describe("a train's dot", () => {
-  it("is one round rule in --train, worn by the roster and the request list", () => {
-    for (const sheet of [rosterStyles, requestsStyles]) {
+  it("is one round rule in --train, worn by the roster, the request list and the stock view", () => {
+    for (const sheet of [rosterStyles, requestsStyles, stockStyles]) {
       const dot = rule(sheet.cssText, ".dot");
+      expect(dot).toBe(rule(shared.dot.cssText, ".dot"));
       expect(dot).toMatch(/background:\s*var\(--train\)/);
       expect(dot).toMatch(/border-radius:\s*50%/);
       expect(sheet.cssText).not.toContain("--train-");
+      expect(sheet.cssText).not.toContain(".swatch");
     }
   });
 });
