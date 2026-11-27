@@ -135,11 +135,11 @@ def serve(
         # whatever picture the broker kept — one a restart or a rebuild under
         # the same name left (ADR-0071) — and otherwise with an empty layout,
         # every train arriving as a gesture (ADR-0039). Locking is
-        # **incremental**, which is what the panel's two colours mean — green
-        # creeping along a cyan path, and its length saying how far the train
-        # may go (#165, ui/PANEL.md). Claiming a whole route up front is a
-        # measurement baseline, not the behaviour to hand an operator on a
-        # shared railroad.
+        # **incremental**, which is what the panel's locked route means — the
+        # locked stretch creeping along the committed route, and its length
+        # saying how far the train may go (#165, ui/PANEL.md). Claiming a
+        # whole route up front is a measurement baseline, not the behaviour to
+        # hand an operator on a shared railroad.
         Dispatcher(
             bus,
             layout,
