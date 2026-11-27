@@ -253,25 +253,24 @@ const running = css`
      dispatcher holds the lock, and a thin line along the middle of the plain
      track where the route is chosen and the claim has not been made yet. The
      claim is a class on each leg and wire, and the colour is the element's
-     --train. A part whose train the roster lacks has no --train and is drawn
-     in the hint grey. The artwork and the canvas draw the weaker claims
-     first, so a wider line is over a thinner one. Track and wires are never
-     dashed. */
+     --train (render/units.ts, trainStyle). The artwork and the canvas draw
+     the weaker claims first, so a wider line is over a thinner one. Track and
+     wires are never dashed. */
   .symbol .track.lit.occupied,
   .wire.lit.occupied {
-    stroke: var(--train, var(--hint));
+    stroke: var(--train);
     stroke-width: ${2.2 * W};
   }
 
   .symbol .track.lit.locked,
   .wire.lit.locked {
-    stroke: var(--train, var(--hint));
+    stroke: var(--train);
     stroke-width: ${1.6 * W};
   }
 
   .symbol .track.lit.committed,
   .wire.lit.committed {
-    stroke: var(--train, var(--hint));
+    stroke: var(--train);
     stroke-width: ${0.5 * W};
   }
 
@@ -284,16 +283,16 @@ const running = css`
 
   /* A bend's dot fills the corner, so it is as wide as the line. */
   .symbol .bend.lit.occupied {
-    fill: var(--train, var(--hint));
+    fill: var(--train);
     r: ${1.1 * W};
   }
 
   .symbol .bend.lit.locked {
-    fill: var(--train, var(--hint));
+    fill: var(--train);
   }
 
   .symbol .bend.lit.committed {
-    fill: var(--train, var(--hint));
+    fill: var(--train);
     r: ${0.25 * W};
   }
 
@@ -303,18 +302,18 @@ const running = css`
      ground is its stroke mixed 18% into --body. A committed block's outline is
      thin and dashed, a locked one's solid. */
   .symbol.occupied .block-body {
-    fill: color-mix(in srgb, var(--train, var(--hint)) 18%, var(--body));
-    stroke: var(--train, var(--hint));
+    fill: color-mix(in srgb, var(--train) 18%, var(--body));
+    stroke: var(--train);
   }
 
   .symbol.locked .block-body {
     fill: var(--body);
-    stroke: var(--train, var(--hint));
+    stroke: var(--train);
   }
 
   .symbol.committed .block-body {
     fill: var(--body);
-    stroke: var(--train, var(--hint));
+    stroke: var(--train);
     stroke-width: ${0.5 * BLOCK.body.border};
     stroke-dasharray: ${2 * W} ${W};
   }

@@ -16,6 +16,7 @@
 
 import { nothing, svg, type SVGTemplateResult } from "lit";
 
+import type { TrainColour } from "../colour.generated.js";
 import {
   POSITIONS,
   TRANSITS,
@@ -45,14 +46,14 @@ import {
   togglePosition,
   type Run,
 } from "../model/widgets.js";
-import { BEND, BLOCK, CURVE, PORTAL, TERMINAL, W, WIDGET } from "./units.js";
+import { BEND, BLOCK, CURVE, PORTAL, TERMINAL, W, WIDGET, trainStyle } from "./units.js";
 
 /** How a lit leg or wire is drawn. On a run, the claim on it and the colour
- *  of the train holding it, as a CSS value set on its strokes as `--train`,
- *  where the roster has that train; in edit mode neither. */
+ *  of the train holding it, where the roster has that train; in edit mode
+ *  neither. A stroke with a claim is painted by `trainStyle`. */
 export interface Lighting {
   claim?: Claim;
-  colour?: string;
+  colour?: TrainColour;
 }
 
 const NONE: ReadonlySet<string> = new Set();
@@ -220,7 +221,7 @@ function track(
   if (lighting === undefined) return plain;
   const { claim, colour } = lighting;
   const lit = svg`<path class=${`${classes} lit${claim === undefined ? "" : ` ${claim}`}`}
-    style=${colour === undefined ? nothing : `--train: ${colour}`}
+    style=${claim === undefined ? nothing : trainStyle(colour)}
     clip-path=${clip ?? nothing} d=${d} />`;
   return claim === "committed" ? svg`${plain}${lit}` : lit;
 }
@@ -423,7 +424,7 @@ function bend(on: Lit): SVGTemplateResult {
   const { claim, colour } = lighting;
   const p = anchorIn("pin", "P");
   return svg`<circle class=${`bend lit${claim === undefined ? "" : ` ${claim}`}`}
-    style=${colour === undefined ? nothing : `--train: ${colour}`}
+    style=${claim === undefined ? nothing : trainStyle(colour)}
     cx=${p.x} cy=${p.y} r=${BEND} />`;
 }
 

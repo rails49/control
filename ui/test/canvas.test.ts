@@ -971,9 +971,9 @@ describe("what each mode draws", () => {
     run.remove();
   });
 
-  /** A lock whose train the roster does not have sets no colour, and the
-   *  stylesheet draws it in `--hint` (#1409). */
-  it("sets no colour on a wire or a block whose train the roster lacks", async () => {
+  /** A lock whose train the roster does not have is drawn in `--hint`
+   *  (#1409). */
+  it("sets the hint colour on a wire or a block whose train the roster lacks", async () => {
     const run = await running({
       ...LIVE,
       lit: {
@@ -982,10 +982,12 @@ describe("what each mode draws", () => {
       },
       blocks: new Map([["east", { state: "locked", train: "ghost" }]]),
     });
-    expect(run.renderRoot.querySelector("line.wire")!.hasAttribute("style")).toBe(false);
+    expect(run.renderRoot.querySelector("line.wire.lit")!.getAttribute("style")).toBe(
+      "--train: var(--hint)",
+    );
     expect(
-      run.renderRoot.querySelector(`g[data-symbol="east"]`)!.hasAttribute("style"),
-    ).toBe(false);
+      run.renderRoot.querySelector(`g[data-symbol="east"]`)!.getAttribute("style"),
+    ).toBe("--train: var(--hint)");
     run.remove();
   });
 

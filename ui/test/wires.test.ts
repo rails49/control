@@ -159,10 +159,10 @@ describe("a bend whose two wires are not in line", () => {
     expect(corner({ "p1.P p2.P": {} }).lit).toEqual({});
     expect(
       corner({
-        "p1.P west.B": { claim: "committed", colour: "var(--train-teal)" },
-        "p1.P p2.P": { claim: "locked", colour: "var(--train-gold)" },
+        "p1.P west.B": { claim: "committed", colour: "teal" },
+        "p1.P p2.P": { claim: "locked", colour: "gold" },
       }).lit,
-    ).toEqual({ claim: "locked", colour: "var(--train-gold)" });
+    ).toEqual({ claim: "locked", colour: "gold" });
     expect(
       corner({
         "p1.P west.B": { claim: "occupied" },
