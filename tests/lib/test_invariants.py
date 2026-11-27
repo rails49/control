@@ -1101,6 +1101,28 @@ def test_a_released_train_stopped_overdue_is_not_reported() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "moving, breached",
+    [(False, []), (True, ["single released mid-move and stopped"])],
+)
+def test_a_released_train_stopped_by_the_cut_that_ends_a_drain_is_not_reported(
+    moving: bool, breached: list[str]
+) -> None:
+    """With power `draining` and nothing moving, the drain ends: `layout`
+    writes 0 on every car before `state/power: off`, and the release
+    invariant reads that 0 as dead rails. With a train still moving the drain
+    goes on, and the same 0 is a train stopped mid-move (#1413)."""
+    held = STANDING | {TAKEN: {"taken": {"single": "t-1"}}}
+    cut: Messages = [
+        *STARTED,
+        (POWER, {"power": "draining"}),
+        (TAKEN, {"taken": {}}),
+        (MOVING, {"moving": moving}),
+        wrote("3", 0.0),
+    ]
+    assert breaches_over(adr_0081_release_in_automatic, BENCH, held, cut) == breached
+
+
 FACES: Rows = {FACING: {"facing": {"t1": "west_1.A-to-B"}}}
 TURNED: tuple[str, Payload] = (FACING, {"facing": {"t1": "west_1.B-to-A"}})
 WITH_NO_MOVE = ["t1 turned from west_1.A-to-B to west_1.B-to-A with no move"]

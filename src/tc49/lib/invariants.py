@@ -2356,13 +2356,19 @@ def adr_0081_release_in_automatic(
     ([ADR-0081](../../../docs/adr/0081-a-throttle-drives-outside-a-grant-and-a-release-keeps-its-speed.md),
     with ADR-0083). Bar a train `state/overdue` lists: `layout` stopped it for
     not arriving within the allowance, and the row goes out before the `0.0`
-    (ADR-0040, #1190)."""
+    (ADR-0040, #1190). The zeros that end a drain count as dead rails: with
+    power `draining` and nothing moving, `layout` writes them before
+    `state/power: off` (ADR-0078, #1413)."""
     overdue_trains = overdue(record.rows.get(OVERDUE)) or frozenset()
     written = _written(topic, payload)
     if written is not None:
         addr, speed = written
         if speed != 0.0 and addr in record.released:
             return [f"{record.released[addr]}'s car {addr} written {speed}"]
+        if power(view.rows.get(POWER)) == DRAINING and not moving(
+            view.rows.get(MOVING)
+        ):
+            return []
         return [
             f"{train} released mid-move and stopped"
             for train in sorted(record.keeps - overdue_trains)
@@ -2675,7 +2681,7 @@ HISTORY_INVARIANTS: tuple[HistoryInvariant, ...] = (
         "A train released in `automatic` gets 0 with no move outstanding or"
         " with dead rails; with a move outstanding and live rails it keeps a"
         " nonzero speed.",
-        (TAKEN, DRIVING, POWER, POWER_WANTED, EVERY_TRACTION)
+        (TAKEN, DRIVING, POWER, POWER_WANTED, EVERY_TRACTION, MOVING)
         + (MOVE_GRANTED, EVERY_SETTLED, UNKNOWN_SENSORS, TRAIN_REMOVED, OVERDUE),
         adr_0081_release_in_automatic,
     ),
