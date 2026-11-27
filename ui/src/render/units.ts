@@ -205,6 +205,13 @@ export const NOTE = 0.22;
  */
 type TrainEntries = Record<`--train-${TrainColour}`, string>;
 
+/** The style that paints an element in a train colour: `--train` set to
+ *  that colour's palette entry, or to `--hint` for a train the roster lacks.
+ *  The stylesheets read `var(--train)`. */
+export function trainStyle(colour: TrainColour | undefined): string {
+  return `--train: var(${colour === undefined ? "--hint" : `--train-${colour}`})`;
+}
+
 const TRAIN: TrainEntries = {
   "--train-orange": "#e1630f",
   "--train-purple": "#7b48b7",

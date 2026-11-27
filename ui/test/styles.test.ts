@@ -251,8 +251,7 @@ describe("what a pane paints its ground with", () => {
 /**
  * A route on the run view (#1409): drawn in its train's colour, the claim on
  * each part of it read in the line's width. The colour arrives on the element
- * as `--train`, so there is one rule per claim and none per colour, and a part
- * whose train the roster lacks has no `--train` and is drawn in `--hint`.
+ * as `--train`, so there is one rule per claim and none per colour.
  */
 describe("the widths a route's claim is read in", () => {
   /** Each rule of the canvas, by the selectors it lists. */
@@ -269,7 +268,7 @@ describe("the widths a route's claim is read in", () => {
     expect(found, `no rule for ${selector}`).toBeDefined();
     return found!.declared;
   };
-  const train = "var(--train, var(--hint))";
+  const train = "var(--train)";
 
   it("are 2.2 W occupied, 1.6 W locked and 0.5 W committed, in the train's colour", () => {
     for (const [claim, width] of [

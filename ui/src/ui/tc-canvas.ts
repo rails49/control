@@ -51,7 +51,13 @@ import {
   type Chosen,
 } from "../model/inspect.js";
 import type { Machine, Outcome } from "../model/machine.js";
-import { CLAIMS, type Aspect, type Marker, type Overlay } from "../model/panel.js";
+import {
+  CLAIMS,
+  type Aspect,
+  type Held,
+  type Marker,
+  type Overlay,
+} from "../model/panel.js";
 import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { photoUrl, UNREVIEWED, type Review } from "../model/store.js";
@@ -67,7 +73,7 @@ import {
   type Lighting,
 } from "../render/artwork.js";
 import { wiring, type Stroke, type Wiring } from "../render/wires.js";
-import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
+import { BLOCK, FACE, PIN, PORTAL, RING, fitted, trainStyle } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
 
@@ -365,22 +371,18 @@ export class TcCanvas extends LitElement {
   private lighting(): LitWay {
     const live = this.running;
     if (live !== null) {
-      const tint = (train: string) => {
+      const lightingOf = ({ claim, train }: Held): Lighting => {
         const colour = live.colours.get(train);
-        return colour === undefined ? {} : { colour: `var(--train-${colour})` };
+        return colour === undefined ? { claim } : { claim, colour };
       };
       return {
         legs: new Map(
           [...live.lit.legs].map(([symbol, legs]) => [
             symbol,
-            new Map(
-              [...legs].map(([leg, { claim, train }]) => [leg, { claim, ...tint(train) }]),
-            ),
+            new Map([...legs].map(([leg, held]) => [leg, lightingOf(held)])),
           ]),
         ),
-        wires: new Map(
-          [...live.lit.wires].map(([key, { claim, train }]) => [key, { claim, ...tint(train) }]),
-        ),
+        wires: new Map([...live.lit.wires].map(([key, held]) => [key, lightingOf(held)])),
         refused: false,
       };
     }
@@ -424,7 +426,7 @@ export class TcCanvas extends LitElement {
           : ["wire lit", lit.claim, refused ? "offending" : undefined]
               .filter((one) => one !== undefined)
               .join(" ");
-      const style = lit?.colour === undefined ? nothing : `--train: ${lit.colour}`;
+      const style = lit?.claim === undefined ? nothing : trainStyle(lit.colour);
       return round === undefined
         ? svg`<line class=${wears} style=${style} x1=${n(from.x)} y1=${n(from.y)}
                     x2=${n(to.x)} y2=${n(to.y)} />`
@@ -445,7 +447,7 @@ export class TcCanvas extends LitElement {
       return svg`
         <g
           class=${this.worn(name, lighting, target?.block)}
-          style=${this.tinted(name)}
+          style=${this.blockColour(name)}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
@@ -505,14 +507,14 @@ export class TcCanvas extends LitElement {
       .join(" ");
   }
 
-  /** The colour a block's outline and wash are drawn in, set on its group as
-   *  `--train`: the colour of the train standing, holding or heading there.
-   *  None where the block is free, or its train is not in the roster, which
-   *  the stylesheet draws in `--hint`. */
-  private tinted(name: string): string | typeof nothing {
-    const train = this.running?.blocks.get(name)?.train;
-    const colour = train === undefined ? undefined : this.running!.colours.get(train);
-    return colour === undefined ? nothing : `--train: var(--train-${colour})`;
+  /** The colour a block's outline and wash are drawn in, set on its group by
+   *  `trainStyle`: the colour of the train standing, holding or heading
+   *  there. None where the block is free. */
+  private blockColour(name: string): string | typeof nothing {
+    const block = this.running?.blocks.get(name);
+    if (block === undefined || block.state === "free") return nothing;
+    const { train } = block;
+    return trainStyle(train === undefined ? undefined : this.running!.colours.get(train));
   }
 
   /** Where a point is drawn lying, `undefined` for a symbol drawn with every
