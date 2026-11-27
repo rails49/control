@@ -581,11 +581,8 @@ one.
 Blocks take the claim from the block view: an **occupied** block is filled
 with the train's colour mixed 18% into the body colour and outlined in it, a
 **locked** one is outlined solid in the train's colour, and a **committed**
-one is outlined thin and dashed in it. The pale ground is mixed from the
-outline's own colour in the stylesheet, so the two cannot drift apart. Track
-and wires are never dashed: a dash's spacing would vary with a wire's angle.
-Width and dash rather than hue carry the claim, so it reads with red-green
-colour deficiency, and no route is drawn in the fault red.
+one is outlined thin and dashed in it. Track and wires are never dashed.
+Width and dash carry the claim, not hue. No route is drawn in the fault red.
 
 Locking is incremental
 ([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)), so the locked
@@ -617,15 +614,14 @@ Three precedence rules, written down rather than left to the rendering order:
   junction symbol are each drawn in their own train's colour, leg by leg.
   Where one leg or wire is carried by more than one claim, the strongest
   wins: occupied over locked over committed. Between two committed routes,
-  the train whose request is earlier in the request list wins, being the one
-  that will lock first. A block two committed routes cross takes its train
+  the train whose request is earlier in the request list wins. A block two committed routes cross takes its train
   the same way.
 - **Nothing is predicted.** A request with no committed route still renders
   as endpoints only.
 
 The train colours are palette entries in `render/units.ts`, `--train-<name>`.
 The colour reaches a leg, a wire or a block as `--train` set on the element,
-so the stylesheet has one rule per claim and none per colour.
+and the stylesheet has one rule per claim.
 
 **Each block end shows what its detector reads**
 ([#898](https://github.com/rails49/control/issues/898)), for a person

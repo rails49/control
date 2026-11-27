@@ -249,15 +249,14 @@ const editing = css`
  *  drawing (ui/PANEL.md). */
 const running = css`
   /* A route in its train's colour, the claim read in the line's width
-     (ui/PANEL.md): widest on the track a train is on, today's lit width where
-     the dispatcher holds the lock, and a thin line along the middle of the
-     plain track where the route is chosen and the claim has not been made
-     yet. The claim is a class on each leg and wire, and the colour arrives on
-     the element as --train, so there is one rule per claim and none per
-     colour. A part whose train the roster lacks has no --train and is drawn
+     (ui/PANEL.md): widest on the track a train is on, 1.6 W where the
+     dispatcher holds the lock, and a thin line along the middle of the plain
+     track where the route is chosen and the claim has not been made yet. The
+     claim is a class on each leg and wire, and the colour is the element's
+     --train. A part whose train the roster lacks has no --train and is drawn
      in the hint grey. The artwork and the canvas draw the weaker claims
-     first, so a wider line is always over a thinner one. Track and wires are
-     never dashed: a dash's spacing would vary with a wire's angle. */
+     first, so a wider line is over a thinner one. Track and wires are never
+     dashed. */
   .symbol .track.lit.occupied,
   .wire.lit.occupied {
     stroke: var(--train, var(--hint));
@@ -300,11 +299,9 @@ const running = css`
 
   /* Block state, strongest first: a train standing there, a lock holding the
      empty block ahead of it, a committed route not yet locked this far. The
-     colour is the train's, set on the block's group. The pale ground of an
-     occupied block is mixed from its own stroke rather than named a second
-     time, so one value moves a colour and its wash together. A committed
-     block's outline is thin and dashed against a locked one's solid, so the
-     two are told apart without relying on hue. */
+     colour is the train's, set on the block's group. An occupied block's pale
+     ground is its stroke mixed 18% into --body. A committed block's outline is
+     thin and dashed, a locked one's solid. */
   .symbol.occupied .block-body {
     fill: color-mix(in srgb, var(--train, var(--hint)) 18%, var(--body));
     stroke: var(--train, var(--hint));
