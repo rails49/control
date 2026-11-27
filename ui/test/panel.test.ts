@@ -8,7 +8,16 @@ import { describe, expect, it } from "vitest";
 
 import type { Wire } from "../src/model/drawing.js";
 import { WHOLE } from "../src/model/inspect.js";
-import { locomotives, Panel, refusal, roster, STUCK_MS } from "../src/model/panel.js";
+import {
+  colours,
+  locomotives,
+  Panel,
+  refusal,
+  roster,
+  STUCK_MS,
+  type Claim,
+  type LitRoute,
+} from "../src/model/panel.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import type { Position } from "../src/symbols.generated.js";
@@ -71,6 +80,10 @@ const WIRES: Wire[] = [
 ];
 
 const wire = (one: string, two: string) => [one, two].sort().join(" ");
+
+/** The claims on a symbol's lit legs, one per leg. */
+const claims = (lit: LitRoute, symbol: string): Claim[] =>
+  [...(lit.legs.get(symbol)?.values() ?? [])].map(({ claim }) => claim);
 
 function panel(): Panel {
   return new Panel(LAYOUT, EXPLAIN, WIRES);
@@ -328,8 +341,8 @@ describe("request layers", () => {
       route: ["a", "sw.side", "c"],
     });
     expect(model.markers()).toEqual([]);
-    expect(model.lit().legs.get("sw1")).toEqual(new Set(["diverging"]));
-    expect(model.lit().legs.get("p1")).toEqual(new Set([WHOLE]));
+    expect(new Set(model.lit().legs.get("sw1")!.keys())).toEqual(new Set(["diverging"]));
+    expect(new Set(model.lit().legs.get("p1")!.keys())).toEqual(new Set([WHOLE]));
     expect(model.blocks().get("c")).toMatchObject({
       state: "committed",
       train: "t1",
@@ -385,9 +398,9 @@ describe("request layers", () => {
   });
 
   /**
-   * The two colours (#143): green where the dispatcher holds the lock and the
-   * train may move, cyan where the route is chosen and the claim has not been
-   * made yet. Both are read off resources the model already holds — the lock
+   * Two of the claims (#143): locked where the dispatcher holds the lock and
+   * the train may move, committed where the route is chosen and the claim has
+   * not been made yet. Both are read off resources the model already holds — the lock
    * ledger and the committed route — so nothing here is derived twice.
    */
   it("locks what the ledger holds and plans the rest of the route", () => {
@@ -400,9 +413,9 @@ describe("request layers", () => {
       { event: "lock_granted", train: "t1", resources: ["sw.side"] },
     );
     const lit = model.lit();
-    expect(lit.state.get("sw1")).toBe("locked");
-    expect(lit.state.get("p1")).toBe("locked");
-    expect(lit.wires.get(wire("a.B", "sw1.toe"))).toBe("locked");
+    expect(claims(lit, "sw1")).toEqual(["locked"]);
+    expect(claims(lit, "p1")).toEqual(["locked"]);
+    expect(lit.wires.get(wire("a.B", "sw1.toe"))?.claim).toBe("locked");
     expect(model.blocks().get("c")).toMatchObject({ state: "committed" });
   });
 
@@ -415,8 +428,8 @@ describe("request layers", () => {
       route: ["a", "sw.side", "c"],
     });
     const lit = model.lit();
-    expect(lit.state.get("sw1")).toBe("committed");
-    expect([...lit.wires.values()]).toEqual([
+    expect(claims(lit, "sw1")).toEqual(["committed"]);
+    expect([...lit.wires.values()].map(({ claim }) => claim)).toEqual([
       "committed",
       "committed",
       "committed",
@@ -433,19 +446,19 @@ describe("request layers", () => {
       id: "t1-1",
       route: ["a", "sw.side", "c"],
     });
-    expect(model.lit().state.get("sw1")).toBe("committed");
+    expect(claims(model.lit(), "sw1")).toEqual(["committed"]);
     feed(model, { event: "lock_granted", train: "t1", resources: ["sw.side"] });
-    expect(model.lit().state.get("sw1")).toBe("locked");
+    expect(claims(model.lit(), "sw1")).toEqual(["locked"]);
     feed(model, {
       event: "lock_released",
       train: "t1",
       resources: ["sw.side"],
     });
-    expect(model.lit().state.get("sw1")).toBe("committed");
+    expect(claims(model.lit(), "sw1")).toEqual(["committed"]);
   });
 
   /**
-   * The third colour (#1116): nothing detects a train on a transit, so the
+   * The third claim (#1116): nothing detects a train on a transit, so the
    * one a train is crossing is drawn occupied from the grant until the
    * picture drops it from `crossing`, as the dispatcher holds it all that
    * time.
@@ -470,17 +483,17 @@ describe("request layers", () => {
     placed(model);
     feed(model, crossing({ t1: "sw.side" }, { "sw.side": "t1", c: "t1" }));
     const lit = model.lit();
-    expect(lit.legs.get("sw1")).toEqual(new Set(["diverging"]));
-    expect(lit.state.get("sw1")).toBe("occupied");
-    expect(lit.state.get("p1")).toBe("occupied");
-    expect([...lit.wires.values()]).toEqual([
+    expect(new Set(lit.legs.get("sw1")!.keys())).toEqual(new Set(["diverging"]));
+    expect(claims(lit, "sw1")).toEqual(["occupied"]);
+    expect(claims(lit, "p1")).toEqual(["occupied"]);
+    expect([...lit.wires.values()].map(({ claim }) => claim)).toEqual([
       "occupied",
       "occupied",
       "occupied",
     ]);
   });
 
-  it("shows occupied on a symbol an occupied and a locked transit share", () => {
+  it("keeps each leg's own claim on a symbol an occupied and a locked transit share", () => {
     const model = panel();
     placed(model);
     feed(
@@ -488,10 +501,15 @@ describe("request layers", () => {
       crossing({ t1: "sw.main" }, { "sw.main": "t1", "sw.side": "t2" }),
     );
     const lit = model.lit();
-    expect(lit.state.get("sw1")).toBe("occupied");
-    expect(lit.state.get("p1")).toBe("locked");
-    expect(lit.wires.get(wire("a.B", "sw1.toe"))).toBe("occupied");
-    expect(lit.wires.get(wire("p1.P", "c.A"))).toBe("locked");
+    expect(lit.legs.get("sw1")).toEqual(
+      new Map([
+        ["straight", { claim: "occupied", train: "t1" }],
+        ["diverging", { claim: "locked", train: "t2" }],
+      ]),
+    );
+    expect(claims(lit, "p1")).toEqual(["locked"]);
+    expect(lit.wires.get(wire("a.B", "sw1.toe"))?.claim).toBe("occupied");
+    expect(lit.wires.get(wire("p1.P", "c.A"))?.claim).toBe("locked");
   });
 
   it("keeps the transit occupied with its head in the block it leads to", () => {
@@ -503,7 +521,7 @@ describe("request layers", () => {
       ...crossing({}, { "sw.side": "t1", c: "t1" }),
       occupied: { t1: ["sw.side", "c"] },
     });
-    expect(model.lit().state.get("sw1")).toBe("occupied");
+    expect(claims(model.lit(), "sw1")).toEqual(["occupied"]);
   });
 
   it("stops drawing a transit occupied once the train is no longer crossing it", () => {
@@ -511,13 +529,13 @@ describe("request layers", () => {
     placed(model);
     feed(model, crossing({ t1: "sw.side" }, { "sw.side": "t1", c: "t1" }));
     feed(model, crossing({}, { "sw.side": "t1", c: "t1" }));
-    expect(model.lit().state.get("sw1")).toBe("locked");
+    expect(claims(model.lit(), "sw1")).toEqual(["locked"]);
     feed(model, crossing({}, {}));
-    expect(model.lit().state.has("sw1")).toBe(false);
+    expect(model.lit().legs.has("sw1")).toBe(false);
   });
 
   it("keeps a lock the dispatcher still holds after its request completes", () => {
-    // Green is the ledger's answer, not the route's intersected with it, so
+    // Locked is the ledger's answer, not the route's intersected with it, so
     // the picture never claims the railroad is freer than it is.
     const model = panel();
     placed(model);
@@ -528,7 +546,7 @@ describe("request layers", () => {
       { event: "lock_granted", train: "t1", resources: ["sw.side"] },
       { event: "request_completed", id: "t1-1" },
     );
-    expect(model.lit().state.get("sw1")).toBe("locked");
+    expect(claims(model.lit(), "sw1")).toEqual(["locked"]);
     feed(model, {
       event: "lock_released",
       train: "t1",
@@ -537,9 +555,9 @@ describe("request layers", () => {
     expect(model.lit().legs.size).toBe(0);
   });
 
-  it("reports a symbol two transits cross at the stronger of the two", () => {
-    // The turnout is on both ways out of `a`. One train holds its lock and
-    // the other only has it committed; the stronger claim is the true one.
+  it("gives a wire two transits run over to the stronger of the two", () => {
+    // The wire to the turnout's toe is on both ways out of `a`. One train
+    // holds its lock and the other only has it committed.
     const model = panel();
     placed(model);
     feed(
@@ -556,12 +574,10 @@ describe("request layers", () => {
       { event: "route_chosen", id: "t2-1", route: ["a", "sw.main", "b"] },
       { event: "lock_granted", train: "t2", resources: ["sw.main"] },
     );
-    expect(model.lit().state.get("sw1")).toBe("locked");
-    expect(model.lit().wires.get(wire("a.B", "sw1.toe"))).toBe("locked");
-    // The leg the committed way takes is still lit; only the colour is shared.
-    expect(model.lit().legs.get("sw1")).toEqual(
-      new Set(["diverging", "straight"]),
-    );
+    expect(model.lit().wires.get(wire("a.B", "sw1.toe"))).toEqual({
+      claim: "locked",
+      train: "t2",
+    });
   });
 
   it("keeps the block a train stands in occupied while its route runs", () => {
@@ -661,6 +677,135 @@ describe("request layers", () => {
       { ...submitted, id: "t1-2", dest: ["b.A"] },
     );
     expect(model.markers().every((marker) => marker.id === "t1-2")).toBe(true);
+  });
+});
+
+/**
+ * Whose route each leg and wire is on (#1409): the claim and the train
+ * holding it, per leg, so a symbol two routes cross is drawn in each
+ * route's own colour.
+ */
+describe("the train on each leg", () => {
+  const second = (id: string, train: string, route: string[]): Partial<TraceEvent>[] => [
+    { event: "request_submitted", id, train, depart: "a.B", dest: [`${route.at(-1)}.A`] },
+    { event: "route_chosen", id, route },
+  ];
+
+  it("names the claim and the train for each leg and each wire", () => {
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      ...second("t1-1", "t1", ["a", "sw.side", "c"]),
+      { event: "lock_granted", train: "t1", resources: ["sw.side"] },
+      ...second("t2-1", "t2", ["a", "sw.main", "b"]),
+    );
+    const lit = model.lit();
+    expect(lit.legs.get("sw1")).toEqual(
+      new Map([
+        ["diverging", { claim: "locked", train: "t1" }],
+        ["straight", { claim: "committed", train: "t2" }],
+      ]),
+    );
+    expect(lit.legs.get("p1")).toEqual(new Map([[WHOLE, { claim: "locked", train: "t1" }]]));
+    expect(lit.wires.get(wire("p1.P", "c.A"))).toEqual({ claim: "locked", train: "t1" });
+    expect(lit.wires.get(wire("sw1.straight", "b.A"))).toEqual({
+      claim: "committed",
+      train: "t2",
+    });
+  });
+
+  it("gives a leg two committed routes share to the earlier request", () => {
+    for (const [first, then] of [
+      ["t1", "t2"],
+      ["t2", "t1"],
+    ] as const) {
+      const model = panel();
+      placed(model);
+      feed(
+        model,
+        ...second(`${first}-1`, first, ["a", "sw.side", "c"]),
+        ...second(`${then}-1`, then, ["a", "sw.side", "c"]),
+      );
+      const lit = model.lit();
+      expect(lit.legs.get("sw1")!.get("diverging")).toEqual({ claim: "committed", train: first });
+      expect(lit.wires.get(wire("a.B", "sw1.toe"))).toEqual({ claim: "committed", train: first });
+      expect(model.blocks().get("c")).toMatchObject({ state: "committed", train: first });
+    }
+  });
+
+  it("gives a leg a lock and a committed route share to the lock", () => {
+    const model = panel();
+    placed(model);
+    feed(
+      model,
+      ...second("t1-1", "t1", ["a", "sw.side", "c"]),
+      { event: "lock_granted", train: "t2", resources: ["sw.side"] },
+    );
+    expect(model.lit().legs.get("sw1")!.get("diverging")).toEqual({
+      claim: "locked",
+      train: "t2",
+    });
+  });
+
+  it("reports each leg of a double slip carrying two trains on its own train", () => {
+    const model = new Panel(
+      {
+        layout: "slip",
+        blocks: { w: { length: 1000 }, e: { length: 1000 }, n: { length: 1000 }, s: { length: 1000 } },
+        connections: { x: { transits: { we: ["w.B", "e.A"], ns: ["n.B", "s.A"] } } },
+      },
+      {
+        layout: "slip",
+        connections: {
+          x: {
+            transits: {
+              we: { ends: ["w.B", "e.A"], way: [["ds1", "a"]] },
+              ns: { ends: ["n.B", "s.A"], way: [["ds1", "b"]] },
+            },
+            exclusive: [],
+          },
+        },
+      },
+      [],
+    );
+    feed(
+      model,
+      {
+        event: "allocation",
+        trains: { t1: "w", t2: "n" },
+        occupied: { t1: ["w"], t2: ["n"] },
+        locks: { w: "t1", n: "t2", "x.we": "t1" },
+        requests: [],
+      },
+      { event: "request_submitted", id: "t2-1", train: "t2", depart: "n.B", dest: ["s.A"] },
+      { event: "route_chosen", id: "t2-1", route: ["n", "x.ns", "s"] },
+    );
+    expect(model.lit().legs.get("ds1")).toEqual(
+      new Map([
+        ["a", { claim: "locked", train: "t1" }],
+        ["b", { claim: "committed", train: "t2" }],
+      ]),
+    );
+  });
+});
+
+/** The colour each train's route and marks are drawn in, off the roster the
+ *  pane's photos come from (#1409). A train the roster does not have, such
+ *  as the holder of a lock left behind, has none. */
+describe("the colours the trains wear", () => {
+  it("gives each train in the roster its colour and no other train one", () => {
+    const stock = {
+      goods: { colour: "teal" as const },
+      rake: { colour: "orange" as const },
+    };
+    expect(colours(stock)).toEqual(
+      new Map([
+        ["goods", "teal"],
+        ["rake", "orange"],
+      ]),
+    );
+    expect(colours(stock).has("ghost")).toBe(false);
   });
 });
 
@@ -766,17 +911,19 @@ describe("the run's picture", () => {
   it("draws a committed route from the request that owns it", () => {
     const model = panel();
     feed(model, PICTURE);
-    expect(model.lit().legs).toEqual(new Map([["p2", new Set([WHOLE])]]));
+    expect(model.lit().legs).toEqual(
+      new Map([["p2", new Map([[WHOLE, { claim: "locked", train: "t1" }]])]]),
+    );
   });
 
   /** A joining page is served the same picture a replay would have built, so
-   *  it must open on the same two colours (ADR-0032). The picture holds the
+   *  it must open on the same claims (ADR-0032). The picture holds the
    *  joint's lock, so the whole of this route is locked. */
-  it("opens on the colours the events that built it would have given", () => {
+  it("opens on the claims the events that built it would have given", () => {
     const model = panel();
     feed(model, PICTURE);
-    expect(model.lit().state.get("p2")).toBe("locked");
-    expect([...model.lit().wires.values()]).toEqual(["locked", "locked"]);
+    expect(claims(model.lit(), "p2")).toEqual(["locked"]);
+    expect([...model.lit().wires.values()].map(({ claim }) => claim)).toEqual(["locked", "locked"]);
 
     const replayed = panel();
     placed(replayed);
@@ -863,7 +1010,7 @@ describe("the run's picture", () => {
     expect(model.markers()).toEqual([]);
     // What the picture still holds keeps its colour: green is read from the
     // ledger, and the dispatcher really does still hold these locks.
-    expect(model.lit().state.get("p2")).toBe("locked");
+    expect(claims(model.lit(), "p2")).toEqual(["locked"]);
     feed(model, { ...PICTURE, requests: [], locks: { b: "t1" } });
     expect(model.lit().legs.size).toBe(0);
     expect(model.lit().wires.size).toBe(0);
@@ -1451,8 +1598,8 @@ describe("what state/allocation says a train occupies", () => {
       train: "t",
     });
     expect(model.blocks().get("c")?.named).toBeUndefined();
-    expect(model.lit().state.get("sw1")).toBe("occupied");
-    expect(model.lit().state.get("p2")).toBe("locked");
+    expect(claims(model.lit(), "sw1")).toEqual(["occupied"]);
+    expect(claims(model.lit(), "p2")).toEqual(["locked"]);
   });
 
   it("names a train with only a transit on its list in the block trains gives", () => {
@@ -1465,7 +1612,7 @@ describe("what state/allocation says a train occupies", () => {
         locks: { "sw.main": "t" },
       }),
     );
-    expect(model.lit().state.get("sw1")).toBe("occupied");
+    expect(claims(model.lit(), "sw1")).toEqual(["occupied"]);
     expect(model.blocks().get("b")).toMatchObject({
       named: "t",
       crossing: true,
@@ -1534,9 +1681,9 @@ describe("what state/allocation says a train occupies", () => {
         locks: { "sw.main": "t", b: "t" },
       }),
     );
-    expect(model.lit().state.get("sw1")).toBe("occupied");
+    expect(claims(model.lit(), "sw1")).toEqual(["occupied"]);
     feed(model, picture({ occupied: { t: ["b"] }, locks: { b: "t" } }));
-    expect(model.lit().state.has("sw1")).toBe(false);
+    expect(model.lit().legs.has("sw1")).toBe(false);
   });
 
   it("calls a block on a train's list not free, a tail not being a place to drop one", () => {
@@ -1558,7 +1705,7 @@ describe("what state/allocation says a train occupies", () => {
       { event: "lock_released", train: "t", resources: ["a", "sw.main"] },
     );
     expect(model.blocks().get("a")).toEqual({ state: "free" });
-    expect(model.lit().state.has("sw1")).toBe(false);
+    expect(model.lit().legs.has("sw1")).toBe(false);
     expect(named(model)).toEqual([["b", "t"]]);
   });
 
@@ -1591,7 +1738,7 @@ describe("what state/allocation says a train occupies", () => {
       named: "t",
     });
     expect(model.blocks().get("a")).toMatchObject({ state: "locked" });
-    expect(model.lit().state.get("sw1")).toBe("locked");
+    expect(claims(model.lit(), "sw1")).toEqual(["locked"]);
   });
 
   it("draws a removed train's residue locked with no name", () => {
@@ -1612,7 +1759,7 @@ describe("what state/allocation says a train occupies", () => {
     feed(model, picture({ occupied: { t: ["sw.main", "b"] } }));
     model.reset();
     expect(model.blocks().get("b")).toEqual({ state: "free" });
-    expect(model.lit().state.size).toBe(0);
+    expect(model.lit().legs.size).toBe(0);
   });
 });
 

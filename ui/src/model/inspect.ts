@@ -89,28 +89,28 @@ export function litWires(
 }
 
 /**
- * A drawing's wires in the order they are drawn, the lit ones last.
+ * A drawing's wires in the order they are drawn, the lit ones last and the
+ * more strongly lit after the less.
  *
  * A lit wire drawn under an unlit one it crosses is half hidden, and SVG has
  * no z beyond the order the lines are emitted in — the ordering the artwork
  * already applies to lit legs, applied to the wires between symbols.
  *
- * The caller says what lit means, since the editor's canvas lights the way a
- * refusal or a netlist choice is about and the panel lights a route in two
- * colours. The wires are all this needs: where the two ends of a line are is
- * the caller's own lookup, and the ordering does not depend on it. The given
- * array is left alone.
+ * The caller says how strongly each is lit, `0` for unlit, since the editor's
+ * canvas lights the way a refusal or a netlist choice is about and the panel
+ * lights a route at three widths, a wider line over a thinner one. The wires
+ * are all this needs: where the two ends of a line are is the caller's own
+ * lookup, and the ordering does not depend on it. Wires lit alike keep the
+ * drawing's order. The given array is left alone.
  *
  * The canvas hands it the strokes it draws for the wires rather than the
  * wires (`render/wires.ts`), a curve being one more stroke to order.
  */
 export function litLast<T>(
   drawn: readonly T[],
-  alight: (one: T) => boolean,
+  alight: (one: T) => number,
 ): T[] {
-  return [...drawn].sort(
-    (one, two) => Number(alight(one)) - Number(alight(two)),
-  );
+  return [...drawn].sort((one, two) => alight(one) - alight(two));
 }
 
 /** The way a transit chosen in the netlist pane takes, as the one way to

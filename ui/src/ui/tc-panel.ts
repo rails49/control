@@ -52,7 +52,15 @@ import {
 import type { Drawing } from "../model/drawing.js";
 import type { Point } from "../model/geometry.js";
 import { axisOf, keep, kept, sizeAt, UPRIGHT, type Arrangement, type Gap } from "../model/pane.js";
-import { locomotives, roster, takenOff, type Overlay, type Panel, type RosterRow } from "../model/panel.js";
+import {
+  colours,
+  locomotives,
+  roster,
+  takenOff,
+  type Overlay,
+  type Panel,
+  type RosterRow,
+} from "../model/panel.js";
 import { pointsOffered, positionsBySymbol, stuckBySymbol } from "../model/scene.js";
 import type { Session } from "../model/session.js";
 import { UNREVIEWED, type Review } from "../model/store.js";
@@ -626,6 +634,7 @@ export class TcPanel extends LitElement {
       markers: model.markers(),
       widgets: this.session?.widgetRows ?? new Map(),
       locomotives: locomotives(this.session?.owned ?? {}, blocks),
+      colours: colours(this.session?.owned ?? {}),
     };
   }
 

@@ -14,7 +14,7 @@
  * (`wires.ts`), unless the leg is itself a curve all the way to the pin.
  */
 
-import { svg, type SVGTemplateResult } from "lit";
+import { nothing, svg, type SVGTemplateResult } from "lit";
 
 import {
   POSITIONS,
@@ -37,6 +37,7 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
+import { CLAIMS, type Claim } from "../model/panel.js";
 import {
   ansi,
   editorRuns,
@@ -46,7 +47,16 @@ import {
 } from "../model/widgets.js";
 import { BEND, BLOCK, CURVE, PORTAL, TERMINAL, W, WIDGET } from "./units.js";
 
+/** How a lit leg is drawn. On a run, the claim on it and the colour of the
+ *  train holding it, as a CSS value set on its strokes as `--train`, where
+ *  the roster has that train; in edit mode neither. */
+export interface Lighting {
+  claim?: Claim;
+  colour?: string;
+}
+
 const NONE: ReadonlySet<string> = new Set();
+const UNLIT: ReadonlyMap<string, Lighting> = new Map();
 /** What a signal shows, as the dispatcher publishes it (GLOSSARY.md). */
 export type Aspect = "stop" | "caution" | "clear";
 
@@ -73,7 +83,9 @@ export type Reading = "occupied" | "clear" | "unknown";
  * The way is lit leg by leg rather than symbol by symbol (EDITOR.md), and
  * every leg of a turnout, a crossing or a slip is one stroke from pin to pin.
  * `WHOLE` lights every stroke, which is what a symbol with no legs the
- * artwork draws — a joiner or a block end — is lit by.
+ * artwork draws — a joiner or a block end — is lit by. Each lit leg is drawn
+ * as its `Lighting` says, so two routes through one symbol are each drawn in
+ * their own train's colour (ui/PANEL.md).
  *
  * `dark` names the block ends that carry no signal, which `dark` in
  * inspect.ts works out. It defaults to none, so a palette tile and a drag
@@ -98,14 +110,14 @@ export type Reading = "occupied" | "clear" | "unknown";
  */
 export function artwork(
   spec: SymbolSpec,
-  lit: ReadonlySet<string> = NONE,
+  lit: ReadonlyMap<string, Lighting> = UNLIT,
   dark: ReadonlySet<string> = NONE,
   aspects: ReadonlyMap<string, Aspect> = RESTING,
   position?: Position,
   cut: ReadonlyMap<string, Cut> = UNCUT,
 ): SVGTemplateResult {
   const on: Lit = (...legs) =>
-    lit.has(WHOLE) || legs.some((leg) => lit.has(leg)) ? " lit" : "";
+    lit.get(WHOLE) ?? legs.map((leg) => lit.get(leg)).find((one) => one !== undefined);
   const set = against(spec, position);
   const end: End = (pin) => {
     const at = anchorIn(spec.kind, pin, spec.rot);
@@ -189,9 +201,29 @@ export function straightAt(spec: SymbolSpec, pin: string): number {
   }
 }
 
-/** Whether any of the legs running over a stroke is lit, as the class suffix
- *  the stroke takes. */
-type Lit = (...legs: string[]) => string;
+/** How a stroke the legs run over is lit, `undefined` where none of them
+ *  is. */
+type Lit = (...legs: string[]) => Lighting | undefined;
+
+/**
+ * A stroke of track, plain or lit as `lighting` says: `lit`, and on a run the
+ * claim, with the train's colour as `--train`. A committed stroke is a thin
+ * line along the middle of the track, so the plain track is drawn under it.
+ */
+function track(
+  classes: string,
+  d: string,
+  lighting: Lighting | undefined,
+  clip?: string,
+): SVGTemplateResult {
+  const plain = svg`<path class=${classes} clip-path=${clip ?? nothing} d=${d} />`;
+  if (lighting === undefined) return plain;
+  const { claim, colour } = lighting;
+  const lit = svg`<path class=${`${classes} lit${claim === undefined ? "" : ` ${claim}`}`}
+    style=${colour === undefined ? nothing : `--train: ${colour}`}
+    clip-path=${clip ?? nothing} d=${d} />`;
+  return claim === "committed" ? svg`${plain}${lit}` : lit;
+}
 
 /** Whether a stroke is set against: every leg over it wants the position the
  *  point is not in, so the road it draws is not one the point offers. */
@@ -238,9 +270,9 @@ function block(
   const { x, y, w, h } = BLOCK.body;
   const { at } = BLOCK.signal;
   return svg`
-    <path class=${`track${on()}`} d=${path(end("A"), { x, y: a.y })} />
-    <path class=${`track${on()}`} d=${path({ x: x + w, y: b.y }, end("B"))} />
-    <rect class=${`block-body${on()}`}
+    ${track("track", path(end("A"), { x, y: a.y }), on())}
+    ${track("track", path({ x: x + w, y: b.y }, end("B")), on())}
+    <rect class=${`block-body${on() === undefined ? "" : " lit"}`}
           x=${x} y=${y} width=${w} height=${h} />
     ${dark.has("A")
       ? svg``
@@ -325,7 +357,7 @@ function terminal(on: Lit, end: End): SVGTemplateResult {
   const p = anchorIn("terminal", "P");
   const bar = { x: TERMINAL.stub, y: p.y };
   return svg`
-    <path class=${`track cut${on()}`} d=${path(end("P"), bar)} />
+    ${track("track cut", path(end("P"), bar), on())}
     <path class="buffer" d=${`M${n(bar.x)} ${n(bar.y - TERMINAL.bar.h / 2)}
       V${n(bar.y + TERMINAL.bar.h / 2)}`} />
   `;
@@ -345,8 +377,7 @@ function portal(on: Lit, end: End): SVGTemplateResult {
   const p = anchorIn("portal", "P");
   const { first, apart } = PORTAL.mouth;
   return svg`
-    <path class=${`track${on()}`} clip-path=${`url(#${MOUTH})`}
-          d=${path(end("P"), { x: PORTAL.stub + W, y: p.y })} />
+    ${track("track", path(end("P"), { x: PORTAL.stub + W, y: p.y }), on(), `url(#${MOUTH})`)}
     ${[first, first + apart].map(
       (across) => svg`<path class="portal-mouth" d=${leaning(across, p.y)} />`,
     )}
@@ -387,9 +418,13 @@ function cutAt(y: number): number {
  *  it (#59); run mode, where pins are hidden, lights the whole drawing and gets
  *  its dot back. */
 function bend(on: Lit): SVGTemplateResult {
-  if (on() === "") return svg``;
+  const lighting = on();
+  if (lighting === undefined) return svg``;
+  const { claim, colour } = lighting;
   const p = anchorIn("pin", "P");
-  return svg`<circle class="bend lit" cx=${p.x} cy=${p.y} r=${BEND} />`;
+  return svg`<circle class=${`bend lit${claim === undefined ? "" : ` ${claim}`}`}
+    style=${colour === undefined ? nothing : `--train: ${colour}`}
+    cx=${p.x} cy=${p.y} r=${BEND} />`;
 }
 
 /**
@@ -463,25 +498,28 @@ function curve(frog: Point, from: Ending, to: Ending): string {
 }
 
 /**
- * The roads of a symbol, drawn in three layers: those set against first, then
- * the unlit, then the lit. Legs share track where they meet, and a faint
- * stroke over a solid one, or an unlit over a lit, would hide half of it.
- * Sorting is stable, so roads of one layer keep the order they are written in.
+ * The roads of a symbol, drawn in layers: those set against first, then the
+ * unlit, then the lit, and on a run the lit from the weakest claim to the
+ * strongest, so a wider line is always over a thinner one. Legs share track
+ * where they meet, and a faint stroke over a solid one, or an unlit over a
+ * lit, would hide half of it. Sorting is stable, so roads of one layer keep
+ * the order they are written in.
  */
 function roads(
   on: Lit,
   drawn: { legs: string[]; d: string }[],
   set: Against = NEITHER,
 ): SVGTemplateResult[] {
-  const layer = (legs: string[]) =>
-    set(legs) ? 0 : on(...legs) === "" ? 1 : 2;
+  const layer = (legs: string[]) => {
+    if (set(legs)) return 0;
+    const lighting = on(...legs);
+    if (lighting === undefined) return 1;
+    return lighting.claim === undefined ? 2 : 2 + CLAIMS.length - CLAIMS.indexOf(lighting.claim);
+  };
   return [...drawn]
     .sort((a, b) => layer(a.legs) - layer(b.legs))
-    .map(
-      ({ legs, d }) =>
-        svg`<path class=${`track${on(...legs)}${
-          set(legs) ? " against" : ""
-        }`} d=${d} />`,
+    .map(({ legs, d }) =>
+      track(`track${set(legs) ? " against" : ""}`, d, on(...legs)),
     );
 }
 

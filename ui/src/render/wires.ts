@@ -22,15 +22,22 @@ import { pointOf, type Shift } from "../model/under.js";
 import { n, straightAt, type Cut } from "./artwork.js";
 import { CURVE } from "./units.js";
 
+/** What a lit wire wears: the classes beyond `wire`, and on a run the colour
+ *  of the train holding it, as a CSS value set on it as `--train`, where the
+ *  roster has that train. */
+export interface Worn {
+  classes: string;
+  colour?: string;
+}
+
 /** One stroke of the wires' drawing. */
 export interface Stroke {
   from: Point;
   to: Point;
   /** The control point of a curve. Undefined on a wire's straight part. */
   round: Point | undefined;
-  /** The classes the stroke wears beyond `wire`. Undefined where it is not
-   *  lit. */
-  worn: string | undefined;
+  /** What the stroke wears. Undefined where it is not lit. */
+  worn: Worn | undefined;
 }
 
 export interface Wiring {
@@ -48,7 +55,7 @@ interface Laid {
   length: number;
   /** How far short of each pin its straight part stops. */
   short: [number, number];
-  worn: string | undefined;
+  worn: Worn | undefined;
 }
 
 /** One end of a laid wire. */
@@ -67,7 +74,7 @@ interface Meeting {
   /** The wires of no length joining its pins. */
   joins: Laid[];
   /** What the most strongly lit wire there wears. */
-  worn: string | undefined;
+  worn: Worn | undefined;
 }
 
 /** One of the tracks meeting at a place. */
@@ -101,7 +108,7 @@ const NOTHING = 1e-6;
  */
 export function wiring(
   drawing: Drawing,
-  worn: ReadonlyMap<string, string>,
+  worn: ReadonlyMap<string, Worn>,
   shift?: Shift,
 ): Wiring {
   const laid: Laid[] = [];
@@ -262,12 +269,12 @@ function along(from: Point, toward: Point, by: number): Point {
 /** What the more strongly lit of two wires wears: the lit one of a lit and an
  *  unlit, and of two a run lights, the one whose claim `CLAIMS` puts first. */
 function stronger(
-  one: string | undefined,
-  two: string | undefined,
-): string | undefined {
+  one: Worn | undefined,
+  two: Worn | undefined,
+): Worn | undefined {
   if (one === undefined || two === undefined) return one ?? two;
-  const rank = (worn: string) => {
-    const at = CLAIMS.findIndex((claim) => worn.split(" ").includes(claim));
+  const rank = ({ classes }: Worn) => {
+    const at = CLAIMS.findIndex((claim) => classes.split(" ").includes(claim));
     return at < 0 ? CLAIMS.length : at;
   };
   return rank(two) < rank(one) ? two : one;

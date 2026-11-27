@@ -97,7 +97,7 @@ describe("the artwork of a symbol whose legs the library fixes", () => {
       const spec = { kind } as SymbolSpec;
       expect(litStrokes(artwork(spec))).toEqual([]);
       for (const leg of Object.keys(legs)) {
-        expect(litStrokes(artwork(spec, new Set([leg])))).not.toHaveLength(0);
+        expect(litStrokes(artwork(spec, new Map([[leg, {}]])))).not.toHaveLength(0);
       }
     }
   });
@@ -106,12 +106,12 @@ describe("the artwork of a symbol whose legs the library fixes", () => {
     // Every leg is one stroke from pin to pin (#1295), so a lit slip road is
     // its curve alone and not the through routes it leaves and joins.
     const crossing = { kind: "crossing" } as SymbolSpec;
-    expect(litStrokes(artwork(crossing, new Set(["a"])))).toHaveLength(1);
-    expect(litStrokes(artwork(crossing, new Set([WHOLE])))).toHaveLength(2);
+    expect(litStrokes(artwork(crossing, new Map([["a", {}]])))).toHaveLength(1);
+    expect(litStrokes(artwork(crossing, new Map([[WHOLE, {}]])))).toHaveLength(2);
 
     const slip = { kind: "single_slip" } as SymbolSpec;
-    expect(litStrokes(artwork(slip, new Set(["slip"])))).toHaveLength(1);
-    expect(litStrokes(artwork(slip, new Set([WHOLE])))).toHaveLength(3);
+    expect(litStrokes(artwork(slip, new Map([["slip", {}]])))).toHaveLength(1);
+    expect(litStrokes(artwork(slip, new Map([[WHOLE, {}]])))).toHaveLength(3);
   });
 });
 
@@ -173,7 +173,7 @@ describe("the artwork of a symbol a wire's corner cuts into", () => {
     flatten(
       artwork(
         spec,
-        lit === undefined ? undefined : new Set([lit]),
+        lit === undefined ? undefined : new Map([[lit, {}]]),
         undefined,
         undefined,
         undefined,
@@ -204,7 +204,7 @@ describe("the artwork of a symbol a wire's corner cuts into", () => {
     const strokes = litStrokes(
       artwork(
         { kind: "turnout" },
-        new Set(["diverging"]),
+        new Map([["diverging", {}]]),
         undefined,
         undefined,
         undefined,
@@ -221,7 +221,7 @@ describe("the artwork of a symbol a wire's corner cuts into", () => {
   });
 
   it("draws no dot at a bend the corner passes beside, lit or not", () => {
-    expect(flatten(artwork({ kind: "pin" }, new Set([WHOLE])))).toContain("bend lit");
+    expect(flatten(artwork({ kind: "pin" }, new Map([[WHOLE, {}]])))).toContain("bend lit");
     expect(cut({ kind: "pin" }, "P", 0.5, undefined, WHOLE)).not.toContain("bend");
   });
 });

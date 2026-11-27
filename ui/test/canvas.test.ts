@@ -709,7 +709,7 @@ describe("what each mode draws", () => {
       ["west", { state: "occupied", train: "goods", named: "goods", toward: "B" }],
       ["east", { state: "locked", train: "goods" }],
     ]),
-    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    lit: { legs: new Map(), wires: new Map() },
     aspects: new Map([["west.B", "clear"]]),
     detected: new Map(),
     positions: new Map(),
@@ -718,6 +718,7 @@ describe("what each mode draws", () => {
     markers: [{ id: "goods-1", train: "goods", at: "east.A", role: "arrival" }],
     widgets: new Map(),
     locomotives: new Map(),
+    colours: new Map(),
   };
 
   /** The run view's surface: the same canvas, told it is running, with the
@@ -933,20 +934,68 @@ describe("what each mode draws", () => {
 
   /** The rule that puts lit wires last is one rule for both modes (#142), so a
    *  route's wire cannot be half hidden by a crossing unlit one either. */
-  it("draws a route's lit wires last, in the colour the claim reads in", async () => {
+  it("draws a route's lit wires last, wearing the claim and the train's colour", async () => {
     const run = await running({
       ...LIVE,
       lit: {
         legs: new Map(),
-        state: new Map(),
-        wires: new Map([["east.A west.B", "locked"]]),
+        wires: new Map([["east.A west.B", { claim: "locked", train: "goods" }]]),
       },
+      colours: new Map([["goods", "teal"]]),
+    });
+    expect(
+      [...run.renderRoot.querySelectorAll("line.wire")].map((line) => [
+        [...line.classList].join(" "),
+        line.getAttribute("style"),
+      ]),
+    ).toEqual([["wire lit locked", "--train: var(--train-teal)"]]);
+    run.remove();
+  });
+
+  /** A committed wire is a thin line along the middle of the plain one, so the
+   *  plain one is drawn under it (#1409). */
+  it("draws a committed wire over the plain wire", async () => {
+    const run = await running({
+      ...LIVE,
+      lit: {
+        legs: new Map(),
+        wires: new Map([["east.A west.B", { claim: "committed", train: "goods" }]]),
+      },
+      colours: new Map([["goods", "teal"]]),
     });
     expect(
       [...run.renderRoot.querySelectorAll("line.wire")].map((line) =>
         [...line.classList].join(" "),
       ),
-    ).toEqual(["wire lit locked"]);
+    ).toEqual(["wire", "wire lit committed"]);
+    run.remove();
+  });
+
+  /** A lock whose train the roster does not have sets no colour, and the
+   *  stylesheet draws it in `--hint` (#1409). */
+  it("sets no colour on a wire or a block whose train the roster lacks", async () => {
+    const run = await running({
+      ...LIVE,
+      lit: {
+        legs: new Map(),
+        wires: new Map([["east.A west.B", { claim: "locked", train: "ghost" }]]),
+      },
+      blocks: new Map([["east", { state: "locked", train: "ghost" }]]),
+    });
+    expect(run.renderRoot.querySelector("line.wire")!.hasAttribute("style")).toBe(false);
+    expect(
+      run.renderRoot.querySelector(`g[data-symbol="east"]`)!.hasAttribute("style"),
+    ).toBe(false);
+    run.remove();
+  });
+
+  it("sets the train's colour on a block it stands in, holds or heads for", async () => {
+    const run = await running({ ...LIVE, colours: new Map([["goods", "olive"]]) });
+    for (const block of ["west", "east"]) {
+      expect(
+        run.renderRoot.querySelector(`g[data-symbol="${block}"]`)!.getAttribute("style"),
+      ).toBe("--train: var(--train-olive)");
+    }
     run.remove();
   });
 });
@@ -978,7 +1027,7 @@ describe("a train's photo in its block", () => {
       ["west", { state: "occupied", train: "goods", named: "goods" }],
       ["east", { state: "free" }],
     ]),
-    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    lit: { legs: new Map(), wires: new Map() },
     aspects: new Map(),
     detected: new Map(),
     positions: new Map(),
@@ -987,6 +1036,7 @@ describe("a train's photo in its block", () => {
     markers: [],
     widgets: new Map(),
     locomotives: new Map([["goods", "BR 218"]]),
+    colours: new Map(),
   };
 
   let canvas: TcCanvas;
@@ -1158,7 +1208,7 @@ describe("a long press", () => {
       ["west", { state: "occupied", train: "goods", named: "goods" }],
       ["east", { state: "free" }],
     ]),
-    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    lit: { legs: new Map(), wires: new Map() },
     aspects: new Map(),
     detected: new Map(),
     positions: new Map(),
@@ -1167,6 +1217,7 @@ describe("a long press", () => {
     markers: [],
     widgets: new Map(),
     locomotives: new Map(),
+    colours: new Map(),
   };
 
   const OFFERED = new Map([["point", { addr: "8", position: "thrown" as const }]]);
@@ -1402,8 +1453,7 @@ describe("a point on a run", () => {
   const LIVE: Overlay = {
     blocks: new Map(),
     lit: {
-      legs: new Map([["lit", new Set(["straight"])]]),
-      state: new Map([["lit", "locked"]]),
+      legs: new Map([["lit", new Map([["straight", { claim: "locked", train: "goods" }]])]]),
       wires: new Map(),
     },
     aspects: new Map(),
@@ -1420,6 +1470,7 @@ describe("a point on a run", () => {
     markers: [],
     widgets: new Map(),
     locomotives: new Map(),
+    colours: new Map(),
   };
 
   async function running(live: Overlay = LIVE): Promise<TcCanvas> {
@@ -1455,6 +1506,45 @@ describe("a point on a run", () => {
     const run = await running();
     expect(strokes(run, "lit").some((one) => one.includes("against"))).toBe(
       false,
+    );
+    run.remove();
+  });
+
+  /** Each leg wears its own claim and train, so two routes through one
+   *  point are each drawn in their own colour, a wider line over a thinner
+   *  one; a committed leg is a thin line over the plain track (#1409). */
+  it("draws each leg of a point in its own train's colour, the weaker first", async () => {
+    const run = await running({
+      ...LIVE,
+      lit: {
+        legs: new Map([
+          [
+            "lit",
+            new Map([
+              ["straight", { claim: "locked", train: "goods" }],
+              ["diverging", { claim: "committed", train: "rake" }],
+            ]),
+          ],
+        ]),
+        wires: new Map(),
+      },
+      colours: new Map([
+        ["goods", "teal"],
+        ["rake", "gold"],
+      ]),
+    });
+    expect(
+      [...run.renderRoot.querySelectorAll(`g[data-symbol="lit"] path`)].map((path) => [
+        path.getAttribute("class"),
+        path.getAttribute("style"),
+      ]),
+    ).toEqual([
+      ["track", null],
+      ["track lit committed", "--train: var(--train-gold)"],
+      ["track lit locked", "--train: var(--train-teal)"],
+    ]);
+    expect(run.renderRoot.querySelector(`g[data-symbol="lit"]`)!.classList).not.toContain(
+      "locked",
     );
     run.remove();
   });
@@ -1596,7 +1686,7 @@ describe("a widget on a half square", () => {
 
   const QUIET: Overlay = {
     blocks: new Map(),
-    lit: { legs: new Map(), state: new Map(), wires: new Map() },
+    lit: { legs: new Map(), wires: new Map() },
     aspects: new Map(),
     detected: new Map(),
     positions: new Map(),
@@ -1605,6 +1695,7 @@ describe("a widget on a half square", () => {
     markers: [],
     widgets: new Map(),
     locomotives: new Map(),
+    colours: new Map(),
   };
 
   function ringX(canvas: TcCanvas, name: string): number {

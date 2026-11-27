@@ -1314,8 +1314,8 @@ describe("a drawing reviewed again under the same name", () => {
     stood.session.documents(drawn(), AFTER, STOCK);
     stood.broker.says(ALLOCATION, inA({ a: "goods", "j.over": "goods" }));
     const lit = stood.session.panel!.lit();
-    expect(lit.state.get("p1")).toBe("locked");
-    expect([...lit.wires.values()]).toEqual(["locked", "locked"]);
+    expect([...lit.legs.get("p1")!.values()].map(({ claim }) => claim)).toEqual(["locked"]);
+    expect([...lit.wires.values()].map(({ claim }) => claim)).toEqual(["locked", "locked"]);
   });
 
   it("marks a point only the new layout lists as reported", () => {
