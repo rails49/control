@@ -1101,23 +1101,31 @@ def test_a_released_train_stopped_overdue_is_not_reported() -> None:
     ]
 
 
+@pytest.mark.parametrize("drain", ["under way", "pressed"])
 @pytest.mark.parametrize(
     "moving, breached",
     [(False, []), (True, ["single released mid-move and stopped"])],
 )
 def test_a_released_train_stopped_by_the_cut_that_ends_a_drain_is_not_reported(
-    moving: bool, breached: list[str]
+    drain: str, moving: bool, breached: list[str]
 ) -> None:
-    """With power `draining` and nothing moving, the drain ends: `layout`
-    writes 0 on every car before `state/power: off`, and the release
-    invariant reads that 0 as dead rails. With a train still moving the drain
-    goes on, and the same 0 is a train stopped mid-move (#1413)."""
+    """With a drain under way or just pressed and nothing moving, the drain
+    ends: `layout` writes 0 on every car before `state/power: off`, and the
+    release invariant reads that 0 as dead rails. A drain pressed with nothing
+    moving goes `off` at once, and `state/power` never reads `draining`. With
+    a train still moving the drain goes on, and the same 0 is a train stopped
+    mid-move (#1413)."""
     held = STANDING | {TAKEN: {"taken": {"single": "t-1"}}}
+    draining: tuple[str, Payload] = (
+        (POWER, {"power": "draining"})
+        if drain == "under way"
+        else (POWER_WANTED, {"power": "draining"})
+    )
     cut: Messages = [
         *STARTED,
-        (POWER, {"power": "draining"}),
         (TAKEN, {"taken": {}}),
         (MOVING, {"moving": moving}),
+        draining,
         wrote("3", 0.0),
     ]
     assert breaches_over(adr_0081_release_in_automatic, BENCH, held, cut) == breached
