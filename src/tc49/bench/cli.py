@@ -14,7 +14,8 @@ not a knob, and that page is its single source of truth.
 `layout show` prints the layout derived from a drawing, which is the topology
 review that a committed layout file used to give in a diff (ADR-0015).
 `generate` rewrites every TypeScript file the UI is handed rather than
-keeps by hand: the symbol library, and the set of rejection reasons.
+keeps by hand: the symbol library, the set of rejection reasons, and the
+train colours.
 
 **Two things called `--store`, on either side of a process boundary.** `serve`
 opens a store **directory** on this machine, because it is what serves it.
@@ -66,6 +67,7 @@ from tc49.lib import rejection
 from tc49.lib.documents import Documents
 from tc49.lib.layout import Layout
 from tc49.lib.mqtt import BROKER_EXAMPLE, MqttBus, address
+from tc49.lib.roster import COLOUR_PATH, render_colours
 from tc49.store import DEFAULT_STORE, STORE_ENV, AssetStore, Backup, store_root, symbols
 from tc49.store.backup import IDLE_S, NOT_CONFIGURED, PUSH_S, Watch
 from tc49.store.server import make_server
@@ -73,6 +75,7 @@ from tc49.store.server import make_server
 GENERATORS: dict[str, Callable[[], str]] = {
     symbols.GENERATED_PATH: symbols.render,
     rejection.GENERATED_PATH: rejection.render,
+    COLOUR_PATH: render_colours,
 }
 """Every file the UI is handed rather than keeps by hand, and what writes it.
 Keyed by the path each takes inside a checkout, so one command writes them

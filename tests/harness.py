@@ -27,7 +27,7 @@ from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import DRAINING
 from tc49.lib.layout import Layout
-from tc49.lib.roster import Car, Coupled, Roster, Train
+from tc49.lib.roster import Car, Colour, Coupled, Roster, Train
 from tc49.lib.scenario import Scenario
 from tc49.store import AssetStore
 
@@ -140,7 +140,7 @@ def train(length: int, priority: int | None = None) -> Train:
     only how long a train is needs: a train's length is the sum of its cars
     and is never stated (`lib.roster.Train`)."""
     car = Car(f"bench-{length}", "freight", length)
-    return Train((Coupled(car),), priority)
+    return Train((Coupled(car),), priority, colour=Colour.ORANGE)
 
 
 def stock(**lengths: int) -> Roster:

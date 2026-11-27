@@ -318,7 +318,9 @@ def test_a_train_made_after_it_came_up_is_driven(
     text = roster.read_text().replace(
         "cars:\n", "cars:\n  railcar_car: { model: bench-600, addr: '21' }\n", 1
     )
-    roster.write_text(text + "  railcar: { cars: [{ car: railcar_car }] }\n")
+    roster.write_text(
+        text + "  railcar: { cars: [{ car: railcar_car }], colour: orange }\n"
+    )
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
     hand.publish(TAKE_WANTED, {"train": "railcar", "throttle": "t-1"})

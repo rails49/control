@@ -56,7 +56,10 @@ class Railroad:
         doc = {
             "roster": RAILROAD,
             "cars": cars,
-            "trains": {train: {"cars": list_} for train, list_ in made.items()},
+            "trains": {
+                train: {"cars": list_, "colour": "orange"}
+                for train, list_ in made.items()
+            },
         }
         (self.root / "layouts" / f"{RAILROAD}.roster.yaml").write_text(
             yaml.safe_dump(doc)

@@ -280,7 +280,9 @@ def test_a_train_made_after_it_came_up_is_placed(
     text = roster.read_text().replace(
         "cars:\n", "cars:\n  railcar_car: { model: bench-600 }\n", 1
     )
-    roster.write_text(text + "  railcar: { cars: [{ car: railcar_car }] }\n")
+    roster.write_text(
+        text + "  railcar: { cars: [{ car: railcar_car }], colour: orange }\n"
+    )
     hand = MqttBus(port=broker.port)
     assert hand.wait_connected()
     hand.publish(PLACEMENT_WANTED, {"train": "railcar", "block": "yard_e"})

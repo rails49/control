@@ -28,6 +28,7 @@ what a function *means*, and a press reaches the device vocabulary through
 """
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 LOCOMOTIVE = "locomotive"
 KINDS = (LOCOMOTIVE, "passenger", "freight", "special")
@@ -49,6 +50,45 @@ on only while the button is held (GLOSSARY.md, **Function**)."""
 FORWARD = "forward"
 REVERSE = "reverse"
 ORIENTATIONS = (FORWARD, REVERSE)
+
+
+class Colour(StrEnum):
+    """What a train's route and marks wear on the panel (GLOSSARY.md, **Train
+    colour**), in the order a new train is given one in (docs/store/LAYOUT.md).
+    The UI's copy is generated from this (`colour.generated.ts`, written by
+    `tc49 generate`), as the rejection reasons' is (`tc49.lib.rejection`)."""
+
+    ORANGE = "orange"
+    PURPLE = "purple"
+    BROWN = "brown"
+    PINK = "pink"
+    OLIVE = "olive"
+    TEAL = "teal"
+    NAVY = "navy"
+    MAGENTA = "magenta"
+    GOLD = "gold"
+    MAROON = "maroon"
+
+
+COLOUR_PATH = "ui/src/colour.generated.ts"
+
+
+def render_colours() -> str:
+    """The whole of `ui/src/colour.generated.ts`."""
+    names = "\n".join(f'  | "{colour}"' for colour in Colour)
+    order = "\n".join(f'  "{colour}",' for colour in Colour)
+    return f"""\
+// Generated from src/tc49/lib/roster.py. Run `tc49 generate` to update.
+
+/** A train colour, as a train document names it. */
+export type TrainColour =
+{names};
+
+/** Every train colour, in the order a new train is given one in. */
+export const TRAIN_COLOURS: readonly TrainColour[] = [
+{order}
+];
+"""
 
 
 @dataclass(frozen=True)
@@ -174,10 +214,14 @@ class Train:
 
     Its length and its kind are **derived, never authored** — a length is one
     fact and the roster's whole job is that it stays one.
+
+    `colour` is what its route wears on the panel. Nothing in the dispatcher,
+    scheduler, driver or layout reads it.
     """
 
     cars: tuple[Coupled, ...] = ()
     priority: int | None = None
+    colour: Colour = field(kw_only=True)
 
     @property
     def length(self) -> int:

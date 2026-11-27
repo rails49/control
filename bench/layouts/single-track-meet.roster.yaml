@@ -32,14 +32,14 @@ cars:
   waiter_car: { model: bench-1000 }
 
 trains:
-  blocker: { cars: [{ car: blocker_car }] }
-  first: { cars: [{ car: first_car }] }
-  fixed: { cars: [{ car: fixed_car }] }
-  flexible: { cars: [{ car: flexible_car }] }
-  runner: { cars: [{ car: runner_car }] }
-  second: { cars: [{ car: second_car }] }
-  squatter: { cars: [{ car: squatter_car }] }
-  t1: { cars: [{ car: t1_car }] }
-  t2: { cars: [{ car: t2_car }] }
-  t3: { cars: [{ car: t3_car }] }
-  waiter: { cars: [{ car: waiter_car }] }
+  blocker: { cars: [{ car: blocker_car }], colour: orange }
+  first: { cars: [{ car: first_car }], colour: purple }
+  fixed: { cars: [{ car: fixed_car }], colour: brown }
+  flexible: { cars: [{ car: flexible_car }], colour: pink }
+  runner: { cars: [{ car: runner_car }], colour: olive }
+  second: { cars: [{ car: second_car }], colour: teal }
+  squatter: { cars: [{ car: squatter_car }], colour: navy }
+  t1: { cars: [{ car: t1_car }], colour: magenta }
+  t2: { cars: [{ car: t2_car }], colour: gold }
+  t3: { cars: [{ car: t3_car }], colour: maroon }
+  waiter: { cars: [{ car: waiter_car }], colour: orange }

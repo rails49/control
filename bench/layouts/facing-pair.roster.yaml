@@ -24,6 +24,6 @@ cars:
   t3_car: { model: bench-1000 }
 
 trains:
-  t1: { cars: [{ car: t1_car }] }
-  t2: { cars: [{ car: t2_car }] }
-  t3: { cars: [{ car: t3_car }] }
+  t1: { cars: [{ car: t1_car }], colour: orange }
+  t2: { cars: [{ car: t2_car }], colour: purple }
+  t3: { cars: [{ car: t3_car }], colour: brown }

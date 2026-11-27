@@ -32,14 +32,14 @@ cars:
   t3_car: { model: bench-1400 }
 
 trains:
-  arriver: { cars: [{ car: arriver_car }] }
-  express_2: { cars: [{ car: express_2_car }] }
-  freight: { cars: [{ car: freight_car }] }
-  freight_1: { cars: [{ car: freight_1_car }] }
-  hauler: { cars: [{ car: hauler_car }] }
-  latecomer: { cars: [{ car: latecomer_car }] }
-  shunter: { cars: [{ car: shunter_car }] }
-  shuttle: { cars: [{ car: shuttle_car }] }
-  t1: { cars: [{ car: t1_car }] }
-  t2: { cars: [{ car: t2_car }] }
-  t3: { cars: [{ car: t3_car }] }
+  arriver: { cars: [{ car: arriver_car }], colour: orange }
+  express_2: { cars: [{ car: express_2_car }], colour: purple }
+  freight: { cars: [{ car: freight_car }], colour: brown }
+  freight_1: { cars: [{ car: freight_1_car }], colour: pink }
+  hauler: { cars: [{ car: hauler_car }], colour: olive }
+  latecomer: { cars: [{ car: latecomer_car }], colour: teal }
+  shunter: { cars: [{ car: shunter_car }], colour: navy }
+  shuttle: { cars: [{ car: shuttle_car }], colour: magenta }
+  t1: { cars: [{ car: t1_car }], colour: gold }
+  t2: { cars: [{ car: t2_car }], colour: maroon }
+  t3: { cars: [{ car: t3_car }], colour: orange }

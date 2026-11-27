@@ -15,7 +15,7 @@ from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
-from tc49.lib.roster import Coupled, Roster, Train
+from tc49.lib.roster import Colour, Coupled, Roster, Train
 from tc49.scheduler import Scheduler
 from tests.invariants import checked
 from tests.layout.railroad import (
@@ -71,7 +71,9 @@ class Unsensed:
 
     def __init__(self, block: str = "a", facing: str = "a.A-to-B") -> None:
         layout = line()
-        roster = Roster("line", {TRAIN: Train((Coupled(loco("3")),))})
+        roster = Roster(
+            "line", {TRAIN: Train((Coupled(loco("3")),), colour=Colour.ORANGE)}
+        )
         self.clock = Clock()
         self.bus = InProcessBus(self.clock)
         stood = {TRAIN: block}

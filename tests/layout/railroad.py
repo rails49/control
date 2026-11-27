@@ -28,6 +28,7 @@ from tc49.lib.roster import (
     MOMENTARY,
     REVERSE,
     Car,
+    Colour,
     Coupled,
     Function,
     Roster,
@@ -150,16 +151,21 @@ def stock() -> Roster:
     return Roster(
         "bench",
         {
-            "freight_1": Train((Coupled(loco(None)),)),
-            "single": Train((Coupled(loco("3")),)),
-            "topped": Train((Coupled(loco("8")), Coupled(loco("4"), REVERSE))),
-            "van": Train((Coupled(loco("9")), Coupled(loco(None), FORWARD))),
+            "freight_1": Train((Coupled(loco(None)),), colour=Colour.ORANGE),
+            "single": Train((Coupled(loco("3")),), colour=Colour.ORANGE),
+            "topped": Train(
+                (Coupled(loco("8")), Coupled(loco("4"), REVERSE)), colour=Colour.ORANGE
+            ),
+            "van": Train(
+                (Coupled(loco("9")), Coupled(loco(None), FORWARD)), colour=Colour.ORANGE
+            ),
             "lit": Train(
                 (
                     Coupled(lit(None, {"0": "headlights"})),
                     Coupled(lit("5", {"0": "headlights", "3": "horn", "2": "horn"})),
                     Coupled(lit("6", {"0": "headlights", "1": "bell"}), REVERSE),
-                )
+                ),
+                colour=Colour.ORANGE,
             ),
         },
     )

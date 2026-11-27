@@ -44,6 +44,7 @@ from tc49.lib.roster import (
     ORIENTATIONS,
     SCALES,
     Car,
+    Colour,
     Coupled,
     Function,
     Model,
@@ -192,6 +193,8 @@ def _train(
     a train with no `cars` key: a train is the cars it is made up of, and one
     of none would be a train of no length on every run view (#412).
 
+    `colour` is required and is one of `Colour`.
+
     The catalogue is here because an entry may name a model rather than a car
     (ADR-0061), and a model is what such an entry is built from.
     """
@@ -215,7 +218,14 @@ def _train(
         _coupled(entry, cars, catalogue, where)
         for entry in cast(list[Any], spec["cars"])
     ]
-    return Train(tuple(ordered), priority)
+    if "colour" not in spec:
+        raise ValueError(f"{where}: names no colour")
+    if spec["colour"] not in list(Colour):
+        raise ValueError(
+            f"{where}: colour must be one of {', '.join(Colour)},"
+            f" got {spec['colour']!r}"
+        )
+    return Train(tuple(ordered), priority, colour=Colour(spec["colour"]))
 
 
 def _coupled(

@@ -29,15 +29,15 @@ cars:
   t5_car: { model: bench-900 }
 
 trains:
-  fixed: { cars: [{ car: fixed_car }] }
-  flexible: { cars: [{ car: flexible_car }] }
-  north: { cars: [{ car: north_car }] }
-  resident: { cars: [{ car: resident_car }] }
-  south: { cars: [{ car: south_car }] }
-  stock: { cars: [{ car: stock_car }] }
-  stranded: { cars: [{ car: stranded_car }] }
-  t1: { cars: [{ car: t1_car }] }
-  t2: { cars: [{ car: t2_car }] }
-  t3: { cars: [{ car: t3_car }] }
-  t4: { cars: [{ car: t4_car }] }
-  t5: { cars: [{ car: t5_car }] }
+  fixed: { cars: [{ car: fixed_car }], colour: orange }
+  flexible: { cars: [{ car: flexible_car }], colour: purple }
+  north: { cars: [{ car: north_car }], colour: brown }
+  resident: { cars: [{ car: resident_car }], colour: pink }
+  south: { cars: [{ car: south_car }], colour: olive }
+  stock: { cars: [{ car: stock_car }], colour: teal }
+  stranded: { cars: [{ car: stranded_car }], colour: navy }
+  t1: { cars: [{ car: t1_car }], colour: magenta }
+  t2: { cars: [{ car: t2_car }], colour: gold }
+  t3: { cars: [{ car: t3_car }], colour: maroon }
+  t4: { cars: [{ car: t4_car }], colour: orange }
+  t5: { cars: [{ car: t5_car }], colour: purple }

@@ -21,7 +21,7 @@ from tc49.layout import LayoutInterface
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import AUTOMATIC
-from tc49.lib.roster import Coupled, Train
+from tc49.lib.roster import Colour, Coupled, Train
 from tc49.scheduler import Scheduler
 from tests.harness import load
 from tests.invariants import checked
@@ -599,7 +599,11 @@ def runs_every_move(binding: type[InProcessBus]) -> None:
     speed written on address `3` for every move granted."""
     layout, roster, scenario = load("crossover-yard/meet")
     addressed = replace(
-        roster, trains={**roster.trains, "freight_1": Train((Coupled(loco("3")),))}
+        roster,
+        trains={
+            **roster.trains,
+            "freight_1": Train((Coupled(loco("3")),), colour=Colour.ORANGE),
+        },
     )
     clock = Clock()
     bus = binding(clock)
