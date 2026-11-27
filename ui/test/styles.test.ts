@@ -32,6 +32,7 @@ import { GAP_PX } from "@rails49/look";
 import type { CSSResult } from "lit";
 import { describe, expect, it } from "vitest";
 
+import { TRAIN_COLOURS } from "../src/colour.generated.js";
 import { DRAWING, LEAST, LIST, UPRIGHT } from "../src/model/pane.js";
 import { COLOURS, DARK } from "../src/render/units.js";
 import * as shared from "../src/ui/shared.styles.js";
@@ -411,6 +412,90 @@ describe("a signal's lamps", () => {
       expect(canvasStyles.cssText).toContain(lit);
     }
     expect(canvasStyles.cssText).not.toContain(".signal.caution .lamp.green");
+  });
+});
+
+/**
+ * The train colours (#1408): one palette entry `--train-<name>` per name in
+ * `TRAIN_COLOURS`, in each theme.
+ *
+ * Contrast is WCAG's ratio of relative luminance, and 3:1 is its floor for a
+ * line or a shape, which both colours a route's state is read in meet today.
+ * The step between two colours is their distance in OKLab. Each train colour
+ * is at least 0.1 from the other nine, since a person watching tells the
+ * trains apart by colour, and from every colour that already means something
+ * on the panel.
+ */
+describe("the train colours", () => {
+  const linear = (channel: number): number => {
+    const c = channel / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const rgb = (hex: string): number[] =>
+    [1, 3, 5].map((at) => linear(parseInt(hex.slice(at, at + 2), 16)));
+  const luminance = (hex: string): number => {
+    const [r, g, b] = rgb(hex) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: string, b: string): number => {
+    const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (high! + 0.05) / (low! + 0.05);
+  };
+  const oklab = (hex: string): number[] => {
+    const [r, g, b] = rgb(hex) as [number, number, number];
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ];
+  };
+  const step = (a: string, b: string): number => {
+    const [p, q] = [oklab(a), oklab(b)];
+    return Math.hypot(...p.map((v, i) => v - q[i]!));
+  };
+  const reserved = ["--wrong", "--green", "--chosen", "--unfinished", "--hint", "--track"];
+  const themes = [
+    ["light", COLOURS],
+    ["dark", DARK],
+  ] as const;
+
+  it("are one entry per name in either theme", () => {
+    for (const [, colours] of themes) {
+      for (const name of TRAIN_COLOURS) {
+        expect(colours[`--train-${name}`]).toMatch(/^#[0-9a-f]{6}$/);
+      }
+    }
+  });
+
+  it.each(themes)("show against the paper in the %s palette", (_, colours) => {
+    for (const name of TRAIN_COLOURS) {
+      const ratio = contrast(colours[`--train-${name}`]!, colours["--paper"]!);
+      expect(ratio, name).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it.each(themes)(
+    "are a clear step from every colour that already means something in the %s palette",
+    (_, colours) => {
+      for (const name of TRAIN_COLOURS) {
+        for (const other of reserved) {
+          const apart = step(colours[`--train-${name}`]!, colours[other]!);
+          expect(apart, `${name} against ${other}`).toBeGreaterThanOrEqual(0.1);
+        }
+      }
+    },
+  );
+
+  it.each(themes)("are a clear step from each other in the %s palette", (_, colours) => {
+    for (const name of TRAIN_COLOURS) {
+      for (const other of TRAIN_COLOURS.filter((o) => o !== name)) {
+        const apart = step(colours[`--train-${name}`]!, colours[`--train-${other}`]!);
+        expect(apart, `${name} against ${other}`).toBeGreaterThanOrEqual(0.1);
+      }
+    }
   });
 });
 
