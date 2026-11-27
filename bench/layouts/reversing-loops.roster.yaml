@@ -50,24 +50,24 @@ cars:
 trains:
   # One locomotive each, so each derives `light engine` rather than a hauled
   # kind, and each drives on its own.
-  ce68: { cars: [{ car: ce68_car }] }
-  e10: { cars: [{ car: e10_car }] }
+  ce68: { cars: [{ car: ce68_car }], colour: orange }
+  e10: { cars: [{ car: e10_car }], colour: purple }
 
-  fixed: { cars: [{ car: fixed_car }] }
-  flexible: { cars: [{ car: flexible_car }] }
-  long: { cars: [{ car: long_car }] }
-  med: { cars: [{ car: med_car }] }
-  mover: { cars: [{ car: mover_car }] }
-  north: { cars: [{ car: north_car }] }
-  resident: { cars: [{ car: resident_car }] }
-  short: { cars: [{ car: short_car }] }
-  south: { cars: [{ car: south_car }] }
-  stock: { cars: [{ car: stock_car }] }
-  stranded: { cars: [{ car: stranded_car }] }
-  t1: { cars: [{ car: t1_car }] }
-  t2: { cars: [{ car: t2_car }] }
-  t3: { cars: [{ car: t3_car }] }
-  t4: { cars: [{ car: t4_car }] }
-  t5: { cars: [{ car: t5_car }] }
-  t6: { cars: [{ car: t6_car }] }
-  too_long: { cars: [{ car: too_long_car }] }
+  fixed: { cars: [{ car: fixed_car }], colour: brown }
+  flexible: { cars: [{ car: flexible_car }], colour: pink }
+  long: { cars: [{ car: long_car }], colour: olive }
+  med: { cars: [{ car: med_car }], colour: teal }
+  mover: { cars: [{ car: mover_car }], colour: navy }
+  north: { cars: [{ car: north_car }], colour: magenta }
+  resident: { cars: [{ car: resident_car }], colour: gold }
+  short: { cars: [{ car: short_car }], colour: maroon }
+  south: { cars: [{ car: south_car }], colour: orange }
+  stock: { cars: [{ car: stock_car }], colour: purple }
+  stranded: { cars: [{ car: stranded_car }], colour: brown }
+  t1: { cars: [{ car: t1_car }], colour: pink }
+  t2: { cars: [{ car: t2_car }], colour: olive }
+  t3: { cars: [{ car: t3_car }], colour: teal }
+  t4: { cars: [{ car: t4_car }], colour: navy }
+  t5: { cars: [{ car: t5_car }], colour: magenta }
+  t6: { cars: [{ car: t6_car }], colour: gold }
+  too_long: { cars: [{ car: too_long_car }], colour: maroon }

@@ -48,7 +48,10 @@ def roster(*trains: str) -> Roster:
         {
             "roster": "mini",
             "cars": {f"{train}_car": {"model": "wagon"} for train in trains},
-            "trains": {train: {"cars": [{"car": f"{train}_car"}]} for train in trains},
+            "trains": {
+                train: {"cars": [{"car": f"{train}_car"}], "colour": "orange"}
+                for train in trains
+            },
         },
         CATALOGUE,
     )

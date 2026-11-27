@@ -14,10 +14,11 @@ from typing import Any
 import pytest
 import yaml
 
-from tc49.lib.roster import Function, Model
+from tc49.bench.cli import GENERATORS
+from tc49.lib.roster import COLOUR_PATH, Colour, Function, Model, render_colours
 from tc49.lib.stock import validate_model, validate_roster
 from tc49.store import AssetStore
-from tests.harness import ASSETS
+from tests.harness import ASSETS, ROOT
 
 
 def models(*docs: dict[str, Any]) -> dict[str, Model]:
@@ -324,9 +325,9 @@ def test_one_car_may_not_stand_in_two_trains() -> None:
         roster(
             {"re460_1": {"model": "sbb-re460", "addr": "460"}},
             {
-                "a": {"cars": [{"car": "re460_1"}]},
-                "b": {"cars": [{"car": "re460_1"}]},
-                "c": {"cars": [{"car": "re460_1"}]},
+                "a": {"cars": [{"car": "re460_1"}], "colour": "orange"},
+                "b": {"cars": [{"car": "re460_1"}], "colour": "orange"},
+                "c": {"cars": [{"car": "re460_1"}], "colour": "orange"},
             },
         )
 
@@ -337,8 +338,8 @@ def test_one_model_may_stand_in_two_trains() -> None:
     stock = roster(
         {},
         {
-            "a": {"cars": [{"model": "hbis"}]},
-            "b": {"cars": [{"model": "hbis"}]},
+            "a": {"cars": [{"model": "hbis"}], "colour": "orange"},
+            "b": {"cars": [{"model": "hbis"}], "colour": "orange"},
         },
     )
     assert set(stock.trains) == {"a", "b"}
@@ -423,10 +424,14 @@ def test_a_trains_camera_is_its_first_camera_car_head_first() -> None:
         },
         {
             "ic_721": {
-                "cars": [{"car": "re460_1"}, {"car": "cam_2"}, {"car": "cam_1"}]
+                "cars": [{"car": "re460_1"}, {"car": "cam_2"}, {"car": "cam_1"}],
+                "colour": "orange",
             },
-            "light_1": {"cars": [{"model": "sbb-re460"}]},
-            "ic_722": {"cars": [{"model": "sbb-ic2000", "camera": "http://cam-3/"}]},
+            "light_1": {"cars": [{"model": "sbb-re460"}], "colour": "orange"},
+            "ic_722": {
+                "cars": [{"model": "sbb-ic2000", "camera": "http://cam-3/"}],
+                "colour": "orange",
+            },
         },
     )
     assert stock.trains["ic_721"].camera == "http://cam-2/"
@@ -441,7 +446,9 @@ def test_a_camera_on_a_model_is_an_unknown_key() -> None:
         {
             "roster": "reversing-loops",
             "cars": {"ic_1": {"model": "sbb-ic2000"}},
-            "trains": {"ic_721": {"cars": [{"model": "sbb-ic2000"}]}},
+            "trains": {
+                "ic_721": {"cars": [{"model": "sbb-ic2000"}], "colour": "orange"}
+            },
         },
         catalogue,
     )
@@ -463,7 +470,7 @@ def test_an_unknown_key_loads_and_is_not_carried() -> None:
         {
             "roster": "reversing-loops",
             "cars": {"ic_1": {"model": "sbb-ic2000"}},
-            "trains": {"ic_721": {"cars": [{"car": "ic_1"}]}},
+            "trains": {"ic_721": {"cars": [{"car": "ic_1"}], "colour": "orange"}},
         },
         catalogue,
     )
@@ -472,7 +479,13 @@ def test_an_unknown_key_loads_and_is_not_carried() -> None:
             "roster": "reversing-loops",
             "shed": "erstfeld",
             "cars": {"ic_1": {"model": "sbb-ic2000", "bought": 2019}},
-            "trains": {"ic_721": {"cars": [{"car": "ic_1"}], "notes": "evenings"}},
+            "trains": {
+                "ic_721": {
+                    "cars": [{"car": "ic_1"}],
+                    "colour": "orange",
+                    "notes": "evenings",
+                }
+            },
         },
         catalogue,
     )
@@ -492,7 +505,8 @@ def test_a_trains_length_is_the_sum_of_its_cars() -> None:
                     {"car": "re460_1"},
                     {"car": "ic_1", "orientation": "reverse"},
                     {"car": "ic_2"},
-                ]
+                ],
+                "colour": "orange",
             }
         },
     )
@@ -517,15 +531,19 @@ def test_a_trains_kind_ignores_the_locomotives() -> None:
             "hbis_1": {"model": "hbis"},
         },
         {
-            "ic_721": {"cars": [{"car": "re460_1"}, {"car": "ic_1"}]},
+            "ic_721": {
+                "cars": [{"car": "re460_1"}, {"car": "ic_1"}],
+                "colour": "orange",
+            },
             "mixed_9": {
                 "cars": [
                     {"model": "sbb-re460"},
                     {"model": "sbb-ic2000"},
                     {"car": "hbis_1"},
-                ]
+                ],
+                "colour": "orange",
             },
-            "light_1": {"cars": [{"model": "sbb-re460"}]},
+            "light_1": {"cars": [{"model": "sbb-re460"}], "colour": "orange"},
         },
     )
     assert stock.trains["ic_721"].kind == "passenger"
@@ -548,12 +566,17 @@ def test_a_trains_locomotive_is_its_first_locomotives_model_head_first() -> None
         },
         {
             "ic_721": {
-                "cars": [{"car": "ic_1"}, {"car": "re460_1"}, {"car": "railcar_1"}]
+                "cars": [{"car": "ic_1"}, {"car": "re460_1"}, {"car": "railcar_1"}],
+                "colour": "orange",
             },
             "push_1": {
-                "cars": [{"car": "ic_2"}, {"car": "railcar_2"}, {"model": "sbb-re460"}]
+                "cars": [{"car": "ic_2"}, {"car": "railcar_2"}, {"model": "sbb-re460"}],
+                "colour": "orange",
             },
-            "wagons_1": {"cars": [{"model": "sbb-ic2000"}, {"car": "hbis_1"}]},
+            "wagons_1": {
+                "cars": [{"model": "sbb-ic2000"}, {"car": "hbis_1"}],
+                "colour": "orange",
+            },
         },
     )
     assert stock.trains["ic_721"].locomotive == "sbb-re460"
@@ -577,9 +600,10 @@ def test_a_trains_functions_are_its_cars_by_name_and_each_name_once() -> None:
                     {"car": "re460_1"},
                     {"car": "ic_1"},
                     {"car": "re460_2", "orientation": "reverse"},
-                ]
+                ],
+                "colour": "orange",
             },
-            "ic_721": {"cars": [{"model": "sbb-ic2000"}]},
+            "ic_721": {"cars": [{"model": "sbb-ic2000"}], "colour": "orange"},
         },
     )
     functions = stock.trains["top_and_tail"].functions
@@ -594,9 +618,17 @@ def test_a_train_with_no_priority_sorts_after_every_train_that_has_one() -> None
     stock = roster(
         {},
         {
-            "whenever": {"cars": [{"model": "sbb-ic2000"}]},
-            "ic_721": {"cars": [{"model": "sbb-ic2000"}], "priority": 2},
-            "ice_1": {"cars": [{"model": "sbb-ic2000"}], "priority": 1},
+            "whenever": {"cars": [{"model": "sbb-ic2000"}], "colour": "orange"},
+            "ic_721": {
+                "cars": [{"model": "sbb-ic2000"}],
+                "colour": "orange",
+                "priority": 2,
+            },
+            "ice_1": {
+                "cars": [{"model": "sbb-ic2000"}],
+                "colour": "orange",
+                "priority": 1,
+            },
         },
     )
     assert stock.trains["whenever"].priority is None
@@ -607,18 +639,70 @@ def test_a_train_with_no_priority_sorts_after_every_train_that_has_one() -> None
     ]
 
 
+@pytest.mark.parametrize(
+    "colour",
+    [
+        "orange",
+        "purple",
+        "brown",
+        "pink",
+        "olive",
+        "teal",
+        "navy",
+        "magenta",
+        "gold",
+        "maroon",
+    ],
+)
+def test_a_train_names_one_of_the_ten_colours(colour: str) -> None:
+    stock = roster({}, {"ore": {"cars": [{"model": "hbis"}], "colour": colour}})
+    assert stock.trains["ore"].colour == colour
+
+
+def test_a_train_without_a_colour_is_refused() -> None:
+    with pytest.raises(ValueError, match="train 'ore': names no colour"):
+        roster({}, {"ore": {"cars": [{"model": "hbis"}]}})
+
+
+def test_a_colour_off_the_list_is_refused_naming_the_list() -> None:
+    with pytest.raises(
+        ValueError,
+        match=(
+            "train 'ore': colour must be one of orange, purple, brown, pink,"
+            " olive, teal, navy, magenta, gold, maroon, got 'red'"
+        ),
+    ):
+        roster({}, {"ore": {"cars": [{"model": "hbis"}], "colour": "red"}})
+
+
+def test_the_committed_colour_file_is_current() -> None:
+    assert GENERATORS[COLOUR_PATH] is render_colours
+    assert (ROOT / COLOUR_PATH).read_text() == render_colours(), "run `tc49 generate`"
+
+
+def test_every_colour_is_rendered_as_a_member_of_the_union() -> None:
+    union = render_colours().split("export type TrainColour =")[1].split(";")[0]
+    for colour in Colour:
+        assert f'\n  | "{colour}"' in union
+
+
 def test_orientation_is_forward_or_reverse() -> None:
     """The word rather than a boolean, and only the two words."""
     with pytest.raises(ValueError, match="orientation must be"):
         roster(
             {"ic_1": {"model": "sbb-ic2000"}},
-            {"ic_721": {"cars": [{"car": "ic_1", "orientation": "backwards"}]}},
+            {
+                "ic_721": {
+                    "cars": [{"car": "ic_1", "orientation": "backwards"}],
+                    "colour": "orange",
+                }
+            },
         )
 
 
 def test_a_train_is_made_of_cars_the_railroad_owns() -> None:
     with pytest.raises(ValueError, match="which the railroad has not"):
-        roster({}, {"ic_721": {"cars": [{"car": "ic_1"}]}})
+        roster({}, {"ic_721": {"cars": [{"car": "ic_1"}], "colour": "orange"}})
 
 
 def test_an_entry_with_nothing_of_its_own_names_its_model() -> None:
@@ -634,7 +718,8 @@ def test_an_entry_with_nothing_of_its_own_names_its_model() -> None:
                     {"car": "re460_1"},
                     {"model": "sbb-ic2000"},
                     {"model": "sbb-ic2000"},
-                ]
+                ],
+                "colour": "orange",
             }
         },
     )
@@ -658,7 +743,12 @@ def test_an_entry_naming_a_model_is_oriented_like_any_other() -> None:
     of entry."""
     stock = roster(
         {},
-        {"ore": {"cars": [{"model": "hbis", "orientation": "reverse"}]}},
+        {
+            "ore": {
+                "cars": [{"model": "hbis", "orientation": "reverse"}],
+                "colour": "orange",
+            }
+        },
     )
     assert stock.trains["ore"].cars[0].orientation == "reverse"
 
@@ -667,7 +757,7 @@ def test_an_entry_naming_a_model_the_installation_has_not_is_refused() -> None:
     """Where the mistake was made: a model nothing has is stock nothing can
     say the length of, exactly as it is on a car."""
     with pytest.raises(ValueError, match="names unknown model 'hopper'"):
-        roster({}, {"ore": {"cars": [{"model": "hopper"}]}})
+        roster({}, {"ore": {"cars": [{"model": "hopper"}], "colour": "orange"}})
 
 
 def test_an_entry_names_one_of_the_two_and_not_both() -> None:
@@ -676,10 +766,17 @@ def test_an_entry_names_one_of_the_two_and_not_both() -> None:
     with pytest.raises(ValueError, match="names both"):
         roster(
             {"ic_1": {"model": "sbb-ic2000"}},
-            {"ic_721": {"cars": [{"car": "ic_1", "model": "sbb-ic2000"}]}},
+            {
+                "ic_721": {
+                    "cars": [{"car": "ic_1", "model": "sbb-ic2000"}],
+                    "colour": "orange",
+                }
+            },
         )
     with pytest.raises(ValueError, match="names neither"):
-        roster({}, {"ic_721": {"cars": [{"orientation": "reverse"}]}})
+        roster(
+            {}, {"ic_721": {"cars": [{"orientation": "reverse"}], "colour": "orange"}}
+        )
 
 
 def test_a_train_that_states_a_length_is_refused() -> None:
@@ -766,7 +863,7 @@ def test_a_roster_is_read_against_the_catalogue_beside_it(tmp_path: Path) -> Non
             {
                 "roster": "reversing-loops",
                 "cars": {"ic_1": {"model": "sbb-ic2000"}},
-                "trains": {"ic_721": {"cars": [{"car": "ic_1"}]}},
+                "trains": {"ic_721": {"cars": [{"car": "ic_1"}], "colour": "orange"}},
             }
         )
     )
@@ -856,7 +953,9 @@ def test_a_roster_comes_back_as_the_document_it_is(tmp_path: Path) -> None:
     written = {
         "roster": "reversing-loops",
         "cars": {"re460_1": {"model": "sbb-re460", "addr": "460", "shelf": "3b"}},
-        "trains": {"ore": {"cars": [{"car": "re460_1"}, {"model": "hbis"}]}},
+        "trains": {
+            "ore": {"cars": [{"car": "re460_1"}, {"model": "hbis"}], "colour": "orange"}
+        },
     }
     _catalogued(tmp_path)
     (tmp_path / "layouts").mkdir()
@@ -899,7 +998,9 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path) -> None:
     doc = {
         "roster": "oval",
         "cars": {"re460_1": {"model": "sbb-re460", "addr": "460"}},
-        "trains": {"ore": {"cars": [{"car": "re460_1"}, {"model": "hbis"}]}},
+        "trains": {
+            "ore": {"cars": [{"car": "re460_1"}, {"model": "hbis"}], "colour": "orange"}
+        },
     }
     store = _catalogued_store(tmp_path)
     store.put_roster(dict(doc), "oval")
@@ -919,7 +1020,7 @@ def test_a_roster_that_does_not_validate_leaves_no_file_behind(
             {
                 "roster": "oval",
                 "cars": {},
-                "trains": {"ore": {"cars": [{"model": "hopper"}]}},
+                "trains": {"ore": {"cars": [{"model": "hopper"}], "colour": "orange"}},
             },
             "oval",
         )
@@ -943,7 +1044,7 @@ def test_a_roster_written_without_a_car_is_that_car_removed(tmp_path: Path) -> N
                     "re460_1": {"model": "sbb-re460", "addr": "460"},
                     "re460_2": {"model": "sbb-re460", "addr": "461"},
                 },
-                "trains": {"ore": {"cars": [{"car": "re460_1"}]}},
+                "trains": {"ore": {"cars": [{"car": "re460_1"}], "colour": "orange"}},
             }
         )
     )

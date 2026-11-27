@@ -21,7 +21,7 @@ from tc49.layout.interface import THROTTLE_SILENCE_S
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.clock import Clock
 from tc49.lib.inventory import MANUAL
-from tc49.lib.roster import Coupled, Roster, Train
+from tc49.lib.roster import Colour, Coupled, Roster, Train
 from tests.layout.railroad import (
     DEVICE_TRACK,
     POWER_WANTED,
@@ -527,7 +527,9 @@ def test_a_take_of_a_train_made_since_the_build_drives_its_car() -> None:
 
     def reread() -> Roster | None:
         asked.append(None)
-        return Roster("bench", {"railcar": Train((Coupled(loco("7")),))})
+        return Roster(
+            "bench", {"railcar": Train((Coupled(loco("7")),), colour=Colour.ORANGE)}
+        )
 
     bus, _app, _clock = wired(driving=MANUAL, reread=reread)
     energised(bus)
@@ -548,7 +550,9 @@ def test_a_take_of_a_train_it_has_reads_no_roster() -> None:
 
     def reread() -> Roster | None:
         asked.append(None)
-        return Roster("bench", {"single": Train((Coupled(loco("9")),))})
+        return Roster(
+            "bench", {"single": Train((Coupled(loco("9")),), colour=Colour.ORANGE)}
+        )
 
     bus, _app, _clock = wired(driving=MANUAL, reread=reread)
     energised(bus)
@@ -568,8 +572,8 @@ def test_a_train_read_again_keeps_the_entry_of_one_it_has() -> None:
     store = Roster(
         "bench",
         {
-            "single": Train((Coupled(loco("9")),)),
-            "railcar": Train((Coupled(loco("7")),)),
+            "single": Train((Coupled(loco("9")),), colour=Colour.ORANGE),
+            "railcar": Train((Coupled(loco("7")),), colour=Colour.ORANGE),
         },
     )
     bus, _app, _clock = wired(driving=MANUAL, reread=lambda: store)

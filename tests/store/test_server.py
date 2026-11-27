@@ -102,7 +102,10 @@ def test_a_roster_is_served_as_the_document_it_is(
     assert status == 200
     assert body["roster"] == "reversing-loops-v0"
     assert body["cars"]["south_car"] == {"model": "bench-900"}
-    assert body["trains"]["south"] == {"cars": [{"car": "south_car"}]}
+    assert body["trains"]["south"] == {
+        "cars": [{"car": "south_car"}],
+        "colour": "olive",
+    }
 
 
 def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> None:
@@ -114,7 +117,12 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
     doc = {
         "roster": "oval",
         "cars": {"krokodil_a": {"model": "arnold-ce68", "addr": "3"}},
-        "trains": {"ore": {"cars": [{"car": "krokodil_a"}, {"model": "bench-600"}]}},
+        "trains": {
+            "ore": {
+                "cars": [{"car": "krokodil_a"}, {"model": "bench-600"}],
+                "colour": "orange",
+            }
+        },
     }
     assert handle(store, backup, "PUT", "/rosters/oval", doc) == (
         200,
@@ -153,7 +161,7 @@ def test_a_roster_naming_a_model_the_installation_has_not_is_refused(
         {
             "roster": "oval",
             "cars": {},
-            "trains": {"ore": {"cars": [{"model": "hopper"}]}},
+            "trains": {"ore": {"cars": [{"model": "hopper"}], "colour": "orange"}},
         },
     )
     assert status == 400
@@ -222,9 +230,12 @@ def test_a_roster_naming_one_car_in_two_trains_is_refused_and_not_written(
             "roster": "oval",
             "cars": {"krokodil_a": {"model": "arnold-ce68", "addr": "3"}},
             "trains": {
-                "ore": {"cars": [{"car": "krokodil_a"}, {"model": "bench-600"}]},
-                "light_1": {"cars": [{"car": "krokodil_a"}]},
-                "light_2": {"cars": [{"model": "bench-600"}]},
+                "ore": {
+                    "cars": [{"car": "krokodil_a"}, {"model": "bench-600"}],
+                    "colour": "orange",
+                },
+                "light_1": {"cars": [{"car": "krokodil_a"}], "colour": "orange"},
+                "light_2": {"cars": [{"model": "bench-600"}], "colour": "orange"},
             },
         },
     )
@@ -253,8 +264,11 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
             },
         },
         "trains": {
-            "ore": {"cars": [{"car": "krokodil_a"}, {"car": "cam_1"}]},
-            "light_1": {"cars": [{"model": "arnold-ce68"}]},
+            "ore": {
+                "cars": [{"car": "krokodil_a"}, {"car": "cam_1"}],
+                "colour": "orange",
+            },
+            "light_1": {"cars": [{"model": "arnold-ce68"}], "colour": "orange"},
         },
     }
     assert handle(store, backup, "PUT", "/rosters/oval", doc) == (
@@ -364,7 +378,7 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
     (tmp_path / "layouts" / "shed.roster.yaml").write_text(
         "roster: shed\n"
         "cars:\n  re460_1: {model: re460}\n"
-        "trains:\n  light_1: {cars: [{car: re460_1}]}\n"
+        "trains:\n  light_1: {cars: [{car: re460_1}], colour: orange}\n"
     )
     status, body = handle(
         AssetStore(tmp_path), backup, "GET", "/rosters/shed/trains", None
@@ -400,7 +414,7 @@ def test_a_car_with_functions_of_its_own_serves_their_modes(
         "    model: re460\n"
         "    functions: {'2': {name: horn, mode: momentary}}\n"
         "  re460_2: {model: re460}\n"
-        "trains:\n  pair: {cars: [{car: re460_1}, {car: re460_2}]}\n"
+        "trains:\n  pair: {cars: [{car: re460_1}, {car: re460_2}], colour: orange}\n"
     )
     status, body = handle(
         AssetStore(tmp_path), backup, "GET", "/rosters/shed/trains", None
@@ -422,8 +436,11 @@ def test_a_trains_first_locomotive_is_served_by_its_model(
         "roster": "oval",
         "cars": {"krokodil_a": {"model": "arnold-ce68", "addr": "3"}},
         "trains": {
-            "ore": {"cars": [{"model": "bench-600"}, {"car": "krokodil_a"}]},
-            "wagons": {"cars": [{"model": "bench-600"}]},
+            "ore": {
+                "cars": [{"model": "bench-600"}, {"car": "krokodil_a"}],
+                "colour": "orange",
+            },
+            "wagons": {"cars": [{"model": "bench-600"}], "colour": "orange"},
         },
     }
     assert handle(store, backup, "PUT", "/rosters/oval", doc)[0] == 200
@@ -458,7 +475,8 @@ def test_a_trains_addresses_are_served_head_first(
                     {"car": "krokodil_b"},
                     {"model": "bench-600"},
                     {"car": "krokodil_a"},
-                ]
+                ],
+                "colour": "orange",
             },
         },
     }
@@ -689,7 +707,12 @@ def test_a_model_a_train_on_a_railroad_not_loaded_uses_is_refused(
         {
             "roster": "station-2",
             "cars": {},
-            "trains": {"IC 721": {"cars": [{"model": "ae66"}, {"model": "ae66"}]}},
+            "trains": {
+                "IC 721": {
+                    "cars": [{"model": "ae66"}, {"model": "ae66"}],
+                    "colour": "orange",
+                }
+            },
         },
         "station-2",
     )
@@ -710,7 +733,12 @@ def test_every_place_a_model_is_used_is_named(tmp_path: Path, backup: Backup) ->
         {
             "roster": "demo",
             "cars": {"Re 460 001": {"model": "re460"}},
-            "trains": {"IR 2": {"cars": [{"car": "Re 460 001"}, {"model": "re460"}]}},
+            "trains": {
+                "IR 2": {
+                    "cars": [{"car": "Re 460 001"}, {"model": "re460"}],
+                    "colour": "orange",
+                }
+            },
         },
         "demo",
     )
@@ -718,7 +746,7 @@ def test_every_place_a_model_is_used_is_named(tmp_path: Path, backup: Backup) ->
         {
             "roster": "station-2",
             "cars": {},
-            "trains": {"IC 721": {"cars": [{"model": "re460"}]}},
+            "trains": {"IC 721": {"cars": [{"model": "re460"}], "colour": "orange"}},
         },
         "station-2",
     )
@@ -2942,7 +2970,7 @@ def test_saving_a_roster_arms_the_idle_timer(
     doc = {
         "roster": "facing-pair-2",
         "cars": {"t1_car": {"model": "bench-1000"}},
-        "trains": {"t1": {"cars": [{"car": "t1_car"}]}},
+        "trains": {"t1": {"cars": [{"car": "t1_car"}], "colour": "orange"}},
     }
     assert handle(store, driven, "PUT", "/rosters/facing-pair-2", doc)[0] == 200
     assert [call for call in driving.calls if call[0] == "commit"] == []

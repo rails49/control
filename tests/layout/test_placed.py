@@ -13,7 +13,7 @@ throttle holds is stopped (#1061).
 
 from tc49.lib.bus import InProcessBus, Payload
 from tc49.lib.inventory import AUTOMATIC, MANUAL
-from tc49.lib.roster import Coupled, Roster, Train
+from tc49.lib.roster import Colour, Coupled, Roster, Train
 from tests.layout.railroad import (
     align,
     commanded,
@@ -39,7 +39,9 @@ def test_a_placed_train_made_since_the_build_is_driven_in_automatic() -> None:
 
     def reread() -> Roster | None:
         asked.append(None)
-        return Roster("bench", {"railcar": Train((Coupled(loco("7")),))})
+        return Roster(
+            "bench", {"railcar": Train((Coupled(loco("7")),), colour=Colour.ORANGE)}
+        )
 
     bus, _app, _clock = wired(reread=reread)
     energised(bus)
@@ -73,7 +75,9 @@ def test_a_take_reads_again_for_a_train_placed_while_the_store_did_not_answer() 
     take reads again and the lever reaches the car."""
     answers: list[Roster | None] = [
         None,
-        Roster("bench", {"railcar": Train((Coupled(loco("7")),))}),
+        Roster(
+            "bench", {"railcar": Train((Coupled(loco("7")),), colour=Colour.ORANGE)}
+        ),
     ]
     asked: list[None] = []
 
