@@ -96,7 +96,7 @@ export function litWires(
  * no z beyond the order the lines are emitted in — the ordering the artwork
  * already applies to lit legs, applied to the wires between symbols.
  *
- * The caller says how strongly each is lit, `0` for unlit, since the editor's
+ * `strength` says how strongly each is lit, `0` for unlit, since the editor's
  * canvas lights the way a refusal or a netlist choice is about and the panel
  * lights a route at three widths, a wider line over a thinner one. The wires
  * are all this needs: where the two ends of a line are is the caller's own
@@ -108,9 +108,9 @@ export function litWires(
  */
 export function litLast<T>(
   drawn: readonly T[],
-  alight: (one: T) => number,
+  strength: (one: T) => number,
 ): T[] {
-  return [...drawn].sort((one, two) => alight(one) - alight(two));
+  return [...drawn].sort((one, two) => strength(one) - strength(two));
 }
 
 /** The way a transit chosen in the netlist pane takes, as the one way to

@@ -412,11 +412,11 @@ export class TcCanvas extends LitElement {
    *  wire sits outside every symbol's group, so a lit wire on a way a refusal
    *  is about wears `offending` itself. */
   private wires(strokes: readonly Stroke[], refused: boolean): unknown {
-    const alight = ({ lit }: Stroke) => (lit === undefined ? 0 : 1 + strength(lit.claim));
+    const layer = ({ lit }: Stroke) => (lit === undefined ? 0 : 1 + strength(lit.claim));
     const drawn = strokes.flatMap((stroke) =>
       stroke.lit?.claim === "committed" ? [{ ...stroke, lit: undefined }, stroke] : [stroke],
     );
-    return litLast(drawn, alight).map(({ from, to, round, lit }) => {
+    return litLast(drawn, layer).map(({ from, to, round, lit }) => {
       const wears =
         lit === undefined
           ? "wire"
