@@ -268,12 +268,14 @@ cars:
 
 trains:
   ic_721:
+    colour: orange
     priority: 2
     cars:
       - { car: re460_1 }
       - { car: ic_1, orientation: reverse }
       - { car: ic_2 }
   ore:
+    colour: purple
     cars:
       - { car: re460_2 }
       - { model: hbis }            # one of these, and nothing more to say
@@ -336,6 +338,12 @@ trains:
   toward the tail, so a top-and-tail set is a reversed locomotive at the end.
   The word rather than a boolean: `forward`/`reverse` is self-documenting
   where `true`/`false` is cryptic.
+- **`colour` is required**: what the train's route and marks wear on the
+  panel. It is one of `orange`, `purple`, `brown`, `pink`, `olive`, `teal`,
+  `navy`, `magenta`, `gold` and `maroon`, and that order is the order a new
+  train is given one in. A train naming none is refused as `<where>: names no
+  colour`, and one naming another as `<where>: colour must be one of …, got
+  …`. Nothing in the dispatcher, scheduler, driver or layout reads it.
 - **`priority` is optional and absent means lowest.** Lowest number highest
   among the numbers that are present, and no default number is written into a
   document.
