@@ -17,6 +17,7 @@
  * than caught.
  */
 
+import type { TrainColour } from "../colour.generated.js";
 import type { Position } from "../symbols.generated.js";
 import type { Drawing } from "./drawing.js";
 
@@ -233,10 +234,11 @@ export interface TrainsDoc {
 }
 
 /** One train on the roster: how long it is, what a person driving it can
- *  switch, whether it carries a camera, the model of its first locomotive
- *  and its cars' addresses. All five are **derived from the cars it is made
- *  of** and none is authored, so they arrive together
- *  ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md)).
+ *  switch, whether it carries a camera, the model of its first locomotive,
+ *  its cars' addresses and its colour. The first five are **derived from the
+ *  cars it is made of**
+ *  ([ADR-0045](../../../docs/adr/0045-the-railroad-owns-cars-and-a-train-is-an-ordered-list-of-them.md));
+ *  the colour is written with the train.
  *  The cars themselves and which DCC number each function sits on are not
  *  here: a decoder detail is no view's (ui/THROTTLE.md). */
 export interface TrainDoc {
@@ -253,6 +255,8 @@ export interface TrainDoc {
    *  shows for a person to drive the train from another throttle and never
    *  writes (#1033). */
   addresses: string[];
+  /** The colour the run view draws the train's route and marks in. */
+  colour: TrainColour;
 }
 
 /** One thing a person can switch on a train, by the name the catalogue gives
