@@ -140,6 +140,7 @@ def test_a_roster_is_written_and_read_back(tmp_path: Path, backup: Backup) -> No
                 "camera": False,
                 "locomotive": "arnold-ce68",
                 "addresses": ["3"],
+                "colour": "orange",
             }
         },
     }
@@ -283,6 +284,7 @@ def test_a_roster_with_a_camera_car_is_written_and_read_back(
         "camera": True,
         "locomotive": "arnold-ce68",
         "addresses": ["3"],
+        "colour": "orange",
     }
     assert trains["light_1"]["camera"] is False
 
@@ -355,6 +357,7 @@ def test_the_run_views_answer_is_the_trains_below_the_document(
         "camera": False,
         "locomotive": None,
         "addresses": [],
+        "colour": "olive",
     }
     assert body["trains"] == dict(sorted(body["trains"].items()))
 
@@ -394,6 +397,7 @@ def test_a_trains_functions_are_served_with_it(tmp_path: Path, backup: Backup) -
         "camera": False,
         "locomotive": "re460",
         "addresses": [],
+        "colour": "orange",
     }
 
 
@@ -453,6 +457,7 @@ def test_a_trains_first_locomotive_is_served_by_its_model(
         "camera",
         "locomotive",
         "addresses",
+        "colour",
     }
 
 
