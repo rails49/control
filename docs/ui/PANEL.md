@@ -109,7 +109,11 @@ shows ([#1012](https://github.com/rails49/control/issues/1012)); a train with
 no locomotive, or one whose photo does not load, has an empty slot of the same
 size, so the names line up, and a press on the photo picks the train up as a
 press on its name does. A row is as tall as the photo slot. A long name wraps
-inside its cell and is not cut short, here and in the request list. The rows
+inside its cell and is not cut short, here and in the request list. Here and
+in the request list a train's name has a dot in the train's colour before it,
+from `GET /rosters/<railroad>/trains`, or in the hint colour for a train that
+read does not name ([#1410](https://github.com/rails49/control/issues/1410)).
+The rows
 are striped, with no rule lines between them; a train off the layout has its
 name dimmed, and the row being dragged is marked over its stripe. Ordered by
 name, so the list does not reshuffle as the railroad moves.
