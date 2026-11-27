@@ -457,7 +457,8 @@ describe("a signal's lamps", () => {
  * `TRAIN_COLOURS`, in each theme.
  *
  * Contrast is WCAG's ratio of relative luminance, and 3:1 is its floor for a
- * line or a shape. The step between two colours is their distance in OKLab. Each train colour
+ * line or a shape. Each train colour is held to it against the paper and
+ * against the track, which a committed route's thin line is drawn on. The step between two colours is their distance in OKLab. Each train colour
  * is at least 0.1 from the other nine, since a person watching tells the
  * trains apart by colour, and from every colour that already means something
  * on the panel.
@@ -492,7 +493,15 @@ describe("the train colours", () => {
     const [p, q] = [oklab(a), oklab(b)];
     return Math.hypot(...p.map((v, i) => v - q[i]!));
   };
-  const reserved = ["--wrong", "--green", "--chosen", "--unfinished", "--hint", "--track"];
+  const reserved = [
+    "--wrong",
+    "--green",
+    "--chosen",
+    "--unfinished",
+    "--hint",
+    "--track",
+    "--amber",
+  ];
   const themes = [
     ["light", COLOURS],
     ["dark", DARK],
@@ -509,6 +518,13 @@ describe("the train colours", () => {
   it.each(themes)("show against the paper in the %s palette", (_, colours) => {
     for (const name of TRAIN_COLOURS) {
       const ratio = contrast(colours[`--train-${name}`]!, colours["--paper"]!);
+      expect(ratio, name).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it.each(themes)("show against the track in the %s palette", (_, colours) => {
+    for (const name of TRAIN_COLOURS) {
+      const ratio = contrast(colours[`--train-${name}`]!, colours["--track"]!);
       expect(ratio, name).toBeGreaterThanOrEqual(3);
     }
   });
