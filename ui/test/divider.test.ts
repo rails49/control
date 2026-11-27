@@ -7,7 +7,7 @@
  * keeps.
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { keep, kept, sizeAt } from "../src/model/divider.js";
 
@@ -86,5 +86,27 @@ describe("the size a divider was dragged to", () => {
     expect(localStorage.getItem("tc49.palette")).toBe("300");
     expect(localStorage.getItem("tc49.netlist")).toBe("350");
     expect(localStorage.getItem("tc49.stock")).toBe("400");
+  });
+});
+
+/** A browser that refuses the store throws on every read and write of it
+ *  (#1414). */
+describe("the size a divider was dragged to, in a browser that refuses the store", () => {
+  beforeEach(() => {
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("refused", "SecurityError");
+    });
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("refused", "SecurityError");
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("is none, and keeping one does not throw", () => {
+    expect(kept("palette")).toBeNull();
+    expect(() => keep("palette", 300)).not.toThrow();
   });
 });

@@ -19,11 +19,12 @@
  * lists: one above the other, the trains list as tall as its rows up to half
  * the pane; side by side, half and half.
  *
- * Each gap's size is kept in the browser's `localStorage` under its own key,
- * one for each arrangement. It is not on the bus and not in the store.
+ * Each gap's size is kept in the browser under its own key, one for each
+ * arrangement. It is not on the bus and not in the store. The size line and
+ * the store are look's (`dividerSizeAt`, `keptDivider`, `keepDivider`).
  */
 
-import { GAP_PX } from "@rails49/look";
+import { dividerSizeAt, GAP_PX, keepDivider, keptDivider } from "@rails49/look";
 
 import type { Point } from "./geometry.js";
 
@@ -67,16 +68,14 @@ export function axisOf(gap: Gap, arrangement: Arrangement): Axis {
  * The size in CSS pixels a gap at a client point sets, along its axis from
  * the view's left or top edge: the pane's, or the trains list's. The pane is
  * held to `LEAST` and to what `DRAWING` leaves of the view; each list is held
- * to `LIST`. In a view too small for both sides, the size's own least holds.
+ * to `LIST`.
  */
 export function sizeAt(gap: Gap, arrangement: Arrangement, view: DOMRect, at: Point): number {
-  const [wanted, room] =
-    axisOf(gap, arrangement) === "x"
-      ? [at.x - view.left, view.width]
-      : [at.y - view.top, view.height];
-  const [least, beyond] =
-    gap === "pane" ? [LEAST, DRAWING[arrangement]] : [LIST[arrangement], GAP_PX + LIST[arrangement]];
-  return Math.round(Math.max(least, Math.min(wanted, room - beyond)));
+  const limits =
+    gap === "pane"
+      ? { least: LEAST, leaves: DRAWING[arrangement] }
+      : { least: LIST[arrangement], leaves: GAP_PX + LIST[arrangement] };
+  return dividerSizeAt(view, at, axisOf(gap, arrangement) === "x" ? "left" : "top", limits);
 }
 
 function key(gap: Gap, arrangement: Arrangement): string {
@@ -86,10 +85,9 @@ function key(gap: Gap, arrangement: Arrangement): string {
 /** The size this browser keeps for a gap in an arrangement, `null` for
  *  none. */
 export function kept(gap: Gap, arrangement: Arrangement): number | null {
-  const size = localStorage.getItem(key(gap, arrangement));
-  return size === null ? null : Number(size);
+  return keptDivider(key(gap, arrangement));
 }
 
 export function keep(gap: Gap, arrangement: Arrangement, size: number): void {
-  localStorage.setItem(key(gap, arrangement), String(size));
+  keepDivider(key(gap, arrangement), size);
 }
