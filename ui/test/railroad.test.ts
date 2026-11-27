@@ -125,7 +125,7 @@ class Fake implements Store, StockStore {
     return this.ask(`/rosters/${railroad}`, () => ({
       roster: railroad,
       cars: { "hopper-1": { model: "hopper" } },
-      trains: { ore: { cars: [{ car: "hopper-1" }] } },
+      trains: { ore: { colour: "orange", cars: [{ car: "hopper-1" }] } },
     }));
   }
 

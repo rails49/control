@@ -189,7 +189,7 @@ describe("the roster across a look at another view", () => {
     return {
       roster: railroad,
       cars: {},
-      trains: { ore: { cars: [{ model: "hopper" }] } },
+      trains: { ore: { colour: "orange", cars: [{ model: "hopper" }] } },
     };
   }
 
@@ -257,7 +257,7 @@ describe("the store not answering for the railroad the row names", () => {
       rosterOf: (railroad) => ({ [`${railroad}-goods`]: trainDoc(400) }),
       documentOf: (railroad) => ({
         roster: railroad,
-        trains: { [`${railroad}-ore`]: { cars: [{ model: "hopper" }] } },
+        trains: { [`${railroad}-ore`]: { colour: "orange", cars: [{ model: "hopper" }] } },
       }),
       catalogue: { hopper: HOPPER },
     });

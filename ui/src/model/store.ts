@@ -331,6 +331,9 @@ export interface RosterTrain {
   /** Lowest number highest, and absent is lowest of all. No default number is
    *  written into a document. */
   priority?: number;
+  /** What its route and marks wear on the panel (GLOSSARY.md, **Train
+   *  colour**). */
+  colour: TrainColour;
 }
 
 /** One place in a train: what stands there, and which way round it is
