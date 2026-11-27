@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { columnHeading, heading } from "./shared.styles.js";
+import { columnHeading, dot, heading } from "./shared.styles.js";
 
 /**
  * The roster pane (`tc-roster`): the trains the run has, as a table, one row
@@ -11,7 +11,8 @@ import { columnHeading, heading } from "./shared.styles.js";
  * view, and the table scrolls under it in what is left of the pane's height,
  * its column heading row at the top of what scrolls.
  *
- * A row is the photo of the train's first locomotive, its name, where it is,
+ * A row is the photo of the train's first locomotive, its name after a dot in
+ * its colour (#1410), where it is,
  * where the loaded timetable starts it, and how long it is. The photo sits in
  * a slot of its own, the same size whether or not there is a picture in it,
  * so the names line up (#1012). A row is as tall as that slot. A long name
@@ -34,6 +35,8 @@ export const rosterStyles = css`
   }
 
   ${heading}
+
+  ${dot}
 
   .rows {
     min-height: 0;

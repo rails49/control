@@ -28,10 +28,12 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import type { TrainColour } from "../colour.generated.js";
 import type { RosterRow } from "../model/panel.js";
 import { photoUrl } from "../model/store.js";
 import type { Start } from "../model/timetable.js";
 import { rosterStyles } from "./tc-roster.styles.js";
+import { dot } from "./train-dot.js";
 
 /** A row picked up, and where the pointer was when it was let go. Client
  *  pixels, because what they land on is the canvas's to say. */
@@ -48,6 +50,10 @@ export class TcRoster extends LitElement {
   /** The trains, in the order they are drawn. The run view supplies them and
    *  the order is the model's (`panel.roster`). */
   @property({ attribute: false }) trains: readonly RosterRow[] = [];
+
+  /** Each train's colour, from the trains read, for the dot before its name
+   *  (#1410). A train missing from it has its dot in the hint colour. */
+  @property({ attribute: false }) colours: ReadonlyMap<string, TrainColour> = new Map();
 
   /** Whether a session is joined. A placement is accepted at any power
    *  (ADR-0080), so that is when a row may be dragged; which block it may
@@ -97,8 +103,10 @@ export class TcRoster extends LitElement {
     `;
   }
 
-  /** One train: its photo, its name, where the run has it, its start while
-   *  the Start column is drawn, and its length. A train between two blocks
+  /** One train: its photo, its name after a dot in its colour, where the run
+   *  has it, its start while the Start column is drawn, and its length. The
+   *  dot is in the hint colour for a train missing from the trains read
+   *  (#1410). A train between two blocks
    *  stands in none and is on the layout all the same, so Where says what it
    *  is doing rather than naming a block it has left, beside `off the layout`
    *  for a train that is not placed (GLOSSARY.md, **Placed** and
@@ -119,7 +127,7 @@ export class TcRoster extends LitElement {
         @pointercancel=${() => (this.held = null)}
       >
         <td>${this.photo(locomotive)}</td>
-        <td class="name">${train}</td>
+        <td class="name">${dot(this.colours.get(train))}${train}</td>
         ${refused === undefined
           ? html`<td class="where">
               ${placed ? (block ?? "crossing a transit") : "off the layout"}

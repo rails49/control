@@ -10,7 +10,8 @@
  *
  * - **Time, Dwell, Description**: the entry's, on an entry's row and on a
  *   request an entry went out as. A request no entry went out as has none.
- * - **Train**: the row's train.
+ * - **Train**: the row's train, after a dot in its colour (`train-dot.ts`,
+ *   #1410).
  * - **To**: `→ <ends>` for an entry, `turn` for a turn-round,
  *   `<from> → <to>` for a request, and `→ <to>` for a chained request whose
  *   earlier one is no longer listed. Ends are joined with `, `.
@@ -28,7 +29,9 @@
 
 import { html, nothing, type TemplateResult } from "lit";
 
+import type { TrainColour } from "../colour.generated.js";
 import type { Entry, ListRow } from "../model/timetable.js";
+import { dot } from "./train-dot.js";
 
 /** What a row's buttons need from the list. */
 export interface RowActions {
@@ -41,8 +44,13 @@ export interface RowActions {
   cancel(id: string): void;
 }
 
-/** The row's seven cells. */
-export function cells({ entry, state, request }: ListRow, actions: RowActions): TemplateResult {
+/** The row's seven cells, its train's dot in `colour`: the train's colour in
+ *  the trains read, `undefined` for a train missing from it. */
+export function cells(
+  { entry, state, request }: ListRow,
+  actions: RowActions,
+  colour: TrainColour | undefined,
+): TemplateResult {
   const said =
     request === undefined
       ? state
@@ -52,7 +60,7 @@ export function cells({ entry, state, request }: ListRow, actions: RowActions): 
   const to = request === undefined ? way(entry!) : `${start(request.from)}→ ${ends(request.to)}`;
   return html`
     <span class="time">${entry?.at}</span>
-    <span class="train">${request?.train ?? entry?.train}</span>
+    <span class="train">${dot(colour)}${request?.train ?? entry?.train}</span>
     <span class="way">${to}</span>
     <span class="dwell">${entry?.dwell ? `${entry.dwell} min` : nothing}</span>
     <span class="description">${entry?.description}</span>

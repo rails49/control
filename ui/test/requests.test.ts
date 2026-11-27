@@ -357,6 +357,19 @@ describe("the run view's request list", () => {
     expect(element.requests).toEqual(ROWS);
   });
 
+  /** The roster names `goods` in orange and has no `express` or `local`
+   *  (#1410). */
+  it("dots each row's train in its colour from the trains read", async () => {
+    const { element } = await serving();
+    const dots = [...element.renderRoot.querySelectorAll("li .train .dot")];
+    expect(dots.map((dot) => dot.getAttribute("style"))).toEqual([
+      "--train: var(--hint)",
+      "--train: var(--train-orange)",
+      "--train: var(--train-orange)",
+      "--train: var(--hint)",
+    ]);
+  });
+
   it("writes one cancel_wanted naming the row's request", async () => {
     const { element } = await serving();
     element.renderRoot.querySelectorAll<HTMLButtonElement>(".cancel")[2]!.click();

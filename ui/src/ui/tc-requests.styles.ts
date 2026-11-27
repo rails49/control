@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { columnHeading, heading } from "./shared.styles.js";
+import { columnHeading, dot, heading } from "./shared.styles.js";
 
 /**
  * The list under the roster (`tc-requests`): the loaded timetable's entries
@@ -17,7 +17,8 @@ import { columnHeading, heading } from "./shared.styles.js";
  * The rows are a table (#1393): columns Time, Train, To, Dwell, Description,
  * State and the action, under a row of column headings that stays at the top
  * of what scrolls. Every row takes the table's columns (CSS subgrid), so the
- * cells line up with the headings. A row is one line. The Train column is at
+ * cells line up with the headings. A row is one line. The train's name has a
+ * dot in its colour before it (#1410). The Train column is at
  * most 30% of the table's width; a longer train name wraps in its cell and is
  * not cut short. A row the list scrolls to stops under the headings. A
  * refused request's "waits for" line is under its row, from the Train column
@@ -46,6 +47,8 @@ export const requestsStyles = css`
   }
 
   ${heading}
+
+  ${dot}
 
   .name {
     font-size: 0.75rem;

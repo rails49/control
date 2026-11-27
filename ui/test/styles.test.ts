@@ -137,6 +137,19 @@ describe("the left pane's width", () => {
   });
 });
 
+/** The dot before a train's name in the roster and the request list
+ *  (#1410): one rule, painted in the `--train` its element carries. */
+describe("a train's dot", () => {
+  it("is one round rule in --train, worn by the roster and the request list", () => {
+    for (const sheet of [rosterStyles, requestsStyles]) {
+      const dot = rule(sheet.cssText, ".dot");
+      expect(dot).toMatch(/background:\s*var\(--train\)/);
+      expect(dot).toMatch(/border-radius:\s*50%/);
+      expect(sheet.cssText).not.toContain("--train-");
+    }
+  });
+});
+
 describe("the drawing's own rules", () => {
   it("are worn by everything that draws a symbol", () => {
     expect(paletteStyles.cssText).toContain(symbols.cssText);
