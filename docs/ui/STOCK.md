@@ -51,7 +51,7 @@ the Name field below is the one place the name appears.
 frame 10:3 wide, the name, and a line of facts. A model: kind, scale, length,
 *decoder*. A car: its model's name where it is not the car's own, its address
 as `#12`, *camera*. A train: how many cars, its length, its kind, its
-priority. **Cards are in order of kind, then name**, case aside: locomotive,
+priority; its name has a dot in the train's colour before it. **Cards are in order of kind, then name**, case aside: locomotive,
 passenger, freight, special, then a train's mixed and light engine, and
 anything without a kind last
 ([#1035](https://github.com/rails49/control/issues/1035)). A car's card shows its model's photo and a train's its first
@@ -350,6 +350,11 @@ field is put back.
 highest. Empty is lowest.* Anything else is refused and put back: *'0' is not a
 priority. Use a whole number: 1 is highest.*
 
+**Colour**: a dropdown of the ten train colours in list order, each with its
+swatch and its name ([LAYOUT.md](../store/LAYOUT.md#roster-schema)). It is
+what the train's route and marks wear on the run view. No running program
+reads it, so it is written at any track power.
+
 **Cars**, labelled *← Head* and *Tail*: one tile per entry, head first, in a
 row that scrolls sideways. The row takes the editor's width, and the editor's
 other sections are at most 760 px wide. A tile has the model's photo, mirrored
@@ -379,7 +384,8 @@ a momentary function's chip says *hold*.
 as the hint beside it says.
 
 **New train** makes *New train* (*New train (2)* where that is taken), chooses
-it, and opens the picker. When the first locomotive goes in, a train still
+it, and opens the picker. It gives the train the colour the fewest trains in
+the roster have, the first in list order where several have as few. When the first locomotive goes in, a train still
 under that name takes the locomotive's name, *(2)* added where another train
 has it, in the same edit and still chosen
 ([#1005](https://github.com/rails49/control/issues/1005)). A name typed by hand
@@ -505,7 +511,8 @@ A length lives on the **model** as well as on the **car** — `stock._car` takes
 `model.length` unless the car overrides it — so correcting a product's length
 changes every item of that product, including the one under a train the
 dispatcher is fitting into blocks right now. No app drives by any other field:
-names, kind, manufacturer, scale, description, notes and photos. The camera
+names, kind, manufacturer, scale, description, notes, photos and a train's
+colour. The camera
 app reads the store on every request, so a car's camera URL is read
 fresh.
 
@@ -700,7 +707,8 @@ rather than something to remember
 Split the way the app's suites are split. `ui/test/composing.test.ts` drives
 the model with no DOM — what a model put in a train goes in as, New train's
 names, a car refused a second place in a train, an entry moved, a priority,
-the derived length, kind and functions, what holds a car or a
+New train's colour and a colour edit written with power on or refused off the
+list, the derived length, kind and functions, what holds a car or a
 model, the edits that wait for power off, and the model editor's rules: New model's names, the
 key minted from a name and kept, a name refused, the decoder and its function
 rows with their mode, a number listed twice stopping the save, a photo held
@@ -726,7 +734,8 @@ refused and the URL emptied, a length override written and removed by emptying i
 functions written and removed, its notes reaching the roster document, Remove
 disabled while a train holds the car, and its links to its model and its trains;
 the train editor — New train and New train (2) with the picker open, a name
-refused, a priority written, the tiles' words, a decoder model's entry given an
+refused, a priority written, the card's colour dot and the Colour dropdown's
+ten swatches with a colour written, the tiles' words, a decoder model's entry given an
 address from its tile and saved as a car in its place, a decoder model added to a
 train becoming a new car with its address asked for, the same model added
 again reusing that car, a choice offered where there are two, a car refused a
