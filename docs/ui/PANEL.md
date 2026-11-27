@@ -533,9 +533,8 @@ true. **Requested** (from `request_submitted`): the train, its departure end,
 and the candidate arrival ends, endpoints only, since no route exists yet and
 drawing a predicted one would be a second pathfinder that lies whenever the
 dispatcher disagrees. **Committed** (from `route_chosen`): the whole route
-lit in the committed colour. **Held** (from `lock_granted` /
-`lock_released`): the locked stretch of that route in the locked colour, and
-the signals described below.
+lit as committed. **Held** (from `lock_granted` / `lock_released`): the
+locked stretch of that route lit as locked, and the signals described below.
 
 **A committed route lights whole.** Its blocks, the legs of the symbols its
 transits cross, and the wires those transits are drawn over all light, so the
@@ -548,14 +547,19 @@ Which wires a transit runs over is the store's own rule, `Drawing.wires_on`,
 transcribed into `model/inspect.ts`. It is applied one transit at a time and
 never over a union of everything lit: a wire between two non-block symbols is
 what merges them into one junction, so a union has no transit to attribute a
-wire to, and each wire has to take its own transit's colour. The store proves
+wire to, and each wire has to take its own transit's claim. The store proves
 the rule exact against every railroad it holds, which is what the front end's
 cheaper copy rests on. Lit wires are emitted after unlit ones, as the artwork
 already emits lit legs last, so a crossing unlit wire cannot half hide one.
 
-**It lights in three colours**, keyed to what the dispatcher is doing:
+**A route is drawn in its train's colour**, the train colour the roster keeps
+with the train (GLOSSARY.md, **Train colour**), read from the same
+`GET /rosters/<railroad>/trains` the photos come from. A lock whose train is
+not in that read, the residue of a train that is gone, is drawn in the hint
+grey. How far the dispatcher's claim has gone is read in the line's width,
+against plain track `W` wide in the track colour:
 
-- **Red**, the occupancy colour, on each transit on a train's `occupied` list
+- **Occupied**, `2.2 W`, on each transit on a train's `occupied` list
   ([#1116](https://github.com/rails49/control/issues/1116),
   [#1172](https://github.com/rails49/control/issues/1172)). Nothing detects
   a train on a transit: between one block and the next it may be anywhere from
@@ -565,55 +569,63 @@ already emits lit legs last, so a crossing unlit wire cannot half hide one.
   dispatcher holds the transit as occupied until the tail is seen to leave it
   ([#1171](https://github.com/rails49/control/issues/1171)), and the page keeps
   it lit until the picture drops it from the list.
-- **Green** where the dispatcher holds a **lock**. The train may move here.
-- **Cyan** where the resource is on a committed route and is **not** locked.
-  The route is chosen; the claim has not been made yet.
+- **Locked**, `1.6 W`, where the dispatcher holds a **lock**. The train may
+  move here.
+- **Committed**, a `0.5 W` line along the middle of the plain track, where the
+  resource is on a committed route and is **not** locked. The route is
+  chosen; the claim has not been made yet.
+
+The weaker claims are drawn first, so a wider line is always over a thinner
+one.
+
+Blocks take the claim from the block view: an **occupied** block is filled
+with the train's colour mixed 18% into the body colour and outlined in it, a
+**locked** one is outlined solid in the train's colour, and a **committed**
+one is outlined thin and dashed in it. The pale ground is mixed from the
+outline's own colour in the stylesheet, so the two cannot drift apart. Track
+and wires are never dashed: a dash's spacing would vary with a wire's angle.
+Width and dash rather than hue carry the claim, so it reads with red-green
+colour deficiency, and no route is drawn in the fault red.
 
 Locking is incremental
-([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)), so green creeps
-forward along a cyan path as the train advances, and the length of the green
-says how far the train may go. It agrees with the signal at the block end,
-which the dispatcher reads off the same locks.
+([ADR-0026](../adr/0026-two-blocks-ahead-is-full-speed.md)), so the locked
+stretch creeps forward along the committed route as the train advances, and
+its length says how far the train may go. It agrees with the signal at the
+block end, which the dispatcher reads off the same locks.
 
 A live run is the one that locks that way: the deployed dispatcher takes
 `Incremental`, so a page watching a railroad is watching an incremental run
 ([#165](https://github.com/rails49/control/issues/165)). `FullRoute`, which
 locks a whole route at launch, is the baseline the batch harness measures
 against ([BENCHMARKS.md](../bench/BENCHMARKS.md)) and is not a discipline the
-panel ever draws: under it a route would come up green end to end and cyan
-would appear only as the locks release behind the train.
+panel ever draws: under it a route would come up locked end to end and the
+committed line would appear only as the locks release behind the train.
 
-Green is read from the lock ledger alone, not from the committed route
+Locked is read from the lock ledger alone, not from the committed route
 intersected with it, which is how the block view already works. A lock the
-dispatcher still holds after its request completes therefore stays green
+dispatcher still holds after its request completes therefore stays locked
 until it is released: it really is still held, and the picture must never
 claim the railroad is freer than it is.
 
 Three precedence rules, written down rather than left to the rendering order:
 
-- **Occupancy outranks both.** A block on a train's `occupied` list keeps its
-  occupancy colour and the route's green begins at the first block beyond the
-  train. An occupied block is locked too, so this is a choice rather than
-  an oversight.
-- **The strongest claim wins on a shared symbol.** A throat symbol or wire
-  carried by transits of different claims at the same time shows the
-  strongest: occupied over locked over committed. That overstates the weaker
-  transit's leg on that symbol, which is the price of never hiding the
-  stronger claim behind the weaker.
+- **Occupancy outranks both.** A block on a train's `occupied` list is drawn
+  occupied and the locked route begins at the first block beyond the train.
+  An occupied block is locked too, so this is a choice rather than an
+  oversight.
+- **Each leg and wire keeps its own claim and train.** Two routes through one
+  junction symbol are each drawn in their own train's colour, leg by leg.
+  Where one leg or wire is carried by more than one claim, the strongest
+  wins: occupied over locked over committed. Between two committed routes,
+  the train whose request is earlier in the request list wins, being the one
+  that will lock first. A block two committed routes cross takes its train
+  the same way.
 - **Nothing is predicted.** A request with no committed route still renders
   as endpoints only.
 
-Committed block bodies are dashed and locked ones solid. Cyan against green is
-a hard pair for red-green colour deficiency, and whether the train may move is
-the distinction worth a channel that is not hue. Track and wires stay solid: a
-dash's spacing would vary with a wire's angle, which is why track is never
-patterned. A throat has no block body, so it is the part of the route left
-with hue alone, and also the part where which way is locked matters most.
-
-Green and cyan are palette entries in `render/units.ts`; red is the
-`--wrong` an occupied block already wears. The pale ground a block
-body wears is mixed from its own stroke in the stylesheet rather than named a
-second time, so a colour and its wash cannot drift apart.
+The train colours are palette entries in `render/units.ts`, `--train-<name>`.
+The colour reaches a leg, a wire or a block as `--train` set on the element,
+so the stylesheet has one rule per claim and none per colour.
 
 **Each block end shows what its detector reads**
 ([#898](https://github.com/rails49/control/issues/898)), for a person

@@ -125,10 +125,10 @@ layout at every panel width, 360–440 px
 in a monospace pill: *at* the block the train stands in, or *crossing a
 transit* while it stands in none; *next* the first block of its committed
 route past the one it stands in; *to* the last, the same block as *next* where
-there is one. *Next* and *to* wear the two colours a route is lit in on the run
-view: green where the dispatcher holds the lock and the train may move, cyan
-where the route is chosen and the claim has not been made yet. With no route
-ahead both read *—*. Neither colour is derived here; both are read off the
+there is one. *Next* and *to* are outlined in ink as the run view outlines a
+block: solid where the dispatcher holds the lock and the train may move,
+dashed where the route is chosen and the claim has not been made yet. With no
+route ahead both read *—*. Neither claim is derived here; both are read off the
 same ledger the picture is lit from ([PANEL.md](PANEL.md)).
 
 **The signal** is an SBB system L main signal over its distant signal, as
