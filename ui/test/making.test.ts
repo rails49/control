@@ -19,6 +19,7 @@ import { press } from "@rails49/look/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../src/ui/tc-app.js";
+import { TRAIN_COLOURS } from "../src/colour.generated.js";
 import type { RosterDoc } from "../src/model/store.js";
 import type { TcApp } from "../src/ui/tc-app.js";
 import type { TcBackup } from "../src/ui/tc-backup.js";
@@ -1084,6 +1085,35 @@ describe("making up a train", () => {
     expect(written()!.trains.ore!.priority).toBeUndefined();
   });
 
+  /** The colour reaches the stylesheet as `--train` on the element (#1411). */
+  it("shows the train's colour on its card, and writes one chosen from the list", async () => {
+    const shell = await opened();
+    await ore(shell);
+    const dot = () => part(shell, "button.card.train .dot");
+    expect(dot().style.getPropertyValue("--train")).toBe("var(--train-orange)");
+
+    const options = parts(shell, ".train-editor sl-select.colour sl-option");
+    expect(options.map((one) => one.getAttribute("value"))).toEqual([
+      ...TRAIN_COLOURS,
+    ]);
+    expect(options.map((one) => one.textContent!.trim())).toEqual([
+      ...TRAIN_COLOURS,
+    ]);
+    expect(
+      options.map((one) =>
+        one.querySelector<HTMLElement>(".swatch")!.style.getPropertyValue("--train"),
+      ),
+    ).toEqual(TRAIN_COLOURS.map((one) => `var(--train-${one})`));
+
+    const select = part(shell, ".train-editor sl-select.colour");
+    (select as HTMLSelectElement).value = "teal";
+    select.dispatchEvent(new Event("sl-change"));
+    await settled(shell);
+    await saved(shell);
+    expect(written()!.trains.ore!.colour).toBe("teal");
+    expect(dot().style.getPropertyValue("--train")).toBe("var(--train-teal)");
+  });
+
   /** A tile says the car's address and its length; a model entry has no
    *  address to show (#1095). */
   it("draws one tile per entry, head first, with what each is", async () => {
@@ -1695,6 +1725,10 @@ describe("edits that wait for power off", () => {
       "false",
     );
     expect(part(shell, ".train-editor .sec.cars .why").textContent).toBe(HELD);
+    expect(
+      (part(shell, ".train-editor sl-select.colour") as HTMLSelectElement)
+        .disabled,
+    ).toBe(false);
   });
 
   /** A train made up during a run is placed once saved, the apps reading it

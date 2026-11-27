@@ -317,6 +317,21 @@ export const stockStyles = css`
     text-overflow: ellipsis;
   }
 
+  /* A train's colour, from --train on the element (#1411). */
+  .dot,
+  .swatch {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--train);
+  }
+
+  .dot {
+    margin-right: 6px;
+  }
+
   .facts {
     display: flex;
     flex-wrap: wrap;
