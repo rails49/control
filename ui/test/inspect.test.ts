@@ -424,7 +424,8 @@ describe("the portals wearing a label that does not pair", () => {
  *
  * Two pages draw a drawing's wires — the editor's canvas and the panel — and
  * both need the lit ones last. What "lit" means differs between them, so the
- * rule takes a predicate; that it is one rule is what this suite pins.
+ * rule takes how strongly each is lit; that it is one rule is what this suite
+ * pins.
  */
 describe("the order a drawing's wires are drawn in", () => {
   const wires: Wire[] = [
@@ -434,8 +435,18 @@ describe("the order a drawing's wires are drawn in", () => {
     { pins: ["b.B", "c.B"], connection: "jt" },
   ];
 
+  it("emits the more strongly lit after the less (#1409)", () => {
+    const strength = [2, 0, 1, 0];
+    expect(litLast(wires, (wire) => strength[wires.indexOf(wire)]!)).toEqual([
+      wires[1],
+      wires[3],
+      wires[2],
+      wires[0],
+    ]);
+  });
+
   it("emits the lit wires after the unlit ones", () => {
-    const alight = (wire: Wire) => wirePins(wire)[0] === "a.B";
+    const alight = (wire: Wire) => Number(wirePins(wire)[0] === "a.B");
     expect(litLast(wires, alight)).toEqual([
       wires[1],
       wires[2],
@@ -445,7 +456,7 @@ describe("the order a drawing's wires are drawn in", () => {
   });
 
   it("keeps the drawing's own order within each of the two", () => {
-    const alight = (wire: Wire) => wirePins(wire)[0]!.startsWith("sw1");
+    const alight = (wire: Wire) => Number(wirePins(wire)[0]!.startsWith("sw1"));
     expect(litLast(wires, alight)).toEqual([
       wires[0],
       wires[3],
@@ -458,7 +469,7 @@ describe("the order a drawing's wires are drawn in", () => {
     // With a predicate that reorders: a rule that sorted in place would pass
     // against one that lights everything, every comparison there being a tie.
     const given = [...wires];
-    litLast(given, (wire) => wirePins(wire)[0] === "a.B");
+    litLast(given, (wire) => Number(wirePins(wire)[0] === "a.B"));
     expect(given).toEqual(wires);
   });
 });

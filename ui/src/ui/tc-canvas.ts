@@ -51,7 +51,7 @@ import {
   type Chosen,
 } from "../model/inspect.js";
 import type { Machine, Outcome } from "../model/machine.js";
-import type { Aspect, Marker, Overlay } from "../model/panel.js";
+import { CLAIMS, type Aspect, type Marker, type Overlay } from "../model/panel.js";
 import { pinched, type Pair } from "../model/pinch.js";
 import { anchorAt, arrowPose, fitBox, type Box } from "../model/scene.js";
 import { photoUrl, UNREVIEWED, type Review } from "../model/store.js";
@@ -64,8 +64,9 @@ import {
   n,
   widgetFace,
   widgetSample,
+  type Lighting,
 } from "../render/artwork.js";
-import { wiring, type Stroke, type Wiring } from "../render/wires.js";
+import { wiring, type Stroke, type Wiring, type Worn } from "../render/wires.js";
 import { BLOCK, FACE, PIN, PORTAL, RING, fitted } from "../render/units.js";
 import type { Position } from "../symbols.generated.js";
 import { canvasStyles, exportStyles } from "./tc-canvas.styles.js";
@@ -79,25 +80,27 @@ const NAMED_FOR = 3000;
 
 /**
  * What the canvas lights, worked out once a render: the legs of the symbols on
- * a way, and the classes each lit wire carries.
+ * a way and how each is drawn, and what each lit wire wears.
  *
  * Both modes light a way, and one rule emits it. The editor lights the transit
  * chosen in the netlist pane, or the way a refusal is about, in the red that
  * means derivation stopped (ADR-0024); the run view lights a committed route
- * in the three colours the dispatcher's claim on it reads in (ui/PANEL.md).
+ * in its train's colour, at the width the dispatcher's claim on it reads in
+ * (ui/PANEL.md).
  *
  * A **way** and not a **route** (GLOSSARY.md): what is drawn is the path
  * through a connection, symbol by symbol and leg by leg, whoever asked for it.
  * `model/panel.ts`'s `LitRoute` is the request-level answer, and it is a
- * separate type that this one is built from in run mode — it carries a
- * per-symbol claim map the editor never fills, and this one carries a
- * whole-way refusal flag the panel never fills.
+ * separate type that this one is built from in run mode — it carries claims
+ * and trains the editor never has, and this one carries a whole-way refusal
+ * flag the panel never fills.
  */
 interface LitWay {
-  legs: Map<string, Set<string>>;
-  /** Wire, as `wireKey` names it → the classes it wears beyond `wire`. A wire
-   *  that is not lit is absent. */
-  wires: Map<string, string>;
+  /** symbol → leg → how it is drawn. */
+  legs: Map<string, ReadonlyMap<string, Lighting>>;
+  /** Wire, as `wireKey` names it → what it wears. A wire that is not lit is
+   *  absent. */
+  wires: Map<string, Worn>;
   /** Whether the way is one a refusal is about rather than one chosen. */
   refused: boolean;
 }
@@ -355,17 +358,31 @@ export class TcCanvas extends LitElement {
    * that means derivation stopped (ADR-0024). The two never arrive together: a
    * drawing that refuses has no netlist to choose from.
    *
-   * In run mode it is the committed route, already walked and already coloured
-   * by the panel model — the same claim, made by the dispatcher instead of the
-   * pointer.
+   * In run mode it is the committed routes, already walked by the panel
+   * model, each leg and wire with its claim and its train's colour — the same
+   * claim, made by the dispatcher instead of the pointer.
    */
   private lighting(): LitWay {
     const live = this.running;
     if (live !== null) {
+      const tint = (train: string) => {
+        const colour = live.colours.get(train);
+        return colour === undefined ? {} : { colour: `var(--train-${colour})` };
+      };
       return {
-        legs: live.lit.legs,
+        legs: new Map(
+          [...live.lit.legs].map(([symbol, legs]) => [
+            symbol,
+            new Map(
+              [...legs].map(([leg, { claim, train }]) => [leg, { claim, ...tint(train) }]),
+            ),
+          ]),
+        ),
         wires: new Map(
-          [...live.lit.wires].map(([key, claim]) => [key, `lit ${claim}`]),
+          [...live.lit.wires].map(([key, { claim, train }]) => [
+            key,
+            { classes: `lit ${claim}`, ...tint(train) },
+          ]),
         ),
         refused: false,
       };
@@ -377,9 +394,14 @@ export class TcCanvas extends LitElement {
     // line itself rather than inherited from one.
     const marked = refused ? "lit offending" : "lit";
     return {
-      legs: lit(ways),
+      legs: new Map(
+        [...lit(ways)].map(([symbol, legs]) => [
+          symbol,
+          new Map([...legs].map((leg) => [leg, {}])),
+        ]),
+      ),
       wires: new Map(
-        [...litWires(ways, this.document.wires)].map((key) => [key, marked]),
+        [...litWires(ways, this.document.wires)].map((key) => [key, { classes: marked }]),
       ),
       refused,
     };
@@ -387,15 +409,28 @@ export class TcCanvas extends LitElement {
 
   /** Every stroke of the wires — a line for each wire's straight part, a
    *  curve for each corner (`wiring`) — in the order `inspect.litLast` puts
-   *  them in, so a crossing unlit one cannot half hide a lit one. */
+   *  them in: the unlit, then the lit, and on a run from the weakest claim to
+   *  the strongest, so a wider line is always over a thinner one. A committed
+   *  stroke is a thin line along the middle of the wire, so it is also drawn
+   *  plain among the unlit ones, where no plain end can cover a thin line. */
   private wires(strokes: readonly Stroke[]): unknown {
-    const alight = (stroke: Stroke) => stroke.worn !== undefined;
-    return litLast(strokes, alight).map(({ from, to, round, worn }) => {
-      const wears = worn === undefined ? "wire" : `wire ${worn}`;
+    const alight = ({ worn }: Stroke) => {
+      if (worn === undefined) return 0;
+      const at = CLAIMS.findIndex((claim) => worn.classes.split(" ").includes(claim));
+      return at < 0 ? 1 : 1 + CLAIMS.length - at;
+    };
+    const drawn = strokes.flatMap((stroke) =>
+      stroke.worn?.classes.split(" ").includes("committed") === true
+        ? [{ ...stroke, worn: undefined }, stroke]
+        : [stroke],
+    );
+    return litLast(drawn, alight).map(({ from, to, round, worn }) => {
+      const wears = worn === undefined ? "wire" : `wire ${worn.classes}`;
+      const style = worn?.colour === undefined ? nothing : `--train: ${worn.colour}`;
       return round === undefined
-        ? svg`<line class=${wears} x1=${n(from.x)} y1=${n(from.y)}
+        ? svg`<line class=${wears} style=${style} x1=${n(from.x)} y1=${n(from.y)}
                     x2=${n(to.x)} y2=${n(to.y)} />`
-        : svg`<path class=${wears} d=${`M${n(from.x)} ${n(from.y)} Q${n(round.x)} ${n(round.y)} ${n(to.x)} ${n(to.y)}`} />`;
+        : svg`<path class=${wears} style=${style} d=${`M${n(from.x)} ${n(from.y)} Q${n(round.x)} ${n(round.y)} ${n(to.x)} ${n(to.y)}`} />`;
     });
   }
 
@@ -412,6 +447,7 @@ export class TcCanvas extends LitElement {
       return svg`
         <g
           class=${this.worn(name, lighting, target?.block)}
+          style=${this.tinted(name)}
           data-symbol=${name}
           transform=${`translate(${shifted.x} ${shifted.y})`}
         >
@@ -441,13 +477,11 @@ export class TcCanvas extends LitElement {
    * What a symbol's group wears beyond `symbol`.
    *
    * Edit mode marks what is selected and what a refusal is about. Run mode
-   * marks how strong a claim the run has on it: a block wears its own state
-   * and a junction symbol the strongest claim any transit through it carries,
-   * and a block being on no transit's way, the two never meet on one symbol.
-   * Occupancy outranks both, which is what reading the block's state first
-   * says (ui/PANEL.md). A point a click would throw wears `offered`, which is
-   * the click cursor (ADR-0068), and a reported point holding a train wears
-   * `stuck` (ADR-0097).
+   * marks a block with its own state; a junction symbol's legs carry their
+   * own claims (`lighting`), so its group wears none (ui/PANEL.md). A point
+   * a click would throw wears `offered`, which is the click cursor
+   * (ADR-0068), and a reported point holding a train wears `stuck`
+   * (ADR-0097).
    */
   private worn(
     name: string,
@@ -462,7 +496,7 @@ export class TcCanvas extends LitElement {
             lighting.refused && lighting.legs.has(name) ? "offending" : "",
           ]
         : [
-            live.blocks.get(name)?.state ?? live.lit.state.get(name) ?? "",
+            live.blocks.get(name)?.state ?? "",
             live.blocks.get(name)?.dispute === undefined ? "" : "disputed",
             live.stuck.has(name) ? "stuck" : "",
             name === target ? "target" : "",
@@ -471,6 +505,16 @@ export class TcCanvas extends LitElement {
     return ["symbol", ...marked]
       .filter((one) => one !== "" && one !== "free")
       .join(" ");
+  }
+
+  /** The colour a block's outline and wash are drawn in, set on its group as
+   *  `--train`: the colour of the train standing, holding or heading there.
+   *  None where the block is free, or its train is not in the roster, which
+   *  the stylesheet draws in `--hint`. */
+  private tinted(name: string): string | typeof nothing {
+    const train = this.running?.blocks.get(name)?.train;
+    const colour = train === undefined ? undefined : this.running!.colours.get(train);
+    return colour === undefined ? nothing : `--train: var(--train-${colour})`;
   }
 
   /** Where a point is drawn lying, `undefined` for a symbol drawn with every

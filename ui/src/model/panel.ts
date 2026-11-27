@@ -19,6 +19,7 @@
  * there is no cold start to seed and nothing two tabs can disagree about.
  */
 
+import type { TrainColour } from "../colour.generated.js";
 import type { PlacementRefusal, Reason } from "../rejection.generated.js";
 import type { Aspect, Reading } from "../render/artwork.js";
 import type { Position } from "../symbols.generated.js";
@@ -52,8 +53,8 @@ export type FacingRef = string;
  * the dispatcher holds as occupied from the grant until the move ends;
  * `locked` where it holds the lock and the train may move; `committed` where
  * the route is chosen and the claim has not been made yet. The same words a
- * block view uses, so blocks, transits and wires take their colour from one
- * rule (ui/PANEL.md).
+ * block view uses, so blocks, transits and wires are drawn by one rule
+ * (ui/PANEL.md).
  *
  * Named for the pair and not for one of them: ui/PANEL.md builds a request out
  * of three layers and defines the third as the locked one specifically, so a
@@ -61,7 +62,7 @@ export type FacingRef = string;
  */
 export type Claim = "occupied" | "locked" | "committed";
 
-/** Strongest first: where two claims land on one symbol or wire, the one
+/** Strongest first: where two claims land on one leg or wire, the one
  *  earlier here is drawn. */
 export const CLAIMS: readonly Claim[] = ["occupied", "locked", "committed"];
 
@@ -74,18 +75,24 @@ export interface Ahead {
   claim: Claim;
 }
 
-/** What a committed route lights: the legs of each symbol its transits cross,
- *  the wires those transits are drawn over, and how strong a claim each
- *  carries. One answer, because a route reads as one run and the component
- *  paints it as one. */
+/** A claim on a leg or a wire and the train holding it: the lock holder for
+ *  a locked one, the train whose `occupied` list it is on for an occupied
+ *  one, and the request's train for a committed one. */
+export interface Held {
+  claim: Claim;
+  train: string;
+}
+
+/** What the routes light: the legs of each symbol their transits cross and
+ *  the wires those transits are drawn over, each with its claim and the
+ *  train holding it. One answer, because a route reads as one run and the
+ *  component paints it as one. */
 export interface LitRoute {
-  /** symbol → the legs of it the route takes, `WHOLE` for a symbol with no
-   *  legs of its own. */
-  legs: Map<string, Set<string>>;
-  /** symbol → the strongest claim any transit through it carries. */
-  state: Map<string, Claim>;
-  /** wire, as `wireKey` names it → the claim its transit carries. */
-  wires: Map<string, Claim>;
+  /** symbol → leg → its claim, `WHOLE` for a symbol with no legs of its
+   *  own. */
+  legs: Map<string, Map<string, Held>>;
+  /** wire, as `wireKey` names it → its claim. */
+  wires: Map<string, Held>;
 }
 
 export type { Aspect, Reading };
@@ -302,6 +309,18 @@ export interface Overlay {
    *  The roster's and not this model's, read as `RosterRow.locomotive` is
    *  (`locomotives`). */
   locomotives: ReadonlyMap<string, string>;
+  /** train → its colour, for each train the roster has (`colours`). A train
+   *  it does not have, such as the holder of a lock left behind, is absent,
+   *  and drawn in `--hint`. */
+  colours: ReadonlyMap<string, TrainColour>;
+}
+
+/** train → its colour, for each train in the roster the photos are read
+ *  from (`locomotives`), so a route and its train's row agree. */
+export function colours(
+  stock: Record<string, Pick<TrainDoc, "colour">>,
+): Map<string, TrainColour> {
+  return new Map(Object.entries(stock).map(([train, { colour }]) => [train, colour]));
 }
 
 /**
@@ -1211,7 +1230,10 @@ export class Panel {
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
       for (const resource of request.route ?? []) {
-        if (resource in this.layout.blocks) committed.set(resource, request.train);
+        // The earlier request's, as on a leg two committed routes share.
+        if (resource in this.layout.blocks && !committed.has(resource)) {
+          committed.set(resource, request.train);
+        }
       }
     }
     const occupying = new Map<string, string>();
@@ -1401,9 +1423,9 @@ export class Panel {
 
   /**
    * What the committed routes light: the legs of the symbols their transits
-   * cross, in the shape `inspect.lit` gives the canvas — `""` from the store
-   * means the symbol has no legs of its own and lights whole — the wires
-   * those transits are drawn over, and how strong a claim each carries.
+   * cross, keyed as `inspect.lit` keys them — `""` from the store means the
+   * symbol has no legs of its own and lights whole — the wires those
+   * transits are drawn over, and the claim on each and the train holding it.
    *
    * `locked` is read from the lock ledger alone, not from a route intersected
    * with it, which is how the block view already works. Its consequence is
@@ -1415,39 +1437,40 @@ export class Panel {
    * drops it there, the dispatcher's own word that the tail has been seen to
    * leave it (#1116, #1172): nothing detects a train on a transit.
    *
-   * Where a throat symbol is carried by transits of different claims at the
-   * same time, the strongest wins — occupied over locked over committed, as
-   * the block view rules it. That slightly overstates the weaker transit's
-   * leg on a shared symbol (ui/PANEL.md).
+   * Claim and train are kept per leg and per wire. Where one is carried by
+   * more than one claim, the strongest wins — occupied over locked over
+   * committed, as the block view rules it — and of two committed routes, the
+   * request earlier in the request list (ui/PANEL.md).
    */
   lit(): LitRoute {
-    const legs = new Map<string, Set<string>>();
-    const state = new Map<string, Claim>();
-    const wires = new Map<string, Claim>();
-    const stronger = (claim: Claim, held: Claim | undefined) =>
-      held === undefined || CLAIMS.indexOf(claim) < CLAIMS.indexOf(held);
-    const light = (resource: string, claim: Claim) => {
+    const legs = new Map<string, Map<string, Held>>();
+    const wires = new Map<string, Held>();
+    const stronger = (claim: Claim, held: Held | undefined) =>
+      held === undefined || CLAIMS.indexOf(claim) < CLAIMS.indexOf(held.claim);
+    const light = (resource: string, claim: Claim, train: string) => {
       const way = this.ways.get(resource);
       if (way === undefined) return; // a block, or a transit off this drawing
-      for (const [symbol, leg] of way.legs) {
-        const taken = legs.get(symbol) ?? new Set<string>();
-        taken.add(leg === "" ? WHOLE : leg);
+      for (const [symbol, named] of way.legs) {
+        const taken = legs.get(symbol) ?? new Map<string, Held>();
+        const leg = named === "" ? WHOLE : named;
+        if (stronger(claim, taken.get(leg))) taken.set(leg, { claim, train });
         legs.set(symbol, taken);
-        if (stronger(claim, state.get(symbol))) state.set(symbol, claim);
       }
       for (const wire of way.wires) {
-        if (stronger(claim, wires.get(wire))) wires.set(wire, claim);
+        if (stronger(claim, wires.get(wire))) wires.set(wire, { claim, train });
       }
     };
-    for (const listed of this.occupied.values()) {
-      for (const resource of listed) light(resource, "occupied");
+    for (const [train, listed] of this.occupied) {
+      for (const resource of listed) light(resource, "occupied", train);
     }
-    for (const resource of this.locks.keys()) light(resource, "locked");
+    for (const [resource, train] of this.locks) light(resource, "locked", train);
     for (const request of this.requests.values()) {
       if (request.phase !== "committed") continue;
-      for (const resource of request.route ?? []) light(resource, "committed");
+      for (const resource of request.route ?? []) {
+        light(resource, "committed", request.train);
+      }
     }
-    return { legs, state, wires };
+    return { legs, wires };
   }
 
   /**

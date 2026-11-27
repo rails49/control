@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Drawing, SymbolSpec, Wire } from "../src/model/drawing.js";
 import type { Point } from "../src/model/geometry.js";
-import { wiring, type Stroke } from "../src/render/wires.js";
+import { wiring, type Stroke, type Worn } from "../src/render/wires.js";
 
 function drawing(symbols: Record<string, SymbolSpec>, wires: Wire[]): Drawing {
   return { drawing: "test", symbols, wires };
@@ -13,7 +13,7 @@ function bend(c: number, r: number): SymbolSpec {
   return { kind: "pin", at: [c, r] };
 }
 
-const UNLIT = new Map<string, string>();
+const UNLIT = new Map<string, Worn>();
 
 function near(got: Point | undefined, x: number, y: number): void {
   expect(got?.x).toBeCloseTo(x);
@@ -151,17 +151,25 @@ describe("a bend whose two wires are not in line", () => {
   });
 
   it("lights a corner as the more strongly claimed of its two wires", () => {
-    const corner = (worn: Record<string, string>) =>
+    const corner = (worn: Record<string, Worn>) =>
       parts(wiring(dogleg, new Map(Object.entries(worn))).strokes).corners[0]!;
     expect(corner({}).worn).toBeUndefined();
-    expect(corner({ "p1.P west.B": "lit" }).worn).toBe("lit");
-    expect(corner({ "p1.P p2.P": "lit offending" }).worn).toBe("lit offending");
+    expect(corner({ "p1.P west.B": { classes: "lit" } }).worn).toEqual({ classes: "lit" });
+    expect(corner({ "p1.P p2.P": { classes: "lit offending" } }).worn).toEqual({
+      classes: "lit offending",
+    });
     expect(
-      corner({ "p1.P west.B": "lit committed", "p1.P p2.P": "lit locked" }).worn,
-    ).toBe("lit locked");
+      corner({
+        "p1.P west.B": { classes: "lit committed", colour: "var(--train-teal)" },
+        "p1.P p2.P": { classes: "lit locked", colour: "var(--train-gold)" },
+      }).worn,
+    ).toEqual({ classes: "lit locked", colour: "var(--train-gold)" });
     expect(
-      corner({ "p1.P west.B": "lit occupied", "p1.P p2.P": "lit locked" }).worn,
-    ).toBe("lit occupied");
+      corner({
+        "p1.P west.B": { classes: "lit occupied" },
+        "p1.P p2.P": { classes: "lit locked" },
+      }).worn,
+    ).toEqual({ classes: "lit occupied" });
   });
 
   it("tells the canvas the bend's own dot is off the track", () => {
@@ -401,9 +409,9 @@ describe("a wire leaving a symbol's pin out of line with its track", () => {
         { west: { kind: "block", at: [0, 0] }, p1: bend(8, 2) },
         [["west.B", "p1.P"]],
       ),
-      new Map([["p1.P west.B", "lit locked"]]),
+      new Map([["p1.P west.B", { classes: "lit locked" }]]),
     );
-    expect(parts(strokes).corners[0]!.worn).toBe("lit locked");
+    expect(parts(strokes).corners[0]!.worn).toEqual({ classes: "lit locked" });
   });
 
   it("moves with a symbol a drag is carrying", () => {

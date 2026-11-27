@@ -20,7 +20,7 @@ import { positionsBySymbol } from "../src/model/scene.js";
 import type { Explained, Layout } from "../src/model/store.js";
 import type { TraceEvent } from "../src/model/trace.js";
 import { TRANSITS, type Position } from "../src/symbols.generated.js";
-import { artwork } from "../src/render/artwork.js";
+import { artwork, type Lighting } from "../src/render/artwork.js";
 import { canvasStyles } from "../src/ui/tc-canvas.styles.js";
 
 /** Every stroke the symbol draws, in the order drawn. */
@@ -45,7 +45,7 @@ function strokes(kind: SymbolSpec["kind"], position?: Position): string[] {
  *  ends: every leg runs from the toe to the pin it is named for. */
 function turnoutLegs(
   spec: SymbolSpec,
-  lit?: ReadonlySet<string>,
+  lit?: ReadonlyMap<string, Lighting>,
   position?: Position,
 ): Map<string, SVGPathElement> {
   const root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -148,9 +148,9 @@ describe("a point drawn in a position", () => {
 describe("a turnout's legs", () => {
   /** The editor and the palette (nothing lit, no position), a lit way, and a
    *  run with the point lying either way. */
-  const modes: [string, ReadonlySet<string> | undefined, Position | undefined][] = [
+  const modes: [string, ReadonlyMap<string, Lighting> | undefined, Position | undefined][] = [
     ["the editor", undefined, undefined],
-    ["a lit way", new Set([WHOLE]), undefined],
+    ["a lit way", new Map([[WHOLE, {}]]), undefined],
     ["a run, closed", undefined, "closed"],
     ["a run, thrown", undefined, "thrown"],
   ];
