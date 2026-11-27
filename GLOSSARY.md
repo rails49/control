@@ -237,6 +237,10 @@ length and kind derive from its cars, and a railroad keeps it between sessions
 ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
 _Avoid_: consist
 
+**Train colour**:
+The colour a train's route and marks wear on the panel: one of a fixed list, kept with the train ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
+_Avoid_: route colour
+
 **Orientation**:
 Which way round a car is coupled in its train. With the train's facing it gives
 a direction on the track ([LAYOUT.md](docs/store/LAYOUT.md#roster-schema)).
