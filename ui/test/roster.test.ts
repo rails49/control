@@ -188,6 +188,26 @@ describe("what the pane lists", () => {
     expect(roster.renderRoot.querySelector("tbody tr .photo")).not.toBeNull();
   });
 
+  /** So a person can match a row to its train's route (#1410). A train the
+   *  picture has and the trains read does not has its dot in the hint
+   *  colour. */
+  it("starts each name with a dot in the train's colour", async () => {
+    const roster = document.createElement("tc-roster");
+    roster.colours = new Map([["goods", "teal"]]);
+    roster.trains = [
+      { train: "goods", block: "a", length: 400, placed: true, locomotive: null },
+      { train: "stray", block: "b", length: null, placed: true, locomotive: null },
+    ];
+    document.body.append(roster);
+    await roster.updateComplete;
+    const names = [...roster.renderRoot.querySelectorAll("tbody .name")];
+    expect(names.map((name) => name.firstElementChild!.className)).toEqual(["dot", "dot"]);
+    expect(names.map((name) => name.firstElementChild!.getAttribute("style"))).toEqual([
+      "--train: var(--train-teal)",
+      "--train: var(--hint)",
+    ]);
+  });
+
   /** Why the last placement was refused is said where the train is, which
    *  is where a person looks after letting go of the row (#1011). */
   it("says why a train's placement was refused in place of where it is", async () => {
@@ -559,6 +579,16 @@ describe("what fills it in a live session", () => {
     expect(rows(paneOf(shell))).toEqual([
       ["goods", "400", "a"],
       ["shunter", "200", "off the layout"],
+    ]);
+  });
+
+  /** The colour is the trains read's, which names both trains orange. */
+  it("dots each train in its colour from the trains read", async () => {
+    const shell = await joined();
+    const dots = [...paneOf(shell).renderRoot.querySelectorAll("tbody .name .dot")];
+    expect(dots.map((dot) => dot.getAttribute("style"))).toEqual([
+      "--train: var(--train-orange)",
+      "--train: var(--train-orange)",
     ]);
   });
 

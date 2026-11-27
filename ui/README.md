@@ -163,6 +163,8 @@ src/
                    entries and the requests as a table, a cancel on each
                    request, a drag to reorder the waiting ones
     requests-row.ts  a row of that list: its cells and its "waits for" line
+    train-dot.ts   the dot in a train's colour before its name in the roster
+                   pane and that list
     tc-entry.ts    an entry's open row in that list: its time, arrival
                    ends, dwell and description, and Delete
     tc-timetable-controls.ts  the controls in that list's heading: the menu,

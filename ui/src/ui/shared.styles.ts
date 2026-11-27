@@ -141,6 +141,23 @@ export const heading = css`
 `;
 
 /**
+ * Whole rule set. The dot before a train's name in `tc-roster` and
+ * `tc-requests` (#1410): round, a little smaller than the text, and in the
+ * colour its element sets as `--train` (`train-dot.ts`).
+ */
+export const dot = css`
+  .dot {
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    margin-inline-end: 0.35em;
+    border-radius: 50%;
+    background: var(--train);
+    vertical-align: 0.05em;
+  }
+`;
+
+/**
  * Whole rule sets. The symbols themselves, drawn the same on the canvas and
  * on a palette tile: both are the symbol's own coordinates, one grid square to
  * one user unit, so one set of rules serves both and a tile shows what will be

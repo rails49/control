@@ -68,6 +68,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { keyed } from "lit/directives/keyed.js";
 
+import type { TrainColour } from "../colour.generated.js";
 import type { RequestRow } from "../model/requests.js";
 import {
   asking,
@@ -108,6 +109,10 @@ export class TcRequests extends LitElement {
 
   /** The loaded timetable, `null` for none. */
   @property({ attribute: false }) timetable: Timetable | null = null;
+
+  /** Each train's colour, from the trains read, for the dot before its name
+   *  (#1410). A train missing from it has its dot in the hint colour. */
+  @property({ attribute: false }) colours: ReadonlyMap<string, TrainColour> = new Map();
 
   /** The names of the railroad's blocks, which an open row's To field takes
    *  (`tc-entry`). */
@@ -231,6 +236,7 @@ export class TcRequests extends LitElement {
   private row(row: ListRow, open: boolean) {
     const { entry, request } = row;
     const pickable = this.live && request?.state === "waiting";
+    const colour = this.colours.get(request?.train ?? entry!.train);
     const classes =
       request === undefined
         ? ["still", done(row) ? "done" : ""]
@@ -244,7 +250,7 @@ export class TcRequests extends LitElement {
         @pointercancel=${() => (this.held = null)}
         @click=${(event: MouseEvent) => this.tapped(event, entry)}
       >
-        ${cells(row, this.actions())} ${note(row)}
+        ${cells(row, this.actions(), colour)} ${note(row)}
         ${entry !== undefined && open ? this.fields(entry) : nothing}
       </li>
     `;

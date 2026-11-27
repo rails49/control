@@ -10,6 +10,7 @@
 import { render } from "lit";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { TrainColour } from "../src/colour.generated.js";
 import type { RequestRow } from "../src/model/requests.js";
 import type { Entry, ListRow } from "../src/model/timetable.js";
 import { cells, note, type RowActions } from "../src/ui/requests-row.js";
@@ -34,10 +35,11 @@ const MEETS: Entry = {
   description: "meets the express",
 };
 
-/** The row's cells drawn into an element of their own. */
-function drawn(row: ListRow, actions: RowActions = LIVE): HTMLElement {
+/** The row's cells drawn into an element of their own, its train in
+ *  `colour`. */
+function drawn(row: ListRow, actions: RowActions = LIVE, colour?: TrainColour): HTMLElement {
   const element = document.createElement("li");
-  render(cells(row, actions), element);
+  render(cells(row, actions, colour), element);
   document.body.append(element);
   return element;
 }
@@ -115,6 +117,20 @@ describe("a row's cells", () => {
       "meets the express",
       "waiting",
     ]);
+  });
+
+  /** So a person can match a row to its train's route (#1410). */
+  it("start the train's name with a dot in the train's colour", () => {
+    const train = drawn({ request: GOODS }, LIVE, "teal").querySelector(".train")!;
+    const dot = train.firstElementChild!;
+    expect(dot.className).toBe("dot");
+    expect(dot.getAttribute("style")).toBe("--train: var(--train-teal)");
+    expect(train.textContent!.trim()).toBe("goods");
+  });
+
+  it("give a train missing from the trains read a dot in the hint colour", () => {
+    const dot = drawn({ entry: MEETS, state: "later" }).querySelector(".train .dot")!;
+    expect(dot.getAttribute("style")).toBe("--train: var(--hint)");
   });
 
   it("read where the train stops in State while a cancel is held", () => {
