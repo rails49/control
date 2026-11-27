@@ -9,6 +9,8 @@
  * declares.
  */
 
+import type { TrainColour } from "../colour.generated.js";
+
 /** Track and wire width, W = f·G with f = 0.15. Everything below is written in
  *  terms of it where it is really a track dimension, and in G where it is a
  *  distance along the grid. */
@@ -193,6 +195,43 @@ export const RING = {
 export const NOTE = 0.22;
 
 /**
+ * One value for each train colour (LAYOUT.md#roster-schema), as the palette
+ * entry `--train-<name>`. Keyed by the generated union, so a name without a
+ * value does not compile.
+ *
+ * Each shows against the paper at 3:1 or more, and is at least 0.1 apart in
+ * OKLab from the other nine and from `--wrong`, `--green`, `--chosen`,
+ * `--unfinished`, `--hint` and `--track` in its theme (`test/styles.test.ts`).
+ */
+type TrainEntries = Record<`--train-${TrainColour}`, string>;
+
+const TRAIN: TrainEntries = {
+  "--train-orange": "#e0620a",
+  "--train-purple": "#7438b0",
+  "--train-brown": "#8b4513",
+  "--train-pink": "#de3c8c",
+  "--train-olive": "#5f6e14",
+  "--train-teal": "#00857a",
+  "--train-navy": "#1f2f78",
+  "--train-magenta": "#a8189a",
+  "--train-gold": "#b07f00",
+  "--train-maroon": "#7a1530",
+};
+
+const TRAIN_DARK: TrainEntries = {
+  "--train-orange": "#f5862a",
+  "--train-purple": "#b072e6",
+  "--train-brown": "#b5814f",
+  "--train-pink": "#f78fbb",
+  "--train-olive": "#a3a33a",
+  "--train-teal": "#2ec4b6",
+  "--train-navy": "#6468b8",
+  "--train-magenta": "#e04ccc",
+  "--train-gold": "#ebc94a",
+  "--train-maroon": "#c24660",
+};
+
+/**
  * The palette, as the custom properties the stylesheets read. Track is black
  * and a block's rectangle white in edit mode; run mode recolours by toggling
  * classes rather than by editing these.
@@ -250,6 +289,7 @@ export const COLOURS: Record<string, string> = {
   // left is what the panes still read.
   "--tint-1": "#14866d",
   "--tint-2": "#a55b12",
+  ...TRAIN,
 };
 
 /**
@@ -260,8 +300,8 @@ export const COLOURS: Record<string, string> = {
  * `test/styles.test.ts` asserts every colour has a value here.
  *
  * The values are not inversions. Track and ink swap ends, because the paper
- * does; a signal lamp, a route's green and cyan, and the two weights a fault is
- * marked in keep their hue and are lifted until they carry on the dark ground,
+ * does; a signal lamp, a route's green and cyan, a train colour, and the two
+ * weights a fault is marked in keep their hue and are lifted until they carry on the dark ground,
  * since what each colour *means* is the same page of look's `docs/LOOK.md` in
  * either theme. A pale ground — a lit block body, a red one — becomes a dark
  * ground of the same hue rather than a pale one on a dark page.
@@ -294,4 +334,5 @@ export const DARK: Record<string, string> = {
   "--wrong-body": "#3d2125",
   "--tint-1": "#2fb99a",
   "--tint-2": "#e09a4a",
+  ...TRAIN_DARK,
 };
