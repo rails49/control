@@ -198,18 +198,15 @@ export const drivingStyles = css`
     font: 700 15px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
 
-  /* The two colours a route is lit in on the run view (ui/PANEL.md): green
-     where the dispatcher holds the lock, cyan where the route is chosen. */
+  /* Outlined as the run view outlines a block (ui/PANEL.md): solid where the
+     dispatcher holds the lock, dashed where the route is only chosen. */
   .block.locked {
-    border-color: color-mix(in srgb, var(--locked) 45%, transparent);
-    background: color-mix(in srgb, var(--locked) 10%, transparent);
-    color: var(--locked);
+    border-color: var(--ink);
   }
 
   .block.committed {
-    border-color: color-mix(in srgb, var(--committed) 45%, transparent);
-    background: color-mix(in srgb, var(--committed) 10%, transparent);
-    color: var(--committed);
+    border-color: var(--ink);
+    border-style: dashed;
   }
 
   .block.none {

@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-import { NOTE, RING, W } from "../render/units.js";
+import { BLOCK, NOTE, RING, W } from "../render/units.js";
 import { palette, symbols } from "./shared.styles.js";
 
 /**
@@ -248,71 +248,78 @@ const editing = css`
 /** What only the running surface wears: a live session painted over the
  *  drawing (ui/PANEL.md). */
 const running = css`
-  /* A committed route in three colours (ui/PANEL.md): red on the transit a
-     train is crossing, which nothing detects and the dispatcher holds as
-     occupied from the grant until the move ends; green where the dispatcher
-     holds the lock and the train may move; cyan where the route is chosen and
-     the claim has not been made yet. The state rides on the
-     symbol's group and on the wire, and the rules descend from there onto the
-     lit classes that already exist, so what is lit stays one answer with one
-     shape.
+  /* A route in its train's colour, the claim read in the line's width
+     (ui/PANEL.md): widest on the track a train is on, today's lit width where
+     the dispatcher holds the lock, and a thin line along the middle of the
+     plain track where the route is chosen and the claim has not been made
+     yet. The claim is a class on each leg and wire, and the colour arrives on
+     the element as --train, so there is one rule per claim and none per
+     colour. A part whose train the roster lacks has no --train and is drawn
+     in the hint grey. The artwork and the canvas draw the weaker claims
+     first, so a wider line is always over a thinner one. Track and wires are
+     never dashed: a dash's spacing would vary with a wire's angle. */
+  .symbol .track.lit.occupied,
+  .wire.lit.occupied {
+    stroke: var(--train, var(--hint));
+    stroke-width: ${2.2 * W};
+  }
 
-     Block state, strongest first: a train standing there, a lock holding the
-     empty block ahead of it, a committed route not yet locked this far. A
-     block is on no transit's way, so it takes its state from the block view
-     and a junction symbol takes its from the route; occupancy outranks both.
+  .symbol .track.lit.locked,
+  .wire.lit.locked {
+    stroke: var(--train, var(--hint));
+    stroke-width: ${1.6 * W};
+  }
 
-     The pale ground a block body wears is mixed from its own stroke rather
-     than named a second time, so one value moves a colour and its wash
-     together and they cannot disagree. */
+  .symbol .track.lit.committed,
+  .wire.lit.committed {
+    stroke: var(--train, var(--hint));
+    stroke-width: ${0.5 * W};
+  }
+
+  /* A symbol is drawn over the wires, so a round end on its plain track would
+     cover the end of a thin committed line on the wire beyond. On a run every
+     pin has a wire, whose own round end fills the joint. */
+  :host([mode="run"]) .symbol .track:not(.lit) {
+    stroke-linecap: butt;
+  }
+
+  /* A bend's dot fills the corner, so it is as wide as the line. */
+  .symbol .bend.lit.occupied {
+    fill: var(--train, var(--hint));
+    r: ${1.1 * W};
+  }
+
+  .symbol .bend.lit.locked {
+    fill: var(--train, var(--hint));
+  }
+
+  .symbol .bend.lit.committed {
+    fill: var(--train, var(--hint));
+    r: ${0.25 * W};
+  }
+
+  /* Block state, strongest first: a train standing there, a lock holding the
+     empty block ahead of it, a committed route not yet locked this far. The
+     colour is the train's, set on the block's group. The pale ground of an
+     occupied block is mixed from its own stroke rather than named a second
+     time, so one value moves a colour and its wash together. A committed
+     block's outline is thin and dashed against a locked one's solid, so the
+     two are told apart without relying on hue. */
   .symbol.occupied .block-body {
-    fill: color-mix(in srgb, var(--wrong) 18%, var(--body));
-    stroke: var(--wrong);
+    fill: color-mix(in srgb, var(--train, var(--hint)) 18%, var(--body));
+    stroke: var(--train, var(--hint));
   }
 
   .symbol.locked .block-body {
-    fill: color-mix(in srgb, var(--locked) 18%, var(--body));
-    stroke: var(--locked);
+    fill: var(--body);
+    stroke: var(--train, var(--hint));
   }
 
-  /* Dashed against solid: cyan beside green is a hard pair for red-green
-     deficiency, and whether the train may move is the distinction worth a
-     channel that is not hue. Track and wires stay solid — a dash's spacing
-     would vary with a wire's angle, which is why track is never patterned. */
   .symbol.committed .block-body {
-    fill: color-mix(in srgb, var(--committed) 18%, var(--body));
-    stroke: var(--committed);
+    fill: var(--body);
+    stroke: var(--train, var(--hint));
+    stroke-width: ${0.5 * BLOCK.body.border};
     stroke-dasharray: ${2 * W} ${W};
-  }
-
-  /* A throat has no block body, so it is the part of the route left with hue
-     alone — and the part where which way is locked matters most. Recorded
-     rather than hidden (ui/PANEL.md). */
-  .symbol.occupied .track.lit,
-  .wire.lit.occupied {
-    stroke: var(--wrong);
-  }
-
-  .symbol.occupied .bend.lit {
-    fill: var(--wrong);
-  }
-
-  .symbol.locked .track.lit,
-  .wire.lit.locked {
-    stroke: var(--locked);
-  }
-
-  .symbol.locked .bend.lit {
-    fill: var(--locked);
-  }
-
-  .symbol.committed .track.lit,
-  .wire.lit.committed {
-    stroke: var(--committed);
-  }
-
-  .symbol.committed .bend.lit {
-    fill: var(--committed);
   }
 
   /* Where a point lies (GLOSSARY.md): the road its position does not offer is
