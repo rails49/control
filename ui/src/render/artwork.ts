@@ -38,7 +38,7 @@ import {
   type Point,
 } from "../model/geometry.js";
 import { WHOLE } from "../model/inspect.js";
-import { CLAIMS, type Claim } from "../model/panel.js";
+import { strength, type Claim } from "../model/panel.js";
 import {
   ansi,
   editorRuns,
@@ -515,7 +515,7 @@ function roads(
     if (set(legs)) return 0;
     const lighting = on(...legs);
     if (lighting === undefined) return 1;
-    return lighting.claim === undefined ? 2 : 2 + CLAIMS.length - CLAIMS.indexOf(lighting.claim);
+    return 2 + strength(lighting.claim);
   };
   return [...drawn]
     .sort((a, b) => layer(a.legs) - layer(b.legs))

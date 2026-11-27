@@ -66,6 +66,13 @@ export type Claim = "occupied" | "locked" | "committed";
  *  earlier here is drawn. */
 export const CLAIMS: readonly Claim[] = ["occupied", "locked", "committed"];
 
+/** How strong a claim is: `0` for a way lit with none, as the editor lights
+ *  one, and more for a claim earlier in `CLAIMS`. A stronger claim is drawn
+ *  over a weaker one. */
+export function strength(claim: Claim | undefined): number {
+  return claim === undefined ? 0 : CLAIMS.length - CLAIMS.indexOf(claim);
+}
+
 /** One block a train has ahead of it on the route it is committed to, and
  *  how strong a claim the dispatcher has on it. The two words a route is lit
  *  in, in a list rather than on a picture: what a person driving by hand
@@ -1446,7 +1453,7 @@ export class Panel {
     const legs = new Map<string, Map<string, Held>>();
     const wires = new Map<string, Held>();
     const stronger = (claim: Claim, held: Held | undefined) =>
-      held === undefined || CLAIMS.indexOf(claim) < CLAIMS.indexOf(held.claim);
+      held === undefined || strength(claim) > strength(held.claim);
     const light = (resource: string, claim: Claim, train: string) => {
       const way = this.ways.get(resource);
       if (way === undefined) return; // a block, or a transit off this drawing

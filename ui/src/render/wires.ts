@@ -17,7 +17,7 @@ import {
   type PinRef,
 } from "../model/drawing.js";
 import { legOf, localOf, unit, type Point } from "../model/geometry.js";
-import { CLAIMS } from "../model/panel.js";
+import { strength } from "../model/panel.js";
 import { pointOf, type Shift } from "../model/under.js";
 import { n, straightAt, type Cut, type Lighting } from "./artwork.js";
 import { CURVE } from "./units.js";
@@ -259,13 +259,11 @@ function along(from: Point, toward: Point, by: number): Point {
 }
 
 /** How the more strongly lit of two wires is lit: the lit one of a lit and an
- *  unlit, and of two a run lights, the one whose claim `CLAIMS` puts first. */
+ *  unlit, and of two a run lights, the one whose claim is the stronger. */
 function stronger(
   one: Lighting | undefined,
   two: Lighting | undefined,
 ): Lighting | undefined {
   if (one === undefined || two === undefined) return one ?? two;
-  const rank = ({ claim }: Lighting) =>
-    claim === undefined ? CLAIMS.length : CLAIMS.indexOf(claim);
-  return rank(two) < rank(one) ? two : one;
+  return strength(two.claim) > strength(one.claim) ? two : one;
 }
